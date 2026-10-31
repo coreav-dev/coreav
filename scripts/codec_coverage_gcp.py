@@ -4,8 +4,7 @@
 V1's host-limited files on one Compute Engine VM through scripts/gcp_vm_job.py.
 
     codec_coverage_gcp.py host --job NAME --oracle DIR [--fixtures DIR] [--bin DIR]
-    codec_coverage_gcp.py manifest --build FILE --hosts FILE... --set SET --shards N [--shard-counts FILE...]
-                                   --evidence-key SHA256 --out FILE
+    codec_coverage_gcp.py manifest --build FILE --public DIR... --set SET --shards N --evidence-key SHA256 --out FILE
     codec_coverage_gcp.py rerun --pending FILE --manifest FILE --bin DIR --out DIR [--jobs 4]
                                 [--max-hours 8] [--cap-usd 10] [--machine c4-standard-16 --usd-per-hour 1.20]
                                 [--local] [--dry-run]
@@ -15,7 +14,9 @@ host prints one job's host as JSON: the runner image and its version, the CPU mo
 kernel, the version line and SHA-256 of the pinned ffmpeg and ffprobe in DIR, with --fixtures the SHA-256 of the five
 inputs of V2 and V3, with --bin the SHA-256 of decode-oracle there.
 
-manifest puts the build's part (written by the workflow's build job) and the hosts together into the run manifest
+manifest puts the build's part (written by the workflow's build job) and the hosts (every host-*.json of the --public
+directories, with the V1 shards' counts, v1-*.json; a directory that is missing or empty adds nothing, as for a pull
+request, which runs no V1 shard) together into the run manifest
 and checks it against the plan's table: the full build with release-full and the three libraries, decode-oracle
 with native-h264, dav1d and libvpx, the ffmpeg test executable with release-full, x264 at the pin's commit, one
 pinned ffmpeg and ffprobe on every host, the pin's build in their version line, the evidence key's fingerprint,
@@ -139,8 +140,8 @@ def manifest_problems(build, hosts, set_name, shards, shard_counts, key, root=RO
 
 def manifest(args):
     build = json.loads(pathlib.Path(args.build).read_text())
-    hosts = [json.loads(pathlib.Path(p).read_text()) for p in args.hosts]
-    counts = [json.loads(pathlib.Path(p).read_text()) for p in args.shard_counts or []]
+    found = lambda pattern: [json.loads(p.read_text()) for d in args.public for p in sorted(pathlib.Path(d).glob(pattern))]
+    hosts, counts = found('host-*.json'), found('v1-*.json')
     problems = manifest_problems(build, hosts, args.set, args.shards, counts, args.evidence_key)
     first = hosts[0]['ffmpeg'] if hosts else None
     fixtures = next((h['fixtures'] for h in hosts if 'fixtures' in h), None)
@@ -312,10 +313,9 @@ def main():
     p.add_argument('--bin')
     p = sub.add_parser('manifest')
     p.add_argument('--build', required=True)
-    p.add_argument('--hosts', nargs='+', required=True)
+    p.add_argument('--public', nargs='+', required=True, help='directories of the jobs\' public artifacts')
     p.add_argument('--set', required=True, choices=('fixtures', 'rehearsal', 'v1'))
     p.add_argument('--shards', type=int, required=True)
-    p.add_argument('--shard-counts', nargs='*')
     p.add_argument('--evidence-key', required=True)
     p.add_argument('--out', required=True)
     p = sub.add_parser('rerun')

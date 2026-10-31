@@ -292,7 +292,9 @@ def framemd5_command(ffmpeg, path, ext, stream_index, n, backend, codec, pix_fmt
     configured once and never rebuilt (`-reinit_filter 0`); with it, which
     keeps a format filter configured for the first frame, the graph is rebuilt
     and every frame is relabelled with the same unknown colour description
-    (`setparams`), so the rebuilt graph has no colour or range to convert."""
+    (`setparams`), so the rebuilt graph has no colour or range to convert.
+    With `-pix_fmt` a change of pixel format is still converted to that
+    format; the plan says why no V1 count can reach it."""
     # -noautorotate: framemd5 hashes decoded frames, before any rotation.
     # -noautoscale: frames keep their size when the stream changes it.
     cmd = [ffmpeg, '-nostdin', '-v', 'error', '-noautorotate']

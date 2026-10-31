@@ -97,14 +97,22 @@ bar 1, without `-frames:v`:
   rebuilt as before, and `RELABEL` gives every frame the same colour
   description and range, so the rebuilt graph has none to convert. It
   changes labels only, which `framemd5` does not hash. The choice depends
-  on the same property as `-pix_fmt` itself, never on the file. The tools'
-  tests check it with the pinned `ffmpeg` on streams they encode: H.264
-  with a mid-stream change of colour description, of range, of pixel
-  format, and of colour description and size together, VP9 with a change
-  of colour description and size, and VP9 with alpha and the same change,
-  each decoded whole equal to its segments decoded one at a time, and
+  on the same property as `-pix_fmt` itself, never on the file. With
+  `-pix_fmt` a change of pixel format is still converted to `FORMAT` (a
+  ProRes stream whose 4444 run is followed by a 422 run comes out at
+  4:4:4 throughout). That path is taken only where `ffprobe` lists an alpha
+  format, which never happens for `h264`, `av1`, `vp9` or `vp8` with the
+  decoders above (VP9 and VP8 with alpha are listed as `yuv420p`), so it
+  reaches only the group `other`, whose files miss as `codec_not_in_build`
+  before any MD5 is compared, and cannot change a count. The tools' tests
+  check all of this with the pinned `ffmpeg` on streams they encode:
+  H.264 with a mid-stream change of colour description, of range, of
+  pixel format, and of colour description and size together, VP9 with a
+  change of colour description and size, and VP9 with alpha and the same
+  change, each decoded whole equal to its segments decoded one at a time;
   H.264, 10-bit H.264, VP9 and VP9 with alpha without a change, whose MD5s
-  equal those of the command without the pin.
+  equal those of the command without the pin; VP9 and VP8 with alpha
+  listed without alpha; and the ProRes stream converted.
 
 A file has a reference when this exits 0 within its time limit and lists
 at least one frame. The denominator is the files with a stream and a

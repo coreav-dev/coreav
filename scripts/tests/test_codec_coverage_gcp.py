@@ -1,5 +1,7 @@
 """scripts/codec_coverage_gcp.py: the host record, the run manifest's checks, the rerun job and its verdict, and the
 limits the driver refuses to pass. Nothing leaves this machine and nothing is spent."""
+import ast
+import fnmatch
 import hashlib
 import json
 import os
@@ -120,13 +122,14 @@ class Manifest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             d = pathlib.Path(tmp)
             (d / 'build.json').write_text(json.dumps(build))
+            (d / 'v1').mkdir()
+            (d / 'v2-v3').mkdir()
             for i, h in enumerate(hosts):
-                (d / f'host-{i}.json').write_text(json.dumps(h))
+                (d / ('v2-v3' if 'fixtures' in h else 'v1') / f'host-{i}.json').write_text(json.dumps(h))
             for c in counts:
-                (d / f"v1-{c['shard']}.json").write_text(json.dumps(c))
-            args = [sys.executable, '-I', SCRIPT, 'manifest', '--build', str(d / 'build.json'), '--hosts',
-                    *(str(d / f'host-{i}.json') for i in range(len(hosts))), '--set', 'v1', '--shards', '2',
-                    '--shard-counts', str(d / 'v1-0.json'), str(d / 'v1-1.json'), '--evidence-key', self.KEY,
+                (d / 'v1' / f"v1-{c['shard']}.json").write_text(json.dumps(c))
+            args = [sys.executable, '-I', SCRIPT, 'manifest', '--build', str(d / 'build.json'), '--public',
+                    str(d / 'v1'), str(d / 'v2-v3'), '--set', 'v1', '--shards', '2', '--evidence-key', self.KEY,
                     '--out', str(d / 'manifest.json')]
             done = subprocess.run(args, capture_output=True, text=True, timeout=60)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -136,6 +139,24 @@ class Manifest(unittest.TestCase):
             self.assertEqual([h['job'] for h in written['hosts']], ['v1-0', 'v1-1', 'v2-v3'])
             args[args.index('--shards') + 1] = '3'
             self.assertEqual(subprocess.run(args, capture_output=True, timeout=60).returncode, 1)
+
+    def test_a_pull_request_run_with_no_v1_artifacts_passes(self):
+        """A pull request runs no V1 shard, so the V1 directory is empty or was never downloaded: the manifest takes
+        the V2 and V3 host alone."""
+        build, hosts, _ = self.good()
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / 'build.json').write_text(json.dumps(build))
+            (d / 'v2-v3').mkdir()
+            (d / 'v2-v3' / 'host-v2-v3.json').write_text(json.dumps(hosts[2]))
+            for v1 in (d / 'v1', d / 'v1'):
+                done = subprocess.run([sys.executable, '-I', SCRIPT, 'manifest', '--build', str(d / 'build.json'),
+                                       '--public', str(v1), str(d / 'v2-v3'), '--set', 'fixtures', '--shards', '0',
+                                       '--evidence-key', self.KEY, '--out', str(d / 'manifest.json')],
+                                      capture_output=True, text=True, timeout=60)
+                self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+                self.assertEqual(json.loads((d / 'manifest.json').read_text())['v1_shards'], [])
+                v1.mkdir(exist_ok=True)
 
 
 PENDING = [{'sha256': sha(str(i).encode()), 'key': f'corpus/v1/real/{i}.mp4', 'ext': 'mp4', 'size': 10,
@@ -262,6 +283,60 @@ class Job(unittest.TestCase):
     def test_nothing_came_back(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(ccg.judge(tmp, 1, {'machine': 'c4-standard-16', 'local': False}), 4)
+
+
+class Trigger(unittest.TestCase):
+    """A pull request that changes anything V1, V2 or V3 run starts the workflow: every repository module the runners
+    import, at any depth, the data files they read and their tests match a pattern of its pull_request paths."""
+
+    def patterns(self):
+        lines = (ROOT / '.github' / 'workflows' / 'codec-coverage.yml').read_text().splitlines()
+        start = lines.index('  pull_request:')
+        paths = lines.index('    paths:', start)
+        out = []
+        for line in lines[paths + 1:]:
+            if not line.startswith('      - '):
+                break
+            out.append(line[len('      - '):])
+        return out
+
+    def local_imports(self, path, seen):
+        if path in seen:
+            return
+        seen.add(path)
+        for node in ast.walk(ast.parse(path.read_text())):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                [node.module] if isinstance(node, ast.ImportFrom) and node.module else []
+            for name in names:
+                for d in ('scripts', 'tools/compat-corpus', 'tools/stage3-report'):
+                    candidate = ROOT / d / (name.split('.')[0] + '.py')
+                    if candidate.exists():
+                        self.local_imports(candidate, seen)
+
+    def test_every_input_of_the_runners_starts_the_workflow(self):
+        seen = set()
+        for rel in ('tools/compat-corpus/decode_breadth.py', 'tools/compat-corpus/encode_breadth.py',
+                    'scripts/codec_coverage_gcp.py'):
+            self.local_imports(ROOT / rel, seen)
+        wanted = {str(p.relative_to(ROOT)) for p in seen} | {
+            'tools/compat-corpus/decode_reasons.json', 'tools/compat-corpus/commands-0.1.0/coverage.json',
+            'scripts/oracle-audio-args.txt', 'scripts/gen-fixtures.sh', 'scripts/gen-fixtures-mkv.sh',
+            'scripts/gen-fixtures-ts.sh', 'tools/compat-corpus/tests/test_decode_breadth.py',
+            'tools/compat-corpus/tests/test_decode_breadth_fixtures.py',
+            'tools/compat-corpus/tests/test_encode_breadth.py', 'tools/decode-oracle/src/stream.rs',
+            'crates/coreav-cli/tests/ffmpeg.rs', '.github/workflows/codec-coverage.yml'}
+        patterns = self.patterns()
+        for rel in sorted(wanted):
+            self.assertTrue((ROOT / rel).exists(), rel)
+            self.assertTrue(any(fnmatch.fnmatch(rel, p.replace('**', '*')) for p in patterns),
+                            f'{rel} does not start codec-coverage.yml')
+
+    def test_a_missing_pattern_is_caught(self):
+        seen = set()
+        self.local_imports(ROOT / 'tools/compat-corpus/decode_breadth.py', seen)
+        self.assertIn(ROOT / 'tools/compat-corpus/round_files.py', seen)
+        self.assertIn(ROOT / 'tools/stage3-report/r2pool.py', seen)
+        self.assertIn(ROOT / 'scripts/thumbnail_oracle.py', seen)
 
 
 if __name__ == '__main__':

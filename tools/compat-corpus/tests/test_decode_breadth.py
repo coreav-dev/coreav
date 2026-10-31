@@ -280,6 +280,33 @@ class Precedence(Harness):
         self.run_files()
         self.assertEqual(self.record('x')['code'], 'reference_failed')
 
+    def test_a_side_the_runner_stopped_never_counts_even_when_its_output_looks_complete(self):
+        """The tool prints a complete, agreeing object and exits 0, but a descendant keeps its output open past the
+        limit: the runner stops the group, and the side is a timeout on the rerun host (a host limit elsewhere),
+        never a counted file."""
+        self.add('lingering', coreav={'child': True})
+        self.add('lingering_reference', reference={'child': True})
+        self.run_files(limit_minutes=3 / 60, rerun_host=True)
+        r = self.record('lingering')
+        self.assertEqual((r['coreav']['killed'], r['coreav']['exit']), ('limit', 0))
+        self.assertEqual((r['code'], r['counted'], r['host_limit']), ('timeout', False, None))
+        r = self.record('lingering_reference')
+        self.assertEqual((r['reference']['killed'], r['reference']['exit']), ('limit', 0))
+        self.assertEqual((r['code'], r['counted'], r['host_limit']), ('reference_unfinished', False, None))
+        (self.dir / 'records.jsonl').unlink()
+        self.run_files(limit_minutes=3 / 60)
+        for name in ('lingering', 'lingering_reference'):
+            r = self.record(name)
+            self.assertEqual((r['code'], r['counted'], r['host_limit']), (None, False, 'deadline'), name)
+
+    def test_a_stopped_side_keeps_the_codes_that_come_before_timeout(self):
+        self.add('read_fails', coreav={'child': True, 'exit': 1,
+                                       'object': ours(outcome=failure('read', 'unsupported', 'no video stream'))})
+        self.add('elsewhere', coreav={'child': True, 'object': ours(stream_index=1)})
+        self.run_files(limit_minutes=3 / 60, rerun_host=True)
+        self.assertEqual(self.record('read_fails')['code'], 'not_read')
+        self.assertEqual(self.record('elsewhere')['code'], 'other_stream')
+
 
 class OutOfScope(Harness):
     def unsupported(self, name, stream, message='no decoder', stage='open'):
@@ -525,6 +552,21 @@ class Fetching(Harness):
         self.assertEqual(len(self.records()), 6)
         self.assertLessEqual(held['peak'], 2)
         self.assertGreaterEqual(held['peak'], 1)
+
+    def test_the_isolated_entry_point_reaches_the_corpus_store(self):
+        """The workflow and the rerun host run the module as python3 -I with --fetch: its imports resolve, and it
+        stops only for the missing store credentials."""
+        self.add('a')
+        (self.dir / 'files.json').write_text(json.dumps(self.entries))
+        env = {k: v for k, v in os.environ.items() if not k.startswith('R2_') and k != 'PYTHONPATH'}
+        done = __import__('subprocess').run(
+            [sys.executable, '-I', str(HERE / 'decode_breadth.py'), 'run', '--decode-oracle',
+             str(self.dir / 'decode-oracle'), '--ffmpeg', str(self.dir / 'ffmpeg'), '--ffprobe', str(self.dir / 'ffprobe'),
+             '--files', str(self.dir / 'files.json'), '--records', str(self.dir / 'records.jsonl'),
+             '--fetch', str(self.dir / 'media')], capture_output=True, text=True, cwd=str(self.dir), env=env, timeout=60)
+        self.assertNotIn('ModuleNotFoundError', done.stderr)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn('R2_ENDPOINT', done.stderr)
 
 
 class RecordsFile(Harness):

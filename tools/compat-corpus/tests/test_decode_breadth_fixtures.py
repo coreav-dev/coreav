@@ -227,5 +227,42 @@ class UnconvertedReference(unittest.TestCase):
         self.assertEqual(self.md5s(alpha, True, **kw), self.md5s(alpha, False, **kw))
 
 
+    def pix_fmt(self, path):
+        done = subprocess.run([PROGRAMS['ffprobe'], '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+                               'stream=pix_fmt', '-of', 'csv=p=0', str(path)], capture_output=True, text=True,
+                              env=self.env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout.strip()
+
+    def test_the_alpha_path_never_reaches_a_codec_v1_counts(self):
+        """With -pix_fmt (an alpha format) the pin keeps colour and range, but a mid-stream change of pixel format
+        is still converted to the first frame's format without alpha. That path is taken only where ffprobe lists
+        an alpha format: VP9 and VP8 with alpha are listed without it, while an alpha codec where the change is
+        converted, ProRes, is in group other, which misses as codec_not_in_build before any MD5 is compared."""
+        if not PROGRAMS['ffprobe']:
+            self.skipTest('COREAV_FFPROBE is not set')
+        for name, encoder in (('vp9', ['-c:v', 'libvpx-vp9']), ('vp8', ['-c:v', 'libvpx'])):
+            path = self.dir / f'{name}_alpha.webm'
+            self.ff(*self.source(64, 48, 0), '-pix_fmt', 'yuva420p', *encoder, '-auto-alt-ref', '0', str(path))
+            self.assertEqual(self.pix_fmt(path), 'yuv420p', name)
+            self.assertNotIn('-pix_fmt', decode_breadth.thumbnail_oracle.framemd5_command(
+                FFMPEG, path, 'webm', 0, None, 'libvpx', name, self.pix_fmt(path), unconverted=True))
+        parts = []
+        for i, (profile, pix_fmt) in enumerate((('4444', 'yuva444p10le'), ('standard', 'yuv422p10le'))):
+            part = self.dir / f'prores.{i}.mov'
+            self.ff(*self.source(32, 32, 60 * i), '-pix_fmt', pix_fmt, '-c:v', 'prores_ks', '-profile:v', profile,
+                    str(part))
+            parts.append(part)
+        listing = self.dir / 'prores.txt'
+        listing.write_text(''.join(f"file '{p}'\n" for p in parts))
+        whole = self.dir / 'prores.mov'
+        self.ff('-f', 'concat', '-safe', '0', '-i', str(listing), '-c', 'copy', str(whole))
+        alpha = self.pix_fmt(whole)
+        self.assertTrue(alpha.startswith('yuva'), alpha)
+        self.assertNotIn('prores', decode_breadth.GROUPS)
+        truth = [m for p in parts for m in self.md5s(p, False, codec='prores', pix_fmt=self.pix_fmt(p))]
+        self.assertNotEqual(self.md5s(whole, True, codec='prores', pix_fmt=alpha), truth)
+
+
 if __name__ == '__main__':
     unittest.main()

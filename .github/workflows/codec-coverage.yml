@@ -56,10 +56,35 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
       - scripts/install-x264.sh
+      - scripts/clip_check.py
       - scripts/codec_coverage_gcp.py
+      - scripts/extract_check.py
+      - scripts/join_check.py
+      - scripts/mkv_remux_check.py
+      - scripts/opus_encode_check.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-audio-args.txt
+      - scripts/thumbnail_oracle.py
+      - scripts/remux_check.py
+      - scripts/split_check.py
+      - scripts/track_boxes.py
+      - scripts/transcode_check.py
+      - scripts/writer_boxes.py
+      - scripts/gen-fixtures*.sh
+      - tools/compat-corpus/classify.py
+      - tools/compat-corpus/copy_check.py
+      - tools/compat-corpus/commands-0.1.0/coverage.json
       - tools/compat-corpus/decode_breadth.py
+      - tools/compat-corpus/decode_reasons.json
       - tools/compat-corpus/encode_breadth.py
+      - tools/compat-corpus/r3.py
+      - tools/compat-corpus/release_round.py
+      - tools/compat-corpus/round_files.py
+      - tools/compat-corpus/tests/test_decode_breadth*.py
+      - tools/compat-corpus/tests/test_encode_breadth.py
+      - tools/stage3-report/r2pool.py
       - tools/decode-oracle/**
+      - crates/coreav-cli/tests/ffmpeg.rs
 
 permissions:
   contents: read
@@ -489,8 +514,7 @@ jobs:
           mkdir -p "$OUT"
           code=0
           python3 -I scripts/codec_coverage_gcp.py manifest --build "$RUNNER_TEMP/bin/manifest-build.json" \
-            --hosts "$RUNNER_TEMP"/v1/host-*.json "$RUNNER_TEMP"/v2-v3/host-*.json \
-            --shards "$SHARDS" --shard-counts "$RUNNER_TEMP"/v1/v1-*.json --set "$SET" \
+            --public "$RUNNER_TEMP/v1" "$RUNNER_TEMP/v2-v3" --shards "$SHARDS" --set "$SET" \
             --evidence-key "$EVIDENCE_KEY_SHA256" --out "$OUT/manifest.json" >> "$GITHUB_STEP_SUMMARY" || code=$?
           if [ -s "$RUNNER_TEMP/v2-v3/v2-v3-summary.json" ]; then
             cp "$RUNNER_TEMP/v2-v3/v2-v3-summary.json" "$OUT/"

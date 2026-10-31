@@ -70,7 +70,7 @@ import threading
 import time
 
 HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent.parent / 'scripts'))
+sys.path[:0] = [str(HERE), str(HERE.parent.parent / 'scripts')]
 import thumbnail_oracle  # noqa: E402
 
 BAR = 74
@@ -236,9 +236,10 @@ def decide(group, stream, format_name, ours_side, ref_md5, table, final):
         return {'counted': False, 'code': code, 'sub': sub}
     outcome = obj['outcome']
     ours = [f['md5'] for f in obj.get('frames', [])]
-    if (ours_side['exit'] == 0) != (outcome == 'ok'):
+    killed = ours_side['killed'] is not None
+    if not killed and (ours_side['exit'] == 0) != (outcome == 'ok'):
         return {'counted': False, 'code': 'decode_error', 'sub': 'crash'}
-    if outcome == 'ok' and obj['stream_index'] == stream['index'] and ours == ref_md5:
+    if not killed and outcome == 'ok' and obj['stream_index'] == stream['index'] and ours == ref_md5:
         return {'counted': True, 'code': None, 'sub': None}
     if outcome != 'ok' and outcome['stage'] == 'read':
         sub = ('container' if format_name not in CONTAINERS else
@@ -249,12 +250,16 @@ def decide(group, stream, format_name, ours_side, ref_md5, table, final):
         return {'counted': False, 'code': 'other_stream', 'sub': None}
     if group == 'other':
         return {'counted': False, 'code': 'codec_not_in_build', 'sub': stream.get('codec_name')}
-    if outcome != 'ok':
+    failed = outcome != 'ok'
+    if failed:
         stage, kind, message = outcome['stage'], outcome['kind'], outcome['message']
         known = table.get((stage, kind, message))
-        if kind == 'unsupported':
-            sub = h264_scope(stream) if group == 'h264' else (known[1] if known else 'other')
-            return {'counted': False, 'code': 'out_of_scope', 'sub': sub, 'text': message}
+    if failed and kind == 'unsupported':
+        sub = h264_scope(stream) if group == 'h264' else (known[1] if known else 'other')
+        return {'counted': False, 'code': 'out_of_scope', 'sub': sub, 'text': message}
+    if killed:
+        return {'counted': False, 'code': 'timeout', 'sub': None}
+    if failed:
         sub = known[1] if known and known[0] == 'decode_error' else KIND_SUBS.get(kind, 'other')
         return {'counted': False, 'code': 'decode_error', 'sub': sub, 'text': message}
     if len(ours) != len(ref_md5):
