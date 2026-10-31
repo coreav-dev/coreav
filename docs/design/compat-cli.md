@@ -245,7 +245,10 @@ speaker gains.
 
 AV1 strings keep the sequence's level index (including 31, maximum
 parameters) and append all optional fields together when they differ
-from the defaults. Raw colour code points, including explicit 2/2/2,
+from the defaults, or when the sequence header states its colour
+description, even one equal to the defaults: the binding makes the
+fields optional, so a string may state them, and stating what the
+stream signals agrees with the pinned oracle. Raw colour code points, including explicit 2/2/2,
 come from the sequence header unless an ISO `nclx` box overrides them,
 as the [AV1 binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
 requires. Some pinned-oracle strings disagree with these requirements.

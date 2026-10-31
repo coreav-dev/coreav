@@ -17,7 +17,8 @@ On small generated inputs, the pinned oracle omits the suffix of a
 full-range monochrome sequence and of a position-only chroma change,
 prints a full-range RGB sequence's range as 0, and ignores an `nclx`
 override of a BT.2020/PQ sequence. CoreAV follows the specified values
-and omits only the complete default suffix. The byte-validated generated
+and omits only a complete default suffix that the sequence header
+does not state. The byte-validated generated
 fixture exception at the end of this page covers one exact `nclx`
 disagreement. Other differing strings still fail B3a on the corpus.
 

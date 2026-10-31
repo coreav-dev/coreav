@@ -126,15 +126,19 @@ fn av1(config: &[u8], color: Option<coreav_isobmff::Color>) -> Option<String> {
     } else {
         0
     };
-    let color = color
-        .or_else(|| parameter_set_color(kind, config))
-        .unwrap_or_default();
+    let stated = parameter_set_color(kind, config);
+    // A sequence header that states its colour description states the
+    // optional fields, also when they equal the defaults.
+    let signalled = stated.is_some_and(|c| c.primaries.is_some());
+    let color = color.or(stated).unwrap_or_default();
     let primaries = color.primaries.unwrap_or(1);
     let transfer = color.transfer.unwrap_or(1);
     let matrix = color.matrix.unwrap_or(1);
     let full = u8::from(color.full_range.unwrap_or(false));
     let mono = u8::from(monochrome);
-    if (mono, x, y, position, primaries, transfer, matrix, full) != (0, 1, 1, 0, 1, 1, 1, 0) {
+    if signalled
+        || (mono, x, y, position, primaries, transfer, matrix, full) != (0, 1, 1, 0, 1, 1, 1, 0)
+    {
         mime.push_str(&format!(
             ".{mono}.{x}{y}{position}.{primaries:02}.{transfer:02}.{matrix:02}.{full}"
         ));
@@ -365,6 +369,26 @@ mod tests {
             av1(&hdr, Some(nclx)).as_deref(),
             Some("av01.0.00M.10.0.112.02.02.02.1")
         );
+    }
+
+    #[test]
+    fn av1_mime_states_a_signalled_colour_description_even_at_the_defaults() {
+        // The configuration records the pinned ffmpeg writes for a 64x64
+        // libaom stream with BT.709 colour and without colour; the pinned
+        // ffprobe prints these strings for both.
+        let signalled = [
+            0x81, 0x00, 0x0c, 0x00, 0x0a, 0x0d, 0x00, 0x00, 0x00, 0x02, 0xaf, 0xff, 0x9f, 0x5f,
+            0x32, 0x02, 0x02, 0x02, 0x08,
+        ];
+        assert_eq!(
+            av1(&signalled, None).as_deref(),
+            Some("av01.0.00M.08.0.110.01.01.01.0")
+        );
+        let unsignalled = [
+            0x81, 0x00, 0x0c, 0x00, 0x0a, 0x0a, 0x00, 0x00, 0x00, 0x02, 0xaf, 0xff, 0x9b, 0x5f,
+            0x20, 0x08,
+        ];
+        assert_eq!(av1(&unsignalled, None).as_deref(), Some("av01.0.00M.08"));
     }
 
     #[test]
