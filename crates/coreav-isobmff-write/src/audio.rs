@@ -6,7 +6,7 @@
 //! from Matroska's `CodecPrivate` or, for AC-3 and E-AC-3, which have none,
 //! from the first frame's headers.
 
-use coreav_isobmff::{CodecConfig, FourCc};
+use coreav_isobmff::{Codec, CodecConfig, FourCc, LosslessConfig, SampleDescription};
 
 /// FLAC's `STREAMINFO` body (RFC 9639 8.2): 34 bytes.
 const STREAMINFO: usize = 34;
@@ -32,18 +32,13 @@ pub(crate) fn config_kind(entry: FourCc) -> Option<FourCc> {
 
 /// The `samplesize` of an audio sample entry: the bits per sample of FLAC
 /// (`STREAMINFO`, FLAC-in-ISOBMFF 3.3.1) and Apple Lossless (the cookie's
-/// `bitDepth`), else 16.
-pub(crate) fn sample_size(config: &CodecConfig) -> u16 {
-    let bits = match &config.kind.0 {
-        b"dfLa" => dfla_streaminfo(&config.data)
-            .and_then(stream_info)
-            .map(|s| s.bits),
-        b"alac" => alac_cookie(&config.data)
-            .and_then(alac_config)
-            .map(|a| a.bits),
-        _ => None,
-    };
-    bits.unwrap_or(16)
+/// `bitDepth`) as the source's configuration declares them, else 16.
+/// `None` for FLAC or Apple Lossless whose configuration declares none.
+pub(crate) fn sample_size(description: &SampleDescription) -> Option<u16> {
+    match description.codec {
+        Codec::Flac | Codec::Alac => description.configured_bits,
+        _ => Some(16),
+    }
 }
 
 /// The sample rate an audio sample entry's 16.16 field holds for a stream
@@ -57,26 +52,6 @@ pub(crate) fn entry_rate(rate: u32) -> u32 {
         fitted /= 2;
     }
     fitted.min(65_535)
-}
-
-/// What a FLAC `STREAMINFO` says of the decoded audio.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct StreamInfo {
-    pub(crate) rate: u32,
-    pub(crate) channels: u16,
-    pub(crate) bits: u16,
-}
-
-fn stream_info(body: &[u8]) -> Option<StreamInfo> {
-    let field = u64::from_be_bytes(body.get(10..18)?.try_into().ok()?);
-    let rate = u32::try_from(field >> 44).ok()?;
-    let channels = u16::try_from((field >> 41) & 7).ok()? + 1;
-    let bits = u16::try_from((field >> 36) & 0x1F).ok()? + 1;
-    (rate > 0).then_some(StreamInfo {
-        rate,
-        channels,
-        bits,
-    })
 }
 
 /// The length of the metadata block whose 4-byte header starts at `at`.
@@ -94,7 +69,7 @@ fn block_length(blocks: &[u8], at: usize) -> Option<usize> {
 /// 10.2), and what its `STREAMINFO` says: the chain up to the block marked
 /// last, which is marked last when the chain ends without one. `None` when
 /// the chain does not parse or does not start with `STREAMINFO`.
-pub(crate) fn dfla_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, StreamInfo)> {
+pub(crate) fn dfla_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, LosslessConfig)> {
     let blocks = private.strip_prefix(b"fLaC")?;
     let mut start = 0usize;
     let mut end = 0usize;
@@ -111,7 +86,7 @@ pub(crate) fn dfla_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, Stream
     }
     let mut dfla = vec![0; 4];
     dfla.extend_from_slice(blocks.get(..end)?);
-    let info = dfla_streaminfo(&dfla).and_then(stream_info)?;
+    let info = coreav_isobmff::lossless_config(FourCc(*b"dfLa"), &dfla)?;
     if !last {
         *dfla.get_mut(4 + start)? |= 0x80;
     }
@@ -222,55 +197,21 @@ pub(crate) fn flac_block_size(head: &[u8]) -> Option<u32> {
     Some(stored + 1)
 }
 
-/// What an Apple Lossless cookie (`ALACSpecificConfig`) says of the decoded
-/// audio.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct AlacConfig {
-    pub(crate) frame_length: u32,
-    pub(crate) bits: u16,
-    pub(crate) channels: u16,
-    pub(crate) rate: u32,
-}
-
-/// The cookie in an `alac` box payload: after the full box's version and
-/// flags, or the whole payload when it has none (a cookie starts with
-/// `frameLength`, never 0).
-fn alac_cookie(payload: &[u8]) -> Option<&[u8]> {
-    match payload.get(..4)? {
-        [0, 0, 0, 0] => payload.get(4..),
-        _ => Some(payload),
-    }
-}
-
-fn alac_config(cookie: &[u8]) -> Option<AlacConfig> {
-    let word = |at: usize| Some(u32::from_be_bytes(cookie.get(at..at + 4)?.try_into().ok()?));
-    let config = AlacConfig {
-        frame_length: word(0)?,
-        bits: u16::from(*cookie.get(5)?),
-        channels: u16::from(*cookie.get(9)?),
-        rate: word(20)?,
-    };
-    let valid = *cookie.get(4)? == 0
-        && config.frame_length > 0
-        && (1..=32).contains(&config.bits)
-        && config.channels > 0
-        && config.rate > 0;
-    valid.then_some(config)
-}
-
 /// The `alac` box payload for Matroska's Apple Lossless `CodecPrivate`, the
 /// magic cookie (24 bytes, or 48 with the channel layout), with or without
 /// the 12-byte atom header some writers keep: version 0 and flags, then the
-/// cookie. `None` when the cookie does not parse.
-pub(crate) fn alac_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, AlacConfig)> {
+/// cookie. `None` when the cookie does not parse, or declares no channels
+/// or a frame length of 0.
+pub(crate) fn alac_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, LosslessConfig)> {
     let cookie = match private.get(4..8) {
         Some(b"alac") => private.get(12..)?,
         _ => private,
     };
-    let config = alac_config(cookie)?;
     let length = if cookie.len() < 48 { 24 } else { 48 };
     let mut payload = vec![0; 4];
     payload.extend_from_slice(cookie.get(..length)?);
+    let config = coreav_isobmff::lossless_config(FourCc(*b"alac"), &payload)
+        .filter(|c| c.channels > 0 && c.frame_length > 0)?;
     Some((payload, config))
 }
 
@@ -667,10 +608,11 @@ mod tests {
         let (dfla, info) = dfla_from_codec_private(&private).unwrap();
         assert_eq!(
             info,
-            StreamInfo {
-                rate: 96_000,
+            LosslessConfig {
+                sample_rate: 96_000,
+                bits: 24,
                 channels: 2,
-                bits: 24
+                frame_length: 4096
             }
         );
         assert_eq!(&dfla[..4], &[0, 0, 0, 0]);
@@ -680,7 +622,6 @@ mod tests {
             kind: FourCc(*b"dfLa"),
             data: dfla.clone(),
         };
-        assert_eq!(sample_size(&config), 24);
         let (alone, changed) = dfla_streaminfo_only(&dfla).unwrap();
         assert!(changed);
         assert_eq!(alone.len(), 8 + 34);
@@ -698,7 +639,10 @@ mod tests {
                 .chain([0; 20])
                 .collect::<Vec<_>>()[..]
         );
-        assert_eq!(stream_info(body), Some(info));
+        assert_eq!(
+            coreav_isobmff::lossless_config(config.kind, &excerpt),
+            Some(info)
+        );
         assert_eq!(decoding_config(&config), body);
         assert!(dfla_from_codec_private(b"fLaC\x00\x00\x00\x40").is_none());
         assert!(dfla_from_codec_private(&private[4..]).is_none());
@@ -754,11 +698,11 @@ mod tests {
         assert_eq!(&payload[4..], &cookie()[..]);
         assert_eq!(
             config,
-            AlacConfig {
-                frame_length: 4096,
+            LosslessConfig {
+                sample_rate: 44_100,
                 bits: 16,
                 channels: 2,
-                rate: 44_100
+                frame_length: 4096
             }
         );
         let mut atom = 36u32.to_be_bytes().to_vec();
@@ -770,7 +714,6 @@ mod tests {
             kind: FourCc(*b"alac"),
             data: payload,
         };
-        assert_eq!(sample_size(&config), 16);
         let excerpt = excerpt_config(&config);
         assert_eq!(&excerpt[16..24], &[0; 8]);
         assert_eq!(&excerpt[24..], &44_100u32.to_be_bytes());

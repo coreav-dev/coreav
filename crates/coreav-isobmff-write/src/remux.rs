@@ -1183,7 +1183,8 @@ fn plan<'m, S: Source>(
             let entry = audio_sample_entry(
                 fourcc,
                 channels,
-                audio::sample_size(codec_config),
+                audio::sample_size(description)
+                    .ok_or(unsupported("the FLAC or ALAC configuration does not parse"))?,
                 rate,
                 &children,
             )?;

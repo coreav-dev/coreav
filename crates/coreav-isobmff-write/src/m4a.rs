@@ -271,7 +271,8 @@ pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
     let entry = crate::mux::audio_sample_entry(
         description.fourcc,
         channels,
-        audio::sample_size(config),
+        audio::sample_size(description)
+            .ok_or(unsupported("the FLAC or ALAC configuration does not parse"))?,
         rate,
         &[RawBox {
             kind,

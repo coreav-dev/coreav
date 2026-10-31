@@ -850,7 +850,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
                 .as_deref()
                 .and_then(audio::dfla_from_codec_private)
                 .ok_or("FLAC without its STREAMINFO in CodecPrivate")?;
-            (info.rate, 1)
+            (info.sample_rate, 1)
         }
         (Media::Audio, Codec::Alac) => {
             let (_, config) = track
@@ -858,7 +858,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
                 .as_deref()
                 .and_then(audio::alac_from_codec_private)
                 .ok_or("ALAC without its magic cookie in CodecPrivate")?;
-            (config.rate, u64::from(config.frame_length))
+            (config.sample_rate, u64::from(config.frame_length))
         }
         // The first frame's header gives the sample rate (`list_samples`).
         (Media::Audio, Codec::Ac3 | Codec::Eac3) => (
@@ -1914,7 +1914,7 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
                 FourCc(*b"fLaC"),
                 info.channels,
                 info.bits,
-                audio::entry_rate(info.rate),
+                audio::entry_rate(info.sample_rate),
                 &[raw(b"dfLa", dfla)],
             )?);
         }
@@ -1930,7 +1930,7 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
                 FourCc(*b"alac"),
                 config.channels,
                 config.bits,
-                audio::entry_rate(config.rate),
+                audio::entry_rate(config.sample_rate),
                 &[raw(b"alac", cookie)],
             )?);
         }

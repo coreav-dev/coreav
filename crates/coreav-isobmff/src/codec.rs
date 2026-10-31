@@ -557,10 +557,10 @@ pub(crate) fn parse_sample_entry(
                     esds = Some(parse_esds(payload));
                 }
                 b"dfLa" if desc.codec == Codec::Flac && lossless.is_none() => {
-                    lossless = Some((kind, flac_streaminfo(payload)));
+                    lossless = Some((kind, lossless_config(kind, payload)));
                 }
                 b"alac" if fourcc.0 == *b"alac" && lossless.is_none() => {
-                    lossless = Some((kind, alac_cookie(payload)));
+                    lossless = Some((kind, lossless_config(kind, payload)));
                 }
                 b"enda" => little_endian = payload.get(..2).map(|v| v != [0, 0]),
                 b"pcmC" => {
@@ -580,9 +580,9 @@ pub(crate) fn parse_sample_entry(
         desc.color.full_range = codec_range;
     }
     match lossless {
-        Some((_, Some((rate, bits)))) => {
-            desc.configured_sample_rate = Some(rate);
-            desc.configured_bits = Some(bits);
+        Some((_, Some(config))) => {
+            desc.configured_sample_rate = Some(config.sample_rate);
+            desc.configured_bits = Some(config.bits);
         }
         Some((kind, None)) => crate::error::warn(warnings, Warning::MalformedCodecConfig(kind)),
         None if desc.codec == Codec::Flac => {
@@ -675,8 +675,35 @@ pub(crate) fn parse_sample_entry(
     Ok(desc)
 }
 
-/// The sample rate and bits per sample of the `STREAMINFO` block a `dfLa`
-/// box carries. The box (the FLAC-in-ISOBMFF mapping) is a full box of
+/// What a FLAC `dfLa` or Apple Lossless `alac` configuration box declares
+/// of the decoded audio.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LosslessConfig {
+    /// Sample rate in Hz.
+    pub sample_rate: u32,
+    /// Bits per sample.
+    pub bits: u16,
+    /// Channels.
+    pub channels: u16,
+    /// The most samples a frame holds: FLAC's maximum block size, ALAC's
+    /// `frameLength`.
+    pub frame_length: u32,
+}
+
+/// The configuration a `dfLa` or `alac` box payload declares; `None` for
+/// another box, and for a payload that is missing a field or states a value
+/// the format does not allow (an invalid FLAC block size, an unsupported
+/// ALAC cookie version).
+pub fn lossless_config(kind: FourCc, payload: &[u8]) -> Option<LosslessConfig> {
+    match &kind.0 {
+        b"dfLa" => flac_streaminfo(payload),
+        b"alac" => alac_cookie(payload),
+        _ => None,
+    }
+}
+
+/// The sample rate, bits per sample, channels and maximum block size of the
+/// `STREAMINFO` block a `dfLa` box carries. The box (the FLAC-in-ISOBMFF mapping) is a full box of
 /// version 0 and flags 0 whose metadata blocks start with `STREAMINFO`:
 /// a block header of type 0 and length 34 (RFC 9639 8.1), then 16 bits
 /// each of minimum and maximum block size, 24 each of minimum and maximum
@@ -684,7 +711,7 @@ pub(crate) fn parse_sample_entry(
 /// sample less one (RFC 9639 8.2). `None` for any other layout, and for
 /// what RFC 9639 does not allow: a block size under 16, a minimum above
 /// the maximum, a rate of 0, or fewer than 4 bits per sample.
-fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
+fn flac_streaminfo(payload: &[u8]) -> Option<LosslessConfig> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 || p.u8().ok()? & 0x7F != 0 || p.u24().ok()? != 34 {
         return None;
@@ -696,12 +723,18 @@ fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
     let mut bits = Bits::new(p.take(30).ok()?);
     bits.skip(48)?;
     let rate = bits.bits(20)?;
-    bits.bits(3)?;
+    let channels = u16::try_from(bits.bits(3)?).ok()? + 1;
     let depth = u16::try_from(bits.bits(5)?).ok()? + 1;
-    (rate > 0 && depth >= 4).then_some((rate, depth))
+    (rate > 0 && depth >= 4).then_some(LosslessConfig {
+        sample_rate: rate,
+        bits: depth,
+        channels,
+        frame_length: u32::from(max_block),
+    })
 }
 
-/// The sample rate and bit depth of an ALAC magic cookie: the `alac` box
+/// The sample rate, bit depth, channels and frame length of an ALAC magic
+/// cookie: the `alac` box
 /// of an `alac` sample entry is a full box of version 0 and flags 0 that
 /// holds an `ALACSpecificConfig` (Apple Lossless Audio Codec, magic cookie
 /// description): `frameLength` (32 bits), `compatibleVersion` (8),
@@ -710,19 +743,26 @@ fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
 /// `None` for a shorter box, another version of the box or of the cookie
 /// (`compatibleVersion` other than 0), a bit depth of 0 or above 32, or a
 /// rate of 0.
-fn alac_cookie(payload: &[u8]) -> Option<(u32, u16)> {
+fn alac_cookie(payload: &[u8]) -> Option<LosslessConfig> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 {
         return None;
     }
-    p.skip(4).ok()?;
+    let frame_length = p.u32().ok()?;
     if p.u8().ok()? != 0 {
         return None;
     }
     let depth = p.u8().ok()?;
-    p.skip(14).ok()?;
+    p.skip(3).ok()?;
+    let channels = p.u8().ok()?;
+    p.skip(10).ok()?;
     let rate = p.u32().ok()?;
-    ((1..=32).contains(&depth) && rate > 0).then_some((rate, u16::from(depth)))
+    ((1..=32).contains(&depth) && rate > 0).then_some(LosslessConfig {
+        sample_rate: rate,
+        bits: u16::from(depth),
+        channels: u16::from(channels),
+        frame_length,
+    })
 }
 
 /// A Dolby Vision decoder configuration record (`DOVIDecoderConfigurationRecord`
