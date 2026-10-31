@@ -1345,6 +1345,7 @@ fn opus_stream(count: usize, last: u32) -> EncodedStream {
     let entry = audio_sample_entry(
         coreav_isobmff::FourCc(*b"Opus"),
         2,
+        16,
         48_000,
         &[RawBox {
             kind: coreav_isobmff::FourCc(*b"dOps"),
@@ -1582,6 +1583,7 @@ fn aac_stream(count: usize) -> EncodedStream {
     let entry = audio_sample_entry(
         coreav_isobmff::FourCc(*b"mp4a"),
         2,
+        16,
         44_100,
         &[RawBox {
             kind: coreav_isobmff::FourCc(*b"esds"),

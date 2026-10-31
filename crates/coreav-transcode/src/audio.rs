@@ -477,6 +477,7 @@ pub fn sample_entry(channels: u8, pre_skip: u16, input_rate: u32) -> Result<Vec<
     audio_sample_entry(
         FourCc(*b"Opus"),
         u16::from(channels),
+        16,
         SAMPLE_RATE,
         &[RawBox {
             kind: FourCc(*b"dOps"),
@@ -493,6 +494,7 @@ pub fn aac_sample_entry(config: &[u8], rate: u32, channels: u8) -> Result<Vec<u8
     audio_sample_entry(
         FourCc(*b"mp4a"),
         u16::from(channels),
+        16,
         rate,
         &[RawBox {
             kind: FourCc(*b"esds"),
