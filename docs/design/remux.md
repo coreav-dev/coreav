@@ -378,7 +378,8 @@ in an `mp4a` sample entry (ISO/IEC 14496-14), laid out the same way:
   encoder's delay and the last packet's padding are not presented, and
   the first presented sample is at movie time `start`. The edits are in
   the movie timescale; where they would round there, the movie timescale
-  becomes a common multiple of it and 48,000 when one fits 32 bits (as for
+  becomes a common multiple of it and the replacement's media timescale
+  when one fits 32 bits (as for
   the video replacement, and not when another stream's computed value would
   move), else each boundary rounds to the nearest movie tick.
 - **Roll group** (the spec's 4.3.6.2, ISO/IEC 14496-12 10.1): one `sgpd`

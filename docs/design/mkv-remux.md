@@ -155,7 +155,8 @@ Matroska specifics:
 - **A replaced audio stream** gets the audio replacement's own timeline
   and edits (`remux.md`, "One audio stream replaced"). With one, the movie
   timescale is the least common multiple of the video timescale below and
-  the replacement's (48,000), when that fits 32 bits, so that its edits are
+  the replacement's media timescale (48,000 for Opus, the sample rate for
+  AAC), when that fits 32 bits, so that its edits are
   exact.
 
 - **Times** are Segment Ticks on the segment's timeline, the blocks'

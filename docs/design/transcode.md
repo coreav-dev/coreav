@@ -574,8 +574,9 @@ the encode does not take is refused before the video encoder starts:
 
 1. `coreav-audio`'s `decode` reads the stream (`--audio opus` takes the
    first audio stream it decodes; in a build with the opt-in `aac`
-   feature, AAC is passed over or refused as a build without it does, so
-   the stream taken does not depend on the build) through the existing demuxers, applies the container's trimming (an MP4 edit list,
+   feature, AAC is passed over or refused as a build without it does, and
+   Opus, which every build decodes, is too: the encode takes FLAC or MP3,
+   so the stream taken does not depend on the build) through the existing demuxers, applies the container's trimming (an MP4 edit list,
    Matroska's `CodecDelay` and `DiscardPadding`; leading empty edits are
    silence) and resamples to 48 kHz 32-bit float
    (`docs/design/audio-decode.md`, "Resampling and downmixing"). Sample 0
@@ -628,8 +629,8 @@ and `coreav-cli`'s `tests/transcode.rs` with the pinned FFmpeg, on
 FLAC in MP4 and Matroska and MP3 in Matroska: the summary validated, two
 streams, the Opus stream's `initial_padding` the summary's pre-skip, its
 `start_pts` 0 and `duration_ts` the presented samples, a clean decode;
-AAC and six channels refused first, and AAC passed over for the FLAC
-stream after it, both in a build with `aac` too (`ci.yml`, job
+AAC, Opus and six channels refused first, and AAC and Opus passed over
+for the FLAC stream after them, both in a build with `aac` too (`ci.yml`, job
 `isobmff-decode`).
 `tests/strict_safe.rs` checks that
 `--audio opus` runs no `ffmpeg` program in strict-safe mode.
@@ -722,8 +723,8 @@ without it the encoder's own default applies, which the summary gives as
 **Pipeline.** As for Opus, the audio is encoded before the video:
 
 1. `coreav-audio`'s `decode` reads the stream as it does for Opus (the
-   first audio stream it decodes, FLAC or MP3, with AAC passed over or
-   refused in every build, and the container's trimming applied) to
+   first audio stream it decodes, FLAC or MP3, with AAC and Opus passed
+   over or refused in every build, and the container's trimming applied) to
    32-bit float at the stream's own rate: nothing is resampled. More than
    two channels, and a rate other than the AAC rates of 8 to 64 kHz
    (ISO/IEC 14496-3 Table 1.18; an `mp4a` sample entry carries at most
@@ -784,8 +785,9 @@ an `mp4a` replacement in MP4 and Matroska sources; and `coreav-cli`'s
 and Matroska and MP3 in Matroska at 44.1, 48 and 32 kHz: the summary
 validated, two streams, the AAC stream LC at the source's rate,
 `start_pts` 0 and `duration_ts` the presented samples, a clean decode;
-AAC, six channels, 96 kHz, no `ffmpeg` and an `ffmpeg` without `aac`
-refused first, AAC also in a build with `aac` (`fixtures.yml`).
+AAC, Opus, six channels, 96 kHz, no `ffmpeg` and an `ffmpeg` without
+`aac` refused first, and Opus passed over for the FLAC stream after it,
+both also in a build with `aac` (`ci.yml`, job `isobmff-decode`).
 `tests/strict_safe.rs` checks that `--audio aac` is refused before the
 input is read.
 
