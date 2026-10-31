@@ -1616,8 +1616,11 @@ Rules for every comparison:
   output frame length (2,048 or 1,920, or 1,024 or 960 for downsampled
   SBR). FFmpeg's length must be the packets' stated durations at the
   output rate (`ffprobe -ignore_editlist 1`: their sum times the output
-  rate over the time base's rate) and at most CoreAV's; samples are
-  compared over FFmpeg's length.
+  rate over the time base's rate) on MP4, and on Matroska, whose
+  durations are whole milliseconds and so do not hold an AAC frame (400
+  packets of 2,048 samples at 48 kHz were stated as 806,400 samples),
+  the packets times the output frame length; and at most CoreAV's.
+  Samples are compared over FFmpeg's length.
 
 The bars:
 
@@ -1634,9 +1637,13 @@ The bars:
    the one written here. Nothing panics. Bar: every counted stream.
 2. **Against FFmpeg (gating).** On every input of every set, MP4 and
    Matroska: CoreAV's `coreav_aac::Decoder` on every packet in order
-   against `ffmpeg -ignore_editlist 1 -flags2 +skip_manual -i IN -map 0:a:0
-   -f f32le -` (every packet's samples: no edit list applied and no codec
-   delay removed), with the rules above; CoreAV damages no frame. Bar:
+   against `ffmpeg -flags2 +skip_manual -i IN -map 0:a:0 -f f32le -`,
+   with `-ignore_editlist 1` before `-i` on MP4 and MOV only (every
+   packet's samples: no edit list applied and no codec delay removed).
+   `-ignore_editlist` is an option of the MP4 reader, which the Matroska
+   reader refuses (`ffmpeg` exits with 8); `+skip_manual` is a flag of
+   the audio decoder and applies to both. The rules above apply; CoreAV
+   damages no frame. Bar:
    100% of the inputs. The only waivers are the conformance streams named
    here from the calibration, frozen with these bars. Each of them, with
    its Matroska copy and its implicit variant, is waived from the
@@ -1755,11 +1762,14 @@ No speed against FFmpeg is claimed.
   fails the last condition is counted in the report and not used. The
   selection runs in the job, before any CoreAV command, with the read-only
   credentials only this repository's own runs receive; without them the
-  job says so and the set is empty. Each Matroska file of the set is
-  copied into MP4 (`ffmpeg -map 0:a:0 -c copy`) as its pair in bar 5; a
-  file the copy fails on is listed and fails bar 5. No held-out file is
-  used, so the
-  draws' rules do not apply. Reports give counts and aggregate numbers,
+  job says so and the set is empty. The run fails at the selection,
+  before any CoreAV command, when it empties a container class (MP4, MOV
+  and 3GP; Matroska): when `ffprobe` answers for none of the class's
+  files, or when the class has HE-AAC files and none decodes cleanly.
+  Each Matroska file of the set is copied into MP4 (`ffmpeg -map 0:a:0
+  -c copy`) as its pair in bar 5; a file the copy fails on is counted
+  and fails bar 5. No held-out file is used, so the draws' rules do not
+  apply. Reports give counts and aggregate numbers,
   never a file.
 - Not used: ADTS and LATM files (raw `.aac`, MPEG-TS), which the pipeline
   does not read ("AAC-LC", "Scope").
