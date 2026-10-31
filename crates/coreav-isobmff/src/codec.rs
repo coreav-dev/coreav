@@ -572,6 +572,12 @@ pub(crate) fn parse_sample_entry(
             desc.configured_bits = Some(bits);
         }
         Some((kind, None)) => crate::error::warn(warnings, Warning::MalformedCodecConfig(kind)),
+        None if desc.codec == Codec::Flac => {
+            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"dfLa")));
+        }
+        None if fourcc.0 == *b"alac" => {
+            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"alac")));
+        }
         None => {}
     }
     let esds = esds.flatten();
@@ -653,16 +659,20 @@ pub(crate) fn parse_sample_entry(
 /// a block header of type 0 and length 34 (RFC 9639 8.1), then 16 bits
 /// each of minimum and maximum block size, 24 each of minimum and maximum
 /// frame size, 20 of sample rate, 3 of channels less one and 5 of bits per
-/// sample less one (RFC 9639 8.2). `None` for any other layout, a rate of
-/// 0 (no audio) or fewer than 4 bits per sample, which RFC 9639 does not
-/// allow.
+/// sample less one (RFC 9639 8.2). `None` for any other layout, and for
+/// what RFC 9639 does not allow: a block size under 16, a minimum above
+/// the maximum, a rate of 0, or fewer than 4 bits per sample.
 fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 || p.u8().ok()? & 0x7F != 0 || p.u24().ok()? != 34 {
         return None;
     }
-    let mut bits = Bits::new(p.take(34).ok()?);
-    bits.skip(80)?;
+    let (min_block, max_block) = (p.u16().ok()?, p.u16().ok()?);
+    if min_block < 16 || min_block > max_block {
+        return None;
+    }
+    let mut bits = Bits::new(p.take(30).ok()?);
+    bits.skip(48)?;
     let rate = bits.bits(20)?;
     bits.bits(3)?;
     let depth = u16::try_from(bits.bits(5)?).ok()? + 1;
@@ -675,14 +685,18 @@ fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
 /// description): `frameLength` (32 bits), `compatibleVersion` (8),
 /// `bitDepth` (8), `pb`, `mb`, `kb`, `numChannels` (8 each), `maxRun`
 /// (16), `maxFrameBytes` (32), `avgBitRate` (32), `sampleRate` (32).
-/// `None` for a shorter box, another version, a bit depth of 0 or above 32,
-/// or a rate of 0.
+/// `None` for a shorter box, another version of the box or of the cookie
+/// (`compatibleVersion` other than 0), a bit depth of 0 or above 32, or a
+/// rate of 0.
 fn alac_cookie(payload: &[u8]) -> Option<(u32, u16)> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 {
         return None;
     }
-    p.skip(5).ok()?;
+    p.skip(4).ok()?;
+    if p.u8().ok()? != 0 {
+        return None;
+    }
     let depth = p.u8().ok()?;
     p.skip(14).ok()?;
     let rate = p.u32().ok()?;

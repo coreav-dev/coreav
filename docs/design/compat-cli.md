@@ -1009,8 +1009,8 @@ prints keep its derivations, which the stream oracle checks. The others:
   block of `dfLa` (RFC 9639 8.2) and the ALAC magic cookie
   (`ALACSpecificConfig`), never the sample entry's 16.16 rate, which
   cannot hold 65,536 Hz or more (writers store 48 kHz or 0 there for 96
-  and 192 kHz). A configuration that cannot be read is a
-  `MalformedCodecConfig` warning and leaves the sample entry's rate and
+  and 192 kHz). A configuration that is missing or that RFC 9639 or the
+  cookie description does not allow is a `MalformedCodecConfig` warning and leaves the sample entry's rate and
   no bit depth (`codec_flac*`, `codec_alac*` at 44.1 to 192 kHz).
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.

@@ -388,6 +388,8 @@ fn lossless_rates_and_depths_come_from_the_configuration() {
         (96_000, 24),
         (192_000, 16),
         (655_350, 32),
+        (655_351, 24),
+        (1_048_575, 24),
     ] {
         let (flac, warnings) = lossless_description(lossless_entry(b"fLaC", dfla(rate, bits)));
         assert_eq!(flac.codec, Codec::Flac);
@@ -421,11 +423,17 @@ fn a_malformed_lossless_configuration_is_refused() {
     let mut truncated = dfla(96_000, 24);
     truncated.truncate(30);
     truncated[3] = 30;
+    let mut tiny_blocks = dfla(96_000, 24);
+    tiny_blocks[16..20].copy_from_slice(&[0, 15, 0, 15]);
+    let mut min_above_max = dfla(96_000, 24);
+    min_above_max[16..20].copy_from_slice(&[0x10, 0, 0x0F, 0xFF]);
     for config in [
         version_1,
         not_streaminfo,
         short_block,
         truncated,
+        tiny_blocks,
+        min_above_max,
         dfla(0, 16),
         dfla(96_000, 3),
     ] {
@@ -440,9 +448,12 @@ fn a_malformed_lossless_configuration_is_refused() {
     let mut truncated = alac_cookie(96_000, 24);
     truncated.truncate(35);
     truncated[3] = 35;
+    let mut compatible_1 = alac_cookie(96_000, 24);
+    compatible_1[16] = 1;
     for config in [
         version_1,
         truncated,
+        compatible_1,
         alac_cookie(96_000, 0),
         alac_cookie(96_000, 33),
         alac_cookie(0, 16),
@@ -452,5 +463,14 @@ fn a_malformed_lossless_configuration_is_refused() {
         assert_eq!(alac.configured_sample_rate, None);
         assert_eq!(alac.configured_bits, None);
         assert_eq!(warnings, vec![malformed(b"alac")]);
+    }
+    for (kind, config) in [(b"fLaC", b"dfLa"), (b"alac", b"alac")] {
+        let (description, warnings) = lossless_description(common::audio_entry(kind));
+        assert_eq!(description.configured_sample_rate, None);
+        assert_eq!(
+            warnings,
+            vec![malformed(config)],
+            "{kind:?} without {config:?}"
+        );
     }
 }
