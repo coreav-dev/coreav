@@ -41,10 +41,10 @@ The release binaries come in two builds, each a Cargo feature that names the fea
 
 | Feature | Turns on | Where |
 |---|---|---|
-| `release-default` | `cli`, `net`, `dav1d`, `libvpx` | The `coreav-VERSION-TARGET` archives and the npm packages |
+| `release-default` | `cli`, `net`, `dav1d`, `libvpx`, `libopus` | The `coreav-VERSION-TARGET` archives and the npm packages |
 | `release-full` | `release-default`, `native-h264`, `aac` | The `coreav-full-VERSION-TARGET` archives |
 
-The release links static copies of dav1d and libvpx, so its binaries need neither library on your machine. On Windows the encoder cannot run in a sandbox yet, so the Windows default build is the default features and the Windows full build adds only `aac`. Neither build has `ffmpeg-fallback`.
+The `libopus` feature adds Opus audio to `coreav transcode` (`--audio opus`), encoded by libopus in a sandboxed process of its own. The release links static copies of dav1d, libvpx and libopus, so its binaries need none of those libraries on your machine. On Windows the encoder cannot run in a sandbox yet, so the Windows default build is the default features and the Windows full build adds only `aac`. Neither build has `ffmpeg-fallback`.
 
 ## The native H.264 decoder and patents
 
@@ -56,4 +56,4 @@ That is why the native H.264 decoder is opt-in behind `native-h264` and never in
 
 ## Licence notices
 
-Every distribution of CoreAV ships its licence files, `LICENSE-MIT` and `LICENSE-APACHE`. A build with a decoder backend also links the thumbnail code, whose JPEG encoder's licence asks binary distributions to carry a statement. If you distribute such a build, ship [`NOTICE`](https://github.com/coreav-dev/coreav/blob/main/NOTICE) beside the binary. If you also ship a copy of dav1d or libvpx with it, linked in or beside it, ship that library's licence and patent files with it, as the release does in its `licenses/` directory. A build with only the default Cargo features needs no `NOTICE` ([notices in distributions](https://github.com/coreav-dev/coreav/blob/main/docs/release/notices.md)).
+Every distribution of CoreAV ships its licence files, `LICENSE-MIT` and `LICENSE-APACHE`. A build with a decoder backend also links the thumbnail code, whose JPEG encoder's licence asks binary distributions to carry a statement. If you distribute such a build, ship [`NOTICE`](https://github.com/coreav-dev/coreav/blob/main/NOTICE) beside the binary. If you also ship a copy of dav1d, libvpx or libopus with it, linked in or beside it, ship that library's licence and patent files with it, as the release does in its `licenses/` directory. A build with only the default Cargo features needs no `NOTICE` ([notices in distributions](https://github.com/coreav-dev/coreav/blob/main/docs/release/notices.md)).

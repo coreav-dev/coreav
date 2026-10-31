@@ -548,8 +548,11 @@ through the `opusic-c` crate and its `opusic-sys` binding (both
 BSD-3-Clause), with their bundled build of libopus turned off: the library
 is found where the loader looks by default, or through a runtime search
 path built into the binary, since the encoder process runs with a cleared
-environment (`LD_LIBRARY_PATH` does not reach it). No default build
-links it, and a build without the feature refuses `--audio opus`
+environment (`LD_LIBRARY_PATH` does not reach it). The default features
+do not link it. The release builds do, with a static libopus 1.6.1 that
+`packages/cli/scripts/codecs.sh` builds from a pinned tarball and
+`opusic-sys` links from `OPUS_LIB_DIR` (`docs/design/release.md`, "Two
+builds"). A build without the feature refuses `--audio opus`
 (`unsupported_feature`, exit status 1) before it opens the input; its help
 says so. The crate has no `unsafe` of its own: the FFI surface is the
 binding's, and the safe API it uses is `Encoder::new` (48 kHz, mono or

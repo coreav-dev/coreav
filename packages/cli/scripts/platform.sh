@@ -10,10 +10,12 @@
 # coreav-full-VERSION-TARGET, never an npm package; docs/design/release.md,
 # "Two builds"). The binary is `coreav` built with the `dist` profile,
 # stripped; Linux binaries are static (musl), Windows ones carry the C
-# runtime (crt-static). dav1d and libvpx are linked statically, built by
-# scripts/codecs.sh into COREAV_CODECS (default target/codecs/RUST_TARGET)
-# unless it holds them already. Prints the binary's SHA-256. The release
-# archives take the same binary (.github/workflows/release.yml).
+# runtime (crt-static). dav1d, libvpx and libopus are linked statically,
+# built by scripts/codecs.sh into COREAV_CODECS (default
+# target/codecs/RUST_TARGET) unless it holds them already, and the binary
+# is checked to load none of them, or anything else outside the system, at
+# run time. Prints the binary's SHA-256. The release archives take the same
+# binary (.github/workflows/release.yml).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -41,12 +43,15 @@ esac
 codecs=
 if [ "${platform%%-*}" != win32 ]; then
   codecs="${COREAV_CODECS:-$root/target/codecs/$target}"
-  if [ ! -f "$codecs/lib/pkgconfig/vpx.pc" ] || [ ! -f "$codecs/lib/pkgconfig/dav1d.pc" ]; then
+  if [ ! -f "$codecs/lib/pkgconfig/vpx.pc" ] || [ ! -f "$codecs/lib/pkgconfig/dav1d.pc" ] ||
+    [ ! -f "$codecs/lib/pkgconfig/opus.pc" ]; then
     "$here/scripts/codecs.sh" "$target" "$codecs"
   fi
   # The musl targets differ from the build machine's, which pkg-config
-  # counts as cross-compiling.
+  # counts as cross-compiling. opusic-sys reads no pkg-config file: it
+  # links the libopus.a of OPUS_LIB_DIR, statically.
   export PKG_CONFIG_PATH="$codecs/lib/pkgconfig" PKG_CONFIG_ALLOW_CROSS=1
+  export OPUS_LIB_DIR="$codecs/lib" OPUS_LIB_STATIC=true
 fi
 exe=coreav
 if [ "${platform%%-*}" = win32 ]; then
@@ -84,6 +89,24 @@ rm -rf "$out"
 mkdir -p "$out/bin"
 cp "${CARGO_TARGET_DIR:-$root/target}/$target/dist/$exe" "$out/bin/$exe"
 chmod 755 "$out/bin/$exe"
+# The C libraries are in the binary, not loaded from the machine: a Linux
+# binary needs no shared library at all, and a macOS one only the system's.
+loaded=
+case "$target" in
+  *-linux-musl)
+    dynamic="$(readelf -d "$out/bin/$exe")"
+    loaded="$(grep '(NEEDED)' <<< "$dynamic" || true)"
+    ;;
+  *-apple-darwin)
+    dynamic="$(otool -L "$out/bin/$exe")"
+    loaded="$(tail -n +2 <<< "$dynamic" | grep -v -E '^[[:space:]]+(/usr/lib/|/System/Library/)' || true)"
+    ;;
+esac
+if [ -n "$loaded" ]; then
+  echo "$loaded" >&2
+  echo "error: $out/bin/$exe loads the libraries above at run time; link them statically" >&2
+  exit 1
+fi
 # NOTICE with every binary (docs/release/notices.md), and the licence
 # files of the C libraries it links.
 cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$out/"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds the C decoders of the release's default build, dav1d (AV1) and
-# libvpx (VP9, VP8), as static libraries for one target
-# (docs/design/release.md, "Two builds"):
+# Builds the C libraries of the release's default build, the decoders dav1d
+# (AV1) and libvpx (VP9, VP8) and the Opus encoder libopus, as static
+# libraries for one target (docs/design/release.md, "Two builds"):
 #   scripts/codecs.sh RUST_TARGET PREFIX
 # Each library comes from its release tarball, checked against the SHA-256
 # below, and is built natively with the target's C compiler: musl-gcc
@@ -9,9 +9,11 @@
 # the static libraries, their headers and pkg-config files are installed
 # into PREFIX, so the crates (coreav-backend-dav1d, coreav-backend-libvpx)
 # find them through PKG_CONFIG_PATH=PREFIX/lib/pkgconfig and link them into
-# the binary. Their licence files go to PREFIX/licenses, which every archive
-# and npm package of a build that links them ships. Needs curl, meson,
-# ninja, make, musl-gcc on Linux, and nasm on x86-64.
+# the binary; opusic-sys (coreav-backend-libopus) takes PREFIX/lib from
+# OPUS_LIB_DIR, which platform.sh sets. Their licence files go to
+# PREFIX/licenses, which every archive and npm package of a build that
+# links them ships. Needs curl, meson, ninja, make, musl-gcc on Linux, and
+# nasm on x86-64.
 set -euo pipefail
 target="$1"
 prefix="$2"
@@ -21,6 +23,8 @@ DAV1D_SHA256=732010aa5ef461fa93355ed2c6c5fedb48ddc4b74e697eaabe8907eaeb943011
 # (docs/design/decode.md, "libvpx").
 LIBVPX_VERSION=1.14.1
 LIBVPX_SHA256=901747254d80a7937c933d03bd7c5d41e8e6c883e0665fadcb172542167c7977
+OPUS_VERSION=1.6.1
+OPUS_SHA256=6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
 case "$target" in
   x86_64-unknown-linux-musl) musl=x86_64 vpx_target=x86_64-linux-gcc ;;
   aarch64-unknown-linux-musl) musl=aarch64 vpx_target=arm64-linux-gcc ;;
@@ -52,6 +56,7 @@ fetch "https://downloads.videolan.org/pub/videolan/dav1d/$DAV1D_VERSION/dav1d-$D
   "$DAV1D_SHA256" dav1d.tar.xz
 fetch "https://github.com/webmproject/libvpx/archive/refs/tags/v$LIBVPX_VERSION.tar.gz" \
   "$LIBVPX_SHA256" libvpx.tar.gz
+fetch "https://downloads.xiph.org/releases/opus/opus-$OPUS_VERSION.tar.gz" "$OPUS_SHA256" opus.tar.gz
 rm -rf "$prefix"
 mkdir -p "$prefix/licenses"
 (
@@ -80,6 +85,14 @@ mkdir -p "$prefix/licenses"
   cp PATENTS "$prefix/licenses/libvpx-PATENTS"
   cp AUTHORS "$prefix/licenses/libvpx-AUTHORS"
   cp third_party/x86inc/LICENSE "$prefix/licenses/libvpx-x86inc-LICENSE"
+)
+(
+  cd "$work/src/opus.tar.gz"
+  meson setup build --buildtype release --default-library static --prefix "$prefix" --libdir lib \
+    -Dextra-programs=disabled -Dtests=disabled -Ddocs=disabled
+  ninja -C build install
+  # The BSD-3 licence, with the royalty-free patent licences it names.
+  cp COPYING "$prefix/licenses/opus-COPYING"
 )
 find "$prefix/lib" \( -name '*.so*' -o -name '*.dylib' \) -delete
 # musl's libc.a holds libm, libpthread and libdl, and Rust links it; a -lm,

@@ -94,7 +94,7 @@ jobs:
       # The licence files and NOTICE ship as committed, without CRLF.
       - if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
-      # dav1d and libvpx, built once for both builds (scripts/codecs.sh), and
+      # dav1d, libvpx and libopus, built once for both builds (scripts/codecs.sh), and
       # the x264 program of the smoke test. The runner context is not
       # available in a job's env, so the paths are set here.
       - name: Set the build paths

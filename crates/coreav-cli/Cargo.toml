@@ -67,9 +67,10 @@ aac = ["coreav-audio/aac", "coreav-transcode?/aac"]
 # The two builds of the release archives (docs/design/release.md, "Two
 # builds"), which packages/cli/scripts/platform.sh passes. The default
 # build, also the npm packages', links no codec on the patent list
-# (scripts/patent_free_check.py checks it); the full build adds CoreAV's
-# H.264 and AAC decoders. Windows builds take neither: see platform.sh.
-release-default = ["cli", "net", "dav1d", "libvpx"]
+# (scripts/patent_free_check.py checks it) and encodes Opus with libopus;
+# the full build adds CoreAV's H.264 and AAC decoders. Windows builds take
+# neither: see platform.sh.
+release-default = ["cli", "net", "dav1d", "libvpx", "libopus"]
 release-full = ["release-default", "native-h264", "aac"]
 
 [dependencies]

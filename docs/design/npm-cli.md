@@ -19,7 +19,7 @@ are ready up to `npm publish --dry-run`.
 | `packages/cli/install.js` | The install script that makes `coreav` the native binary. |
 | `packages/cli/scripts/build.sh` | Builds `coreav-cli` for `wasm32-wasip1` into `wasm/coreav.wasm`. |
 | `packages/cli/scripts/platform.sh` | Builds one native package into `npm/<platform>/`: the release's default build (`docs/design/release.md`, "Two builds"). |
-| `packages/cli/scripts/codecs.sh` | Builds dav1d and libvpx as static libraries for the native binaries. |
+| `packages/cli/scripts/codecs.sh` | Builds dav1d, libvpx and libopus as static libraries for the native binaries. |
 | `packages/cli/test` | The WASI build and the launcher against the native command; the install script; `smoke.sh`, CI's install-and-run check. |
 | `bench/npx` | The speed measurement below. |
 
@@ -96,8 +96,8 @@ esbuild and Biome:
     glibc and musl systems alike. CI builds each architecture on its own
     runner; a local arm64 build on x86-64 links with the toolchain's own
     `rust-lld`.
-  - dav1d and libvpx are compiled with `musl-gcc` (`scripts/codecs.sh`),
-    natively on each architecture.
+  - dav1d, libvpx and libopus are compiled with `musl-gcc`
+    (`scripts/codecs.sh`), natively on each architecture.
   - The crates that compile C, `ring` for the HTTPS of URL inputs, use zig
     as the musl C compiler for both architectures (`scripts/zig.sh`). CI
     installs zig from PyPI (`ziglang`, MIT), pinned by version and hash.
@@ -230,8 +230,9 @@ wording and keywords are positioning and the maintainer's to decide.
   is on `PATH` or named by `WASM_OPT` (CI uses binaryen version_133).
 - `packages/cli/scripts/platform.sh PLATFORM`: `cargo build --locked -p
   coreav-cli --profile dist --target T --features release-default` (the
-  default features on Windows), with dav1d and libvpx from
-  `scripts/codecs.sh`, and the package around the binary, with `NOTICE`
+  default features on Windows), with dav1d, libvpx and libopus from
+  `scripts/codecs.sh` and a check that the binary loads none of them at
+  run time, and the package around the binary, with `NOTICE`
   and `licenses/` (`docs/release/notices.md`)
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
@@ -241,7 +242,8 @@ wording and keywords are positioning and the maintainer's to decide.
   pull request. Tags, manual and weekly runs, and pull requests labelled
   `binaries` also build the four other platforms, each built, run and
   smoke-tested on its own platform, as the Python wheels are built. The
-  static dav1d and libvpx are cached per target until `codecs.sh` changes.
+  static dav1d, libvpx and libopus are cached per target until
+  `codecs.sh` changes.
 
 ## Verification
 

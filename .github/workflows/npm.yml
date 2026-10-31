@@ -14,7 +14,7 @@ name: npm
 #   also the Linux arm64, macOS arm64 and x86-64 and Windows x86-64
 #   binaries, each built and run on its platform and smoke-tested there
 #   with Node 20 and 24.
-# The binaries are the release's default build, with dav1d and libvpx
+# The binaries are the release's default build, with dav1d, libvpx and libopus
 # linked statically (docs/design/release.md, "Two builds"). The label is read from the pull
 #   request, so any event of a labelled pull request builds them, not only
 #   the labelling itself.
@@ -126,7 +126,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
-      # dav1d and libvpx, static (scripts/codecs.sh), kept until the
+      # dav1d, libvpx and libopus, static (scripts/codecs.sh), kept until the
       # script that builds them changes.
       - name: Cache the C decoders
         id: codecs-cache
@@ -289,7 +289,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
-      # dav1d and libvpx (scripts/codecs.sh); Windows links neither.
+      # dav1d, libvpx and libopus (scripts/codecs.sh); Windows links none.
       - name: Cache the C decoders
         id: codecs-cache
         if: runner.os != 'Windows'
