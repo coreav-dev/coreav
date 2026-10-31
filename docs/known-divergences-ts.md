@@ -299,3 +299,71 @@ KD-TS-FRAME-TIME.
   and is given exactly to the first unit that starts there; and every
   position `ffprobe` gives that CoreAV does not is that PES packet's, for
   a unit starting past 200 KiB of its payload.
+
+## KD-TS-VBI-AS-AUDIO
+
+- Fields: stream `kind` and `codec_name`, the informational
+  `sample_rate` and `channels`, and every packet of the stream. In the
+  `coreav ffprobe` listing, every key of the stream and of its packets.
+- When: a private stream (stream type 0x06) that the Program Map Table
+  marks with a VBI_data_descriptor and whose PES packets carry VBI data.
+- What each reports: `ffprobe` probes the payload of some such streams,
+  takes the bytes of their VPS or WSS data units for MPEG audio frames,
+  and lists an `mp3` audio stream with packets of its own cutting. Which
+  streams it does so for depends on the data they carry: on a capture of
+  the corpus, three of five VBI streams with the same descriptor, PES
+  layout and data units are read as `mp3`, the other two as data. CoreAV
+  lists the stream as the data the file declares, one packet per PES
+  packet.
+- Why: ETSI EN 301 775 4.1 and 4.2 identify a VBI stream by stream type
+  0x06 and the VBI_data_descriptor of ETSI EN 300 468 6.2.47, and its 4.4.2
+  (table 2) gives the PES data_identifier of VBI data, 0x10 to 0x1F or 0x99
+  to 0x9B. Nothing in the stream declares or carries MPEG audio.
+- Coverage requires, from the file itself (`Facts`): the stream's type is
+  0x06 and its descriptors include a VBI_data_descriptor (tag 0x45); every
+  PES packet of its PID that the reader holds starts with such a
+  data_identifier; `ffprobe` lists the stream as `audio` named `mp1`,
+  `mp2` or `mp3`; and CoreAV lists it as `data`.
+
+## KD-TS-PROGRAM-WRAP
+
+- Fields: in the `coreav ffprobe` listing, stream `start_pts`,
+  `start_time`, and `duration_ts` and `duration` where `ffprobe`
+  prints none.
+- When: a stream of a file with several programs whose own program's
+  timestamps do not wrap.
+- What each reports: `ffprobe` adds 2^33 to the stream's start, with the
+  timestamps of another program of the file, and then prints no duration
+  for it. CoreAV gives the start as the stream's first PES timestamp.
+- Why: each program has a time base of its own (ISO/IEC 13818-1 2.4.2.1),
+  so another program's timestamps say nothing of where this one's 33-bit
+  counter wraps. On a capture of the corpus the shift appears only when
+  one particular other program is in the file.
+- Coverage requires, from the file itself (`Facts`): CoreAV's start is the
+  first PES timestamp of the stream's PID; it lies within the 60 second
+  window of the first timestamp of the stream's program; that first
+  timestamp is more than the window away from both ends of the 33-bit
+  range; and `ffprobe`'s start is CoreAV's plus 2^33.
+
+## KD-TS-ANNEX-D-DOWNMIX
+
+- Fields: in the `coreav ffprobe` listing, stream `dmix_mode`,
+  `ltrt_cmixlev`, `ltrt_surmixlev`, `loro_cmixlev` and
+  `loro_surmixlev`.
+- When: an AC-3 stream whose first frame uses the alternate bit stream
+  syntax (`bsid` 6) with its first extra information (`xbsi1e`) on more
+  than two channels.
+- What each reports: `ffprobe` prints `0` and `0.000000`, as for a
+  stream that states no downmix. CoreAV prints the preferred downmix and
+  the levels the frame states, each only for the channel modes ATSC A/52
+  Annex D defines it for.
+- Why: `bsid` 6 is the stream's own statement that it uses the syntax of
+  ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give these fields their
+  meaning. Annex D 3.2 lets a legacy decoder ignore them; it does not make
+  the stream state no downmix.
+- Coverage requires, from the file itself (`Facts`): the first AC-3 frame
+  of the stream's first PES packet has `bsid` 6, more than two channels
+  (`acmod` above 2) and `xbsi1e` set, and no reserved surround level;
+  CoreAV prints exactly what that frame states, read by a reader written
+  apart from CoreAV's; `ffprobe` prints `0` and `0.000000` for all
+  five; and the frame states something other than that.
