@@ -486,6 +486,13 @@ fn assert_round_trip(source: &[u8], stream_index: usize, output: &[u8], summary:
         .filter(|l| l.iter().all(u8::is_ascii_lowercase))
         .unwrap_or(*b"und");
     assert_eq!(out.language, Some(language));
+    let handler_name = src
+        .handler_name
+        .as_deref()
+        .and_then(|n| n.split('\0').next())
+        .filter(|n| !n.is_empty())
+        .unwrap_or("SoundHandler");
+    assert_eq!(out.handler_name.as_deref(), Some(handler_name));
 
     // The declared media duration is copied.
     if !src_movie.has_fragments() && src.mdhd_duration != 0 {
@@ -597,6 +604,41 @@ fn with_moov_children(movie: &[u8], extra: &[u8]) -> Vec<u8> {
         movie[..at].to_vec(),
         bx(b"moov", &cat(&[children.to_vec(), extra.to_vec()])),
     ])
+}
+
+/// `file` with `bytes` inserted at `at`, and the boxes of `kinds` (each
+/// the first of its type, and each enclosing `at`) grown by as much.
+fn inserted(file: &[u8], kinds: &[&[u8; 4]], at: usize, bytes: &[u8]) -> Vec<u8> {
+    let mut out = file.to_vec();
+    for kind in kinds {
+        let start = file.windows(4).position(|w| w == *kind).unwrap() - 4;
+        let size = u32::from_be_bytes(out[start..start + 4].try_into().unwrap());
+        out[start..start + 4].copy_from_slice(&(size + bytes.len() as u32).to_be_bytes());
+    }
+    out.splice(at..at, bytes.iter().copied());
+    out
+}
+
+/// An item list entry `kind` with one `data` box of `type_indicator`.
+fn list_item(kind: &[u8; 4], type_indicator: u32, value: &[u8]) -> Vec<u8> {
+    bx(
+        kind,
+        &bx(b"data", &cat(&[u32s(&[type_indicator, 0]), value.to_vec()])),
+    )
+}
+
+/// `udta`/`meta`/`ilst` holding `items`.
+fn items_udta(items: &[Vec<u8>]) -> Vec<u8> {
+    let mut hdlr = u32s(&[0]);
+    hdlr.extend_from_slice(b"mdirappl");
+    hdlr.extend_from_slice(&[0u8; 9]);
+    let meta = full(
+        b"meta",
+        0,
+        0,
+        &cat(&[full(b"hdlr", 0, 0, &hdlr), bx(b"ilst", &cat(items))]),
+    );
+    bx(b"udta", &meta)
 }
 
 /// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
@@ -748,6 +790,83 @@ fn only_user_chosen_metadata_is_copied() {
             "{}",
             String::from_utf8_lossy(kind)
         );
+    }
+}
+
+#[test]
+fn the_source_description_is_copied() {
+    // An `aac_movie` whose handler is named, whose track has user data and
+    // whose movie has an item list with a title and a cover picture.
+    let plain = aac_movie(100, 10, None, false);
+    let hdlr = plain.windows(4).position(|w| w == b"hdlr").unwrap() - 4;
+    let hdlr_end = hdlr + u32::from_be_bytes(plain[hdlr..hdlr + 4].try_into().unwrap()) as usize;
+    let named = inserted(
+        &plain,
+        &[b"moov", b"trak", b"mdia", b"hdlr"],
+        hdlr_end - 1,
+        b"My Audio",
+    );
+    let track_udta = bx(b"udta", &bx(b"name", b"Track one"));
+    let described = inserted(&named, &[b"moov", b"trak"], named.len(), &track_udta);
+    let cover = b"\xff\xd8\xff\xe0 a cover";
+    let source = with_moov_children(
+        &described,
+        &items_udta(&[
+            list_item(b"\xa9nam", 1, b"A title"),
+            list_item(b"covr", 13, cover),
+        ]),
+    );
+    let has = |data: &[u8], what: &[u8]| data.windows(what.len()).any(|w| w == what);
+
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    let movie = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(movie.tracks[0].handler_name.as_deref(), Some("My Audio"));
+    let read =
+        coreav_isobmff::metadata::read(SliceSource::new(&output), &Limits::default()).unwrap();
+    assert_eq!(read.covers().count(), 0);
+    assert!(!has(&output, cover));
+    let title = read.items.iter().find_map(|item| match &item.value {
+        coreav_isobmff::metadata::ItemValue::ListItem {
+            data: Some(data), ..
+        } if item.track.is_none() => Some(data.value.clone()),
+        _ => None,
+    });
+    assert_eq!(title.as_deref(), Some(b"A title".as_slice()));
+    assert!(read.items.iter().any(|item| item.track == Some(0)
+        && matches!(&item.value, coreav_isobmff::metadata::ItemValue::UserData { kind, payload }
+            if kind.0 == *b"name" && payload == b"Track one")));
+
+    for metadata in [HeaderMetadata::Clear, HeaderMetadata::MediaTime] {
+        let mut out = Vec::new();
+        extract_audio(
+            SliceSource::new(&source),
+            &Limits::default(),
+            &Allowlist::default(),
+            TrackChoice::FirstAudio,
+            metadata,
+            &mut out,
+        )
+        .unwrap();
+        for what in [
+            b"udta".as_slice(),
+            b"meta",
+            b"A title",
+            b"Track one",
+            b"My Audio",
+        ] {
+            assert!(
+                !has(&out, what),
+                "{metadata:?}: {}",
+                String::from_utf8_lossy(what)
+            );
+        }
+        assert!(has(&out, b"SoundHandler\0"), "{metadata:?}");
     }
 }
 

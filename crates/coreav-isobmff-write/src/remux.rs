@@ -575,53 +575,13 @@ fn remux<S: Source, R: Source, W: Write>(
         )?;
         muxer.set_movie_boxes(rewrite(&rewritten)?.into_iter().collect())?;
     } else {
-        let moov = Path::top().with(FourCc(*b"moov"));
-        let left_out = &options.left_out_covers;
-        let mut movie_tags = Vec::new();
-        let mut found = Vec::new();
-        for header in &file.tags {
-            for tag in copy_boxes(
-                None,
-                moov,
-                core::slice::from_ref(header),
-                &mut source,
-                &mut retained,
-            )? {
-                let at = header.payload_offset();
-                let edited = if left_out.iter().any(|o| at < *o && *o < header.end()) {
-                    without_covers(
-                        Level::of(tag.kind),
-                        &tag.payload,
-                        at,
-                        moov.with(tag.kind),
-                        left_out,
-                        &mut found,
-                        &mut |g| note(&mut movie_gone, &mut movie_more, g),
-                    )?
-                } else {
-                    Edited::Same
-                };
-                movie_tags.push(match edited {
-                    Edited::Changed(payload) => RawBox {
-                        kind: tag.kind,
-                        payload,
-                    },
-                    Edited::Same | Edited::Removed => tag,
-                });
-            }
-        }
-        // A cover inside a box too large to copy is left out with it.
-        let too_large = |offset: u64| {
-            retained.too_large.iter().any(|(stream, s)| {
-                stream.is_none() && s.header.offset < offset && offset < s.header.end()
-            })
-        };
-        if left_out
-            .iter()
-            .any(|o| !found.contains(o) && !too_large(*o))
-        {
-            return Err(Error::NoSuchTrack.into());
-        }
+        let movie_tags = movie_tags(
+            &file.tags,
+            &options.left_out_covers,
+            &mut source,
+            &mut retained,
+            &mut |g| note(&mut movie_gone, &mut movie_more, g),
+        )?;
         muxer.set_movie_boxes(movie_tags)?;
     }
     muxer.set_file_type(file_type(&kept))?;
@@ -892,7 +852,7 @@ struct Plan<'m> {
 }
 
 /// A box of the source that the output leaves out, and why.
-struct Gone {
+pub(crate) struct Gone {
     skipped: Skipped,
     reason: BoxDropReason,
     kind: Option<MetadataKind>,
@@ -964,13 +924,13 @@ struct Kept<'m> {
 
 /// Metadata bytes kept so far, against `max_retained_bytes`, and the
 /// optional boxes left out for size.
-struct Retained {
+pub(crate) struct Retained {
     left: u64,
     too_large: Vec<(Option<usize>, Skipped)>,
 }
 
 impl Retained {
-    fn new(limits: &Limits) -> Self {
+    pub(crate) fn new(limits: &Limits) -> Self {
         Self {
             left: limits.max_retained_bytes,
             too_large: Vec::new(),
@@ -1026,9 +986,65 @@ impl Retained {
     }
 }
 
+/// The movie's `udta` and `meta` boxes as stored, without the cover
+/// pictures whose values start at an offset of `left_out`
+/// ([`without_covers`]); each box left out goes to `gone`, and a box
+/// larger than what `retained` leaves is left out and listed there. Fails
+/// with [`Error::NoSuchTrack`] when an offset of `left_out` starts no
+/// `data` value of those boxes, unless it lies in a box left out for size.
+pub(crate) fn movie_tags<S: Source>(
+    tags: &[BoxHeader],
+    left_out: &[u64],
+    source: &mut S,
+    retained: &mut Retained,
+    gone: &mut dyn FnMut(Gone),
+) -> Result<Vec<RawBox>, Error> {
+    let moov = Path::top().with(FourCc(*b"moov"));
+    let mut boxes = Vec::new();
+    let mut found = Vec::new();
+    for header in tags {
+        for tag in copy_boxes(None, moov, core::slice::from_ref(header), source, retained)? {
+            let at = header.payload_offset();
+            let edited = if left_out.iter().any(|o| at < *o && *o < header.end()) {
+                without_covers(
+                    Level::of(tag.kind),
+                    &tag.payload,
+                    at,
+                    moov.with(tag.kind),
+                    left_out,
+                    &mut found,
+                    gone,
+                )?
+            } else {
+                Edited::Same
+            };
+            boxes.push(match edited {
+                Edited::Changed(payload) => RawBox {
+                    kind: tag.kind,
+                    payload,
+                },
+                Edited::Same | Edited::Removed => tag,
+            });
+        }
+    }
+    // A cover inside a box too large to copy is left out with it.
+    let too_large = |offset: u64| {
+        retained.too_large.iter().any(|(stream, s)| {
+            stream.is_none() && s.header.offset < offset && offset < s.header.end()
+        })
+    };
+    if left_out
+        .iter()
+        .any(|o| !found.contains(o) && !too_large(*o))
+    {
+        return Err(Error::NoSuchTrack);
+    }
+    Ok(boxes)
+}
+
 /// Boxes as stored; a box larger than what `max_retained_bytes` leaves is
 /// listed as dropped instead.
-fn copy_boxes<S: Source>(
+pub(crate) fn copy_boxes<S: Source>(
     stream: Option<usize>,
     parent: Path,
     tags: &[BoxHeader],

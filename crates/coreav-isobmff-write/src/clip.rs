@@ -557,6 +557,7 @@ pub(crate) fn write_cut_head<W: Write>(
         Rational::from_int(i128::from(segment))
     };
     let mut tracks = vec![TrackBox {
+        handler_name: None,
         track_id: VIDEO_ID,
         header: TrackFlags::DEFAULT,
         media: Media::Video {
@@ -765,6 +766,7 @@ pub(crate) fn audio_track<'t>(
         duration: tables.duration,
     };
     let track_box = TrackBox {
+        handler_name: None,
         track_id,
         media: Media::Audio,
         header: TrackFlags::DEFAULT,

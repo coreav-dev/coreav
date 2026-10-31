@@ -72,14 +72,17 @@ use coreav_isobmff::{Codec, Error, FourCc, Rational, TrackKind};
 /// and their timing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeaderMetadata {
-    /// The creation times of the movie, track and media headers, and the
-    /// media header's language.
+    /// The creation times of the movie, track and media headers, the media
+    /// header's language, the track's handler name, and the `udta` and
+    /// `meta` boxes of the movie and of the track as stored, without the
+    /// movie's cover pictures.
     Copy,
-    /// None of them: the times are written as 0 ("not set") and the
-    /// language as `und`.
+    /// None of them: the times are written as 0 ("not set"), the language
+    /// as `und`, the generic handler name, and no `udta` or `meta` box.
     Clear,
     /// The media header's creation time as the creation and modification
-    /// time of every header, and the language `und`.
+    /// time of every header, the language `und`, the generic handler name,
+    /// and no `udta` or `meta` box.
     MediaTime,
 }
 

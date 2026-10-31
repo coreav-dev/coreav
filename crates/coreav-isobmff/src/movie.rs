@@ -305,9 +305,19 @@ pub struct Track {
     /// The handler name's bytes (at most 256), decoded into `handler_name`
     /// once the file is known to be QuickTime or not.
     pub(crate) handler_name_bytes: Vec<u8>,
+    /// The track box's `udta` and `meta` boxes, located but never read by
+    /// probe; at most [`MAX_TAG_ROOTS`].
+    pub(crate) tag_boxes: Vec<BoxHeader>,
 }
 
 impl Track {
+    /// The track box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
+    /// and 8.11.1), in file order, at most four: located by probe, their
+    /// contents unread.
+    pub fn tag_boxes(&self) -> &[BoxHeader] {
+        &self.tag_boxes
+    }
+
     /// The track's `trex` defaults, when the movie box declares movie
     /// fragments for it: what listing one fragment on its own needs
     /// ([`crate::fragment_samples`]).
@@ -630,6 +640,13 @@ pub struct Movie {
 }
 
 impl Movie {
+    /// The movie box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
+    /// and 8.11.1), in file order, at most four: located by probe, their
+    /// contents unread.
+    pub fn tag_boxes(&self) -> &[BoxHeader] {
+        &self.tag_boxes
+    }
+
     /// Whether the movie has fragments: an `mvex` box and at least one `moof`.
     /// Its header durations then describe only the movie box samples.
     pub fn has_fragments(&self) -> bool {
@@ -1800,6 +1817,7 @@ struct TrackParts {
     tables: SampleTables,
     table_problem: Option<&'static str>,
     warnings: Vec<Warning>,
+    tag_boxes: Vec<BoxHeader>,
 }
 
 fn parse_trak<S: Source>(
@@ -1819,6 +1837,9 @@ fn parse_trak<S: Source>(
     let walked = w.children(trak, depth, &mut |w, child, depth| {
         match &child.kind.0 {
             b"tref" => track_references(w, &child, &mut chapters)?,
+            b"udta" | b"meta" if parts.tag_boxes.len() < MAX_TAG_ROOTS => {
+                parts.tag_boxes.push(child)
+            }
             // The edit list is still read after a drop: it places the
             // dropped stream on the timeline.
             b"edts" => w.children(&child, depth, &mut |w, e, _| {
@@ -1959,6 +1980,7 @@ fn parse_trak<S: Source>(
         handler,
         // Decoded with the file's kind (`handler_name_bytes`).
         handler_name: None,
+        tag_boxes: parts.tag_boxes,
         language,
         timescale,
         mdhd_duration,

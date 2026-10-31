@@ -456,6 +456,7 @@ impl Muxer {
                 ),
             };
             boxes.push(TrackBox {
+                handler_name: None,
                 track_id: u32::try_from(index)
                     .ok()
                     .and_then(|i| i.checked_add(1))
@@ -517,7 +518,7 @@ impl Muxer {
     }
 }
 
-fn copied(boxes: &[RawBox]) -> Vec<CopiedBox<'_>> {
+pub(crate) fn copied(boxes: &[RawBox]) -> Vec<CopiedBox<'_>> {
     boxes
         .iter()
         .map(|b| CopiedBox {

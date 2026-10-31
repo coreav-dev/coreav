@@ -1007,7 +1007,7 @@ implies:
 | The command | The writer |
 |---|---|
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
-| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1` or `0:s:N`, with the header metadata that option gives (below) |
+| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`, with the source's metadata (below); with `-map_metadata -1` or `0:s:N`, with the metadata that option gives (below) |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
@@ -1015,6 +1015,45 @@ implies:
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
+
+**M4A metadata.** `ffmpeg`'s documentation says "by default, global
+metadata is copied from the first input file, per-stream and per-chapter
+metadata is copied along with streams/chapters". The extraction
+(`HeaderMetadata::Copy`) carries over the movie's and the extracted
+track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
+8.11.1: user data describes the presentation or the track that contains
+it, and both are the output's), the track's handler name (8.4.3.3), its
+language, and the creation times of the movie, track and media headers,
+as the remux does (`remux.md`, "Metadata and other boxes"). Two things
+are left out: the movie's cover pictures, since a cover picture is a
+stream of its own (below) and the output carries one audio stream, as
+the pinned `ffmpeg` leaves it out of `-map 0:a` and `-vn` (black box);
+and, when the extraction turns an `iTunSMPB` item into an edit list, that
+item, so that the delay and padding are not given twice. An empty handler
+name is written as `SoundHandler`. Black box, the pinned `ffmpeg` 9.0.2
+on a file with an item list, a track `udta`, a named handler and nonzero
+header times (`plain_extraction_metadata_agrees_with_the_pinned_ffmpeg`
+in `tests/ffmpeg.rs` checks the tags in CI): the same title, artist,
+album, date, comment, genre, track and disc items and the same handler
+name and language. Known divergences, each where `coreav ffmpeg`'s output
+is the one the cited text defines:
+
+- Creation times. `ffmpeg` writes 0 in all six fields of the movie,
+  track and media headers, which ISO/IEC 14496-12 8.2.2.3, 8.3.2.3 and
+  8.4.2.3 read as midnight, 1 January 1904; the media is the source's, and
+  the extraction keeps the times it was given (its modification times are
+  its creation times). `ffprobe` then lists a `creation_time` for the file
+  and the stream on `coreav ffmpeg`'s output and none on `ffmpeg`'s.
+- Items stored in another form. `ffmpeg` rewrites the list it copies: its
+  own encoder name in `©too` instead of the source's, its own item order,
+  locale 0, an 8-byte `disk`; it drops free-form (`----`) items and the
+  track's `udta`, and gathers a `moov/meta` list into `moov/udta/meta`.
+  The extraction copies the boxes as stored, so an `ffprobe` tag
+  `ffmpeg` drops or renames (`encoder`, a free-form item) differs.
+- Handler names that are not a plain null-terminated string. `ffmpeg`
+  writes `SoundHandler` for a name without a terminating NUL and for a
+  QuickTime counted string; the extraction writes the name's text,
+  null-terminated, as 8.4.3.3 has it.
 
 **`-map_metadata -1` on an M4A output.** `ffmpeg`'s documentation says "a
 negative file index can be used to create a dummy mapping that just
@@ -1024,8 +1063,8 @@ a creation time): the media header's language is `und`, the handler name
 its own `SoundHandler`, the creation and modification times of the movie,
 track and media headers 0, and no item of the input's list is written. The
 extraction writes the same with `HeaderMetadata::Clear`: the language
-`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2). It writes
-no item list and the handler name `SoundHandler` in any case. Its samples,
+`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2), the
+handler name `SoundHandler`, and no `udta` or `meta` box. Its samples,
 sample tables and edit list do not change: they are timing, not metadata.
 `stripped_metadata_agrees_with_the_pinned_ffmpeg` in `tests/ffmpeg.rs`
 checks both outputs' tags in CI.
@@ -1052,7 +1091,8 @@ header and writes into the movie, track and media headers, as creation
 and modification time (black box: a media header time differing from the
 movie header's). The extraction writes the same with
 `HeaderMetadata::MediaTime`: the media header's creation time in all six
-fields, and the language `und`. A known divergence: ISO/IEC 14496-12
+fields, the language `und`, the handler name `SoundHandler`, and no `udta`
+or `meta` box. A known divergence: ISO/IEC 14496-12
 8.4.2.3 counts a header's creation time in seconds since midnight, 1 January
 1904, UTC, in 32 bits in a version 0 box and 64 in a version 1 box, and the
 extraction keeps the instant the media header names. The pinned `ffmpeg`

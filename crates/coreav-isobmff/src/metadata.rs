@@ -68,6 +68,25 @@ pub struct Metadata {
     pub complete: bool,
 }
 
+impl Metadata {
+    /// The movie's cover pictures: the first `data` box, holding a value, of
+    /// each entry of the movie's item lists whose key
+    /// [`ListKey::is_cover`], in file order.
+    pub fn covers(&self) -> impl Iterator<Item = &ItemData> {
+        self.items
+            .iter()
+            .filter(|item| item.track.is_none())
+            .filter_map(|item| match &item.value {
+                ItemValue::ListItem {
+                    key,
+                    data: Some(data),
+                    ..
+                } if key.is_cover() && !data.value.is_empty() => Some(data),
+                _ => None,
+            })
+    }
+}
+
 /// A file type box.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileType {
@@ -240,6 +259,18 @@ pub enum ListKey {
         /// The `name` box's text.
         name: Option<Vec<u8>>,
     },
+}
+
+impl ListKey {
+    /// Whether the entry holds a cover picture: `covr`, or the QuickTime
+    /// metadata key `com.apple.quicktime.artwork`.
+    pub fn is_cover(&self) -> bool {
+        match self {
+            Self::Atom(kind) => kind.0 == *b"covr",
+            Self::Key { name, .. } => name.as_slice() == b"com.apple.quicktime.artwork",
+            Self::Free { .. } => false,
+        }
+    }
 }
 
 /// A `data` box of an item list entry.

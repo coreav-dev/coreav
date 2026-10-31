@@ -66,6 +66,9 @@ pub(crate) struct CopiedBox<'a> {
 pub(crate) struct TrackBox<'a> {
     pub(crate) track_id: u32,
     pub(crate) media: Media,
+    /// The handler name, up to its first NUL; the generic one
+    /// (`SoundHandler`, `VideoHandler`) for `None`.
+    pub(crate) handler_name: Option<&'a str>,
     pub(crate) header: TrackFlags,
     pub(crate) created: u64,
     pub(crate) media_created: u64,
@@ -334,7 +337,10 @@ pub(crate) fn trak<'a>(track: &'a TrackBox<'_>, tables: Vec<Node<'a>>) -> Node<'
             Node::parent(b"stbl", stbl),
         ],
     );
-    let mdia = Node::parent(b"mdia", vec![mdhd(track), hdlr(&track.media), minf]);
+    let mdia = Node::parent(
+        b"mdia",
+        vec![mdhd(track), hdlr(&track.media, track.handler_name), minf],
+    );
     let mut trak = vec![tkhd(track)];
     if !track.edits.is_empty() {
         trak.push(Node::parent(b"edts", vec![elst(&track.edits)]));
@@ -445,15 +451,22 @@ fn mdhd(track: &TrackBox<'_>) -> Node<'static> {
     Node::full(b"mdhd", version, 0, &payload)
 }
 
-fn hdlr(media: &Media) -> Node<'static> {
-    let (kind, name): (&[u8; 4], &[u8]) = match media {
-        Media::Video { .. } => (b"vide", b"VideoHandler\0"),
-        Media::Audio => (b"soun", b"SoundHandler\0"),
+/// The handler box: the name is a null-terminated UTF-8 string (ISO/IEC
+/// 14496-12 8.4.3.3).
+fn hdlr(media: &Media, name: Option<&str>) -> Node<'static> {
+    let (kind, generic) = match media {
+        Media::Video { .. } => (b"vide", "VideoHandler"),
+        Media::Audio => (b"soun", "SoundHandler"),
     };
+    let name = name
+        .and_then(|n| n.split('\0').next())
+        .filter(|n| !n.is_empty())
+        .unwrap_or(generic);
     let mut payload = vec![0; 4];
     payload.extend_from_slice(kind);
     payload.extend_from_slice(&[0; 12]);
-    payload.extend_from_slice(name);
+    payload.extend_from_slice(name.as_bytes());
+    payload.push(0);
     Node::full(b"hdlr", 0, 0, &payload)
 }
 
