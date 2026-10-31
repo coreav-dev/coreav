@@ -1301,9 +1301,10 @@ Results publish raw agreement beside the gated rate and the excluded
 rows separately, counted per KD, key and container without double-counting
 overlaps. The gated denominator removes only those new exclusions;
 existing `KD-STRICT` covered agreements keep their current treatment and
-are reported apart from literal direct agreement. Raw occurrence counts
-still decide key eligibility, and an empty adjusted denominator is
-unmeasured. The 98% bar, sets, draws and held-out inputs are unchanged.
+are reported apart from literal direct agreement. Raw numbers of files
+containing each key still decide key eligibility, and an empty adjusted
+denominator is unmeasured. The 98% bar, sets, draws and held-out inputs
+are unchanged.
 This amendment does not silently alter R1, R2, fixtures or historical
 results. Plan, comparator/audit tools and run remain separate stages.
 

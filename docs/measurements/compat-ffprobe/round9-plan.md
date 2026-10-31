@@ -152,8 +152,9 @@ agreement and from the new exclusions. Thus the exclusive row totals are
 direct agreement, existing covered agreement, new exclusions and uncovered
 disagreement. The gated numerator is the first two totals; its denominator
 is the raw row count minus the new exclusions. Key eligibility is decided
-from raw occurrence counts, not recomputed after exclusions. A key with
-no remaining rows is unmeasured, not a pass. The 98% bar is unchanged.
+from raw numbers of files containing each key, not recomputed after
+exclusions. A key with no remaining rows is unmeasured, not a pass.
+The 98% bar is unchanged.
 
 ## Method corrections fixed before the tools change
 
