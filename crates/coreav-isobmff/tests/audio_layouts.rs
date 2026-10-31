@@ -282,6 +282,34 @@ fn ac3_and_eac3_channels_come_from_the_configuration() {
     };
     assert_eq!(ac3_channels(b"ec-3", b"dec3", &dec3(7, 1)), Some(6));
     assert_eq!(ac3_channels(b"ec-3", b"dec3", &dec3(6, 0)), Some(4));
+    // Dependent substreams add their channel locations (chan_loc, table
+    // F.6.1): 5.1 with Lrs/Rrs (bit 1) is 7.1; with Cs (bit 2) and LFE2
+    // (bit 8), 5.1 plus two.
+    let dependent = |chan_loc| {
+        pack(&[
+            (384, 13),
+            (0, 3),
+            (0, 2),
+            (16, 5),
+            (0, 1),
+            (0, 1),
+            (0, 3),
+            (7, 3),
+            (1, 1),
+            (0, 3),
+            (1, 4),
+            (chan_loc, 9),
+        ])
+    };
+    assert_eq!(ac3_channels(b"ec-3", b"dec3", &dependent(1 << 1)), Some(8));
+    assert_eq!(
+        ac3_channels(b"ec-3", b"dec3", &dependent(1 << 2 | 1 << 8)),
+        Some(8)
+    );
+    assert_eq!(
+        ac3_channels(b"ec-3", b"dec3", &dependent(1 << 0 | 1 << 3)),
+        Some(9)
+    );
     // A truncated box: the entry's count.
     assert_eq!(ac3_channels(b"ac-3", b"dac3", &[0x10]), Some(2));
 }

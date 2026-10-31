@@ -1065,8 +1065,9 @@ fn configured_channels(configuration: u8) -> Option<u32> {
 
 /// The channels an AC-3 `dac3` or E-AC-3 `dec3` box declares (ETSI TS
 /// 102 366 F.4 and F.6): those its `acmod` (table 4.3) and `lfeon` code,
-/// for E-AC-3 those of the first independent substream. Channels that
-/// dependent substreams add (`chan_loc`) are not counted.
+/// for E-AC-3 those of the first independent substream, with the channel
+/// locations its dependent substreams add (`chan_loc`, table F.6.1: bits
+/// 0, 1, 4, 5 and 6 a pair each, bits 2, 3, 7 and 8 one each).
 fn ac3_channels(codec: Codec, config: &CodecConfig) -> Option<u32> {
     let mut bits = Bits::new(&config.data);
     match (codec, &config.kind.0) {
@@ -1081,7 +1082,26 @@ fn ac3_channels(codec: Codec, config: &CodecConfig) -> Option<u32> {
         5 | 6 => 4,
         _ => 5,
     };
-    Some(full + bits.bits(1)?)
+    let coded = full + bits.bits(1)?;
+    if codec != Codec::Eac3 {
+        return Some(coded);
+    }
+    bits.skip(3)?;
+    if bits.bits(4)? == 0 {
+        return Some(coded);
+    }
+    let chan_loc = bits.bits(9)?;
+    let added = (0..9)
+        .filter(|bit| chan_loc >> bit & 1 == 1)
+        .map(|bit| {
+            if matches!(bit, 0 | 1 | 4 | 5 | 6) {
+                2
+            } else {
+                1
+            }
+        })
+        .sum::<u32>();
+    Some(coded + added)
 }
 
 /// The output channels of an `AudioSpecificConfig` (ISO/IEC 14496-3
