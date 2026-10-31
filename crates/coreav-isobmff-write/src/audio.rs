@@ -220,19 +220,21 @@ pub(crate) fn alac_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, Lossle
 const RATES: [u32; 3] = [48_000, 44_100, 32_000];
 const HALF_RATES: [u32; 3] = [24_000, 22_050, 16_000];
 
-/// The samples an Apple Lossless packet decodes to: the count its first
-/// element's header states, else `frame_length`, the cookie's (Apple's
-/// cookie description). `head` is the packet's first bytes, at least
+/// The samples an Apple Lossless packet of one channel element decodes to,
+/// and whether the packet states them: the count its element's header
+/// states, else `frame_length`, the cookie's (Apple's cookie
+/// description). `head` is the packet's first bytes, at least
 /// [`ALAC_HEAD`] of them when the packet is that long. The header, as
-/// Apple's reference decoder (`codec/ALACDecoder.cpp`, Apache-2.0) lays
-/// it out: a 3-bit element tag (0 for one channel, 1 for a channel pair, 3
-/// for LFE), a 4-bit instance tag, 12 bits of zeros, a 1-bit flag for a
-/// stated count, a 2-bit shift other than 3 and a 1-bit escape flag, then,
-/// when flagged, the count in 32 bits. `None` when the packet does not
-/// start with such a header or states 0 or more than `frame_length`.
-pub(crate) fn alac_samples(head: &[u8], frame_length: u32) -> Option<u32> {
+/// Apple's reference source (`codec/ALACDecoder.cpp` and
+/// `codec/ALACBitUtilities.h`, Apache-2.0) lays it out: a 3-bit element
+/// tag (`element`: 0 for one channel, 1 for a channel pair), a 4-bit
+/// instance tag, 12 bits of zeros, a 1-bit flag for a stated count, a 2-bit
+/// shift other than 3 and a 1-bit escape flag, then, when flagged, the
+/// count in 32 bits. `None` when the packet does not start with such a
+/// header or states 0 or more than `frame_length`.
+pub(crate) fn alac_samples(head: &[u8], element: u32, frame_length: u32) -> Option<(u32, bool)> {
     let mut bits = Bits { data: head, at: 0 };
-    if !matches!(bits.read(3)?, 0 | 1 | 3) {
+    if bits.read(3)? != element {
         return None;
     }
     bits.skip(4)?;
@@ -245,10 +247,10 @@ pub(crate) fn alac_samples(head: &[u8], frame_length: u32) -> Option<u32> {
     }
     bits.skip(1)?;
     if !stated {
-        return Some(frame_length);
+        return Some((frame_length, false));
     }
     let count = bits.read(32)?;
-    (1..=frame_length).contains(&count).then_some(count)
+    (1..=frame_length).contains(&count).then_some((count, true))
 }
 
 /// Bytes of an Apple Lossless packet read for its sample count: the header

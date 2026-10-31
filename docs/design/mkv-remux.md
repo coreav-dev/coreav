@@ -63,6 +63,9 @@ sources. No sample is decoded or re-encoded.
   - subtitle and data tracks, tracks whose frames are compressed
     (`ContentCompression` other than header stripping), encrypted tracks,
     tracks with `TrackTimestampScale` other than 1.0;
+  - Apple Lossless of more than two channels, whose packets hold more than
+    one channel element (`remux.md`, "Apple Lossless packets from
+    Matroska");
   - a stream without what its sample entry needs (a malformed
     configuration record, no parameter set in the first H.264 keyframe, no
     valid `OpusHead`, no `AudioSpecificConfig`, an unreadable first VP9
@@ -123,17 +126,19 @@ sources. No sample is decoded or re-encoded.
   samples, from `frameLengthFlag`), the block size of its FLAC frame
   header (RFC 9639 9.1.1), the count an Apple Lossless packet's header
   states, else the cookie's `frameLength` (the header's layout is taken
-  from Apple's ALAC reference source, `codec/ALACDecoder.cpp` of the
-  macosforge/alac release, Apache-2.0, under a maintainer-approved
-  clean-room exception of 2026-10-31 for the ALAC packet header layout
-  only; `remux.md`, "Apple Lossless packets from Matroska"), or
+  from Apple's ALAC reference source, `codec/ALACDecoder.cpp` and
+  `codec/ALACBitUtilities.h` of the macosforge/alac release, Apache-2.0,
+  under a maintainer-approved clean-room exception of 2026-10-31 for the
+  ALAC packet header layout only; `remux.md`, "Apple Lossless packets
+  from Matroska"), or
   1,536 samples for AC-3 and E-AC-3. Matroska's millisecond times do not:
   Chrome's MediaRecorder writes 60 ms Opus frames at times that jitter by up
   to about 8 ms, so their differences would give 52 to 68 ms frames that do
   not match the audio. Times are accumulated from the first frame's, and
   the source's times are followed only when the next frame's time is more
   than half a frame away from where this one ends (a pause in a recording,
-  a lost frame, times that do not follow the frames): then the frame lasts
+  a lost frame, times that do not follow the frames), unless the frame
+  states its own count (an Apple Lossless packet's): then the frame lasts
   up to that time, rounded to the codec's quantum (120 samples, 2.5 ms, for
   Opus; one sample for FLAC; one frame for AAC, Apple Lossless, AC-3 and
   E-AC-3), at least one quantum. Each output time

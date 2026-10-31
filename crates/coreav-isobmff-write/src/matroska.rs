@@ -249,6 +249,9 @@ struct Plan {
     /// The `dac3` or `dec3` payload, built from the first frame of an
     /// AC-3 or E-AC-3 stream.
     audio_config: Vec<u8>,
+    /// Apple Lossless: the tag of the one channel element every packet
+    /// holds, 0 for mono or 1 for a stereo pair.
+    alac_element: u32,
     /// Why the stream cannot be copied after all, found while listing it.
     failure: Option<&'static str>,
     /// `DiscardPadding` of the last frame, in nanoseconds: not presented.
@@ -387,6 +390,9 @@ struct Record {
     /// TOC byte, the FLAC frame header, the Apple Lossless element header;
     /// one AAC frame, 1,536 samples of AC-3 or E-AC-3); 0 when unknown.
     frame: u32,
+    /// `frame` is a count the frame itself states (an Apple Lossless
+    /// packet's), which the source's times do not change.
+    stated: bool,
     keyframe: bool,
 }
 
@@ -841,6 +847,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
     if !track.timestamp_scale_one {
         return Err("TrackTimestampScale other than 1.0 is not supported");
     }
+    let mut alac_element = 0;
     let (timescale, quantum) = match (media, track.codec) {
         (Media::Video, Codec::H264 | Codec::Hevc | Codec::Av1 | Codec::Vp9) => (0, 1),
         (Media::Audio, Codec::Opus) => (48_000, 120),
@@ -858,6 +865,16 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
                 .as_deref()
                 .and_then(audio::alac_from_codec_private)
                 .ok_or("ALAC without its magic cookie in CodecPrivate")?;
+            // Only a packet's first element header is read for its sample
+            // count, so a packet must hold that one element.
+            alac_element = match config.channels {
+                1 => 0,
+                2 => 1,
+                _ => {
+                    return Err("Apple Lossless from Matroska with more than two channels: \
+                         a packet's later channel elements are not read");
+                }
+            };
             (config.sample_rate, u64::from(config.frame_length))
         }
         // The first frame's header gives the sample rate (`list_samples`).
@@ -923,6 +940,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
         samples: Records::default(),
         parameter_sets: Vec::new(),
         audio_config: Vec::new(),
+        alac_element,
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
@@ -946,6 +964,7 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
         samples: Records::default(),
         parameter_sets: Vec::new(),
         audio_config: Vec::new(),
+        alac_element: 0,
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
@@ -1229,6 +1248,7 @@ fn list_samples<S: Source>(
         // listing passes the frame rather than in a pass of their own,
         // which over a network would read the file a second time.
         let source = packets.source_mut();
+        let mut stated = false;
         let frame = match plan.codec {
             Codec::Opus => {
                 let mut head = [0u8; 2];
@@ -1245,12 +1265,15 @@ fn list_samples<S: Source>(
             Codec::Alac => {
                 let mut head = [0u8; audio::ALAC_HEAD];
                 let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
-                let fallback = u32::try_from(plan.quantum).unwrap_or(0);
+                let frame_length = u32::try_from(plan.quantum).unwrap_or(0);
                 match head
                     .get(..filled)
-                    .and_then(|h| audio::alac_samples(h, fallback))
+                    .and_then(|h| audio::alac_samples(h, plan.alac_element, frame_length))
                 {
-                    Some(samples) => samples,
+                    Some((samples, own)) => {
+                        stated = own;
+                        samples
+                    }
                     None => {
                         plan.fail("an Apple Lossless packet without a valid element header");
                         continue;
@@ -1296,6 +1319,7 @@ fn list_samples<S: Source>(
             block_ns,
             block_duration_ns,
             frame,
+            stated,
             keyframe: packet.keyframe,
         });
     }
@@ -1686,7 +1710,9 @@ fn audio_timing(track: &Track, plan: &Plan) -> Result<Timing, MatroskaRemuxError
         let to_next = |next: i128| round_div(next - time, q).max(1) * q;
         let duration = match (frame, targets.get(k + 1)) {
             (Some(f), Some(&next))
-                if timed.get(k + 1) == Some(&true) && (next - (time + f)).abs() * 2 > f =>
+                if !record.stated
+                    && timed.get(k + 1) == Some(&true)
+                    && (next - (time + f)).abs() * 2 > f =>
             {
                 to_next(next)
             }

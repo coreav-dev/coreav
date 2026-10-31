@@ -216,20 +216,26 @@ AC-3 decoder, so these entries are in the default build.
   288 KiB.
 - **Apple Lossless packets from Matroska.** Apple's cookie description
   makes `frameLength` a packet's sample count only when the packet's
-  header states no other, and a shorter packet (always the last one) does
-  state its own; Matroska's millisecond times cannot give the count. The
-  header's layout is taken, under a maintainer-approved clean-room
-  exception (2026-10-31) for the ALAC packet header layout only, from
-  Apple's ALAC reference source, `codec/ALACDecoder.cpp` of the
+  header states no other, and a shorter packet states its own; Matroska's
+  millisecond times cannot give the count. The header's layout is taken,
+  under a maintainer-approved clean-room exception (2026-10-31) for the
+  ALAC packet header layout only, from Apple's ALAC reference source,
+  `codec/ALACDecoder.cpp` and `codec/ALACBitUtilities.h` of the
   macosforge/alac release (Apache-2.0): a 3-bit element tag (0 for one
-  channel, 1 for a channel pair, 3 for LFE), a 4-bit instance tag, 12
-  bits of zeros, a flag for a stated count, a 2-bit shift other than 3,
-  an escape bit, then, when flagged, the count in 32 bits. Nothing else
-  of that source is used, and CoreAV's reader (`alac_samples` in
-  `src/audio.rs`) is written from this description. A packet that does
-  not start with such a header, or states 0 samples or more than
-  `frameLength`, drops the stream with "an Apple Lossless packet without a
-  valid element header" rather than being given a guessed length.
+  channel, 1 for a channel pair), a 4-bit instance tag, 12 bits of zeros,
+  a flag for a stated count, a 2-bit shift other than 3, an escape bit,
+  then, when flagged, the count in 32 bits. Nothing else of that source
+  is used, and CoreAV's reader (`alac_samples` in `src/audio.rs`) is
+  written from this description. Only a packet's first element header is
+  read, so a packet must hold one element: mono is one single channel
+  element and stereo one channel pair, and a stream of more than two
+  channels is dropped with "Apple Lossless from Matroska with more than
+  two channels: a packet's later channel elements are not read". A
+  stated count is the packet's duration whatever the source's times say.
+  A packet that does not start with the element its channels need, or
+  states 0 samples or more than `frameLength`, drops the stream with "an
+  Apple Lossless packet without a valid element header" rather than
+  being given a guessed length.
 - **`dac3` and `dec3` from the bitstream.** `fscod`, `bsid`, `bsmod`,
   `acmod` and `lfeon` come from the first frame's `bsi()` (4.4.2,
   E.1.3); `bit_rate_code` from `frmsizecod`; E-AC-3's `data_rate` is the

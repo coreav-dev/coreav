@@ -1648,9 +1648,9 @@ fn streaminfo(rate: u32, channels: u32, bits: u32) -> Vec<u8> {
     info
 }
 
-/// The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
+/// The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, `channels`
 /// channels at 44.1 kHz.
-fn alac_cookie() -> Vec<u8> {
+fn alac_cookie(channels: u32) -> Vec<u8> {
     pack(&[
         (4096, 32),
         (0, 8),
@@ -1658,7 +1658,7 @@ fn alac_cookie() -> Vec<u8> {
         (40, 8),
         (10, 8),
         (14, 8),
-        (2, 8),
+        (channels, 8),
         (255, 16),
         (40, 32),
         (64_000, 32),
@@ -1666,12 +1666,18 @@ fn alac_cookie() -> Vec<u8> {
     ])
 }
 
-/// An Apple Lossless packet: a channel pair element's header (tag 1,
-/// instance 0, 12 zero bits, the flag for a stated sample count, shift 0,
-/// no escape), the count when stated, then filler.
+/// A stereo Apple Lossless packet: see [`alac_element_packet`].
 fn alac_packet(stated: Option<u32>, seed: usize) -> Vec<u8> {
+    alac_element_packet(1, stated, seed)
+}
+
+/// An Apple Lossless packet of one channel element: its header (`element`,
+/// 0 for one channel or 1 for a pair, instance 0, 12 zero bits, the flag
+/// for a stated sample count, shift 0, no escape), the count when stated,
+/// then filler.
+fn alac_element_packet(element: u32, stated: Option<u32>, seed: usize) -> Vec<u8> {
     let mut fields = vec![
-        (1, 3),
+        (element, 3),
         (0, 4),
         (0, 12),
         (u32::from(stated.is_some()), 1),
@@ -1682,9 +1688,15 @@ fn alac_packet(stated: Option<u32>, seed: usize) -> Vec<u8> {
     cat(&[pack(&fields), frame(seed, 40)])
 }
 
-/// A Matroska file of one Apple Lossless track holding `packets`, each
-/// lasting the samples paired with it, at their times in milliseconds.
+/// A Matroska file of one stereo Apple Lossless track holding `packets`,
+/// each lasting the samples paired with it, at their times in
+/// milliseconds.
 fn alac_source(packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
+    alac_source_of(2, packets)
+}
+
+/// [`alac_source`] with `channels` channels.
+fn alac_source_of(channels: u32, packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
     let mut at = 0u32;
     let blocks: Vec<Vec<u8>> = packets
         .iter()
@@ -1702,8 +1714,8 @@ fn alac_source(packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
                 1,
                 2,
                 "A_ALAC",
-                &audio_el(44_100.0, 2),
-                &el(CODEC_PRIVATE, &alac_cookie()),
+                &audio_el(44_100.0, u64::from(channels)),
+                &el(CODEC_PRIVATE, &alac_cookie(channels)),
             )]),
             cluster(0, &blocks),
         ],
@@ -1731,6 +1743,72 @@ fn alac_packets_last_the_samples_their_headers_state() {
     assert_eq!(times, [(0, 4096), (4096, 100), (4196, 4096), (8292, 2184)]);
 }
 
+/// A stated count wins over the source's millisecond times, which cannot
+/// tell a short packet from none: 16 samples then 4,096 at times 0 and 0,
+/// and 16 samples (0.36 ms) between two packets of 4,096. A mono stream's
+/// packets hold one single channel element.
+#[test]
+fn alac_stated_counts_win_over_millisecond_times() {
+    let cases = [
+        (
+            alac_source(&[(alac_packet(Some(16), 0), 16), (alac_packet(None, 1), 4096)]),
+            vec![(0, 16), (16, 4096)],
+        ),
+        (
+            alac_source(&[
+                (alac_packet(None, 0), 4096),
+                (alac_packet(Some(16), 1), 16),
+                (alac_packet(None, 2), 4096),
+            ]),
+            vec![(0, 4096), (4096, 16), (4112, 4096)],
+        ),
+        (
+            alac_source_of(
+                1,
+                &[
+                    (alac_element_packet(0, None, 0), 4096),
+                    (alac_element_packet(0, Some(16), 1), 16),
+                    (alac_element_packet(0, None, 2), 4096),
+                ],
+            ),
+            vec![(0, 4096), (4096, 16), (4112, 4096)],
+        ),
+    ];
+    for (n, (source, expected)) in cases.into_iter().enumerate() {
+        let (summary, output) = remux(&source);
+        assert!(summary.dropped_tracks.is_empty(), "case {n}: {summary:?}");
+        let out = assert_round_trip(&source, &output, &summary);
+        let times: Vec<(i64, u32)> = mp4_packets(&output, &out, 0)
+            .iter()
+            .map(|p| (p.dts, p.duration))
+            .collect();
+        assert_eq!(times, expected, "case {n}");
+    }
+}
+
+/// More than two channels take more than one channel element a packet, and
+/// only the first element's header is read: the stream is refused.
+#[test]
+fn alac_of_more_than_two_channels_is_refused() {
+    let fail = MatroskaRemuxOptions {
+        on_unsupported: OnUnsupported::Fail,
+        ..MatroskaRemuxOptions::default()
+    };
+    for channels in [3, 6] {
+        let source = alac_source_of(channels, &[(alac_packet(None, 0), 4096)]);
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &fail),
+                Err(MatroskaRemuxError::Source(coreav_mkv::Error::Unsupported {
+                    reason: "Apple Lossless from Matroska with more than two channels: \
+                             a packet's later channel elements are not read"
+                }))
+            ),
+            "{channels} channels"
+        );
+    }
+}
+
 /// A packet whose header is not a channel element's, or states no samples
 /// or more than the cookie's `frameLength`, is refused rather than given
 /// a guessed length.
@@ -1750,6 +1828,8 @@ fn alac_packets_with_a_malformed_header_are_refused() {
         ]),
         // A data stream element first (tag 4).
         cat(&[pack(&[(4, 3), (0, 4), (0, 12), (0, 4)]), frame(0, 40)]),
+        // A single channel element in a stereo stream.
+        alac_element_packet(0, None, 0),
         alac_packet(Some(0), 0),
         alac_packet(Some(4097), 0),
         // A stated count cut short.
@@ -1781,7 +1861,7 @@ fn flac_alac_ac3_and_eac3_get_their_sample_entries() {
     flac_private.extend([0x80, 0, 0, 34]);
     flac_private.extend(streaminfo(96_000, 2, 16));
     let flac = |n: usize| cat(&[vec![0xFF, 0xF8, 0x30, 0x18, n as u8, 0], frame(n, 20)]);
-    let cookie = alac_cookie();
+    let cookie = alac_cookie(2);
     // An AC-3 syncframe (ETSI TS 102 366 4.3): 48 kHz, 32 kbit/s (64
     // words), bsid 8, bsmod 0, stereo without LFE.
     let ac3 = |n: usize| {
