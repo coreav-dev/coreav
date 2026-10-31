@@ -2729,6 +2729,8 @@ mod tests {
         assert_eq!(text(b"\x10\x00\x03A\xa5"), "\u{10}");
         assert_eq!(text(b"\x10\x00\x0cA"), "\u{10}");
         assert_eq!(text(b"\x12AB\xb0\xa1"), "\u{12}AB\u{fffd}\u{fffd}");
+        // Table A.4 reserves `0x10 0x00 0x10` and above: the bytes as read.
+        assert_eq!(text(b"\x10\x00\x10A\xa4"), "\u{10}");
         assert_eq!(text(b"AB\xf6\xe4C"), "AB\u{fffd}\u{fffd}C");
         assert_eq!(text(b"x\xe2\x82"), "x\u{fffd}\u{fffd}");
         assert_eq!(text(b"\x11\x00\xe9\x00A"), "\u{e9}A");

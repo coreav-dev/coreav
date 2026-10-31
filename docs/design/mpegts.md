@@ -884,8 +884,10 @@ table. A name in a table it does not convert, or with a byte its part
 leaves undefined, is printed as read, those bytes included, up to its
 first NUL (SDTs crafted with each table, and one that names part 3 with
 every byte from `0xA0`). `coreav ffprobe` converts the ISO/IEC 8859 parts
-from the Unicode Consortium's mapping tables of each part, and UCS-2 and
-UTF-8; GB 2312 names are printed as read (`ffprobe/ts.rs`, `dvb_text`).
+annex A assigns (1 to 11 and 13 to 15) from the Unicode Consortium's
+mapping tables of each part (its notice is in NOTICE), and UCS-2 and
+UTF-8; a reserved selector, part 16 and above included, and GB 2312
+names are printed as read (`ffprobe/ts.rs`, `dvb_text`).
 
 ### Oracle positions
 

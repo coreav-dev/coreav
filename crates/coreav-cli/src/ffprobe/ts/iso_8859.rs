@@ -1,14 +1,18 @@
-//! The ISO/IEC 8859 parts that ETSI EN 300 468 annex A names for DVB
-//! text, from the Unicode Consortium's mapping tables of each part
-//! (MAPPINGS/ISO8859 on unicode.org).
+//! The ISO/IEC 8859 parts that ETSI EN 300 468 annex A assigns for DVB
+//! text (tables A.3 and A.4: parts 1 to 11 and 13 to 15), from the
+//! Unicode Consortium's mapping tables of each part (MAPPINGS/ISO8859 on
+//! unicode.org).
+//!
+//! Copyright © 1991-2026 Unicode, Inc. Unicode License v3; see NOTICE.
 
-/// The parts in [`HIGH`], in its order; part 12 was never published.
-const PARTS: [u8; 15] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16];
+/// The parts in [`HIGH`], in its order; part 12 was never published, and
+/// annex A reserves the selectors of part 16 and above.
+const PARTS: [u8; 14] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15];
 
 /// The character of each byte from `0xA0` to `0xFF` of each part, 0 for
 /// a byte the part leaves undefined. Bytes below `0xA0` are the same
 /// characters in every part (ISO/IEC 646 and the C0 and C1 controls).
-const HIGH: [[u16; 96]; 15] = [
+const HIGH: [[u16; 96]; 14] = [
     // ISO/IEC 8859-1.
     [
         0x00A0, 0x00A1, 0x00A2, 0x00A3, 0x00A4, 0x00A5, 0x00A6, 0x00A7, 0x00A8, 0x00A9, 0x00AA,
@@ -177,22 +181,10 @@ const HIGH: [[u16; 96]; 15] = [
         0x00ED, 0x00EE, 0x00EF, 0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F7,
         0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x00FD, 0x00FE, 0x00FF,
     ],
-    // ISO/IEC 8859-16.
-    [
-        0x00A0, 0x0104, 0x0105, 0x0141, 0x20AC, 0x201E, 0x0160, 0x00A7, 0x0161, 0x00A9, 0x0218,
-        0x00AB, 0x0179, 0x00AD, 0x017A, 0x017B, 0x00B0, 0x00B1, 0x010C, 0x0142, 0x017D, 0x201D,
-        0x00B6, 0x00B7, 0x017E, 0x010D, 0x0219, 0x00BB, 0x0152, 0x0153, 0x0178, 0x017C, 0x00C0,
-        0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0106, 0x00C6, 0x00C7, 0x00C8, 0x00C9, 0x00CA, 0x00CB,
-        0x00CC, 0x00CD, 0x00CE, 0x00CF, 0x0110, 0x0143, 0x00D2, 0x00D3, 0x00D4, 0x0150, 0x00D6,
-        0x015A, 0x0170, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x0118, 0x021A, 0x00DF, 0x00E0, 0x00E1,
-        0x00E2, 0x0103, 0x00E4, 0x0107, 0x00E6, 0x00E7, 0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC,
-        0x00ED, 0x00EE, 0x00EF, 0x0111, 0x0144, 0x00F2, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x015B,
-        0x0171, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x0119, 0x021B, 0x00FF,
-    ],
 ];
 
-/// `bytes` read in ISO/IEC 8859 part `part`; `None` for a part there is
-/// not, or when a byte is one the part leaves undefined.
+/// `bytes` read in ISO/IEC 8859 part `part`; `None` for a part annex A does
+/// not assign, or when a byte is one the part leaves undefined.
 pub fn decode(part: u8, bytes: &[u8]) -> Option<String> {
     let at = PARTS.iter().position(|p| *p == part)?;
     let high = HIGH.get(at)?;
@@ -223,6 +215,8 @@ mod tests {
         // 0xA5 is undefined in part 3; there is no part 12.
         assert_eq!(decode(3, b"A\xa5"), None);
         assert_eq!(decode(12, b"A"), None);
+        // Annex A reserves the selector of part 16 (table A.4).
+        assert_eq!(decode(16, b"A\xa4"), None);
         assert_eq!(decode(17, b"A"), None);
     }
 }
