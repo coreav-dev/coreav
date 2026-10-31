@@ -2005,7 +2005,7 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 The name lists are taken from the pinned binaries' own listings and from the
 documentation, committed with the implementation, never from the command
 being logged: `scripts/fallback_names.py` generates
-`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 7.0.2's `-h full`,
+`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 9.0.2's `-h full`,
 `-encoders`, `-formats` and `ffprobe -sections`, and the keys from
 `coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of
