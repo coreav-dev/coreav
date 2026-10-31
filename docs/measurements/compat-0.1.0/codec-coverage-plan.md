@@ -34,6 +34,8 @@ run, and what voids a run").
 | `ffmpeg`, `ffprobe` | the pinned FFmpeg 9.x that `scripts/install-oracle-ffmpeg.sh` installs at the commit, checked by `scripts/oracle_pin.py --verify-bin` | the version line and the SHA-256 of each |
 | `x264` | the program `scripts/install-x264.sh` builds at the commit (V2, V3) | its x264 commit and SHA-256 |
 | Host | GitHub-hosted `ubuntu-24.04` x86-64 runners; for the reruns of "Host limits" below, one Compute Engine `c4-standard-16` VM | each runner job's image version, CPU model, core count, memory and kernel; the VM's class, CPU model and kernel |
+| The `ffmpeg` test executable | `coreav-cli`'s `ffmpeg` integration test built at the commit with feature `release-full`, the one `r3.py` drives (V2, V3) | SHA-256 |
+| Evidence key | the public key the per-file records are sealed to ("The result" of V1) | its SHA-256 fingerprint |
 | Fixtures | `scripts/gen-fixtures.sh`, `gen-fixtures-mkv.sh` and `gen-fixtures-ts.sh` at the commit, run with the pinned `ffmpeg` (V2, V3) | the SHA-256 of each of the five inputs |
 
 Every run of the pinned `ffmpeg` and `ffprobe`, and every run of CoreAV,
@@ -200,14 +202,17 @@ enforces, so a process it kills at its deadline is `timeout`, never
 Public evidence holds counts only. The per-file records (each file's hash
 and corpus key, its codes and its counts) never leave the runner unsealed:
 `codec-coverage.yml`, the workflow the tools add, seals them before it
-uploads them, as `compat-0.1.0.yml` seals its R2 and R3 records, to
-`tools/compat-corpus/evidence-public.pem` alone. The run needs no other
-recipient: whoever holds that key reads the `frame_count` and `md5` files,
-and their list stays private. A second recipient could read every record,
-so it is the maintainer's decision. It is added only if the maintainer
-approves a named key, by an amendment of this page that gives the key's
-fingerprint before any run, and the workflow then seals to it only when
-the fingerprint matches. Until then there is none.
+uploads them, as `compat-0.1.0.yml` seals its R2 and R3 records, to the
+evidence key the run's manifest names and to no other. At this plan's
+commit that key's public half is
+`tools/compat-corpus/evidence-public.pem`; the private half is not in the
+repository, and only its holder can read the records, the `frame_count`
+and `md5` files among them, whose list stays private. The run needs no
+other recipient. A second one could read every record, so it is the
+maintainer's decision: it is added only if the maintainer approves a named
+key, by an amendment of this page that gives the key's fingerprint before
+any run, and the workflow then seals to it only when the fingerprint
+matches. Until then there is none.
 
 ## V2, encode breadth
 
@@ -271,11 +276,26 @@ order in both outputs.
 
 | Job in the mapping | Oracle |
 |---|---|
-| `copy` | a command whose every stream is copied: R3's oracle, `tools/compat-corpus/copy_check.py`, against the pinned `ffmpeg`'s output of the same command, its range and join checks included. A stream copied beside an H.264 encode: B3, as the note registers it for B9. A stream copied beside an AAC encode with no H.264 encode: `copy_check.py`'s checks of that stream |
-| `libx264` | an `x264` start in CoreAV's program log, then B9 of `design/transcode.md` as `transcode_check.py --compat` applies it: B1, B2, and B4 with Q1 at least −0.50 dB and Q2 at least 30 dB, against the pinned `ffmpeg` running the same command line |
+| `copy` | a command whose every stream is copied: R3's oracle as `tools/compat-corpus/r3.py` applies it, below. A stream copied beside an encode: B3 of `design/transcode.md`, as the note registers it for B9 (the stream's packets equal the source stream's in count and data, and its timestamps those of the same stream of `coreav remux` of the source), for a video stream as for an audio one |
+| `libx264` | an `x264` start in CoreAV's program log, then B1, B2, B3 and B4 of `design/transcode.md` as B9 defines them for a `coreav ffmpeg` encode, applied to this command: CoreAV's output against the pinned `ffmpeg` running the same command line, B4 with Q1 at least −0.50 dB and Q2 at least 30 dB. The checks are `transcode_check.py`'s own functions, called on this command's outputs, not its fixed list of B9 command lines |
 | `libopus` | CoreAV's stream is not a packet copy of a source stream (equal in count and data: an encode cannot reproduce the source's packets), then O1 to O4 of `design/transcode.md`, "Opus bars", for one output, with the pinned `ffmpeg`'s output of the same command as the FFmpeg arm: O1 as written; O2 with that output in place of the summary (`start_pts` 0, `initial_padding` equal to its, `duration_ts` within 48 samples of its); O3's bound for one input, 0.85 to 1.15 (its median is over a set and does not apply to one command); O4 as written, 1.0 dB, for the sources below |
 | `aac` | an encoder start in CoreAV's program log, then A1 to A4 of `design/transcode.md`, "AAC bars", for one output in the same way: A1 as written; A2 with the FFmpeg arm's output in place of the summary, exactly; A3's bound for one input, 0.95 to 1.05; A4 as written, 0.5 dB, for the sources below |
 | any other encoder, image encoders included | none registered at this plan's commit |
+
+**R3's oracle for a copy command.** `copy_check.py` judges a written
+output by CoreAV's own job (remux, clip, split, join or extraction) and
+the summary its writer returns, which the `coreav` binary does not print.
+So, as `r3.py` does for R3, the runner also runs the command through the
+`coreav-cli` test executable that calls the function `coreav ffmpeg` runs
+and records its job and summary; the `coreav` binary must write the same
+bytes with the same outcome, else the command is `oracle` with the check
+`binary_differs`. The tools pull request makes that test take any command
+and report the job CoreAV chose, where for R3 it takes the job from
+`commands-0.1.0`. The record then goes to `copy_check.py` with that job,
+which checks the selection against the pinned `ffmpeg` and the job's
+oracle, its range, segment and join checks included. A copy whose job
+`copy_check.py` has no oracle for (an HLS output, for one) is `no_oracle`,
+and a pair it sets aside as unmodelled is `no_oracle` too.
 
 The fixtures' audio is a 440 Hz sine, a tonal source: at 48 kHz in
 `mkv_h264_aac.mkv`, `webm_vp9_opus.webm`, `ts_h264_aac.ts` and
@@ -314,7 +334,7 @@ gets the first code that applies:
 | 5 | `failed` | any other nonzero exit, a signal the runner did not send, or exit 0 with no output | the status and the last line of standard error |
 | 6 | `ffmpeg_job` | a start in the program log that is not an encoder start | |
 | 7 | `no_oracle` | an output stream whose job has no registered oracle | the job |
-| 8 | `oracle` | a check of an oracle fails | the first check that failed (`copy_check`, `B1` to `B4`, `O1` to `O4`, `A1` to `A4`) |
+| 8 | `oracle` | a check of an oracle fails | the first check that failed (`binary_differs`, `copy_check`, `B1` to `B4`, `O1` to `O4`, `A1` to `A4`) |
 | 9 | `streams_differ` | the stream listing differs from the pinned `ffmpeg`'s | |
 
 A fallback log line whose `ran` is not null voids the run, as the note
@@ -364,9 +384,11 @@ container CoreAV does not read). It reads no corpus file.
    reference, CoreAV's side, the reason table, the summary and the sealed
    records), and the merge of the GitHub pass with the rerun.
 3. `tools/compat-corpus/encode_breadth.py`: V2's and V3's runner, calling
-   `copy_check.py`, the B1 to B4 checks of `transcode_check.py`, and the
-   checks of `opus_encode_check.py` and `aac_encode_check.py`, rather than
-   copies of them.
+   `copy_check.py` through the same path as `r3.py`, the B1 to B4
+   functions of `transcode_check.py`, and the checks of
+   `opus_encode_check.py` and `aac_encode_check.py`, rather than copies of
+   them; and the change to the `coreav-cli` test that `r3.py` drives, so
+   that it takes any command and reports CoreAV's job.
 4. A `workflow_dispatch` workflow, `codec-coverage.yml`, with the commit
    and the set (`rehearsal` or `v1`) as inputs. It
    builds the manifest's binaries once, runs V1's shards with the corpus
