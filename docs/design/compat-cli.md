@@ -528,7 +528,7 @@ not the selection or the bars. Existing R4 reports remain readable with
 their stored ratios; reading them does not remeasure or rescore them.
 Timings collected with timeout polling cannot substantiate current speed bars.
 
-R4 reports eligible, refused, timed, failed and oracle-failed pair counts,
+R4 reports eligible, refused, timed, failed, oracle-failed and unprocessed pair counts,
 the share of eligible pairs timed, and refusal counts by reason group and
 command. Every median and interval is accompanied by coverage, and every
 registered command is listed even when no eligible file reaches it. The
@@ -539,6 +539,13 @@ remain diagnostics, not refused-pair totals. New results identify this
 method as `r4-refusal-coverage-v1`; historical ratios remain readable
 without reclassification or rescoring. An all-refused group is still
 unmeasured, not a pass.
+The full eligible roster is fixed before execution and written even when
+an infrastructure exception aborts the arm. Completed outcomes are kept;
+the interrupted pair is failed and later pairs remain unprocessed, never
+refused or timed. The eligible total is the sum of those five exclusive
+outcomes. The exception still propagates. Both the reporter and host
+driver reject an aborted arm or any unprocessed pair, even when completed
+ratios meet their bars, and retain the nonpassing public report.
 
 `scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
 one on-demand `c4-standard-16` with one thread a core, the three binaries

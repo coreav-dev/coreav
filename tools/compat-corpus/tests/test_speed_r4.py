@@ -205,7 +205,12 @@ class RealTiming(unittest.TestCase):
                     with self.assertRaisesRegex(OSError, 'infrastructure unavailable'):
                         speed.r4(opts)
                 self.assertEqual(calls, 5)
-                self.assertFalse(out.exists())
+                self.assertTrue(out.exists())
+                data = json.loads(out.read_text())
+                self.assertTrue(data['aborted'])
+                coverage = speed.r4_summary(data, gate=True)['coverage']
+                self.assertEqual((coverage['eligible'], coverage['timed'], coverage['failed'], coverage['unprocessed']),
+                                 (2, 1, 1, 0))
                 self.assertFalse(list((root / 'out').iterdir()))
 
     def test_nonzero_child_exits_are_still_returned(self):
@@ -272,6 +277,61 @@ class Invocation(unittest.TestCase):
 
 
 class Outcomes(unittest.TestCase):
+    def test_an_abort_retains_progress_and_the_unprocessed_eligible_roster(self):
+        for arm in speed.ARMS:
+            for fault in ('launch', 'log'):
+                with self.subTest(arm=arm, fault=fault), tempfile.TemporaryDirectory() as tmp:
+                    root = pathlib.Path(tmp)
+                    path, report = root / 'results.json', root / 'report.json'
+                    opts = SimpleNamespace(scratch=str(root), out=str(path), cpus='0', arm=arm, rounds=1,
+                                           coreav='coreav', ffmpeg='ffmpeg', ffprobe='ffprobe')
+                    entry = {'id': 'C01', 'tool': 'ffmpeg', 'job': 'remux'}
+                    pairs = [(entry, i, {'args': ['INPUT', 'OUTPUT']}, 'mp4-mov:0', 'mp4-mov', root / 'in.mp4')
+                             for i in range(3)]
+                    calls = 0
+                    read_bytes = pathlib.Path.read_bytes
+
+                    def timed(argv, env, scratch):
+                        nonlocal calls
+                        calls += 1
+                        if calls == 5:
+                            if fault == 'launch':
+                                raise OSError('launch failed')
+                            pathlib.Path(env['COREAV_FALLBACK_LOG']).write_text(json.dumps(REFUSAL) + '\n')
+                        return 1.0, 0
+
+                    def read(path):
+                        if calls == 5 and path.name == 'invocation.log':
+                            raise PermissionError('log failed')
+                        return read_bytes(path)
+
+                    with mock.patch.object(speed.os, 'sched_setaffinity'), \
+                            mock.patch.object(speed, 'r4_files', return_value=[]), \
+                            mock.patch.object(speed, 'r4_pairs', return_value=pairs), \
+                            mock.patch.object(speed, 'timed_run', side_effect=timed), \
+                            mock.patch.object(pathlib.Path, 'read_bytes', read):
+                        with self.assertRaisesRegex(OSError, 'failed'):
+                            speed.r4(opts)
+                    self.assertEqual(calls, 5)
+                    self.assertTrue(path.exists(), 'an infrastructure abort lost the eligible denominator')
+                    data = json.loads(path.read_text())
+                    self.assertTrue(data['aborted'])
+                    self.assertEqual([row['outcome'] for row in data['results']], ['timed', 'failed', 'unprocessed'])
+                    coverage = speed.r4_summary(data, gate=arm != 'r4')['coverage']
+                    self.assertEqual([coverage[key] for key in ('eligible', 'timed', 'failed', 'unprocessed',
+                                                                'refused', 'oracle_failed')], [3, 1, 1, 1, 0, 0])
+                    self.assertEqual(coverage['eligible'], sum(coverage[key] for key in
+                                     ('timed', 'failed', 'unprocessed', 'refused', 'oracle_failed')))
+                    self.assertEqual(coverage['timed_share'], 1 / 3)
+                    done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report',
+                                           '--results', str(path), '--out', str(report)]
+                                          + (['--gate'] if arm != 'r4' else []),
+                                          capture_output=True, text=True, timeout=60)
+                    self.assertEqual(done.returncode, 1, done.stdout)
+                    self.assertIn('ABORTED', done.stdout)
+                    self.assertIn('timed_share=33.3%', done.stdout)
+                    self.assertTrue(json.loads(report.read_text())['aborted'])
+
     def run_pair(self, arm, second):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -368,6 +428,23 @@ class Outcomes(unittest.TestCase):
 
 
 class Report(unittest.TestCase):
+    def test_unprocessed_pairs_fail_even_without_an_abort_marker(self):
+        data = results('r4', [('remux', 'mp4-mov', 0.8)])
+        data['results'].append({'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 1,
+                                'outcome': 'unprocessed'})
+        summary = speed.r4_summary(data, gate=False)
+        self.assertTrue(summary['aborted'])
+        self.assertEqual((summary['coverage']['eligible'], summary['coverage']['timed'],
+                          summary['coverage']['unprocessed']), (2, 1, 1))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'report.json'
+            path.write_text(json.dumps(data))
+            done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report', '--results', str(path)],
+                                  capture_output=True, text=True, timeout=60)
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn('ABORTED', done.stdout)
+        self.assertIn('unprocessed=1', done.stdout)
+
     def test_coverage_reconciles_beside_every_speed_number(self):
         data = results('r4', [('remux', 'mp4-mov', 0.8)] * 2)
         base = {'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 0, 'file': 'mp4-mov:0'}

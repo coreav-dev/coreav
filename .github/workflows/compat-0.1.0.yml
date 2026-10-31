@@ -298,19 +298,22 @@ jobs:
           cp "$RUNNER_TEMP/r4/verdict.json" "$RUNNER_TEMP"/r4/vm/*.report.json "$RUNNER_TEMP"/r4/vm/*.report.txt \
             "$RUNNER_TEMP/r4/vm/ffmpeg-version.txt" "$RUNNER_TEMP/r4-public/"
           # 0: R4 ran after a passed gate; 3: the gate failed (expected on a shared runner) and R4 ran all the same;
-          # 5: retain a void diagnostic, or a wholly refused unmeasured group proved by coverage. Neither is a bar pass.
+          # 5: retain void and unmeasured diagnostics proved by complete refusal/oracle-failure coverage, never a bar pass.
           [ "$code" -eq 0 ] || [ "$code" -eq 3 ] || { [ "$code" -eq 5 ] && python3 -I - "$RUNNER_TEMP/r4" <<'PY'
           import json, pathlib, sys
           root = pathlib.Path(sys.argv[1])
           reasons = json.loads((root / 'verdict.json').read_text())['reasons']
           allowed = {reason for reason in reasons if reason.startswith('the fallback log of ')}
+          counts = ('eligible', 'refused', 'timed', 'failed', 'oracle_failed', 'unprocessed')
           for name in ('gate-aa', 'gate-null', 'r4'):
               report = json.loads((root / 'vm' / f'{name}.report.json').read_text())
               unmeasured = report.get('unmeasured', [])
               groups = {f"{row['class']} {row['family']}": row for row in report.get('coverage_groups', [])}
               rows = [groups.get(group, {}) for group in unmeasured]
-              if rows and all(row.get('eligible', 0) > 0 and row['eligible'] == row.get('refused')
-                              and all(row.get(key) == 0 for key in ('timed', 'failed', 'oracle_failed')) for row in rows):
+              if rows and all(all(type(row.get(key)) is int and row[key] >= 0 for key in counts)
+                              and row['eligible'] > 0 and row['eligible'] == row['refused'] + row['oracle_failed']
+                              and all(row[key] == 0 for key in ('timed', 'failed', 'unprocessed'))
+                              for row in rows):
                   allowed.add(f"{name} left {', '.join(unmeasured)} unmeasured")
           sys.exit(not reasons or any(reason not in allowed for reason in reasons))
           PY

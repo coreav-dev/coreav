@@ -25,7 +25,8 @@ class Rehearsal(unittest.TestCase):
                         'out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "r4"\n'
                         '(out / "vm").mkdir(parents=True)\n'
                         'reason = os.environ["FAKE_REASON"]\n'
-                        '(out / "verdict.json").write_text(json.dumps({"reasons": [reason] if reason else []}))\n'
+                        '(out / "verdict.json").write_text(json.dumps({"verdict": "void" if os.environ["FAKE_EXIT"] == "5" else "r4",\n'
+                        '                                             "reasons": [reason] if reason else []}))\n'
                         'reports = json.loads(os.environ.get("FAKE_REPORTS", "{}"))\n'
                         'for name in ("gate-aa", "gate-null", "r4"):\n'
                         '    (out / "vm" / (name + ".report.json")).write_text(json.dumps(reports.get(name, {})))\n'
@@ -58,11 +59,11 @@ class Rehearsal(unittest.TestCase):
 
     def test_only_coverage_proved_refusal_groups_are_expected_unmeasured_diagnostics(self):
         base = {'class': 'remux', 'family': 'all', 'eligible': 2, 'refused': 2,
-                'timed': 0, 'failed': 0, 'oracle_failed': 0}
+                'timed': 0, 'failed': 0, 'oracle_failed': 0, 'unprocessed': 0}
         for row, accepted in ((base, True), ({**base, 'eligible': 3}, False),
                               ({**base, 'failed': 1}, False), ({**base, 'oracle_failed': 1}, False),
                               ({**base, 'timed': 1}, False), ({**base, 'eligible': 0, 'refused': 0}, False),
-                              ({**base, 'family': 'mp4-mov'}, False)):
+                              ({**base, 'family': 'mp4-mov'}, False), ({**base, 'unprocessed': 1}, False)):
             with self.subTest(row=row), tempfile.TemporaryDirectory() as tmp:
                 directory = pathlib.Path(tmp)
                 (directory / 'bin').mkdir()
@@ -76,6 +77,25 @@ class Rehearsal(unittest.TestCase):
                                            'FAKE_REPORTS': json.dumps(reports)}, capture_output=True, timeout=30)
                 self.assertEqual(done.returncode == 0, accepted, done.stderr.decode())
                 self.assertEqual(len(list((directory / 'r4-public').iterdir())), 8)
+
+    def test_oracle_failed_groups_keep_their_void_rehearsal_diagnostic(self):
+        for refused, oracle_failed in ((0, 2), (1, 1)):
+            with self.subTest(refused=refused), tempfile.TemporaryDirectory() as tmp:
+                directory = pathlib.Path(tmp)
+                (directory / 'bin').mkdir()
+                (directory / 'bin' / 'coreav').touch()
+                fake = self.driver(directory)
+                row = {'class': 'remux', 'family': 'matroska-webm', 'eligible': 2,
+                       'refused': refused, 'oracle_failed': oracle_failed, 'timed': 0, 'failed': 0, 'unprocessed': 0}
+                reports = {'r4': {'unmeasured': ['remux matroska-webm'], 'coverage_groups': [row]}}
+                script = run_script("Run the R4 host's job here").replace('scripts/compat_r4_gcp.py', str(fake))
+                done = subprocess.run(['bash', '-c', script],
+                                      env={**os.environ, 'RUNNER_TEMP': tmp, 'FAKE_EXIT': '5',
+                                           'FAKE_REASON': 'r4 left remux matroska-webm unmeasured',
+                                           'FAKE_REPORTS': json.dumps(reports)}, capture_output=True, timeout=30)
+                self.assertEqual(done.returncode, 0, done.stderr.decode())
+                public = json.loads((directory / 'r4-public/verdict.json').read_text())
+                self.assertEqual(public['verdict'], 'void')
 
 
 class Evidence(unittest.TestCase):

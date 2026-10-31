@@ -513,22 +513,28 @@ def r4_invocation(argv, env, scratch, call_log, aggregate_log, side, tool):
 
 
 def r4_coverage(rows, sides):
-    counts = dict.fromkeys(('eligible', 'refused', 'timed', 'failed', 'oracle_failed'), 0)
+    counts = dict.fromkeys(('eligible', 'refused', 'timed', 'failed', 'oracle_failed', 'unprocessed'), 0)
     groups = dict.fromkeys(('codec_container', 'option', 'layout', 'unknown'), 0)
     reasons = collections.Counter()
     for row in rows:
         counts['eligible'] += 1
-        if 'ratio' in row:
-            counts['timed'] += 1
-        elif row.get('refused'):
-            counts['refused'] += 1
+        outcome = row.get('outcome')
+        if outcome is None:
+            if 'ratio' in row:
+                outcome = 'timed'
+            elif row.get('refused'):
+                outcome = 'refused'
+            elif 'a' not in row and any(side == 'ffmpeg' and code != 0
+                                       for side, code in zip(sides, row.get('exit', []))):
+                outcome = 'oracle_failed'
+            else:
+                outcome = 'failed'
+        if outcome == 'eligible' or outcome not in counts:
+            raise ValueError('unknown R4 pair outcome')
+        counts[outcome] += 1
+        if outcome == 'refused':
             groups[row.get('refusal_group', 'unknown')] += 1
             reasons.update(set(row.get('refusal_reasons', [])))
-        elif 'a' not in row and any(side == 'ffmpeg' and code != 0
-                                   for side, code in zip(sides, row.get('exit', []))):
-            counts['oracle_failed'] += 1
-        else:
-            counts['failed'] += 1
     return {**counts, 'timed_share': counts['timed'] / counts['eligible'] if counts['eligible'] else None,
             'refusal_groups': groups, 'refusal_reasons': dict(sorted(reasons.items()))}
 
@@ -551,72 +557,86 @@ def r4(opts):
         print('UNMEASURED: no pair to time')
         return release_round.UNMEASURED
     left, right = ARMS[opts.arm]
-    results = []
-    preflight_lines = [line for line in log.read_bytes().splitlines() if line.strip()] if log.exists() else []
-    log_lines = len(preflight_lines)
+    results = [{'id': entry['id'], 'command': i, 'class': entry['job'], 'family': fam,
+                'file': label, 'outcome': 'unprocessed'} for entry, i, _, label, fam, _ in pairs]
+    commands = [{'id': entry['id'], 'command': i, 'class': entry['job']}
+                for entry in release_round.entries() for i, _ in enumerate(entry['commands'])]
+    log_lines = 0
     refusal_lines = excluded_lines = 0
-    void = bool(preflight_lines)
-    for k, (entry, i, command, label, fam, path) in enumerate(pairs):
-        source = path
-        if entry['job'] == 'join':
-            source = release_round.concat_list(lists / label.replace(':', '-'), path)
-        argv = release_round.fill(command['args'], source, out_dir / release_round.output_name(entry['job']))
-        program = {'coreav': [opts.coreav, entry['tool']],
-                   'ffmpeg': [opts.ffmpeg if entry['tool'] == 'ffmpeg' else opts.ffprobe]}
-        a, b = program[left] + argv, program[right] + argv
-        row = {'id': entry['id'], 'command': i, 'class': entry['job'], 'family': fam, 'file': label}
-        calls = [r4_invocation(argv_, env, out_dir, call_log, log, side, entry['tool'])
-                 for argv_, side in ((a, left), (b, right))]
-        warm = tuple(call['exit'] for call in calls)
-        lines = sum(call['lines'] for call in calls)
-        log_lines += lines
-        refusal_lines += sum(call['lines'] for call in calls if call['refusal'])
-        refused = 'coreav' in (left, right) and all(
-            call['refusal'] if side == 'coreav' else call['exit'] == 0 and not call['lines']
-            for call, side in zip(calls, (left, right)))
-        if warm != (0, 0):
-            row['exit'] = list(warm)
-            row['refused'] = refused
-            if refused:
-                reasons = sorted({reason for call in calls for reason in call['reasons']})
-                groups = {R4_REASON_GROUPS.get(reason, 'unknown') for reason in reasons}
-                row.update(refusal_reasons=reasons, refusal_group=next(iter(groups)) if len(groups) == 1 else 'unknown')
-                excluded_lines += lines
-            else:
-                void |= bool(lines)
-            results.append(row)
-            continue
-        if lines:
-            void = True
-            row.update(exit=list(warm), log_error=True)
-            results.append(row)
-            continue
-        times, codes = ([], []), set()
-        timed_logs = False
-        for _ in range(opts.rounds):
-            for side, argv_, name in ((0, a, left), (1, b, right)):
-                call = r4_invocation(argv_, env, out_dir, call_log, log, name, entry['tool'])
-                times[side].append(call['elapsed'])
-                codes.add(call['exit'])
+    void, aborted, row = False, True, None
+    try:
+        preflight_lines = [line for line in log.read_bytes().splitlines() if line.strip()] if log.exists() else []
+        log_lines = len(preflight_lines)
+        void = bool(preflight_lines)
+        for k, (entry, _, command, label, _, path) in enumerate(pairs):
+            row = results[k]
+            row['outcome'] = 'failed'
+            source = path
+            if entry['job'] == 'join':
+                source = release_round.concat_list(lists / label.replace(':', '-'), path)
+            argv = release_round.fill(command['args'], source, out_dir / release_round.output_name(entry['job']))
+            program = {'coreav': [opts.coreav, entry['tool']],
+                       'ffmpeg': [opts.ffmpeg if entry['tool'] == 'ffmpeg' else opts.ffprobe]}
+            a, b = program[left] + argv, program[right] + argv
+            calls = []
+            for argv_, side in ((a, left), (b, right)):
+                call = r4_invocation(argv_, env, out_dir, call_log, log, side, entry['tool'])
+                calls.append(call)
                 log_lines += call['lines']
                 refusal_lines += call['lines'] if call['refusal'] else 0
-                timed_logs |= bool(call['lines'])
-        void |= timed_logs
-        row.update(a=times[0], b=times[1])
-        if codes == {0} and not timed_logs:
-            row['ratio'] = statistics.median(times[0]) / statistics.median(times[1])
-        else:
-            row['exit'] = sorted(c if c is not None else -1 for c in codes)
-        results.append(row)
-        if (k + 1) % 100 == 0 or k + 1 == len(pairs):
-            print(f'{k + 1}/{len(pairs)}', file=sys.stderr, flush=True)
-    pathlib.Path(opts.out).write_text(json.dumps(
-        {'set': '0.1.0', 'method': R4_METHOD, 'arm': opts.arm, 'sides': [left, right], 'rounds': opts.rounds, 'cpus': opts.cpus,
-         'files': dict(collections.Counter(f for f, _ in files)),
-         'commands': [{'id': entry['id'], 'command': i, 'class': entry['job']}
-                      for entry in release_round.entries() for i, _ in enumerate(entry['commands'])],
-         'fallback_log': {'lines': log_lines, 'refusal_lines': refusal_lines,
-                          'excluded_lines': excluded_lines, 'void': void}, 'results': results}) + '\n')
+            warm = tuple(call['exit'] for call in calls)
+            lines = sum(call['lines'] for call in calls)
+            refused = 'coreav' in (left, right) and all(
+                call['refusal'] if side == 'coreav' else call['exit'] == 0 and not call['lines']
+                for call, side in zip(calls, (left, right)))
+            if warm != (0, 0):
+                row['exit'] = list(warm)
+                row['refused'] = refused
+                if refused:
+                    reasons = sorted({reason for call in calls for reason in call['reasons']})
+                    groups = {R4_REASON_GROUPS.get(reason, 'unknown') for reason in reasons}
+                    row.update(outcome='refused', refusal_reasons=reasons,
+                               refusal_group=next(iter(groups)) if len(groups) == 1 else 'unknown')
+                    excluded_lines += lines
+                else:
+                    void |= bool(lines)
+                    if any(side == 'ffmpeg' and code != 0 for side, code in zip((left, right), warm)):
+                        row['outcome'] = 'oracle_failed'
+                continue
+            if lines:
+                void = True
+                row.update(exit=list(warm), log_error=True)
+                continue
+            times, codes = ([], []), set()
+            row.update(a=times[0], b=times[1])
+            timed_logs = False
+            for _ in range(opts.rounds):
+                for side, argv_, name in ((0, a, left), (1, b, right)):
+                    call = r4_invocation(argv_, env, out_dir, call_log, log, name, entry['tool'])
+                    times[side].append(call['elapsed'])
+                    codes.add(call['exit'])
+                    log_lines += call['lines']
+                    refusal_lines += call['lines'] if call['refusal'] else 0
+                    timed_logs |= bool(call['lines'])
+            void |= timed_logs
+            if codes == {0} and not timed_logs:
+                row.update(outcome='timed', ratio=statistics.median(times[0]) / statistics.median(times[1]))
+            else:
+                row['exit'] = sorted(c if c is not None else -1 for c in codes)
+            if (k + 1) % 100 == 0 or k + 1 == len(pairs):
+                print(f'{k + 1}/{len(pairs)}', file=sys.stderr, flush=True)
+        aborted = False
+    except BaseException:
+        if row is not None and row['outcome'] == 'failed':
+            row['refused'] = False
+        raise
+    finally:
+        pathlib.Path(opts.out).write_text(json.dumps(
+            {'set': '0.1.0', 'method': R4_METHOD, 'arm': opts.arm, 'sides': [left, right],
+             'rounds': opts.rounds, 'cpus': opts.cpus, 'aborted': aborted,
+             'files': dict(collections.Counter(f for f, _ in files)), 'commands': commands,
+             'fallback_log': {'lines': log_lines, 'refusal_lines': refusal_lines,
+                              'excluded_lines': excluded_lines, 'void': void}, 'results': results}) + '\n')
     return 0
 
 
@@ -657,8 +677,10 @@ def r4_summary(data, gate):
                             'median': statistics.median(ratios) if ratios else None,
                             'coverage': r4_coverage(members, data['sides'])})
     no_ratio = collections.Counter(
-        'refused' if r.get('refused') else 'timed run failed' if 'a' in r
+        'unprocessed' if r.get('outcome') == 'unprocessed'
+        else 'refused' if r.get('refused') else 'timed run failed' if 'a' in r
         else 'invalid fallback log' if r.get('log_error')
+        else 'infrastructure failure' if 'exit' not in r
         else f"untimed run failed: {' and '.join(s for s, c in zip(data['sides'], r['exit']) if c != 0) or 'neither'}"
         for r in data['results'] if 'ratio' not in r)
     incomplete = [f"{r['id']}.{r['command']} {r['file']}" for r in data['results'] if 'ratio' not in r and 'a' in r]
@@ -669,8 +691,10 @@ def r4_summary(data, gate):
                         **r4_coverage([r for r in data['results'] if r['class'] == cls
                                        and (fam == 'all' or r['family'] == fam)], data['sides'])}
                        for cls, fam in sorted(present)]
+    coverage = r4_coverage(data['results'], data['sides'])
     return {'arm': data['arm'], 'sides': data['sides'], 'files': data['files'], 'gate': gate,
-            'method': data.get('method'), 'coverage': r4_coverage(data['results'], data['sides']),
+            'method': data.get('method'), 'aborted': data.get('aborted', False) or coverage['unprocessed'] > 0,
+            'coverage': coverage,
             'coverage_groups': coverage_groups,
             'fallback_log': data['fallback_log'], 'pairs': len(data['results']), 'no_ratio': dict(no_ratio),
             'classes': rows, 'commands': per_command, 'unmeasured': unmeasured, 'incomplete': incomplete,
@@ -684,10 +708,15 @@ def r4_report(opts):
     def coverage(counts):
         share = f"{counts['timed_share']:.1%}" if counts['timed_share'] is not None else 'unmeasured'
         return (f"refused={counts['refused']} eligible={counts['eligible']} "
-                f"timed={counts['timed']} timed_share={share}")
+                f"timed={counts['timed']} failed={counts['failed']} oracle_failed={counts['oracle_failed']} "
+                f"unprocessed={counts['unprocessed']} timed_share={share}")
 
+    if summary['aborted']:
+        print(f"ABORTED: the arm did not finish; {coverage(summary['coverage'])}")
     for r in summary['classes']:
-        if opts.gate:
+        if summary['aborted']:
+            verdict = 'ABORTED'
+        elif opts.gate:
             verdict = {True: 'pass', False: 'FAIL', None: '(not gated)'}[r['passes']]
         else:
             verdict = 'meets' if r['meets'] else 'MISSES'
@@ -701,7 +730,9 @@ def r4_report(opts):
     for pair in summary['incomplete']:
         print(f'INCOMPLETE {pair}: a timed run failed after both untimed runs succeeded, so the run fails')
     print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'unmeasured', 'incomplete',
-                                              'fallback_log', 'coverage', 'coverage_groups', 'commands')}))
+                                              'fallback_log', 'coverage', 'coverage_groups', 'commands', 'aborted')}))
+    if summary['aborted']:
+        return 1
     if summary['fallback_log']['void']:
         print('VOID: the fallback log holds a non-exempt line')
         return 2
