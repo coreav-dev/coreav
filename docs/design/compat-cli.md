@@ -221,10 +221,13 @@ above move with it in this note.
 
 `coreav ffprobe` prints the pinned oracle's stream vocabulary: the
 `multilayer` disposition flag, MIME codec strings for AVC, AAC, AV1,
-VP9, AC-3, E-AC-3, Opus and FLAC, HEVC view fields, and the Dolby
+VP8, VP9, MPEG-4 Part 2, MPEG audio, Vorbis, AC-3, E-AC-3, Opus and FLAC,
+HEVC view fields, and the Dolby
 downmix metadata of the first audio frame. Decoder-only `refs`,
 `closed_captions` and `film_grain` are no longer printed. MIME strings
-use RFC 6381 and the AV1 and VP codec ISOBMFF bindings. A VP9 stream
+use RFC 6381, the WebM container guidelines, and the AV1 and VP codec
+ISOBMFF bindings. AAC uses the configuration's initial audio object
+type, not a profile inferred after decoding an implicit extension. A VP9 stream
 without a configuration record uses the first level whose picture size,
 sample rate, bit rate and edge limits cover the known stream values
 ([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a

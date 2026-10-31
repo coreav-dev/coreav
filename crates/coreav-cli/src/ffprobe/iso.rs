@@ -1456,7 +1456,13 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     }
     super::metadata::stream(
         &mut e,
-        d.codec_config.as_ref().map(|c| c.data.as_slice()),
+        d.codec_config.as_ref().and_then(|c| {
+            if c.kind.0 == *b"esds" {
+                coreav_isobmff::esds_decoder_specific_info(&c.data)?.1
+            } else {
+                Some(c.data.as_slice())
+            }
+        }),
         &[],
     );
     let mut tags = Vec::new();

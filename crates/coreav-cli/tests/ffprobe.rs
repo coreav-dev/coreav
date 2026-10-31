@@ -114,6 +114,35 @@ fn quicktime_keeps_its_zero_vendor_identifier() {
 }
 
 #[test]
+fn aac_mime_keeps_the_stored_object_type_with_a_sync_extension() {
+    let mut body = common::audio_entry(b"mp4a").split_off(8);
+    body.extend_from_slice(&common::full(
+        b"esds",
+        0,
+        0,
+        &[
+            3, 25, 0, 0, 0, 4, 20, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0x13, 0x10,
+            0x56, 0xe5, 0x98,
+        ],
+    ));
+    let bytes = av_movie_with(common::bx(b"mp4a", &body), false);
+    let path = file("ffprobe-aac-sync-mime.mp4", &bytes);
+    let result = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=profile,mime_codec_string",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    assert_eq!(result.stdout, "HE-AAC,mp4a.40.2\n");
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [

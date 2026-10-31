@@ -28,7 +28,15 @@ pub fn stream(entries: &mut Entries, config: Option<&[u8]>, first: &[u8]) {
                 _ => None,
             }),
         "aac" | "aac_latm" => {
-            let object = match text("profile") {
+            let object = config.and_then(|config| {
+                let mut bits = super::video::Bits::new(config);
+                match bits.bits(5)? {
+                    0 => None,
+                    31 => Some(32 + bits.bits(6)?),
+                    object => Some(object),
+                }
+            });
+            let object = object.or_else(|| match text("profile") {
                 Some("Main") => Some(1),
                 Some("LC") => Some(2),
                 Some("SSR") => Some(3),
@@ -39,9 +47,15 @@ pub fn stream(entries: &mut Entries, config: Option<&[u8]>, first: &[u8]) {
                 Some("ELD") => Some(39),
                 None if first.is_empty() => Some(2),
                 _ => None,
-            };
+            });
             object.map(|n| format!("mp4a.40.{n}"))
         }
+        "mp1" => Some("mp4a.40.32".to_owned()),
+        "mp2" => Some("mp4a.40.33".to_owned()),
+        "mp3" => Some("mp4a.40.34".to_owned()),
+        "mpeg4" => Some("mp4v.20".to_owned()),
+        "vp8" => Some("vp8".to_owned()),
+        "vorbis" => Some("vorbis".to_owned()),
         "ac3" => Some("ac-3".to_owned()),
         "eac3" => Some("ec-3".to_owned()),
         "opus" => Some("opus".to_owned()),
@@ -213,6 +227,36 @@ mod tests {
         ];
         stream(&mut entries, None, &[]);
         assert_eq!(entries, vec![("codec_name", s("h264"))]);
+    }
+
+    #[test]
+    fn named_codecs_have_their_registered_mime_strings() {
+        for (codec, mime) in [
+            ("vp8", "vp8"),
+            ("vorbis", "vorbis"),
+            ("mpeg4", "mp4v.20"),
+            ("mp1", "mp4a.40.32"),
+            ("mp2", "mp4a.40.33"),
+            ("mp3", "mp4a.40.34"),
+        ] {
+            let mut entries = vec![("codec_name", s(codec))];
+            stream(&mut entries, None, &[]);
+            assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
+        }
+    }
+
+    #[test]
+    fn aac_mime_uses_the_stored_object_not_the_decoded_extension_profile() {
+        for (config, profile, mime) in [
+            (vec![0x11, 0x90], "HE-AAC", "mp4a.40.2"),
+            (vec![0x2b, 0x92, 0x08], "HE-AAC", "mp4a.40.5"),
+            (vec![0xeb, 0x92, 0x08], "HE-AACv2", "mp4a.40.29"),
+            (vec![0xf8, 0xe6, 0x40], "ELD", "mp4a.40.39"),
+        ] {
+            let mut entries = vec![("codec_name", s("aac")), ("profile", s(profile))];
+            stream(&mut entries, Some(&config), &[]);
+            assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
+        }
     }
 
     #[test]
