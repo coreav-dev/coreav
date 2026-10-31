@@ -1403,7 +1403,7 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
                 "-v",
                 "error",
                 "-show_entries",
-                "stream=codec_type,codec_name,width,height:stream_disposition=attached_pic:packet=stream_index,pos,size",
+                "stream=codec_type,codec_name,width,height:packet=stream_index,pos,size",
                 "-of",
                 "json",
             ])
@@ -1411,12 +1411,15 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
             .output()
             .unwrap();
         assert!(out.status.success(), "{}", program.display());
-        let mut listed: Value = serde_json::from_slice(&out.stdout).unwrap();
-        listed["packets"]
-            .as_array_mut()
+        let listed: Value = serde_json::from_slice(&out.stdout).unwrap();
+        let pictures: Vec<Value> = listed["packets"]
+            .as_array()
             .unwrap()
-            .retain(|p| p["stream_index"].as_u64() >= Some(2));
-        listed
+            .iter()
+            .filter(|p| p["stream_index"].as_u64() >= Some(2))
+            .cloned()
+            .collect();
+        json!({ "streams": listed["streams"], "pictures": pictures })
     };
     assert_eq!(probed(Path::new(bin())), probed(&ffprobe_bin));
     let (theirs, ours) = (dir.join("ffmpeg.mp4"), dir.join("coreav.mp4"));
