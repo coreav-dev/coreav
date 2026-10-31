@@ -1041,8 +1041,12 @@ stereo one without, the stereo one.
 
 **Cover pictures.** An MP4/MOV input's cover pictures (`covr` items of the
 movie's item lists, and the QuickTime `artwork` key) are attached-picture
-video streams after the tracks, as `ffprobe` lists them, and selected like
-any other stream. Without `-map`, a video track comes before a cover
+video streams after the tracks, one per picture (`data` box) of an item,
+as `ffprobe` lists them, and selected like any other stream: of one item's
+pictures, a selection keeps or drops each alone, and the kept ones stay
+in the item in their order (the pinned `ffmpeg` 9.0.2, black box: one
+`covr` with three pictures, the middle one, the first one or two of them
+left out). Without `-map`, a video track comes before a cover
 picture whatever their dispositions and sizes; a cover picture is chosen
 only when no video track is there (the pinned `ffmpeg` 9.0.2, black box:
 a 640x480 cover beside a 160x120 video without the default disposition,
@@ -1512,8 +1516,13 @@ prints keep its derivations, which the stream oracle checks. The others:
   carries an "Encryption initialization data" side data element; its
   other values come from the format `frma` names.
 - iTunes cover pictures (`covr`, and the QuickTime `artwork` key) are
-  attached-picture video streams after the tracks, each with its one
-  packet; WebVTT tracks are data streams.
+  attached-picture video streams after the tracks, one per JPEG or PNG
+  `data` box in file order (an item may hold several, as `ffmpeg` writes
+  several pictures), each with its one packet at the picture's bytes, or
+  without a position when the movie box is compressed (`cmov`, whose
+  offsets are not the file's; `ffprobe` prints the inflated box's offset,
+  [`known-divergences-ffprobe9.md`](../known-divergences-ffprobe9.md));
+  WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
   first (that agreed with every interleaving on the development set), and
