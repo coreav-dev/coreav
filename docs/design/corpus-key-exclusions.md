@@ -12,12 +12,17 @@ The `freeze` command takes the full SHA of the authoritative main commit
 introducing the corpus exclusion amendment. It refuses a commit outside
 `origin/main`, a commit without the amendment, or a later commit. It reads
 each implemented record at that cutoff and requires its complete contents
-to match. The inventory retains the record, specification citation, digest
-and implemented key scopes, plus the shared oracle pin's digest.
+to match. Implemented key scopes must be a subset of the finite `level`
+and `fields` declared in that frozen record. Wildcards and unknown scopes
+are refused. Regenerating an inventory cannot add a field, case or record
+that the cutoff did not authorize. The inventory retains the record, specification citation, digest
+and implemented key scopes, plus the shared oracle pin's digest. The
+selection manifest's digest is fixed here too; comparison refuses another
+manifest even when its population and container counts match.
 
 ```sh
 python3 tools/compat-corpus/corpus_kd.py freeze \
-  --plan-commit "$PLAN_COMMIT" --out inventory.json
+  --plan-commit "$PLAN_COMMIT" --files files.json --out inventory.json
 ```
 
 Run inputs cannot supply predicates or accepted value pairs. Only the
@@ -33,10 +38,14 @@ adapters also require the same PID at the existing stream position, and
 the same stream index and PID for a packet pair. They never search for a
 matching PID or reorder either listing. A stream-order difference remains
 a difference even when both listings contain the same set of PIDs.
+The PID prerequisite follows the required frozen record source, not a
+convention in the record's identifier or an optional adapter flag.
 
-Each adapter returns the exact expected oracle and candidate values and
-whether the candidate field is present, established independently from the
-media bytes. Both observed values must match that pair. A broad stream
+Each adapter returns the exact expected oracle and candidate values,
+established independently from the media bytes. Both values must be
+present and non-null before any adapter is called. An absent value on
+either side cannot be excluded, even when a byte reader expects absence.
+Both observed values must match that pair. A broad stream
 classification predicate cannot certify unrelated fields or packets.
 
 The accumulator visits every reference-listed leaf, including differences
@@ -65,7 +74,7 @@ The raw comparison's blind spots are reported, not credited as catches:
 candidate-only leaves and trailing packets are not reference-listed,
 repeated compact side-data keys overwrite earlier values, and missing
 candidate leaves compare like null in the historical raw method. The
-adapter's pair check still distinguishes absence from an explicit null.
+coverage boundary refuses both absence and an explicit null.
 
 ## Capture and reporting
 
@@ -74,6 +83,15 @@ adapter's pair check still distinguishes absence from an explicit null.
 (`isobmff`, `matroska` or `mpegts`) and a Boolean `holdout`. Duplicate aliases
 or hashes are refused. Every media checksum is verified before capture.
 The shared pin is verified before either listing is captured.
+
+Successful captures are validated before comparison. Section JSON must
+contain the requested format, stream, program and chapter structures,
+with unique stream indices, unambiguous keys and finite numeric values.
+Packet captures need well-formed compact records, stream indices and sizes.
+Empty output, malformed records and unknown stream indices abort as
+infrastructure failures. Captures and a nonpassing report are retained;
+their missing rows cannot silently leave the denominator. This validation
+does not change the legacy comparator or its historical output rules.
 
 ```sh
 python3 tools/compat-corpus/corpus_kd.py compare \

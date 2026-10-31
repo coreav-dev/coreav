@@ -16,17 +16,17 @@ import corpus_kd as kd
 import run
 
 
-ENTRY = {'id': 'KD-TEST', 'basis': 'Synthetic specification 1', 'fields': ['duration_ts']}
+ENTRY = {'id': 'KD-TEST', 'basis': 'Synthetic specification 1', 'level': ['streams'], 'fields': ['duration_ts']}
 
 
 def expected(facts, occurrence):
     if facts != b'\x14' or occurrence.path != 'streams[0].duration_ts':
         return None
-    return kd.Pair(10, 20, True)
+    return kd.Pair(10, 20)
 
 
-def rule(identifier='KD-TEST', reader=expected):
-    return kd.Rule(identifier, 'docs/record.json', ENTRY, ('streams.duration_ts',), reader)
+def rule(identifier='KD-TEST', reader=expected, document='docs/record.json'):
+    return kd.Rule(identifier, document, ENTRY, ('streams.duration_ts',), reader)
 
 
 class Corpus(unittest.TestCase):
@@ -105,17 +105,31 @@ class Corpus(unittest.TestCase):
         self.got_packets.write_text(''.join(f'packet|pts={i + 1}\n' for i in range(40)))
         def packet_expected(facts, occurrence):
             i = int(occurrence.path.split('[')[1].split(']')[0])
-            return kd.Pair(str(i), str(i + 1), True) if i < 39 else None
-        r = dataclasses.replace(rule(), keys=('packets.pts',), expected=packet_expected)
+            return kd.Pair(str(i), str(i + 1)) if i < 39 else None
+        r = dataclasses.replace(rule(), keys=('packets.pts',), expected=packet_expected,
+                                record={**ENTRY, 'level': ['packets'], 'fields': ['pts']})
         result = self.compare(registry=kd.Registry((r,), lambda p: p.read_bytes()))
         self.assertNotIn('packets.pts', result['excluded'])
 
     def test_null_and_missing_are_distinct_for_expected_pairs(self):
         del self.candidate['streams'][0]['duration_ts']
-        r = dataclasses.replace(rule(), expected=lambda f, o: kd.Pair(10, None, True))
+        r = dataclasses.replace(rule(), expected=lambda f, o: kd.Pair(10, None))
         self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
-        r = dataclasses.replace(r, expected=lambda f, o: kd.Pair(10, None, False))
-        self.assertIn('streams.duration_ts', self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'])
+        self.candidate['streams'][0]['duration_ts'] = None
+        self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
+        self.reference['streams'][0]['duration_ts'] = None
+        self.candidate['streams'][0]['duration_ts'] = 20
+        r = dataclasses.replace(r, expected=lambda f, o: kd.Pair(None, 20))
+        self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
+
+    def test_missing_values_never_qualify_even_if_reader_returns_absence(self):
+        del self.candidate['streams'][0]['duration_ts']
+        reader = mock.Mock(return_value=kd.Pair(10, None))
+        r = dataclasses.replace(rule(), expected=reader)
+        registry = kd.Registry((r,), lambda p: b'x')
+        self.assertEqual(self.compare(registry=registry)['excluded'], {})
+        self.assertTrue(kd.audit(self.capture, self.media, registry)['passed'])
+        reader.assert_not_called()
 
     def test_audit_catches_changed_values_even_when_counts_stay_equal(self):
         altered = copy.deepcopy(self.candidate)
@@ -127,7 +141,7 @@ class Corpus(unittest.TestCase):
 
     def test_audit_rejects_a_broad_predicate_even_if_another_bug_is_caught(self):
         def broad(facts, occurrence):
-            return kd.Pair(occurrence.reference, occurrence.candidate, occurrence.present)
+            return kd.Pair(occurrence.reference, occurrence.candidate)
         registry = kd.Registry((rule(reader=broad),), lambda p: b'x')
         altered = copy.deepcopy(self.candidate)
         altered['streams'][0].update(duration_ts=21, width=101)
@@ -188,21 +202,27 @@ class Corpus(unittest.TestCase):
             kd.report([row])
 
     def test_failed_audit_or_missing_file_cannot_pass_the_report(self):
-        row = {'alias': 'f000001', 'container': 'mpegts', 'holdout': False,
-               'status': 'compared', **self.compare(), 'audit': {'passed': False}}
-        self.assertFalse(kd.report([row])['passed'])
+        rows = [{'alias': f'f{i:06}', 'container': 'mpegts', 'holdout': False,
+                 'status': 'compared', 'keys': {'streams.width': True}, 'excluded': {},
+                 'covered_keys': [], 'audit': {'passed': True}} for i in range(5)]
+        self.assertTrue(kd.report(rows)['passed'])
+        rows[0]['audit']['passed'] = False
+        self.assertFalse(kd.report(rows)['passed'])
         self.assertFalse(kd.report([])['passed'])
 
     def test_production_registry_has_no_unlanded_cases(self):
         self.assertEqual(kd.production_registry().rules, ())
 
     def test_ts_streams_keep_index_pairing_and_require_the_same_pid(self):
-        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC'),
+        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'),
                                       record={**ENTRY, 'id': 'KD-TS-SYNTHETIC'})
         registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
         self.reference['streams'][0]['id'] = '0x100'
         self.candidate['streams'][0]['id'] = '0x100'
         self.assertIn('streams.duration_ts', self.compare(registry=registry)['excluded'])
+        self.candidate['streams'][0]['id'] = '0x200'
+        self.assertNotIn('streams.duration_ts', self.compare(registry=registry)['excluded'])
+        self.candidate['streams'][0]['id'] = '0x100'
         self.reference['streams'].append({'id': '0x200', 'duration_ts': 10})
         self.candidate['streams'].append({'id': '0x200', 'duration_ts': 20})
         self.candidate['streams'].reverse()
@@ -212,7 +232,7 @@ class Corpus(unittest.TestCase):
         self.assertEqual(result['excluded'], {})
 
     def test_ts_missing_pid_is_not_an_identity_certificate(self):
-        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC'),
+        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'),
                                       record={**ENTRY, 'id': 'KD-TS-SYNTHETIC'})
         self.reference['streams'][0]['id'] = '0x100'
         registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
@@ -222,9 +242,10 @@ class Corpus(unittest.TestCase):
         self.reference['streams'][0]['id'] = '0x100'
         self.candidate['streams'][0]['id'] = '0x100'
         self.got_packets.write_text('packet|stream_index=0|pts=2|size=8\n')
-        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC'), keys=('packets.pts',),
-                                      record={**ENTRY, 'id': 'KD-TS-SYNTHETIC'},
-                                      expected=lambda f, o: kd.Pair('1', '2', True))
+        ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'), keys=('packets.pts',),
+                                      record={**ENTRY, 'id': 'KD-TS-SYNTHETIC',
+                                              'level': ['packets'], 'fields': ['pts']},
+                                      expected=lambda f, o: kd.Pair('1', '2'))
         registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
         self.assertIn('packets.pts', self.compare(registry=registry)['excluded'])
         self.candidate['streams'][0]['id'] = '0x200'
@@ -232,6 +253,15 @@ class Corpus(unittest.TestCase):
         self.candidate['streams'].append({'id': '0x100'})
         self.got_packets.write_text('packet|stream_index=1|pts=2|size=8\n')
         self.assertNotIn('packets.pts', self.compare(registry=registry)['excluded'])
+
+    def test_ts_pid_guard_comes_from_the_required_record_source_not_the_identifier(self):
+        registry = kd.Registry((rule(document='docs/known-divergences-ts.json'),), lambda p: p.read_bytes())
+        self.reference['streams'][0]['id'] = '0x100'
+        self.candidate['streams'][0]['id'] = '0x100'
+        self.assertIn('streams.duration_ts', self.compare(registry=registry)['excluded'])
+        self.candidate['streams'][0]['id'] = '0x200'
+        self.assertEqual(self.compare(registry=registry)['excluded'], {})
+        self.assertTrue(registry.records()[0]['requires_pid'])
 
     def test_compact_and_json_raw_rows_share_the_legacy_comparison(self):
         expected_keys = {}
@@ -303,6 +333,39 @@ class Corpus(unittest.TestCase):
 
 
 class Inventory(unittest.TestCase):
+    def test_implemented_scope_cannot_widen_beyond_the_record(self):
+        wider = dataclasses.replace(rule(), keys=('streams.width',))
+        with self.assertRaises(ValueError):
+            kd.Registry((wider,), lambda p: b'x')
+
+    def test_regenerating_inventory_cannot_add_fields_cases_or_identifiers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / 'scripts').mkdir()
+            (root / 'scripts/oracle-ffmpeg.env').write_bytes(b'pin')
+            def source(root, *args):
+                if args[0] == 'merge-base':
+                    return b''
+                if args[-1].endswith('docs/record.json'):
+                    return json.dumps({'entries': [ENTRY]}).encode()
+                if args[-1].endswith('scripts/oracle-ffmpeg.env'):
+                    return b'pin'
+                return b'old plan' if '^:' in args[-1] else kd.AMENDMENT.encode()
+            with mock.patch.object(kd, 'git', side_effect=source):
+                self.assertEqual(kd.inventory(root, 'a' * 40, kd.Registry((rule(),), lambda p: b'x'), '0' * 64)['records'],
+                                 kd.Registry((rule(),), lambda p: b'x').records())
+                for record, keys in (({**ENTRY, 'fields': ['duration_ts', 'width']}, ('streams.width',)),
+                                     ({**ENTRY, 'conditions': {'additional_case': 'another reading'}}, rule().keys),
+                                     ({**ENTRY, 'id': 'KD-NEW'}, rule().keys)):
+                    wider = dataclasses.replace(rule(), record=record, keys=keys, identifier=record['id'])
+                    with self.subTest(record=record), self.assertRaises(ValueError):
+                        kd.inventory(root, 'a' * 40, kd.Registry((wider,), lambda p: b'x'), '0' * 64)
+
+    def test_wildcard_scope_cannot_authorize_later_fields(self):
+        for record in ({**ENTRY, 'fields': ['*']}, {**ENTRY, 'level': ['*']}, {**ENTRY, 'level': []}):
+            with self.subTest(record=record), self.assertRaises(ValueError):
+                kd.Registry((dataclasses.replace(rule(), record=record),), lambda p: b'x')
+
     def test_unregistered_and_changed_records_fail_closed(self):
         registry = kd.Registry((rule(),), lambda p: b'x')
         snapshot = {'records': registry.records()}
@@ -331,21 +394,21 @@ class Inventory(unittest.TestCase):
                     return json.dumps({'entries': [ENTRY]}).encode()
                 return (b'old plan' if '^:' in args[1] else kd.AMENDMENT.encode())
             with mock.patch.object(kd, 'git', side_effect=source) as calls:
-                frozen = kd.inventory(root, 'a' * 40, registry)
+                frozen = kd.inventory(root, 'a' * 40, registry, '0' * 64)
                 self.assertEqual(frozen['records'], registry.records())
                 self.assertEqual(calls.call_args_list[0].args[1:],
                                  ('merge-base', '--is-ancestor', 'a' * 40, 'origin/main'))
             for text in (b'old plan', kd.AMENDMENT.encode()):
                 with mock.patch.object(kd, 'git', return_value=text), self.assertRaises(ValueError):
-                    kd.inventory(root, 'a' * 40, registry)
+                    kd.inventory(root, 'a' * 40, registry, '0' * 64)
             changed = {**ENTRY, 'fields': ['width']}
             def changed_source(root, *args):
                 return json.dumps({'entries': [changed]}).encode() if args[-1].endswith('docs/record.json') else source(root, *args)
             with mock.patch.object(kd, 'git', side_effect=changed_source), self.assertRaises(ValueError):
-                kd.inventory(root, 'a' * 40, registry)
+                kd.inventory(root, 'a' * 40, registry, '0' * 64)
             (root / 'scripts/oracle-ffmpeg.env').write_bytes(b'a different pin')
             with mock.patch.object(kd, 'git', side_effect=source), self.assertRaisesRegex(ValueError, 'oracle pin'):
-                kd.inventory(root, 'a' * 40, registry)
+                kd.inventory(root, 'a' * 40, registry, '0' * 64)
 
 
 FAKE = '''#!/usr/bin/env python3
@@ -353,7 +416,8 @@ import json, sys
 if '-show_packets' in sys.argv:
     print('packet|stream_index=0|pts=1|size=8')
 else:
-    print(json.dumps({'streams': [{'index': 0, 'duration_ts': 10}]}))
+    print(json.dumps({'streams': [{'index': 0, 'duration_ts': 10}], 'programs': [],
+                      'chapters': [], 'format': {'format_name': 'synthetic'}}))
 '''
 
 
@@ -374,10 +438,26 @@ class Driver(unittest.TestCase):
                               'path': str(path), 'sha256': kd.file_hash(path)})
         self.files = self.root / 'files.json'
         self.files.write_text(json.dumps(self.rows))
-        self.frozen = {'schema': kd.SCHEMA, 'plan_commit': 'a' * 40, 'records': []}
+        self.frozen = {'schema': kd.SCHEMA, 'plan_commit': 'a' * 40, 'records': [],
+                       'selection_sha256': kd.file_hash(self.files)}
         self.inventory = self.root / 'inventory.json'
         self.inventory.write_text(json.dumps(self.frozen))
         self.output = self.root / 'out'
+
+    def complete_population(self):
+        for i in range(len(self.rows), 6):
+            path = self.root / f'media{i}'
+            path.write_bytes(bytes([i]))
+            self.rows.append({'alias': f'f{i:06}', 'container': 'mpegts', 'holdout': False,
+                              'path': str(path), 'sha256': kd.file_hash(path)})
+        for i, row in enumerate(self.rows):
+            row['container'] = kd.CONTAINERS[i % 3]
+        self.files.write_text(json.dumps(self.rows))
+        self.freeze_selection()
+
+    def freeze_selection(self):
+        self.frozen['selection_sha256'] = kd.file_hash(self.files)
+        self.inventory.write_text(json.dumps(self.frozen))
 
     def execute(self):
         sys.path.insert(0, str(kd.ROOT / 'scripts'))
@@ -423,6 +503,7 @@ class Driver(unittest.TestCase):
     def test_changed_media_and_duplicate_manifest_cannot_silently_reduce_population(self):
         self.rows[1]['sha256'] = '0' * 64
         self.files.write_text(json.dumps(self.rows))
+        self.freeze_selection()
         with self.assertRaisesRegex(ValueError, 'checksum'):
             self.execute()
         result = json.loads((self.output / 'report.json').read_text())
@@ -442,6 +523,106 @@ class Driver(unittest.TestCase):
             self.execute()
         capture.assert_not_called()
         self.assertFalse(self.output.exists())
+
+    def test_changed_selection_with_the_same_population_is_rejected_before_capture(self):
+        self.complete_population()
+        self.rows[0]['holdout'] = True
+        self.files.write_text(json.dumps(self.rows))
+        with mock.patch.object(kd, 'ROUND_FILES', 6), mock.patch.object(kd, 'capture_file') as capture, \
+                self.assertRaisesRegex(ValueError, 'selection'):
+            self.execute()
+        capture.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_freeze_records_the_selection_digest(self):
+        args = ['corpus_kd.py', 'freeze', '--plan-commit', 'a' * 40, '--files', str(self.files),
+                '--out', str(self.output)]
+        with mock.patch.object(sys, 'argv', args), mock.patch.object(kd, 'inventory', return_value=self.frozen) as freeze:
+            self.assertEqual(kd.main(), 0)
+        self.assertEqual(freeze.call_args.args[-1], kd.file_hash(self.files))
+        self.assertEqual(json.loads(self.output.read_text())['selection_sha256'], kd.file_hash(self.files))
+
+    def test_missing_or_nonstring_manifest_path_is_rejected_before_capture(self):
+        for value in (None, 1, [], ''):
+            with self.subTest(path=value):
+                self.rows[1]['path'] = value
+                self.files.write_text(json.dumps(self.rows))
+                with mock.patch.object(kd, 'capture_file') as capture, self.assertRaisesRegex(ValueError, 'invalid'):
+                    self.execute()
+                capture.assert_not_called()
+                self.assertFalse(self.output.exists())
+        del self.rows[1]['path']
+        self.files.write_text(json.dumps(self.rows))
+        with self.assertRaisesRegex(ValueError, 'invalid'):
+            self.execute()
+
+    def test_malformed_successful_packet_capture_aborts_an_otherwise_passing_population(self):
+        self.complete_population()
+        (self.root / 'ffprobe').write_text(FAKE.replace('packet|stream_index=0|pts=1|size=8',
+                                                      'this is a malformed packet record'))
+        with mock.patch.object(kd, 'ROUND_FILES', 6), self.assertRaises(ValueError):
+            self.execute()
+        result = json.loads((self.output / 'report.json').read_text())
+        self.assertTrue(result['registered_population'])
+        self.assertTrue(result['aborted'])
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unique_excluded_rows'], 0)
+
+    def test_malformed_or_missing_successful_captures_abort_on_either_side(self):
+        for tool in ('ffprobe', 'coreav'):
+            for payload in ('', 'not a packet', 'packet|pts=1', 'packet|stream_index=0|size=8|garbage',
+                            'packet|side_data', 'packet|stream_index=0|size=8\\npacket|side_data'):
+                with self.subTest(tool=tool, payload=payload):
+                    for name in ('ffprobe', 'coreav'):
+                        (self.root / name).write_text(FAKE)
+                    (self.root / tool).write_text(FAKE.replace('packet|stream_index=0|pts=1|size=8', payload))
+                    self.output = self.root / f'out{tool}{len(list(self.root.glob("out*")))}'
+                    with self.assertRaises(ValueError):
+                        self.execute()
+                    result = json.loads((self.output / 'report.json').read_text())
+                    self.assertTrue(result['aborted'])
+                    self.assertFalse(result['passed'])
+                    self.assertEqual(result['unique_excluded_rows'], 0)
+            for payload in ('{}', '{"streams":{}}', 'null', 'malformed'):
+                with self.subTest(tool=tool, payload=payload):
+                    for name in ('ffprobe', 'coreav'):
+                        (self.root / name).write_text(FAKE)
+                    (self.root / tool).write_text('#!/usr/bin/env python3\nprint(' + repr(payload) + ')\n')
+                    self.output = self.root / f'out{tool}{len(list(self.root.glob("out*")))}'
+                    with self.assertRaises(ValueError):
+                        self.execute()
+                    result = json.loads((self.output / 'report.json').read_text())
+                    self.assertTrue(result['aborted'])
+                    self.assertFalse(result['passed'])
+
+    def test_valid_complete_standin_population_passes_before_injecting_malformed_output(self):
+        self.complete_population()
+        with mock.patch.object(kd, 'ROUND_FILES', 6):
+            self.assertEqual(self.execute(), 0)
+        result = json.loads((self.output / 'report.json').read_text())
+        self.assertTrue(result['registered_population'])
+        self.assertFalse(result['aborted'])
+        self.assertTrue(result['passed'])
+
+
+class CaptureValidation(unittest.TestCase):
+    def test_ambiguous_json_and_nonfinite_values_are_malformed(self):
+        valid = json.dumps({'streams': [], 'chapters': [], 'programs': [], 'format': {'format_name': 'x'}})
+        self.assertEqual(kd.section_document(valid)['format']['format_name'], 'x')
+        for fields in ('"format_name":"x","format_name":"y"',
+                       '"format_name":"x","bad":NaN', '"format_name":"x","bad":1e999'):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                kd.section_document(valid.replace('"format_name": "x"', fields))
+
+    def test_compact_escaping_and_side_data_are_validated_without_changing_raw_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'packets'
+            path.write_text('packet|stream_index=0|size=8|side_data|side_data_type=thing|label=a\\|b\n\n')
+            kd.validate_packets(path, {'streams': [{'index': 0}]})
+            self.assertEqual(list(kd.packet_rows(path))[0], run.packet_fields(path.read_text().splitlines()[0]))
+            path.write_bytes(b'packet|stream_index=0|size=8|label=\xff\n')
+            with self.assertRaises(ValueError):
+                kd.validate_packets(path, {'streams': [{'index': 0}]})
 
 
 if __name__ == '__main__':

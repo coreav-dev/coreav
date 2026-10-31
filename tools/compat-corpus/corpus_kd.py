@@ -12,6 +12,7 @@ import dataclasses
 import decimal
 import hashlib
 import json
+import math
 import os
 import pathlib
 import re
@@ -40,7 +41,6 @@ BLIND_SPOTS = [
 class Pair:
     reference: object
     candidate: object
-    present: bool
 
 
 @dataclasses.dataclass(frozen=True)
@@ -74,6 +74,10 @@ class Rule:
     keys: tuple
     expected: object
 
+    @property
+    def requires_pid(self):
+        return self.document == 'docs/known-divergences-ts.json'
+
 
 def record_hash(record):
     return hashlib.sha256(json.dumps(record, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -84,16 +88,32 @@ def file_hash(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
+def authorized_keys(record):
+    levels, fields = record.get('level'), record.get('fields')
+    if not isinstance(levels, list) or not levels or not isinstance(fields, list) or not fields:
+        raise ValueError('a KD needs finite level and field scopes in its frozen record')
+    if any(level not in ('streams', 'packets', 'format', 'chapters', 'programs', 'programs.streams')
+           for level in levels) or any(not isinstance(field, str) or
+           not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*', field) for field in fields):
+        raise ValueError('wildcard or unsupported frozen KD scope')
+    return frozenset(level + '.' + field for level in levels for field in fields)
+
+
 class Registry:
     def __init__(self, rules, read_evidence):
         self.rules = tuple(rules)
         self.read_evidence = read_evidence
         if len({r.identifier for r in self.rules}) != len(self.rules):
             raise ValueError('duplicate implemented KD identifier')
+        for rule in self.rules:
+            if rule.identifier != rule.record.get('id') or not rule.keys \
+                    or not set(rule.keys) <= authorized_keys(rule.record):
+                raise ValueError('implemented KD scope exceeds its record')
 
     def records(self):
         return [{'id': r.identifier, 'path': r.document, 'sha256': record_hash(r.record),
-                 'basis': r.record['basis'], 'record': r.record, 'keys': list(r.keys)} for r in self.rules]
+                 'basis': r.record['basis'], 'record': r.record, 'keys': list(r.keys),
+                 'requires_pid': r.requires_pid} for r in self.rules]
 
     def validate(self, inventory):
         if inventory['records'] != self.records():
@@ -108,17 +128,17 @@ class Registry:
             return None
 
     def covers(self, occurrence, facts):
-        if not occurrence.different or not occurrence.successful or facts is None:
+        if not occurrence.different or not occurrence.successful or facts is None \
+                or not occurrence.present or occurrence.reference is None or occurrence.candidate is None:
             return frozenset()
         found = set()
         for rule in self.rules:
             if occurrence.key not in rule.keys:
                 continue
-            if rule.identifier.startswith('KD-TS-') and not same_pid(occurrence):
+            if rule.requires_pid and not same_pid(occurrence):
                 continue
             pair = rule.expected(facts, occurrence)
-            if pair is not None and pair.present == occurrence.present \
-                    and type(pair.reference) is type(occurrence.reference) \
+            if pair is not None and type(pair.reference) is type(occurrence.reference) \
                     and pair.reference == occurrence.reference \
                     and type(pair.candidate) is type(occurrence.candidate) \
                     and pair.candidate == occurrence.candidate:
@@ -183,10 +203,71 @@ class Attack:
 
 
 def packet_rows(path, transform=None):
-    with open(path, errors='replace') as source:
+    with open(path, encoding='utf-8') as source:
         for i, line in enumerate(source):
+            if line.strip():
+                parts, part, escaped = [], '', False
+                for char in line.rstrip('\r\n'):
+                    if char == '|' and not escaped:
+                        parts.append(part)
+                        part = ''
+                    else:
+                        part += char
+                    escaped = char == '\\' and not escaped
+                parts.append(part)
+                if escaped or '\x00' in line or parts[0] != 'packet' or len(parts) < 2 \
+                        or any(not item or '=' not in item and item != 'side_data' or item.startswith('=')
+                               for item in parts[1:]):
+                    raise ValueError('malformed packet capture')
             fields = run.packet_fields(line)
+            if line.strip() and not fields:
+                raise ValueError('empty packet capture record')
             yield from transform(i, fields) if transform else (fields,)
+
+
+def section_document(data):
+    def unique(pairs):
+        out = {}
+        for key, value in pairs:
+            if key in out:
+                raise ValueError('duplicate key in section capture')
+            out[key] = value
+        return out
+
+    def finite(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError('non-finite value in section capture')
+        return value
+
+    document = json.loads(data, object_pairs_hook=unique, parse_float=finite, parse_constant=finite)
+    if not isinstance(document, dict) or not isinstance(document.get('format'), dict) \
+            or not isinstance(document['format'].get('format_name'), str) \
+            or not document['format']['format_name']:
+        raise ValueError('missing or malformed section capture')
+    for name in ('streams', 'chapters', 'programs'):
+        items = document.get(name)
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise ValueError('missing or malformed section capture')
+    indices = [stream.get('index') for stream in document['streams']]
+    if any(type(i) is not int or i < 0 for i in indices) or len(set(indices)) != len(indices):
+        raise ValueError('invalid stream identities in section capture')
+    return document
+
+
+def validate_packets(path, sections):
+    indices = {stream['index'] for stream in sections['streams']} if sections is not None else None
+    count = 0
+    for fields in packet_rows(path):
+        if not fields:
+            continue
+        if not re.fullmatch(r'[0-9]+', fields.get('stream_index', '')) \
+                or indices is not None and int(fields['stream_index']) not in indices \
+                or not re.fullmatch(r'[0-9]+', fields.get('size', '')):
+            raise ValueError('missing or invalid packet capture fields')
+        count += 1
+    if not count:
+        raise ValueError('empty packet capture')
 
 
 def occurrences(capture, attack=None):
@@ -385,7 +466,9 @@ def git(root, *args):
     return subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True).stdout
 
 
-def inventory(root, cutoff, registry):
+def inventory(root, cutoff, registry, selection_sha256):
+    if not re.fullmatch(r'[0-9a-f]{64}', selection_sha256):
+        raise ValueError('selection digest must be a full SHA-256')
     if not re.fullmatch(r'[0-9a-f]{40}', cutoff):
         raise ValueError('plan commit must be a full commit SHA')
     git(root, 'merge-base', '--is-ancestor', cutoff, 'origin/main')
@@ -401,8 +484,26 @@ def inventory(root, cutoff, registry):
         matches = [e for e in entries if e['id'] == rule.identifier]
         if matches != [rule.record] or not rule.record.get('basis'):
             raise ValueError(f'{rule.identifier}: absent or changed record at the plan cutoff')
+        if not set(rule.keys) <= authorized_keys(matches[0]):
+            raise ValueError(f'{rule.identifier}: implemented scope exceeds the plan cutoff')
     return {'schema': SCHEMA, 'plan_commit': cutoff, 'records': registry.records(),
-            'oracle_pin_sha256': hashlib.sha256(pin).hexdigest()}
+            'oracle_pin_sha256': hashlib.sha256(pin).hexdigest(), 'selection_sha256': selection_sha256}
+
+
+def validate_manifest(files):
+    if not isinstance(files, list) or not files:
+        raise ValueError('files must be the nonempty fixed manifest')
+    aliases, media_hashes = set(), set()
+    for row in files:
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str) or not row['path'] \
+                or '\x00' in row['path'] or not isinstance(row.get('alias'), str) \
+                or not re.fullmatch(r'f[0-9]{6}', row['alias']) or row['alias'] in aliases \
+                or row.get('container') not in CONTAINERS or type(row.get('holdout')) is not bool \
+                or not isinstance(row.get('sha256'), str) or not re.fullmatch(r'[0-9a-f]{64}', row['sha256']) \
+                or row['sha256'] in media_hashes:
+            raise ValueError('invalid or duplicate manifest row')
+        aliases.add(row['alias'])
+        media_hashes.add(row['sha256'])
 
 
 def capture_file(coreav, media, directory):
@@ -413,20 +514,16 @@ def capture_file(coreav, media, directory):
     (directory / 'candidate.json').write_bytes(got_out)
     if ref_code != 0:
         raise ValueError('oracle section listing failed')
-    reference = json.loads(ref_out)
-    if not isinstance(reference, dict):
-        raise ValueError('oracle section listing is not an object')
-    try:
-        candidate = json.loads(got_out) if got_code == 0 else {}
-        if not isinstance(candidate, dict):
-            candidate, got_code = {}, -1
-    except ValueError:
-        candidate, got_code = {}, -1
+    reference = section_document(ref_out)
+    candidate = section_document(got_out) if got_code == 0 else {}
     ref_path, got_path = directory / 'reference.packets', directory / 'candidate.packets'
     ref_packets = run.run_to_file(['ffprobe'] + run.PACKET_ARGS + [str(media)], ref_path)
     got_packets = run.run_to_file([coreav, 'ffprobe'] + run.PACKET_ARGS + [str(media)], got_path)
     if ref_packets != 0:
         raise ValueError('oracle packet listing failed')
+    validate_packets(ref_path, reference)
+    if got_packets == 0:
+        validate_packets(got_path, candidate if got_code == 0 else None)
     capture = Capture(reference, candidate, ref_path, got_path, got_code, got_packets)
     if 1 in (got_code, got_packets) and run.strict_rejection(coreav, media):
         capture.strict_keys = {o.key for o in occurrences(capture)
@@ -441,6 +538,7 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     freeze = sub.add_parser('freeze')
     freeze.add_argument('--plan-commit', required=True)
+    freeze.add_argument('--files', type=pathlib.Path, required=True)
     freeze.add_argument('--out', type=pathlib.Path, required=True)
     compare_parser = sub.add_parser('compare')
     compare_parser.add_argument('--inventory', type=pathlib.Path, required=True)
@@ -450,12 +548,18 @@ def main():
     compare_parser.add_argument('--out', type=pathlib.Path, required=True)
     args = parser.parse_args()
     registry = production_registry()
+    selection_bytes = args.files.read_bytes()
+    files = json.loads(selection_bytes)
+    validate_manifest(files)
+    selection = hashlib.sha256(selection_bytes).hexdigest()
     if args.command == 'freeze':
-        args.out.write_text(json.dumps(inventory(ROOT, args.plan_commit, registry), indent=2) + '\n')
+        args.out.write_text(json.dumps(inventory(ROOT, args.plan_commit, registry, selection), indent=2) + '\n')
         return 0
     frozen = json.loads(args.inventory.read_text())
     registry.validate(frozen)
-    if frozen != inventory(ROOT, frozen['plan_commit'], registry):
+    if frozen.get('selection_sha256') != selection:
+        raise ValueError('manifest selection differs from the frozen selection')
+    if frozen != inventory(ROOT, frozen['plan_commit'], registry, selection):
         raise ValueError('inventory no longer matches its cutoff or oracle pin')
     sys.path.insert(0, str(ROOT / 'scripts'))
     import oracle_pin
@@ -463,26 +567,15 @@ def main():
     if problems:
         raise ValueError('; '.join(problems))
     os.environ['PATH'] = str(args.oracle_dir.resolve()) + os.pathsep + os.environ['PATH']
-    files = json.loads(args.files.read_text())
-    if not isinstance(files, list) or not files:
-        raise ValueError('files must be the nonempty fixed manifest')
-    aliases, media_hashes = set(), set()
-    for row in files:
-        if not re.fullmatch(r'f[0-9]{6}', row['alias']) or row['alias'] in aliases \
-                or row['container'] not in CONTAINERS or type(row['holdout']) is not bool \
-                or not re.fullmatch(r'[0-9a-f]{64}', row['sha256']) or row['sha256'] in media_hashes:
-            raise ValueError('invalid or duplicate manifest row')
-        aliases.add(row['alias'])
-        media_hashes.add(row['sha256'])
     args.coreav = str(pathlib.Path(args.coreav).resolve(strict=True))
     identities = {'binary_sha256': file_hash(args.coreav),
                   'oracle_sha256': file_hash(args.oracle_dir / 'ffprobe'),
-                  'selection_sha256': file_hash(args.files),
+                  'selection_sha256': selection,
                   'tooling_commit': git(ROOT, 'rev-parse', 'HEAD').decode().strip(),
                   'tool_sha256': file_hash(__file__), 'comparator_sha256': file_hash(HERE / 'run.py')}
     args.out.mkdir(parents=True, exist_ok=False)
     (args.out / 'private').mkdir(mode=0o700)
-    (args.out / 'private/files.json').write_text(args.files.read_text())
+    (args.out / 'private/files.json').write_bytes(selection_bytes)
     (args.out / 'inventory.json').write_text(json.dumps(frozen, indent=2) + '\n')
     (args.out / 'identities.json').write_text(json.dumps(identities, indent=2) + '\n')
     run.ENV = run.release_round.environment(args.out / 'private/fallback.jsonl')
