@@ -51,7 +51,11 @@ class Libopus(unittest.TestCase):
 
     def test_no_version_string_names_none(self):
         self.assertEqual(opus_encode_check.libopus_versions(b'the opt-in libopus build\0libopus.so.0\0'), [])
-        self.assertEqual(opus_encode_check.libopus_versions(b'libopus 1.6.1-rc\0'), [])
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus Opus\0libopus 1.6.1'), [])
+
+    def test_a_build_given_no_version_says_so(self):
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus unknown\0'), ['unknown'])
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus 1.6.1-rc\0'), ['1.6.1-rc'])
 
 
 class Quality(unittest.TestCase):

@@ -642,7 +642,10 @@ it pins (`OPUS_VERSION`, `OPUS_SHA256`), the one pin of the release build
 and of this workflow. The script reads the version from there and stops
 before any run when the CoreAV binary carries another libopus or loads one
 at run time, and the report records the libopus version each binary
-carries. Only a manual run of the workflow judges the bars; a run for a
+carries. The oracle FFmpeg's libopus names itself `libopus unknown`, as
+libopus does when it is built without a release version, so which
+version the FFmpeg arm runs is not known; a version difference can
+explain a difference between the arms but excuses no miss. Only a manual run of the workflow judges the bars; a run for a
 pull request or a push builds CoreAV, checks its libopus and the oracle,
 and judges nothing. Each input runs two arms on the same source:
 

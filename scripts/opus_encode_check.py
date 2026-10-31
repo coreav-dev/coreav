@@ -48,8 +48,9 @@ RATES = [None, 32, 128]
 RUNS = 3
 CODECS = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'packages', 'cli', 'scripts',
                       'codecs.sh')
-# libopus's version string, as opus_get_version_string gives it.
-LIBOPUS = re.compile(rb'libopus (\d+\.\d+(?:\.\d+)?)(?![\w.-])')
+# libopus's version string, as opus_get_version_string gives it: "libopus
+# 1.6.1", or "libopus unknown" for a build that was given no version.
+LIBOPUS = re.compile(rb'libopus (unknown|v?\d[\w.+~-]*)\x00')
 
 
 def run(args, **kwargs):
@@ -151,7 +152,7 @@ def pinned_libopus(path=CODECS):
 
 def libopus_versions(data):
     """The libopus versions named in a binary's bytes by libopus's version
-    string ("libopus 1.6.1")."""
+    string ("libopus 1.6.1", or "libopus unknown")."""
     return sorted({m.group(1).decode() for m in LIBOPUS.finditer(data)})
 
 
