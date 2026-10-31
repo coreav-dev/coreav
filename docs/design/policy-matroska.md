@@ -74,8 +74,8 @@ fail-closed behaviour.
    (frame size, `icpf`) that start it in an ISO base media sample: the
    codec mapping does not say which a muxer stores.
 6. **`coreav check` allows every codec CoreAV names.** The Matroska probe's
-   default allowlist leaves out codecs outside CoreAV's codec scope (AC-3,
-   FLAC, MPEG-2 and others); a check takes them all, so that
+   default allowlist leaves out codecs outside CoreAV's codec scope (DTS,
+   MPEG-2 and others); a check takes them all, so that
    `dropped_streams` holds exactly the `CodecID`s CoreAV does not identify,
    as for ISO files, and the policy's `codecs` lists decide the rest.
 7. **Exact values up to 2^64.** A stream bit rate over a span in

@@ -230,10 +230,9 @@ const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 /// encoded. Copied `audio` the MP4 writer does not take is refused before
 /// the encode, not after it: each copied stream must be AAC or MP3 in an
 /// `mp4a` sample entry or Opus in an `Opus` one from MP4/MOV, AAC or Opus
-/// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`). The
-/// MP4/MOV input is probed with the writer's allowlist, so a stream it
-/// leaves out (FLAC, ALAC, AC-3) is among no tracks and is not taken
-/// either. The display transform is read whole: without
+/// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`); the
+/// other audio the writer copies (FLAC, ALAC, AC-3, E-AC-3) is not taken
+/// next to an encoded video yet. The display transform is read whole: without
 /// `-noautorotate` `ffmpeg` applies any transform other than the identity
 /// to the frames, and with it `ffmpeg` writes the source's matrix, which
 /// the transcode writes the same only when the matrix has no translation or
@@ -482,9 +481,8 @@ mod tests {
     use super::common::{aac_entry, audio_entry, av_movie_with};
     use super::*;
 
-    /// Copied MP4 audio the writer does not take is refused before the
-    /// encode, whether the writer's allowlist keeps its stream (PCM) or
-    /// leaves it out of the probe (FLAC, ALAC, AC-3).
+    /// Copied MP4 audio other than AAC, MP3 or Opus is refused before the
+    /// encode.
     #[test]
     fn copied_audio_the_mp4_writer_does_not_take_is_refused() {
         let dir = std::env::temp_dir().join(format!("coreav-encode-{}", std::process::id()));

@@ -5,7 +5,7 @@ use coreav_isobmff::{Codec, PcmFormat, ProResProfile, Profile, TrackKind};
 
 /// The codec names `--allow` accepts: every name of `codec` except `other`,
 /// which an allowlist can never include.
-pub const ALLOW_NAMES: [&str; 12] = [
+pub const ALLOW_NAMES: [&str; 15] = [
     "h264",
     "hevc",
     "av1",
@@ -15,6 +15,9 @@ pub const ALLOW_NAMES: [&str; 12] = [
     "mp3",
     "opus",
     "flac",
+    "alac",
+    "ac3",
+    "eac3",
     "pcm",
     "timed_text",
     "timecode",
@@ -22,7 +25,7 @@ pub const ALLOW_NAMES: [&str; 12] = [
 
 /// CoreAV codec names, as printed in `codec`.
 #[cfg(test)]
-const CODEC_NAMES: [&str; 14] = [
+const CODEC_NAMES: [&str; 17] = [
     "h264",
     "hevc",
     "av1",
@@ -33,6 +36,9 @@ const CODEC_NAMES: [&str; 14] = [
     "mp3",
     "opus",
     "flac",
+    "alac",
+    "ac3",
+    "eac3",
     "pcm",
     "timed_text",
     "timecode",
@@ -54,6 +60,9 @@ pub fn codec(codec: Codec) -> &'static str {
         Codec::Mp3 => "mp3",
         Codec::Opus => "opus",
         Codec::Flac => "flac",
+        Codec::Alac => "alac",
+        Codec::Ac3 => "ac3",
+        Codec::Eac3 => "eac3",
         Codec::Pcm => "pcm",
         Codec::TimedText => "timed_text",
         // Never on a command's allowlist (`ALLOW_NAMES`); only the chapter
@@ -77,6 +86,9 @@ pub fn codec_from_name(name: &str) -> Option<Codec> {
         "mp3" => Codec::Mp3,
         "opus" => Codec::Opus,
         "flac" => Codec::Flac,
+        "alac" => Codec::Alac,
+        "ac3" => Codec::Ac3,
+        "eac3" => Codec::Eac3,
         "pcm" => Codec::Pcm,
         "timed_text" => Codec::TimedText,
         "timecode" => Codec::Timecode,
@@ -128,6 +140,9 @@ pub fn ffprobe_codec(codec: Codec, pcm: Option<PcmFormat>) -> Option<String> {
         Codec::Mp3 => "mp3",
         Codec::Opus => "opus",
         Codec::Flac => "flac",
+        Codec::Alac => "alac",
+        Codec::Ac3 => "ac3",
+        Codec::Eac3 => "eac3",
         Codec::TimedText => "mov_text",
         Codec::Pcm => {
             let pcm = pcm?;

@@ -603,6 +603,11 @@ try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
 try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
 try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
+try_gen codec_flac.mp4 "${KAUD[@]}" -c:a flac -strict -2
+# Video beside each audio codec the clip, split and join writers copy.
+for codec in flac alac ac3 eac3; do
+  try_gen "av_$codec.mp4" "${SRC[@]}" "${VID[@]}" -c:a "$codec" -strict -2 -shortest
+done
 # The pinned FFmpeg's MP4 muxer refuses libvorbis packets straight from the
 # encoder (Invalid data) and takes the same stream copied from Ogg.
 if "${FF[@]}" "${KAUD[@]}" -c:a libvorbis "$OUT/.codec_vorbis.ogg" 2> "$OUT/codec_vorbis.mp4.log"; then

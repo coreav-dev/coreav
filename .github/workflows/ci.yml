@@ -1028,7 +1028,7 @@ jobs:
           cargo test --locked --release -p coreav-isobmff-write --test hls fixtures_round_trip -- --ignored
           python3 -I scripts/hls_check.py --coreav target/release/coreav --media "$COREAV_FIXTURES" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --master-decode \
-            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_flac*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*,size_hevc_window.mp4,size_hevc_mixed_window.mp4" \
+            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,av_ac3.mp4,av_alac.mp4,av_eac3.mp4,av_flac.mp4,codec_ac3_*,codec_alac*,codec_amr_*,codec_flac*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*,size_hevc_window.mp4,size_hevc_mixed_window.mp4" \
             --report "$RUNNER_TEMP/coreav-hls.json"
       # docs/design/join.md: every fixture with a video track the clip writer
       # accepts is split every second and joined back (which must give back
@@ -1568,6 +1568,19 @@ jobs:
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo mediainfo --report "$RUNNER_TEMP/mkv-ffmpeg.json"
+      # docs/design/remux.md, "Audio sample entries": FLAC, ALAC, AC-3 and
+      # E-AC-3 copied into MP4 by remux, clip, split, join and coreav ffmpeg
+      # (-c copy, -f concat) from sources the pinned oracle FFmpeg makes
+      # (scripts/oracle-ffmpeg.env). ffprobe reads each output's
+      # codec, channels and sample rate as the source's, every packet is the
+      # source's, and a copy of the whole file decodes to the source's audio.
+      # Threshold: 100% of the cases.
+      - name: Copy FLAC, ALAC, AC-3 and E-AC-3 into MP4 and check with the pinned FFmpeg
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/audio_copy_check.py --coreav target/release/coreav \
+            --work "$RUNNER_TEMP/audio-copy" --report "$RUNNER_TEMP/audio-copy.json"
       # docs/design/policy-matroska.md: `coreav check` with the example
       # policies and the tight test policy on every Matroska fixture: no
       # crash, the same bytes twice, the reasons of scripts/policy_ref.py
@@ -1615,6 +1628,7 @@ jobs:
             ${{ runner.temp }}/mkv-r1.json
             ${{ runner.temp }}/mkv-r1.sha256
             ${{ runner.temp }}/mkv-policy-fixtures.json
+            ${{ runner.temp }}/audio-copy.json
           if-no-files-found: ignore
 
   # docs/design/mpegts.md: the transport stream fixtures through

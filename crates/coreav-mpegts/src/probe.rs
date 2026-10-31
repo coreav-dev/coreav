@@ -360,7 +360,7 @@ impl Learn {
         if self.done {
             return;
         }
-        let data = pes.payload.as_slice();
+        let data = pes.payload();
         if let Some(nal) = nal_of(codec) {
             self.parameters.add(nal, data);
             if let Some(record) = self.parameters.record(nal) {
@@ -525,7 +525,7 @@ fn read_tail<S: Source>(
         };
         match next {
             Some((offset, packet)) => {
-                if tail.feed(offset, &packet, tail_warnings).is_err() {
+                if tail.feed(offset, packet, tail_warnings).is_err() {
                     break;
                 }
             }
@@ -564,7 +564,7 @@ fn read_tail<S: Source>(
                 .get(index)
                 .and_then(|l| l.audio)
                 .map(|a| a.sample_rate);
-            let span = pes_span(entry.codec, &pes.payload, rate);
+            let span = pes_span(entry.codec, pes.payload(), rate);
             if let Some(list) = out.times.get_mut(index) {
                 list.push(pts);
             }
@@ -714,7 +714,7 @@ fn read_head<S: Source>(
             ran_out = true;
             break;
         };
-        demux.feed(offset, &packet, warnings)?;
+        demux.feed(offset, packet, warnings)?;
         learnt.resize_with(demux.streams.len(), Learn::default);
         learn_ready(demux, learnt, reference);
         // A stream whose codec this crate cannot name has no parameters to

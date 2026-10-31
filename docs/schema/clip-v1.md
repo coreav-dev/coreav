@@ -32,7 +32,7 @@ shared shapes `rational` and `time` are those of `probe-v1.md`.
 | `kind` | string | `video` or `audio`. |
 | `stream_index` | integer | Position of the source stream among all tracks of the source (`ffprobe`'s `index`). |
 | `track_id` | integer | `track_ID` of the source track. |
-| `codec` | string or `null` | The codec name of `coreav probe`: `h264`, `hevc`, `av1`, `vp9` or `aac`. |
+| `codec` | string or `null` | The codec name of `coreav probe`: `h264`, `hevc`, `av1`, `vp9`, `aac`, `flac`, `alac`, `ac3` or `eac3`. |
 | `first_sample` | integer | Zero-based number of the first copied sample in the source track. |
 | `samples` | integer | Samples copied; they follow `first_sample` in order. |
 | `duration` | time | Sum of the copied decode durations, in media ticks. |

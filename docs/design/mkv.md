@@ -97,7 +97,8 @@ public function for that (`describe_config_record`,
   exception is `Allowlist::any()`, for `coreav ffprobe`, which describes
   every track and lists its packets but hands no frame to a decoder.
 - Default allowlist: the codecs in CoreAV's scope as Matroska carries them (H.264,
-  HEVC, AV1, VP9, ProRes, AAC, MP3, Opus, PCM), WebM's own codecs (VP8,
+  HEVC, AV1, VP9, ProRes, AAC, MP3, Opus, PCM), the audio the remux copies
+  into MP4 (FLAC, AC-3, E-AC-3, Apple Lossless), WebM's own codecs (VP8,
   Vorbis), and the text subtitle formats (SubRip, ASS/SSA, WebVTT). A track
   outside it is dropped and reported; strict mode rejects the file. Callers
   widen the list explicitly (`Allowlist::all()` names every recognized

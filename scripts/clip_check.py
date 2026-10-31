@@ -70,8 +70,11 @@ MEDIAINFO_VIDEO = ("Format", "Width", "Height", "Rotation")
 MEDIAINFO_AUDIO = ("Format", "Format_AdditionalFeatures", "SamplingRate", "Channels")
 KD_FILE = pathlib.Path(__file__).resolve().parent.parent / "docs" / "known-divergences-clip.json"
 CHUNK = 4 << 20
-# Decoder threads per ffmpeg run (`CLIP_CHECK_THREADS`), so that parallel
-# checks share the machine; ffmpeg's default otherwise.
+# Decoder threads per ffmpeg video run (`CLIP_CHECK_THREADS`), so that
+# parallel checks share the machine; ffmpeg's default otherwise. Audio
+# decodes on one thread: with frame threads, the pinned ffmpeg's FLAC and
+# ALAC decoders apply a start skip longer than the first frame several
+# frames late, so the decoded samples depend on the thread count.
 THREADS = ["-threads", os.environ["CLIP_CHECK_THREADS"]] if os.environ.get("CLIP_CHECK_THREADS") else []
 
 # Results for a source file, shared by its clips: (path, what) -> value.
@@ -1613,26 +1616,52 @@ def _adts_frames(data):
     return frames if at == len(data) else None
 
 
+# The raw format ffmpeg extracts a codec's samples in, and the one it reads
+# them back as: AAC as ADTS frames, AC-3 and E-AC-3 as their syncframes.
+RAW_AUDIO = {"aac": ("adts", "aac"), "ac3": ("ac3", "ac3"), "eac3": ("eac3", "eac3")}
+
+
+def _sized_frames(data, sizes):
+    """`data` cut into consecutive pieces of `sizes` bytes, or None when
+    they do not add up to it."""
+    frames, at = [], 0
+    for size in sizes:
+        frames.append(data[at:at + size])
+        at += size
+    return frames if at == len(data) else None
+
+
 def kept_audio_decoded(c):
-    """The source's kept audio packets, extracted by ffmpeg as ADTS frames
-    (one per sample, edit lists ignored), cut at the clip's first kept
-    packet and decoded from there to float32 PCM: the path of a temporary
-    file, or None."""
+    """The source's kept audio packets, extracted by ffmpeg in their raw
+    format (one frame or sample per sample, edit lists ignored), cut at the
+    clip's first kept packet and decoded from there to float32 PCM: the path
+    of a temporary file, or None."""
     audio = c["entry"]["audio"]
     ffmpeg = c["ffmpeg"]
+    raw = RAW_AUDIO.get(audio_stream(c).get("codec_name"))
+    if raw is None:
+        return None
+    source, index = c["entry"]["source"], audio["stream_index"]
     try:
-        adts = run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", c["entry"]["source"],
-                    "-map", f"0:{audio['stream_index']}", "-c", "copy", "-f", "adts", "-"])
+        data = run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", source,
+                    "-map", f"0:{index}", "-c", "copy", "-f", raw[0], "-"])
     except RuntimeError:
         return None
-    frames = _adts_frames(adts)
+    if raw[0] == "adts":
+        frames = _adts_frames(data)
+    else:
+        # Syncframes carry no sample boundaries; the source's stored sample
+        # sizes give them.
+        stored = cached((source, "raw packets", index),
+                        lambda: stored_times(packets(c["ffprobe"], source, index, raw=True)))
+        frames = _sized_frames(data, [int(p.get("size") or 0) for p in stored])
     first, count = audio["first_sample"], audio["samples"]
     if frames is None or len(frames) < first + count:
         return None
     tail = b"".join(frames[first:first + count])
     fd, decoded = tempfile.mkstemp(suffix=".f32", dir=_work())
     os.close(fd)
-    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "aac", *AUDIO_DECODE_INPUT, "-i", "-", "-c:a", "pcm_f32le",
+    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", raw[1], *AUDIO_DECODE_INPUT, "-i", "-", "-c:a", "pcm_f32le",
                              "-f", "f32le", decoded], input=tail, capture_output=True, check=False)
     if result.returncode != 0:
         pathlib.Path(decoded).unlink(missing_ok=True)

@@ -650,12 +650,14 @@ pub fn avc1_sample_entry(
 }
 
 /// An ISO version 0 audio sample entry (ISO/IEC 14496-12 12.2.3): the
-/// channel count, 16-bit sample size and the sample rate in Hz (at most
-/// 65,535), followed by `children` (the codec configuration box first).
-/// Returns the whole entry box.
+/// channel count, the sample size in bits (16 unless the codec's binding
+/// says otherwise) and the sample rate in Hz (at most 65,535), followed by
+/// `children` (the codec configuration box first). Returns the whole entry
+/// box.
 pub fn audio_sample_entry(
     fourcc: FourCc,
     channels: u16,
+    sample_size: u16,
     sample_rate: u32,
     children: &[RawBox],
 ) -> Result<Vec<u8>, Error> {
@@ -667,7 +669,7 @@ pub fn audio_sample_entry(
     entry.extend_from_slice(&1u16.to_be_bytes()); // data_reference_index
     entry.extend_from_slice(&[0; 8]); // version 0, reserved
     entry.extend_from_slice(&channels.to_be_bytes());
-    entry.extend_from_slice(&16u16.to_be_bytes()); // samplesize
+    entry.extend_from_slice(&sample_size.to_be_bytes());
     entry.extend_from_slice(&[0; 4]); // pre_defined, reserved
     entry.extend_from_slice(&(u32::from(rate) << 16).to_be_bytes());
     entry_box(fourcc, entry, children)
@@ -805,6 +807,7 @@ mod tests {
                 audio_sample_entry(
                     FourCc(*b"mp4a"),
                     2,
+                    16,
                     48_000,
                     &[RawBox {
                         kind: FourCc(*b"esds"),
@@ -931,7 +934,7 @@ mod tests {
             &limits,
         )
         .unwrap();
-        let entry = audio_sample_entry(FourCc(*b"mp4a"), 2, 48_000, &[]).unwrap();
+        let entry = audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 48_000, &[]).unwrap();
         let a = muxer
             .add_track(header(TrackMedia::Audio { volume: 256 }, entry.clone()))
             .unwrap();
@@ -979,7 +982,7 @@ mod tests {
             vec![0, 0, 0, 9, 1, 2, 3, 4],
         );
         assert!(muxer.add_track(h.clone()).is_err());
-        h.sample_entry = audio_sample_entry(FourCc(*b"mp4a"), 2, 8000, &[]).unwrap();
+        h.sample_entry = audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 8000, &[]).unwrap();
         h.timescale = 0;
         assert!(muxer.add_track(h.clone()).is_err());
         h.timescale = 8000;
@@ -989,7 +992,7 @@ mod tests {
             rate: Edit::UNIT_RATE,
         }];
         assert!(muxer.add_track(h).is_err());
-        assert!(audio_sample_entry(FourCc(*b"mp4a"), 2, 65_535, &[]).is_ok());
-        assert!(audio_sample_entry(FourCc(*b"mp4a"), 2, 96_000, &[]).is_err());
+        assert!(audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 65_535, &[]).is_ok());
+        assert!(audio_sample_entry(FourCc(*b"mp4a"), 2, 16, 96_000, &[]).is_err());
     }
 }
