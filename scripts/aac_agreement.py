@@ -26,6 +26,9 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
 SECONDS = 10
 RATES = (8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000)
 TOOLS = (('is-off', ('-aac_is', '0')), ('ms-forced', ('-aac_ms', '1')), ('tns-off', ('-aac_tns', '0')),
@@ -114,7 +117,7 @@ def prepare(a):
     probe = a.ffmpeg.rsplit('ffmpeg', 1)[0] + 'ffprobe'
     for key, path in mp4s:
         ref = work / 'ref' / f'{key}.f32'
-        dec = run([a.ffmpeg, '-v', 'error', '-ignore_editlist', '1', '-i', path, '-map', '0:a:0', '-f', 'f32le', ref])
+        dec = run([a.ffmpeg, '-v', 'error', '-ignore_editlist', '1', *AUDIO_DECODE_INPUT, '-i', path, '-map', '0:a:0', '-f', 'f32le', ref])
         refs[str(path)] = {'key': key, 'returncode': dec.returncode, 'errors': bool(dec.stderr.strip()),
                            'stderr': dec.stderr.decode(errors='replace')[-300:], **stated(probe, path)}
         if dec.returncode == 0:
@@ -271,7 +274,7 @@ def judge(a):
             if ext != 'mka' or outs[0].returncode != 0:
                 continue
             channels, ours = wav_floats(outs[0].stdout)
-            ff = run([a.ffmpeg, '-v', 'error', '-i', f, '-map', '0:a:0', '-f', 'f32le', '-'])
+            ff = run([a.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT, '-i', f, '-map', '0:a:0', '-f', 'f32le', '-'])
             theirs = array.array('f')
             theirs.frombytes(ff.stdout[:len(ff.stdout) - len(ff.stdout) % 4])
             n = min(len(ours), len(theirs)) // channels * channels
