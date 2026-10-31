@@ -49,7 +49,11 @@ still being built:
 
 - **Every command of the set runs natively.** Today the `ffmpeg` commands
   do, the clips of audio alone (C15, C19) included, and coreav-dev/coreav#24 is open.
-  A command still refused when the round runs misses its bar.
+  A command still refused when the round runs misses its correctness bar.
+  For R4 only, qualifying strict-safe refusals observed during the run
+  leave the timing set and appear in coverage under the
+  [refusal plan](r4-refusal-plan.md). Non-refusal failures keep their
+  existing handling, and an unmeasured group still cannot pass.
 - **The tools below exist, each merged through its own pull request** and
   tested on the fixtures and on spent sets:
   1. `tools/compat-corpus/run.py`: `commands` and `keys` restricted to

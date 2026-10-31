@@ -17,13 +17,21 @@ refusal status, and writes a corresponding refusal record with its logged
 reason. The record must say `not_run: strict_safe` and `ran: null`; a
 nonzero exit code alone is not evidence of a refusal.
 
-The refusal groups are unsupported codec or container mapping, unsupported
-option, and refused file or stream layout. These groups summarize the
-observed reasons; they are not lists of files or pairs to exclude. Retain
-the logged reason beneath its group. An unrecognized reason remains
-visible rather than being discarded. Whether a pair is a refusal is
-decided from its own invocation and log, not from membership in a reason
-group or from a previous rehearsal.
+The refusal groups have stable report codes: `codec_container` for an
+unsupported codec or container mapping, `option` for an unsupported
+option, `layout` for a refused file or stream layout, and `unknown` for an
+unmatched reason. The tools PR must commit one exact-match table from
+logged reason text to these codes before any run. Each table key names
+exactly one group; no match means `unknown`, not a manual classification. Retain
+all logged reasons beneath the group. If both null-arm sides qualify but
+their reasons map to different groups, count the pair once in `unknown`
+and retain both reasons. Group counts therefore sum to refused pairs.
+
+This table classifies reasons for reporting, not files or pairs for
+exclusion. A pair's own invocation and log decide whether it is a refusal,
+including when its reason maps to `unknown`; neither the table nor a
+previous rehearsal can select exclusions. The table is fixed with the
+tools commit and cannot be edited after inspecting timing results.
 
 Classify each pair before collecting its timing samples. The run itself
 decides the refusals under this rule; there is no pre-listed refusal set,
@@ -34,6 +42,16 @@ pair has qualified for timing is not a reason to discard its completed
 samples and continue; the existing timed-failure rule applies.
 In the null arm, both CoreAV sides must satisfy the refusal rule; a
 refusal on only one side does not qualify the pair for this exclusion.
+
+Pair outcomes are exclusive. A non-refusal failure takes precedence over
+any refusal observed on the other side. A one-sided null-arm refusal
+paired with success is also a failed pair, not a refused pair. Both cases
+count only in failures and follow the existing untimed-failure handling;
+if either occurs after qualification for timing, the pair instead has the
+existing timed-failure disposition and makes the run incomplete. Count
+that pair once as failed, with the incomplete diagnostic, never again as
+refused or timed. Swapping sides does not change the outcome. Oracle
+failures retain their existing accounting rather than becoming refusals.
 
 ## Keep failures separate
 
@@ -48,7 +66,9 @@ The pinned oracle's failures keep their existing handling.
 An executed fallback, a malformed or unreadable log, or a log entry that
 cannot be attributed to its invocation does not qualify for the refusal
 exception and cannot produce a passing native result. Refusal records
-must not suppress another failure of the same pair.
+must not suppress another failure of the same pair. Arm-fatal conditions
+keep their existing void or abort disposition; a refusal cannot downgrade
+them to a pair exclusion.
 
 ## Publish speed and coverage together
 
@@ -64,7 +84,11 @@ command, command class and container family it reports:
 
 Keep failed and oracle-failed pairs visible under their existing
 accounting, so a gap between eligible, refused and timed counts is
-explained. Reports list commands with no timed pair instead of omitting
+explained. A pair occupies only one outcome total. Raw refusal events
+from a mixed-outcome pair may remain in diagnostics but do not add to
+refused-pair or refusal-group totals. In an aborted arm, unprocessed
+eligible pairs remain explicitly unprocessed, not refused or timed.
+Reports list commands with no timed pair instead of omitting
 them. A group with no timing ratio remains unmeasured and cannot pass;
 the existing no-measurement and partial-coverage rules still apply.
 
@@ -98,6 +122,10 @@ result for the supported timed subset, with the coverage next to it.
    tools PR implementing this plan. The tools must test positive logged
    refusals, failures without a refusal record, crashes, timeouts,
    incorrect outputs, oracle failures and complete coverage accounting.
+   Include both side orders of a null-arm refusal paired with success or
+   another failure, and reason-table cases for each group, unmatched
+   reasons and different groups on the two sides. Assert exclusive
+   outcome totals and that refusal-group counts sum to refused pairs.
 3. Rehearse the tools on spent inputs without changing these rules from
    the observed results.
 4. Name the exact release-candidate commit after all release-scoped
