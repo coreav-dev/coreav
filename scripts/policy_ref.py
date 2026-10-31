@@ -1350,6 +1350,80 @@ def laced_tracks(path):
     return found
 
 
+
+def matroska_frames(path, number):
+    """The frames of the track numbered `number`, in file order: each
+    SimpleBlock's and Block's data in every Cluster, a lace split into its
+    frames (RFC 9559 10.3 to 10.6). Raises ValueError for a block or lace
+    that does not fit its element, OSError for an unreadable file."""
+    with open(path, 'rb') as f:
+        end = f.seek(0, 2)
+        top = list(_elements(f, 0, end))
+        segment = next((e for e in top if e[0] == SEGMENT_ID), None)
+        if segment is None:
+            return
+        seg_end = min(segment[2] or end, end)
+        for eid, body, stop in _elements(f, segment[1], seg_end):
+            if eid != CLUSTER_ID:
+                continue
+            for cid, cbody, cstop in _elements(f, body, stop or seg_end):
+                blocks = [(cid, cbody, cstop)]
+                if cid == 0xA0 and cstop is not None:
+                    blocks = [b for b in _elements(f, cbody, cstop) if b[0] == 0xA1]
+                for bid, bbody, bstop in blocks:
+                    if bid not in (0xA3, 0xA1):
+                        continue
+                    if bstop is None:
+                        raise ValueError('a block of unknown size')
+                    f.seek(bbody)
+                    block = f.read(bstop - bbody)
+                    track, n = _vint(block, 0, False)
+                    if not n or len(block) < n + 3:
+                        raise ValueError('a block header cut short')
+                    if track == number:
+                        yield from _laced(block[n + 3:], block[n + 2] >> 1 & 3)
+                if cstop is None:
+                    break
+
+
+def _laced(data, lacing):
+    """The frames of a block's data under its lacing bits (RFC 9559 10.3:
+    none, Xiph, fixed-size or EBML)."""
+    if not lacing:
+        return [data]
+    if not data:
+        raise ValueError('a lace without its frame count')
+    count, at, sizes = data[0] + 1, 1, []
+    if lacing == 1:
+        for _ in range(count - 1):
+            size = 0
+            while True:
+                if at >= len(data):
+                    raise ValueError('Xiph lace sizes cut short')
+                size, at = size + data[at], at + 1
+                if data[at - 1] != 255:
+                    break
+            sizes.append(size)
+    elif lacing == 3:
+        for i in range(count - 1):
+            value, n = _vint(data, at, False)
+            if not n or value is None:
+                raise ValueError('an EBML lace size that cannot be read')
+            at += n
+            sizes.append(value if i == 0 else sizes[-1] + value - ((1 << (7 * n - 1)) - 1))
+    elif (len(data) - at) % count:
+        raise ValueError('a fixed-size lace that does not divide its data')
+    else:
+        sizes = [(len(data) - at) // count] * (count - 1)
+    last = len(data) - at - sum(sizes)
+    if any(size < 0 for size in sizes) or last < 0:
+        raise ValueError('lace sizes past the block')
+    frames = []
+    for size in sizes + [last]:
+        frames.append(data[at:at + size])
+        at += size
+    return frames
+
 def packet_spans(rows, time_bases):
     """Per stream index: (span in seconds, bytes, span of the starts) from
     ffprobe packet rows (stream_index, pts, duration, size), the span

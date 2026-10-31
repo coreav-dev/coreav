@@ -3269,6 +3269,30 @@
      "color_av1_colr_ignored.mp4"
     ]
    }
+  },
+  {
+   "id": "KD-FF9-ANNEX-D-DOWNMIX",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "dmix_mode",
+    "ltrt_cmixlev",
+    "ltrt_surmixlev",
+    "loro_cmixlev",
+    "loro_surmixlev"
+   ],
+   "conditions": {
+    "track": "a Matroska or WebM audio track with CodecID A_AC3, no ContentEncodings and at least one frame",
+    "frames": "every frame of every SimpleBlock and Block of the track, a lace split into its frames (RFC 9559 10.3), is exactly one AC-3 syncframe: its sample rate and frame size codes are listed (ATSC A/52 tables 5.6 and 5.18), it is that size, and its first 5/8 pass crc1 (7.10.1); each has bsid 6, acmod above 2 and xbsi1e 1, no reserved surround level code (0 to 2) where acmod has surround channels, and every frame states the same five values",
+    "candidate": "dmix_mode the stated dmixmod; each mix level the gain of its code (tables D2.3 to D2.6: 2^((2 - code) / 4), code 7 muting, to six decimals) where Annex D 2.3.1.2 to 2.3.1.6 define it, the centre levels with a centre channel and the surround levels with surround channels, else 0.000000",
+    "reference": "0 for dmix_mode and 0.000000 for the four levels",
+    "occurrence": "the stream of that track, by its position among the track entries and its TrackNumber; the stated values not all those of the reference; both sides exactly these",
+    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived evidence oracle_kd_mkv.annex_d_downmix gates them in the corpus comparator; the record has no fixture scope"
+   },
+   "basis": "ATSC A/52 Annex D 2.3.1.2 to 2.3.1.6: bsid 6 states the alternate syntax, which gives these fields their meaning, and Annex D 3.2 lets a legacy decoder ignore them without making the stream state no downmix; ffprobe 9.0.2 prints none; the mechanism KD-TS-ANNEX-D-DOWNMIX records for MPEG-TS (coreav-dev/coreav#146)",
+   "accepts": {},
+   "keys": {}
   }
  ]
 }
