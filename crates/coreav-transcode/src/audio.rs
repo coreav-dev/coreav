@@ -304,6 +304,7 @@ pub fn sample_entry(channels: u8, pre_skip: u16, input_rate: u32) -> Result<Vec<
     audio_sample_entry(
         FourCc(*b"Opus"),
         u16::from(channels),
+        16,
         SAMPLE_RATE,
         &[RawBox {
             kind: FourCc(*b"dOps"),
