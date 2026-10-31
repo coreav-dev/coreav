@@ -344,8 +344,9 @@ struct Described<'m> {
 }
 
 /// The source's `udta` and `meta` boxes of the movie and of `track`, as
-/// stored, without their cover pictures: every `covr` item of an item
-/// list, whole, since the output carries one audio stream and a cover
+/// stored, without their cover pictures: every entry of an item list that
+/// [`coreav_isobmff::metadata::ListKey::is_cover`] names (`covr`, or keyed
+/// artwork), whole, since the output carries one audio stream and a cover
 /// picture is a stream of its own (`docs/design/compat-cli.md`, "Cover
 /// pictures"). With `smpb`, the offset of the movie's `iTunSMPB` item box
 /// that the output's edit list stands for, that item is left out too, so

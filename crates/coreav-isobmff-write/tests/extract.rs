@@ -909,6 +909,78 @@ fn every_cover_picture_is_left_out() {
     assert!(has(&output, b"A title") && has(&output, b"Track title"));
 }
 
+/// A QuickTime `meta` box (no version and flags) with handler `mdta`, a
+/// `keys` box counting `count` keys and holding `keys`, and an `ilst`
+/// whose entries are numbered by key (from 1), each with one `data` box of
+/// a type indicator and a value.
+fn keyed_meta(keys: &[&[u8]], count: u32, entries: &[(u32, u32, &[u8])]) -> Vec<u8> {
+    let mut hdlr = u32s(&[0]);
+    hdlr.extend_from_slice(b"mdta");
+    hdlr.extend_from_slice(&[0u8; 13]);
+    let mut list = u32s(&[0, count]);
+    for key in keys {
+        list.extend(u32s(&[8 + key.len() as u32]));
+        list.extend_from_slice(b"mdta");
+        list.extend_from_slice(key);
+    }
+    let items: Vec<Vec<u8>> = entries
+        .iter()
+        .map(|(index, type_indicator, value)| {
+            bx(
+                &index.to_be_bytes(),
+                &bx(
+                    b"data",
+                    &cat(&[u32s(&[*type_indicator, 0]), value.to_vec()]),
+                ),
+            )
+        })
+        .collect();
+    bx(
+        b"meta",
+        &cat(&[
+            full(b"hdlr", 0, 0, &hdlr),
+            bx(b"keys", &list),
+            bx(b"ilst", &cat(&items)),
+        ]),
+    )
+}
+
+#[test]
+fn keyed_artwork_is_left_out() {
+    // QuickTime metadata whose second key is the artwork key, in the movie
+    // and in the track.
+    let keys: [&[u8]; 2] = [b"com.apple.quicktime.title", b"com.apple.quicktime.artwork"];
+    let (movie_picture, track_picture) = (b"\xff\xd8\xff\xe0 keyed movie", b"\x89PNG keyed track");
+    let plain = aac_movie(100, 10, None, false);
+    let tracked = inserted(
+        &plain,
+        &[b"moov", b"trak"],
+        plain.len(),
+        &keyed_meta(&keys, 2, &[(1, 1, b"Track title"), (2, 13, track_picture)]),
+    );
+    let source = with_moov_children(
+        &tracked,
+        &keyed_meta(&keys, 2, &[(1, 1, b"Keyed title"), (2, 13, movie_picture)]),
+    );
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    assert!(!has(&output, movie_picture) && !has(&output, track_picture));
+    assert!(has(&output, b"Keyed title") && has(&output, b"Track title"));
+    let read =
+        coreav_isobmff::metadata::read(SliceSource::new(&output), &Limits::default()).unwrap();
+    assert_eq!(read.covers().count(), 0);
+
+    // A `keys` box that holds fewer keys than it counts: which entry is the
+    // artwork cannot be told, so the whole `meta` box is left out.
+    let source = with_moov_children(
+        &plain,
+        &keyed_meta(&keys, 3, &[(1, 1, b"Keyed title"), (2, 13, movie_picture)]),
+    );
+    let (_, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert!(!has(&output, movie_picture) && !has(&output, b"Keyed title"));
+    assert!(!has(&output, b"mdta"));
+}
+
 #[test]
 fn a_cover_past_the_box_size_limit_is_left_out() {
     // A cover picture larger than `max_box_bytes`.

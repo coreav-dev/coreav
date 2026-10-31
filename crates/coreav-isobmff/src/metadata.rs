@@ -722,11 +722,7 @@ impl<S: Source> Reader<'_, S> {
         items: &mut Vec<Item>,
     ) -> Result<(), Error> {
         for entry in self.children(ilst.payload_offset(), ilst.end())? {
-            let index = u32::from_be_bytes(entry.kind.0);
-            let keyed = usize::try_from(index)
-                .ok()
-                .and_then(|i| i.checked_sub(1))
-                .and_then(|i| keys.get(i));
+            let keyed = keyed(entry.kind, keys);
             let (mut mean, mut name, mut data) = (None, None, None);
             for part in self.children(entry.payload_offset(), entry.end())? {
                 match &part.kind.0 {
@@ -787,8 +783,40 @@ fn created(head: &[u8]) -> Option<Timestamp> {
     Some(Timestamp { version, seconds })
 }
 
+/// The key an item list entry of box type `kind` names in `keys`: its
+/// type read as a 1-based index into them.
+fn keyed(kind: FourCc, keys: &[(FourCc, Vec<u8>)]) -> Option<&(FourCc, Vec<u8>)> {
+    usize::try_from(u32::from_be_bytes(kind.0))
+        .ok()
+        .and_then(|i| i.checked_sub(1))
+        .and_then(|i| keys.get(i))
+}
+
+/// Whether an item list entry of box type `kind`, in a `meta` box whose
+/// `keys` box holds `keys` ([`keys`]), holds a cover picture, as
+/// [`ListKey::is_cover`] reads its key. A free-form entry (`----`) never
+/// does.
+pub fn is_cover_entry(kind: FourCc, keys: &[(FourCc, Vec<u8>)]) -> bool {
+    match keyed(kind, keys) {
+        Some((namespace, name)) => ListKey::Key {
+            namespace: *namespace,
+            name: name.clone(),
+        }
+        .is_cover(),
+        None => ListKey::Atom(kind).is_cover(),
+    }
+}
+
+/// The keys of a `keys` box's payload, in order; `None` when it does not
+/// hold every entry its count states.
+pub fn keys(payload: &[u8]) -> Option<Vec<(FourCc, Vec<u8>)>> {
+    let count = usize::try_from(be_u32(payload, 4)?).ok()?;
+    let keys = key_list(payload);
+    (keys.len() == count).then_some(keys)
+}
+
 /// The entries of a `keys` box: version and flags, an entry count, then per
-/// entry its size, namespace and name.
+/// entry its size, namespace and name. A list cut short keeps the keys read.
 fn key_list(payload: &[u8]) -> Vec<(FourCc, Vec<u8>)> {
     let mut out = Vec::new();
     let count = be_u32(payload, 4).unwrap_or(0);

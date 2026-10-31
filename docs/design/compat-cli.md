@@ -1025,8 +1025,10 @@ track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
 it, and both are the output's), the track's handler name (8.4.3.3), its
 language, and the creation times of the movie, track and media headers,
 as the remux does (`remux.md`, "Metadata and other boxes"). Two things
-are left out: every cover picture item (`covr`, whole, whatever number of
-pictures it holds, in the movie's and the track's item lists), since a
+are left out: every cover picture item (`covr`, or an entry keyed
+`com.apple.quicktime.artwork` through its `meta` box's `keys`; whole,
+whatever number of pictures it holds, in the movie's and the track's
+item lists), since a
 cover picture is a stream of its own (below) and the output carries one
 audio stream, as the pinned `ffmpeg` leaves it out of `-map 0:a` and
 `-vn` (black box); and, when the extraction turns an `iTunSMPB` item
@@ -1034,8 +1036,10 @@ into an edit list, that item, located where the timing read it, so that
 the delay and padding are not given twice. The boxes are walked as
 copied, not through a separate reader with its own limits: a list whose
 children do not parse to its end is cut where they stop, so that no such
-item is copied unseen, and a box that holds the `iTunSMPB` item where the
-walk does not reach it is left out. An empty handler
+item is copied unseen, a `meta` box whose `keys` box does not hold every
+key it counts is left out (its keyed artwork could not be told apart),
+and a box that holds the `iTunSMPB` item where the walk does not reach
+it is left out. An empty handler
 name is written as `SoundHandler`. Black box, the pinned `ffmpeg` 9.0.2
 on a file with an item list, a track `udta`, a named handler and nonzero
 header times (`plain_extraction_metadata_agrees_with_the_pinned_ffmpeg`
