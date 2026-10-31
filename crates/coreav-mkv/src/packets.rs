@@ -428,10 +428,19 @@ impl<'a, S: Source> Packets<'a, S> {
                 ids::REFERENCE_BLOCK => extra.referenced = true,
                 ids::BLOCK_ADDITIONS => {
                     extra.additions = Some((h.offset, child_end - h.offset));
-                    // A malformed addition leaves the frame as it is.
+                    // A malformed addition, optional metadata, leaves the
+                    // frame without one; a failed read or the work budget
+                    // still stops the listing.
                     extra.codec_addition = match self.codec_addition(h.data_offset(), child_end) {
-                        Err(Error::InvalidElement { .. }) => false,
-                        other => other?,
+                        Ok(codec) => codec,
+                        Err(
+                            error @ (Error::Io(_)
+                            | Error::LimitExceeded {
+                                limit: LimitKind::BlockWork,
+                                ..
+                            }),
+                        ) => return Err(error),
+                        Err(_) => false,
                     };
                 }
                 ids::DISCARD_PADDING => {

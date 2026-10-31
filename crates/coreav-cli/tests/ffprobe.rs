@@ -787,3 +787,50 @@ fn only_codec_defined_block_additions_are_listed() {
         [listed, listed, listed, ""]
     );
 }
+
+#[test]
+fn a_malformed_block_addition_leaves_the_packets_after_it() {
+    // A `BlockAddID` longer than eight bytes, and a header cut off at the
+    // end of its `BlockMore`: each frame is listed without an addition,
+    // and the packets after it are listed.
+    use mkv::{BLOCK_GROUP, TRACKS, cat, cluster, el, info, uint, video_track};
+    let group = |i: i16, additions: &[u8]| {
+        let mut block = vec![0x81];
+        block.extend((i * 40).to_be_bytes());
+        block.push(0);
+        block.extend(mkv::VP9_KEY_FRAME);
+        el(
+            BLOCK_GROUP,
+            &cat(&[el(0xA1, &block), el(0x75A1, additions)]),
+        )
+    };
+    let valid = el(0xA6, &cat(&[uint(0xEE, 1), el(0xA5, &[1, 2, 3, 4])]));
+    let long_id = el(0xA6, &[0xEE, 0x89, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    let cut_off = el(0xA6, &[0xEE]);
+    let blocks = vec![
+        group(0, &long_id),
+        group(1, &valid),
+        group(2, &cut_off),
+        group(3, &valid),
+    ];
+    let track = video_track(1, "V_VP9", 320, 240, &[]);
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(160.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-malformed-block-additions.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_packets",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let listed = "Matroska BlockAdditional|1";
+    assert_eq!(
+        side_data_values(&r.stdout, "matroska_blockadditional"),
+        ["", listed, "", listed]
+    );
+}
