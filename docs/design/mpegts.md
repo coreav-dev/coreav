@@ -404,7 +404,7 @@ nothing is ignored whole, as a decoder ignores it.
   video an I picture; every audio frame. For H.264 only the NAL units up
   to the first coded slice, and that slice's first 32 bytes or up to the
   next unit when it starts sooner, are read unless the SPS keeps at most one reference frame: those units decide an
-  IDR picture and a recovery point (ITU-T H.264 7.4.1.2.3), and the
+  IDR picture (`nal_unit_type` 5, ITU-T H.264 7.4.1) and a recovery point (its SEI message, Annex D), since an access unit's SEI NAL units come before its first coded slice (7.4.1.2.3), and the
   slices after them, nearly all of an access unit's bytes, matter only to
   the intra rule. Rejected: the
   `random_access_indicator` (optional, and set inconsistently by muxers);
