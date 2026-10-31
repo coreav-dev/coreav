@@ -635,11 +635,16 @@ Fixed before the run, judged by `scripts/opus_encode_check.py` in the
 `opus-encode` workflow against the pinned oracle FFmpeg (the build
 `scripts/oracle-ffmpeg.env` names, installed by
 `scripts/install-oracle-ffmpeg.sh` and checked against the pin by
-`scripts/oracle_pin.py --verify-bin`; its libopus is its own), with
-CoreAV linking Ubuntu 24.04's `libopus-dev`, libopus 1.4, which the
-workflow checks. Only a manual run of the workflow judges the
-bars; a run for a pull request or a push builds and checks the oracle and
-judges nothing. Each input runs two arms on the same source:
+`scripts/oracle_pin.py --verify-bin`; its libopus is its own, linked
+statically), with CoreAV linking the libopus the release links: the
+static library `packages/cli/scripts/codecs.sh` builds from the tarball
+it pins (`OPUS_VERSION`, `OPUS_SHA256`), the one pin of the release build
+and of this workflow. The script reads the version from there and stops
+before any run when the CoreAV binary carries another libopus or loads one
+at run time, and the report records the libopus version each binary
+carries. Only a manual run of the workflow judges the bars; a run for a
+pull request or a push builds CoreAV, checks its libopus and the oracle,
+and judges nothing. Each input runs two arms on the same source:
 
     coreav transcode SRC OUT.mp4 --audio opus [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG
     FFMPEG -i SRC -c:v libx264 -c:a libopus [-b:a Kk] OUT.mp4

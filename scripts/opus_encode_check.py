@@ -6,9 +6,13 @@ Speed is recorded for information only.
 
     opus_encode_check.py --coreav BIN --ffmpeg FFMPEG --ffprobe FFPROBE \
         --work DIR --out REPORT.json
+    opus_encode_check.py --coreav BIN --ffmpeg FFMPEG --check-libopus
 
-Exits 1 when a bar is missed, 2 when the set cannot be made. Standard
-library only; FFmpeg is a black box.
+CoreAV's arm must link the libopus the release links, the version that
+packages/cli/scripts/codecs.sh pins; the libopus each binary carries is
+recorded, and --check-libopus checks and prints only that. Exits 1 when a
+bar is missed, 2 when the set cannot be made or CoreAV links another
+libopus. Standard library only; FFmpeg is a black box.
 """
 
 import argparse
@@ -16,6 +20,7 @@ import array
 import json
 import math
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -41,6 +46,10 @@ SOURCES = [
 ]
 RATES = [None, 32, 128]
 RUNS = 3
+CODECS = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'packages', 'cli', 'scripts',
+                      'codecs.sh')
+# libopus's version string, as opus_get_version_string gives it.
+LIBOPUS = re.compile(rb'libopus (\d+\.\d+(?:\.\d+)?)(?![\w.-])')
 
 
 def run(args, **kwargs):
@@ -130,32 +139,54 @@ def o4(ours, theirs):
     return ours is not None and theirs is not None and ours >= theirs - 1.0
 
 
-def libopus_vendor(ffmpeg, work):
-    """The vendor string FFmpeg's libopus writes in an Ogg Opus header."""
-    path = os.path.join(work, 'vendor.opus')
-    run([ffmpeg, '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=d=0.1',
-         '-c:a', 'libopus', path])
+def pinned_libopus(path=CODECS):
+    """The libopus version the release links: OPUS_VERSION in codecs.sh,
+    the one pin of the release build and of the libopus these bars judge."""
+    with open(path) as f:
+        for line in f:
+            if line.startswith('OPUS_VERSION='):
+                return line.strip().split('=', 1)[1]
+    return None
+
+
+def libopus_versions(data):
+    """The libopus versions named in a binary's bytes by libopus's version
+    string ("libopus 1.6.1")."""
+    return sorted({m.group(1).decode() for m in LIBOPUS.finditer(data)})
+
+
+def linked_libopus(path):
+    """The libopus version linked into the binary at `path`, or None when
+    it names none (as when libopus is loaded at run time) or several."""
     try:
-        data = open(path, 'rb').read()
+        with open(path, 'rb') as f:
+            versions = libopus_versions(f.read())
     except OSError:
         return None
-    at = data.find(b'libopus ')
-    if at < 0:
-        return None
-    end = at
-    while end < len(data) and 32 <= data[end] < 127:
-        end += 1
-    return data[at:end].decode()
+    return versions[0] if len(versions) == 1 else None
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--coreav', required=True)
     parser.add_argument('--ffmpeg', required=True)
-    parser.add_argument('--ffprobe', required=True)
-    parser.add_argument('--work', required=True)
-    parser.add_argument('--out', required=True)
+    parser.add_argument('--ffprobe')
+    parser.add_argument('--work')
+    parser.add_argument('--out')
+    parser.add_argument('--check-libopus', action='store_true',
+                        help='only check and print the libopus each binary links')
     args = parser.parse_args()
+    if not args.check_libopus and None in (args.ffprobe, args.work, args.out):
+        parser.error('--ffprobe, --work and --out are required to judge the bars')
+    libopus = {'pinned': pinned_libopus(), 'coreav': linked_libopus(args.coreav),
+               'ffmpeg': linked_libopus(args.ffmpeg)}
+    print(json.dumps({'libopus': libopus}))
+    if libopus['pinned'] is None or libopus['coreav'] != libopus['pinned']:
+        print(f"error: coreav links libopus {libopus['coreav']}, not the release's {libopus['pinned']}",
+              file=sys.stderr)
+        sys.exit(2)
+    if args.check_libopus:
+        return
     os.makedirs(args.work, exist_ok=True)
     sources = make_sources(args.ffmpeg, args.work)
     references = {name: pcm(args.ffmpeg, sources[name]) for name, *_, tonal in SOURCES if tonal}
@@ -220,7 +251,7 @@ def main():
         'O4': len(judged) == len(rows) and all(r['o4'] for r in judged if r['tonal']),
     }
     report = {
-        'ffmpeg_libopus': libopus_vendor(args.ffmpeg, args.work),
+        'libopus': libopus,
         'inputs': len(rows),
         'failed': [r['input'] for r in rows if r['failed']],
         'o1_met': sum(1 for r in judged if r['o1']),

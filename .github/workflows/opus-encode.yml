@@ -3,18 +3,19 @@ name: opus-encode
 # The Opus bars of docs/design/transcode.md ("Opus bars"): `coreav transcode
 # --audio opus` against FFmpeg's `-c:a libopus` on the same sources,
 # judged by scripts/opus_encode_check.py against the pinned oracle FFmpeg
-# (scripts/oracle-ffmpeg.env). Only a manual run judges the bars, so the
-# judged run is one started on purpose; a run for a change to the encoder
-# or this workflow builds coreav with libopus and checks the oracle, and
-# judges nothing.
+# (scripts/oracle-ffmpeg.env), with coreav linking the release's static
+# libopus, built from the tarball packages/cli/scripts/codecs.sh pins. Only
+# a manual run judges the bars, so the judged run is one started on
+# purpose; a run for a change to the encoder or this workflow builds coreav,
+# checks its libopus and the oracle, and judges nothing.
 
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", ".github/workflows/opus-encode.yml"]
+    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", ".github/workflows/opus-encode.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", ".github/workflows/opus-encode.yml"]
+    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", ".github/workflows/opus-encode.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,13 +38,14 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      # CoreAV's libopus is the runner's: Ubuntu 24.04's libopus 1.4, the
-      # version the bars were fixed for.
-      - name: Install libopus
+      # CoreAV's libopus is the release's: the static library codecs.sh
+      # builds from its pinned tarball, which opusic-sys links from
+      # OPUS_LIB_DIR.
+      - name: Build the release's libopus
         run: |
           set -euo pipefail
-          sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libopus-dev
-          test "$(pkg-config --modversion opus)" = 1.4
+          sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build
+          packages/cli/scripts/codecs.sh x86_64-unknown-linux-gnu "$RUNNER_TEMP/codecs" opus
       - name: Cache the pinned FFmpeg
         id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -56,7 +58,21 @@ jobs:
       - name: Check the pinned FFmpeg
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build coreav with libopus
+        env:
+          OPUS_LIB_DIR: ${{ runner.temp }}/codecs/lib
+          OPUS_LIB_STATIC: 'true'
         run: cargo build --locked --release -p coreav-cli --features native-h264,libopus
+      # Fails unless coreav carries the pinned libopus and loads none at run
+      # time; prints the libopus each arm links.
+      - name: Check coreav's libopus
+        run: |
+          set -euo pipefail
+          if readelf -d target/release/coreav | grep -i opus; then
+            echo "error: coreav loads libopus at run time" >&2
+            exit 1
+          fi
+          python3 -I scripts/opus_encode_check.py --coreav target/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --check-libopus
       - name: Judge the Opus bars
         if: github.event_name == 'workflow_dispatch'
         env:

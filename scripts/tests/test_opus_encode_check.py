@@ -40,6 +40,20 @@ class Arms(unittest.TestCase):
             self.assertEqual(pairs.get('--audio-bitrate'), rate and str(rate))
 
 
+class Libopus(unittest.TestCase):
+    def test_the_pin_is_the_release_build(self):
+        self.assertRegex(opus_encode_check.pinned_libopus(), r'^\d+\.\d+(\.\d+)?$')
+
+    def test_the_version_string_names_the_version(self):
+        self.assertEqual(opus_encode_check.libopus_versions(b'\0libopus 1.6.1\0x'), ['1.6.1'])
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus 1.6.1\0libopus 1.6.1\0'), ['1.6.1'])
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus 1.4\0libopus 1.6.1\0'), ['1.4', '1.6.1'])
+
+    def test_no_version_string_names_none(self):
+        self.assertEqual(opus_encode_check.libopus_versions(b'the opt-in libopus build\0libopus.so.0\0'), [])
+        self.assertEqual(opus_encode_check.libopus_versions(b'libopus 1.6.1-rc\0'), [])
+
+
 class Quality(unittest.TestCase):
     def test_a_missing_pcm_fails_o4(self):
         self.assertIsNone(opus_encode_check.samples(1, b'\0' * 8))
