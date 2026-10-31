@@ -13,8 +13,10 @@ SPEC = importlib.util.spec_from_file_location('oracle_kd', ROOT / 'scripts' / 'o
 kd = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kd)
 
-# AAC LC at 48 kHz (index 3), stereo, frames of 1,024 samples.
+# AAC LC at 48 kHz (index 3), stereo, frames of 1,024 samples, and the
+# extension that rules SBR out, without which SBR is open at any rate.
 LC_48K = bytes([2 << 3 | 3 >> 1, (3 & 1) << 7 | 2 << 3])
+EXT = kd.NO_SBR_EXTENSION
 
 
 def box(kind, payload=b''):
@@ -32,7 +34,7 @@ def esds(asc):
     return full_box(b'esds', 0, 0, es)
 
 
-def movie(edits=((50, -1, 1 << 16), (100, 1024, 1 << 16)), stts=((5, 1024), (1, 700)), asc=LC_48K,
+def movie(edits=((50, -1, 1 << 16), (100, 1024, 1 << 16)), stts=((5, 1024), (1, 700)), asc=LC_48K + EXT,
           timescale=48000, mdhd=None, handler=b'soun', ctts=False, mvex=False, elst_version=0, more=(), index=1):
     """One audio track of 10-byte samples in one chunk, timed by `stts`
     (count, delta) at `timescale`, in a movie of 1,000 ticks a second;
@@ -85,17 +87,15 @@ class EmptyEditPadding(unittest.TestCase):
         # 44.1 kHz from media time 0, an empty edit of 19 ms (837.9 ticks,
         # 838), a media edit of 440,294.4 ticks to the end at 440,294, a last
         # sample of 998 ticks at 439,296: 864 against 26.
-        rate = bytes([2 << 3 | 4 >> 1, (4 & 1) << 7 | 1 << 3])
+        rate = bytes([2 << 3 | 4 >> 1, (4 & 1) << 7 | 1 << 3]) + EXT
         data, last = movie(edits=((19, -1, 1 << 16), (9984, 0, 1 << 16)), stts=((429, 1024), (1, 998)),
                            asc=rate, timescale=44100)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, 864, 26)])
 
-    def test_frames_of_960_and_the_extension_without_sbr(self):
-        flag = bytes([LC_48K[0], LC_48K[1] | 4])
+    def test_frames_of_960(self):
+        flag = bytes([LC_48K[0], LC_48K[1] | 4]) + EXT
         data, last = movie(stts=((5, 960), (1, 700)), edits=((50, -1, 1 << 16), (100, 960, 1 << 16)), asc=flag)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 260)])
-        data, last = movie(asc=LC_48K + kd.NO_SBR_EXTENSION)
-        self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
 
     def test_tools_that_agree_give_no_evidence(self):
         # 20 ms empty (960 ticks): the packet, listed at 5,056, ends before
@@ -119,19 +119,19 @@ class EmptyEditPadding(unittest.TestCase):
                 ('composition offsets', movie(ctts=True)),
                 ('fragments', movie(mvex=True)),
                 ('SBR', movie(asc=sbr)),
-                ('another rate', movie(asc=bytes([2 << 3 | 4 >> 1, (4 & 1) << 7 | 2 << 3]))),
-                ('dependsOnCoreCoder', movie(asc=bytes([LC_48K[0], LC_48K[1] | 2]))),
-                ('extensionFlag', movie(asc=bytes([LC_48K[0], LC_48K[1] | 1]))),
+                ('another rate', movie(asc=bytes([2 << 3 | 4 >> 1, (4 & 1) << 7 | 2 << 3]) + EXT)),
+                ('dependsOnCoreCoder', movie(asc=bytes([LC_48K[0], LC_48K[1] | 2]) + EXT)),
+                ('extensionFlag', movie(asc=bytes([LC_48K[0], LC_48K[1] | 1]) + EXT)),
                 ('SBR signalled present', movie(asc=LC_48K + b'\x56\xe5\x80')),
-                ('trailing bytes', movie(asc=LC_48K + b'\0')),
-                ('main profile', movie(asc=bytes([1 << 3 | LC_48K[0] & 7, LC_48K[1]]))),
+                ('trailing bytes', movie(asc=LC_48K + EXT + b'\0')),
+                ('main profile', movie(asc=bytes([1 << 3 | LC_48K[0] & 7, LC_48K[1]]) + EXT)),
                 ('no configuration', movie(asc=b'')),
         ):
             self.assertEqual(self.evidence(data[0]), [], name)
 
     def test_an_empty_edit_halfway_between_two_ticks_gives_no_evidence(self):
         # At 7,350 Hz (index 12) 20 ms is 147 ticks, 10 ms 73.5.
-        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3]) + kd.NO_SBR_EXTENSION
+        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3]) + EXT
         data, last = movie(edits=((20, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, 5267 + 1024 - 5820, 324)])
         data, _ = movie(edits=((10, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
@@ -140,21 +140,20 @@ class EmptyEditPadding(unittest.TestCase):
     def test_the_last_samples_description_gives_the_frame(self):
         # A second description of 960-sample frames, named by the chunk: the
         # first one's 1,024 would give 324 where 260 is due.
-        flag = bytes([LC_48K[0], LC_48K[1] | 4])
+        flag = bytes([LC_48K[0], LC_48K[1] | 4]) + EXT
         self.assertEqual(self.evidence(movie(more=(flag,), index=2)[0]), [])
         self.assertEqual(self.evidence(movie(more=(flag,))[0]), [])
         self.assertEqual(self.evidence(movie(index=2)[0]), [])
 
-    def test_a_rate_that_can_carry_implicit_sbr_needs_the_extension(self):
-        # LC at 24 kHz (index 6) may hold implicit SBR, which doubles the
-        # frame; the extension that rules it out settles it.
-        lc_24k = bytes([2 << 3 | 6 >> 1, (6 & 1) << 7 | 2 << 3])
-        stts = ((5, 1024), (1, 700))
-        self.assertEqual(self.evidence(movie(asc=lc_24k, timescale=24000, stts=stts,
-                                             edits=((100, -1, 1 << 16), (300, 1024, 1 << 16)))[0]), [])
-        data, last = movie(asc=lc_24k + kd.NO_SBR_EXTENSION, timescale=24000, stts=stts,
-                           edits=((100, -1, 1 << 16), (300, 1024, 1 << 16)))
-        self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
+    def test_every_rate_needs_the_extension_that_rules_sbr_out(self):
+        # Implicit SBR is allowed at any core rate (ISO/IEC 14496-3 1.6.5.3),
+        # and would double the frame: a configuration without the extension,
+        # at 48, 44.1 or 24 kHz, gives no evidence; with it, it does.
+        for config, timescale in ((b'\x11\x90', 48000), (b'\x12\x10', 44100), (b'\x13\x10', 24000)):
+            edits = ((100, -1, 1 << 16), (300, 1024, 1 << 16))
+            self.assertEqual(self.evidence(movie(asc=config, timescale=timescale, edits=edits)[0]), [], config)
+            data, last = movie(asc=config + EXT, timescale=timescale, edits=edits)
+            self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)], config)
 
     def test_the_last_sample_must_start_inside_the_media_edit(self):
         # A media edit from 10,000, past the samples' end at 5,820, presents

@@ -3049,13 +3049,10 @@ NO_SBR_EXTENSION = b'\x56\xe5\x00'
 def aac_lc_frame(asc, rate):
     """The samples one frame of a plain AAC LC configuration decodes to (960
     or 1,024 by `frameLengthFlag`, ISO/IEC 14496-3 1.6.2.1 and 4.4.1), when
-    its sampling rate is `rate` and nothing but the extension that rules
-    SBR out follows it; None otherwise. At a core rate that can carry
-    implicit SBR (1.6.5, 4.6.18; [aac_implicit_sbr]), which would double
-    the frame, that extension is required."""
-    if asc is None or len(asc) < 2 or asc[2:] not in (b'', NO_SBR_EXTENSION):
-        return None
-    if asc[2:] == b'' and rate <= MAX_IMPLICIT_SBR_CORE_RATE:
+    its sampling rate is `rate` and the extension that rules SBR out
+    follows it; None otherwise. Without that extension implicit SBR, which
+    would double the frame, is open at any core rate (1.6.5.3)."""
+    if asc is None or len(asc) != 2 + len(NO_SBR_EXTENSION) or asc[2:] != NO_SBR_EXTENSION:
         return None
     object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
     if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
