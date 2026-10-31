@@ -174,13 +174,19 @@ pub struct SampleDescription {
     pub channels: Option<u32>,
     /// Sample rate in Hz (audio entries); fractional rates are truncated.
     pub sample_rate: Option<u32>,
-    /// The output sampling frequency an AAC `AudioSpecificConfig` declares:
-    /// the explicitly signalled SBR extension frequency, else the core
-    /// frequency (ISO/IEC 14496-3 1.6.2.1, table 1.18); `None` for other
-    /// codecs and when it cannot be read. The sample entry's 16.16
-    /// `sample_rate` is kept as stored: writers copy it, and it cannot hold
-    /// every rate this can.
+    /// The sampling frequency the codec configuration declares: for AAC
+    /// the `AudioSpecificConfig`'s explicitly signalled SBR extension
+    /// frequency, else its core frequency (ISO/IEC 14496-3 1.6.2.1, table
+    /// 1.18); for FLAC the `STREAMINFO` block of `dfLa` (RFC 9639 8.2);
+    /// for ALAC the magic cookie's `sampleRate`. `None` for other codecs
+    /// and when it cannot be read. The sample entry's 16.16 `sample_rate`
+    /// is kept as stored: writers copy it, and it cannot hold a rate of
+    /// 65,536 Hz or more.
     pub configured_sample_rate: Option<u32>,
+    /// The bits per sample the codec configuration declares: FLAC's
+    /// `STREAMINFO` in `dfLa`, the ALAC magic cookie's `bitDepth`;
+    /// `None` for other codecs and when it cannot be read.
+    pub configured_bits: Option<u16>,
     /// AAC whose configuration is mono with an LC core, under a stereo
     /// sample entry, without an explicit signal that rules parametric
     /// stereo out (`sbrPresentFlag` 0, or `psPresentFlag` 0):
@@ -396,6 +402,7 @@ pub(crate) fn parse_sample_entry(
         channels: None,
         sample_rate: None,
         configured_sample_rate: None,
+        configured_bits: None,
         implicit_ps_possible: false,
         pcm: None,
         frame_bytes: None,
@@ -430,6 +437,7 @@ pub(crate) fn parse_sample_entry(
     let mut little_endian = None;
     let mut profile = None;
     let mut btrt = None;
+    let mut lossless = None;
     visit_children(
         children.rest(),
         children.offset(),
@@ -535,6 +543,12 @@ pub(crate) fn parse_sample_entry(
                 b"esds" if esds.is_none() => {
                     esds = Some(parse_esds(payload));
                 }
+                b"dfLa" if desc.codec == Codec::Flac && lossless.is_none() => {
+                    lossless = Some((kind, flac_streaminfo(payload)));
+                }
+                b"alac" if fourcc.0 == *b"alac" && lossless.is_none() => {
+                    lossless = Some((kind, alac_cookie(payload)));
+                }
                 b"enda" => little_endian = payload.get(..2).map(|v| v != [0, 0]),
                 b"pcmC" => {
                     // ISO/IEC 23003-5: full box, format_flags, PCM_sample_size.
@@ -551,6 +565,20 @@ pub(crate) fn parse_sample_entry(
     )?;
     if desc.color.full_range.is_none() {
         desc.color.full_range = codec_range;
+    }
+    match lossless {
+        Some((_, Some((rate, bits)))) => {
+            desc.configured_sample_rate = Some(rate);
+            desc.configured_bits = Some(bits);
+        }
+        Some((kind, None)) => crate::error::warn(warnings, Warning::MalformedCodecConfig(kind)),
+        None if desc.codec == Codec::Flac => {
+            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"dfLa")));
+        }
+        None if fourcc.0 == *b"alac" => {
+            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"alac")));
+        }
+        None => {}
     }
     let esds = esds.flatten();
     if fourcc == FourCc(*b"mp4a") {
@@ -623,6 +651,56 @@ pub(crate) fn parse_sample_entry(
         }
     }
     Ok(desc)
+}
+
+/// The sample rate and bits per sample of the `STREAMINFO` block a `dfLa`
+/// box carries. The box (the FLAC-in-ISOBMFF mapping) is a full box of
+/// version 0 and flags 0 whose metadata blocks start with `STREAMINFO`:
+/// a block header of type 0 and length 34 (RFC 9639 8.1), then 16 bits
+/// each of minimum and maximum block size, 24 each of minimum and maximum
+/// frame size, 20 of sample rate, 3 of channels less one and 5 of bits per
+/// sample less one (RFC 9639 8.2). `None` for any other layout, and for
+/// what RFC 9639 does not allow: a block size under 16, a minimum above
+/// the maximum, a rate of 0, or fewer than 4 bits per sample.
+fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
+    let mut p = Bytes::new(payload, 0);
+    if p.u32().ok()? != 0 || p.u8().ok()? & 0x7F != 0 || p.u24().ok()? != 34 {
+        return None;
+    }
+    let (min_block, max_block) = (p.u16().ok()?, p.u16().ok()?);
+    if min_block < 16 || min_block > max_block {
+        return None;
+    }
+    let mut bits = Bits::new(p.take(30).ok()?);
+    bits.skip(48)?;
+    let rate = bits.bits(20)?;
+    bits.bits(3)?;
+    let depth = u16::try_from(bits.bits(5)?).ok()? + 1;
+    (rate > 0 && depth >= 4).then_some((rate, depth))
+}
+
+/// The sample rate and bit depth of an ALAC magic cookie: the `alac` box
+/// of an `alac` sample entry is a full box of version 0 and flags 0 that
+/// holds an `ALACSpecificConfig` (Apple Lossless Audio Codec, magic cookie
+/// description): `frameLength` (32 bits), `compatibleVersion` (8),
+/// `bitDepth` (8), `pb`, `mb`, `kb`, `numChannels` (8 each), `maxRun`
+/// (16), `maxFrameBytes` (32), `avgBitRate` (32), `sampleRate` (32).
+/// `None` for a shorter box, another version of the box or of the cookie
+/// (`compatibleVersion` other than 0), a bit depth of 0 or above 32, or a
+/// rate of 0.
+fn alac_cookie(payload: &[u8]) -> Option<(u32, u16)> {
+    let mut p = Bytes::new(payload, 0);
+    if p.u32().ok()? != 0 {
+        return None;
+    }
+    p.skip(4).ok()?;
+    if p.u8().ok()? != 0 {
+        return None;
+    }
+    let depth = p.u8().ok()?;
+    p.skip(14).ok()?;
+    let rate = p.u32().ok()?;
+    ((1..=32).contains(&depth) && rate > 0).then_some((rate, u16::from(depth)))
 }
 
 /// A Dolby Vision decoder configuration record (`DOVIDecoderConfigurationRecord`
