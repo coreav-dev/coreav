@@ -1635,15 +1635,19 @@ The bars:
 2. **Against FFmpeg (gating).** On every MP4 input of every set: CoreAV's
    `coreav_aac::Decoder` on every packet in order against `ffmpeg
    -ignore_editlist 1 -i IN -map 0:a:0 -f f32le -`, with the rules above;
-   CoreAV damages no frame. Bar: 100% of the counted inputs. Not
-   counted, each listed with its reason: an input that `ffmpeg` decodes with
-   an error or a warning (`-v warning` prints a
-   line; in the calibration the six `al960_sbr_i_*` streams,
-   `al960_sbr_ps_04` and the three `al_sbr_i_*_new` streams); and a
-   conformance stream on which CoreAV meets bar 1 and FFmpeg's output,
-   measured as bar 1 measures, does not (in the calibration `ffmpeg`
-   missed `al_sbr_cm_48_5` on one channel, and the three
-   `al_sbr_i_*_new` streams). A divergence found in a run is a known
+   CoreAV damages no frame. Bar: 100% of the inputs. Two kinds of input
+   leave only the comparison with FFmpeg's samples and FFmpeg's length,
+   each listed with its reason: an input that `ffmpeg` decodes with an
+   error or a warning (`-v warning` prints a line; in the calibration the
+   six `al960_sbr_i_*` streams, `al960_sbr_ps_04` and the three
+   `al_sbr_i_*_new` streams), and a conformance stream on which CoreAV
+   meets bar 1 and FFmpeg's output, measured as bar 1 measures, does not
+   (in the calibration `ffmpeg` missed `al_sbr_cm_48_5` on one channel,
+   and the three `al_sbr_i_*_new` streams). On those inputs the rest of
+   this bar still gates (CoreAV's length, rate, channels and layout, and no
+   damaged frame), and so does every other bar that applies to them: bar
+   1 where the stream has a reference, and bars 3 to 7. A divergence
+   found in a run is a known
    divergence only where a raw value of the input shows its condition,
    never by file. Reported: the largest difference, the share of samples
    in noise blocks, the noise level per block.
@@ -1655,8 +1659,10 @@ The bars:
    reader reads it, within the tolerance against FFmpeg, the length
    exact, and the summary's `timeline` is the model's, in samples of
    the output rate while the track's time scale is often the core's.
-   Bar: 100% of those inputs. Reported: the inputs with noise blocks, and
-   every input's comparison with `ffmpeg`'s default output.
+   Bar: 100% of those inputs. On an input that leaves bar 2's sample
+   comparison (above), and on one with noise blocks, the length and the
+   `timeline` still gate and the samples are reported. Reported: every
+   input's comparison with `ffmpeg`'s default output.
 4. **Signalling (gating).** The same stream signalled three ways decodes
    the same: on every input that has an implicit variant (sets), CoreAV's
    output of the implicit variant equals its output of the explicit
@@ -1666,12 +1672,16 @@ The bars:
    `al_sbr_sig_*_sig1`), backward-compatibly (the 0x2b7 extension) and
    implicitly (an LC configuration, SBR found in the stream) are covered
    by bars 1 and 2.
-5. **Matroska (gating).** On every Matroska copy, CoreAV's decode of the
-   copy (the configuration from `CodecPrivate`, every packet of its blocks
-   in order) equals its decode of the MP4 bit for bit. Reported: `coreav
-   decode-audio --format f32` on the copy against `ffmpeg -i COPY -map
-   0:a:0 -f f32le -`, sample 0 to sample 0 over the common length with
-   the rules above, and both lengths.
+5. **Matroska (gating).** On every pair of a Matroska file and an MP4
+   file of the same packets (the Matroska copies of the conformance and
+   generated inputs, and the corpus's Matroska files with their MP4 copies,
+   sets), CoreAV's decode of the Matroska file (the configuration from
+   `CodecPrivate`, every packet of its blocks in order) equals its decode
+   of the MP4 file bit for bit. With bar 2 on the MP4 file, this holds a
+   Matroska file to FFmpeg's samples. Reported: `coreav decode-audio
+   --format f32` on the Matroska file against `ffmpeg -i IN -map 0:a:0 -f
+   f32le -`, sample 0 to sample 0 over the common length with the rules
+   above, and both lengths.
 6. **Threads (gating).** On every input of the generated and corpus sets,
    both containers, the output of `--threads 8` is byte-identical to that
    of `--threads 1`; tests pin 1, 2, 3 and 8 threads on HE-AAC fixtures
@@ -1731,7 +1741,10 @@ No speed against FFmpeg is claimed.
   profile `HE-AAC` or `HE-AACv2` (`-show_streams`, on the file read from
   the corpus store). The selection runs in the job, with the read-only
   credentials only this repository's own runs receive; without them the
-  job says so and the set is empty. No held-out file is used, so the
+  job says so and the set is empty. Each Matroska file of the set is
+  copied into MP4 (`ffmpeg -map 0:a:0 -c copy`), and the copy is an MP4
+  input of bar 2 and the file's pair in bar 5; a file the copy fails on
+  is listed and fails bar 5. No held-out file is used, so the
   draws' rules do not apply. Reports give counts and aggregate numbers,
   never a file.
 - Not used: ADTS and LATM files (raw `.aac`, MPEG-TS), which the pipeline
