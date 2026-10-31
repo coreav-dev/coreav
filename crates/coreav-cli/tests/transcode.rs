@@ -2192,3 +2192,93 @@ fn ffmpeg_aac_lines_encode_the_audio() {
     }
     nothing_left(&dir);
 }
+
+/// A Matroska audio stream that starts after the video keeps its start
+/// through the audio encodes, as FFmpeg's encode of the same command does:
+/// the output's audio starts where FFmpeg's does, to within one frame.
+#[test]
+fn the_audio_encodes_keep_a_matroska_audio_start() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-start");
+    let source = dir.join("late.mkv");
+    let status = Command::new(&tools.ffmpeg)
+        .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])
+        .arg("testsrc2=size=64x64:rate=10:duration=2")
+        .args(["-itsoffset", "0.5", "-f", "lavfi", "-i"])
+        .arg("sine=sample_rate=44100:duration=1")
+        .args(["-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-bf", "0"])
+        .args(["-pix_fmt", "yuv420p", "-c:a", "flac"])
+        .arg(&source)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let start = |path: &Path| {
+        probe_json(
+            &tools,
+            &["-select_streams", "a", "-show_entries", "stream=start_time"],
+            path,
+        )["streams"][0]["start_time"]
+            .as_str()
+            .unwrap()
+            .parse::<f64>()
+            .unwrap()
+    };
+    let mut encoders = vec![("aac", "aac", 1024.0 / 44_100.0)];
+    if cfg!(feature = "libopus") {
+        encoders.push(("opus", "libopus", 0.02));
+    }
+    for (mode, codec, frame) in encoders {
+        let oracle = dir.join(format!("{codec}-ffmpeg.mp4"));
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y", "-i"])
+            .arg(&source)
+            .args(["-c:v", "libx264", "-c:a", codec])
+            .arg(&oracle)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{codec}");
+        let expected = start(&oracle);
+        assert!(expected > 0.4, "{codec}: {expected}");
+        let transcoded = dir.join(format!("{mode}-transcode.mp4"));
+        let run = transcode(
+            Some(&tools),
+            &[
+                source.to_str().unwrap(),
+                transcoded.to_str().unwrap(),
+                "--audio",
+                mode,
+                "--encoder",
+                "x264",
+                "--x264",
+                tools.x264.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(run.code, 0, "{mode}: {}", run.stderr);
+        let line = dir.join(format!("{codec}-ffmpeg-line.mp4"));
+        let out = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(["-c:v", "libx264", "-c:a", codec])
+            .arg(&line)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{codec}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        for path in [&transcoded, &line] {
+            let got = start(path);
+            assert!(
+                (got - expected).abs() <= frame + 1e-6,
+                "{}: starts at {got}, FFmpeg's at {expected}",
+                path.display()
+            );
+            decodes_cleanly(&tools, path);
+        }
+    }
+    nothing_left(&dir);
+}

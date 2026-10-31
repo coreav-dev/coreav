@@ -580,7 +580,14 @@ the encode does not take is refused before the video encoder starts:
    Matroska's `CodecDelay` and `DiscardPadding`; leading empty edits are
    silence) and resamples to 48 kHz 32-bit float
    (`docs/design/audio-decode.md`, "Resampling and downmixing"). Sample 0
-   is presentation time 0. More than two channels, an edit list the
+   is presentation time 0 of an MP4 stream; a Matroska stream's sample 0
+   is its first frame's presentation time on the segment's timeline
+   (`coreav_mkv::Packet::pts_ns`) plus the `CodecDelay` the decoder drops
+   (the first block's timestamp, for a block that is not laced), which the edit
+   list keeps as an empty edit (below), where the remux presents a copied
+   frame of it ([`mkv-remux.md`](mkv-remux.md), "Edit lists"); a Matroska
+   stream that starts before time 0, or whose start is not known, is
+   refused. More than two channels, an edit list the
    decoder does not apply exactly, or a source the demuxer stops reading
    early is refused (`unsupported_feature`): the samples would not be the
    stream's presentation.
@@ -609,7 +616,8 @@ the encode does not take is refused before the video encoder starts:
    the output channels, the pre-skip, the source's sample rate as the
    input rate, gain 0, channel mapping family 0), media timescale 48,000,
    every packet a 960-tick sync sample, an edit list that presents the
-   decoded samples from movie time 0 and leaves out the pre-skip and the
+   decoded samples from movie time 0 (from a Matroska stream's start,
+   after an empty edit) and leaves out the pre-skip and the
    padding (the edit's media time is the pre-skip), and a `roll` group
    of distance −4, 80 ms of 20 ms packets. The movie timescale becomes a
    multiple of 48,000 where the edit would round in it and the multiple
@@ -766,7 +774,8 @@ without it the encoder's own default applies, which the summary gives as
    (ISO/IEC 14496-1 7.2.6.5: object type 0x40, an audio stream, the
    `AudioSpecificConfig` as read), media timescale the sample rate, every
    frame a 1,024-tick sync sample, an edit list that presents the decoded
-   samples from movie time 0 and leaves out the delay and the padding (the
+   samples from movie time 0 (from a Matroska stream's start, after an
+   empty edit, as for Opus) and leaves out the delay and the padding (the
    edit's media time is the delay), and a `roll` group of distance −1,
    since a frame overlaps the one before it (ISO/IEC 14496-3 4.6.11).
 

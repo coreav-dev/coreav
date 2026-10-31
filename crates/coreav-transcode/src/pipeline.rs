@@ -563,7 +563,7 @@ pub fn transcode<S: Source, W: Write>(
             sample_entry: &encoded.entry,
             timescale: encoded.timescale,
             samples: &encoded.samples,
-            start: 0,
+            start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
             roll: encoded.roll,

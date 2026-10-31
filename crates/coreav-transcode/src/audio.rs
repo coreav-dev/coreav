@@ -148,6 +148,10 @@ pub(crate) struct EncodedAudio {
     pub(crate) entry: Vec<u8>,
     /// The media timescale: the output's sample rate.
     pub(crate) timescale: u32,
+    /// Media ticks of silence before the first presented sample: where a
+    /// Matroska source's stream starts ([`matroska_start`]); 0 for an MP4
+    /// source, whose leading empty edit the decoder writes as silence.
+    pub(crate) start: u64,
     /// The track's roll distance, in samples of the track.
     pub(crate) roll: u16,
     /// The packets, back to back in `spool`.
@@ -193,6 +197,7 @@ pub(crate) fn encode<S: Source>(
     }
     let mut source = source;
     let stream = flac_or_mp3(&mut source, requested, limits)?;
+    let start_ns = matroska_start(&mut source, stream, limits)?;
     let options = coreav_audio::Options {
         stream,
         format: SampleFormat::F32,
@@ -330,6 +335,7 @@ pub(crate) fn encode<S: Source>(
         },
         entry,
         timescale: rate,
+        start: ticks(start_ns, rate),
         roll,
         samples: sizes
             .into_iter()
@@ -462,6 +468,65 @@ fn flac_or_mp3<S: Source>(
         Some(&(index, _)) => Ok(Some(index)),
         None => Ok(stream),
     }
+}
+
+/// Where the stream `index` of a Matroska source starts on the segment's
+/// timeline, in nanoseconds: its first frame's presentation time
+/// (`coreav_mkv::Packet::pts_ns`) plus `CodecDelay`, the samples the
+/// decoder drops from its start (RFC 9559 5.1.4.1.24), as the remux
+/// presents a copied stream (`docs/design/mkv-remux.md`, "Edit lists").
+/// The decoder writes the frames from the first one on, so the encode would
+/// otherwise start the stream at time 0. 0 for an MP4 source, whose leading
+/// empty edit the decoder writes as silence, and for no stream named. A
+/// start before 0, or one not known, is refused.
+fn matroska_start<S: Source>(
+    source: &mut S,
+    index: Option<usize>,
+    limits: &coreav_audio::Limits,
+) -> Result<u64, Error> {
+    use coreav_mkv as mkv;
+    let audio_error = |e: coreav_audio::Error| Error::Audio(e);
+    let mut prefix = [0u8; 4];
+    if source.len().map_err(|e| audio_error(e.into()))? >= 4 {
+        source
+            .read_exact_at(0, &mut prefix)
+            .map_err(|e| audio_error(e.into()))?;
+    }
+    let Some(index) = index.filter(|_| mkv::sniff(&prefix)) else {
+        return Ok(0);
+    };
+    let segment = mkv::probe(&mut *source, &limits.matroska, &mkv::Allowlist::all())
+        .map_err(|e| audio_error(e.into()))?;
+    let Some(track) = segment.tracks.iter().position(|t| t.stream_index == index) else {
+        return Ok(0);
+    };
+    for packet in segment.packets(&mut *source, &limits.matroska) {
+        let packet = packet.map_err(|e| audio_error(e.into()))?;
+        if packet.track != track {
+            continue;
+        }
+        let delay = segment.tracks.get(track).map_or(0, |t| t.codec_delay);
+        let start = packet
+            .pts_ns(&segment)
+            .and_then(|ns| ns.checked_add(i128::from(delay)));
+        return match start.map(u64::try_from) {
+            Some(Ok(ns)) => Ok(ns),
+            Some(Err(_)) => Err(Error::Unsupported(
+                "an audio stream that starts before time 0 (the audio encode does not trim it)"
+                    .into(),
+            )),
+            None => Err(Error::Unsupported(
+                "an audio stream whose start time is not known".into(),
+            )),
+        };
+    }
+    Ok(0)
+}
+
+/// `ns` nanoseconds in ticks of `rate` per second, to the nearest tick.
+fn ticks(ns: u64, rate: u32) -> u64 {
+    let ticks = (u128::from(ns) * u128::from(rate) + 500_000_000) / 1_000_000_000;
+    u64::try_from(ticks).unwrap_or(u64::MAX)
 }
 
 /// The `Opus` sample entry with its `dOps` box (opus-codec.org
