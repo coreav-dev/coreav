@@ -356,7 +356,9 @@ skips it. It holds the list of crates that implement such a codec
 H.264), runs `cargo tree --target all -e normal,build` for the default
 features of every other workspace member, and for each build a package
 script makes with other features (the npm command's
-`--no-default-features --features cli`), and fails when one of those
+`--no-default-features --features cli`, and the release's default build,
+`--features release-default`, which the native npm packages carry too),
+and fails when one of those
 graphs holds a listed crate. It also fails when a listed crate is no
 workspace member, so a renamed crate cannot leave the list checking
 nothing. Opting in stays a feature (`native-h264` of `coreav-cli`), which
