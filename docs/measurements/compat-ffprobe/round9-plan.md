@@ -91,12 +91,20 @@ conditions hold:
 
 Only `KD-FF9-EMPTY-EDIT-PADDING` may establish a missing CoreAV
 `packets.side_data_list.discard_padding` value as correct. Its registered
-byte predicate must positively prove that the last sample ends at or
-before the media edit's end, derive the exact value printed by the oracle,
-and bind both readings to that same last sample and packet. Every other
-packet must agree. A missing value alone is not proof: an unproven absence,
+byte predicate must positively prove that the last sample's decoded frame
+ends at or before the media edit's end, not merely that its stored sample
+duration does. The track's timescale must equal the AudioSpecificConfig's
+core sample rate. One core frame then spans 1,024 or 960 media ticks by
+`frameLengthFlag`, whether or not SBR is present: SBR doubles sample count
+and rate together, not time. Require `last.dts + frame_span <= edit_end`,
+with both ends in media time. A shorter stored sample cannot prove absence.
+The predicate must also derive the exact oracle value and bind both
+readings to that same last sample and packet. Every other packet must
+agree. A missing value alone is not proof: an unproven absence,
 a missing oracle value and absence under any other KD remain unexcludable.
 Mutation tests must keep deletions without this byte proof uncovered.
+In particular, deleting the required 324 padding from a 700-tick last
+sample that straddles the edit with a 1,024-tick frame must stay uncovered.
 This case and its predicate must be in scope at the cutoff below.
 
 A row is one file's agreement result for one key, in one container, not
