@@ -305,7 +305,7 @@ def concat_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index, codec,
         try:
             stream = listing["streams"][0]
             base = Fraction(stream["time_base"]) * int(stream["sample_rate"])
-            pcm += cc.run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", item["path"], "-map",
+            pcm += cc.run([ffmpeg, "-v", "error", "-ignore_editlist", "1", *AUDIO_DECODE_INPUT, "-i", item["path"], "-map",
                            f"0:{index}", "-c:a", "pcm_f32le", "-f", "f32le", "-"])
         except (KeyError, IndexError, ValueError, ZeroDivisionError, RuntimeError):
             return None

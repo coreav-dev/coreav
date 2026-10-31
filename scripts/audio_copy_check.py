@@ -35,6 +35,10 @@ import subprocess
 import sys
 from fractions import Fraction
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
 TIMEOUT = 300
 VIDEO = ["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2"]
 H264 = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "25"]
@@ -109,7 +113,7 @@ def packets(ffprobe, path, ignore_edits):
 
 def decodes(problems, ffmpeg, path):
     """The decoded audio's MD5; a problem when ffmpeg reports an error."""
-    out = run([ffmpeg, "-v", "error", "-i", str(path), "-map", "0:a:0", "-f", "md5", "-"])
+    out = run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", str(path), "-map", "0:a:0", "-f", "md5", "-"])
     md5, errors = out.stdout.decode().strip(), out.stderr.decode(errors="replace").strip()
     if out.returncode != 0 or errors or not md5:
         problems.append(f"{path.name} does not decode cleanly: {errors[:300]}")
@@ -130,7 +134,7 @@ def stored_durations(problems, tools, path):
     if stream["codec_name"] in ("ac3", "eac3"):
         decoded = [Fraction(1536, int(stream["sample_rate"]))] * len(stored)
     else:
-        out = run([tools.ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", str(path), "-map", "0:a:0",
+        out = run([tools.ffmpeg, "-v", "error", "-ignore_editlist", "1", *AUDIO_DECODE_INPUT, "-i", str(path), "-map", "0:a:0",
                    "-f", "framemd5", "-"])
         base, decoded = None, []
         for line in out.stdout.decode().splitlines():
