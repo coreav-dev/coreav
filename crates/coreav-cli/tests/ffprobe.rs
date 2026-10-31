@@ -957,3 +957,136 @@ fn decoded_frames_discard_the_codec_delay_once() {
         "frame|nb_samples=47\nframe|nb_samples=1152\nframe|nb_samples=1152\n"
     );
 }
+
+#[test]
+fn padding_counts_the_decoded_output_rate() {
+    // AAC at 24 kHz whose `OutputSamplingFrequency` is 48 kHz, as SBR
+    // doubles it (RFC 9559 5.1.4.1.29.2): 10 ms of `CodecDelay` is 480
+    // decoded samples, as on the pinned ffprobe, and each 1,024-sample
+    // frame decodes to 2,048, so 60 ms of padding on a lace of two is
+    // 2,880 samples, 832 and 2,048.
+    use mkv::{
+        BLOCK_GROUP, TRACK_ENTRY, TRACKS, cat, cluster, el, float, info, sint, string, uint,
+    };
+    let frame = [
+        0x21, 0x10, 0x05, 0x00, 0xA0, 0x19, 0x33, 0x87, 0xF0, 0x00, 0x00,
+    ];
+    let audio = el(
+        0xE1,
+        &cat(&[
+            float(0xB5, 24_000.0),
+            float(0x78B5, 48_000.0),
+            uint(0x9F, 2),
+        ]),
+    );
+    let track = el(
+        TRACK_ENTRY,
+        &cat(&[
+            uint(0xD7, 1),
+            uint(0x73C5, 1000),
+            uint(0x83, 2),
+            string(0x86, "A_AAC"),
+            audio,
+            uint(0x56AA, 10_000_000),
+            el(0x63A2, &[0x13, 0x10]),
+        ]),
+    );
+    let mut laced = vec![0x81];
+    laced.extend(43i16.to_be_bytes());
+    laced.extend([0x04, 1]);
+    laced.extend(frame);
+    laced.extend(frame);
+    let blocks = vec![
+        mkv::simple_block(1, 0, true, &frame),
+        el(
+            BLOCK_GROUP,
+            &cat(&[el(0xA1, &laced), sint(0x75A2, 60_000_000)]),
+        ),
+    ];
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(128.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-sbr-padding.mkv", &data)
+        .to_string_lossy()
+        .into_owned();
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_entries",
+        "stream=sample_rate,initial_padding",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, "stream|sample_rate=48000|initial_padding=480\n");
+    let packets = packet_lines(&path);
+    assert_eq!(packets.len(), 3, "{packets:?}");
+    assert!(
+        packets[0].ends_with(&skip_samples(480, 0)),
+        "{}",
+        packets[0]
+    );
+    assert!(
+        packets[1].ends_with(&skip_samples(0, 832)),
+        "{}",
+        packets[1]
+    );
+    assert!(
+        packets[2].ends_with(&skip_samples(0, 2048)),
+        "{}",
+        packets[2]
+    );
+}
+
+#[test]
+fn a_padded_lace_of_256_frames_is_decoded_frame_by_frame() {
+    // The frames of a block with end padding wait for its last frame, but
+    // their payloads do not: each is read when its frame is listed. Here
+    // the most frames a lace has, 256 of 48 mono 16-bit samples, with
+    // 4.5 ms (216 samples) of padding taken from the last five.
+    use mkv::{
+        BLOCK_GROUP, TRACK_ENTRY, TRACKS, cat, cluster, el, float, info, sint, string, uint,
+    };
+    let audio = el(
+        0xE1,
+        &cat(&[float(0xB5, 48_000.0), uint(0x9F, 1), uint(0x6264, 16)]),
+    );
+    let track = el(
+        TRACK_ENTRY,
+        &cat(&[
+            uint(0xD7, 1),
+            uint(0x73C5, 1000),
+            uint(0x83, 2),
+            string(0x86, "A_PCM/INT/LIT"),
+            audio,
+        ]),
+    );
+    let mut laced = vec![0x81, 0, 0, 0x04, 255];
+    for i in 0..256u32 {
+        laced.extend((0..96).map(|j| (i + j) as u8));
+    }
+    let blocks = vec![el(
+        BLOCK_GROUP,
+        &cat(&[el(0xA1, &laced), sint(0x75A2, 4_500_000)]),
+    )];
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(256.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-long-padded-lace.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_entries",
+        "frame=nb_samples",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let mut want = "frame|nb_samples=48\n".repeat(251);
+    want.push_str("frame|nb_samples=24\n");
+    assert_eq!(r.stdout, want);
+}

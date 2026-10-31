@@ -264,8 +264,11 @@ even when the stream has composition offsets.
 Matroska and WebM list the samples a decoder discards as Skip Samples
 packet side data (RFC 9559): a track's `CodecDelay` on its first packet,
 a block's `DiscardPadding` from its last frames, or from its first when
-negative, each frame at most its own samples, each rounded to the nearest sample (at 48 kHz for Opus, RFC
-7845 5.1). An audio stream with a codec delay
+negative, each frame at most its own samples, each rounded to the nearest sample at the rate the decoder outputs (48
+kHz for Opus, RFC 7845 5.1; the output sampling frequency, which SBR
+doubles, RFC 9559 5.1.4.1.29.2). The frames of a block with end padding
+wait for its last frame without their payloads, each read when its frame
+is listed. An audio stream with a codec delay
 starts at its first block's own timestamp, the first sample played,
 while its packets keep the presentation times the delay moves earlier.
 
