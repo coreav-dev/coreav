@@ -39,6 +39,10 @@ pub struct Request {
     /// The audio streams to copy (source stream indices), instead of every
     /// one MP4 carries: an `ffmpeg` command line's selection.
     pub audio_streams: Option<Vec<usize>>,
+    /// The cover pictures of an MP4 source to leave out, as
+    /// `RemuxOptions::left_out_covers` names them: an `ffmpeg` command
+    /// line's selection.
+    pub left_out_covers: Vec<u64>,
     /// `--audio opus`: one audio stream encoded to Opus instead.
     pub opus: Option<OpusRequest>,
     /// `--audio aac`: one audio stream encoded to AAC-LC instead.
@@ -139,6 +143,7 @@ pub fn make<S: Source>(
             (Some(streams), false, None, None) => AudioMode::Streams(streams.clone()),
             (None, false, None, None) => AudioMode::Copy,
         },
+        left_out_covers: request.left_out_covers.clone(),
         encoder: request.encoder.choice(),
         x264: request.x264.clone(),
         ffmpeg: request.ffmpeg.clone(),

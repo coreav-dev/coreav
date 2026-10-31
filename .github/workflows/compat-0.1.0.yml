@@ -30,7 +30,8 @@ name: compat-0.1.0
 # this file runs the rehearsal, so the workflow is proven on spent files
 # before it can open the draw. The rehearsal also scans which R4 pairs write
 # to the fallback log on the gate's and the rehearsal's R4 files
-# (tools/compat-corpus/r4_scan.py), since any such line voids R4. Forks and
+# (tools/compat-corpus/r4_scan.py); the timing runner excludes only the
+# registered run-observed strict-safe refusals and publishes coverage. Forks and
 # runs without the credentials measure nothing and say so.
 #
 # A measurement run by hand, not a gate:
@@ -297,12 +298,26 @@ jobs:
           cp "$RUNNER_TEMP/r4/verdict.json" "$RUNNER_TEMP"/r4/vm/*.report.json "$RUNNER_TEMP"/r4/vm/*.report.txt \
             "$RUNNER_TEMP/r4/vm/ffmpeg-version.txt" "$RUNNER_TEMP/r4-public/"
           # 0: R4 ran after a passed gate; 3: the gate failed (expected on a shared runner) and R4 ran all the same;
-          # 5: void, accepted here only when a fallback log (a command CoreAV still refuses) is among the reasons
-          # and every other reason is a group those refusals left with no ratio.
-          [ "$code" -eq 0 ] || [ "$code" -eq 3 ] || { [ "$code" -eq 5 ] && python3 -I -c 'import json, sys
-          r = json.load(open(sys.argv[1]))["reasons"]
-          logs = [x for x in r if x.startswith("the fallback log of ")]
-          sys.exit(not logs or not all(x in logs or x.endswith(" unmeasured") for x in r))' "$RUNNER_TEMP/r4/verdict.json"; }
+          # 5: retain void and unmeasured diagnostics proved by complete refusal/oracle-failure coverage, never a bar pass.
+          [ "$code" -eq 0 ] || [ "$code" -eq 3 ] || { [ "$code" -eq 5 ] && python3 -I - "$RUNNER_TEMP/r4" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          reasons = json.loads((root / 'verdict.json').read_text())['reasons']
+          allowed = {reason for reason in reasons if reason.startswith('the fallback log of ')}
+          counts = ('eligible', 'refused', 'timed', 'failed', 'oracle_failed', 'unprocessed')
+          for name in ('gate-aa', 'gate-null', 'r4'):
+              report = json.loads((root / 'vm' / f'{name}.report.json').read_text())
+              unmeasured = report.get('unmeasured', [])
+              groups = {f"{row['class']} {row['family']}": row for row in report.get('coverage_groups', [])}
+              rows = [groups.get(group, {}) for group in unmeasured]
+              if rows and all(all(type(row.get(key)) is int and row[key] >= 0 for key in counts)
+                              and row['eligible'] > 0 and row['eligible'] == row['refused'] + row['oracle_failed']
+                              and all(row[key] == 0 for key in ('timed', 'failed', 'unprocessed'))
+                              for row in rows):
+                  allowed.add(f"{name} left {', '.join(unmeasured)} unmeasured")
+          sys.exit(not reasons or any(reason not in allowed for reason in reasons))
+          PY
+          }
           cat "$RUNNER_TEMP/r4/verdict.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

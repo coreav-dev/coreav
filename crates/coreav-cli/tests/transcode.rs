@@ -1051,6 +1051,152 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     nothing_left(&dir);
 }
 
+/// `coreav ffmpeg -c:v libx264` keeps a cover picture only where the
+/// selection copies it, as the pinned `ffmpeg` does: on `basic.mp4` with a
+/// JPEG cover picture, both list the same streams and the same cover
+/// picture bytes. A selection that would encode the cover picture is
+/// refused; `ffmpeg` fails on it.
+#[test]
+fn ffmpeg_libx264_keeps_a_cover_picture_only_when_it_is_copied() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-cover");
+    let ffmpeg = |args: &[&str]| {
+        Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success()
+    };
+    let basic = tools.fixtures.join("basic.mp4");
+    assert!(ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=32x32",
+        "-frames:v",
+        "1",
+        "cover.jpg"
+    ]));
+    assert!(ffmpeg(&[
+        "-i",
+        basic.to_str().unwrap(),
+        "-i",
+        "cover.jpg",
+        "-map",
+        "0:v",
+        "-map",
+        "0:a",
+        "-map",
+        "1",
+        "-c",
+        "copy",
+        "-disposition:v:1",
+        "attached_pic",
+        "in.mp4"
+    ]));
+    let coreav = |words: &[&str], out: &str| {
+        let out = Command::new(bin())
+            .arg("ffmpeg")
+            .args(["-y", "-i", "in.mp4"])
+            .args(words)
+            .arg(out)
+            .current_dir(&dir)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    // Each stream's type, codec and attached-picture flag, and the MD5 of
+    // each attached picture's one packet.
+    let listing = |name: &str| {
+        let path = dir.join(name);
+        let streams = probe_json(
+            &tools,
+            &[
+                "-show_entries",
+                "stream=codec_type,codec_name:stream_disposition=attached_pic",
+            ],
+            &path,
+        );
+        let packets = probe_json(
+            &tools,
+            &[
+                "-show_data_hash",
+                "MD5",
+                "-show_entries",
+                "packet=stream_index,data_hash",
+            ],
+            &path,
+        );
+        streams["streams"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(index, s)| {
+                let picture = s["disposition"]["attached_pic"] == 1;
+                let hash = packets["packets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|p| picture && p["stream_index"] == index)
+                    .map(|p| p["data_hash"].as_str().unwrap().to_owned());
+                (
+                    s["codec_type"].as_str().unwrap().to_owned(),
+                    s["codec_name"].as_str().unwrap().to_owned(),
+                    picture,
+                    hash,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let cover = listing("in.mp4").into_iter().find(|s| s.2).unwrap();
+    let encode = ["-c:v", "libx264", "-preset", "ultrafast"];
+    let cases: [(&[&str], bool); 3] = [
+        (&["-c:a", "copy"], false),
+        (&["-map", "0:v:0", "-map", "0:a", "-c:a", "copy"], false),
+        (&["-map", "0", "-c:v:1", "copy", "-c:a", "copy"], true),
+    ];
+    for (words, kept) in cases {
+        let words: Vec<&str> = encode.iter().chain(words).copied().collect();
+        let (code, stderr) = coreav(&words, "coreav.mp4");
+        assert_eq!(code, 0, "{words:?}: {stderr}");
+        let mut args = vec!["-i", "in.mp4"];
+        args.extend_from_slice(&words);
+        args.push("ffmpeg.mp4");
+        assert!(ffmpeg(&args), "{words:?}");
+        let listed = listing("coreav.mp4");
+        assert_eq!(listed, listing("ffmpeg.mp4"), "{words:?}");
+        assert_eq!(
+            listed.iter().find(|s| s.2) == Some(&cover),
+            kept,
+            "{words:?}"
+        );
+        assert_eq!(listed.len(), if kept { 3 } else { 2 }, "{words:?}");
+    }
+    let words: Vec<&str> = encode
+        .iter()
+        .chain(&["-map", "0", "-c:a", "copy"])
+        .copied()
+        .collect();
+    std::fs::remove_file(dir.join("coreav.mp4")).unwrap();
+    let (code, stderr) = coreav(&words, "coreav.mp4");
+    assert_eq!(code, 4, "{stderr}");
+    assert!(stderr.contains("encoding a cover picture"), "{stderr}");
+    assert!(!dir.join("coreav.mp4").exists());
+    let mut args = vec!["-i", "in.mp4"];
+    args.extend_from_slice(&words);
+    args.push("ffmpeg-encoded.mp4");
+    assert!(!ffmpeg(&args));
+}
+
 /// A track matrix that is not a quarter turn (−45°): `ffmpeg` turns the
 /// pixels unless `-noautorotate`, so `coreav ffmpeg` refuses it without
 /// that option, and with it writes the matrix `ffmpeg` writes.

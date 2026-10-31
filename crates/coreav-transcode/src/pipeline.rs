@@ -128,6 +128,10 @@ pub struct TranscodeOptions {
     pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
+    /// The cover pictures of an MP4 source to leave out, as
+    /// `RemuxOptions::left_out_covers` names them; the others are copied
+    /// with the movie's metadata.
+    pub left_out_covers: Vec<u64>,
     /// Which encoder program.
     pub encoder: EncoderChoice,
     /// The `x264` program (`--x264`); else `COREAV_X264`, else `PATH`.
@@ -165,6 +169,7 @@ impl Default for TranscodeOptions {
             pixel_format: None,
             one_size: false,
             audio: AudioMode::Copy,
+            left_out_covers: Vec::new(),
             encoder: EncoderChoice::Auto,
             x264: None,
             ffmpeg: None,
@@ -596,7 +601,7 @@ pub fn transcode<S: Source, W: Write>(
                     streams,
                     on_unsupported: OnUnsupported::Drop,
                     metadata: Metadata::Copy,
-                    left_out_covers: Vec::new(),
+                    left_out_covers: options.left_out_covers.clone(),
                 },
                 replacements,
                 out,
