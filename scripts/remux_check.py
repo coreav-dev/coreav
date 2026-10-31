@@ -117,7 +117,8 @@ KINDS = {
 GAPLESS_HDLR = bytes(8) + b"mdirappl" + bytes(9)
 VISUAL_KEPT = ("avcC", "hvcC", "av1C", "vpcC", "pasp", "clap", "colr", "btrt", "mdcv", "clli", "SmDm",
                "CoLL", "dvcC", "dvvC", "dvwC", "fiel", "st3d", "sv3d")
-AUDIO_KEPT = ("esds", "dOps", "btrt", "chnl")
+AUDIO_CONFIGS = ("esds", "dOps", "dfLa", "alac", "dac3", "dec3")
+AUDIO_KEPT = (*AUDIO_CONFIGS, "btrt", "chnl")
 MEDIAINFO_GENERAL_KEYS = (
     "@type", "Count", "StreamCount", "StreamKind", "VideoCount", "AudioCount", "TextCount", "FileExtension",
     "Format", "Format_Profile", "Format_Version", "CodecID", "CodecID_Compatible", "CodecID_Version", "FileSize",
@@ -737,7 +738,7 @@ def compare_boxes(i, src, index, out, fragmented, keep=None):
                                      f"stream {i} track duration: {expected} != {b['duration']}"))
     # Audio: the configuration box first, QuickTime's wave and chan left out.
     expected = a["entry"]
-    config = next((k for k in ("esds", "dOps") if k in expected or k in b["entry"]), None)
+    config = next((k for k in AUDIO_CONFIGS if k in expected or k in b["entry"]), None)
     if config:
         expected = [config] + [k for k in expected if k not in (config, "wave", "chan")]
     if keep is not None:
