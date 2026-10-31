@@ -57,6 +57,7 @@
 //!   ([`file_micros`]). A service the SDT names alone is a program
 //!   ([`programs`]); DVB strings print as [`dvb_text`] has it.
 
+mod iso_8859;
 pub(super) mod params;
 
 use super::model::{Unit, Value, s, time};
@@ -2073,19 +2074,31 @@ fn int_u64(v: u64) -> i64 {
 /// - a string that names UTF-8 (`0x15`) is the bytes after that byte;
 /// - one that names `0x11` or `0x14` is the bytes after it read as UTF-16
 ///   big-endian;
-/// - one that names a table of annex A that `ffprobe` does not convert
-///   (`0x01` to `0x07`, `0x09` to `0x0B`, `0x12`, `0x13`, and `0x10 0x00`
-///   with the ISO/IEC 8859 part after it) is its bytes as they are, the
-///   byte naming the table included;
+/// - one that names an ISO/IEC 8859 part (`0x01` to `0x07` and `0x09` to
+///   `0x0B` for parts 5 to 15, table A.3, and `0x10 0x00` with the part
+///   after it, table A.4) is the bytes after the naming bytes read in that
+///   part ([`iso_8859`]), when the part defines each of them;
+/// - one that names another table, or a part that leaves one of its bytes
+///   undefined, is its bytes as they are, the bytes naming the table
+///   included: `ffprobe` does not convert KS X 1001 (`0x12`), and
+///   converts GB 2312 (`0x13`), which is not done here;
 /// - one that starts with a byte annex A reserves (`0x08`, `0x0C` to
 ///   `0x0F`, `0x10` not followed by `0x00`, `0x16` to `0x1F`) is the bytes
 ///   after it when they are all ASCII, and all its bytes when not;
 /// - any other, the default table's included, its bytes as they are.
 ///
-/// The result ends at its first NUL byte (`0x10 0x00 0x01` prints as the
+/// The result ends at its first NUL byte (`0x10 0x00 0x0C` prints as the
 /// one byte `0x10`), and each byte that does not belong to a well-formed
 /// UTF-8 sequence is U+FFFD, one for every such byte.
 fn dvb_text(bytes: &[u8]) -> Option<String> {
+    let part = match bytes {
+        [selector @ (0x01..=0x07 | 0x09..=0x0B), rest @ ..] => Some((selector + 4, rest)),
+        [0x10, 0x00, part, rest @ ..] => Some((*part, rest)),
+        _ => None,
+    };
+    if let Some(text) = part.and_then(|(part, rest)| iso_8859::decode(part, rest)) {
+        return Some(text.split('\0').next().unwrap_or_default().to_owned());
+    }
     let raw: Vec<u8> = match bytes {
         [0x11 | 0x14, rest @ ..] => {
             let units = rest
@@ -2708,9 +2721,14 @@ mod tests {
         let text = |b: &[u8]| dvb_text(b).unwrap_or_default();
         assert_eq!(text(b"Service01"), "Service01");
         assert_eq!(text(b"\x15caf\xc3\xa9"), "caf\u{e9}");
-        // The NUL of `0x10 0x00 0x01` ends the string.
-        assert_eq!(text(b"\x10\x00\x01caf\xe9"), "\u{10}");
-        assert_eq!(text(b"\x0bORF 2 N\xf6"), "\u{b}ORF 2 N\u{fffd}");
+        assert_eq!(text(b"\x10\x00\x01caf\xe9"), "caf\u{e9}");
+        assert_eq!(text(b"\x0bORF 2 N\xf6"), "ORF 2 N\u{f6}");
+        assert_eq!(text(b"\x05AB\x85\x86\xe9\x00C"), "AB\u{85}\u{86}\u{e9}");
+        // A byte part 3 leaves undefined, and part 12, which there is
+        // not: the bytes as they are, which the NUL of `0x10 0x00` ends.
+        assert_eq!(text(b"\x10\x00\x03A\xa5"), "\u{10}");
+        assert_eq!(text(b"\x10\x00\x0cA"), "\u{10}");
+        assert_eq!(text(b"\x12AB\xb0\xa1"), "\u{12}AB\u{fffd}\u{fffd}");
         assert_eq!(text(b"AB\xf6\xe4C"), "AB\u{fffd}\u{fffd}C");
         assert_eq!(text(b"x\xe2\x82"), "x\u{fffd}\u{fffd}");
         assert_eq!(text(b"\x11\x00\xe9\x00A"), "\u{e9}A");
@@ -2718,7 +2736,7 @@ mod tests {
         assert_eq!(text(b"\x1f\x01ab"), "\u{1}ab");
         assert_eq!(text(b"\x0eABC"), "ABC");
         assert_eq!(text(b"\x0eAB\xc6"), "\u{e}AB\u{fffd}");
-        assert_eq!(text(b"\x01ABC"), "\u{1}ABC");
+        assert_eq!(text(b"\x01ABC"), "ABC");
         assert_eq!(text(b"\x10AB"), "AB");
     }
 
