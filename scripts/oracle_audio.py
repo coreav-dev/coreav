@@ -6,11 +6,8 @@ import subprocess
 
 INPUT_ARGS = tuple(Path(__file__).with_name('oracle-audio-args.txt').read_text().split())
 ARG_FILE = 'scripts/oracle-audio-args.txt'
-VIDEO_OR_COPY = {
+VIDEO_ONLY = {
     ('docs/measurements/h264-n2-heldout/tools/identity.py', ''): 'raw H.264 elementary streams only',
-    ('scripts/extract_check.py', 'framemd5'): 'copied audio packets',
-    ('scripts/remux_check.py', 'framemd5'): 'copied packets only, including sanitize',
-    ('scripts/mkv_remux_check.py', 'framemd5'): 'copies audio; only Annex B video is decoded',
     ('scripts/h264_agreement.py', 'ffmpeg_frames'): 'video stream only',
     ('scripts/oracle.py', 'decode'): 'video streams only',
     ('scripts/thumbnail_oracle.py', 'framemd5'): 'video stream only',
@@ -32,7 +29,7 @@ def python_problems(text, rel):
         body = [n for n in scope.body if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
         lists = [n for statement in body for n in ast.walk(statement) if isinstance(n, (ast.List, ast.Tuple))]
         strings = {n.value for seq in lists for n in ast.walk(seq) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
-        if not strings & FORMATS or (rel, getattr(scope, 'name', '')) in VIDEO_OR_COPY:
+        if not strings & FORMATS or (rel, getattr(scope, 'name', '')) in VIDEO_ONLY:
             continue
         for seq in lists:
             values = [n.value if isinstance(n, ast.Constant) else None for n in seq.elts]

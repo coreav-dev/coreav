@@ -40,6 +40,9 @@ import subprocess
 import sys
 from fractions import Fraction
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
 TIMEOUT = 3600
 # The codecs this remux copies (ffprobe names), and the reasons a stream of
 # one of them may still be left out.
@@ -61,7 +64,7 @@ def ffprobe(path):
 
 
 def framemd5(path, index, copy=True):
-    argv = ["ffmpeg", "-nostdin", "-v", "error", "-copyts", "-i", str(path), "-map", f"0:{index}"]
+    argv = ["ffmpeg", "-nostdin", "-v", "error", "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path), "-map", f"0:{index}"]
     if copy:
         argv += ["-c", "copy"]
     else:

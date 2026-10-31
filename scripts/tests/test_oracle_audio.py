@@ -14,8 +14,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import clip_check
 import decode_audio_check
+import extract_check
 import hls_check
 import join_check
+import mkv_remux_check
 import oracle_audio
 import track_boxes
 
@@ -33,7 +35,7 @@ class AudioOracle(unittest.TestCase):
         self.assertEqual(list(oracle_audio.problems(ROOT)), [])
 
     def test_lint_rejects_the_old_clip_hls_and_join_commands(self):
-        for rel in ('scripts/clip_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
+        for rel in ('scripts/clip_check.py', 'scripts/extract_check.py', 'scripts/mkv_remux_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
                     'scripts/decode_audio_check.py', 'scripts/aac_agreement.py'):
             old = (ROOT / rel).read_text().replace('*AUDIO_DECODE_INPUT, ', '')
             found = list(oracle_audio.python_problems(old, rel))
@@ -109,8 +111,20 @@ class AudioOracle(unittest.TestCase):
                 self.assert_input(decode_audio_check.decode_args(SimpleNamespace(ffmpeg='ffmpeg'), 'source.mp4',
                                                                 {'index': 1, 'lossy': lossy}, ignore))
 
+    def test_extraction_frames_use_owned_audio_threads_with_and_without_edits(self):
+        for raw in (False, True):
+            with patch.object(extract_check, 'run', return_value=b'') as run:
+                extract_check.framemd5('ffmpeg', 'source.mp4', 0, raw=raw)
+                self.assert_input(run.call_args.args[0])
+
+    def test_matroska_hash_helper_owns_audio_even_when_copy_is_selected_later(self):
+        for copy in (False, True):
+            with patch.object(mkv_remux_check, 'run', return_value=(0, b'')) as run:
+                mkv_remux_check.framemd5('source.mkv', 0, copy=copy)
+                self.assert_input(run.call_args.args[0])
+
     def test_every_python_audio_input_places_shared_options_last(self):
-        for rel in ('scripts/clip_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
+        for rel in ('scripts/clip_check.py', 'scripts/extract_check.py', 'scripts/mkv_remux_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
                     'scripts/decode_audio_check.py', 'scripts/aac_agreement.py'):
             for seq in ast.walk(ast.parse((ROOT / rel).read_text())):
                 if not isinstance(seq, ast.List):
@@ -137,6 +151,7 @@ class AudioOracle(unittest.TestCase):
     def test_clipped_lossless_fixtures_decode_the_source_samples(self):
         ffmpeg = os.environ['COREAV_FFMPEG']
         self.addCleanup(clip_check.clear_cache)
+        extract_run = extract_check.run
         with tempfile.TemporaryDirectory() as tmp, patch.object(clip_check, 'THREADS', ['-threads', '8']):
             for name in ('codec_flac16_44k.mp4', 'codec_alac16.m4a'):
                 with self.subTest(name=name):
@@ -152,6 +167,11 @@ class AudioOracle(unittest.TestCase):
                     self.assertIsNotNone(whole)
                     self.assertIsNotNone(clipped)
                     self.assertEqual(pathlib.Path(clipped[2]).read_bytes(), pathlib.Path(whole[2]).read_bytes()[start * 4:])
+                    for raw in (False, True):
+                        _, expected = clip_check.framemd5(ffmpeg, str(edited), 0, raw=raw)
+                        with patch.object(extract_check, 'run', side_effect=lambda cmd: extract_run([cmd[0], '-threads', '8', *cmd[1:]])):
+                            actual = [line.split(',') for line in extract_check.framemd5(ffmpeg, str(edited), 0, raw=raw)]
+                        self.assertEqual([(int(p[2]), int(p[4]), p[5].strip(), int(p[3])) for p in actual], expected)
 
 
 if __name__ == '__main__':
