@@ -199,6 +199,12 @@ by its job's name, not by its workflow.
   workflows. A called workflow's job reports as `<caller job> / <job>`,
   which renames every required check it holds.
 
+## The FFmpeg pin
+
+Current comparisons use FFmpeg 9.0.2, the build in `scripts/oracle-ffmpeg.env`. The installer verifies its archive hash, and `scripts/oracle_pin.py --verify-bin DIR` rejects another FFmpeg or ffprobe version, including on a binary-cache hit.
+
+The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
+
 ## The fixture jobs
 
 `isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:

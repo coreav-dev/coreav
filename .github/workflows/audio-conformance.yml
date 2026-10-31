@@ -159,7 +159,7 @@ jobs:
         run: cargo build --locked --release -p coreav-cli --features aac
       - name: The generated set and the references
         run: |
-          "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" -version | head -1
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
             --work "$RUNNER_TEMP/aac-agreement" --conformance "$RUNNER_TEMP/aac"
       - name: Decode every MP4 input (bar 2)

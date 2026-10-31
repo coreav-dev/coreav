@@ -5,7 +5,9 @@ and the check that it stays the only one.
 `load()` returns the pin's NAME=value lines as a dict. With `--check`, fails,
 naming the file and line, when a tracked file pins an FFmpeg of its own.
 Records are left out: docs/ (past rounds and the prose that cites them),
-Markdown, and `evidence/` and `results/` directories. A second pin is:
+Markdown, and `evidence/` and `results/` directories. Executable files in
+docs/ are checked only for historical-extractor references outside its
+training directory. A second pin is:
 
 - a download URL of an FFmpeg build or release archive;
 - an FFmpeg archive name with a version (`ffmpeg-7.0.2-amd64-static`);
@@ -19,6 +21,7 @@ The fix it names: read the value from scripts/oracle-ffmpeg.env
 in a workflow's cache key).
 
     oracle_pin.py --check [--root DIR]
+    oracle_pin.py --verify-bin DIR
 """
 import argparse
 import pathlib
@@ -59,7 +62,9 @@ def tracked(root):
                          capture_output=True).stdout.decode()
     for rel in filter(None, out.split('\0')):
         parts = rel.split('/')
-        if rel != PIN and rel not in OWN and parts[0] != 'docs' and not rel.endswith('.md') \
+        if parts[0] == 'docs' and pathlib.Path(rel).suffix not in ('.py', '.sh', '.yml', '.yaml', '.env'):
+            continue
+        if rel != PIN and rel not in OWN and not rel.endswith('.md') \
                 and 'evidence' not in parts and 'results' not in parts:
             yield rel
 
@@ -73,7 +78,21 @@ def problems(root):
             text = (root / rel).read_text()
         except (UnicodeDecodeError, FileNotFoundError, IsADirectoryError):
             continue
+        job = None
         for number, line in enumerate(text.splitlines(), 1):
+            if rel == '.github/workflows/ci.yml':
+                match = re.fullmatch(r'  ([A-Za-z0-9_-]+):', line)
+                if match:
+                    job = match.group(1)
+            historical = ('coreav-training-extractor' in line or
+                          'h264-training/tools/install-extractor.sh' in line)
+            if historical and not rel.startswith('docs/measurements/h264-training/') and \
+                    (rel != '.github/workflows/ci.yml' or job != 'training-identity'):
+                yield f'{rel}:{number}: the historical extractor belongs only to training-identity'
+            if rel == '.github/workflows/ci.yml' and job == 'training-identity' and 'GITHUB_PATH' in line:
+                yield f'{rel}:{number}: training-identity must not export the historical extractor on PATH'
+            if rel.startswith('docs/'):
+                continue
             what = next((w for w, p in PATTERNS if p.search(line)), None)
             if what is None and any(p.search(line) for p in own):
                 what = 'a value of the pin'
@@ -81,16 +100,34 @@ def problems(root):
                 yield f'{rel}:{number}: {what}; read it from {PIN} instead: {line.strip()[:120]}'
 
 
+def verify_bin(directory, root=ROOT):
+    build = load(root)['BUILD']
+    for name in ('ffmpeg', 'ffprobe'):
+        binary = directory.resolve() / name
+        try:
+            result = subprocess.run([str(binary), '-version'], check=True, capture_output=True,
+                                    text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError) as error:
+            yield f'{binary}: cannot verify the pinned oracle: {error}'
+            continue
+        fields = result.stdout.splitlines()[0].split() if result.stdout else []
+        if len(fields) < 3 or fields[:2] != [name, 'version'] or \
+                not (fields[2] == build or fields[2].startswith(build + '-')):
+            yield f'{binary}: expected the {build} oracle from {PIN}'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('--check', action='store_true', required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--check', action='store_true')
+    mode.add_argument('--verify-bin', type=pathlib.Path)
     parser.add_argument('--root', type=pathlib.Path, default=ROOT)
     args = parser.parse_args()
-    found = list(problems(args.root))
+    found = list(verify_bin(args.verify_bin, args.root) if args.verify_bin else problems(args.root))
     for problem in found:
         print(problem, file=sys.stderr)
     if found:
-        print(f'oracle_pin.py: {len(found)} second pin(s) of the oracle FFmpeg', file=sys.stderr)
+        print(f'oracle_pin.py: {len(found)} oracle pin violation(s)', file=sys.stderr)
         return 1
     return 0
 
