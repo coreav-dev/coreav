@@ -13,7 +13,8 @@ use std::time::Duration;
 use coreav_isobmff::Source;
 use coreav_transcode::encoder::RateControl;
 use coreav_transcode::{
-    AudioMode, PixelFormat, Remuxed, Scale, SourceKind, Summary, TranscodeOptions, parse_scale,
+    AudioMode, OpusAudio, PixelFormat, Remuxed, Scale, SourceKind, Summary, TranscodeOptions,
+    parse_scale,
 };
 use coreav_worker::{EXEC_ARG, ExecLauncher, WorkerCommand};
 use serde_json::{Value, json};
@@ -38,6 +39,8 @@ pub struct Request {
     /// The audio streams to copy (source stream indices), instead of every
     /// one MP4 carries: an `ffmpeg` command line's selection.
     pub audio_streams: Option<Vec<usize>>,
+    /// `--audio opus`: one audio stream encoded to Opus instead.
+    pub opus: Option<OpusRequest>,
     /// The pixel format the encoder must be given (`-pix_fmt`).
     pub pixel_format: Option<PixelFormat>,
     /// Refuse a stream whose frame size changes, instead of resizing it.
@@ -54,6 +57,15 @@ pub struct Request {
     pub timeout: u64,
     /// `--strict-safe`: no FFmpeg decoder.
     pub strict_safe: StrictSafe,
+}
+
+/// The audio stream encoded to Opus, and how.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpusRequest {
+    /// The source stream; `None` for the first audio stream CoreAV decodes.
+    pub stream: Option<usize>,
+    /// Bits a second; `None` for 64,000 for mono and 96,000 for stereo.
+    pub bitrate: Option<u32>,
 }
 
 /// The `--scale` value, or the usage message.
@@ -97,10 +109,15 @@ pub fn make<S: Source>(
         scale: request.scale,
         pixel_format: request.pixel_format,
         one_size: request.one_size,
-        audio: match (&request.audio_streams, request.no_audio) {
-            (_, true) => AudioMode::None,
-            (Some(streams), false) => AudioMode::Streams(streams.clone()),
-            (None, false) => AudioMode::Copy,
+        audio: match (&request.audio_streams, request.no_audio, request.opus) {
+            (_, true, _) => AudioMode::None,
+            (_, false, Some(opus)) => AudioMode::Opus(OpusAudio {
+                stream: opus.stream,
+                bitrate: opus.bitrate,
+                program: this.to_path_buf(),
+            }),
+            (Some(streams), false, None) => AudioMode::Streams(streams.clone()),
+            (None, false, None) => AudioMode::Copy,
         },
         encoder: request.encoder.choice(),
         x264: request.x264.clone(),
@@ -222,6 +239,17 @@ pub fn document(summary: &Summary) -> Value {
             "frame_rate": {"num": video.frame_rate.num, "den": video.frame_rate.den},
         },
         "audio": audio,
+        "encoded_audio": summary.audio.as_ref().map(|a| json!({
+            "stream_index": a.stream_index,
+            "codec": a.codec.name(),
+            "sample_rate": a.sample_rate,
+            "encoder": "libopus",
+            "channels": a.channels,
+            "bit_rate": a.bitrate,
+            "samples": a.samples,
+            "pre_skip": a.pre_skip,
+            "packets": a.packets,
+        })),
         "other": other,
         "dropped": dropped,
     })
@@ -240,6 +268,7 @@ fn failure(error: coreav_transcode::Error) -> WriteFailure {
         E::Remux(e) => writer_failure(e.into()),
         E::MatroskaRemux(e) => writer_failure(e.into()),
         E::Spool(kind) => WriteFailure::Rejected(Failure::Io(kind)),
+        E::Audio(e) => WriteFailure::from(e),
     }
 }
 

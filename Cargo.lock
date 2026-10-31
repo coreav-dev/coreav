@@ -259,6 +259,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-backend-libopus"
+version = "0.0.1"
+dependencies = [
+ "opusic-c",
+]
+
+[[package]]
 name = "coreav-backend-libvpx"
 version = "0.0.1"
 dependencies = [
@@ -466,6 +473,7 @@ dependencies = [
 name = "coreav-transcode"
 version = "0.0.1"
 dependencies = [
+ "coreav-audio",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
@@ -513,6 +521,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-backend-dav1d",
  "coreav-backend-ffmpeg",
+ "coreav-backend-libopus",
  "coreav-backend-libvpx",
  "coreav-decode",
  "coreav-frame",
@@ -919,6 +928,21 @@ name = "openssl-probe"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+
+[[package]]
+name = "opusic-c"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89f8e9c909466f15e60277212cc4fec082c68a5e1c9f6e373eee716fec2fed47"
+dependencies = [
+ "opusic-sys",
+]
+
+[[package]]
+name = "opusic-sys"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8534a2ed5b65350f90c63b3e160a8edd8b812fcf3182a88fd7fcee3b6fca673a"
 
 [[package]]
 name = "percent-encoding"

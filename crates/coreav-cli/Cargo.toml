@@ -53,17 +53,24 @@ dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
 # libvpx for VP8 and VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
 libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
+# libopus for `coreav transcode --audio opus` and `coreav ffmpeg -c:a
+# libopus`: the command runs itself as the Opus encoder, a sandboxed process
+# of its own (docs/design/transcode.md, "Opus audio"); links the system's
+# libopus. Without a decoder backend feature there is no transcode, so it
+# needs one beside it.
+libopus = ["transcode", "dep:coreav-worker", "coreav-worker/libopus"]
 # AAC LC decoding in `coreav decode-audio` (`coreav-aac`). Off by default
 # and never in a default build: decoding AAC may need a patent licence
 # where you are (`crates/coreav-aac/README.md`). Nothing here is legal
 # advice.
-aac = ["coreav-audio/aac"]
+aac = ["coreav-audio/aac", "coreav-transcode?/aac"]
 # The two builds of the release archives (docs/design/release.md, "Two
 # builds"), which packages/cli/scripts/platform.sh passes. The default
 # build, also the npm packages', links no codec on the patent list
-# (scripts/patent_free_check.py checks it); the full build adds CoreAV's
-# H.264 and AAC decoders. Windows builds take neither: see platform.sh.
-release-default = ["cli", "net", "dav1d", "libvpx"]
+# (scripts/patent_free_check.py checks it) and encodes Opus with libopus;
+# the full build adds CoreAV's H.264 and AAC decoders. Windows builds take
+# neither: see platform.sh.
+release-default = ["cli", "net", "dav1d", "libvpx", "libopus"]
 release-full = ["release-default", "native-h264", "aac"]
 
 [dependencies]

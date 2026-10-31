@@ -222,6 +222,19 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libvpx,dav1d,ffmpeg-fallback --all-targets -- -D warnings
           cargo test -p coreav-backend-libvpx --features libvpx
+      # libopus for the Opus encoder of `coreav transcode --audio opus`, a
+      # non-default feature that links the system's libopus
+      # (docs/design/transcode.md, "Opus audio"); with `aac` too, whose
+      # decoder the Opus encode passes over.
+      - run: sudo apt-get install -y --no-install-recommends libopus-dev
+      - run: |
+          cargo clippy -p coreav-cli -p coreav-backend-libopus -p coreav-worker \
+            --features coreav-cli/libopus,coreav-cli/native-h264,coreav-backend-libopus/libopus,coreav-worker/libopus \
+            --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features libopus,ffmpeg-fallback --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features aac,libopus,native-h264 --all-targets -- -D warnings
+          cargo test -p coreav-backend-libopus --features libopus
+          cargo test -p coreav-worker --features libopus
       # The encoder programs of `coreav transcode`, black boxes for
       # coreav-transcode's tests (docs/design/transcode.md): the pinned
       # FFmpeg and an x264 program built from the commit of its libx264
@@ -242,6 +255,13 @@ jobs:
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
       - name: Verify the pinned encoder oracle
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
+      # The Opus and AAC bars' source set, made by the pinned FFmpeg at a
+      # second each, so a source its filter parser refuses fails here and
+      # not in a judged run (docs/design/transcode.md, "Opus bars").
+      - name: Make the bars' source set
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_bar_sources.py'
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       - run: cargo test --workspace
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
@@ -255,6 +275,7 @@ jobs:
           cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           cargo test -p coreav-cli --features dav1d,ffmpeg-fallback --test strict_safe --test strict_safe_limit
           cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+          cargo test -p coreav-cli --features native-h264,libopus --test strict_safe
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Checks the documentation site's help text of `coreav thumbnail` and
@@ -749,9 +770,9 @@ jobs:
       # Built on main for the cache only: isobmff-writers, isobmff-decode
       # and b9-shard restore this job's Rust cache entry, and isobmff-decode and
       # b9-shard run this build (docs/design/ci-checks.md, "Caches").
-      - name: Install libdav1d and libvpx for the cache
+      - name: Install libdav1d, libvpx and libopus for the cache
         if: github.ref == 'refs/heads/main'
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle, for the cache
         if: github.ref == 'refs/heads/main'
         run: |
@@ -759,7 +780,9 @@ jobs:
             --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
             --target-dir target/fallback
           cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx \
-            --test thumbnail --test transcode --target-dir target/fallback
+            --test thumbnail --target-dir target/fallback
+          cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
+            --test transcode --target-dir target/fallback
       - name: Preserve normalized output and diffs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1088,9 +1111,11 @@ jobs:
       # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
       # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
       # VP8 and VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's
-      # own VP8 and VP9 decoders are the reference.
-      - name: Install libdav1d and libvpx
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      # own VP8 and VP9 decoders are the reference. libopus is the Opus
+      # encoder of `coreav transcode --audio opus` (docs/design/transcode.md,
+      # "Opus audio"), tested with the transcode suite below.
+      - name: Install libdav1d, libvpx and libopus
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
         run: |
           cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
@@ -1132,7 +1157,8 @@ jobs:
       # fixtures with both encoders (the pinned FFmpeg's libx264 and an x264
       # program built from the same commit, its source deleted after the
       # build), checked against ffprobe of the source and FFmpeg's own
-      # encode, and hostile encoder scripts. A missing program or fixture
+      # encode, hostile encoder scripts, and Opus audio from sources the
+      # pinned FFmpeg makes. A missing program or fixture
       # fails here instead of skipping.
       - name: Cache the x264 program
         id: x264-cache
@@ -1152,8 +1178,11 @@ jobs:
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
         run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
+          # The Opus encode passes over AAC in a build that decodes it.
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
+            --target-dir target/fallback -- opus_encode
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
           PYTHONDONTWRITEBYTECODE: '1'

@@ -15,11 +15,17 @@ authors, licensed under the BSD 2-Clause licence, with the Alliance for
 Open Media Patent License 1.0. Builds with the `libvpx` feature decode
 VP8 and VP9 with libvpx (https://chromium.googlesource.com/webm/libvpx),
 copyright The WebM Project authors, licensed under the BSD 3-Clause licence, with
-Google's additional IP rights grant for the WebM codecs. The release
-archives and the npm packages of the coreav command link dav1d 1.5.3 and
-libvpx 1.14.1 into the binary, and ship their licence files in
-licenses/: dav1d's COPYING and PATENTS, libvpx's LICENSE, PATENTS and
-AUTHORS, and the ISC licence of each library's x86 assembly layer. Those
+Google's additional IP rights grant for the WebM codecs. Builds with the
+`libopus` feature encode Opus with libopus (https://opus-codec.org),
+copyright Xiph.Org, Skype Limited, Octasic, Jean-Marc Valin, Timothy B.
+Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo,
+Mozilla and Amazon, licensed under the BSD 3-Clause licence, with the
+royalty-free patent licences of Xiph.Org, Microsoft and Broadcom that its
+licence names. The release archives and the npm packages of the coreav
+command link dav1d 1.5.3, libvpx 1.14.1 and libopus 1.6.1 into the
+binary, and ship their licence files in licenses/: dav1d's COPYING and
+PATENTS, libvpx's LICENSE, PATENTS and AUTHORS, libopus's COPYING, and
+the ISC licence of the x86 assembly layer of dav1d and libvpx. Those
 files are part of this notice. A build that links the system's libraries
 ships none of them; a distribution that ships a library with the command
 ships that library's files with it.

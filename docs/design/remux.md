@@ -228,12 +228,16 @@ of the media. The copy pass of each stream gets exactly the sample work its
 first listing took, and both passes together stay within
 `max_sample_work`, checked before anything is written.
 
-## One video stream replaced
+## Replaced streams
 
-`remux_mp4_replacing(source, limits, allowlist, options, replacement,
-out)` is `remux_mp4` with one video stream's samples taken from the caller
-instead of the source: the operation `coreav transcode` writes its output
-with (`docs/design/transcode.md`, "The MP4 writer"). `remux_matroska_
+`remux_mp4_replacing(source, limits, allowlist, options, replacements,
+out)` is `remux_mp4` with the samples of one video stream, one audio
+stream, or one of each taken from the caller instead of the source
+(`Replacements { video, audio }`): the operation `coreav transcode` writes
+its output with (`docs/design/transcode.md`, "The MP4 writer" and "Opus
+audio"). A stream named by both, or by one twice, fails with `Unsupported`.
+This section is the video replacement; "One audio stream replaced" below
+is the audio one. `remux_matroska_
 replacing` is the same for Matroska and WebM sources
 ([`mkv-remux.md`](mkv-remux.md)). Both run the remux paths above: the
 replaced stream is one more kind of kept stream, so every other stream is
@@ -348,6 +352,60 @@ Rejected:
 - **Refusing a first frame after the edit's media time:** the transcoder
   drops frames the source's edit list does not present, so the first
   encoded frame can be later than the edit's start.
+
+### One audio stream replaced
+
+The audio replacement (`AudioReplacement`) is an encoded stream on a
+timeline of its own, Opus in ISO BMFF as opus-codec.org's "Encapsulation
+of Opus in ISO Base Media File Format" (version 0.6.8) lays it out:
+
+- **The replacement:** the source `stream_index` (an audio stream the
+  allowlist keeps and `options.streams` selects), one complete `Opus`
+  sample entry box (an ISO audio sample entry with data reference index 1;
+  `coreav-transcode` builds it with `mux::audio_sample_entry` and a
+  `dOps` box), the media timescale (48,000 for Opus), the samples in order
+  (size and duration, every one a sync sample, so no `stss`), `start`
+  (media ticks of silence before the presentation), `priming` (the media
+  ticks at the start that are not presented: Opus's pre-skip),
+  `presented` (the media ticks presented from there), `roll` (the
+  samples a decoder needs before any one it starts at) and the samples'
+  bytes back to back.
+- **Edit list:** an empty edit of `start` when it is above 0, then a
+  media edit from `priming` lasting `presented` (the spec's 4.4): the
+  encoder's delay and the last packet's padding are not presented, and
+  the first presented sample is at movie time `start`. The edits are in
+  the movie timescale; where they would round there, the movie timescale
+  becomes a common multiple of it and 48,000 when one fits 32 bits (as for
+  the video replacement, and not when another stream's computed value would
+  move), else each boundary rounds to the nearest movie tick.
+- **Roll group** (the spec's 4.3.6.2, ISO/IEC 14496-12 10.1): one `sgpd`
+  of type `roll` (version 1, one `AudioRollRecoveryEntry` of
+  `roll_distance` `-roll`) and an `sbgp` that leaves the first `roll`
+  samples out of the group (fewer than `roll` samples come before them)
+  and puts every later one in it. The `ftyp` already lists `iso2`, a
+  brand that requires roll groups (4.1).
+- **Kept from the source track:** its place in the track order, language
+  and flags, and its volume and `udta`/`meta` boxes (or what the metadata
+  option keeps of them). Taken from the
+  replacement: the sample entry, timescale, samples and edits. None of the
+  source track's samples or sample entry is read, so it may be a stream MP4
+  does not carry as it is (FLAC, which the caller adds to the allowlist).
+- **Refusals,** before anything is written: a sample entry that is not one
+  `Opus` audio sample entry box with data reference 1, a timescale of 0,
+  no samples, a duration of 0, nothing presented or more presented than
+  the samples hold after `priming`, a roll distance above 32,767, samples
+  that run past the data or above `max_packet_bytes`, and a stream index
+  that is not an audio stream kept and selected.
+- **Summary:** the stream is `replaced`, its codec `Opus`.
+
+Verification, `tests/replace.rs`: an Opus replacement takes the audio
+stream's place in an MP4 source, in a Matroska source after an empty edit,
+and beside a video replacement; read back by `coreav-isobmff`, the track
+is Opus at 48 kHz with the edit list exact in the movie timescale, every
+sample's bytes and duration as given and a sync sample (no `stss` of its
+own), and the roll group's boxes as above; every refusal comes before a
+byte is written. `coreav transcode --audio opus` checks
+the output with the pinned FFmpeg (`transcode.md`, "Opus audio").
 
 Verification: `tests/replace.rs` (synthetic movies and Matroska files:
 the identity replacement, decode times shifted back by two frames and by

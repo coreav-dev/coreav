@@ -35,14 +35,15 @@ use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, Picture, PixelFormat}
 use coreav_isobmff::{BufferedSource, FileSource, Rational, Source};
 use coreav_isobmff_write::mux::{Nclx, avc1_sample_entry};
 use coreav_isobmff_write::{
-    ExtractError, MatroskaRemuxError, MatroskaRemuxOptions, MatroskaRemuxSummary, Metadata,
-    OnUnsupported, RemuxOptions, RemuxSummary, Replacement, ReplacementSample,
-    remux_matroska_replacing, remux_mp4_replacing,
+    AudioReplacement, ExtractError, MatroskaRemuxError, MatroskaRemuxOptions, MatroskaRemuxSummary,
+    Metadata, OnUnsupported, RemuxOptions, RemuxSummary, Replacement, ReplacementSample,
+    Replacements, remux_matroska_replacing, remux_mp4_replacing,
 };
 use coreav_thumbnail::{Container, ThumbnailOptions, VideoStream};
 use coreav_worker::ExecLauncher;
 
 use crate::annexb::{self, AnnexBReader};
+use crate::audio::{AudioSummary, OpusAudio, ROLL, SAMPLE_RATE};
 use crate::encoder::{
     Encoder, EncoderChoice, EncoderLimits, EncoderProgram, EncoderSettings, FrameRate, RateControl,
     Sink, Timing, find_encoder,
@@ -87,6 +88,9 @@ pub enum AudioMode {
     /// are stream-copied beside the video, as `coreav remux --streams`
     /// copies them: the streams an `ffmpeg` command line selects.
     Streams(Vec<usize>),
+    /// One audio stream is encoded to Opus (`docs/design/transcode.md`,
+    /// "Opus audio"); the others are dropped and listed.
+    Opus(OpusAudio),
 }
 
 /// The source's container, as the caller detected it.
@@ -218,6 +222,8 @@ pub enum Remuxed {
 pub struct Summary {
     /// The video stream.
     pub video: VideoSummary,
+    /// The audio stream encoded to Opus, with [`AudioMode::Opus`].
+    pub audio: Option<AudioSummary>,
     /// The streams written and dropped.
     pub remux: Remuxed,
 }
@@ -252,6 +258,9 @@ pub enum Error {
     MatroskaRemux(MatroskaRemuxError),
     /// The spool file could not be created, written or read.
     Spool(std::io::ErrorKind),
+    /// The audio stream to encode could not be decoded, or the source
+    /// could not be read for it (`coreav-audio`'s error).
+    Audio(coreav_audio::Error),
 }
 
 impl fmt::Display for Error {
@@ -266,6 +275,7 @@ impl fmt::Display for Error {
             Self::Remux(e) => write!(f, "{e}"),
             Self::MatroskaRemux(e) => write!(f, "{e}"),
             Self::Spool(kind) => write!(f, "spool file: {kind}"),
+            Self::Audio(e) => write!(f, "the audio stream: {e}"),
         }
     }
 }
@@ -348,6 +358,24 @@ pub fn transcode<S: Source, W: Write>(
                 }
             })
         })?;
+    // Before the video: a stream that cannot be encoded is refused before
+    // the video encoder starts.
+    let audio = match &options.audio {
+        AudioMode::Opus(opus) => Some(crate::audio::encode(
+            &mut source,
+            opus,
+            &coreav_audio::Limits {
+                isobmff: options.isobmff_limits,
+                matroska: options.matroska_limits,
+                ..coreav_audio::Limits::default()
+            },
+            launcher,
+            deadline,
+            Spool::create(output, "opus")?,
+            options.max_spool_bytes,
+        )?),
+        _ => None,
+    };
     let mut limits = options.decode_limits.clone();
     limits.timeout = deadline.saturating_duration_since(Instant::now());
     limits.max_decoded_bytes = decoded_bytes_cap(
@@ -503,9 +531,34 @@ pub fn transcode<S: Source, W: Write>(
         last_duration,
         data,
     };
+    let audio_replacement = match &audio {
+        Some(encoded) => Some(AudioReplacement {
+            stream_index: encoded.summary.stream_index,
+            sample_entry: &encoded.entry,
+            timescale: SAMPLE_RATE,
+            samples: &encoded.samples,
+            start: 0,
+            priming: u32::from(encoded.summary.pre_skip),
+            presented: encoded.summary.samples,
+            roll: ROLL,
+            data: BufferedSource::new(
+                FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
+            ),
+        }),
+        None => None,
+    };
+    let replacements = Replacements {
+        video: Some(replacement),
+        audio: audio_replacement,
+    };
     let streams = match &options.audio {
         AudioMode::Copy => None,
         AudioMode::None => Some(vec![video.stream_index]),
+        AudioMode::Opus(_) => Some(
+            std::iter::once(video.stream_index)
+                .chain(audio.as_ref().map(|a| a.summary.stream_index))
+                .collect(),
+        ),
         AudioMode::Streams(audio) => Some(
             std::iter::once(video.stream_index)
                 .chain(audio.iter().copied().filter(|&s| s != video.stream_index))
@@ -517,13 +570,13 @@ pub fn transcode<S: Source, W: Write>(
             remux_mp4_replacing(
                 &mut source,
                 &options.isobmff_limits,
-                &isobmff_allowlist(video.stream.codec),
+                &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &RemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
                     metadata: Metadata::Copy,
                 },
-                replacement,
+                replacements,
                 out,
             )
             .map_err(Error::Remux)?,
@@ -533,7 +586,7 @@ pub fn transcode<S: Source, W: Write>(
                 &mut source,
                 &options.matroska_limits,
                 &options.isobmff_limits,
-                &matroska_allowlist(video.stream.codec),
+                &matroska_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &MatroskaRemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
@@ -541,7 +594,7 @@ pub fn transcode<S: Source, W: Write>(
                     // and listed: the replaced one is the output's video.
                     drop_video: true,
                 },
-                replacement,
+                replacements,
                 out,
             )
             .map_err(Error::MatroskaRemux)?,
@@ -563,6 +616,7 @@ pub fn transcode<S: Source, W: Write>(
             sample_aspect: settings.sample_aspect,
             frame_rate: settings.frame_rate,
         },
+        audio: audio.map(|a| a.summary),
         remux,
     })
 }
@@ -579,21 +633,37 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
     }
 }
 
-/// The ISOBMFF allowlist of the writer: the default, and VP8 when it is
-/// the video stream's codec (the default leaves it out), so that the
-/// replaced stream is kept.
-fn isobmff_allowlist(codec: Codec) -> coreav_isobmff::Allowlist {
+/// The ISOBMFF allowlist of the writer: the default, VP8 when it is the
+/// video stream's codec, and the codec of the audio stream encoded to Opus
+/// (FLAC), which the default leaves out, so that the replaced streams are
+/// kept.
+fn isobmff_allowlist(
+    codec: Codec,
+    audio: Option<coreav_audio::Codec>,
+) -> coreav_isobmff::Allowlist {
+    use coreav_isobmff::Codec as I;
     let mut codecs = coreav_isobmff::Allowlist::default().codecs().to_vec();
-    if codec == Codec::Vp8 {
-        codecs.push(coreav_isobmff::Codec::Vp8);
+    let video = (codec == Codec::Vp8).then_some(I::Vp8);
+    let audio = audio.map(|codec| match codec {
+        coreav_audio::Codec::Flac => I::Flac,
+        coreav_audio::Codec::Mp3 => I::Mp3,
+        coreav_audio::Codec::Opus => I::Opus,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => I::Aac,
+    });
+    for own in video.into_iter().chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_isobmff::Allowlist::new(&codecs)
 }
 
-/// The Matroska allowlist of the writer: the default, and the video
-/// stream's codec (a long-tail codec the decode policy allows, which the
-/// default leaves out), so that the replaced stream is kept.
-fn matroska_allowlist(codec: Codec) -> coreav_mkv::Allowlist {
+/// The Matroska allowlist of the writer: the default, the video stream's
+/// codec (a long-tail codec the decode policy allows, which the default
+/// leaves out) and the codec of the audio stream encoded to Opus (FLAC),
+/// so that the replaced streams are kept.
+fn matroska_allowlist(codec: Codec, audio: Option<coreav_audio::Codec>) -> coreav_mkv::Allowlist {
     use coreav_mkv::Codec as M;
     let mut codecs = coreav_mkv::Allowlist::default().codecs().to_vec();
     let own = match codec {
@@ -610,8 +680,17 @@ fn matroska_allowlist(codec: Codec) -> coreav_mkv::Allowlist {
         Codec::Theora => M::Theora,
         Codec::Ffv1 => M::Ffv1,
     };
-    if !codecs.contains(&own) {
-        codecs.push(own);
+    let audio = audio.map(|codec| match codec {
+        coreav_audio::Codec::Flac => M::Flac,
+        coreav_audio::Codec::Mp3 => M::Mp3,
+        coreav_audio::Codec::Opus => M::Opus,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => M::Aac,
+    });
+    for own in std::iter::once(own).chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_mkv::Allowlist::new(&codecs)
 }
@@ -1307,7 +1386,7 @@ fn time_base_terms(time_base: Rational) -> Result<(u64, u64), Error> {
 /// timecode file), removed when dropped. It is created new and kept open:
 /// every write and read goes through this handle, never through the path
 /// again, so a link put in its place cannot redirect them.
-struct Spool {
+pub(crate) struct Spool {
     path: PathBuf,
     file: File,
 }
@@ -1316,7 +1395,7 @@ impl Spool {
     /// A new file `.{name}.coreav-{pid}.{kind}` next to `output`, the name
     /// shortened to fit 255 bytes, its path absolute (the encoder reads the
     /// timecode file from it).
-    fn create(output: &Path, kind: &str) -> Result<Self, Error> {
+    pub(crate) fn create(output: &Path, kind: &str) -> Result<Self, Error> {
         let name = output
             .file_name()
             .map_or_else(|| "output".into(), |n| n.to_string_lossy().into_owned());
@@ -1337,7 +1416,7 @@ impl Spool {
     }
 
     /// Another handle to the same open file.
-    fn handle(&self) -> Result<File, Error> {
+    pub(crate) fn handle(&self) -> Result<File, Error> {
         self.file.try_clone().map_err(|e| Error::Spool(e.kind()))
     }
 

@@ -10,7 +10,9 @@ use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
     audio_sample_entry, visual_sample_entry,
 };
-use crate::replace::{Replacement, validate};
+use crate::replace::{
+    Replacement, Replacements, audio_edits, roll_boxes, validate, validate_audio,
+};
 use crate::{ExtractError, OnUnsupported, TrackDropReason};
 use core::fmt;
 use coreav_isobmff::{FourCc, Profile};
@@ -246,7 +248,7 @@ struct Plan {
     timing: Option<Timing>,
     /// The stream's samples are a replacement's: none of the source's
     /// frames is listed or copied.
-    replaced: bool,
+    replaced: Option<Replaced>,
 }
 
 impl Plan {
@@ -393,13 +395,21 @@ pub fn remux_matroska<S: Source, W: Write>(
     options: &MatroskaRemuxOptions,
     out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
-    remux::<S, SliceSource<'static>, W>(source, demux, mux, allowlist, options, None, out)
+    let none = Replacements::<SliceSource<'static>> {
+        video: None,
+        audio: None,
+    };
+    remux(source, demux, mux, allowlist, options, none, out)
 }
 
-/// [`remux_matroska`] with one video stream of the source replaced by the
-/// samples of `replacement` (`docs/design/mkv-remux.md`, "One video
-/// stream replaced"); every other stream is written exactly as
-/// [`remux_matroska`] writes it.
+/// [`remux_matroska`] with one video stream of the source, one audio
+/// stream, or one of each, replaced by the samples of `replacements`
+/// (`docs/design/mkv-remux.md`, "Replaced streams"); every other stream is
+/// written exactly as [`remux_matroska`] writes it. A replaced audio stream
+/// is written as [`AudioReplacement`] describes, with its media timescale
+/// as a factor of the movie timescale (their least common multiple, when it
+/// fits 32 bits), so that its edits are exact; the rest of this description
+/// is the video stream's.
 ///
 /// The replaced stream keeps the source track's place in the track order,
 /// its language, enabled flag and rotation; it takes the replacement's
@@ -420,49 +430,68 @@ pub fn remux_matroska<S: Source, W: Write>(
 /// at segment time `P`, as [`remux_matroska`] presents a copied frame with
 /// that timestamp; decode times only set the composition offsets.
 ///
-/// Fails before writing anything when the replacement is invalid
-/// ([`Replacement`]), when `stream_index` is not a video stream the
-/// segment keeps (or `options.streams` leaves it out), when two decode
-/// times meet after rounding to 90,000, or when nothing of the replacement
-/// would be presented; later failures are those of [`remux_matroska`], and
-/// a read error of `replacement.data` (reported as a source error).
+/// Fails before writing anything when a replacement is invalid
+/// ([`Replacement`], [`AudioReplacement`]), when a `stream_index` is not a
+/// stream of its kind the segment keeps (or `options.streams` leaves it
+/// out), when two decode times meet after rounding to 90,000, or when
+/// nothing of the video replacement would be presented; later failures are
+/// those of [`remux_matroska`], and a read error of a replacement's data
+/// (reported as a source error).
 pub fn remux_matroska_replacing<S: Source, R: Source, W: Write>(
     source: S,
     demux: &coreav_mkv::Limits,
     mux: &coreav_isobmff::Limits,
     allowlist: &Allowlist,
     options: &MatroskaRemuxOptions,
-    replacement: Replacement<'_, R>,
+    replacements: Replacements<'_, R>,
     out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
-    remux(
-        source,
-        demux,
-        mux,
-        allowlist,
-        options,
-        Some(replacement),
-        out,
-    )
+    remux(source, demux, mux, allowlist, options, replacements, out)
 }
 
-/// The Matroska remux, with or without a replaced stream.
+/// Which replacement a stream's samples are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Replaced {
+    Video,
+    Audio,
+}
+
+/// The Matroska remux, with or without replaced streams.
 fn remux<S: Source, R: Source, W: Write>(
     mut source: S,
     demux: &coreav_mkv::Limits,
     mux: &coreav_isobmff::Limits,
     allowlist: &Allowlist,
     options: &MatroskaRemuxOptions,
-    mut replacement: Option<Replacement<'_, R>>,
+    replacements: Replacements<'_, R>,
     mut out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
+    let Replacements {
+        video: mut replacement,
+        mut audio,
+    } = replacements;
     let replaced_codec = match replacement.as_mut() {
         Some(r) => Some(validate(r, mux)?),
         None => None,
     };
+    if let Some(a) = audio.as_mut() {
+        validate_audio(a, mux)?;
+    }
     let segment = coreav_mkv::probe(&mut source, demux, allowlist)?;
     if let Some(r) = &replacement {
-        check_replaced(&segment, r.stream_index, options)?;
+        check_replaced(&segment, r.stream_index, TrackKind::Video, options)?;
+    }
+    if let Some(a) = &audio {
+        check_replaced(&segment, a.stream_index, TrackKind::Audio, options)?;
+        if replacement
+            .as_ref()
+            .is_some_and(|r| r.stream_index == a.stream_index)
+        {
+            return Err(coreav_mkv::Error::Unsupported {
+                reason: "one stream replaced twice",
+            }
+            .into());
+        }
     }
     // A video stream that would be lost fails the remux once every stream
     // is planned, unless the caller named the streams or asked for it to be
@@ -506,6 +535,12 @@ fn remux<S: Source, R: Source, W: Write>(
                 continue;
             }
         }
+        if let Some(a) = &audio {
+            if a.stream_index == track.stream_index {
+                plans.push(audio_plan(track, a.timescale));
+                continue;
+            }
+        }
         match plan(track) {
             Ok(plan) => plans.push(plan),
             Err(reason) => {
@@ -534,10 +569,15 @@ fn remux<S: Source, R: Source, W: Write>(
     let mut additions = Vec::new();
     // Per track index: the BlockAdditions seen.
     let mut additions_seen = vec![0u64; segment.tracks.len()];
-    // The replacement's samples are charged as the source's would be.
+    // The replacements' samples are charged as the source's would be.
     let replaced_samples = replacement
         .as_ref()
-        .map_or(0, |r| u64::try_from(r.samples.len()).unwrap_or(u64::MAX));
+        .map_or(0, |r| u64::try_from(r.samples.len()).unwrap_or(u64::MAX))
+        .saturating_add(
+            audio
+                .as_ref()
+                .map_or(0, |a| u64::try_from(a.samples.len()).unwrap_or(u64::MAX)),
+        );
     let truncated_at = list_samples(
         &segment,
         &mut source,
@@ -555,14 +595,26 @@ fn remux<S: Source, R: Source, W: Write>(
         let Some(track) = segment.tracks.get(plan.track) else {
             continue;
         };
-        if plan.replaced {
-            let Some(r) = &replacement else {
+        match (plan.replaced, &replacement, &audio) {
+            (Some(Replaced::Video), Some(r), _) => {
+                plan.entry = r.sample_entry.to_vec();
+                plan.timing = Some(replaced_timing(&segment, plan.timescale, r)?);
+                kept.push(plan);
                 continue;
-            };
-            plan.entry = r.sample_entry.to_vec();
-            plan.timing = Some(replaced_timing(&segment, plan.timescale, r)?);
-            kept.push(plan);
-            continue;
+            }
+            (Some(Replaced::Audio), _, Some(a)) => {
+                plan.entry = a.sample_entry.to_vec();
+                plan.timing = Some(Timing {
+                    samples: a.samples.iter().map(|s| (s.duration, 0)).collect(),
+                    start_ns: 0,
+                    media_time: i64::from(a.priming),
+                    end: i128::from(a.priming) + i128::from(a.presented),
+                });
+                kept.push(plan);
+                continue;
+            }
+            (Some(_), _, _) => continue,
+            (None, _, _) => {}
         }
         // A stream without frames loses nothing.
         let empty = plan.failure.is_none() && plan.samples.is_empty();
@@ -627,7 +679,11 @@ fn remux<S: Source, R: Source, W: Write>(
         });
     }
 
-    let movie_timescale = video_timescale(&segment);
+    let movie_timescale = match &audio {
+        Some(a) => crate::remux::lcm(video_timescale(&segment), a.timescale)
+            .unwrap_or(video_timescale(&segment)),
+        None => video_timescale(&segment),
+    };
     let mut muxer = Muxer::new(
         FileType {
             major: FourCc(*b"isom"),
@@ -652,7 +708,12 @@ fn remux<S: Source, R: Source, W: Write>(
         let Some(timing) = plan.timing.as_ref() else {
             continue;
         };
-        let replaced = replacement.as_ref().filter(|_| plan.replaced);
+        let replaced = replacement
+            .as_ref()
+            .filter(|_| plan.replaced == Some(Replaced::Video));
+        let audio = audio
+            .as_ref()
+            .filter(|_| plan.replaced == Some(Replaced::Audio));
         let header = TrackHeader {
             media: match (plan.media, replaced) {
                 (Media::Video, Some(r)) => replaced_video_media(track, r.width, r.height),
@@ -687,6 +748,19 @@ fn remux<S: Source, R: Source, W: Write>(
                 )?;
             }
         }
+        if let Some(a) = audio {
+            for sample in a.samples {
+                muxer.push_sample(
+                    id,
+                    Sample {
+                        size: sample.size,
+                        duration: sample.duration,
+                        sync: true,
+                        composition_offset: 0,
+                    },
+                )?;
+            }
+        }
         for (record, (duration, offset)) in plan.samples.iter().zip(&timing.samples) {
             muxer.push_sample(
                 id,
@@ -700,10 +774,17 @@ fn remux<S: Source, R: Source, W: Write>(
         }
         muxer.finish_track(id);
         let media_duration = muxer.duration(id).unwrap_or(0);
-        muxer.set_edits(
-            id,
-            edits(timing, media_duration, plan.timescale, movie_timescale)?,
-        )?;
+        match audio {
+            Some(a) => {
+                muxer.set_edits(id, audio_edits(a, movie_timescale)?)?;
+                let samples = muxer.samples(id).unwrap_or(0);
+                muxer.set_sample_table_boxes(id, roll_boxes(samples, a.roll))?;
+            }
+            None => muxer.set_edits(
+                id,
+                edits(timing, media_duration, plan.timescale, movie_timescale)?,
+            )?,
+        }
         tracks.push(MatroskaRemuxTrack {
             stream_index: track.stream_index,
             track_number: track.number,
@@ -714,15 +795,22 @@ fn remux<S: Source, R: Source, W: Write>(
             timescale: plan.timescale,
             duration: media_duration,
             annex_b: plan.annex_b,
-            replaced: plan.replaced,
+            replaced: plan.replaced.is_some(),
         });
     }
 
     let head = muxer.write_head(&mut out)?;
     let mut window = CopyWindow::new();
-    // The replacement's samples, read through a window of their own from
-    // the offset after the ones before.
-    let mut replaced = replacement.map(|r| (r.data, r.samples, CopyWindow::new(), 0u64));
+    // The replacements' samples, each read through a window of their own
+    // from the offset after the ones before.
+    let mut replaced = replacement.map(|r| {
+        let sizes = r.samples.iter().map(|s| s.size).collect::<Vec<_>>();
+        (r.data, sizes, CopyWindow::new(), 0u64)
+    });
+    let mut audio = audio.map(|a| {
+        let sizes = a.samples.iter().map(|s| s.size).collect::<Vec<_>>();
+        (a.data, sizes, CopyWindow::new(), 0u64)
+    });
     let mut next = vec![0usize; kept.len()];
     let mut nals = Vec::new();
     muxer.for_each_chunk(|index, count| -> Result<(), MatroskaRemuxError> {
@@ -730,17 +818,21 @@ fn remux<S: Source, R: Source, W: Write>(
             return Err(MatroskaRemuxError::SourceChanged);
         };
         for _ in 0..count {
-            if plan.replaced {
-                let Some((data, samples, window, offset)) = replaced.as_mut() else {
+            if let Some(which) = plan.replaced {
+                let feed = match which {
+                    Replaced::Video => replaced.as_mut(),
+                    Replaced::Audio => audio.as_mut(),
+                };
+                let Some((data, sizes, window, offset)) = feed else {
                     return Err(MatroskaRemuxError::SourceChanged);
                 };
-                let sample = samples
+                let size = *sizes
                     .get(*position)
                     .ok_or(MatroskaRemuxError::SourceChanged)?;
                 *position += 1;
-                window.copy(data, *offset, sample.size, &mut out)?;
+                window.copy(data, *offset, size, &mut out)?;
                 *offset = offset
-                    .checked_add(u64::from(sample.size))
+                    .checked_add(u64::from(size))
                     .ok_or(MatroskaRemuxError::SourceChanged)?;
                 continue;
             }
@@ -776,7 +868,7 @@ fn remux<S: Source, R: Source, W: Write>(
         Ok(())
     })?;
     out.flush()?;
-    drop(replaced);
+    drop((replaced, audio));
     // Additions of streams dropped after the listing are not reported; the
     // kept streams' ones are listed in file order up to the limit, and the
     // rest counted.
@@ -891,7 +983,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
         end_padding_ns: 0,
         entry: Vec::new(),
         timing: None,
-        replaced: false,
+        replaced: None,
     })
 }
 
@@ -913,18 +1005,41 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
         end_padding_ns: 0,
         entry: Vec::new(),
         timing: None,
-        replaced: true,
+        replaced: Some(Replaced::Video),
     }
 }
 
-/// Checks that `stream_index` names a video track of `segment` that a
+/// The plan of the replaced audio stream: its samples come from the
+/// replacement, at its media timescale.
+fn audio_plan(track: &Track, timescale: u32) -> Plan {
+    Plan {
+        track: track.index,
+        codec: Codec::Opus,
+        media: Media::Audio,
+        timescale,
+        quantum: 1,
+        annex_b: false,
+        avc3: false,
+        prefix: Vec::new(),
+        samples: Records::default(),
+        parameter_sets: Vec::new(),
+        failure: None,
+        end_padding_ns: 0,
+        entry: Vec::new(),
+        timing: None,
+        replaced: Some(Replaced::Audio),
+    }
+}
+
+/// Checks that `stream_index` names a track of `kind` of `segment` that a
 /// replacement can take the place of: one the segment keeps (the
 /// allowlist, else `CodecNotAllowed` as for MP4 sources), among
-/// `options.streams` when they are named, with a `TrackTimestampScale` of
-/// 1.0.
+/// `options.streams` when they are named; a video track with a
+/// `TrackTimestampScale` of 1.0.
 fn check_replaced(
     segment: &Segment,
     stream_index: usize,
+    kind: TrackKind,
     options: &MatroskaRemuxOptions,
 ) -> Result<(), MatroskaRemuxError> {
     let unsupported =
@@ -948,8 +1063,12 @@ fn check_replaced(
             },
         );
     };
-    if track.kind != TrackKind::Video {
-        return Err(unsupported("the replaced stream is not a video stream"));
+    if track.kind != kind {
+        return Err(unsupported(if kind == TrackKind::Video {
+            "the replaced stream is not a video stream"
+        } else {
+            "the replaced stream is not an audio stream"
+        }));
     }
     if options
         .streams
@@ -960,7 +1079,7 @@ fn check_replaced(
             "the replaced stream is not among the selected streams",
         ));
     }
-    if !track.timestamp_scale_one {
+    if kind == TrackKind::Video && !track.timestamp_scale_one {
         return Err(unsupported(
             "TrackTimestampScale other than 1.0 is not supported",
         ));
@@ -1084,7 +1203,11 @@ fn list_samples<S: Source>(
     }
     let mut by_track = vec![None; segment.tracks.len()];
     // A replaced stream's frames are skipped like those of a dropped one.
-    for (index, plan) in plans.iter().enumerate().filter(|(_, p)| !p.replaced) {
+    for (index, plan) in plans
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.replaced.is_none())
+    {
         if let Some(slot) = by_track.get_mut(plan.track) {
             *slot = Some(index);
         }

@@ -45,6 +45,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
+name = "coreav-audio"
+version = "0.0.1"
+dependencies = [
+ "coreav-isobmff",
+ "coreav-kernels-audio",
+ "coreav-mkv",
+]
+
+[[package]]
 name = "coreav-decode"
 version = "0.0.1"
 dependencies = [
@@ -71,6 +80,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-kernels-audio"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-mkv"
 version = "0.0.1"
 dependencies = [
@@ -95,6 +108,7 @@ dependencies = [
 name = "coreav-transcode"
 version = "0.0.1"
 dependencies = [
+ "coreav-audio",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",

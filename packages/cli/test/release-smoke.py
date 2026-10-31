@@ -11,8 +11,10 @@ both builds transcode av1.mp4 (through dav1d), vp8.webm and vp9.webm
 full build also transcodes h264.mp4 (CoreAV's own decoder), which the
 default build refuses.
 Each output is probed: one H.264 stream of 320x240 and 10 samples, as the
-clip. On every platform the full build decodes aac.m4a with decode-audio,
-and the default build refuses it. Strict-safe mode is the caller's choice
+clip. Both builds also transcode flac.mkv with its audio encoded to Opus
+by libopus, and its output is probed: the H.264 stream and an Opus one.
+On every platform the full build decodes aac.m4a with decode-audio, and
+the default build refuses it. Strict-safe mode is the caller's choice
 (COREAV_STRICT_SAFE). Exit status 0 when every check holds, 1 otherwise.
 Python standard library only.
 """
@@ -61,6 +63,24 @@ def transcoded(binary, clip, output):
     return problems
 
 
+def opus_encoded(binary, clip, output):
+    """The problems of the transcode with `--audio opus`, which has to
+    succeed through libopus."""
+    result = run(binary, 'transcode', '--preset', 'ultrafast', '--audio', 'opus', clip, output)
+    if result.returncode != 0:
+        return [f'{clip.name}: transcode --audio opus exited {result.returncode}: {result.stderr.strip()}']
+    problems = []
+    encoder = json.loads(result.stdout)['encoded_audio']['encoder']
+    if encoder != 'libopus':
+        problems.append(f'{clip.name}: the audio was encoded by {encoder}')
+    probe = run(binary, 'probe', output)
+    streams = json.loads(probe.stdout)['streams'] if probe.returncode == 0 else []
+    codecs = [s['codec'] for s in streams]
+    if codecs != ['h264', 'opus']:
+        problems.append(f'{clip.name}: the output has {codecs}')
+    return problems
+
+
 def main():
     build, binary, clips = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
     if build not in ('default', 'full'):
@@ -75,6 +95,7 @@ def main():
                     problems += transcoded(binary, clip, out / f'{name}.mp4')
                 elif not refused(run(binary, 'transcode', clip, out / f'{name}.mp4')):
                     problems.append(f'{name}: the {build} build did not refuse it')
+            problems += opus_encoded(binary, clips / 'flac.mkv', out / 'flac.mp4')
         result = run(binary, 'decode-audio', clips / 'aac.m4a', out / 'aac.wav')
         if build == 'full' and result.returncode != 0:
             problems.append(f'aac.m4a: decode-audio exited {result.returncode}: {result.stderr.strip()}')
