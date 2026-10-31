@@ -12,7 +12,6 @@ library only; FFmpeg is a black box.
 """
 
 import argparse
-import array
 import json
 import os
 import statistics
@@ -53,34 +52,6 @@ def timeline(ours, theirs, summary, source_rate):
     )
 
 
-def pcm(ffmpeg, path):
-    """The PCM A4 compares: the audio of `path` decoded by FFmpeg to 48 kHz
-    float, or None when FFmpeg fails or gives no samples."""
-    done = opus.run([ffmpeg, '-nostdin', '-v', 'error', '-i', path, '-map', '0:a', '-ar', '48000',
-                     '-f', 'f32le', '-'])
-    return samples(done.returncode, done.stdout)
-
-
-def samples(returncode, stdout):
-    """The float samples of a decode that exited with `returncode`, or None
-    when it failed or gave none."""
-    if returncode != 0 or len(stdout) < 4:
-        return None
-    decoded = array.array('f')
-    decoded.frombytes(stdout[:len(stdout) // 4 * 4])
-    if sys.byteorder != 'little':
-        decoded.byteswap()
-    return decoded
-
-
-def quality(reference, decoded):
-    """The SNR of `decoded` against `reference`, or None when either has
-    no samples: opus.snr would score that as infinite."""
-    if not reference or not decoded:
-        return None
-    return opus.snr(reference, decoded)
-
-
 def a4(ours, theirs):
     """A4 on one input; a missing SNR on either arm fails it."""
     return ours is not None and theirs is not None and ours >= theirs - 0.5
@@ -110,7 +81,7 @@ def main():
     args = parser.parse_args()
     os.makedirs(args.work, exist_ok=True)
     sources = opus.make_sources(args.ffmpeg, args.work)
-    references = {name: pcm(args.ffmpeg, sources[name]) for name in TONAL}
+    references = {name: opus.pcm(args.ffmpeg, sources[name]) for name in TONAL}
     rows = []
     for name, *_ in opus.SOURCES:
         source_rate = opus.probe_audio(args.ffprobe, sources[name]).get('sample_rate')
@@ -155,8 +126,8 @@ def main():
                 'seconds': {arm: statistics.median(t) for arm, t in times.items()},
             })
             if tonal:
-                row['snr_coreav'] = quality(references[name], pcm(args.ffmpeg, ours))
-                row['snr_ffmpeg'] = quality(references[name], pcm(args.ffmpeg, theirs))
+                row['snr_coreav'] = opus.quality(references[name], opus.pcm(args.ffmpeg, ours))
+                row['snr_ffmpeg'] = opus.quality(references[name], opus.pcm(args.ffmpeg, theirs))
                 row['a4'] = a4(row['snr_coreav'], row['snr_ffmpeg'])
     judged = [r for r in rows if not r['failed']]
     ratios = [r['bit_rate_ratio'] for r in judged]
