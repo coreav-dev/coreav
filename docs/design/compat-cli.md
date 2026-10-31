@@ -427,10 +427,10 @@ those sections that B3a measures; what drops out is the program keys of
 Every run of these bars sets `COREAV_STRICT_SAFE=1`, so a command that is
 not native is refused and never handed to FFmpeg ("Fallback to FFmpeg",
 below), and sets `COREAV_FALLBACK_LOG` to a file of the run. R1 to R3 keep
-the rule that any log line voids the run. The registered
+the rule that any log line voids the run. R4 implements the registered
 [R4 refusal timing-set plan](../measurements/compat-0.1.0/r4-refusal-plan.md)
-changes only R4's handling of run-observed strict-safe refusals, with
-coverage published beside speed; its tools follow in a separate change.
+by excluding only run-observed strict-safe refusals, with coverage
+published beside speed.
 An executed fallback still voids a native run: it would pass every
 comparison by being FFmpeg.
 
@@ -508,15 +508,44 @@ command for both sides, on every file of its families that R3's rule lets
 take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
-fails on either side has no ratio and is reported. The current runner
-voids the run on a strict-safe refusal's log line; the separate
-[R4 refusal plan](../measurements/compat-0.1.0/r4-refusal-plan.md) registers
-its replacement and the required coverage accounting before the tools
-implement it. A timed run that fails or
+fails on either side has no ratio and is reported. A pair is a refusal
+only when every CoreAV side exits with the refusal status and writes an
+attributed `not_run: strict_safe`, `ran: null` record with its reason, and
+every oracle side succeeds without a log. Each invocation gets its own
+log, appended to the retained run log after the process exits. No prior
+log line can qualify a later pair. Mixed outcomes are failures, never
+refusals. Other log events still void the run. A timed run that fails or
 times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
 families' rows are reported and not gated.
+R4 uses the same event-driven process-exit timer as B4, with a 600-second
+deadline that kills and reaps an overlong child. Timeout polling sleeps
+are not included in the elapsed time. Launch or process-exit descriptor
+errors abort R4 rather than becoming ordinary child failures that its
+warm-up rule excludes. This corrects the timing method,
+not the selection or the bars. Existing R4 reports remain readable with
+their stored ratios; reading them does not remeasure or rescore them.
+Timings collected with timeout polling cannot substantiate current speed bars.
+
+R4 reports eligible, refused, timed, failed, oracle-failed and unprocessed pair counts,
+the share of eligible pairs timed, and refusal counts by reason group and
+command. Every median and interval is accompanied by coverage, and every
+registered command is listed even when no eligible file reaches it. The
+committed exact-match reason table assigns each refused pair one group;
+unmatched reasons and mixed groups on the two null-arm sides use `unknown`.
+Duplicate records do not multiply pair counts. The raw log's line counts
+remain diagnostics, not refused-pair totals. New results identify this
+method as `r4-refusal-coverage-v1`; historical ratios remain readable
+without reclassification or rescoring. An all-refused group is still
+unmeasured, not a pass.
+The full eligible roster is fixed before execution and written even when
+an infrastructure exception aborts the arm. Completed outcomes are kept;
+the interrupted pair is failed and later pairs remain unprocessed, never
+refused or timed. The eligible total is the sum of those five exclusive
+outcomes. The exception still propagates. Both the reporter and host
+driver reject an aborted arm or any unprocessed pair, even when completed
+ratios meet their bars, and retain the nonpassing public report.
 
 `scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
 one on-demand `c4-standard-16` with one thread a core, the three binaries
@@ -784,7 +813,10 @@ All three run once on the release candidate commit, after the tools they
 need have merged and run on the fixtures and on spent files. The record is
 `docs/measurements/compat-0.1.0.md`, beside the round's other bars; corpus
 file names and hashes go only to the private evidence store, as the round's
-workflow keeps them.
+workflow keeps them. What the note leaves to the run (the builds, the
+construction of each denominator, the oracle of each job and the reasons a
+miss is listed under) is fixed before it in
+[`compat-0.1.0/codec-coverage-plan.md`](../measurements/compat-0.1.0/codec-coverage-plan.md).
 
 - **A run is void,** and repeated on the same commit, when:
   - a file of V1's set or a command of V2's or V3's has no result (a lost
@@ -974,7 +1006,7 @@ implies:
 
 | The command | The writer |
 |---|---|
-| a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
+| a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
@@ -999,6 +1031,38 @@ every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
 `ffprobe` of a list), so a join's selection goes by picture size and
 channels alone: of a mono AAC stream with the default disposition and a
 stereo one without, the stereo one.
+
+**Cover pictures.** An MP4/MOV input's cover pictures (`covr` items of the
+movie's item lists, and the QuickTime `artwork` key) are attached-picture
+video streams after the tracks, one per picture (`data` box) of an item,
+as `ffprobe` lists them, and selected like any other stream: of one item's
+pictures, a selection keeps or drops each alone, and the kept ones stay
+in the item in their order (the pinned `ffmpeg` 9.0.2, black box: one
+`covr` with three pictures, the middle one, the first one or two of them
+left out). Without `-map`, a video track comes before a cover
+picture whatever their dispositions and sizes; a cover picture is chosen
+only when no video track is there (the pinned `ffmpeg` 9.0.2, black box:
+a 640x480 cover beside a 160x120 video without the default disposition,
+and a cover beside audio alone). The plan splits the selection once
+(`Report::covers` names the cover picture streams and where each picture
+starts in the file): the selected tracks go to the remux as its streams,
+and every cover picture not selected as `RemuxOptions::left_out_covers`,
+which leaves its `data` box out of the copied item list, and the item
+with it when no other picture remains. A selected cover picture stays in
+the output as a cover picture, where `ffmpeg` writes it too (black box:
+`-map 0` keeps it, `-map 0:0 -map 0:1`, no `-map` and `-map -0:2` leave
+it out, and of two pictures the selected one stays, its type and bytes
+unchanged). An encode (`-c:v libx264`, [`transcode.md`](transcode.md),
+"Through `coreav ffmpeg`") follows the same selection: its plan hands the
+cover pictures not selected to the pipeline's remux
+(`TranscodeOptions::left_out_covers`), so the default selection leaves the
+cover picture out and `-map 0 -c:v libx264 -c:v:1 copy -c:a copy` keeps it
+unchanged, as `ffmpeg` does (black box, also with `-c:a libopus`). A
+command that would encode a cover picture (`-map 0 -c:v libx264`) is
+refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
+234, and writes nothing. The clip, segment and M4A jobs carry no cover
+picture: their selection rules refuse one by name (`one video and one
+audio stream`, `an M4A output of other than one audio stream`).
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
@@ -1121,6 +1185,15 @@ FFmpeg).**
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
+- Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
+  whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
+  pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item
+  list and no track box (black box: one attached-picture stream, zero
+  `trak` boxes), but ISO/IEC 14496-12 8.3.1 makes the track box mandatory,
+  one or more per movie. A known divergence: `coreav ffmpeg` writes no
+  file that the standard does not allow, and FFmpeg's `ffmpeg` runs the
+  command when strict-safe mode is off. `cover_selections_agree_with_the_pinned_ffmpeg`
+  in `tests/ffmpeg.rs` checks `ffmpeg`'s side of it in CI.
 - A segmented output of a file without video (C32 on such files): `coreav
   split` cuts at video. A clip without video of other than one AAC,
   FLAC, Apple Lossless, AC-3 or E-AC-3 stream, or written as M4A.
@@ -1436,8 +1509,13 @@ prints keep its derivations, which the stream oracle checks. The others:
   carries an "Encryption initialization data" side data element; its
   other values come from the format `frma` names.
 - iTunes cover pictures (`covr`, and the QuickTime `artwork` key) are
-  attached-picture video streams after the tracks, each with its one
-  packet; WebVTT tracks are data streams.
+  attached-picture video streams after the tracks, one per JPEG or PNG
+  `data` box in file order (an item may hold several, as `ffmpeg` writes
+  several pictures), each with its one packet at the picture's bytes, or
+  without a position when the movie box is compressed (`cmov`, whose
+  offsets are not the file's; `ffprobe` prints the inflated box's offset,
+  [`known-divergences-ffprobe9.md`](../known-divergences-ffprobe9.md));
+  WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
   first (that agreed with every interleaving on the development set), and

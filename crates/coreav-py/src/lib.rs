@@ -837,6 +837,7 @@ fn run_remux(
         streams: streams.clone(),
         on_unsupported,
         metadata,
+        left_out_covers: Vec::new(),
     };
     let mkv_options = MatroskaRemuxOptions {
         streams,

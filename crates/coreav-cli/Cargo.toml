@@ -97,5 +97,9 @@ serde_json = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 
+[dev-dependencies]
+# Compresses movie boxes for the compressed-movie (`cmov`) regressions.
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
 [lints]
 workspace = true
