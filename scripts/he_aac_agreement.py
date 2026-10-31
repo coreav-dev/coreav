@@ -397,6 +397,14 @@ def candidate(row):
     return row.get('holdout') is False and row.get('ext') in CORPUS_EXTENSIONS
 
 
+def manifest_candidates(corpus, manifest):
+    """(sha256, extension, store key) of each candidate of one corpus's
+    manifest, which is either a list of rows or an object with `files`."""
+    rows = manifest if isinstance(manifest, list) else manifest['files']
+    return [(row['sha256'], row['ext'], row['key'] if row['key'].startswith('corpus/') else f"corpus/{corpus}/{row['key']}")
+            for row in rows if candidate(row)]
+
+
 def clean_decode(ffmpeg, path, scratch):
     """The last condition of the corpus rule: bar 2's oracle decode exits
     with 0 and prints nothing at -v warning."""
@@ -427,14 +435,8 @@ def select(a):
     s3 = boto3.client('s3', endpoint_url=os.environ['R2_ENDPOINT'], aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'],
                       aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'], region_name='auto')
     bucket = os.environ['R2_BUCKET']
-    candidates = []
-    for corpus in CORPORA:
-        manifest = json.loads(s3.get_object(Bucket=bucket, Key=f'corpus/{corpus}/manifest.json')['Body'].read())
-        for row in manifest['files']:
-            if candidate(row):
-                key = row['key'] if row['key'].startswith('corpus/') else f"corpus/{corpus}/{row['key']}"
-                candidates.append((row['sha256'], row['ext'], key))
-    candidates.sort()
+    candidates = sorted(c for corpus in CORPORA for c in manifest_candidates(
+        corpus, json.loads(s3.get_object(Bucket=bucket, Key=f'corpus/{corpus}/manifest.json')['Body'].read())))
 
     def profile(c):
         url = s3.generate_presigned_url('get_object', Params={'Bucket': bucket, 'Key': c[2]}, ExpiresIn=3600)

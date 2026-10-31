@@ -142,6 +142,15 @@ class Bars(unittest.TestCase):
             self.assertIn('+skip_manual', cmd)
             self.assertLess(cmd.index('+skip_manual'), cmd.index('-i'))
 
+    def test_both_manifest_shapes_give_the_same_candidates(self):
+        rows = [{'sha256': 'b', 'ext': 'm4a', 'key': 'x/b.m4a', 'holdout': False},
+                {'sha256': 'a', 'ext': 'mkv', 'key': 'corpus/c/a.mkv', 'holdout': False},
+                {'sha256': 'c', 'ext': 'aac', 'key': 'c.aac', 'holdout': False},
+                {'sha256': 'd', 'ext': 'mp4', 'key': 'd.mp4', 'holdout': True}]
+        want = [('b', 'm4a', 'corpus/c/x/b.m4a'), ('a', 'mkv', 'corpus/c/a.mkv')]
+        self.assertEqual(h.manifest_candidates('c', rows), want)
+        self.assertEqual(h.manifest_candidates('c', {'files': rows}), want)
+
     def test_a_container_class_the_selection_empties_fails_the_run(self):
         ok = [('mp4', True, True, True), ('matroska', True, True, False), ('matroska', True, True, True)]
         self.assertEqual(h.dropped_classes(ok), [])
