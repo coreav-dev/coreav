@@ -90,7 +90,7 @@
       "filename_pattern": "*",
       "conditions": {
         "output audio track": "AC-3 or E-AC-3; more than one media edit; every edit after the first with its media time inside a frame",
-        "decoded audio": "for each edit after the first, exactly one decoded frame presented in the edit before it, ahead of the edit's start, that equals, sample for sample, the whole frame of the packet that holds the edit's media time, decoded in the order ffprobe lists the packets under the output's edits (as for KD-J-AUDIO-NOISE); every other decoded frame of every edit equal to the inputs' packets decoded in sequence, each edit after the first read from the first frame boundary at or after its media time (as for KD-J-AUDIO-EDIT-START), within one sample"
+        "decoded audio": "for each edit after the first, exactly one decoded frame presented in the edit before it, ahead of the edit's start, that equals, sample for sample, the whole frame of the packet that holds the edit's media time, decoded in the order ffprobe lists the packets under the output's edits (as for KD-J-AUDIO-NOISE); every other decoded frame of every edit equal to the packets decoded in that order, each edit after the first read from the first frame boundary at or after its media time (as for KD-J-AUDIO-EDIT-START), within one sample"
       },
       "predicate": "audio_held_frame",
       "basis": "ISO/IEC 14496-12 (an edit presents its media from its media time); docs/design/join.md (one edit per input, the input's own pre-roll left unpresented)"

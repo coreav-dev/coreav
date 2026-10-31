@@ -147,7 +147,7 @@ file names.
 
 - Field: the decoded audio.
 - When: the output's AC-3 or E-AC-3 audio has more than one media edit, and
-  an edit after the first starts at a media time inside a frame.
+  every edit after the first starts at a media time inside a frame.
 - What each reports: the edit presents its media from its media time.
   `ffmpeg` presents the whole frame that holds that media time inside the
   edit before it, ahead of the edit's start; the next frame is
