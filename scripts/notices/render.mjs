@@ -69,6 +69,8 @@ const CRATE_TERM_FILES = Object.freeze({
 const REPO_NOTICE_TERMS = Object.freeze({
   "jpeg-encoder": { IJG: "This software is based in part on the work of the Independent JPEG Group" },
 });
+const LLVM_EXCEPTION = "As an exception, if, as a result of your compiling your source code, portions of this Software are embedded into an Object form of such source code, you may redistribute such embedded portions in such Object form without complying with the conditions of Sections 4(a), 4(b) and 4(d) of the License. In addition, if you combine or link compiled forms of this Software with software that is licensed under the GPLv2 (\"Combined Software\") and if a court of competent jurisdiction determines that the patent provision (Section 3), the indemnity provision (Section 9) or other Section of the License conflicts with the conditions of the GPLv2, you may retroactively and prospectively choose to deem waived or otherwise exclude such Section(s) of the License, but only in their entirety and only with respect to the Combined Software.";
+
 /** Copy upstream texts; missing, empty or unreadable data is never synthesised. */
 export function renderNotices(crates, policy, repoNotice = "", list = dir => readdirSync(dir, { withFileTypes: true }), read = (dir, name) => readFileSync(join(dir, name))) {
   const sections = [];
@@ -100,17 +102,7 @@ export function renderNotices(crates, policy, repoNotice = "", list = dir => rea
     const covered = new Set(), pointers = [];
     const specific = CRATE_TERM_FILES[label];
     if (!specific && Object.keys(CRATE_TERM_FILES).some(key => key.startsWith(crate.name + " "))) throw new Error(label + ": add a CRATE_TERM_FILES row");
-    for (const term of terms) {
-      const rule = FILE_RULES.get(term), named = specific?.[term];
-      if (named ? named.every(name => top.some(entry => entry.name === name)) : top.some(entry => rule?.test(entry.name) || terms.length === 1 && /^(?:LICEN[CS]E|COPYING)(?:\.txt|\.md)?$/i.test(entry.name))) covered.add(term);
-      const sentence = REPO_NOTICE_TERMS[crate.name]?.[term];
-      if (sentence && exceptions.has(term) && repoNotice.includes(sentence)) {
-        covered.add(term);
-        pointers.push(term + ": see NOTICE");
-      }
-    }
-    if (!permitted(crate.license, covered)) throw new Error(label + ": missing upstream licence file; add a file rule for " + terms.filter(term => !covered.has(term)).join(", "));
-    sections.push("=== " + label + " (" + (crate.origin ?? "crates.io") + ") ===\nLicense: " + crate.license + "\n" + (pointers.length ? pointers.join("\n") + "\n" : ""));
+    const texts = new Map();
     for (const entry of files) {
       let bytes;
       try { bytes = read(crate.dir, entry.name); }
@@ -120,8 +112,20 @@ export function renderNotices(crates, policy, repoNotice = "", list = dir => rea
       let text;
       try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes).replace(/\r\n/g, "\n").replace(/\n*$/, "\n"); }
       catch { throw new Error(label + ": non-UTF-8 licence file " + entry.name); }
-      sections.push("--- " + entry.name + " ---\n" + text);
+      texts.set(entry.name, text);
     }
+    for (const term of terms) {
+      const rule = FILE_RULES.get(term), named = specific?.[term];
+      if (named ? named.every(name => top.some(entry => entry.name === name)) : top.some(entry => (rule?.test(entry.name) || terms.length === 1 && /^(?:LICEN[CS]E|COPYING)(?:\.txt|\.md)?$/i.test(entry.name)) && (term !== "Apache-2.0 WITH LLVM-exception" || texts.get(entry.name).replace(/\s+/g, " ").includes(LLVM_EXCEPTION)))) covered.add(term);
+      const sentence = REPO_NOTICE_TERMS[crate.name]?.[term];
+      if (sentence && exceptions.has(term) && repoNotice.includes(sentence)) {
+        covered.add(term);
+        pointers.push(term + ": see NOTICE");
+      }
+    }
+    if (!permitted(crate.license, covered)) throw new Error(label + ": missing upstream licence file; add a file rule for " + terms.filter(term => !covered.has(term)).join(", "));
+    sections.push("=== " + label + " (" + (crate.origin ?? "crates.io") + ") ===\nLicense: " + crate.license + "\n" + (pointers.length ? pointers.join("\n") + "\n" : ""));
+    for (const entry of files) sections.push("--- " + entry.name + " ---\n" + texts.get(entry.name));
   }
   return sections.join("\n");
 }

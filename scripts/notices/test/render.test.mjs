@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -22,7 +22,7 @@ function render(name, license, files, selectedPolicy = policy, notice = "", vers
 
 test("native licence expressions keep WITH terms and accept covered alternatives", () => {
   assert.deepEqual(licenseTerms("Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"), ["Apache-2.0 WITH LLVM-exception", "Apache-2.0", "MIT"]);
-  assert.match(render("rustix", "Apache-2.0 WITH LLVM-exception OR MIT", { "LICENSE-Apache-2.0_WITH_LLVM-exception": "LLVM upstream permission\n" }), /LLVM upstream permission/);
+  assert.match(render("rustix", "Apache-2.0 WITH LLVM-exception OR MIT", { "LICENSE-Apache-2.0_WITH_LLVM-exception": "LLVM upstream permission\n" + readFileSync(new URL("./fixtures/LLVM-exception.txt", import.meta.url), "utf8") }), /LLVM upstream permission/);
   assert.match(render("tls", "MIT OR ISC", { "LICENSE-ISC": "ISC permission\n" }), /ISC permission/);
   assert.match(render("codec", "BSD-3-Clause", { LICENSE: "BSD permission\n" }), /BSD permission/);
   assert.match(render("choice", "MIT OR Unknown", { "LICENSE-MIT": "MIT permission\n" }), /MIT permission/);
