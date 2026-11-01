@@ -310,7 +310,9 @@ same rule (`decode.md`, "The FFmpeg fallback").
     x264's settings string is the baseline's (checked as a black box on a
     Matroska file whose `DefaultDuration` says 100 ms with frames 50 ms
     apart, and on 5 frames a second in MP4). Where the probe finds no
-    rate, the encoders choose.
+    rate, the encoders choose. This probe consumes the transcode timeout
+    budget: reads check the deadline and the pipeline gets only the time
+    left. A synchronous read already in progress cannot be interrupted.
   - **VUI timing** is what each encoder derives from those times, as for
     FFmpeg's own output: no constant rate is told, so the earlier problem
     of a told rate below the closest two frames' (`ffmpeg -i OUT -f null
