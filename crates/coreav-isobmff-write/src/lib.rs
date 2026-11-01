@@ -560,8 +560,24 @@ pub enum JoinAudio {
     None,
 }
 
+/// Where [`join_mp4`] places each input on the output's timeline.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Placement {
+    /// Each input after the previous input's video (`docs/design/join.md`,
+    /// "Timing").
+    #[default]
+    AfterVideo,
+    /// The output time of each input's time 0, in seconds, from the first
+    /// input's (0 for the first), rounded to the video's timescale, halves
+    /// away from zero: the concat demuxer of `ffmpeg` places each file
+    /// after the previous ones' durations (`docs/design/join.md`, "Placed
+    /// as the concat demuxer places them"). An input whose video would start
+    /// before the previous input's video ends fails the join.
+    At(Vec<Rational>),
+}
+
 /// What [`join_mp4`] keeps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JoinOptions {
     /// The video: the first video track of every input the allowlist keeps
     /// (`VideoChoice::First`), or the stream at this index of every input
@@ -571,6 +587,8 @@ pub struct JoinOptions {
     pub video: VideoChoice,
     /// The audio.
     pub audio: JoinAudio,
+    /// Where each input goes.
+    pub placement: Placement,
 }
 
 /// One input of a join. Times are exact, in seconds.

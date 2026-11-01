@@ -183,26 +183,41 @@ def range_problems(record, ffprobe):
     return problems
 
 
-def micros(value):
-    """A time in whole microseconds, halves away from zero, as ffmpeg's
-    demuxers count a file's start time and duration."""
-    exact = abs(fractions.Fraction(value)) * 1_000_000
+def nearest(value):
+    """The nearest integer, halves away from zero."""
+    exact = abs(fractions.Fraction(value))
     whole = int(exact + fractions.Fraction(1, 2))
     return whole if value >= 0 else -whole
 
 
-def placement(offsets, formats):
+def micros(value):
+    """A time in whole microseconds, halves away from zero, as ffmpeg's
+    demuxers count a file's start time and duration."""
+    return nearest(fractions.Fraction(value) * 1_000_000)
+
+
+def placement(offsets, formats, timescale=None):
     """The problems of a join's placement: each input's offset (from the
     first input's) against where ffmpeg's concat demuxer places that file,
     after the files before it, each as long as its format duration, less its
     own start time; `formats` holds each input's (start_time, duration) in
-    microseconds. Any difference is a problem."""
+    microseconds. With the video's `timescale`, the offsets are compared in
+    its ticks, the demuxer's rounded to the nearest one, halves away from
+    zero, where the muxer can place the video (black box: a file of 4.032 s
+    before a 1/12800 video places the next file's video 51610 ticks later).
+    Any difference is a problem."""
     problems, end = [], 0
     for index, (offset, (start, duration)) in enumerate(zip(offsets, formats)):
         expected = end - start + formats[0][0]
         ours = micros(offset - offsets[0])
+        if timescale is not None:
+            ours = (offset - offsets[0]) * timescale
+            expected = nearest(fractions.Fraction(expected * timescale, 1_000_000))
+            unit = "ticks"
+        else:
+            unit = "us"
         if ours != expected:
-            problems.append(f"timing: input {index} placed at {ours} us, ffmpeg concat {expected} us")
+            problems.append(f"timing: input {index} placed at {ours} {unit}, ffmpeg concat {expected} {unit}")
         end += duration
     return problems
 
@@ -314,7 +329,9 @@ def concat_problems(record, ffprobe, ffmpeg):
         except track_boxes.Unreadable:
             found.append(None)
     gaps = composition_gaps(formats, found)
-    problems = placement(offsets, [(start, duration - micros(gap)) for (start, duration), gap in zip(formats, gaps)])
+    timescale = record["detail"]["inputs"][0]["offset"]["timescale"]
+    problems = placement(offsets, [(start, duration - micros(gap)) for (start, duration), gap in zip(formats, gaps)],
+                         timescale)
     with tempfile.TemporaryDirectory(prefix="copy-check-concat-") as tmp:
         reference = pathlib.Path(tmp) / "concat.mp4"
         args = [record["input"] if a == "INPUT" else str(reference) if a == "OUTPUT" else a for a in record["args"]]

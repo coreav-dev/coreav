@@ -23,7 +23,8 @@ use coreav_isobmff::{
 };
 use coreav_isobmff_write::{
     AudioChoice, ClipOptions, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, Mismatch, SplitAt, SplitOptions, VideoChoice, clip_mp4, join_mp4, split_mp4,
+    JoinTrack, Mismatch, Placement, SplitAt, SplitOptions, VideoChoice, clip_mp4, join_mp4,
+    split_mp4,
 };
 use movies::{S, TrackSpec, aac_audio, av_movie, ibbp_video, movie};
 use std::cell::RefCell;
@@ -52,7 +53,11 @@ fn join_choosing(
         inputs.iter().map(|i| SliceSource::new(i)).collect(),
         &Limits::default(),
         &Allowlist::default(),
-        &JoinOptions { video, audio },
+        &JoinOptions {
+            video,
+            audio,
+            placement: Placement::AfterVideo,
+        },
         &mut out,
     )?;
     assert_eq!(summary.bytes_written, out.len() as u64);
@@ -485,6 +490,52 @@ fn a_later_empty_edit_stays_a_gap() {
     assert_eq!(summary.inputs[1].offset, q(19, 5));
 }
 
+/// Placed at given times (`Placement::At`, the concat demuxer's), each
+/// input goes there, rounded to the video's ticks; the previous input's
+/// last frame is held until then; an input that would start before the
+/// previous one's video ends fails the join.
+#[test]
+fn inputs_go_where_they_are_placed() {
+    let source = av_movie();
+    let inputs: Vec<&[u8]> = vec![&source, &source];
+    let (after, _) = join(&inputs).unwrap();
+    let end = after.inputs[0].video_end;
+    let placed = |at: Vec<Rational>| {
+        let mut out = Vec::new();
+        join_mp4(
+            inputs.iter().map(|i| SliceSource::new(i)).collect(),
+            &Limits::default(),
+            &Allowlist::default(),
+            &JoinOptions {
+                video: VideoChoice::First,
+                audio: JoinAudio::First,
+                placement: Placement::At(at),
+            },
+            &mut out,
+        )
+        .map(|summary| (summary, out))
+    };
+    let later = sum(end, q(1, 3));
+    let (summary, out) = placed(vec![q(0, 1), later]).unwrap();
+    assert_join(&inputs, &out, &summary);
+    let ticks = |r: Rational| r.num * 12_800 / i128::from(r.den);
+    assert_eq!(ticks(summary.inputs[1].offset), ticks(later) + 1);
+    assert_eq!(summary.inputs[0].video_end, summary.inputs[1].video_start);
+    assert!(summary.inputs[0].extended > 0);
+    assert!(matches!(
+        placed(vec![q(0, 1), q(0, 1)]),
+        Err(JoinError::Output(Error::Unsupported {
+            reason: "an input placed before the previous input's video ends"
+        }))
+    ));
+    assert!(matches!(
+        placed(vec![q(0, 1)]),
+        Err(JoinError::Output(Error::Unsupported {
+            reason: "a placement that does not name every input once"
+        }))
+    ));
+}
+
 #[test]
 fn video_only() {
     let source = av_movie();
@@ -595,6 +646,7 @@ fn the_work_limit_is_checked_before_writing() {
             &JoinOptions {
                 video: VideoChoice::First,
                 audio: JoinAudio::First,
+                placement: Placement::AfterVideo,
             },
             &mut out,
         );
@@ -925,7 +977,8 @@ fn inputs_that_cannot_be_joined_on_their_own() {
             &Allowlist::default(),
             &JoinOptions {
                 video: VideoChoice::First,
-                audio: JoinAudio::First
+                audio: JoinAudio::First,
+                placement: Placement::AfterVideo,
             },
             Vec::new()
         ),

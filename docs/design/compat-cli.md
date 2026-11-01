@@ -1189,7 +1189,8 @@ without video must also start where the command says. A join's
 list names the fixture twice, and its timing is held to `ffmpeg -f concat`'s
 with no tolerance: every input placed where the demuxer places it (after
 the files before it, each as long as its format duration, less its own
-start time, to the microsecond), and the video packets' times, from the
+start time, in microseconds, then rounded to the nearest tick of the video,
+where the muxer places it), and the video packets' times, from the
 first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
@@ -1207,12 +1208,10 @@ FFmpeg).**
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
   without `-safe 0`, no file, a directive written quoted or escaped) is
   rejected, exit 1.
-- A join that would not be timed as the concat demuxer times it: an input
-  `join_mp4` places elsewhere than the demuxer, which follows each file at
-  its format duration where `join_mp4` follows it at its video's end (black
-  box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
-  `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
-  reads by its own edit model. Also inputs that do not match the first
+- A join that would not be timed as the concat demuxer times it: inputs
+  whose tracks have several edits, which the demuxer reads by its own edit
+  model, and an input the demuxer would place before the previous input's
+  video ends. Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
