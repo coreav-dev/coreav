@@ -7,12 +7,14 @@ use crate::moov::{
     EditEntry, Media, MovieBox, Ties, TrackBox, TrackFlags, UNIT_RATE, ftyp, language, overflow,
     rescale, write_head,
 };
-use crate::mux::RawBox;
+use crate::mux::{RawBox, copied};
+use crate::remux::{Exclude, Retained, tags_without};
+use crate::scan::Path;
 use crate::tables::Tables;
 use crate::{ExtractError, HeaderMetadata, Summary, TrackChoice};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, EditList, Error, ItunesGapless, Limits, Movie, Profile, Source,
-    Track, TrackKind, probe,
+    Allowlist, Budget, Codec, EditList, Error, FourCc, ItunesGapless, Limits, Movie, Profile,
+    Source, Track, TrackKind, probe,
 };
 use std::io::Write;
 
@@ -27,8 +29,8 @@ const MAX_REGIONS: usize = 1 << 16;
 /// Copies one AAC track of `source` into an M4A file written to `out`.
 ///
 /// The source is probed with `limits` and `allowlist`; the track is chosen by
-/// `choice`; `metadata` says whether the header times and the language are
-/// the source's. Its samples are listed once to build the sample tables, then
+/// `choice`; `metadata` says which of the source's header times, language,
+/// handler name and `udta` and `meta` boxes the output carries. Its samples are listed once to build the sample tables, then
 /// listed again and copied, so `out` receives `ftyp`, `moov` and `mdat` in
 /// that order without seeking. `out` gets many small writes; give it a
 /// buffered writer.
@@ -140,12 +142,30 @@ pub fn extract_audio<S: Source, W: Write>(
     } else {
         None
     };
-    let header = Header::new(&movie, track, &tables, first_dts, gapless, scale, metadata)?;
+    let header = Header::new(
+        &movie,
+        track,
+        &tables,
+        first_dts,
+        gapless.map(|(values, _)| values),
+        scale,
+        metadata,
+    )?;
+    let described = match metadata {
+        HeaderMetadata::Copy => described(
+            &movie,
+            track,
+            gapless.and_then(|(_, at)| at),
+            &mut source,
+            limits,
+        )?,
+        HeaderMetadata::Clear | HeaderMetadata::MediaTime => Described::default(),
+    };
     let (data_start, data_bytes) = write_head(
         &mut out,
         ftyp(b"M4A ", &[b"M4A ", b"mp42", b"isom"]),
-        &header.movie(),
-        vec![header.track(entry, &tables)],
+        &header.movie(&described),
+        vec![header.track(entry, &tables, &described)],
         Ties::TrackOrder,
     )?;
 
@@ -346,7 +366,7 @@ fn gapless_edit<S: Source>(
     source: &mut S,
     tables: &Tables,
     scale: u32,
-) -> Result<Option<ItunesGapless>, Error> {
+) -> Result<Option<(ItunesGapless, Option<u64>)>, Error> {
     let audio = movie
         .tracks
         .iter()
@@ -355,14 +375,79 @@ fn gapless_edit<S: Source>(
     if audio != 1 {
         return Ok(None);
     }
-    let Some(item) = movie.itunes_gapless(source)? else {
+    let Some((item, at)) = movie.itunes_gapless_item(source)? else {
         return Ok(None);
     };
     let total = u64::from(item.encoder_delay)
         .checked_add(u64::from(item.padding))
         .and_then(|t| t.checked_add(item.original_samples))
         .and_then(|t| t.checked_mul(u64::from(scale)));
-    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some(item))
+    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some((item, at)))
+}
+
+/// What describes the source's movie and track beside their headers: their
+/// user data (ISO/IEC 14496-12 8.10.1) and metadata boxes (8.11.1), and the
+/// track's handler name (8.4.3).
+#[derive(Default)]
+struct Described<'m> {
+    movie: Vec<RawBox>,
+    track: Vec<RawBox>,
+    handler_name: Option<&'m str>,
+}
+
+/// The source's `udta` and `meta` boxes of the movie and of `track`, as
+/// stored, without their cover pictures: every entry of an item list that
+/// [`coreav_isobmff::metadata::ListKey::is_cover`] names (`covr`, or keyed
+/// artwork), whole, since the output carries one audio stream and a cover
+/// picture is a stream of its own (`docs/design/compat-cli.md`, "Cover
+/// pictures"). With `smpb`, the offset of the movie's `iTunSMPB` item box
+/// that the output's edit list stands for, that item is left out too, so
+/// that the delay and padding are not given twice. The boxes are walked as
+/// copied ([`Exclude::Extraction`]): a list that does not parse to its end
+/// is cut where it stops, and a box holding `smpb` where the walk does not
+/// reach it is left out. A box larger than what `max_retained_bytes`
+/// leaves is left out. A compressed movie's boxes are not copied: its
+/// file's movie box holds only the compressed data
+/// (`docs/design/compressed-movie.md`).
+fn described<'m, S: Source>(
+    movie: &Movie,
+    track: &'m Track,
+    smpb: Option<u64>,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<Described<'m>, Error> {
+    let handler_name = track.handler_name.as_deref();
+    if movie.compressed {
+        return Ok(Described {
+            handler_name,
+            ..Described::default()
+        });
+    }
+    let mut retained = Retained::new(limits);
+    let moov = Path::top().with(FourCc(*b"moov"));
+    let movie_boxes = tags_without(
+        None,
+        moov,
+        movie.tag_boxes(),
+        Exclude::Extraction { item: smpb },
+        source,
+        &mut retained,
+        &mut |_| {},
+    )?;
+    let track_boxes = tags_without(
+        Some(track.stream_index),
+        moov.with(FourCc(*b"trak")),
+        track.tag_boxes(),
+        Exclude::Extraction { item: None },
+        source,
+        &mut retained,
+        &mut |_| {},
+    )?;
+    Ok(Described {
+        movie: movie_boxes,
+        track: track_boxes,
+        handler_name,
+    })
 }
 
 /// Header values of the output movie.
@@ -375,29 +460,41 @@ struct Header {
     /// without one.
     edits: Vec<EditEntry>,
     movie_created: u64,
+    movie_modified: u64,
     track_created: u64,
+    track_modified: u64,
     media_created: u64,
+    media_modified: u64,
     language: [u8; 3],
 }
 
 impl Header {
-    fn movie(&self) -> MovieBox<'static> {
+    fn movie<'a>(&self, described: &'a Described<'_>) -> MovieBox<'a> {
         MovieBox {
             timescale: self.movie_timescale,
             created: self.movie_created,
+            modified: Some(self.movie_modified),
             duration: self.movie_duration,
-            extra: Vec::new(),
+            extra: copied(&described.movie),
         }
     }
 
-    fn track<'a>(&self, stsd: Vec<u8>, tables: &'a Tables) -> TrackBox<'a> {
+    fn track<'a>(
+        &self,
+        stsd: Vec<u8>,
+        tables: &'a Tables,
+        described: &'a Described<'_>,
+    ) -> TrackBox<'a> {
         let edits = self.edits.clone();
         TrackBox {
             track_id: TRACK_ID,
             media: Media::Audio,
+            handler_name: described.handler_name,
             header: TrackFlags::DEFAULT,
             created: self.track_created,
+            modified: Some(self.track_modified),
             media_created: self.media_created,
+            media_modified: Some(self.media_modified),
             language: self.language,
             media_timescale: self.media_timescale,
             media_duration: self.media_duration,
@@ -405,7 +502,7 @@ impl Header {
             edits: edits.into(),
             stsd,
             tables,
-            extra: Vec::new(),
+            extra: copied(&described.track),
             stbl_extra: Vec::new(),
         }
     }
@@ -557,6 +654,16 @@ impl Header {
                 *b"und",
             ),
         };
+        let (movie_modified, track_modified, media_modified) = match metadata {
+            HeaderMetadata::Copy => (
+                movie.modification_time,
+                track.modification_time,
+                track.media_modification_time,
+            ),
+            HeaderMetadata::Clear | HeaderMetadata::MediaTime => {
+                (movie_created, track_created, media_created)
+            }
+        };
         Ok(Self {
             movie_timescale,
             media_timescale,
@@ -564,8 +671,11 @@ impl Header {
             movie_duration,
             edits,
             movie_created,
+            movie_modified,
             track_created,
+            track_modified,
             media_created,
+            media_modified,
             language,
         })
     }

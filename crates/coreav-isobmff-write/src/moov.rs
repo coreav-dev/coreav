@@ -66,9 +66,14 @@ pub(crate) struct CopiedBox<'a> {
 pub(crate) struct TrackBox<'a> {
     pub(crate) track_id: u32,
     pub(crate) media: Media,
+    /// The handler name, up to its first NUL; the generic one
+    /// (`SoundHandler`, `VideoHandler`) for `None`.
+    pub(crate) handler_name: Option<&'a str>,
     pub(crate) header: TrackFlags,
     pub(crate) created: u64,
+    pub(crate) modified: Option<u64>,
     pub(crate) media_created: u64,
+    pub(crate) media_modified: Option<u64>,
     pub(crate) language: [u8; 3],
     pub(crate) media_timescale: u32,
     pub(crate) media_duration: u64,
@@ -90,6 +95,7 @@ pub(crate) struct TrackBox<'a> {
 pub(crate) struct MovieBox<'a> {
     pub(crate) timescale: u32,
     pub(crate) created: u64,
+    pub(crate) modified: Option<u64>,
     pub(crate) duration: u64,
     /// Boxes written at the end of `moov`, such as `udta` and `meta`.
     pub(crate) extra: Vec<CopiedBox<'a>>,
@@ -334,7 +340,10 @@ pub(crate) fn trak<'a>(track: &'a TrackBox<'_>, tables: Vec<Node<'a>>) -> Node<'
             Node::parent(b"stbl", stbl),
         ],
     );
-    let mdia = Node::parent(b"mdia", vec![mdhd(track), hdlr(&track.media), minf]);
+    let mdia = Node::parent(
+        b"mdia",
+        vec![mdhd(track), hdlr(&track.media, track.handler_name), minf],
+    );
     let mut trak = vec![tkhd(track)];
     if !track.edits.is_empty() {
         trak.push(Node::parent(b"edts", vec![elst(&track.edits)]));
@@ -348,18 +357,22 @@ pub(crate) fn trak<'a>(track: &'a TrackBox<'_>, tables: Vec<Node<'a>>) -> Node<'
 /// (14496-12 8.2.2, 8.3.2, 8.4.2).
 fn times(
     created: u64,
+    modified: Option<u64>,
     timescale: Option<u32>,
     track_id: Option<u32>,
     duration: u64,
 ) -> (u8, Vec<u8>) {
-    let wide = u32::try_from(created).is_err() || u32::try_from(duration).is_err();
+    let modified = modified.unwrap_or(created);
+    let wide = u32::try_from(created).is_err()
+        || u32::try_from(modified).is_err()
+        || u32::try_from(duration).is_err();
     let put = |out: &mut Vec<u8>, value: u64| match u32::try_from(value) {
         Ok(compact) if !wide => out.extend_from_slice(&compact.to_be_bytes()),
         _ => out.extend_from_slice(&value.to_be_bytes()),
     };
     let mut out = Vec::with_capacity(32);
     put(&mut out, created);
-    put(&mut out, created);
+    put(&mut out, modified);
     if let Some(timescale) = timescale {
         out.extend_from_slice(&timescale.to_be_bytes());
     }
@@ -376,7 +389,13 @@ fn matrix(values: &[i32; 9]) -> Vec<u8> {
 }
 
 pub(crate) fn mvhd(movie: &MovieBox<'_>, next_id: u32) -> Node<'static> {
-    let (version, mut payload) = times(movie.created, Some(movie.timescale), None, movie.duration);
+    let (version, mut payload) = times(
+        movie.created,
+        movie.modified,
+        Some(movie.timescale),
+        None,
+        movie.duration,
+    );
     payload.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // rate 1.0
     payload.extend_from_slice(&0x0100u16.to_be_bytes()); // volume 1.0
     payload.extend_from_slice(&[0; 10]);
@@ -387,7 +406,13 @@ pub(crate) fn mvhd(movie: &MovieBox<'_>, next_id: u32) -> Node<'static> {
 }
 
 fn tkhd(track: &TrackBox<'_>) -> Node<'static> {
-    let (version, mut payload) = times(track.created, None, Some(track.track_id), track.duration);
+    let (version, mut payload) = times(
+        track.created,
+        track.modified,
+        None,
+        Some(track.track_id),
+        track.duration,
+    );
     payload.extend_from_slice(&[0; 8]);
     let header = track.header;
     payload.extend_from_slice(&header.layer.to_be_bytes());
@@ -432,6 +457,7 @@ fn elst(edits: &[EditEntry]) -> Node<'static> {
 fn mdhd(track: &TrackBox<'_>) -> Node<'static> {
     let (version, mut payload) = times(
         track.media_created,
+        track.media_modified,
         Some(track.media_timescale),
         None,
         track.media_duration,
@@ -445,15 +471,22 @@ fn mdhd(track: &TrackBox<'_>) -> Node<'static> {
     Node::full(b"mdhd", version, 0, &payload)
 }
 
-fn hdlr(media: &Media) -> Node<'static> {
-    let (kind, name): (&[u8; 4], &[u8]) = match media {
-        Media::Video { .. } => (b"vide", b"VideoHandler\0"),
-        Media::Audio => (b"soun", b"SoundHandler\0"),
+/// The handler box: the name is a null-terminated UTF-8 string (ISO/IEC
+/// 14496-12 8.4.3.3).
+fn hdlr(media: &Media, name: Option<&str>) -> Node<'static> {
+    let (kind, generic) = match media {
+        Media::Video { .. } => (b"vide", "VideoHandler"),
+        Media::Audio => (b"soun", "SoundHandler"),
     };
+    let name = name
+        .and_then(|n| n.split('\0').next())
+        .filter(|n| !n.is_empty())
+        .unwrap_or(generic);
     let mut payload = vec![0; 4];
     payload.extend_from_slice(kind);
     payload.extend_from_slice(&[0; 12]);
-    payload.extend_from_slice(name);
+    payload.extend_from_slice(name.as_bytes());
+    payload.push(0);
     Node::full(b"hdlr", 0, 0, &payload)
 }
 

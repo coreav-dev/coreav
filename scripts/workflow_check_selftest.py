@@ -370,16 +370,70 @@ class Repository(unittest.TestCase):
                    'does not start it: add it to the `paths` of `pull_request`')
         for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
                       ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -e -- -x scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "bash -n scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: |', "    echo done # it's scripts/install-oracle-ffmpeg.sh /opt/bin"],
+                      ["- run: bash -c 'set -e; bash -n scripts/install-oracle-ffmpeg.sh'"],
+                      ['- run: echo "scripts/install-oracle-ffmpeg.sh; x"'],
+                      ['- run: echo "oops scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "echo scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -O scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: sh -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -n +o pipefail scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --rcfile scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --version scripts/install-oracle-ffmpeg.sh'],
                       ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [])
         for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
                       ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e -- scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: "bash -e scripts/install-oracle-ffmpeg.sh /opt/bin"'],
+                      ["- run: 'bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: "bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\'"'],
+                      ['- run: |', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: >', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ['- run: sh -c "./scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -c -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -cs \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ["- run: bash -c 'set -e; scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ["- run: bash -c 'set -e; bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: cd /tmp && scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', "    scripts/install-oracle-ffmpeg.sh /opt/bin # don't skip it"],
+                      ['- run: echo a#b; scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -n +n scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -o noexec +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash --rcfile /dev/null scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [missing])
+
+    def test_trigger_filters_are_read_from_the_yaml_nodes(self):
+        text = ('on:\n  push:\n    paths:\n      # a note\n      - "scripts/install-oracle-ffmpeg.sh"\n'
+                "      - 'scripts/oracle-ffmpeg.env'\n  pull_request:\n    paths-ignore: [ 'docs/**',\n"
+                '      "x" ]\n    paths:\n      - *pins\njobs: {}\n')
+        self.assertEqual(check.trigger_filters(text.replace('      - *pins\n', '      - y\n')), [
+            ('push', 'paths', ['scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env']),
+            ('pull_request', 'paths', ['y']),
+            ('pull_request', 'paths-ignore', ['docs/**', 'x'])])
+        self.assertIsInstance(check.trigger_filters(text), str)
+        self.assertEqual(check.trigger_filters('on:\n  push:\n    paths: scripts/x\njobs: {}\n'), [('push', 'paths', None)])
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

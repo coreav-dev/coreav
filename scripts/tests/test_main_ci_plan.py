@@ -114,7 +114,7 @@ class MainPlan(unittest.TestCase):
         self.assertEqual(checked, 4320)
         self.assertEqual(len(failures), 0, f'{len(failures)} lost-work orderings; first: {failures[:1]}')
 
-    def plan(self, event, reused, code=True, h264=True):
+    def plan(self, event, reused, code=True, h264=True, oracle_installer=False):
         plans = {}
         for name, workflow in self.workflows.items():
             github = {'event_name': event, 'ref': 'refs/heads/main', 'run_id': '17', 'workflow': name,
@@ -122,7 +122,8 @@ class MainPlan(unittest.TestCase):
                       'head': {'repo': {'full_name': 'owner/repo'}}}}}
             steps = {key: {'outputs': {'run': 'true' if selected else 'false'}}
                      for key, selected in (('filter', code), ('platforms', code),
-                                            ('h264-conformance', h264), ('bench-guard', code))}
+                                            ('h264-conformance', h264), ('bench-guard', code),
+                                            ('oracle-installer', oracle_installer))}
             steps['result'] = {'outputs': {'reuse': 'true' if reused else 'false'}}
             steps['fuzz-plan'] = {'outputs': {'plan': ''}}
             context = {'github': github, 'steps': steps, 'needs': {}}
@@ -154,6 +155,19 @@ class MainPlan(unittest.TestCase):
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
         self.assertEqual(set(plan['deny']), {'deny'})
         self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 11)
+
+    def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):
+        for event, reused in (('pull_request', False), ('merge_group', False),
+                              ('push', False), ('push', True)):
+            with self.subTest(event=event, reused=reused):
+                ci = self.plan(event, reused, h264=False, oracle_installer=True)['ci']
+                self.assertEqual('modes-identity' in ci, not reused)
+                for job in ('conformance', 'conformance-arm64', 'training-identity',
+                            'kernels-arm64', 'vector-width'):
+                    self.assertNotIn(job, ci)
+                if reused:
+                    self.assertEqual(set(ci), {'ci-changes', 'ci-report', 'bench-guard',
+                                               'isobmff-fixture-set', 'main-cache'})
 
     def test_unproven_main_and_merge_groups_do_not_skip_the_suite(self):
         main = self.plan('push', False)

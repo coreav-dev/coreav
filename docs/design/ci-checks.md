@@ -31,7 +31,7 @@ and from the path filters an earlier change put on the heavy workflows:
   has to run; every other job carries `needs:` on it and an `if:` on its
   output, next to whatever condition it had. In `ci.yml` that job is
   `ci-changes`, and it gives one output per group of jobs (`run`,
-  `h264-conformance`, `bench-guard`; "One changes job" below);
+  `h264-conformance`, `oracle-installer`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
 - **Each required workflow ends in a report job** (`ci-report`,
   `python-report`, `npm-report`), which carries `if: always()`, waits for
@@ -164,6 +164,22 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## JavaScript package changes
+
+Changes confined to `packages/wasm/**` do not select the Rust suite or
+the native npm and Python packaging jobs. The npm and Python filters name
+`packages/cli/**`, whose build tools they consume, rather than every
+JavaScript package. Rust crate changes still select Rust CI, including
+`crates/coreav-wasm/**`; `Cargo.lock`, the CLI and Python crates, policy
+examples and the shared filter still select their existing checks.
+
+These are job-level filters. Required report jobs still run, merge groups
+use their complete base-to-group diff, and unknown or unreadable diffs,
+manual runs and scheduled runs still select validation. A rename that
+touches the CLI package in either direction also selects its checks.
+`.github/actions/changed-paths/tests/test_package_filters.py` exercises the
+actual workflow lists with these inputs. This separation adds no jobs.
+
 ## The platform jobs
 
 `check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.
@@ -183,7 +199,12 @@ checked out the repository and diffed the same two commits. Now
 `ci-changes` runs the changed-paths action once per filter list, in one
 job, and the moved jobs read its outputs: `run` for the three fixture
 oracles, whose list was the same as `ci.yml`'s, and `h264-conformance`
-and `bench-guard` for the two that had their own. The fuzz job's list of
+and `bench-guard` for the two that had their own. `oracle-installer` is a
+list of one path, `scripts/install-oracle-ffmpeg.sh`, which only
+`modes-identity` reads beside `h264-conformance`: the group's other jobs do
+not run the installer. On a reused main push, `oracle-installer` and
+`h264-conformance` are both false: the merge group already ran their proof.
+The fuzz job's list of
 targets is its `fuzz-plan` output, which a job of its own,
 `fuzz-changes`, used to compute. The job ids did not
 change, so neither did a required check name: the ruleset matches a check
@@ -219,7 +240,7 @@ Current comparisons use FFmpeg 9.0.2, the build in `scripts/oracle-ffmpeg.env`. 
 
 Every oracle audio decode reads the input options in `scripts/oracle-audio-args.txt`, through `oracle_audio.INPUT_ARGS` in Python, directly in shell, and through `include_str!` in Rust tests. The options go before the input, after any general decoder-thread option. They select one audio decoding thread without changing video decoding or output encoding threads. FFmpeg 9.0.2's frame-threaded FLAC and ALAC decoders apply a start skip longer than the first frame several frames late. In the reproduced FLAC clip starting at 0.6 s, the first 4,096 samples are 128 samples early and 128 samples are dropped after them. One decoding thread gives the source's samples; FFmpeg 7.0.2 gives them on any thread count. This is an oracle execution constraint, not an acceptance-rule or threshold change. The clip, split and join checks share the clip audio reader. Audio extraction hashes decoded PCM frames, not copied packets, and its frame reader uses the shared input options too. The HLS, audio-decode and AAC comparisons, the audio-capable Matroska hash helper, and the mixed audio/video shell frame oracle use the same options. Remux and sanitize explicitly select `-c copy` for packet hashes; transcode compares copied audio packets and decodes only video. The compat and corpus runners reuse these checkers. `scripts/oracle_pin.py --check` checks audio command ownership and names the shared arguments when a new path bypasses them. It recognizes explicit copy codecs rather than allowing packet-copy exemptions. Its tests exercise the commands and reject missing input options, and the real FLAC/ALAC edit-list regression checks extraction as well as the clip reader.
 
-The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The publisher's `releases` area is tried three times, since it can answer 200 with a short page that is not the archive; `old-releases` follows, and the bench bucket's copy last, for a host with R2 credentials (no workflow passes them). Every source is checked against the same SHA-256. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
+The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The publisher's `releases` area is tried three times, since it can answer 200 with a short page that is not the archive; `old-releases` follows, and the corpus bucket's copy last, for a host with R2 credentials and bucket (the training job passes the corpus credentials and `COREAV_CORPUS_R2_BUCKET` to this step, a step of its own; the package install after it does not see them). Every source is checked against the same SHA-256. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
 
 ## The fixture jobs
 
@@ -463,6 +484,8 @@ None of them adds a required check name, so the table below is unchanged.
 ## The 0.1.0 compatibility round
 
 `compat-0.1.0.yml` runs R2 and R3 of the 0.1.0 round (`docs/measurements/compat-0.1.0/README.md`) by hand, at a commit given as input, on spent files (`rehearsal`) or on draw 6 (`draw6`, which also needs `open_draw`), split over four runners. The R2 and R3 shards receive the corpus credentials only in their fetch steps. The R4 rehearsal and scan steps combine fetching with tool execution and retain those read-only credentials in their environment. It publishes counts only, in its job summary and the `compat-0.1.0-summary` artifact; the per-file records are sealed to `tools/compat-corpus/evidence-public.pem` before they leave a runner, because an artifact of a public repository is readable by anyone. A pull request that changes the workflow runs the rehearsal, which also runs the R4 host's job on a runner (`scripts/compat_r4_gcp.py --local`) and scans which R4 pairs of the gate's and the rehearsal's files write to the fallback log (`tools/compat-corpus/r4_scan.py`): any such line voids R4, so the scan names, before the round, the commands and files that would void it. It is not required (`# workflow-check: not required`): it is a measurement, not a gate. R1 runs as a step of the three fixture jobs in `ci.yml` (`isobmff-fixtures`, `mkv-fixtures`, `ts-fixtures`), `run.py commands --set 0.1.0` with no baseline; its verdict goes to their job summaries and its report to their artifacts, and a miss or a void run does not fail them, so a change of the oracle's output is reported there without blocking unrelated pull requests; a run that measured nothing fails them. The workflow's report step likewise takes a miss or a void run as a result and fails on a run that measured nothing.
+
+`codec-coverage.yml` runs V1, V2 and V3 of the 0.1.0 codec coverage bars (`docs/measurements/compat-0.1.0/codec-coverage-plan.md`) by hand, at a commit given as input, on the rehearsal's 40 files of corpus v1 (`rehearsal`) or on every `real` file of corpus v1 (`v1`). It builds the plan's run manifest once (the full build's `coreav`, `decode-oracle` linked against the same static dav1d and libvpx, the `ffmpeg` test executable with `release-full`, and x264), runs V1 over 40 runners for `v1` and 4 for `rehearsal`, and runs V2 and V3 in one job on the fixtures the pinned FFmpeg makes. A V1 shard fetches each file when its turn comes and deletes it after its record, because a shard's files do not fit a runner's disk at once, so the corpus store's read-only credentials stay in that step's environment; `decode_breadth.py` passes none of them to the programs it runs on the files. V1's per-file records are sealed to `tools/compat-corpus/evidence-public.pem` before they leave a runner, and a runner refuses to seal to a key whose fingerprint is not the one the workflow names. A shard stops starting files, and stops the sides still running, at a deadline before the job's limit, so that its records are sealed; those files, and those of a shard that reported nothing, run again on one Compute Engine VM (`scripts/codec_coverage_gcp.py rerun`). The report job puts the manifest together and fails when an item differs from the plan's table. A pull request that changes the workflow or the tools runs V2 and V3 on the fixtures and V1's tests on the decode fixtures they make, and reads no corpus file. It is not required (`# workflow-check: not required`): it is a measurement, not a gate.
 
 ## Labels
 
