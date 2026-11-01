@@ -1137,14 +1137,16 @@ fn chapters<S: Source>(
                     }
                     ControlFlow::Continue(())
                 }
-                Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
-                    ControlFlow::Break(error)
-                }
+                Err(coreav_text::TextError::Source(
+                    error @ (Error::Io(_) | Error::LimitExceeded { .. }),
+                )) => ControlFlow::Break(error),
                 Err(_) => ControlFlow::Continue(()),
             }
         });
     if let Ok(ControlFlow::Break(error))
-    | Err(coreav_text::TextError::Source(error @ Error::Io(_))) = read
+    | Err(coreav_text::TextError::Source(
+        error @ (Error::Io(_) | Error::LimitExceeded { .. }),
+    )) = read
     {
         return Err(Failure::library(error));
     }

@@ -12,6 +12,8 @@
 mod common;
 #[path = "../../coreav-mkv/tests/common/mod.rs"]
 mod mkv;
+#[path = "../../coreav-isobmff/tests/common/text_movie.rs"]
+mod text_movie;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
@@ -57,6 +59,72 @@ fn transport_stream() -> Fixture {
         mux.pes(pid, 0xC0, 90_000 + n * 1920, &ts::adts(100), true);
     }
     fixture(mux.out)
+}
+
+fn chapter_movie(sample: Vec<u8>) -> Fixture {
+    let chapters = text_movie::TrackSpec::qt_text(2, vec![(sample, 1000)]);
+    let video = text_movie::TrackSpec {
+        chap: vec![chapters.id],
+        ..text_movie::TrackSpec::video(1, &[1000, 1000])
+    };
+    fixture(text_movie::movie(&[video, chapters]))
+}
+
+#[test]
+fn a_limit_the_chapter_track_exceeds_fails_the_probe() {
+    let bytes = chapter_movie(text_movie::text_sample(&[b'a'; 200], &[]));
+    assert_eq!(
+        probe_limited(bytes, &Limits::default())
+            .ok()
+            .unwrap()
+            .report
+            .chapters
+            .len(),
+        1
+    );
+    let limits = Limits {
+        max_packet_bytes: 100,
+        ..Limits::default()
+    };
+    match probe_limited(bytes, &limits) {
+        Err(Failure::Library(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::PacketBytes,
+            ..
+        })) => {}
+        Err(error) => panic!("unexpected failure: {}", error.to_json()),
+        Ok(probed) => panic!(
+            "expected a chapter limit error, got {} chapters",
+            probed.report.chapters.len()
+        ),
+    }
+}
+
+#[test]
+fn a_chapter_track_over_the_text_limits_is_still_left_out() {
+    let text_limits = coreav_text::TextLimits::default();
+    let sample = text_movie::text_sample(
+        b"chapter",
+        &[text_movie::bx(
+            b"free",
+            &vec![0; text_limits.max_sample_bytes as usize],
+        )],
+    );
+    let bytes = chapter_movie(sample);
+    assert!(matches!(
+        coreav_text::read_chapters(SliceSource::new(bytes), &Limits::default(), &text_limits),
+        Err(coreav_text::TextError::LimitExceeded {
+            limit: coreav_text::TextLimitKind::SampleBytes,
+            ..
+        })
+    ));
+    assert!(
+        probe_limited(bytes, &Limits::default())
+            .ok()
+            .unwrap()
+            .report
+            .chapters
+            .is_empty()
+    );
 }
 
 #[test]

@@ -1025,6 +1025,12 @@ builders accept explicit limits so the WebAssembly table limit stays
 64 MiB, with the caller's overrides, rather than silently becoming the
 native CLI's 256 MiB.
 
+An ISO chapter read that hits a source I/O error or a caller's parser
+limit fails the probe, including the WebAssembly operation, rather than
+returning partial chapters or substituting the Nero list. A malformed or
+unsupported chapter track, or one over the text reader's own title and
+sample limits, is still left out.
+
 The replacement is not the old document with a different command name.
 `coreav ffprobe` lists streams the old flag dropped and takes some values
 from the stream rather than the container. It also prints more keys.

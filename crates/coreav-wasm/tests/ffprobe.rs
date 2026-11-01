@@ -13,6 +13,8 @@
 mod common;
 #[path = "../../coreav-mkv/tests/common/mod.rs"]
 mod mkv;
+#[path = "../../coreav-isobmff/tests/common/text_movie.rs"]
+mod text_movie;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
@@ -115,6 +117,26 @@ fn ffprobe_lists_the_streams_of_the_movie() {
     assert_eq!(streams[0]["index"], 0);
     assert_eq!(streams[1]["codec_name"], "aac");
     assert!(value["format"]["format_name"].is_string());
+}
+
+#[test]
+fn ffprobe_refuses_a_chapter_track_over_the_callers_limit() {
+    let chapters =
+        text_movie::TrackSpec::qt_text(2, vec![(text_movie::text_sample(&[b'a'; 200], &[]), 1000)]);
+    let video = text_movie::TrackSpec {
+        chap: vec![chapters.id],
+        ..text_movie::TrackSpec::video(1, &[1000, 1000])
+    };
+    let bytes = text_movie::movie(&[video, chapters]);
+    assert!(document("ffprobe", &bytes, "{}").is_ok());
+    assert_eq!(
+        error_kind(document(
+            "ffprobe",
+            &bytes,
+            r#"{"limits":{"maxPacketBytes":100}}"#,
+        )),
+        "limit"
+    );
 }
 
 #[test]
