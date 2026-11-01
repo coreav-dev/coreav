@@ -1,7 +1,7 @@
 # Known divergences: `coreav ffprobe` versus `ffprobe` 9.0.2 on the fixtures
 
 The fixture entries below also describe historical output that has since
-been corrected. Matching values need no exception. The corpus notes at
+been corrected. Matching values need no exception. The limitation notes at
 the end of this page are not fixture exceptions and do not turn a failed
 key comparison into agreement.
 
@@ -269,10 +269,11 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   and require removal of the obsolete exception. Other files, including
   corpus files, do not use it.
 
-## Corpus differences not set aside
+## Differences and limitations not set aside
 
-These notes explain remaining differences in `run.py keys`. They do not
-mask them, and the measured agreement rates still count them as failures.
+These notes describe remaining corpus differences and constructed cases
+that expose CoreAV limitations. They do not mask differences in
+`run.py keys`, and the measured agreement rates still count them as failures.
 
 - **EPG packets.** An EIT transport packet can finish several sections
   (ETSI EN 300 468 5.2.4; ISO/IEC 13818-1 2.4.4.2). CoreAV lists every
@@ -289,6 +290,23 @@ mask them, and the measured agreement rates still count them as failures.
   layout unknown where the configuration cannot establish them, rather
   than assuming that a mono core stays mono. Without a stored audio
   configuration, MIME strings depend on the same profile information.
+- **AAC SBR suffix false positives.** In the MPEG-TS `coreav ffprobe`
+  listing, a plain AAC LC frame's data payload can end with bytes that
+  look like an SBR extension. The suffix scan does not establish that
+  these bytes begin an actual SBR fill element. Repeated matching payloads
+  can therefore make CoreAV report HE-AAC and double the sample rate.
+  This affects the ADTS path on main and the LATM path in
+  coreav-dev/coreav#153, which uses the same scan after extracting the
+  raw AAC block from LOAS.
+  The [reviewer's constructed case in coreav-dev/coreav#162](https://github.com/coreav-dev/coreav/pull/162#issuecomment-6547397871)
+  uses mono LC configuration `13 88` and raw block
+  `00 00 00 04 00 1b 16 80 07`: a silent single-channel element, a data
+  stream element with three payload bytes, and `ID_END`, with no SBR fill
+  element. The native LC decoder produces 1,024 silent samples, but the
+  scan matches; repeating the block in 16 frames makes the rate decision
+  select 44,100 Hz instead of 22,050 Hz. This false positive has been
+  reproduced only on a constructed stream. It is a CoreAV limitation,
+  not an oracle error, and cannot exclude any B3a comparison.
 - **AAC average bit rates.** Neither ADTS nor LATM states an average bit
   rate for a variable-sized stream. CoreAV averages the frames its bounded
   head read sees; FFmpeg's analysis can stop at a different frame. These
