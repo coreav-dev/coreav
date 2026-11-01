@@ -10,7 +10,7 @@
 use coreav_cli::clip::{ClipFailure, parse_time};
 use coreav_cli::error::Failure as CliFailure;
 use coreav_cli::output::WriteFailure;
-use coreav_cli::{check, compat, extract, matroska, names, native, remux, text};
+use coreav_cli::{check, extract, ffprobe, matroska, names, native, remux, text};
 use coreav_isobmff::{Allowlist, Limits, Rational, SliceSource, Source};
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, MAX_SOURCE_TAG, Resource, build_index};
 use coreav_isobmff_write::{
@@ -33,8 +33,12 @@ pub const WRITE_CHUNK: usize = 256 << 10;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
     /// `probe`: the `coreav.probe/1` document (or `coreav.probe-matroska/1`
-    /// for Matroska and WebM), or the `--ffprobe-compat` shape.
+    /// for Matroska and WebM).
     Probe,
+    /// `ffprobe`: the text `coreav ffprobe -of json -show_format
+    /// -show_streams` prints, under the same limits as the other
+    /// operations.
+    Ffprobe,
     /// `check`: the `coreav.verdict/1` verdict of a `coreav.policy/1`
     /// policy (`coreav check`).
     Check,
@@ -63,6 +67,7 @@ impl Operation {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "probe" => Some(Self::Probe),
+            "ffprobe" => Some(Self::Ffprobe),
             "check" => Some(Self::Check),
             "chapters" => Some(Self::Chapters),
             "extractAudio" => Some(Self::ExtractAudio),
@@ -78,7 +83,10 @@ impl Operation {
 
     /// Whether the operation writes an output stream.
     pub fn writes_output(self) -> bool {
-        !matches!(self, Self::Probe | Self::Check | Self::Chapters)
+        !matches!(
+            self,
+            Self::Probe | Self::Ffprobe | Self::Check | Self::Chapters
+        )
     }
 }
 
@@ -241,15 +249,20 @@ struct ProbeOptions {
     #[serde(default)]
     strict: bool,
     limits: Option<LimitOverrides>,
-    /// `native` (default) or `ffprobe-compat`.
-    format: Option<String>,
-    /// As `--scan-fragments` and `--no-scan-fragments`; the default follows
-    /// the format, as in the command.
+    /// As `--scan-fragments` and `--no-scan-fragments`; off when absent.
     scan_fragments: Option<bool>,
     /// As `--scan-frame-sizes`.
     #[serde(default)]
     scan_frame_sizes: bool,
-    /// The `format.filename` of the compat shape.
+}
+
+/// `ffprobe` options: the command's `-of json -show_format -show_streams`
+/// takes no others.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FfprobeOptions {
+    limits: Option<LimitOverrides>,
+    /// The `format.filename`; `-` when absent.
     filename: Option<String>,
 }
 
@@ -383,13 +396,14 @@ fn parse<'a, T: Deserialize<'a>>(options: &'a str) -> Result<T, Failure> {
 /// Runs an operation that returns a document only.
 pub fn run_document<S: Source>(name: &str, source: S, options: &str) -> Result<String, Failure> {
     let document = match Operation::from_name(name) {
-        Some(Operation::Probe) => probe_document(source, &parse(options)?)?,
-        Some(Operation::Check) => check_document(source, &parse(options)?)?,
-        Some(Operation::Chapters) => chapters_document(source, &parse(options)?)?,
+        Some(Operation::Probe) => probe_document(source, &parse(options)?)?.to_string(),
+        Some(Operation::Ffprobe) => ffprobe_document(source, &parse(options)?)?,
+        Some(Operation::Check) => check_document(source, &parse(options)?)?.to_string(),
+        Some(Operation::Chapters) => chapters_document(source, &parse(options)?)?.to_string(),
         Some(_) => return Err(Failure::usage(format!("{name} writes an output stream"))),
         None => return Err(Failure::usage(format!("unknown operation {name}"))),
     };
-    Ok(document.to_string())
+    Ok(document)
 }
 
 /// Runs an operation that writes an output stream to `out` and returns its
@@ -410,7 +424,7 @@ pub fn run_stream<S: Source, W: Write>(
         Some(Operation::ExtractSubtitles) => subtitles_document(source, &parse(options)?, out)?,
         Some(Operation::Remux) => remux_document(source, &parse(options)?, false, out)?,
         Some(Operation::Sanitize) => remux_document(source, &parse(options)?, true, out)?,
-        Some(Operation::Probe | Operation::Check | Operation::Chapters) => {
+        Some(Operation::Probe | Operation::Ffprobe | Operation::Check | Operation::Chapters) => {
             return Err(Failure::usage(format!("{name} writes no output stream")));
         }
         None => return Err(Failure::usage(format!("unknown operation {name}"))),
@@ -448,44 +462,38 @@ fn is_matroska<S: Source>(source: &mut S) -> Result<bool, Failure> {
 }
 
 fn probe_document<S: Source>(mut source: S, options: &ProbeOptions) -> Result<Value, Failure> {
-    let compat = match options.format.as_deref() {
-        None | Some("native") => false,
-        Some("ffprobe-compat") => true,
-        Some(other) => {
-            return Err(Failure::usage(format!(
-                "unknown format '{other}'; known: native, ffprobe-compat"
-            )));
-        }
-    };
     let (allowlist, mkv_allowlist) = common!(options).allowlists()?;
     let limits = common!(options).limits();
-    let filename = options.filename.as_deref().unwrap_or("-");
     let size = source.len().map_err(CliFailure::library)?;
     if is_matroska(&mut source)? {
         // As `coreav probe`, which probes Matroska with its library defaults
         // and scans its blocks for `--scan-frame-sizes`.
         let probed =
             matroska::run_source_with(&mut source, size, &mkv_allowlist, options.scan_frame_sizes)?;
-        return Ok(if compat {
-            matroska::compat_document(&probed, filename)
-        } else {
-            matroska::document(&probed)
-        });
+        return Ok(matroska::document(&probed));
     }
-    let scan = options.scan_fragments.unwrap_or(compat);
     let probed = coreav_cli::probe::run_source_limited(
         &mut source,
         size,
         &allowlist,
-        scan,
+        options.scan_fragments.unwrap_or(false),
         options.scan_frame_sizes,
         &limits,
     )?;
-    Ok(if compat {
-        compat::document(&probed, filename)
-    } else {
-        native::document(&probed)
-    })
+    Ok(native::document(&probed))
+}
+
+fn ffprobe_document<S: Source>(mut source: S, options: &FfprobeOptions) -> Result<String, Failure> {
+    let command = ["-of", "json", "-show_format", "-show_streams", "input"].map(str::to_owned);
+    let command = ffprobe::args::parse(&command)
+        .map_err(|_| Failure::usage("the ffprobe command line was refused"))?;
+    let size = source.len().map_err(CliFailure::library)?;
+    let filename = options.filename.as_deref().unwrap_or("-");
+    let limits = edge_limits_with(options.limits);
+    let mut probed = ffprobe::probe_limited(&mut source, size, filename, None, &limits)?;
+    let mut text = Vec::new();
+    ffprobe::emit(&command, &mut probed, &mut text)?;
+    Ok(String::from_utf8_lossy(&text).into_owned())
 }
 
 fn check_document<S: Source>(mut source: S, options: &CheckOptions) -> Result<Value, Failure> {
@@ -850,7 +858,8 @@ mod tests {
         let empty = SliceSource::new(b"");
         assert!(usage(run_document("probe", empty, r#"{"bogus": 1}"#)).contains("bogus"));
         assert!(usage(run_document("probe", empty, r#"{"allow": ["nope"]}"#)).contains("nope"));
-        assert!(usage(run_document("probe", empty, r#"{"format": "xml"}"#)).contains("xml"));
+        assert!(usage(run_document("probe", empty, r#"{"format": "xml"}"#)).contains("format"));
+        assert!(usage(run_document("ffprobe", empty, r#"{"bogus": 1}"#)).contains("bogus"));
         assert!(usage(run_document("clip", empty, "{}")).contains("output stream"));
         assert!(usage(run_document("transcode", empty, "{}")).contains("unknown"));
         let mut out = Vec::new();
@@ -868,6 +877,7 @@ mod tests {
             .contains("audio")
         );
         assert!(usage(run_stream("probe", empty, "{}", &mut out)).contains("no output"));
+        assert!(usage(run_stream("ffprobe", empty, "{}", &mut out)).contains("no output"));
         assert!(out.is_empty());
     }
 

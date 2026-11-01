@@ -72,7 +72,7 @@ may be negative or above 2^33 (`docs/design/mpegts.md`, "Timestamps").
 | `start` | time or `null` | Its first presentation timestamp. |
 | `duration` | time or `null` | From that timestamp to the end of its last access unit, read from the tail of the file: an audio unit ends its frame header's duration after its time, a video unit the smallest step between presentation times later, and any other unit (a subtitle, a metadata identifier, a codec this reader cannot name) no time at all, because the step between such units is not a duration. This is the value `ffprobe` reports as `duration_ts`; where its own estimate leaves the last unit out, the difference is the documented divergence KD-TS-END-ESTIMATE. |
 | `scan` | object or `null` | With `--scan-frame-sizes`: what the packet listing counted, `null` without it. The listing's own counts, not a second duration estimate. `packets`: access units listed (one per PES packet for video and data streams, one per frame for audio whose frames carry their length). `bytes`: their bytes together. `first_pts`, `last_pts`: time or `null`, the earliest and latest presentation timestamps listed. `span`: time or `null`, `last_pts` minus `first_pts`, one access unit short of `duration`. `bit_rate`: bit rate or `null`, `bytes` × 8 ÷ the stream's `duration` (not ÷ `span`, which ends where the last unit starts), as in `coreav.probe/1`. A listing stopped by the file's structure or a limit keeps the units read before it, and says so in the top-level `warnings`. |
-| `video` | object or `null` | Video streams: `width`, `height` from the parameter sets or sequence header, and `color` (`primaries`, `transfer`, `matrix`: ITU-T H.273 code points; `full_range`: boolean) from the same. `null` for a video stream whose parameters the probe never read (a scrambled stream, or an MVC video sub-bitstream, whose subset parameter sets give no size), where `--ffprobe-compat` prints 0 by 0 as `ffprobe` does. Also present for a presentation graphics subtitle, whose presentation composition segment states the picture it is composed on; that is the stream's own size, not the video stream's. |
+| `video` | object or `null` | Video streams: `width`, `height` from the parameter sets or sequence header, and `color` (`primaries`, `transfer`, `matrix`: ITU-T H.273 code points; `full_range`: boolean) from the same. `null` for a video stream whose parameters the probe never read (a scrambled stream, or an MVC video sub-bitstream, whose subset parameter sets give no size), where `coreav ffprobe` prints 0 by 0 as `ffprobe` does. Also present for a presentation graphics subtitle, whose presentation composition segment states the picture it is composed on; that is the stream's own size, not the video stream's. |
 | `audio` | object or `null` | Audio streams, from the first frame header: `sample_rate`, `channels` (`null` when the header leaves them to the payload), `detail` (the AAC audio object type, the MPEG audio layer, 0 for AC-3 or 1 for E-AC-3). |
 
 ## `--scan-frame-sizes`
@@ -85,25 +85,16 @@ probe reads is invisible without it. It does not produce
 which `coreav.probe/1` and `coreav.probe-matroska/1` have: the picture sizes
 come from the parameter sets the probe already reads.
 
-## `--ffprobe-compat`
+## ffprobe-compatible output
 
-The keys of `coreav.probe/1`'s compat output, with transport stream values,
-and `id`, the stream's PID as `ffprobe` prints it (`0x1e1`), which names
-the same stream whatever order the two readers list the streams in:
-`format_name` `mpegts`; `time_base` `1/90000`; `codec_tag_string` the
-registration descriptor's format identifier, else the stream type, as a
-little-endian four-character code with each unprintable byte as `[n]`
-(`av_fourcc_make_string`), and `codec_tag` the same four bytes as a
-little-endian number with at least four hexadecimal digits; `duration_ts`
-and `duration` the stream's `duration` above; `nb_streams` counts dropped
-streams, so `index` keeps `ffprobe`'s numbering; `tags.language` the
-language descriptor's code, left out when there is none or it is `und`. No
-`sample_aspect_ratio`, `display_aspect_ratio` or `side_data_list`: a
-transport stream carries no display size or rotation of its own.
+Use `coreav ffprobe -of json -show_format -show_streams`.
+This is a separate output contract, described in
+[`docs/design/compat-cli.md`](../design/compat-cli.md), not a mode of the
+native probe schema.
 
 ### Stream order, and `-map` for a file of several programs
 
-The streams are in the order above for both documents, the order in which
+The native probe and `coreav ffprobe` streams follow the order above, in which
 `ffprobe` numbers them, so `stream_index` (and `index` when no stream is
 dropped) is `ffprobe`'s index and `ffmpeg -map 0:N` names the same stream
 on both sides, for a file of several programs too. ISO/IEC 13818-1 2.4.4

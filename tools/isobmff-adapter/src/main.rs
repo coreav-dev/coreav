@@ -225,7 +225,7 @@ fn codec_name(track: &Track) -> Option<String> {
 /// the box's range, else the parameter set's; an unsignalled range is
 /// limited for HEVC with a parameter set (ITU-T H.265 E.3.1:
 /// `video_full_range_flag` inferred 0) and for ProRes; other codecs take
-/// the box. `coreav probe --ffprobe-compat`
+/// the box. `coreav ffprobe -of json -show_format -show_streams`
 /// (`crates/coreav-cli/src/compat.rs`) reports the same.
 fn reported_color(track: &Track) -> Color {
     let d = &track.description;

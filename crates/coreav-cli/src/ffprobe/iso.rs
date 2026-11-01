@@ -310,8 +310,9 @@ pub struct IsoProbed {
     /// Per track, what the packet listing takes from its stream's entries.
     pub ends: Vec<Listed>,
     /// Per track, how far decode times are moved back so that no
-    /// composition offset is negative.
-    pub shifts: Vec<i64>,
+    /// composition offset is negative. A source I/O or limit error is
+    /// returned by the packet listing, not the report.
+    pub shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// Per track, the decode step of its first samples.
     pub steps: Vec<Option<i64>>,
     /// The cover pictures' streams: index, position and size of the one
@@ -353,22 +354,33 @@ impl Listed {
 /// composition offset of a `ctts` (ISO/IEC 14496-12 8.6.1.3), read signed
 /// whatever its version (`KD-CTTS`, `KD-CTTS-UNSIGNED`), so that no packet
 /// is presented before it is decoded; 0 when no offset is negative.
-fn dts_shift<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits) -> i64 {
+/// Source I/O and limit errors fail the listing instead of using a partial shift.
+fn dts_shift<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<i64, coreav_isobmff::Error> {
     if track.ctts_signed().is_none() {
-        return 0;
+        return Ok(0);
     }
     let mut budget = Budget::new(limits);
-    let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
-        return 0;
-    };
-    iter.map_while(Result::ok)
-        .map(|p| {
-            let p = signed_offsets(track, p);
-            p.dts.saturating_sub(p.cts)
-        })
-        .max()
-        .unwrap_or(0)
-        .max(0)
+    let mut shift = 0;
+    let scan = movie
+        .packets(track.index, &mut *source, limits, &mut budget)
+        .and_then(|packets| {
+            for packet in packets {
+                let packet = signed_offsets(track, packet?);
+                shift = shift.max(packet.dts.saturating_sub(packet.cts));
+            }
+            Ok(())
+        });
+    match scan {
+        Err(
+            error @ (coreav_isobmff::Error::Io(_) | coreav_isobmff::Error::LimitExceeded { .. }),
+        ) => Err(error),
+        _ => Ok(shift),
+    }
 }
 
 /// A sample of a version 0 `ctts` read unsigned whose offset, read signed
@@ -404,10 +416,21 @@ pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, Strin
 }
 
 /// Probes `source` as ISO base media.
-pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProbed, Failure> {
-    let probed = crate::probe::run_source(&mut *source, size, &Allowlist::listing(), true)?;
+pub fn probe<S: Source>(
+    source: &mut S,
+    size: u64,
+    name: &str,
+    limits: &Limits,
+) -> Result<IsoProbed, Failure> {
+    let probed = crate::probe::run_source_limited(
+        &mut *source,
+        size,
+        &Allowlist::listing(),
+        true,
+        false,
+        limits,
+    )?;
     let movie = &probed.movie;
-    let limits = Limits::default();
     let mut report = Report::default();
     // The iTunes gapless tag gives the AAC priming of a file without an
     // edit list, which `ffprobe` skips as the edit list's (ISO/IEC 14496-12
@@ -423,7 +446,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
     let mut steps = Vec::with_capacity(movie.tracks.len());
     // Tags, dispositions, extradata sizes, chapters and protected entries,
     // as `ffprobe` reads them from the boxes (`iso_meta`).
-    let meta = super::iso_meta::read(movie, &mut *source)?;
+    let meta = super::iso_meta::read(movie, &mut *source, limits)?;
     for (i, original) in movie.tracks.iter().enumerate() {
         // A protected entry is described by the format it wraps, as
         // `ffprobe` reports it.
@@ -433,7 +456,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
             .and_then(Option::as_ref)
             .map(|p| unprotected(original, p));
         let track = unwrapped.as_ref().unwrap_or(original);
-        let mut head = head(movie, track, &mut *source, &limits);
+        let mut head = head(movie, track, &mut *source, limits);
         let skip = if track.kind != TrackKind::Audio {
             0
         } else if let Some(first) = head.first_pts.filter(|p| *p < 0) {
@@ -456,7 +479,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
             }
         }
         priming.push(skip);
-        shifts.push(dts_shift(movie, track, &mut *source, &limits));
+        shifts.push(dts_shift(movie, track, &mut *source, limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
         let mut audio_header = Vec::new();
@@ -478,7 +501,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         // edit, counted from the first sample listed, not the first stored.
         let initial = match track.edit_list {
             coreav_isobmff::EditList::Simple { .. } if track.kind == TrackKind::Audio => {
-                edit_skip(movie, track, gapless, &mut *source, &limits).unwrap_or(0)
+                edit_skip(movie, track, gapless, &mut *source, limits).unwrap_or(0)
             }
             _ => skip,
         };
@@ -585,7 +608,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         movie: probed.movie,
         priming,
         ends,
-        shifts,
+        shifts: shifts.into_iter().collect(),
         steps,
         covers,
         pictures,
@@ -2060,7 +2083,7 @@ pub fn packets<'a, S: Source + 'a>(
     probed: IsoProbedPackets,
     mut source: S,
 ) -> Box<dyn PacketSource + 'a> {
-    let limits = Limits::default();
+    let limits = probed.limits;
     let itunes = probed.movie.itunes_gapless(&mut source).ok().flatten();
     let plans = probed
         .movie
@@ -2109,7 +2132,7 @@ pub fn packets<'a, S: Source + 'a>(
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let shift = probed.shifts.get(i).copied().unwrap_or(0);
+            let shift = probed.shifts.as_ref().ok()?.get(i).copied().unwrap_or(0);
             let step = probed.steps.get(i).copied().flatten();
             if grouping(&probed.movie, t, step).is_some() {
                 return None;
@@ -2138,6 +2161,7 @@ pub fn packets<'a, S: Source + 'a>(
         steps: probed.steps,
         covers: probed.covers,
         pictures: probed.pictures,
+        limits,
     })
 }
 
@@ -3178,13 +3202,15 @@ pub struct IsoProbedPackets {
     /// See [`IsoProbed::ends`].
     pub ends: Vec<Listed>,
     /// See [`IsoProbed::shifts`].
-    pub shifts: Vec<i64>,
+    pub shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// See [`IsoProbed::steps`].
     pub steps: Vec<Option<i64>>,
     /// See [`IsoProbed::covers`].
     pub covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pub pictures: Vec<usize>,
+    /// The limits the probe ran under, which the listing keeps.
+    pub limits: Limits,
 }
 
 /// A track's next packets, each with the duration it is listed with when
@@ -3208,13 +3234,14 @@ struct IsoPackets<S> {
     /// Per track with several edits, its listing.
     spliced: Vec<Option<Spliced>>,
     /// Per track, how far decode times are moved back.
-    shifts: Vec<i64>,
+    shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// Per track, the decode step of its first samples.
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
     covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pictures: Vec<usize>,
+    limits: Limits,
 }
 
 /// One source shared by the iterators of every track, which are advanced
@@ -3245,7 +3272,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
     ) -> Result<(), Failure> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
-        let limits = Limits::default();
+        let limits = self.limits;
+        let shifts = self
+            .shifts
+            .as_ref()
+            .map_err(|error| Failure::library(error.clone()))?;
         for &index in &self.pictures {
             let Some(track) = self.movie.tracks.get(index) else {
                 continue;
@@ -3501,7 +3532,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             let micros = |i: usize, p: &coreav_isobmff::Packet| -> i128 {
                 let ts = i128::from(movie.tracks.get(i).map_or(1, |t| t.timescale.max(1)));
                 let dts = p.presentation_dts.map_or(i128::from(p.dts), |r| r.round());
-                let shift = i128::from(self.shifts.get(i).copied().unwrap_or(0));
+                let shift = i128::from(shifts.get(i).copied().unwrap_or(0));
                 let v = dts.saturating_sub(shift).saturating_mul(1_000_000);
                 let half = ts / 2;
                 if v >= 0 {
@@ -3684,7 +3715,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 dts: p
                     .presentation_dts
                     .and_then(|r| i64::try_from(r.round()).ok())
-                    .and_then(|d| d.checked_sub(self.shifts.get(i).copied().unwrap_or(0))),
+                    .and_then(|d| d.checked_sub(shifts.get(i).copied().unwrap_or(0))),
                 duration,
                 size: u64::from(p.size),
                 pos: Some(p.offset),
@@ -3743,7 +3774,7 @@ mod tests {
             );
             let mut full = Fragmented::new(&[track], fragments);
             let size = full.len().unwrap();
-            let full = probe(&mut full, size, "fragmented.mp4")
+            let full = probe(&mut full, size, "fragmented.mp4", &Limits::default())
                 .unwrap_or_else(|error| panic!("{}", error.to_json()));
             let reported = full.report.streams.first().and_then(|stream| {
                 stream.entries.iter().find_map(|(name, value)| match value {

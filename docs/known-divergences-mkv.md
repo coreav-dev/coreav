@@ -11,7 +11,7 @@ covered. Covered items stay in the denominator and are reported apart from
 direct agreement. Predicates read the two captures, never file names;
 KD-MKV-DECLARED-SIZE and KD-MKV-TAG-LANGUAGE also read the file's EBML
 elements, and `scripts/compat_check.py` applies KD-MKV-TAG-LANGUAGE to the
-`--ffprobe-compat` output, as the stream oracle does not gate it. The
+`coreav ffprobe` output, as the stream oracle does not gate it. The
 oracle is `ffprobe` 7.0.2. The design is in [`design/mkv.md`](design/mkv.md).
 
 ## KD-MKV-DTS
@@ -198,7 +198,7 @@ oracle is `ffprobe` 7.0.2. The design is in [`design/mkv.md`](design/mkv.md).
 
 ## KD-MKV-TAG-LANGUAGE
 
-- Field: `--ffprobe-compat` `tags.language` only. The stream oracle doesn't
+- Field: `coreav ffprobe` `tags.language` only. The stream oracle doesn't
   gate the language, so `scripts/compat_check.py` applies this entry, with
   its evidence read in `scripts/oracle_kd_mkv.py` (`COMPAT_ENTRIES`).
 - When: the segment's `Tags` hold a `SimpleTag` named `LANGUAGE` (in any

@@ -111,7 +111,7 @@ Surfaces:
     derived value that the probe does not print and that hides a rotation
     rule inside a size rule).
 11. **Bit rates.** Overall: file size × 8 ÷ duration, the definition behind
-    the format `bit_rate` of `ffprobe` and `--ffprobe-compat`. Per stream:
+    the format `bit_rate` of `ffprobe` and `coreav ffprobe`. Per stream:
     the probe's exact `bit_rate` (sample bytes × 8 ÷ duration). Peak bit
     rate over a window was left out: it needs every packet size, which
     probe does not keep, and no use case asks for it yet.

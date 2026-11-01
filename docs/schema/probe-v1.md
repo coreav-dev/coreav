@@ -77,53 +77,9 @@ Rules:
 | `offset` | integer or `null` | Byte offset of the offending structure, when known. |
 | `message` | string | Human-readable description. |
 
-## `--ffprobe-compat`
+## ffprobe-compatible output
 
-Prints `{"streams": [...], "format": {...}}` with `ffprobe`'s key names and
-value formats. Only these keys are printed, and a key is left out when its
-value is unknown:
-
-- Stream: `index`, `codec_name`, `profile`, `codec_type`, `codec_tag_string`,
-  `codec_tag`, `width`, `height`, `sample_aspect_ratio`,
-  `display_aspect_ratio`, `color_range`, `color_space`, `color_transfer`,
-  `color_primaries`, `level`, `sample_rate`, `channels`, `time_base`,
-  `duration_ts`, `duration`, `tags.language`, `tags.handler_name`, and
-  `side_data_list`: for a video entry with a Dolby Vision configuration
-  record (`dvcC`, `dvvC` or `dvwC`), a `DOVI configuration record` entry
-  (`dv_version_major`, `dv_version_minor`, `dv_profile`, `dv_level`,
-  `rpu_present_flag`, `el_present_flag`, `bl_present_flag`,
-  `dv_bl_signal_compatibility_id`), then, for rotated video, a
-  `Display Matrix` entry (`side_data_type`, `rotation`).
-- Format: `filename`, `nb_streams`, `format_name`, `duration`, `size`,
-  `bit_rate`. The format `duration` is the native `presentation_duration`
-  (the streams' span, as `ffprobe` defines it), else the native `duration`.
-
-Every printed key is compared with `ffprobe` by `scripts/compat_check.py`. A difference counts as a known divergence only where
-the stream oracle's overlay covered, on that file and stream, the field the
-key follows (a stream's `duration_ts` for `duration_ts` and `duration`, the
-format duration for the format `duration` and `bit_rate`), with the
-evidence its entry requires (`docs/known-divergences.md`), and only when the
-printed value is the value the entry was checked on: the same ticks or
-microseconds, the stream duration those ticks give in `ffprobe`'s time base,
-the bit rate `ffprobe`'s size gives over that duration, and a display aspect
-ratio the checked size gives with the sample aspect ratio both report. Not printed: stream `bit_rate`, because `ffprobe`
-divides by its own duration and counts part of the samples of fragmented
-files, so CoreAV's exact value does not match it (`docs/measurements/0025-probe-metadata.md`);
-the native `bit_rate` has it. Also not printed: frame rates, frame counts,
-pixel formats and other fields `ffprobe` derives from decoding.
-
-Dropped streams are left out of `streams` but counted in `nb_streams`, so
-`index` keeps `ffprobe`'s numbering.
-
-`sample_rate` for AAC is what its `AudioSpecificConfig` declares: the SBR
-extension frequency when SBR is signalled explicitly (object types 5 and
-29, or the backward compatible extension with `sbrPresentFlag` 1), else the
-core frequency (ISO/IEC 14496-3 1.6.2.1, table 1.18); SBR signalled only in
-the bitstream is not seen, as probe does not decode. The native
-`sample_rate` is the sample entry's, as stored, except for FLAC and ALAC
-(the configuration's, as above).
-
-`channels` is what the AAC configuration declares: where the native
-document keeps a stereo sample entry's 2 for a mono configuration
-(`implicit_ps_possible`), this output prints 1, as a reader that does not
-decode sees it.
+Use `coreav ffprobe -of json -show_format -show_streams`.
+This is a separate output contract, described in
+[`docs/design/compat-cli.md`](../design/compat-cli.md), not a mode of the
+native probe schema.

@@ -66,6 +66,20 @@ fn run(args: &[&str], path: &Path) -> Run {
     }
 }
 
+fn ffprobe(path: &Path) -> Run {
+    command(
+        "--strict-safe",
+        &[
+            "ffprobe",
+            "-of",
+            "json",
+            "-show_format",
+            "-show_streams",
+            path.to_str().unwrap(),
+        ],
+    )
+}
+
 fn json(text: &str) -> Value {
     serde_json::from_str(text).unwrap()
 }
@@ -248,7 +262,7 @@ fn native_output_matches_the_schema() {
 #[test]
 fn compat_output_uses_ffprobe_names() {
     let path = file("av-compat.mp4", &av_movie_with(aac_entry(), false));
-    let run = run(&["--ffprobe-compat"], &path);
+    let run = ffprobe(&path);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = json(&run.stdout);
     let format = &doc["format"];
@@ -266,8 +280,7 @@ fn compat_output_uses_ffprobe_names() {
     let audio = &doc["streams"][1];
     assert_eq!(audio["codec_name"], "aac");
     assert_eq!(audio["sample_rate"], "48000");
-    // Stream bit rate is not checked against ffprobe, so it is not printed.
-    assert!(audio.get("bit_rate").is_none());
+    assert!(audio["bit_rate"].as_str().unwrap().parse::<u64>().unwrap() > 0);
 }
 
 #[test]
@@ -288,11 +301,10 @@ fn fragments_are_read_only_on_request() {
     assert_eq!(scanned["streams"][0]["sample_count"], 4);
     assert!(scanned["warnings"].as_array().unwrap().is_empty());
 
-    // Compat mode scans by default, unless told not to.
-    let compat = json(&run(&["--ffprobe-compat"], &path).stdout);
+    let compat = json(&ffprobe(&path).stdout);
     assert_eq!(compat["streams"][0]["duration_ts"], 2048);
-    let unscanned = json(&run(&["--ffprobe-compat", "--no-scan-fragments"], &path).stdout);
-    assert!(unscanned["streams"][0].get("duration_ts").is_none());
+    let unscanned = json(&run(&["--no-scan-fragments"], &path).stdout);
+    assert_eq!(unscanned, doc);
 }
 
 #[test]
@@ -305,10 +317,6 @@ fn allowlist_drops_or_rejects() {
     assert_eq!(doc["streams"].as_array().unwrap().len(), 1);
     assert_eq!(doc["dropped_streams"][0]["stream_index"], 1);
     assert_eq!(doc["dropped_streams"][0]["reason"], "codec_not_allowed");
-
-    let compat = json(&run(&["--allow", "h264", "--ffprobe-compat"], &path).stdout);
-    assert_eq!(compat["format"]["nb_streams"], 2);
-    assert_eq!(compat["streams"].as_array().unwrap().len(), 1);
 
     let strict = run(&["--allow", "h264", "--strict"], &path);
     assert_error(&strict, 1, "codec_not_allowed");
@@ -334,11 +342,10 @@ fn rejected_files_exit_1_with_a_json_error() {
 
     let riff = file("not-a-movie.avi", b"RIFF\x24\x00\x00\x00AVI LIST");
     assert_error(&run(&[], &riff), 1, "unsupported_container");
-    assert_error(
-        &run(&["--ffprobe-compat"], &riff),
-        1,
-        "unsupported_container",
-    );
+    let legacy = run(&["--ffprobe-compat"], &riff);
+    assert_eq!(legacy.code, 2);
+    assert!(legacy.stdout.is_empty());
+    assert!(legacy.stderr.contains("unexpected argument"));
 }
 
 #[test]
@@ -378,10 +385,35 @@ fn fixtures_match_the_schema() {
         // Also with the scan, whose values (stream durations and bit rates
         // of Matroska files, scanned sizes) are `null` without it.
         for args in [
+            &[][..],
             &["--scan-fragments"][..],
             &["--scan-fragments", "--scan-frame-sizes"],
         ] {
-            let result = run(args, &dir.join(name));
+            let path = dir.join(name);
+            let result = run(args, &path);
+            let library = native_document(
+                &path,
+                args.contains(&"--scan-fragments"),
+                args.contains(&"--scan-frame-sizes"),
+            );
+            match library {
+                Ok(document) => {
+                    assert_eq!(result.code, 0, "{name}: {}", result.stderr);
+                    assert_eq!(
+                        result.stdout,
+                        format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+                        "{name}: {args:?}"
+                    );
+                }
+                Err(failure) => {
+                    assert_eq!(result.code, if failure.is_io() { 3 } else { 1 }, "{name}");
+                    assert_eq!(
+                        result.stderr,
+                        format!("{}\n", failure.to_json()),
+                        "{name}: {args:?}"
+                    );
+                }
+            }
             match result.code {
                 0 => assert_any_schema(&json(&result.stdout)),
                 1 => {
@@ -394,6 +426,37 @@ fn fixtures_match_the_schema() {
         checked += 1;
     }
     assert!(checked > 0, "no fixtures listed");
+}
+
+fn native_document(
+    path: &Path,
+    fragments: bool,
+    frames: bool,
+) -> Result<Value, coreav_cli::error::Failure> {
+    use coreav_cli::{error::Failure, matroska, mpegts, native, probe};
+    use coreav_isobmff::{Error, FileSource};
+
+    let mut source = FileSource::open(path).map_err(Failure::library)?;
+    if matroska::detect_source(&mut source)? {
+        return matroska::run_with(path, &coreav_mkv::Allowlist::default(), frames)
+            .map(|probed| matroska::document(&probed));
+    }
+    match probe::run_with(
+        path,
+        &coreav_isobmff::Allowlist::default(),
+        fragments,
+        frames,
+    ) {
+        Err(Failure::Library(Error::NotIsobmff)) if mpegts::detect_source(&mut source)? => {
+            match mpegts::run_with(path, &coreav_mpegts::Allowlist::default(), frames) {
+                Err(Failure::Mpegts(coreav_mpegts::Error::NotTransportStream)) => {
+                    Err(Failure::Library(Error::NotIsobmff))
+                }
+                result => result.map(|probed| mpegts::document(&probed)),
+            }
+        }
+        result => result.map(|probed| native::document(&probed)),
+    }
 }
 
 // --------------------------------------------------------------- coreav clip
@@ -1021,7 +1084,7 @@ fn compat_sizes_only_the_text_tracks_ffprobe_lists_as_subtitles() {
             &format!("chapter-size-{enabled}.mp4"),
             &movie(&[video, subtitles, chapters]),
         );
-        let result = run(&["--ffprobe-compat"], &path);
+        let result = ffprobe(&path);
         assert_eq!(result.code, 0, "{}", result.stderr);
         let streams = &json(&result.stdout)["streams"];
         assert_eq!(streams[1]["width"], 400);
@@ -1383,7 +1446,7 @@ fn unnamed_transport_streams_are_listed() {
     assert_eq!(streams[1]["stream_type"], 0xA1);
     assert_eq!(streams[2]["codec"], "other");
     assert_eq!(doc["dropped_streams"].as_array().unwrap().len(), 0);
-    let compat = json(&run(&["--ffprobe-compat"], &path).stdout);
+    let compat = json(&ffprobe(&path).stdout);
     assert_eq!(compat["format"]["nb_streams"], 3);
     let out = compat["streams"].as_array().unwrap();
     assert_eq!(out.len(), 3);
@@ -1445,7 +1508,7 @@ fn the_scan_lists_every_access_unit_of_a_transport_stream() {
 #[test]
 fn transport_stream_compat_output_uses_ffprobe_names() {
     let path = file("compat.ts", &small_ts(0));
-    let run = run(&["--ffprobe-compat"], &path);
+    let run = ffprobe(&path);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = json(&run.stdout);
     assert_eq!(doc["format"]["format_name"], "mpegts");
@@ -1481,9 +1544,6 @@ fn allow_and_strict_apply_to_transport_streams() {
     assert_eq!(dropped_streams[0]["codec"], "aac");
     assert_eq!(dropped_streams[0]["stream_index"], 0);
     assert_eq!(dropped_streams[0]["reason"], "codec_not_allowed");
-    let compat = json(&run(&["--allow", "h264", "--ffprobe-compat"], &path).stdout);
-    assert_eq!(compat["format"]["nb_streams"], 1);
-    assert_eq!(compat["streams"].as_array().unwrap().len(), 0);
     assert_error(
         &run(&["--allow", "h264", "--strict"], &path),
         1,
@@ -1536,7 +1596,7 @@ fn the_validator_rejects_a_broken_matroska_document() {
 #[test]
 fn matroska_compat_output_uses_ffprobe_names() {
     let path = file("small-compat.webm", &mkv::small_webm());
-    let run = run(&["--ffprobe-compat"], &path);
+    let run = ffprobe(&path);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = json(&run.stdout);
     assert_eq!(doc["format"]["format_name"], "matroska,webm");

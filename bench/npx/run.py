@@ -55,7 +55,7 @@ def operations(src, duration):
     """[(name, coreav arguments, output suffix or None, FFmpeg command builder)]."""
     probe = ['ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)]
     ops = [
-        ('probe', ['probe', '--ffprobe-compat', str(src)], None, lambda out, summary: probe),
+        ('probe', ['--strict-safe', 'ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)], None, lambda out, summary: probe),
         ('check', ['check', '--policy', str(POLICY), str(src)], None, lambda out, summary: probe),
         ('chapters', ['chapters', str(src)], None,
          lambda out, summary: ['ffprobe', '-v', 'error', '-of', 'json', '-show_chapters', str(src)]),
@@ -270,7 +270,7 @@ def main():
                 r2 = r2 or R2()
                 download(r2, entry, src)
             src.read_bytes()  # into the page cache
-            probe = run([native, 'probe', '--ffprobe-compat', str(src)])
+            probe = run([native, '--strict-safe', 'ffprobe', '-v', 'error', '-of', 'json', '-show_format', '-show_streams', str(src)])
             duration = None
             if probe['code'] == 0:
                 try:

@@ -111,7 +111,7 @@ KD-TS-FRAME-TIME.
   `StreamMuxConfig`'s `audioObjectType`) is the profile CoreAV reports;
   and `ffprobe` reports `HE-AAC` or `HE-AACv2`. The channel count is an
   informational field, which the oracle does not gate. The sampling rate
-  is one too, but `--ffprobe-compat` prints it and
+  is one too, but `coreav ffprobe` prints it and
   `scripts/compat_check.py` gates every key it prints, so the entry
   covers it there as well: CoreAV reports the rate the file's own
   configuration states (`Facts.aac_rate`) and `ffprobe` twice it, which
@@ -231,7 +231,7 @@ KD-TS-FRAME-TIME.
   each with a Program Map Table of its own; the standard gives no order
   for the streams of a file, and neither reader's is wrong. `--map` by
   index therefore names a different stream on each side for such a file,
-  which `docs/ffprobe-compat.md` states.
+  which `docs/design/compat-cli.md` states.
 - Coverage requires, from the file itself (`Facts`): the file declares
   more than one program; CoreAV lists the PIDs the Program Map Tables
   declare in the order they declare them, and nothing else but PIDs no

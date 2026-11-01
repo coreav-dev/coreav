@@ -1,25 +1,20 @@
 //! Matroska and WebM files (`docs/design/mkv.md`): probing with the
 //! library defaults, the native schema `coreav.probe-matroska/1`
-//! (`docs/schema/probe-matroska-v1.md`) and the `--ffprobe-compat` shape.
+//! (`docs/schema/probe-matroska-v1.md`).
 
-use crate::compat::{gcd, put, ratio};
 use crate::error::Failure;
-use crate::names;
 use crate::native::{profile, rational};
-use crate::time::{rounded, to_f64};
+use crate::time::to_f64;
 use coreav_isobmff::frames::{self, RecordSize};
 use coreav_mkv::{
     Allowlist, BufferedSource, Codec, DocType, Encoding, Error, FileSource, Limits, Rational, Scan,
     Segment, Source, Track, TrackKind, TrackScan, probe,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::path::Path;
 
 /// The schema identifier.
 pub const SCHEMA: &str = "coreav.probe-matroska/1";
-
-/// `ffprobe`'s format name for every Matroska and WebM file.
-const FORMAT_NAME: &str = "matroska,webm";
 
 /// A successful probe and what the output needs to describe it.
 pub struct Probed {
@@ -411,174 +406,4 @@ pub fn document(probed: &Probed) -> Value {
         })).collect::<Vec<_>>(),
         "warnings": warnings,
     })
-}
-
-/// `ffprobe`'s `codec_name`.
-fn ffprobe_codec(track: &Track) -> Option<String> {
-    let name = match track.codec {
-        Codec::Pgs => "hdmv_pgs_subtitle",
-        Codec::VobSub => "dvd_subtitle",
-        Codec::DvbSub => "dvb_subtitle",
-        Codec::Other => return None,
-        Codec::Pcm => {
-            let bits = track.audio?.bit_depth?;
-            return Some(match track.codec_id.as_str() {
-                "A_PCM/INT/LIT" if bits == 8 => "pcm_u8".to_owned(),
-                "A_PCM/INT/LIT" => format!("pcm_s{bits}le"),
-                "A_PCM/INT/BIG" if bits == 8 => "pcm_s8".to_owned(),
-                "A_PCM/INT/BIG" => format!("pcm_s{bits}be"),
-                "A_PCM/FLOAT/IEEE" => format!("pcm_f{bits}le"),
-                _ => return None,
-            });
-        }
-        other => other.name(),
-    };
-    Some(name.to_owned())
-}
-
-fn compat_stream(segment: &Segment, track: &Track) -> Value {
-    let mut s = Map::new();
-    s.insert("index".to_owned(), json!(track.stream_index));
-    put(&mut s, "codec_name", ffprobe_codec(track).map(Value::from));
-    let profile = track.profile.and_then(names::profile).or_else(|| {
-        // `ffprobe` names a VP8 profile by its `version` number.
-        (track.codec == Codec::Vp8)
-            .then(|| track.frame_profile.map(|v| v.to_string()))
-            .flatten()
-    });
-    put(&mut s, "profile", profile.map(Value::from));
-    s.insert("codec_type".to_owned(), json!(kind(track.kind)));
-    s.insert("codec_tag_string".to_owned(), json!("[0][0][0][0]"));
-    s.insert("codec_tag".to_owned(), json!("0x0000"));
-    if let Some(v) = track.video.filter(|_| track.kind == TrackKind::Video) {
-        put(&mut s, "width", v.pixel_width.map(Value::from));
-        put(&mut s, "height", v.pixel_height.map(Value::from));
-        if let (Some(w), Some(h)) = (v.pixel_width, v.pixel_height) {
-            let shown = (
-                w.saturating_sub(v.crop[2]).saturating_sub(v.crop[3]),
-                h.saturating_sub(v.crop[0]).saturating_sub(v.crop[1]),
-            );
-            let (dw, dh) = v.display_aspect().unwrap_or(shown);
-            put(
-                &mut s,
-                "sample_aspect_ratio",
-                ratio(dw.saturating_mul(h), dh.saturating_mul(w)).map(Value::from),
-            );
-            put(
-                &mut s,
-                "display_aspect_ratio",
-                ratio(dw, dh).map(Value::from),
-            );
-        }
-        let color = track.color;
-        put(
-            &mut s,
-            "color_range",
-            color
-                .full_range
-                .map(|full| Value::from(if full { "pc" } else { "tv" })),
-        );
-        put(
-            &mut s,
-            "color_space",
-            color.matrix.and_then(names::matrix).map(Value::from),
-        );
-        put(
-            &mut s,
-            "color_transfer",
-            color.transfer.and_then(names::transfer).map(Value::from),
-        );
-        put(
-            &mut s,
-            "color_primaries",
-            color.primaries.and_then(names::primaries).map(Value::from),
-        );
-    }
-    put(
-        &mut s,
-        "level",
-        track.profile.and_then(names::level).map(Value::from),
-    );
-    if let Some(a) = track.audio.filter(|_| track.kind == TrackKind::Audio) {
-        // The output rate, as a decoder reports it: an SBR track stores its
-        // core rate as `SamplingFrequency`.
-        put(
-            &mut s,
-            "sample_rate",
-            a.output_sample_rate().map(|r| Value::from(r.to_string())),
-        );
-        s.insert("channels".to_owned(), json!(a.channels));
-    }
-    let g = gcd(segment.timestamp_scale, 1_000_000_000);
-    s.insert(
-        "time_base".to_owned(),
-        json!(format!(
-            "{}/{}",
-            segment.timestamp_scale / g,
-            1_000_000_000 / g
-        )),
-    );
-    // The stored `Language` element (ISO 639-2), as ffprobe's tag: not the
-    // `LanguageBCP47` that overrides it, nor the default `eng` of a track
-    // that stores none (RFC 9559 5.1.4.1.19), which the native document
-    // reports.
-    if let Some(language) = track
-        .language_iso639
-        .as_deref()
-        .filter(|l| !l.is_empty() && *l != "und")
-    {
-        s.insert("tags".to_owned(), json!({ "language": language }));
-    }
-    if let Some(clockwise) = track
-        .video
-        .filter(|_| track.kind == TrackKind::Video)
-        .and_then(|v| v.rotation())
-        .filter(|r| *r != 0)
-    {
-        let ccw = (360 - i32::from(clockwise % 360)) % 360;
-        let signed = if ccw >= 180 { ccw - 360 } else { ccw };
-        s.insert(
-            "side_data_list".to_owned(),
-            json!([{"side_data_type": "Display Matrix", "rotation": signed}]),
-        );
-    }
-    Value::Object(s)
-}
-
-/// The `--ffprobe-compat` document.
-pub fn compat_document(probed: &Probed, filename: &str) -> Value {
-    let segment = &probed.segment;
-    let mut format = Map::new();
-    format.insert("filename".to_owned(), json!(filename));
-    // `ffprobe` lists attachments as streams too.
-    let streams = segment.tracks.len() + segment.dropped.len() + segment.attachments.len();
-    format.insert("nb_streams".to_owned(), json!(streams));
-    format.insert("format_name".to_owned(), json!(FORMAT_NAME));
-    let micros = segment
-        .duration_ns()
-        .and_then(|ns| Rational::new(ns, 1_000))
-        .and_then(rounded)
-        .filter(|us| *us > 0);
-    if let Some(us) = micros {
-        format.insert(
-            "duration".to_owned(),
-            json!(format!("{}.{:06}", us / 1_000_000, us % 1_000_000)),
-        );
-    }
-    format.insert("size".to_owned(), json!(probed.size.to_string()));
-    if let Some(us) = micros.and_then(|us| u128::try_from(us).ok()) {
-        if let Some(rate) = u128::from(probed.size)
-            .checked_mul(8_000_000)
-            .and_then(|bits| bits.checked_div(us))
-            .and_then(|rate| u64::try_from(rate).ok())
-        {
-            format.insert("bit_rate".to_owned(), json!(rate.to_string()));
-        }
-    }
-    let streams: Vec<Value> = segment
-        .tracks
-        .iter()
-        .map(|t| compat_stream(segment, t))
-        .collect();
-    json!({"streams": streams, "format": format})
 }

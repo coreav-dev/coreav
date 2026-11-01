@@ -257,11 +257,11 @@ def step_fixtures(work, args):
     coreav = RELEASE / 'coreav'
     py = [sys.executable, '-I']
     checks = result['checks']
-    checks.append(checker('probe --ffprobe-compat, MP4/MOV', py + [ROOT / 'scripts' / 'compat_check.py',
+    checks.append(checker('ffprobe -of json -show_format -show_streams, MP4/MOV', py + [ROOT / 'scripts' / 'compat_check.py',
                           '--coreav', coreav, '--media', fx, '--kd-overlay', kd,
                           '--report', work / 'compat.json'], counter=count_compat, report=work / 'compat.json'))
     kd_mkv = work / 'oracle-matroska' / 'known-divergences.json'
-    checks.append(checker('probe --ffprobe-compat, Matroska', py + [ROOT / 'scripts' / 'compat_check.py',
+    checks.append(checker('ffprobe -of json -show_format -show_streams, Matroska', py + [ROOT / 'scripts' / 'compat_check.py',
                           '--coreav', coreav, '--media', fxm, '--kd-overlay', kd_mkv,
                           '--report', work / 'compat-mkv.json'],
                           counter=count_compat, report=work / 'compat-mkv.json'))

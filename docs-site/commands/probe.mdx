@@ -22,7 +22,7 @@ coreav probe https://example.com/video.mp4
 coreav probe --allow h264,aac --strict upload.mp4
 ```
 
-`--allow` keeps only the streams whose codec is on the list, and `--strict` rejects the whole file (exit status 1) instead of dropping a stream. `--ffprobe-compat` prints the shape of `ffprobe -of json -show_format -show_streams` instead, limited to the fields that are checked against `ffprobe`.
+`--allow` keeps only the streams whose codec is on the list, and `--strict` rejects the whole file (exit status 1) instead of dropping a stream. For ffprobe-compatible output, use `coreav ffprobe -of json -show_format -show_streams` instead. See [ffprobe](/commands/ffprobe).
 
 ## Options
 

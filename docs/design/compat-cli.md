@@ -1019,20 +1019,60 @@ one builder per container that maps the native probe result to sections:
 from each crate's packet iterator and are written as they are read, never
 held in memory: a listing is as long as the file.
 
-`coreav probe --ffprobe-compat` stays, as what it already is: the checked
-subset of `-show_format -show_streams` that `docs/schema/probe-v1.md`
-lists, which the WebAssembly build, the Workers package and the fixture
-workflows' `compat_check.py` use. For every key both print, the
-`coreav ffprobe` builders call the same functions it does (`compat.rs`,
-`matroska.rs`, `mpegts.rs`), so a derivation is written once. Its output
-does not change here. Rejected: removing it (unreleased, so allowed, but it
-would change three consumers in a pull request about something else), and
-re-deriving it from the `coreav ffprobe` sections now: those list streams
-`--ffprobe-compat` drops (codecs CoreAV does not identify) and take some
-values from the stream rather than the container, so its documents, and the
-known-divergence overlays keyed on them, would move. Making it a fixed
-selection of `coreav ffprobe`'s output is a change of its own, with its
-`compat_check` run.
+On 2026-11-01 the maintainer removed `coreav probe --ffprobe-compat`.
+CoreAV is unreleased, and `coreav ffprobe` is now the only ffprobe-compatible
+command. Callers use `coreav ffprobe -of json -show_format -show_streams`.
+`coreav probe` keeps its native schemas and its allowlist and scan options.
+
+The old flag was retained only to avoid migrating its consumers in the
+original command implementation. This migration moves the fixture checks,
+the benchmark runner and the WebAssembly build to the shared ffprobe
+builders. The field derivations the builders use remain shared, rather
+than being reimplemented. WebAssembly exposes separate `ffprobe` and
+`ffprobeText` functions, while `probe` stays native-only. The shared
+builders accept explicit limits so the WebAssembly table limit stays
+64 MiB, with the caller's overrides, rather than silently becoming the
+native CLI's 256 MiB.
+
+An ISO chapter read that hits a source I/O error or a caller's parser
+limit fails the probe, including the WebAssembly operation, rather than
+returning partial chapters or substituting the Nero list. A malformed or
+unsupported chapter track, or one over the text reader's own title and
+sample limits, is still left out.
+
+An ISO decode-time shift scan retains source I/O and parser limit errors
+for the packet listing to return before its first packet. It never uses
+a partial shift after those errors, even if an edit ends the listing
+before the sample that caused the error. Report-only probes, including
+WebAssembly ffprobe, do not use the shift and still succeed. Malformed
+samples keep their existing quiet end-of-scan behavior. The native packet
+listing also refuses such errors under its default limits; a stream
+selection does not exempt another track from this scan.
+
+The replacement is not the old document with a different command name.
+`coreav ffprobe` lists streams the old flag dropped and takes some values
+from the stream rather than the container. It also prints more keys.
+The fixture check in `scripts/compat_check.py` passes a fixed
+`-show_entries` selection of every field the retired document could print,
+including Dolby Vision side data. It compares every emitted key against
+the pinned ffprobe. It does not filter streams back to the native
+allowlist. The benchmark runner and WebAssembly functions use the full
+format and stream sections. The command-coverage fixture checks continue
+to exercise the wider ffprobe contract separately.
+
+Before-and-after per-key results are recorded in the migration pull request.
+Known-divergence overlays apply only when their checked values and file
+predicates still match. An old green key becoming red requires a fix or
+an explanation, never a baseline edit that hides it.
+
+The old normalized CLI-to-library comparison depended on the retired
+document's stream set and timing. Native fixture tests now compare the
+binary's whole JSON document and error object directly with the library,
+without normalization, with default probing, fragment scanning and frame
+size scanning. The hostile check exercises native probe and strict-safe
+ffprobe on the same cases. ffprobe rejections use `-show_error`'s structured
+error on stdout. An accepted reject-labelled codec case is allowed only
+when native strict probe still rejects it with `codec_not_allowed`.
 
 ### `coreav ffmpeg`
 
@@ -1643,8 +1683,8 @@ for (`%` lists every packet with `-show_entries` and none with
 `-show_packets` alone): both are refused by name, so `999999` and `10%20`
 exit 4.
 
-**ISO base media.** The stream and format keys `--ffprobe-compat` already
-prints keep its derivations, which the stream oracle checks. The others:
+**ISO base media.** Stream and format keys share the derivations the
+stream oracle checks. The other fields include:
 
 - `pix_fmt`, `has_b_frames`, `chroma_location`, `field_order`,
   `bits_per_raw_sample`, `coded_width`/`coded_height`, and the codec's own

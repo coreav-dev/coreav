@@ -87,7 +87,7 @@ function clear(output) {
 function cases() {
   const list = [
     ["probe", ["probe", "IN"], false],
-    ["probe compat", ["probe", "--ffprobe-compat", "IN"], false],
+    ["ffprobe", ["ffprobe", "-of", "json", "-show_format", "-show_streams", "IN"], false],
     ["probe frame sizes", ["probe", "--scan-frame-sizes", "IN"], false],
     ["chapters", ["chapters", "IN"], false],
     ["extract-audio", ["extract-audio", "IN", "OUT"], true],

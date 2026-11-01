@@ -25,5 +25,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "ffprobe"
+path = "fuzz_targets/ffprobe.rs"
+test = false
+doc = false
+bench = false
+
 [lints.rust]
 unsafe_code = "forbid"

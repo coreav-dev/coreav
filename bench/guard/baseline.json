@@ -161,16 +161,6 @@
    "sha256": "2b0d43779607433182decb9b04debd16509d99f5dfa2439eae3906e60af915ee",
    "instructions": 807689
   },
-  "probe-compat-mp4": {
-   "fixture": "fragmented_many.mp4",
-   "sha256": "5bdf6f3be1d768e130de3670eb9f085630f512b906f172467a7657e70117a1a1",
-   "instructions": 1215149
-  },
-  "probe-compat-mkv": {
-   "fixture": "basic.mkv",
-   "sha256": "d9b2cecda169ec6e98826878865e624c867ee840294e1371e3cb5101c1bf5b9e",
-   "instructions": 183108
-  },
   "probe-frame-sizes-mp4": {
    "fixture": "basic.mp4",
    "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
@@ -220,11 +210,6 @@
    "fixture": "basic.ts",
    "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
    "instructions": 1442492
-  },
-  "probe-compat-ts": {
-   "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 1320283
   },
   "ffprobe-mp4": {
    "fixture": "fragmented_many.mp4",

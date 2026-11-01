@@ -1,5 +1,9 @@
 # The `coreav` command on npm (`npx coreav`)
 
+Historical results below that name `--ffprobe-compat` measure the retired
+command. They do not measure its replacement,
+`coreav ffprobe -of json -show_format -show_streams`.
+
 `npx coreav ...` runs the `coreav` command with nothing to install but
 Node. The npm package `coreav` (`packages/cli`) depends, as optional
 packages, on one native binary per platform (`@coreav/cli-<platform>`). On
@@ -250,7 +254,7 @@ wording and keywords are positioning and the maintainer's to decide.
 - `packages/cli/test/cli.test.mjs`: the WASI build against the native
   command, for every fixture of `scripts/gen-fixtures.sh` and
   `scripts/gen-fixtures-mkv.sh`. It runs every subcommand: probe,
-  `--ffprobe-compat`, `--scan-frame-sizes`, chapters, extract-audio, clip
+  `ffprobe`, `--scan-frame-sizes`, chapters, extract-audio, clip
   to a file and to stdout, extract-subtitles, remux, sanitize, split, and
   check with each example policy. Each runs with absolute paths, with the
   input relative to the working directory, and with outputs relative to it.
