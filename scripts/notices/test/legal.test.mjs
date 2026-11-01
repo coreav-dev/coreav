@@ -61,7 +61,7 @@ test("standard-library notices include copyright and every named licence text", 
   const crates = ["std", "core", "alloc"].map((name) => ({ name, version: "0.0.0", license: "MIT OR Apache-2.0" }));
   const files = new Map([["/toolchain/share/doc/rust/COPYRIGHT-library.html", Buffer.from(statement)]]);
   for (const name of ["Apache-2.0", "MIT", "Unicode-3.0"]) files.set(`/toolchain/share/doc/rust/licenses/${name}.txt`, Buffer.from(`${name} upstream licence\n`));
-  const read = (path) => { if (!files.has(path)) throw new Error("absent"); return files.get(path); };
+  const read = (path) => { path = path.replaceAll("\\", "/"); if (!files.has(path)) throw new Error("absent"); return files.get(path); };
   assert.match(renderToolchain(tc, crates, policy, read), /Crates: alloc, core, std/);
   files.delete("/toolchain/share/doc/rust/licenses/Unicode-3.0.txt");
   assert.throws(() => renderToolchain(tc, crates, policy, read), /licenses\/Unicode-3.0.txt from Rust 1.2.3/);

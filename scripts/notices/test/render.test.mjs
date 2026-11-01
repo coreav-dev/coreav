@@ -9,7 +9,7 @@ const policy = { allowed: new Set(["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-ex
 
 function render(name, license, files, selectedPolicy = policy, notice = "", version = "1.0.0") {
   const list = directory => {
-    const prefix = directory.slice("/upstream".length).replace(/^\//, "");
+    const prefix = directory.replaceAll("\\", "/").slice("/upstream".length).replace(/^\//, "");
     const relative = Object.keys(files).filter(path => !prefix || path.startsWith(prefix + "/")).map(path => prefix ? path.slice(prefix.length + 1) : path);
     return [...new Set(relative.map(path => path.split("/")[0]))].map(name => ({
       name, isSymbolicLink: () => false,
