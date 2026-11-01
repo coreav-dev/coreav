@@ -250,3 +250,37 @@ fn the_thread_count_is_lowered_until_the_pictures_fit_max_memory_bytes() {
     assert_eq!(tight.threads(), 1);
     assert_eq!(tight.take_pictures().len(), 1);
 }
+
+#[test]
+fn a_small_picture_keeps_its_memory_bound_when_eight_threads_are_lowered() {
+    let stream = stream(2, 30, 1, 1);
+    let limits = Limits::default();
+    let needed = Decoder::<Auto>::memory_needed(2, 30, 8, &limits);
+    let mut decoder = Decoder::new(Limits {
+        max_memory_bytes: needed,
+        ..limits
+    })
+    .with_threads(8);
+    assert!(decode(&mut decoder, &stream).iter().all(Result::is_ok));
+    assert_eq!(decoder.threads(), 8);
+    let before = decoder.take_pictures();
+    assert_eq!(before.len(), 1);
+    decoder.limit_threads(7);
+    assert!(decode(&mut decoder, &stream).iter().all(Result::is_ok));
+    assert_eq!(decoder.threads(), 7);
+    let after = decoder.take_pictures();
+    assert_eq!(after.len(), 1);
+    for (old, new) in before.iter().zip(&after) {
+        let (old_cb, old_cr) = old.chroma();
+        let (new_cb, new_cr) = new.chroma();
+        for (old, new) in [old.luma(), old_cb, old_cr]
+            .into_iter()
+            .zip([new.luma(), new_cb, new_cr])
+        {
+            assert_eq!(
+                old.rows().collect::<Vec<_>>(),
+                new.rows().collect::<Vec<_>>()
+            );
+        }
+    }
+}
