@@ -20,4 +20,5 @@ knowledge_base:
     filePatterns:
       - AGENTS.md
       - CONTRIBUTING.md
-      - docs/design/**/*.md
+      - files: docs/design/**/*.md
+        applyTo: "**"
