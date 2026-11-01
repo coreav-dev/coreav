@@ -462,7 +462,7 @@ AC3_RATES = (32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384,
 
 
 class _Bits:
-    """An MSB-first bit reader over a byte string."""
+    """An MSB-first bit reader with AV1's uvlc() (4.10)."""
 
     def __init__(self, data):
         self.data, self.at = data, 0
@@ -471,10 +471,16 @@ class _Bits:
         value = 0
         for _ in range(n):
             if self.at >> 3 >= len(self.data):
-                raise ValueError('the frame ends early')
+                raise ValueError('the bit payload ends early')
             value = value << 1 | self.data[self.at >> 3] >> (7 - (self.at & 7)) & 1
             self.at += 1
         return value
+
+    def uvlc(self):
+        zeros = 0
+        while not self.f(1):
+            zeros += 1
+        return (1 << 32) - 1 if zeros >= 32 else self.f(zeros) + (1 << zeros) - 1
 
 
 def _crc_table():
@@ -582,6 +588,191 @@ def annex_d_downmix(path):
             found.append(Ac3Downmix(position, track['number'], len(spans), NO_DOWNMIX, stated.pop(), tuple(spans)))
     return found
 
+
+Av1Sequence = collections.namedtuple(
+    'Av1Sequence', 'profile level tier high_bitdepth twelve_bit depth mono subsampling position described '
+                   'primaries transfer matrix full_range')
+Av1CodecString = collections.namedtuple('Av1CodecString', 'position number oracle coreav')
+# The suffix of an AV1 codec string whose fields all hold the default
+# values; AV1-ISOBMFF section 5 says it SHOULD be omitted.
+AV1_DEFAULT_SUFFIX = '.0.110.01.01.01.0'
+# `ChromaSitingHorz` and `ChromaSitingVert` by `chroma_sample_position`, from
+# the AV1 codec mapping in Matroska.
+AV1_SITING = {0: (0, 0), 1: (1, 2), 2: (1, 1)}
+
+
+def _sequence_header(payload):
+    """The fields of an AV1 sequence header OBU (AV1 5.5) that a codec
+    string states. Raises ValueError for a reserved profile, a header that
+    ends before its last field (`film_grain_params_present`), or one whose
+    trailing bits (5.3.4) are not a one and then zeros to its end."""
+    bits = _Bits(payload)
+    profile, _still, reduced = bits.f(3), bits.f(1), bits.f(1)
+    if profile > 2:
+        raise ValueError('reserved profile')
+    if reduced:
+        level, tier = bits.f(5), 0
+    else:
+        delay_bits = None
+        if bits.f(1):
+            bits.f(32), bits.f(32)
+            if bits.f(1):
+                bits.uvlc()
+            if bits.f(1):
+                delay_bits = bits.f(5) + 1
+                bits.f(32), bits.f(5), bits.f(5)
+        display_delay = bits.f(1)
+        for point in range(bits.f(5) + 1):
+            bits.f(12)
+            point_level = bits.f(5)
+            point_tier = bits.f(1) if point_level > 7 else 0
+            if point == 0:
+                level, tier = point_level, point_tier
+            if delay_bits and bits.f(1):
+                bits.f(delay_bits), bits.f(delay_bits), bits.f(1)
+            if display_delay and bits.f(1):
+                bits.f(4)
+    width_bits, height_bits = bits.f(4) + 1, bits.f(4) + 1
+    bits.f(width_bits), bits.f(height_bits)
+    if not reduced and bits.f(1):
+        bits.f(4), bits.f(3)
+    bits.f(3)
+    if not reduced:
+        bits.f(4)
+        order_hint = bits.f(1)
+        if order_hint:
+            bits.f(2)
+        screen_content = 2 if bits.f(1) else bits.f(1)
+        if screen_content and not bits.f(1):
+            bits.f(1)
+        if order_hint:
+            bits.f(3)
+    bits.f(3)
+    high_bitdepth = bits.f(1)
+    twelve_bit = bits.f(1) if profile == 2 and high_bitdepth else 0
+    depth = 12 if twelve_bit else 10 if high_bitdepth else 8
+    mono = 0 if profile == 1 else bits.f(1)
+    described = bits.f(1)
+    primaries, transfer, matrix = (bits.f(8), bits.f(8), bits.f(8)) if described else (2, 2, 2)
+    position = 0
+    if mono:
+        full_range, subsampling = bits.f(1), (1, 1)
+    elif (primaries, transfer, matrix) == (1, 13, 0):
+        full_range, subsampling = 1, (0, 0)
+    else:
+        full_range = bits.f(1)
+        if profile == 0:
+            subsampling = (1, 1)
+        elif profile == 1:
+            subsampling = (0, 0)
+        elif depth == 12:
+            x = bits.f(1)
+            subsampling = (x, bits.f(1) if x else 0)
+        else:
+            subsampling = (1, 0)
+        if subsampling == (1, 1):
+            position = bits.f(2)
+    if not mono:
+        bits.f(1)
+    bits.f(1)
+    if not bits.f(1) or bits.f(-bits.at % 8) or any(payload[bits.at >> 3:]):
+        raise ValueError('the sequence header does not end in its trailing bits')
+    return Av1Sequence(profile, level, tier, high_bitdepth, twelve_bit, depth, mono, subsampling, position,
+                       described, primaries, transfer, matrix, full_range)
+
+
+def av1_sequence(private):
+    """The sequence header of an AV1 track's `CodecPrivate`, when it is laid
+    out as the AV1 codec mapping in Matroska requires (four octets, then the
+    one sequence header OBU first, then only metadata OBUs, each with its
+    size except perhaps the last) and its four octets state the sequence
+    header's monochrome flag, subsampling and chroma sample position, which
+    decide the codec string's optional fields; None otherwise. The codec
+    string's profile, level, tier and depth come from the sequence header
+    (AV1-ISOBMFF section 5), whatever the four octets state."""
+    if len(private) < 4 or private[0] != 0x81:
+        return None
+    obus, at = [], 4
+    while at < len(private):
+        header = private[at]
+        if header & 0x80:
+            return None
+        at += 1 + (header >> 2 & 1)
+        size = len(private) - at
+        if header & 2:
+            size, shift = 0, 0
+            while True:
+                if at >= len(private) or shift > 49:
+                    return None
+                size |= (private[at] & 0x7F) << shift
+                at, shift = at + 1, shift + 7
+                if not private[at - 1] & 0x80:
+                    break
+        if size < 0 or at + size > len(private):
+            return None
+        obus.append((header >> 3 & 15, private[at:at + size]))
+        at += size
+    if not obus or obus[0][0] != 1 or any(kind != 5 for kind, _ in obus[1:]):
+        return None
+    try:
+        sequence = _sequence_header(obus[0][1])
+    except ValueError:
+        return None
+    flags = private[2]
+    stated = (flags >> 4 & 1, (flags >> 3 & 1, flags >> 2 & 1), flags & 3)
+    return sequence if stated == (sequence.mono, sequence.subsampling, sequence.position) else None
+
+
+def _av1_tracks(path):
+    """(position among the track entries, `TrackNumber`, sequence header,
+    codec string without optional fields) of each AV1 video track without
+    content encodings whose `CodecPrivate` is laid out as the AV1 codec
+    mapping in Matroska requires (`av1_sequence`), of profile 0 to 2 and
+    level index 0 to 23, 4:2:0, not monochrome, studio range, and whose
+    `Colour` elements, when stored, state what that mapping derives from the
+    sequence header. The string's fields come from the sequence header
+    (AV1-ISOBMFF section 5)."""
+    for position, track in enumerate((policy_ref.matroska_headers(path) or {}).get('tracks') or []):
+        if track['codec_id'] != 'V_AV1' or track['type'] != 1 or track['encoding'] != 'none' \
+                or track['number'] is None or track['codec_private'] is None:
+            continue
+        sequence = av1_sequence(track['codec_private'])
+        if sequence is None or sequence.level > 23 or sequence.mono or sequence.subsampling != (1, 1) \
+                or sequence.full_range or sequence.position not in AV1_SITING:
+            continue
+        horizontal, vertical = AV1_SITING[sequence.position]
+        stated = {'Range': 1, 'BitsPerChannel': sequence.depth, 'Primaries': sequence.primaries,
+                  'TransferCharacteristics': sequence.transfer, 'MatrixCoefficients': sequence.matrix,
+                  'ChromaSitingHorz': horizontal, 'ChromaSitingVert': vertical}
+        if any((track['colour'] or {}).get(name, value) != value for name, value in stated.items()):
+            continue
+        yield (position, track['number'], sequence,
+               f"av01.{sequence.profile}.{sequence.level:02}{'MH'[sequence.tier]}.{sequence.depth:02}")
+
+
+def av1_default_suffix(path):
+    """KD-FF9-AV1-DEFAULT-SUFFIX evidence, from the file's bytes alone: of
+    the tracks `_av1_tracks` gives, each whose sequence header states chroma
+    sample position 0 and BT.709 colour (a colour description of 1, 1 and
+    1), so that its full codec string ends in the default suffix, which
+    AV1-ISOBMFF section 5 says SHOULD be omitted. `ffprobe` 9.0.2's string
+    (`oracle`) keeps the suffix; CoreAV's (`coreav`) omits it."""
+    return [Av1CodecString(position, number, base + AV1_DEFAULT_SUFFIX, base)
+            for position, number, sequence, base in _av1_tracks(path)
+            if sequence.position == 0 and sequence.described
+            and (sequence.primaries, sequence.transfer, sequence.matrix) == (1, 1, 1)]
+
+
+def av1_chroma_position(path):
+    """KD-FF9-AV1-CHROMA-POSITION evidence, from the file's bytes alone: of
+    the tracks `_av1_tracks` gives, each whose sequence header states chroma
+    sample position 1 and no colour description, so that section 5 gives the
+    full codec string with chroma subsampling `111` and the default colour.
+    `ffprobe` 9.0.2's string (`oracle`) omits the optional fields, which
+    states position 0; CoreAV's (`coreav`) is the full one."""
+    return [Av1CodecString(position, number, base, base + '.0.111.01.01.01.0')
+            for position, number, sequence, base in _av1_tracks(path)
+            if sequence.position == 1 and not sequence.described]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

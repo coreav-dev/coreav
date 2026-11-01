@@ -55,8 +55,8 @@ eleventh is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
 there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
-The last is a corpus record for Matroska and WebM AC-3 tracks; it names
-no fixture keys and sets nothing aside on the fixtures.
+The last three are corpus records for Matroska and WebM AC-3 and AV1
+tracks; they name no fixture keys and set nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -294,6 +294,47 @@ no fixture keys and sets nothing aside on the fixtures.
   bytes rather than treating TrackEntry order as stream order. Its tests
   fail when the pinned oracle stops printing `0` and `0.000000`. Not excludable yet: no corpus row is excluded until the
   corpus comparator gates rows on that evidence.
+
+## KD-FF9-AV1-DEFAULT-SUFFIX
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  says that a codec string ending with `.0.110.01.01.01.0` (not
+  monochrome, 4:2:0 with chroma sample position 0, BT.709 colour, studio
+  range) SHOULD omit that suffix, and that omitted optional fields take
+  those values. For an AV1 track whose sequence header states exactly
+  these values, CoreAV omits the suffix, as the section recommends. The
+  pinned oracle keeps it, which the section permits. Both strings state
+  the same values.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone: its `CodecPrivate`,
+  laid out as the AV1 codec mapping in Matroska requires, the sequence
+  header in it, and any stored `Colour` elements, which must agree with
+  that header. They also give the exact pair of strings.
+  `av1_default_suffix` in `scripts/oracle_kd_mkv.py` reads that evidence,
+  and its tests fail when the pinned oracle stops printing its string.
+  Not excludable yet: no corpus row is excluded until the corpus
+  comparator gates rows on that evidence.
+
+## KD-FF9-AV1-CHROMA-POSITION
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  requires the third digit of the chroma subsampling field to equal the
+  sequence header's `chroma_sample_position`, and without a colour
+  description in the sequence header the colour fields SHOULD take the
+  default values. A 4:2:0 track with chroma sample position 1 (vertical)
+  and no colour description therefore gets the full string ending in
+  `.0.111.01.01.01.0`, which CoreAV prints. The pinned oracle omits the
+  optional fields, and omitted fields mean chroma subsampling `110`, so its
+  string states position 0: an oracle error. The oracle gives position 2
+  (co-located) without a colour description the same short string; no
+  record covers that case, which still fails.
+- Corpus scope: as for KD-FF9-AV1-DEFAULT-SUFFIX, with its own conditions
+  in the twin and its own evidence, `av1_chroma_position` in
+  `scripts/oracle_kd_mkv.py`.
 
 ## Corpus differences not set aside
 

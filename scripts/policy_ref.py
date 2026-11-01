@@ -915,6 +915,9 @@ def outcome(reasons, excluded):
 MAX_ELEMENTS = 100_000
 EBML_ID, SEGMENT_ID, CLUSTER_ID, TRACKS_ID = 0x1A45DFA3, 0x18538067, 0x1F43B675, 0x1654AE6B
 TAGS_ID = 0x1254C367
+# The integer elements of a video track's `Colour` (RFC 9559 5.1.4.1.28.16).
+COLOUR = {0x55B1: 'MatrixCoefficients', 0x55B2: 'BitsPerChannel', 0x55B7: 'ChromaSitingHorz',
+          0x55B8: 'ChromaSitingVert', 0x55B9: 'Range', 0x55BA: 'TransferCharacteristics', 0x55BB: 'Primaries'}
 # ffprobe `codec_name` to the name `coreav probe` prints for Matroska.
 MATROSKA_FFPROBE = {name: name for name in MATROSKA_CODECS}
 MATROSKA_FFPROBE.update({'hdmv_pgs_subtitle': 'pgs', 'dvd_subtitle': 'vobsub',
@@ -959,16 +962,37 @@ def _elements(f, start, end):
         at, count = stop, count + 1
 
 
+def _fits(data, size, end):
+    return data + size <= end
+
+
+def _payload(f, body, stop, end, limit):
+    """The payload of an element from `body` to `stop`, read whole into
+    memory when it ends within its parent's `end` (itself within the file)
+    and holds at most `limit` octets; ValueError otherwise, so that a
+    `_children` walk sees the whole of it."""
+    if not _fits(body, stop - body, end):
+        raise ValueError('an element past its parent')
+    if stop - body > limit:
+        raise ValueError('an element larger than the read takes')
+    f.seek(body)
+    return f.read(stop - body)
+
+
 def _children(data):
-    """(id, payload) of each element in a master element held in memory."""
+    """(id, payload) of each element in a master element held in memory,
+    all of them or ValueError: a header cut short, a child of unknown size,
+    or one past its parent."""
     at = 0
     while at < len(data):
         eid, n = _vint(data, at, True)
-        if not n:
-            return
-        size, m = _vint(data, at + n, False)
-        if not m or size is None:
-            return
+        size, m = _vint(data, at + n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('a child header cut short')
+        if size is None:
+            raise ValueError('a child of unknown size')
+        if not _fits(at + n + m, size, len(data)):
+            raise ValueError('a child past its parent')
         yield eid, data[at + n + m:at + n + m + size]
         at += n + m + size
 
@@ -1015,12 +1039,17 @@ def matroska_headers(path, tags=False):
     `DocType`, whether the Segment's size is unknown (live), and for each
     `TrackEntry` in order its `TrackNumber`, `TrackUID`, `TrackType`,
     `CodecID`, `DefaultDuration`, encoding, `PixelWidth` and `PixelHeight`
-    (`pixels`), and its stored `Language` and `LanguageBCP47` (`language`,
-    `language_bcp47`, None when absent).
+    (`pixels`), its stored `Language` and `LanguageBCP47` (`language`,
+    `language_bcp47`), its `CodecPrivate` bytes (`codec_private`) and the
+    integer elements of its `Colour` by name (`colour`, RFC 9559
+    5.1.4.1.28.16), each None when absent.
     With `tags`, also each track's `tag_names`: the `TagName` of every
     `SimpleTag` in a `Tag` whose `Targets` name the track's `TrackUID`
     (RFC 9559 5.1.8), read from the `Tags` before any cluster of unknown
-    size. None when the file does not start with an EBML header."""
+    size. None when the file does not start with an EBML header, or when
+    an element read in memory (the EBML header, `Tracks`, `Tags`) ends past
+    its parent or the file, is over its read limit, or holds a child that
+    does not fit it."""
     found = {'doc_type': None, 'live': None, 'tracks': []}
     tag_names = {}
     try:
@@ -1030,8 +1059,7 @@ def matroska_headers(path, tags=False):
             if not top or top[0][0] != EBML_ID:
                 return None
             _, data, stop = top[0]
-            f.seek(data)
-            for i, p in _children(f.read(min((stop or data) - data, 1 << 16))):
+            for i, p in _children(_payload(f, data, stop or data, end, 1 << 16)):
                 if i == 0x4282:
                     found['doc_type'] = _string(p)
             segment = next((e for e in top if e[0] == SEGMENT_ID), None)
@@ -1041,14 +1069,13 @@ def matroska_headers(path, tags=False):
             seg_end = min(segment[2] or end, end)
             for eid, body, stop in _elements(f, segment[1], seg_end):
                 if eid == TRACKS_ID and stop is not None and not found['tracks']:
-                    f.seek(body)
-                    tracks = f.read(min(stop - body, 16 << 20))
-                    for i, entry in _children(tracks):
+                    for i, entry in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0xAE:
                             continue
                         track = {'number': None, 'uid': None, 'type': None, 'codec_id': None,
                                  'default_duration': None, 'pixels': None, 'language': None,
-                                 'language_bcp47': None, 'encoding': _encoding(entry)}
+                                 'language_bcp47': None, 'codec_private': None, 'colour': None,
+                                 'encoding': _encoding(entry)}
                         for j, q in _children(entry):
                             if j == 0xD7:
                                 track['number'] = _uint(q)
@@ -1064,16 +1091,20 @@ def matroska_headers(path, tags=False):
                                 track['codec_id'] = _string(q)
                             elif j == 0x23E383:
                                 track['default_duration'] = _uint(q)
+                            elif j == 0x63A2:
+                                track['codec_private'] = bytes(q)
                             elif j == 0xE0:
                                 video = dict(_children(q))
                                 if 0xB0 in video and 0xBA in video:
                                     track['pixels'] = (_uint(video[0xB0]), _uint(video[0xBA]))
+                                if 0x55B0 in video:
+                                    track['colour'] = {COLOUR[k]: _uint(v) for k, v in _children(video[0x55B0])
+                                                       if k in COLOUR}
                         found['tracks'].append(track)
                     if not tags:
                         break
                 elif eid == TAGS_ID and tags and stop is not None:
-                    f.seek(body)
-                    for i, tag in _children(f.read(min(stop - body, 16 << 20))):
+                    for i, tag in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0x7373:
                             continue
                         targets = [u for j, q in _children(tag) if j == 0x63C0
@@ -1084,7 +1115,7 @@ def matroska_headers(path, tags=False):
                             tag_names.setdefault(_uint(uid), set()).update(names)
                 if eid == CLUSTER_ID and stop is None:
                     break
-    except OSError:
+    except (OSError, ValueError):
         return None
     if tags:
         for track in found['tracks']:
@@ -1377,7 +1408,7 @@ def _complete(f, start, end, unknown=False):
                 raise ValueError('an element of unknown size')
             yield eid, data, end
             return
-        if data + size > end:
+        if not _fits(data, size, end):
             raise ValueError('an element past its parent')
         yield eid, data, data + size
         at = data + size
