@@ -53,6 +53,30 @@ MONOCHROME = [
 ]
 
 
+def chroma_format_idc(path):
+    """chroma_format_idc of the first sequence parameter set in an Annex B stream (clause 7.3.2.1.1)."""
+    data = open(path, "rb").read()
+    start = data.find(b"\x00\x00\x01")
+    while start >= 0 and data[start + 3] & 0x1F != 7:
+        start = data.find(b"\x00\x00\x01", start + 3)
+    if start < 0:
+        raise SystemExit(f"{path}: no sequence parameter set")
+    end = data.find(b"\x00\x00\x01", start + 3)
+    rbsp = data[start + 4:end if end >= 0 else len(data)].replace(b"\x00\x00\x03", b"\x00\x00")
+    bits = "".join(f"{b:08b}" for b in rbsp)
+    pos = 24
+
+    def ue():
+        nonlocal pos
+        zeros = bits.index("1", pos) - pos
+        value = int(bits[pos + zeros:pos + 2 * zeros + 1], 2) - 1
+        pos += 2 * zeros + 1
+        return value
+
+    ue()
+    return ue() if rbsp[0] in (100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135) else 1
+
+
 def generate(ffmpeg, out):
     os.makedirs(out, exist_ok=True)
     for pix_fmt, streams in (("yuv420p", SYNTHETIC), ("gray", MONOCHROME)):
@@ -64,6 +88,9 @@ def generate(ffmpeg, out):
                  "-c:v", "libx264", "-preset", "medium", "-x264-params", params, "-f", "h264", dst],
                 check=True,
             )
+            # FFmpeg falls back to a format libx264 takes, with only a warning, when it does not take the one asked for.
+            if (chroma_format_idc(dst) == 0) != (pix_fmt == "gray"):
+                raise SystemExit(f"{dst}: chroma_format_idc {chroma_format_idc(dst)} for -pix_fmt {pix_fmt}")
 
 
 def build(features, target):
