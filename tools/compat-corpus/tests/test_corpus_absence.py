@@ -33,23 +33,23 @@ class Absence(unittest.TestCase):
                   'level': ['packets'], 'fields': ['side_data_list.discard_padding'],
                   'corpus_absence': kd.ABSENCE_CASE}
         self.rule = kd.Rule(kd.ABSENCE_KD, 'tools/compat-corpus/ffmpeg9.json', record,
-                            (kd.ABSENCE_KEY,), lambda facts, occurrence: self.proof if facts == b'\x14' else None)
-        self.registry = kd.Registry((self.rule,), lambda path: path.read_bytes())
+                            (kd.ABSENCE_KEY,), lambda facts, occurrence: self.proof if facts == b'\x14' else None, 'isobmff')
+        self.registry = kd.Registry((self.rule,), {'isobmff': lambda path: path.read_bytes()})
 
     def compare(self, registry=None, capture=None):
-        return kd.compare(capture or self.capture, self.media, registry or self.registry)
+        return kd.compare(capture or self.capture, self.media, registry or self.registry, 'isobmff')
 
     def test_positive_byte_certificate_excludes_only_the_padding_row_and_keeps_raw_result(self):
         result = self.compare()
         self.assertFalse(result['keys'][kd.ABSENCE_KEY])
         self.assertEqual(result['excluded'], {kd.ABSENCE_KEY: [kd.ABSENCE_KD]})
         self.assertTrue(result['keys']['packets.pts'])
-        self.assertTrue(kd.audit(self.capture, self.media, self.registry)['passed'])
+        self.assertTrue(kd.audit(self.capture, self.media, self.registry, 'isobmff')['passed'])
 
     def test_unproven_absence_and_an_ordinary_none_pair_remain_uncovered(self):
         for expected in (lambda facts, occurrence: None, lambda facts, occurrence: kd.Pair('20', None)):
             with self.subTest(expected=expected):
-                registry = kd.Registry((dataclasses.replace(self.rule, expected=expected),), lambda p: p.read_bytes())
+                registry = kd.Registry((dataclasses.replace(self.rule, expected=expected),), {'isobmff': lambda p: p.read_bytes()})
                 self.assertEqual(self.compare(registry)['excluded'], {})
         self.media.write_bytes(b'\x15')
         self.assertEqual(self.compare()['excluded'], {})
@@ -62,7 +62,7 @@ class Absence(unittest.TestCase):
                     dataclasses.replace(self.rule, keys=('packets.pts',), record={**self.rule.record, 'fields': ['pts']})]
         for rule in variants:
             with self.subTest(rule=rule):
-                registry = kd.Registry((rule,), lambda p: p.read_bytes())
+                registry = kd.Registry((rule,), {'isobmff': lambda p: p.read_bytes()})
                 self.assertEqual(self.compare(registry)['excluded'], {})
 
     def test_absence_authorization_cannot_be_added_after_the_plan_cutoff(self):
@@ -132,9 +132,9 @@ class Absence(unittest.TestCase):
                 self.assertEqual(self.compare()['excluded'], {})
 
     def test_absence_of_reference_or_explicit_null_still_never_qualifies(self):
-        item = next(o for o in kd.occurrences(self.capture, permit_absence=True) if o.key == kd.ABSENCE_KEY and o.different)
+        item = next(o for o in kd.occurrences(self.capture, summarize=True) if o.key == kd.ABSENCE_KEY and o.different)
         for changed in (dataclasses.replace(item, reference=None), dataclasses.replace(item, present=True, candidate=None)):
-            self.assertEqual(self.registry.covers(changed, b'\x14'), frozenset())
+            self.assertEqual(self.registry.covers(changed, {'isobmff': b'\x14'}), frozenset())
 
     def test_failed_capture_never_qualifies_even_with_a_certificate(self):
         self.capture.packet_code = 2
@@ -145,7 +145,7 @@ class Absence(unittest.TestCase):
         self.media.write_bytes(b'\x15')
         def remove(i, fields):
             return ({key: value for key, value in fields.items() if key != 'side_data_list.discard_padding'},) if i == 1 else (fields,)
-        audit = kd.audit(self.capture, self.media, self.registry, [kd.Attack('unproven missing field', packets=remove)])
+        audit = kd.audit(self.capture, self.media, self.registry, 'isobmff', [kd.Attack('unproven missing field', packets=remove)])
         self.assertTrue(audit['passed'])
         self.assertEqual(audit['attacks'][0]['verdict'], 'caught')
 
@@ -157,7 +157,7 @@ class Absence(unittest.TestCase):
         def delete_required_padding(i, fields):
             return ({key: value for key, value in fields.items() if key != 'side_data_list.discard_padding'},) if i == 1 else (fields,)
         attack = kd.Attack('700-tick straddle: required 324 padding deleted', packets=delete_required_padding)
-        result = kd.audit(self.capture, self.media, self.registry, [attack])
+        result = kd.audit(self.capture, self.media, self.registry, 'isobmff', [attack])
         self.assertTrue(result['passed'])
         self.assertEqual(result['attacks'][0]['verdict'], 'caught')
         self.candidate.write_text(self.first + self.last + '\n')
@@ -171,13 +171,13 @@ class Absence(unittest.TestCase):
             def mutate(i, fields, key=key, value=value):
                 return ({**fields, key: value},) if i == 1 else (fields,)
             attacks.append(kd.Attack(key + ' corrupt', packets=mutate))
-        result = kd.audit(self.capture, self.media, self.registry, attacks)
+        result = kd.audit(self.capture, self.media, self.registry, 'isobmff', attacks)
         self.assertTrue(result['passed'])
         self.assertTrue(all(a['verdict'] == 'caught' for a in result['attacks']))
 
     def test_excluded_absence_is_published_separately(self):
         row = {'alias': 'f000001', 'container': 'isobmff', 'holdout': False, 'status': 'compared',
-               'audit': kd.audit(self.capture, self.media, self.registry), **self.compare()}
+               'audit': kd.audit(self.capture, self.media, self.registry, 'isobmff'), **self.compare()}
         report = kd.report([row])
         self.assertEqual(report['excluded_rows'], [{'alias': 'f000001', 'container': 'isobmff', 'holdout': False,
                                                   'key': kd.ABSENCE_KEY, 'kds': [kd.ABSENCE_KD]}])

@@ -26,7 +26,7 @@ def expected(facts, occurrence):
 
 
 def rule(identifier='KD-TEST', reader=expected, document='docs/record.json'):
-    return kd.Rule(identifier, document, ENTRY, ('streams.duration_ts',), reader)
+    return kd.Rule(identifier, document, ENTRY, ('streams.duration_ts',), reader, 'mpegts')
 
 
 class Corpus(unittest.TestCase):
@@ -43,10 +43,10 @@ class Corpus(unittest.TestCase):
         self.ref_packets.write_text('packet|stream_index=0|pts=1|size=8\n')
         self.got_packets.write_text(self.ref_packets.read_text())
         self.capture = kd.Capture(self.reference, self.candidate, self.ref_packets, self.got_packets)
-        self.registry = kd.Registry((rule(),), lambda path: path.read_bytes())
+        self.registry = kd.Registry((rule(),), {'mpegts': lambda path: path.read_bytes()})
 
     def compare(self, capture=None, registry=None):
-        return kd.compare(capture or self.capture, self.media, registry or self.registry)
+        return kd.compare(capture or self.capture, self.media, registry or self.registry, 'mpegts')
 
     def test_raw_rows_survive_an_exclusion(self):
         result = self.compare()
@@ -69,7 +69,7 @@ class Corpus(unittest.TestCase):
     def test_direct_agreement_never_calls_a_predicate(self):
         self.candidate['streams'][0]['duration_ts'] = 10
         bad = kd.Registry((rule(reader=mock.Mock(side_effect=AssertionError('called'))),),
-                          lambda p: p.read_bytes())
+                          {'mpegts': lambda p: p.read_bytes()})
         self.assertEqual(self.compare(registry=bad)['excluded'], {})
 
     def test_byte_changes_remove_coverage(self):
@@ -81,13 +81,13 @@ class Corpus(unittest.TestCase):
         self.assertEqual(self.compare()['excluded'], {})
 
     def test_evidence_reader_bug_aborts(self):
-        broken = kd.Registry((rule(),), mock.Mock(side_effect=RuntimeError('broken reader')))
+        broken = kd.Registry((rule(),), {'mpegts': mock.Mock(side_effect=RuntimeError('broken reader'))})
         with self.assertRaisesRegex(RuntimeError, 'broken reader'):
             self.compare(registry=broken)
 
     def test_overlaps_count_one_row_and_keep_both_attributions(self):
         other = dataclasses.replace(rule('KD-OTHER'), record={**ENTRY, 'id': 'KD-OTHER'})
-        registry = kd.Registry((rule(), other), lambda p: p.read_bytes())
+        registry = kd.Registry((rule(), other), {'mpegts': lambda p: p.read_bytes()})
         self.assertEqual(self.compare(registry=registry)['excluded']['streams.duration_ts'],
                          ['KD-OTHER', 'KD-TEST'])
 
@@ -108,44 +108,44 @@ class Corpus(unittest.TestCase):
             return kd.Pair(str(i), str(i + 1)) if i < 39 else None
         r = dataclasses.replace(rule(), keys=('packets.pts',), expected=packet_expected,
                                 record={**ENTRY, 'level': ['packets'], 'fields': ['pts']})
-        result = self.compare(registry=kd.Registry((r,), lambda p: p.read_bytes()))
+        result = self.compare(registry=kd.Registry((r,), {'mpegts': lambda p: p.read_bytes()}))
         self.assertNotIn('packets.pts', result['excluded'])
 
     def test_null_and_missing_are_distinct_for_expected_pairs(self):
         del self.candidate['streams'][0]['duration_ts']
         r = dataclasses.replace(rule(), expected=lambda f, o: kd.Pair(10, None))
-        self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
+        self.assertEqual(self.compare(registry=kd.Registry((r,), {'mpegts': lambda p: b'x'}))['excluded'], {})
         self.candidate['streams'][0]['duration_ts'] = None
-        self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
+        self.assertEqual(self.compare(registry=kd.Registry((r,), {'mpegts': lambda p: b'x'}))['excluded'], {})
         self.reference['streams'][0]['duration_ts'] = None
         self.candidate['streams'][0]['duration_ts'] = 20
         r = dataclasses.replace(r, expected=lambda f, o: kd.Pair(None, 20))
-        self.assertEqual(self.compare(registry=kd.Registry((r,), lambda p: b'x'))['excluded'], {})
+        self.assertEqual(self.compare(registry=kd.Registry((r,), {'mpegts': lambda p: b'x'}))['excluded'], {})
 
     def test_missing_values_never_qualify_even_if_reader_returns_absence(self):
         del self.candidate['streams'][0]['duration_ts']
         reader = mock.Mock(return_value=kd.Pair(10, None))
         r = dataclasses.replace(rule(), expected=reader)
-        registry = kd.Registry((r,), lambda p: b'x')
+        registry = kd.Registry((r,), {'mpegts': lambda p: b'x'})
         self.assertEqual(self.compare(registry=registry)['excluded'], {})
-        self.assertTrue(kd.audit(self.capture, self.media, registry)['passed'])
+        self.assertTrue(kd.audit(self.capture, self.media, registry, 'mpegts')['passed'])
         reader.assert_not_called()
 
     def test_audit_catches_changed_values_even_when_counts_stay_equal(self):
         altered = copy.deepcopy(self.candidate)
         altered['streams'][0]['duration_ts'] = 21
         attack = kd.Attack('already wrong value changed', sections=altered)
-        result = kd.audit(self.capture, self.media, self.registry, [attack])
+        result = kd.audit(self.capture, self.media, self.registry, 'mpegts', [attack])
         self.assertEqual(result['attacks'][0]['verdict'], 'caught')
         self.assertTrue(result['passed'])
 
     def test_audit_rejects_a_broad_predicate_even_if_another_bug_is_caught(self):
         def broad(facts, occurrence):
             return kd.Pair(occurrence.reference, occurrence.candidate)
-        registry = kd.Registry((rule(reader=broad),), lambda p: b'x')
+        registry = kd.Registry((rule(reader=broad),), {'mpegts': lambda p: b'x'})
         altered = copy.deepcopy(self.candidate)
         altered['streams'][0].update(duration_ts=21, width=101)
-        result = kd.audit(self.capture, self.media, registry, [kd.Attack('two bugs', sections=altered)])
+        result = kd.audit(self.capture, self.media, registry, 'mpegts', [kd.Attack('two bugs', sections=altered)])
         self.assertFalse(result['passed'])
         self.assertEqual(result['attacks'][0]['verdict'], 'covered')
 
@@ -153,19 +153,19 @@ class Corpus(unittest.TestCase):
         self.candidate['streams'][0]['duration_ts'] = 10
         changed = copy.deepcopy(self.candidate)
         changed['streams'][0]['duration_ts'] = 20
-        result = kd.audit(self.capture, self.media, self.registry, [kd.Attack('activation', sections=changed)])
+        result = kd.audit(self.capture, self.media, self.registry, 'mpegts', [kd.Attack('activation', sections=changed)])
         self.assertFalse(result['passed'])
 
     def test_candidate_evidence_moved_with_value_is_caught(self):
         changed = copy.deepcopy(self.candidate)
         changed['streams'][0].update(duration_ts=21, claimed_duration=21)
-        result = kd.audit(self.capture, self.media, self.registry, [kd.Attack('coupled', sections=changed)])
+        result = kd.audit(self.capture, self.media, self.registry, 'mpegts', [kd.Attack('coupled', sections=changed)])
         self.assertEqual(result['attacks'][0]['verdict'], 'caught')
 
     def test_extra_candidate_fields_are_reported_as_a_blind_spot(self):
         changed = copy.deepcopy(self.candidate)
         changed['new_field'] = 99
-        result = kd.audit(self.capture, self.media, self.registry, [kd.Attack('extra field', sections=changed)])
+        result = kd.audit(self.capture, self.media, self.registry, 'mpegts', [kd.Attack('extra field', sections=changed)])
         self.assertEqual(result['attacks'][0]['verdict'], 'no effect')
         self.assertIn('reference-listed', result['blind_spots'][0])
 
@@ -173,7 +173,7 @@ class Corpus(unittest.TestCase):
         labels = [a.label for a in kd.mutations(self.capture)]
         for part in ('identity', 'drop stream', 'duplicate stream', 'drop packet', 'duplicate packet', 'coupled'):
             self.assertTrue(any(part in label for label in labels), (part, labels))
-        self.assertTrue(kd.audit(self.capture, self.media, self.registry)['passed'])
+        self.assertTrue(kd.audit(self.capture, self.media, self.registry, 'mpegts')['passed'])
 
     def test_report_partition_eligibility_empty_denominator_and_opaque_aliases(self):
         rows = []
@@ -220,7 +220,7 @@ class Corpus(unittest.TestCase):
     def test_ts_streams_keep_index_pairing_and_require_the_same_pid(self):
         ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'),
                                       record={**ENTRY, 'id': 'KD-TS-SYNTHETIC'})
-        registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
+        registry = kd.Registry((ts_rule,), {'mpegts': lambda p: p.read_bytes()})
         self.reference['streams'][0]['id'] = '0x100'
         self.candidate['streams'][0]['id'] = '0x100'
         self.assertIn('streams.duration_ts', self.compare(registry=registry)['excluded'])
@@ -239,7 +239,7 @@ class Corpus(unittest.TestCase):
         ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'),
                                       record={**ENTRY, 'id': 'KD-TS-SYNTHETIC'})
         self.reference['streams'][0]['id'] = '0x100'
-        registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
+        registry = kd.Registry((ts_rule,), {'mpegts': lambda p: p.read_bytes()})
         self.assertEqual(self.compare(registry=registry)['excluded'], {})
 
     def test_ts_packets_require_same_index_and_same_pid_without_searching(self):
@@ -250,7 +250,7 @@ class Corpus(unittest.TestCase):
                                       record={**ENTRY, 'id': 'KD-TS-SYNTHETIC',
                                               'level': ['packets'], 'fields': ['pts']},
                                       expected=lambda f, o: kd.Pair('1', '2'))
-        registry = kd.Registry((ts_rule,), lambda p: p.read_bytes())
+        registry = kd.Registry((ts_rule,), {'mpegts': lambda p: p.read_bytes()})
         self.assertIn('packets.pts', self.compare(registry=registry)['excluded'])
         self.candidate['streams'][0]['id'] = '0x200'
         self.assertNotIn('packets.pts', self.compare(registry=registry)['excluded'])
@@ -259,7 +259,7 @@ class Corpus(unittest.TestCase):
         self.assertNotIn('packets.pts', self.compare(registry=registry)['excluded'])
 
     def test_ts_pid_guard_comes_from_the_required_record_source_not_the_identifier(self):
-        registry = kd.Registry((rule(document='docs/known-divergences-ts.json'),), lambda p: p.read_bytes())
+        registry = kd.Registry((rule(document='docs/known-divergences-ts.json'),), {'mpegts': lambda p: p.read_bytes()})
         self.reference['streams'][0]['id'] = '0x100'
         self.candidate['streams'][0]['id'] = '0x100'
         self.assertIn('streams.duration_ts', self.compare(registry=registry)['excluded'])
@@ -284,7 +284,7 @@ class Corpus(unittest.TestCase):
     def test_extra_trailing_packets_are_not_claimed_as_a_caught_attack(self):
         def append(n, fields):
             return (fields, fields)
-        result = kd.audit(self.capture, self.media, self.registry, [kd.Attack('trailing packet', packets=append)])
+        result = kd.audit(self.capture, self.media, self.registry, 'mpegts', [kd.Attack('trailing packet', packets=append)])
         self.assertEqual(result['attacks'][0]['verdict'], 'no effect')
 
     def test_packet_audit_checks_first_middle_last_of_each_stream(self):
@@ -340,7 +340,7 @@ class Inventory(unittest.TestCase):
     def test_implemented_scope_cannot_widen_beyond_the_record(self):
         wider = dataclasses.replace(rule(), keys=('streams.width',))
         with self.assertRaises(ValueError):
-            kd.Registry((wider,), lambda p: b'x')
+            kd.Registry((wider,), {'mpegts': lambda p: b'x'})
 
     def test_regenerating_inventory_cannot_add_fields_cases_or_identifiers(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -356,22 +356,22 @@ class Inventory(unittest.TestCase):
                     return b'pin'
                 return b'old plan' if '^:' in args[-1] else kd.AMENDMENT.encode()
             with mock.patch.object(kd, 'git', side_effect=source):
-                self.assertEqual(kd.inventory(root, 'a' * 40, kd.Registry((rule(),), lambda p: b'x'), '0' * 64)['records'],
-                                 kd.Registry((rule(),), lambda p: b'x').records())
+                self.assertEqual(kd.inventory(root, 'a' * 40, kd.Registry((rule(),), {'mpegts': lambda p: b'x'}), '0' * 64)['records'],
+                                 kd.Registry((rule(),), {'mpegts': lambda p: b'x'}).records())
                 for record, keys in (({**ENTRY, 'fields': ['duration_ts', 'width']}, ('streams.width',)),
                                      ({**ENTRY, 'conditions': {'additional_case': 'another reading'}}, rule().keys),
                                      ({**ENTRY, 'id': 'KD-NEW'}, rule().keys)):
                     wider = dataclasses.replace(rule(), record=record, keys=keys, identifier=record['id'])
                     with self.subTest(record=record), self.assertRaises(ValueError):
-                        kd.inventory(root, 'a' * 40, kd.Registry((wider,), lambda p: b'x'), '0' * 64)
+                        kd.inventory(root, 'a' * 40, kd.Registry((wider,), {'mpegts': lambda p: b'x'}), '0' * 64)
 
     def test_wildcard_scope_cannot_authorize_later_fields(self):
         for record in ({**ENTRY, 'fields': ['*']}, {**ENTRY, 'level': ['*']}, {**ENTRY, 'level': []}):
             with self.subTest(record=record), self.assertRaises(ValueError):
-                kd.Registry((dataclasses.replace(rule(), record=record),), lambda p: b'x')
+                kd.Registry((dataclasses.replace(rule(), record=record),), {'mpegts': lambda p: b'x'})
 
     def test_unregistered_and_changed_records_fail_closed(self):
-        registry = kd.Registry((rule(),), lambda p: b'x')
+        registry = kd.Registry((rule(),), {'mpegts': lambda p: b'x'})
         snapshot = {'records': registry.records()}
         registry.validate(snapshot)
         changed = copy.deepcopy(snapshot)
@@ -384,7 +384,7 @@ class Inventory(unittest.TestCase):
             registry.validate({'records': snapshot['records'] * 2})
 
     def test_cutoff_is_the_main_commit_introducing_the_amendment(self):
-        registry = kd.Registry((rule(),), lambda p: b'x')
+        registry = kd.Registry((rule(),), {'mpegts': lambda p: b'x'})
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / 'scripts').mkdir()

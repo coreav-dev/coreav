@@ -26,8 +26,9 @@ sys.path.insert(0, str(HERE))
 import run
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_kd_ts
+import oracle_kd_mkv
 
-SCHEMA = 'coreav.corpus-kd/1'
+SCHEMA = 'coreav.corpus-kd/2'
 PLAN = 'docs/measurements/compat-ffprobe/round9-plan.md'
 AMENDMENT = '## Corpus key-row exclusions'
 CONTAINERS = ('isobmff', 'matroska', 'mpegts')
@@ -36,6 +37,10 @@ POOLED_TAGS = '(tag keys in fewer than 5 files, together)'
 ABSENCE_KD = 'KD-FF9-EMPTY-EDIT-PADDING'
 ABSENCE_KEY = 'packets.side_data_list.discard_padding'
 ABSENCE_CASE = 'last-sample-within-media-edit'
+MKV_DOWNMIX = 'KD-FF9-ANNEX-D-DOWNMIX'
+AV1_DEFAULT = 'KD-FF9-AV1-DEFAULT-SUFFIX'
+AV1_CHROMA = 'KD-FF9-AV1-CHROMA-POSITION'
+READER_PATHS = ('scripts/oracle_kd_ts.py', 'scripts/oracle_kd_mkv.py', 'scripts/policy_ref.py')
 BLIND_SPOTS = [
     'Only reference-listed leaves are gated; extra candidate leaves and trailing packets are not.',
     'Compact packet parsing overwrites repeated same-name side-data keys.',
@@ -72,6 +77,14 @@ class PacketSummary:
     same_count: bool
     last_reference: dict
     last_candidate: dict
+    streams: tuple
+
+
+@dataclasses.dataclass(frozen=True)
+class MkvBound:
+    position: int
+    spans: tuple
+    values: dict
 
 
 @dataclasses.dataclass(frozen=True)
@@ -106,6 +119,7 @@ class Rule:
     record: dict
     keys: tuple
     expected: object
+    container: str
 
     @property
     def requires_pid(self):
@@ -115,6 +129,11 @@ class Rule:
     def permits_absence(self):
         return self.identifier == ABSENCE_KD and self.document == 'tools/compat-corpus/ffmpeg9.json' \
             and self.record.get('corpus_absence') == ABSENCE_CASE and ABSENCE_KEY in self.keys
+
+    @property
+    def binds_packets(self):
+        return self.document == 'tools/compat-corpus/ffmpeg9.json' \
+            and self.identifier in (MKV_DOWNMIX, AV1_DEFAULT, AV1_CHROMA)
 
 
 def record_hash(record):
@@ -138,43 +157,49 @@ def authorized_keys(record):
 
 
 class Registry:
-    def __init__(self, rules, read_evidence):
+    def __init__(self, rules, readers, *, reader_paths=()):
         self.rules = tuple(rules)
-        self.read_evidence = read_evidence
+        self.readers = readers
+        self.reader_paths = tuple(reader_paths)
         if len({r.identifier for r in self.rules}) != len(self.rules):
             raise ValueError('duplicate implemented KD identifier')
         for rule in self.rules:
-            if rule.identifier != rule.record.get('id') or not rule.keys \
+            if rule.container not in CONTAINERS or rule.requires_pid and rule.container != 'mpegts' \
+                    or rule.binds_packets and rule.container != 'matroska' \
+                    or rule.permits_absence and rule.container != 'isobmff' \
+                    or rule.identifier != rule.record.get('id') or not rule.keys \
                     or not set(rule.keys) <= authorized_keys(rule.record):
                 raise ValueError('implemented KD scope exceeds its record')
 
     def records(self):
         return [{'id': r.identifier, 'path': r.document, 'sha256': record_hash(r.record),
                  'basis': r.record['basis'], 'record': r.record, 'keys': list(r.keys),
-                 'requires_pid': r.requires_pid, 'permits_absence': r.permits_absence} for r in self.rules]
+                 'container': r.container, 'requires_pid': r.requires_pid,
+                 'permits_absence': r.permits_absence, 'binds_packets': r.binds_packets} for r in self.rules]
 
-    @property
-    def permits_absence(self):
-        return any(rule.permits_absence for rule in self.rules)
+    def summarizes(self, evidence):
+        return any(rule.permits_absence and rule.container in evidence or
+                   rule.binds_packets and any(evidence.get(rule.container, ())) for rule in self.rules)
 
     def validate(self, inventory):
         if inventory['records'] != self.records():
             raise ValueError('inventory and implemented frozen records/scopes differ')
 
-    def evidence(self, path):
-        if not self.rules:
-            return None
+    def evidence(self, path, container):
+        if container not in self.readers or not any(rule.container == container for rule in self.rules):
+            return {}
         try:
-            return self.read_evidence(path)
+            return {container: self.readers[container](path)}
         except (OSError, ValueError, EOFError):
-            return None
+            return {}
 
-    def covers(self, occurrence, facts):
-        if not occurrence.different or not occurrence.successful or facts is None or occurrence.reference is None:
+    def covers(self, occurrence, evidence):
+        if not occurrence.different or not occurrence.successful or occurrence.reference is None:
             return frozenset()
         found = set()
         for rule in self.rules:
-            if occurrence.key not in rule.keys:
+            facts = evidence.get(rule.container)
+            if facts is None or occurrence.key not in rule.keys:
                 continue
             if rule.requires_pid and not same_pid(occurrence):
                 continue
@@ -208,8 +233,80 @@ def production_registry():
         if len(matches) != 1:
             raise ValueError(f'{identifier}: expected one landed record')
         rules.append(Rule(identifier, document, matches[0],
-                          tuple('streams.' + field for field in fields), ts_expected))
-    return Registry(rules, oracle_kd_ts.Facts)
+                          tuple('streams.' + field for field in fields), ts_expected, 'mpegts'))
+    document = 'tools/compat-corpus/ffmpeg9.json'
+    entries = json.loads((ROOT / document).read_text())['entries']
+    for identifier, fields, expected in (
+            (MKV_DOWNMIX, oracle_kd_mkv.DOWNMIX_KEYS, mkv_downmix_expected),
+            (AV1_DEFAULT, ('mime_codec_string',), mkv_default_expected),
+            (AV1_CHROMA, ('mime_codec_string',), mkv_chroma_expected)):
+        matches = [entry for entry in entries if entry['id'] == identifier]
+        if len(matches) != 1:
+            raise ValueError(f'{identifier}: expected one landed record')
+        rules.append(Rule(identifier, document, matches[0],
+                          tuple('streams.' + field for field in fields), expected, 'matroska'))
+    return Registry(rules, {'mpegts': oracle_kd_ts.Facts, 'matroska': matroska_facts}, reader_paths=READER_PATHS)
+
+
+def matroska_facts(path):
+    numbers = collections.Counter(track['number'] for track in
+                                  (oracle_kd_mkv.policy_ref.matroska_headers(path) or {}).get('tracks') or [])
+    downmix = tuple(MkvBound(item.position, item.spans,
+                            dict(zip(oracle_kd_mkv.DOWNMIX_KEYS, zip(item.oracle, item.coreav), strict=True)))
+                    for item in oracle_kd_mkv.annex_d_downmix(path) if item.number > 0 and numbers[item.number] == 1)
+    av1 = []
+    for reader in (oracle_kd_mkv.av1_default_suffix, oracle_kd_mkv.av1_chroma_position):
+        bound = []
+        for item in reader(path):
+            if item.number <= 0 or numbers[item.number] != 1:
+                continue
+            try:
+                spans = tuple((offset, len(frame)) for offset, frames in
+                              oracle_kd_mkv.policy_ref.matroska_block_frames(path, item.number) for frame in frames)
+            except (OSError, ValueError, EOFError):
+                continue
+            bound.append(MkvBound(item.position, spans, {'mime_codec_string': (item.oracle, item.coreav)}))
+        av1.append(tuple(bound))
+    return downmix, *av1
+
+
+def mkv_pair(bound, occurrence):
+    match = re.fullmatch(r'streams\[(\d+)\]\.([a-z_]+)', occurrence.path)
+    summary = occurrence.context.packet_summary
+    if match is None or summary is None:
+        return None
+    index, field = int(match[1]), match[2]
+    matches = [item for item in bound if item.position == index]
+    if len(matches) != 1 or not matches[0].spans \
+            or any(offset < 0 or size <= 0 for offset, size in matches[0].spans):
+        return None
+    item = matches[0]
+    spans = tuple((str(offset), str(size)) for offset, size in item.spans)
+    for document, rows in zip((occurrence.context.reference, occurrence.context.candidate), summary.streams, strict=True):
+        streams = document.get('streams', [])
+        if index >= len(streams) or type(streams[index].get('index')) is not int \
+                or streams[index]['index'] != index or rows.get(str(index)) != spans:
+            return None
+    pair = item.values.get(field)
+    return Pair(*pair) if pair is not None else None
+
+
+def mkv_downmix_expected(facts, occurrence):
+    if occurrence.key not in tuple('streams.' + field for field in oracle_kd_mkv.DOWNMIX_KEYS):
+        return None
+    return mkv_pair(facts[0], occurrence)
+
+
+def mkv_default_expected(facts, occurrence):
+    if occurrence.key != 'streams.mime_codec_string':
+        return None
+    return mkv_pair(facts[1], occurrence)
+
+
+def mkv_chroma_expected(facts, occurrence):
+    if occurrence.key != 'streams.mime_codec_string':
+        return None
+    return mkv_pair(facts[2], occurrence)
 
 
 def ts_expected(facts, occurrence):
@@ -392,6 +489,7 @@ def packet_summary(capture, attack):
     reference = packet_rows(capture.reference_packets)
     candidate = packet_rows(capture.candidate_packets, transform) if capture.packet_code == 0 else iter(())
     last_reference, last_candidate, differences, count_equal = {}, {}, [], True
+    streams = (collections.defaultdict(list), collections.defaultdict(list))
     for i, (ref, got) in enumerate(itertools.zip_longest(reference, candidate)):
         if ref is None or got is None:
             count_equal = False
@@ -399,19 +497,23 @@ def packet_summary(capture, attack):
             last_reference[ref['stream_index']] = i
         if got is not None and 'stream_index' in got:
             last_candidate[got['stream_index']] = i
+        for rows, packet in zip(streams, (ref, got), strict=True):
+            if packet is not None and 'stream_index' in packet:
+                rows[packet['stream_index']].append((packet.get('pos'), packet.get('size')))
         if ref != got and len(differences) < 2:
             differences.append(i)
     return PacketSummary(differences[0] if len(differences) == 1 else None,
-                         count_equal, last_reference, last_candidate)
+                         count_equal, last_reference, last_candidate,
+                         tuple({index: tuple(rows) for index, rows in side.items()} for side in streams))
 
 
-def occurrences(capture, attack=None, *, permit_absence=False):
+def occurrences(capture, attack=None, *, summarize=False):
     candidate = capture.candidate if attack is None or attack.sections is None else attack.sections
-    context = Context(capture.reference, candidate)
+    summary = packet_summary(capture, attack) if summarize else None
+    context = Context(capture.reference, candidate, packet_summary=summary)
     for path, key, ref, present, got in run.key_pairs(run.flatten(capture.reference), run.flatten(candidate)):
         yield Occurrence(path, key, ref, present, got, context, capture.section_code == 0)
     transform = attack.packets if attack else None
-    summary = packet_summary(capture, attack) if permit_absence else None
     got = iter(packet_rows(capture.candidate_packets, transform)) if capture.packet_code == 0 else iter(())
     for i, ref in enumerate(packet_rows(capture.reference_packets)):
         other = next(got, {})
@@ -420,10 +522,10 @@ def occurrences(capture, attack=None, *, permit_absence=False):
             yield Occurrence(path, key, value, present, actual, context, capture.packet_code == 0)
 
 
-def compare(capture, media, registry):
-    facts = registry.evidence(media)
+def compare(capture, media, registry, container):
+    facts = registry.evidence(media, container)
     keys, differences, validated, by_kd, examples = {}, collections.Counter(), collections.Counter(), {}, {}
-    for item in occurrences(capture, permit_absence=registry.permits_absence):
+    for item in occurrences(capture, summarize=registry.summarizes(facts)):
         keys[item.key] = keys.get(item.key, True) and not item.different
         if not item.different:
             continue
@@ -506,15 +608,15 @@ def mutations(capture):
             yield Attack(f'{action} packet {i}', packets=structure)
 
 
-def audit(capture, media, registry, attacks=None):
-    facts = registry.evidence(media)
+def audit(capture, media, registry, container, attacks=None):
+    facts = registry.evidence(media, container)
     results = []
     if attacks is None:
         attacks = mutations(capture) if registry.rules else ()
     for attack in attacks:
         caught, covered, changed = 0, 0, 0
-        for before, after in zip(occurrences(capture, permit_absence=registry.permits_absence),
-                                 occurrences(capture, attack, permit_absence=registry.permits_absence), strict=True):
+        for before, after in zip(occurrences(capture, summarize=registry.summarizes(facts)),
+                                 occurrences(capture, attack, summarize=registry.summarizes(facts)), strict=True):
             old_ids, new_ids = registry.covers(before, facts), registry.covers(after, facts)
             new_difference = after.different and (not before.different or
                               (before.present, before.candidate) != (after.present, after.candidate))
@@ -624,7 +726,8 @@ def inventory(root, cutoff, registry, selection_sha256):
         if not set(rule.keys) <= authorized_keys(matches[0]):
             raise ValueError(f'{rule.identifier}: implemented scope exceeds the plan cutoff')
     return {'schema': SCHEMA, 'plan_commit': cutoff, 'records': registry.records(),
-            'oracle_pin_sha256': hashlib.sha256(pin).hexdigest(), 'selection_sha256': selection_sha256}
+            'oracle_pin_sha256': hashlib.sha256(pin).hexdigest(), 'selection_sha256': selection_sha256,
+            'reader_sha256': {path: file_hash(root / path) for path in registry.reader_paths}}
 
 
 def validate_manifest(files):
@@ -710,7 +813,7 @@ def main():
                   'selection_sha256': selection,
                   'tooling_commit': git(ROOT, 'rev-parse', 'HEAD').decode().strip(),
                   'tool_sha256': file_hash(__file__), 'comparator_sha256': file_hash(HERE / 'run.py'),
-                  'ts_reader_sha256': file_hash(ROOT / 'scripts/oracle_kd_ts.py')}
+                  'reader_sha256': {path: file_hash(ROOT / path) for path in registry.reader_paths}}
     args.out.mkdir(parents=True, exist_ok=False)
     (args.out / 'private').mkdir(mode=0o700)
     (args.out / 'private/files.json').write_bytes(selection_bytes)
@@ -727,8 +830,8 @@ def main():
             if file_hash(media) != row['sha256']:
                 raise ValueError('manifest media checksum differs')
             cap = capture_file(args.coreav, media, args.out / 'private' / row['alias'])
-            result = compare(cap, media, registry)
-            audited = audit(cap, media, registry)
+            result = compare(cap, media, registry, row['container'])
+            audited = audit(cap, media, registry, row['container'])
             failed = any(code != 0 and not (code == 1 and cap.strict_keys)
                          for code in (cap.section_code, cap.packet_code))
             results[i] = {'alias': row['alias'], 'container': row['container'], 'holdout': row['holdout'],

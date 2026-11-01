@@ -74,10 +74,10 @@ class TransportStreams(unittest.TestCase):
         return self.capture([dict(common, **absent)], [dict(common, **stated)])
 
     def compare(self, capture):
-        return kd.compare(capture, self.media, self.registry)
+        return kd.compare(capture, self.media, self.registry, 'mpegts')
 
     def test_registry_scopes_are_finite_and_match_the_landed_records(self):
-        records = self.registry.records()
+        records = [r for r in self.registry.records() if r['container'] == 'mpegts']
         self.assertEqual([record['id'] for record in records],
                          ['KD-TS-VBI-AS-AUDIO', 'KD-TS-PROGRAM-WRAP', 'KD-TS-ANNEX-D-DOWNMIX'])
         for record in records:
@@ -96,8 +96,9 @@ class TransportStreams(unittest.TestCase):
             self.assertEqual(driver.execute(), 0)
         for name in ('identities.json', 'report.json'):
             identities = json.loads((driver.output / name).read_text())
-            self.assertEqual(identities['ts_reader_sha256'],
-                             kd.file_hash(kd.ROOT / 'scripts/oracle_kd_ts.py'))
+            self.assertEqual(set(identities['reader_sha256']), set(kd.READER_PATHS))
+            for path in kd.READER_PATHS:
+                self.assertEqual(identities['reader_sha256'][path], kd.file_hash(kd.ROOT / path))
 
     def test_vbi_does_not_hide_type_packets_or_missing_audio_values(self):
         capture = self.vbi()
@@ -219,7 +220,7 @@ class TransportStreams(unittest.TestCase):
         for make in (self.vbi, self.wrap, self.downmix):
             with self.subTest(case=make.__name__):
                 capture = make()
-                result = kd.audit(capture, self.media, self.registry, kd.mutations(capture))
+                result = kd.audit(capture, self.media, self.registry, 'mpegts', kd.mutations(capture))
                 self.assertTrue(result['passed'], result)
 
 
