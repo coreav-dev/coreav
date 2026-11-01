@@ -1351,39 +1351,76 @@ def laced_tracks(path):
 
 
 
+# The largest block of the track asked for that matroska_frames reads.
+MAX_BLOCK = 1 << 24
+
+
+def _complete(f, start, end, unknown=False):
+    """(id, data start, data end) of each element between start and end, the
+    whole range or ValueError: a header cut short, an element past its
+    parent, more than MAX_ELEMENTS, or one of unknown size, which only with
+    `unknown` ends the range."""
+    at, count = start, 0
+    while at < end:
+        count += 1
+        if count > MAX_ELEMENTS:
+            raise ValueError('more elements than the walk reads')
+        f.seek(at)
+        head = f.read(min(12, end - at))
+        eid, n = _vint(head, 0, True)
+        size, m = _vint(head, n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('an element header cut short')
+        data = at + n + m
+        if size is None:
+            if not unknown:
+                raise ValueError('an element of unknown size')
+            yield eid, data, end
+            return
+        if data + size > end:
+            raise ValueError('an element past its parent')
+        yield eid, data, data + size
+        at = data + size
+
+
 def matroska_frames(path, number):
     """The frames of the track numbered `number`, in file order: each
     SimpleBlock's and Block's data in every Cluster, a lace split into its
-    frames (RFC 9559 10.3 to 10.6). Raises ValueError for a block or lace
-    that does not fit its element, OSError for an unreadable file."""
+    frames (RFC 9559 10.3 to 10.6). Every element of the Segment is walked,
+    each within its parent and the file, so that no frame is left unread;
+    only the Segment may be of unknown size. Raises ValueError for a walk
+    that cannot reach every block, a block or lace that does not fit its
+    element, or a block of the track over MAX_BLOCK, OSError for an
+    unreadable file."""
     with open(path, 'rb') as f:
         end = f.seek(0, 2)
-        top = list(_elements(f, 0, end))
-        segment = next((e for e in top if e[0] == SEGMENT_ID), None)
+        segment = next((e for e in _complete(f, 0, end, unknown=True) if e[0] == SEGMENT_ID), None)
         if segment is None:
             return
-        seg_end = min(segment[2] or end, end)
-        for eid, body, stop in _elements(f, segment[1], seg_end):
+        for eid, body, stop in _complete(f, segment[1], segment[2]):
             if eid != CLUSTER_ID:
                 continue
-            for cid, cbody, cstop in _elements(f, body, stop or seg_end):
+            for cid, cbody, cstop in _complete(f, body, stop):
                 blocks = [(cid, cbody, cstop)]
-                if cid == 0xA0 and cstop is not None:
-                    blocks = [b for b in _elements(f, cbody, cstop) if b[0] == 0xA1]
+                if cid == 0xA0:
+                    blocks = [b for b in _complete(f, cbody, cstop) if b[0] == 0xA1]
                 for bid, bbody, bstop in blocks:
                     if bid not in (0xA3, 0xA1):
                         continue
-                    if bstop is None:
-                        raise ValueError('a block of unknown size')
+                    f.seek(bbody)
+                    head = f.read(min(12, bstop - bbody))
+                    track, n = _vint(head, 0, False)
+                    if not n or len(head) < n + 3:
+                        raise ValueError('a block header cut short')
+                    if track != number:
+                        continue
+                    if bstop - bbody > MAX_BLOCK:
+                        raise ValueError('a block larger than the walk reads')
                     f.seek(bbody)
                     block = f.read(bstop - bbody)
-                    track, n = _vint(block, 0, False)
-                    if not n or len(block) < n + 3:
-                        raise ValueError('a block header cut short')
-                    if track == number:
-                        yield from _laced(block[n + 3:], block[n + 2] >> 1 & 3)
-                if cstop is None:
-                    break
+                    if len(block) != bstop - bbody:
+                        raise ValueError('a block cut short')
+                    yield from _laced(block[n + 3:], block[n + 2] >> 1 & 3)
 
 
 def _laced(data, lacing):

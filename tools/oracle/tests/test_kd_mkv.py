@@ -2,6 +2,7 @@
 scripts/oracle_kd_mkv.py in sync, and checks that each predicate rejects
 near misses."""
 import importlib.util
+import io
 import json
 import pathlib
 import re
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('oracle_kd_mkv', ROOT / 'scripts' / 'oracle_kd_mkv.py')
@@ -246,11 +248,11 @@ def ac3_frame(bsid=6, acmod=7, xbsi1e=1, mode=1, levels=(4, 4, 4, 4), crc=True):
     return bytes(frame)
 
 
-def ac3_matroska(blocks, codec=b'A_AC3', encoded=False, before=b''):
+def ac3_matroska(blocks, codec=b'A_AC3', encoded=False, before=b'', clusters=None):
     """A Matroska file whose track entries are `before` and then one AC-3
     track, number 2 after `before` and 1 otherwise, with one cluster of
     `blocks` (each the bytes after a SimpleBlock's flags, and its lacing
-    bits)."""
+    bits), or the elements `clusters` instead."""
     number = 2 if before else 1
     entry = (ebml(0xD7, bytes([number])) + ebml(0x73C5, bytes([number])) + ebml(0x83, b'\x02') + ebml(0x86, codec)
              + ebml(0xE1, ebml(0xB5, b'\x46\xbb\x80\x00') + ebml(0x9F, b'\x06')))
@@ -261,7 +263,15 @@ def ac3_matroska(blocks, codec=b'A_AC3', encoded=False, before=b''):
     return (ebml(0x1A45DFA3, ebml(0x4282, b'matroska') + ebml(0x4287, b'\x04') + ebml(0x4285, b'\x02'))
             + ebml(0x18538067, ebml(0x1549A966, ebml(0x2AD7B1, b'\x0f\x42\x40'))
                    + ebml(0x1654AE6B, before + ebml(0xAE, entry))
-                   + ebml(0x1F43B675, ebml(0xE7, b'\x00') + cluster)))
+                   + (ebml(0x1F43B675, ebml(0xE7, b'\x00') + cluster) if clusters is None else clusters)))
+
+
+def ac3_cluster(*frames, tail=b'', known=True):
+    """A cluster of track 1 with a SimpleBlock per frame and then `tail`, of
+    unknown size unless `known`."""
+    payload = ebml(0xE7, b'\x00') + b''.join(ebml(0xA3, bytes([0x81, 0, 32 * i, 0x80]) + frame)
+                                             for i, frame in enumerate(frames)) + tail
+    return ebml(0x1F43B675, payload) if known else b'\x1f\x43\xb6\x75\x01' + b'\xff' * 7 + payload
 
 
 def single(*frames):
@@ -320,6 +330,54 @@ class AnnexDDownmix(unittest.TestCase):
                 ('no frames', [], {}),
         ):
             self.assertEqual(self.evidence(ac3_matroska(blocks, **options)), [], name)
+
+    def test_a_walk_that_cannot_reach_every_block_gives_no_evidence(self):
+        frame, other = ac3_frame(), ac3_frame(mode=2)
+        stated = ('1', '0.707107', '0.707107', '0.707107', '0.707107')
+        twice = ac3_matroska([], clusters=ac3_cluster(frame) + ac3_cluster(frame))
+        self.assertEqual(self.evidence(twice), [kd.Ac3Downmix(0, 1, 2, kd.NO_DOWNMIX, stated)])
+        for name, data in (
+                # A cluster of unknown size, whatever follows it.
+                ('unknown size, then the same', ac3_matroska([], clusters=ac3_cluster(frame, known=False)
+                                                             + ac3_cluster(frame))),
+                ('unknown size, then another', ac3_matroska([], clusters=ac3_cluster(frame, known=False)
+                                                            + ac3_cluster(other))),
+                # A child header cut short at the end of its cluster.
+                ('a cut header', ac3_matroska([], clusters=ac3_cluster(frame, tail=b'\xa3')
+                                              + ac3_cluster(frame))),
+                # The file ends before its Segment does.
+                ('a cut file', twice[:-1]),
+        ):
+            self.assertEqual(self.evidence(data), [], name)
+        # The element cap refuses a walk it would end early: the Segment has
+        # Info, Tracks and four clusters.
+        four = ac3_matroska([], clusters=ac3_cluster(frame) * 4)
+        with mock.patch.object(kd.policy_ref, 'MAX_ELEMENTS', 6):
+            self.assertEqual(len(self.evidence(four)), 1)
+        with mock.patch.object(kd.policy_ref, 'MAX_ELEMENTS', 5):
+            self.assertEqual(self.evidence(four), [])
+
+    def test_a_block_is_read_only_within_its_element_and_the_size_bound(self):
+        frame = ac3_frame()
+        whole = ac3_matroska(single(frame))
+        # A SimpleBlock that declares 1 TiB in a file of a few hundred bytes.
+        huge = b'\xa3' + (1 << 56 | 1 << 40).to_bytes(8, 'big') + bytes([0x81, 0, 0, 0x80]) + frame
+        reads = []
+
+        class Recorded(io.BytesIO):
+            def read(self, n=-1):
+                reads.append(n)
+                return super().read(n)
+
+        def recorded(path, mode='r'):
+            return Recorded(pathlib.Path(path).read_bytes())
+        with mock.patch.object(kd.policy_ref, 'open', recorded, create=True):
+            self.assertEqual(self.evidence(ac3_matroska([], clusters=ac3_cluster(frame, tail=huge))), [])
+        self.assertLess(max(reads), len(whole) + 64)
+        with mock.patch.object(kd.policy_ref, 'MAX_BLOCK', 4 + len(frame)):
+            self.assertEqual(len(self.evidence(whole)), 1)
+        with mock.patch.object(kd.policy_ref, 'MAX_BLOCK', 3 + len(frame)):
+            self.assertEqual(self.evidence(whole), [])
 
     @unittest.skipUnless(pinned('ffmpeg') and pinned('ffprobe'), 'needs the pinned ffmpeg and ffprobe on the path')
     def test_the_pinned_oracle_still_prints_no_downmix(self):

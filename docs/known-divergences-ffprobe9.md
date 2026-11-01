@@ -290,7 +290,10 @@ no fixture keys and sets nothing aside on the fixtures.
   twin define the track from the file's bytes alone. Every frame of the
   track must be one whole AC-3 syncframe that passes `crc1`, and all must
   state the same values, so that the stream, not only its first frame,
-  states them. The conditions also give the exact pair of values.
+  states them. A file whose blocks cannot all be reached gives no
+  evidence: an element of unknown size other than the Segment, a header
+  cut short, or an element past its parent or the file. The conditions
+  also give the exact pair of values.
   `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
   its tests fail when the pinned oracle stops printing `0` and
   `0.000000`. Not excludable yet: no corpus row is excluded until the
