@@ -213,6 +213,17 @@ class Verdict(unittest.TestCase):
         self.assertEqual(code, 5)
         self.assertIn('gcp_vm_job.py exited 1: the output did not come back whole', reasons)
 
+    def test_oracle_refusal_diagnostics_do_not_hide_void_or_unmeasured_reports(self):
+        report = {**self.REPORT, 'coverage': {'oracle_failed': 1, 'oracle_refusal_pairs': 1,
+                                              'oracle_refusal_reasons': {'unknown reason': 1}}}
+        for extra, expected in (({}, 0), ({'fallback_log': {'void': True}}, 5),
+                                 ({'unmeasured': ['remux matroska-webm']}, 5)):
+            with self.subTest(extra=extra):
+                code, reasons = self.reasons({**self.GOOD, 'r4.report.json': {**report, **extra}})
+                self.assertEqual(code, expected)
+                self.assertEqual(bool(reasons), expected != 0)
+                self.tmp.cleanup()
+
     def test_both_gate_reports_are_required(self):
         for verdict in ('pass', 'fail'):
             files = {k: v for k, v in self.GOOD.items() if k != 'gate-null.report.json'}

@@ -1,8 +1,12 @@
 # Notices in distributions
 
 Every distribution of CoreAV ships its licence files, `LICENSE-MIT` and
-`LICENSE-APACHE`. A distribution whose binary links `coreav-thumbnail`
-or `coreav-opus` also ships `NOTICE`, unchanged. `coreav-thumbnail`
+`LICENSE-APACHE`. Every distribution of the `coreav` command, or of a
+build that links `coreav-cli`, also ships `NOTICE`, unchanged: the
+ISO/IEC 8859 tables of `coreav ffprobe` come from the Unicode
+Consortium's mapping files, whose Unicode License v3 asks for its notice
+in every copy. A distribution whose binary links `coreav-thumbnail` or
+`coreav-opus` ships it for those crates too. `coreav-thumbnail`
 encodes JPEG with the `jpeg-encoder` crate, licensed "(MIT OR
 Apache-2.0) AND IJG", whose IJG licence requires the statement "This
 software is based in part on the work of the Independent JPEG Group"
@@ -32,14 +36,14 @@ the opening comment of the file it covers.
 | Distribution | Links `coreav-thumbnail` | `NOTICE` | `licenses/` |
 |---|---|---|---|
 | `coreav` command built from source with `thumbnail`, `ffmpeg-fallback`, `dav1d`, `libvpx` or `native-h264` | yes | ship it beside the binary | when it ships a copy of dav1d, libvpx or libopus: that library's files |
-| `coreav` command, default features | no | not required | none |
+| `coreav` command, default features | no | ship it beside the binary | none |
 | Release archives, default build (`release-default`; Windows: the default features) | yes, except Windows | in every archive | in every archive but Windows |
 | Release archives, full build (`release-full`; Windows: `aac`) | yes, except Windows | in every archive | in every archive but Windows |
 | npm platform packages (`@coreav/cli-<platform>`, the default build) | yes, except Windows | in every package | in every package but Windows |
 | Python wheel (`crates/coreav-py`) | with its `thumbnail` feature | in the wheel's licence files (`pyproject.toml`, `license-files`) | none: the wheel links no C decoder |
-| npm `coreav` (WebAssembly) | no | not required | none |
+| npm `coreav` (WebAssembly) | no | in the package (`packages/cli/scripts/build.sh` copies it; `files` and the `prepack` guard name it) | none |
 | A build that links `coreav-opus` (none does yet) | n/a | ship it: the crate's tables come from the code of RFC 6716 Appendix A, whose BSD licence asks binary distributions to reproduce its notice | n/a |
-| Crates (`publish = false` today) | `coreav-thumbnail`, `coreav-cli` | when a crate that links it is published, `NOTICE` goes in its package | n/a |
+| Crates (`publish = false` today) | `coreav-thumbnail`, `coreav-cli` | when `coreav-cli`, or a crate that links it or `coreav-thumbnail`, is published, `NOTICE` goes in its package | n/a |
 
 `NOTICE` also names dav1d, libvpx and libopus, their licences and patent grants,
 and the files above, and says which builds link them. It also carries the
@@ -59,3 +63,8 @@ where the build links dav1d, libvpx and libopus, beside every native binary, so 
 npm platform packages and the archives ship the same set. A new dependency
 whose licence asks for a notice adds its statement to `NOTICE` and a row
 here; a new C library adds its files to `codecs.sh` and the table above.
+`packages/cli/scripts/notices_check.py` checks the packed artefacts
+themselves: the npm tarballs (`.github/workflows/npm.yml`), the wheel
+(`.github/workflows/python.yml`) and the release archives
+(`.github/workflows/release.yml`) each must hold `LICENSE-MIT`,
+`LICENSE-APACHE` and `NOTICE` as committed, in one directory.

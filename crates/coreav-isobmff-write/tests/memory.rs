@@ -16,8 +16,8 @@ use common::fragments::{Fragmented, Track};
 use coreav_counting_alloc::{Counters, CountingAllocator, measure, report};
 use coreav_isobmff::{Allowlist, BufferedSource, Limits, MAX_READ, Rational, Source};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice, clip_mp4,
-    extract_audio, split_mp4,
+    AudioChoice, ClipOptions, HeaderMetadata, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    clip_mp4, extract_audio, split_mp4,
 };
 use std::io::{self, Write};
 
@@ -93,6 +93,7 @@ fn extract(fragments: u64, size: u32) -> Measured {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         )
         .unwrap()

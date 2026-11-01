@@ -5,7 +5,7 @@
 #![no_main]
 
 use coreav_isobmff::{Allowlist, Budget, BufferedSource, Limits, Packet, SliceSource, Source, probe};
-use coreav_isobmff_write::{TrackChoice, extract_audio};
+use coreav_isobmff_write::{HeaderMetadata, TrackChoice, extract_audio};
 use libfuzzer_sys::fuzz_target;
 
 fn packets(data: &[u8], limits: &Limits, stream_index: Option<usize>) -> Vec<Packet> {
@@ -45,7 +45,7 @@ fuzz_target!(|data: &[u8]| {
     };
     let mut out = Vec::new();
     let source = BufferedSource::new(SliceSource::new(input));
-    let Ok(summary) = extract_audio(source, &limits, &Allowlist::default(), choice, &mut out)
+    let Ok(summary) = extract_audio(source, &limits, &Allowlist::default(), choice, HeaderMetadata::Copy, &mut out)
     else {
         return;
     };

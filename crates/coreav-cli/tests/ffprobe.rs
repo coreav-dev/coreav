@@ -12,6 +12,8 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../coreav-mkv/tests/common/mod.rs"]
+mod mkv;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
@@ -648,5 +650,187 @@ fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
         r.stdout,
         "1,0x100\n0x101\n\n2,0x202\n0x201\n0x200\n\n3,0x300\n\n\
          0x100\n0x101\n0x201\n0x300\n0x202\n0x200\n"
+    );
+}
+
+/// The values of each listed item's side data of \`kind\`, joined by \`|\`.
+fn side_data_values(stdout: &str, kind: &str) -> Vec<String> {
+    let prefix = format!("side_datum/{kind}:");
+    stdout
+        .lines()
+        .map(|line| {
+            line.split('|')
+                .filter_map(|item| item.strip_prefix(prefix.as_str()))
+                .filter_map(|kv| kv.split_once('=').map(|(_, v)| v))
+                .collect::<Vec<_>>()
+                .join("|")
+        })
+        .collect()
+}
+
+#[test]
+fn matroska_stereo_modes_are_listed_as_stereo_3d_side_data() {
+    // One VP9 track per RFC 9559 `StereoMode` value, 0 to 14; values
+    // found on the pinned ffprobe with the same file. Matroska states no
+    // view, eye, baseline, disparity or field of view.
+    use mkv::{TRACKS, cat, cluster, el, info, uint, video_track};
+    let tracks: Vec<Vec<u8>> = (0..15u64)
+        .map(|mode| {
+            let mut track = video_track(mode + 1, "V_VP9", 320, 240, &[]);
+            let video = el(
+                0xE0,
+                &cat(&[uint(0xB0, 320), uint(0xBA, 240), uint(0x53B8, mode)]),
+            );
+            let plain = el(0xE0, &cat(&[uint(0xB0, 320), uint(0xBA, 240)]));
+            let at = track.windows(plain.len()).position(|w| w == plain).unwrap();
+            track.splice(at..at + plain.len(), video);
+            let len = track.len() - 2;
+            track[1] = 0x80 | u8::try_from(len).unwrap();
+            track
+        })
+        .collect();
+    let blocks: Vec<Vec<u8>> = (1..=15)
+        .map(|n| mkv::simple_block(n, 0, true, &mkv::VP9_KEY_FRAME))
+        .collect();
+    let data = mkv::file(
+        "matroska",
+        &[
+            info(Some(40.0)),
+            el(TRACKS, &tracks.concat()),
+            cluster(0, &blocks),
+        ],
+    );
+    let path = file("ffprobe-stereo-modes.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_streams",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let rest = "packed|none|0|0/1|0/1";
+    let want: Vec<String> = [
+        Some(("2D", 0)),
+        Some(("side by side", 0)),
+        Some(("top and bottom", 1)),
+        Some(("top and bottom", 0)),
+        Some(("checkerboard", 1)),
+        Some(("checkerboard", 0)),
+        Some(("interleaved lines", 1)),
+        Some(("interleaved lines", 0)),
+        Some(("interleaved columns", 1)),
+        Some(("interleaved columns", 0)),
+        None,
+        Some(("side by side", 1)),
+        None,
+        Some(("frame alternate", 0)),
+        Some(("frame alternate", 1)),
+    ]
+    .iter()
+    .map(|m| match m {
+        Some((typ, inverted)) => format!("Stereo 3D|{typ}|{inverted}|{rest}"),
+        None => String::new(),
+    })
+    .collect();
+    assert_eq!(side_data_values(&r.stdout, "stereo_3d"), want);
+}
+
+#[test]
+fn only_codec_defined_block_additions_are_listed() {
+    // RFC 9559 `BlockAddID`: 1, also when left out, is data the codec
+    // defines; another value needs the track's mapping, which this track
+    // does not have. Values found on the pinned ffprobe.
+    use mkv::{BLOCK_GROUP, TRACKS, cat, cluster, el, info, uint, video_track};
+    let group = |i: i16, ids: &[Option<u64>]| {
+        let mut block = vec![0x81];
+        block.extend((i * 40).to_be_bytes());
+        block.push(0);
+        block.extend(mkv::VP9_KEY_FRAME);
+        let mores: Vec<Vec<u8>> = ids
+            .iter()
+            .map(|id| {
+                let add_id = id.map(|v| uint(0xEE, v)).unwrap_or_default();
+                el(0xA6, &cat(&[add_id, el(0xA5, &[1, 2, 3, 4])]))
+            })
+            .collect();
+        el(
+            BLOCK_GROUP,
+            &cat(&[el(0xA1, &block), el(0x75A1, &mores.concat())]),
+        )
+    };
+    let blocks = vec![
+        group(0, &[Some(1)]),
+        group(1, &[None]),
+        group(2, &[Some(2), Some(1)]),
+        group(3, &[Some(4)]),
+    ];
+    let track = video_track(1, "V_VP9", 320, 240, &[]);
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(160.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-block-additions.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_packets",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let listed = "Matroska BlockAdditional|1";
+    assert_eq!(
+        side_data_values(&r.stdout, "matroska_blockadditional"),
+        [listed, listed, listed, ""]
+    );
+}
+
+#[test]
+fn a_malformed_block_addition_leaves_the_packets_after_it() {
+    // A `BlockAddID` longer than eight bytes, and a header cut off at the
+    // end of its `BlockMore`: each frame is listed without an addition,
+    // and the packets after it are listed.
+    use mkv::{BLOCK_GROUP, TRACKS, cat, cluster, el, info, uint, video_track};
+    let group = |i: i16, additions: &[u8]| {
+        let mut block = vec![0x81];
+        block.extend((i * 40).to_be_bytes());
+        block.push(0);
+        block.extend(mkv::VP9_KEY_FRAME);
+        el(
+            BLOCK_GROUP,
+            &cat(&[el(0xA1, &block), el(0x75A1, additions)]),
+        )
+    };
+    let valid = el(0xA6, &cat(&[uint(0xEE, 1), el(0xA5, &[1, 2, 3, 4])]));
+    let long_id = el(0xA6, &[0xEE, 0x89, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    let cut_off = el(0xA6, &[0xEE]);
+    let blocks = vec![
+        group(0, &long_id),
+        group(1, &valid),
+        group(2, &cut_off),
+        group(3, &valid),
+    ];
+    let track = video_track(1, "V_VP9", 320, 240, &[]);
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(160.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-malformed-block-additions.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_packets",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let listed = "Matroska BlockAdditional|1";
+    assert_eq!(
+        side_data_values(&r.stdout, "matroska_blockadditional"),
+        ["", listed, "", listed]
     );
 }

@@ -966,3 +966,127 @@ fn the_ffprobe_format_duration_in_microseconds_counts_whole_ticks() {
     );
     assert_eq!(parsed.ffprobe_format_duration_micros(), Some(1016));
 }
+
+/// The movie of `Spec::default()` with these sample entries in its `stsd`
+/// and these data entries in its `dref`.
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+fn with_entries(entries: &[Vec<u8>], data: &[Vec<u8>]) -> Vec<u8> {
+    fn swap(boxes: &[u8], kind: &[u8; 4], with: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at + 8 <= boxes.len() {
+            let size = u32::from_be_bytes(boxes[at..at + 4].try_into().unwrap()) as usize;
+            let this: [u8; 4] = boxes[at + 4..at + 8].try_into().unwrap();
+            if &this == kind {
+                out.extend_from_slice(with);
+            } else if [b"moov", b"trak", b"mdia", b"minf", b"stbl", b"dinf"].contains(&&this) {
+                out.extend(bx(&this, &swap(&boxes[at + 8..at + size], kind, with)));
+            } else {
+                out.extend_from_slice(&boxes[at..at + size]);
+            }
+            at += size;
+        }
+        out
+    }
+    let stsd = full(
+        b"stsd",
+        0,
+        0,
+        &[u32s(&[entries.len() as u32]), entries.concat()].concat(),
+    );
+    let dref = full(
+        b"dref",
+        0,
+        0,
+        &[u32s(&[data.len() as u32]), data.concat()].concat(),
+    );
+    swap(
+        &swap(&movie(&Spec::default()), b"stsd", &stsd),
+        b"dref",
+        &dref,
+    )
+}
+
+#[allow(clippy::indexing_slicing)]
+fn avc_entry(data_reference: u16, config_padding: usize) -> Vec<u8> {
+    let mut avcc = vec![1, 100, 0, 30, 0xff, 0xe0, 0];
+    avcc.resize(avcc.len() + config_padding, 0);
+    let mut entry = visual_entry(b"avc1", &bx(b"avcC", &avcc));
+    entry[14..16].copy_from_slice(&data_reference.to_be_bytes());
+    entry
+}
+
+#[test]
+fn a_later_sample_entry_in_another_file_makes_the_track_external() {
+    let here = full(b"url ", 0, 1, &[]);
+    let elsewhere = full(b"url ", 0, 0, &[]);
+    let external = |entries: &[Vec<u8>]| {
+        let data = with_entries(entries, &[here.clone(), elsewhere.clone()]);
+        probe(
+            SliceSource::new(&data),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap()
+        .tracks[0]
+            .external_data
+    };
+    assert!(!external(&[avc_entry(1, 0), avc_entry(1, 0)]));
+    assert!(external(&[avc_entry(2, 0)]));
+    assert!(external(&[avc_entry(1, 0), avc_entry(2, 0)]));
+}
+
+#[test]
+fn a_dropped_track_keeps_none_of_its_sample_entries() {
+    // The smallest retained-bytes limit that probes the movie.
+    let least = |data: &[u8]| {
+        let (mut low, mut high) = (0u64, 1 << 20);
+        while low < high {
+            let middle = (low + high) / 2;
+            let limits = Limits {
+                max_retained_bytes: middle,
+                ..Limits::default()
+            };
+            match probe(SliceSource::new(data), &limits, &Allowlist::default()) {
+                Ok(_) => high = middle,
+                Err(_) => low = middle + 1,
+            }
+        }
+        low
+    };
+    // One track whose first entry is allowed and whose second is not, and
+    // the same movie with that track twice.
+    let once = with_entries(
+        &[avc_entry(1, 4096), visual_entry(b"mp4v", &[])],
+        &[full(b"url ", 0, 1, &[])],
+    );
+    let at = once.windows(4).position(|w| w == b"moov").unwrap() - 4;
+    let (head, moov) = once.split_at(at);
+    // `common::movie` puts the track last in `moov`.
+    let trak_at = moov.windows(4).position(|w| w == b"trak").unwrap() - 4;
+    let trak = &moov[trak_at..];
+    // The second copy's `tkhd` names track 2.
+    let mut second = trak.to_vec();
+    second[28..32].copy_from_slice(&2u32.to_be_bytes());
+    let twice = cat(&[
+        head.to_vec(),
+        bx(
+            b"moov",
+            &cat(&[moov[8..trak_at].to_vec(), trak.to_vec(), second]),
+        ),
+    ]);
+    for data in [&once, &twice] {
+        let movie = probe(
+            SliceSource::new(data),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap();
+        assert!(movie.tracks.is_empty());
+    }
+    // Each entry is charged while it is parsed, but a dropped track gives
+    // its entries' charge back: the second track adds what is kept of it
+    // (its edit list), not its 4 KiB configuration.
+    assert!(least(&once) > 4096);
+    assert!(least(&twice) - least(&once) < 4096);
+}

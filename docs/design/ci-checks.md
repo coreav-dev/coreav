@@ -51,7 +51,9 @@ and from the path filters an earlier change put on the heavy workflows:
 filters — and fails when the required-check table and the workflows
 disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
-`pull_request:` trigger, a report job without `if: always()`, a job of a
+`pull_request:` or `merge_group:` trigger, or whose workflow-level
+concurrency group would cancel or join a merge group's run ("The merge
+queue" below), a report job without `if: always()`, a job of a
 required workflow that no report job waits for, a job without its own
 concurrency group in a workflow that cancels job by job ("Concurrency"
 below), two jobs that would report the same check name, a filter
@@ -135,6 +137,8 @@ with `fetch-depth: 2`:
 - a pull request: the merge commit against its first parent, the base —
   the diff `ci-changes` also uses to choose the fuzz targets;
 - a push: the event's `before` commit against the event's commit;
+- a merge group: the group's base (`github.event.merge_group.base_sha`)
+  against the group's commit, the base fetched first ("The merge queue");
 - a manual or scheduled run, an unreachable commit, or a failing diff:
   everything runs, the safe direction.
 
@@ -208,7 +212,7 @@ Current comparisons use FFmpeg 9.0.2, the build in `scripts/oracle-ffmpeg.env`. 
 
 Every oracle audio decode reads the input options in `scripts/oracle-audio-args.txt`, through `oracle_audio.INPUT_ARGS` in Python, directly in shell, and through `include_str!` in Rust tests. The options go before the input, after any general decoder-thread option. They select one audio decoding thread without changing video decoding or output encoding threads. FFmpeg 9.0.2's frame-threaded FLAC and ALAC decoders apply a start skip longer than the first frame several frames late. In the reproduced FLAC clip starting at 0.6 s, the first 4,096 samples are 128 samples early and 128 samples are dropped after them. One decoding thread gives the source's samples; FFmpeg 7.0.2 gives them on any thread count. This is an oracle execution constraint, not an acceptance-rule or threshold change. The clip, split and join checks share the clip audio reader. Audio extraction hashes decoded PCM frames, not copied packets, and its frame reader uses the shared input options too. The HLS, audio-decode and AAC comparisons, the audio-capable Matroska hash helper, and the mixed audio/video shell frame oracle use the same options. Remux and sanitize explicitly select `-c copy` for packet hashes; transcode compares copied audio packets and decodes only video. The compat and corpus runners reuse these checkers. `scripts/oracle_pin.py --check` checks audio command ownership and names the shared arguments when a new path bypasses them. It recognizes explicit copy codecs rather than allowing packet-copy exemptions. Its tests exercise the commands and reject missing input options, and the real FLAC/ALAC edit-list regression checks extraction as well as the clip reader.
 
-The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
+The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The publisher's `releases` area is tried three times, since it can answer 200 with a short page that is not the archive; `old-releases` follows, and the bench bucket's copy last, for a host with R2 credentials (no workflow passes them). Every source is checked against the same SHA-256. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
 
 ## The fixture jobs
 
@@ -226,7 +230,7 @@ The generated-fixture and oracle-binary cache keys include `scripts/oracle-ffmpe
 
 ## The fuzz runs
 
-Fuzzing runs in two places, and a push to main is neither.
+Fuzzing runs in two places, and neither a push to main nor a merge group is one of them ("The merge queue").
 
 - **A pull request** fuzzes the targets it can affect. `ci-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers it. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 6 seconds over each of the 70 targets instead of the 20 each that took about 38 minutes.
 - **The pull request's fuzz job runs in two shards** of whole projects, side by side: `scripts/fuzz_run.sh shard` gives each project, in the plan's order, to the shard with fewer targets so far, so each project builds in one shard only, and every target runs for the seconds the whole plan gives it, as in one job. In one job, a change that reaches every project took a median of 15.2 minutes (build 5.7, run 6.3), past the 15 the rest of the pull request's checks take.
@@ -250,8 +254,9 @@ concurrency:
 ```
 
 When the new run's job joins its group, GitHub cancels the old run's job
-of the same id. A push to main and a manual run get a group of their own
-run, so nothing on main is cancelled or dropped.
+of the same id. A push to main, a manual run and a merge group get a group
+of their own run, so nothing on main or in the merge queue is cancelled or
+dropped.
 
 - **Not one group for the workflow.** That was the earlier shape. A
   cancelled run is over only when every job has ended, and `always()`
@@ -288,6 +293,19 @@ run, so nothing on main is cancelled or dropped.
   workflow group beside job groups. It names `ci.yml` as a workflow that
   cancels job by job, so removing every group fails too. `python.yml` and
   `npm.yml` keep one group for the workflow.
+
+## The merge queue
+
+The `main` ruleset can require a merge queue. The queue applies each pull request, squashed, to `main` and to the pull requests queued ahead of it, on a temporary branch (`gh-readonly-queue/main/...`), and merges it only when the required checks pass on that commit. Two pull requests that are each green but break `main` together then fail in the queue rather than on `main`. GitHub starts the workflows for such a commit, a merge group, with the `merge_group` event (type `checks_requested`), which is neither `pull_request` nor `push`.
+
+- **Every workflow with a required check runs on `merge_group`**: `deny.yml`, `ci.yml`, `python.yml` and `npm.yml`. A required check that never reports holds the queue until its timeout and then ejects the pull request. `workflow_check.py` fails on a workflow in the table without the trigger, or whose `types:` leave out `checks_requested`.
+- **The changes jobs diff the group's base against the group's commit** (`github.event.merge_group.base_sha` to the checked-out `head_sha`), so a group runs the jobs a pull request with the same changes would, the platform jobs included when it touches their list. The base is the tip of `main` or the commit of the group queued ahead; either can be more than the one parent `fetch-depth: 2` brings, so the changed-paths action fetches it (`--depth=1`) before the diff. When it cannot be fetched, everything runs.
+- **`bench-guard` counts the group's base**, fetched the same way, as a pull request's run counts the first parent of its merge commit, and compares the group's counts with it.
+- **No fuzzing in the queue.** `fuzz-plan` stays empty for a merge group, so `fuzz` is skipped and `ci-report` covers it. The pull request already fuzzed every target its change reaches, on its own merge commit, and `fuzz-nightly.yml` runs every target on `main` each day. A fuzz run is a search, not a property of the commit: a finding in the queue would most likely be an old bug found by chance, and it would eject whichever pull request happened to be queued. The fuzz job, among the longest of a pull request's run, would also lengthen every entry.
+- **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
+- **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
+- **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
+- **Concurrency.** Outside a pull request every group, of a job in `ci.yml` and of the workflow in `deny.yml`, `python.yml` and `npm.yml`, ends in the run id, so each merge group's run has groups of its own: it never cancels another group's run or a pull request's, and none cancels it. `cancel-in-progress` is true for a pull request only. A group that shares a key across runs would also drop the pending run when a third joins, even without cancelling. `workflow_check.py` holds every group of a workflow with a required check to that form. When the queue drops a group (one ahead of it failed), GitHub deletes its branch and starts a new group; the old run is not cancelled and ends on its own.
 
 ## Caches
 
@@ -524,6 +542,8 @@ label whatever the paths, where their trigger filter used to stop them; and
 because the report jobs carry `if: always()`, a run superseded by a new push
 starts its report job too, which then reports the cancellation as a failure
 on the superseded commit ("Concurrency" above says why not `!cancelled()`).
+
+With the merge queue on, a pull request's required workflows run once more for its merge group (without fuzzing) before the push to `main` runs them again.
 
 Measured on 2026-10-30, a pull request push that changes `ci.yml` (every job
 of `ci.yml` runs, and the changes and report jobs of `python.yml` and
