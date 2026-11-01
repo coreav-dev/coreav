@@ -1,6 +1,6 @@
 # One band for small pictures at eight threads
 
-Status: planned. These rules and bars are committed before any judged timing run. Refs coreav-dev/coreav#22.
+Status: rejected. The rules and bars below were committed before the judged timing run. Refs coreav-dev/coreav#22.
 
 ## Candidate
 
@@ -57,3 +57,42 @@ Run the training call first. If SB-1, SB-2 or its SB-3 checks miss, stop without
 The pre-run statements above that the 720p class is unchanged are incorrect. The registered height rule also reaches four 480-line streams in that class: training `36501d448eaa` and `3c593b8f0809`, validation `178de4a3a5a2` and `985a28c5abe5`. The class labels do not imply 720 coded lines. The rule, binaries, bars and calls remain exactly as registered; SB-2 and SB-5 still guard that class. The 720p ceiling probe is not one of these four streams.
 
 The identity job is bundle 6's job with one stricter check. It rejects any decoder stderr line except the exact `decode: FrameNumGap` warning, in addition to checking process status and nonempty output. The decoder example itself is unchanged.
+
+## Result: the candidate is rejected
+
+The single training run completed all 32 streams with ten rounds on the registered c4-standard-16 class. Its host verdict is not void, no stream failed or was unresolved, no stream was retried, and the before/after reference drift is 1.42%. The candidate was built from public commit `bb2d9fb4d5f2d5cc398769735ed4b47a13e0be7e`; `binaries.sha256` identifies the measured binaries. The local controller stopped while the VM kept running. The same job was collected before its hard deadline with `scripts/h264_parity_gcp.py --collect`; there was no replacement run.
+
+`gating/analysis.txt` is the shared analyzer's output on `bars-8t.json` and `gating/gcp-8t/`. It exits 1, a bar miss rather than an incomplete-report refusal. `gating/summary.json` retains the relative ratios. `gating/ffmpeg-summary.json` uses the same analyzer's `interval(values, 20261101)` on each report's `k:discard` and `k:write` ratios, as registered. The raw reports retain every call's times and order. Hostnames are replaced by `VM`; no timing value was changed.
+
+| class | `k/base`, discard, 95% interval | `k/base`, write, 95% interval |
+|---|---|---|
+| all 32 | 0.9999 [0.9993, 1.0063] | 1.0003 [0.9989, 1.0046] |
+| sd | **2.4996 [1.9522, 2.7176]** | **2.2837 [1.8435, 2.5341]** |
+| 720p | 0.9994 [0.9979, 1.8140] | 0.9989 [0.9974, 1.7603] |
+| 1080p | 0.9999 [0.9994, 1.0003] | 0.9975 [0.9938, 0.9996] |
+| 4k | 0.9977 [0.9968, 0.9996] | 1.0016 [0.9989, 1.0043] |
+
+Against FFmpeg 9.0.2, with the share of streams whose ratio is below 1.000:
+
+| class | discard median, 95% interval | share | write median, 95% interval | share |
+|---|---|---|---|---|
+| all 32 | 0.8668 [0.7635, 0.9616] | 22/32 | 0.8673 [0.7757, 0.9540] | 22/32 |
+| sd | **2.1582 [1.4546, 2.3636]** | **0/8** | **2.0001 [1.3857, 2.3230]** | **0/8** |
+| 720p | 0.8680 [0.7765, 1.5346] | 6/8 | 0.8743 [0.7984, 1.5530] | 6/8 |
+| 1080p | 0.8668 [0.7504, 0.8931] | 8/8 | 0.8600 [0.7476, 0.8824] | 8/8 |
+| 4k | 0.6109 [0.4560, 0.6830] | 8/8 | 0.6279 [0.5342, 0.7042] | 8/8 |
+
+The overall median hides the SD regression. Both affected 720p-class streams are also slower, though their class median remains near 1.000. These are training results, not a held-out speed claim.
+
+| bar | result |
+|---|---|
+| SB-1 | **missed**, SD discard 2.4996 against at most 0.985 |
+| SB-2 | **missed**, SD discard 2.4996 and write 2.2837 against at most 1.003 |
+| SB-3 | **missed** on training SD, 2.1582 discard and 2.0001 write against at most 1.000 |
+| SB-4, SB-5 | not run, the training stop rule applied |
+| SB-6 | not run, the training stop rule applied; no timed one-thread no-regression claim |
+| SB-7 | all 256 identity calls matched; conformance, training identity and bench-guard passed in CI; similarity guard passed |
+
+The instruction saving did not compensate for losing early publication of reference rows. The wall-time regression is consistent with less overlap between dependent pictures, but this run did not separately profile that attribution. The rejection rests on the measured time, not that explanation. No candidate revision or re-run was attempted. The production change and its candidate-specific tests were removed; the measured commit and this evidence retain the exact trial.
+
+CI at `27882b0f5caaaa2a9128fc3e2bf8e834cbbf6edf`, whose decoder is the measured candidate, passed every check, including `conformance`, `training-identity`, `modes-identity` and `bench-guard`. Local selection, limits and threading tests and crate clippy also passed. The similarity guard checked `bb2d9fb4d5f2d5cc398769735ed4b47a13e0be7e` with the current main allowlist and reported `60 spans of 50+ tokens, 0 not allowlisted, 0 problems, 0 stale entries`. Neither correctness nor instruction checks substitute for the missed timing bars.

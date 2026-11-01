@@ -976,7 +976,6 @@ impl<K: Kernels> Decoder<K> {
         // aprons to copy.
         let band_mbs = match (hdr.nal_ref_idc, self.band_mbs) {
             (0, None) => mb_h,
-            (_, None) if self.threads == 8 && mb_h < 32 => mb_h,
             _ => self.band_mbs(mb_h),
         };
         let geometry = Geometry::new(mb_w, mb_h, band_mbs);
@@ -1729,51 +1728,6 @@ mod tests {
     use crate::annex_b;
     use crate::picture::NO_MOTION;
     use crate::test_streams::*;
-
-    #[test]
-    fn small_pictures_use_one_band_only_at_eight_threads_without_an_override() {
-        for mb_h in [30, 31, 32] {
-            for threads in [1, 7, 8, 16] {
-                for band_height in [None, Some(1), Some(3)] {
-                    for reference in [false, true] {
-                        let mut decoder = Decoder::new(Limits::default()).with_threads(threads);
-                        if let Some(rows) = band_height {
-                            decoder = decoder.with_band_height(rows);
-                        }
-                        let mut stream = nal(3, 7, sps_with_max_refs(1, mb_h, 1));
-                        stream.extend(nal(3, 8, pps()));
-                        stream.extend(nal(3, 5, idr_pcm_slice(mb_h as usize, pcm_samples)));
-                        stream.extend(nal(
-                            if reference { 3 } else { 0 },
-                            1,
-                            skipped_p_slice_ref(1, 2, mb_h as usize, reference),
-                        ));
-                        for unit in annex_b(&stream) {
-                            decoder.decode_nal(unit).expect("the stream decodes");
-                        }
-                        decoder.flush().expect("the stream flushes");
-                        let expected = band_height.unwrap_or_else(|| {
-                            if !reference || threads == 8 && mb_h < 32 {
-                                mb_h as usize
-                            } else {
-                                Geometry::band_mbs_for(mb_h as usize, threads)
-                            }
-                        });
-                        assert_eq!(
-                            decoder
-                                .pool
-                                .last()
-                                .expect("the last picture")
-                                .geometry()
-                                .band_mbs(),
-                            expected,
-                            "height {mb_h}, threads {threads}, override {band_height:?}, reference {reference}"
-                        );
-                    }
-                }
-            }
-        }
-    }
 
     #[test]
     fn the_memory_budget_counts_the_slack_rows_of_a_picture_of_one_band() {
