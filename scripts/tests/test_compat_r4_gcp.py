@@ -210,6 +210,26 @@ class Credentials(unittest.TestCase):
 
 
 class Job(unittest.TestCase):
+    def test_job_exit_and_signals_remove_credentials_and_scratch(self):
+        job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
+        job = job.split('python3 -I - > out/host.json')[0] + job.split('\nPY\n', 1)[1]
+        job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
+        job = job.replace('bin/ffmpeg -version', 'echo')
+        for source, code in (('exit 23', 23), ('kill -s INT $$', 130),
+                             ('kill -s TERM $$', 143), ('kill -s HUP $$', 129)):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                (root / 'r2.env').write_text(source + '\n')
+                for name in ('data', 'scratch'):
+                    (root / name).mkdir()
+                    (root / name / 'partial').write_text('test-only')
+                done = subprocess.run(['bash', '-c', job, 'job', '0'], cwd=root,
+                                      capture_output=True, timeout=10)
+                self.assertIn(done.returncode, (code, -(code - 128)))
+                self.assertFalse((root / 'r2.env').exists())
+                self.assertFalse((root / 'data').exists())
+                self.assertFalse((root / 'scratch').exists())
+
     def test_the_gate_comes_before_the_first_read_of_the_draw(self):
         job = compat_r4_gcp.job_script(5, '4-7', rehearsal=False)
         self.assertLess(job.index('--files gate.json'), job.index('--arm "$arm"'))
