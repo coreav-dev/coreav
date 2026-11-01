@@ -161,7 +161,7 @@ fn run(program: &Path, frames: usize, limit: usize) -> (Result<usize, Error>, Du
             Collect::limited(limit),
         )?;
         for _ in 0..frames {
-            encoder.send_frame(&frame)?;
+            encoder.send_frame(frame.clone())?;
         }
         encoder.finish().map(|sink| sink.bytes.len())
     })();
@@ -330,8 +330,8 @@ fn drop_returns_at_once() {
     .unwrap();
     let frame = moving(640, 480, format, 0);
     // Two frames fit the queue; the writer is blocked on the pipe.
-    encoder.send_frame(&frame).unwrap();
-    encoder.send_frame(&frame).unwrap();
+    encoder.send_frame(frame.clone()).unwrap();
+    encoder.send_frame(frame).unwrap();
     let start = Instant::now();
     drop(encoder);
     assert!(

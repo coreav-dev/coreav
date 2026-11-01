@@ -355,9 +355,16 @@ same rule (`decode.md`, "The FFmpeg fallback").
 - **Transfer.** Planes are written to the encoder's standard input packed,
   without row padding, by the writer thread (for FFmpeg inside the
   Matroska blocks of "Rate control and timestamps", a few bytes of
-  element headers a frame). A 1080p 8-bit 4:2:0 frame is
-  3.1 MB; through a pipe that is about a millisecond of copying, against
-  tens of milliseconds of encoding a frame at the default preset.
+  element headers a frame). The writer takes each frame as the decoder
+  gave it and writes from there: a plane whose rows are packed in one
+  write, padded rows gathered through a 1 MiB buffer the thread reuses,
+  and a frame lent in the sandboxed worker's shared memory
+  (`docs/design/decode.md`, "Copy, or lend; never views") copied out
+  through the same buffer. So a frame's bytes are copied once on their
+  way into the pipe, and no frame-sized buffer is allocated per frame. A
+  1080p 8-bit 4:2:0 frame is 3.1 MB, an 8K one 54 MB. The buffer is
+  1 MiB because, in a local test of the copy alone, 64 KiB to 256 KiB
+  pieces took longer at 4K and 8K, and 2 to 4 MiB gained nothing.
 - **Colour.** The colour description the decoder applies (H.273 code
   points, as `coreav thumbnail` reads it) goes to the encoder's VUI
   options, as FFmpeg passes the decoded frames' description to libx264.

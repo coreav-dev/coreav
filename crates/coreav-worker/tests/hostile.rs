@@ -13,6 +13,7 @@
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Codec, Decoder, ErrorKind, Limits, Packet, StreamConfig};
+use coreav_frame::Pixels;
 use coreav_worker::{SandboxedDecoder, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions};
 
 const READY: u8 = 0x81;
@@ -441,4 +442,35 @@ fn a_worker_cannot_queue_acknowledgements_without_bound() {
     assert_eq!(kind, ErrorKind::Backend, "after {frames} frames");
     assert!(frames < 50_000, "{frames} frames accepted");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+#[cfg_attr(
+    not(target_os = "linux"),
+    ignore = "its frames come through shared memory, which only Linux uses"
+)]
+fn a_lent_slot_stays_the_parents_until_its_frame_drops() {
+    // Two frames in slot 0 while the consumer keeps the first, lent in that
+    // slot: the second is a protocol violation, so the worker cannot write
+    // over a frame the consumer still reads.
+    let mut bytes = ready();
+    bytes.extend(frame(0, 0, 4, 2, YUV420, &PLANES_4X2, &[]));
+    bytes.extend(frame(1, 0, 4, 2, YUV420, &PLANES_4X2, &[]));
+    let options = WorkerOptions {
+        lend_frames: true,
+        ..options(shell(&bytes, "sleep 1"))
+    };
+    let mut d = SandboxedDecoder::open(&options, WorkerBackend::Ffmpeg, &stream(), &limits())
+        .expect("open");
+    let mut kept = Vec::new();
+    let kind = loop {
+        match d.receive_frame() {
+            Ok(Some(frame)) => kept.push(frame),
+            Ok(None) => std::thread::sleep(Duration::from_millis(1)),
+            Err(e) => break e.kind,
+        }
+    };
+    assert_eq!(kind, ErrorKind::Backend);
+    assert_eq!(kept.len(), 1);
+    assert!(matches!(kept[0].pixels, Pixels::Shared(_)));
 }
