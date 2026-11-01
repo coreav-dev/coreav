@@ -27,6 +27,7 @@ import run
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_kd_ts
 import oracle_kd_mkv
+import oracle_kd
 
 SCHEMA = 'coreav.corpus-kd/2'
 PLAN = 'docs/measurements/compat-ffprobe/round9-plan.md'
@@ -40,7 +41,8 @@ ABSENCE_CASE = 'last-sample-within-media-edit'
 MKV_DOWNMIX = 'KD-FF9-ANNEX-D-DOWNMIX'
 AV1_DEFAULT = 'KD-FF9-AV1-DEFAULT-SUFFIX'
 AV1_CHROMA = 'KD-FF9-AV1-CHROMA-POSITION'
-READER_PATHS = ('scripts/oracle_kd_ts.py', 'scripts/oracle_kd_mkv.py', 'scripts/policy_ref.py')
+READER_PATHS = ('scripts/oracle_kd_ts.py', 'scripts/oracle_kd_mkv.py', 'scripts/policy_ref.py',
+                'scripts/oracle_kd.py')
 BLIND_SPOTS = [
     'Only reference-listed leaves are gated; extra candidate leaves and trailing packets are not.',
     'Compact packet parsing overwrites repeated same-name side-data keys.',
@@ -189,7 +191,8 @@ class Registry:
         if container not in self.readers or not any(rule.container == container for rule in self.rules):
             return {}
         try:
-            return {container: self.readers[container](path)}
+            facts = self.readers[container](path)
+            return {container: facts} if facts else {}
         except (OSError, ValueError, EOFError):
             return {}
 
@@ -245,7 +248,44 @@ def production_registry():
             raise ValueError(f'{identifier}: expected one landed record')
         rules.append(Rule(identifier, document, matches[0],
                           tuple('streams.' + field for field in fields), expected, 'matroska'))
-    return Registry(rules, {'mpegts': oracle_kd_ts.Facts, 'matroska': matroska_facts}, reader_paths=READER_PATHS)
+    matches = [entry for entry in entries if entry['id'] == ABSENCE_KD]
+    if len(matches) != 1:
+        raise ValueError(f'{ABSENCE_KD}: expected one landed record')
+    rules.append(Rule(ABSENCE_KD, document, matches[0], (ABSENCE_KEY,), iso_expected, 'isobmff'))
+    return Registry(rules, {'mpegts': oracle_kd_ts.Facts, 'matroska': matroska_facts,
+                            'isobmff': iso_facts}, reader_paths=READER_PATHS)
+
+
+def iso_facts(path):
+    path = pathlib.Path(path)
+    found = []
+    for item in oracle_kd.empty_edit_padding(oracle_kd.read_facts(path.parent, path.name)):
+        if type(item) is oracle_kd.ProvenAbsence:
+            found.append(ProvenAbsence(**item._asdict()))
+        elif type(item) is oracle_kd.EmptyEditPadding and item.oracle is not None:
+            found.append(item)
+    return tuple(found)
+
+
+def iso_expected(facts, occurrence):
+    context = occurrence.context
+    if occurrence.key != ABSENCE_KEY or type(context.packet_index) is not int \
+            or occurrence.path != f'packets[{context.packet_index}].side_data_list.discard_padding':
+        return None
+    kind = ProvenAbsence if not occurrence.present and occurrence.candidate is None else oracle_kd.EmptyEditPadding
+    at = context.reference_packet.get('pos'), context.reference_packet.get('size')
+    matches = [item for item in facts if type(item) is kind and (str(item.offset), str(item.size)) == at]
+    if len(matches) != 1:
+        return None
+    item = matches[0]
+    if kind is ProvenAbsence:
+        return item
+    if type(item.offset) is not int or item.offset < 0 \
+            or any(type(value) is not int or value <= 0 for value in
+                   (item.track_id, item.size, item.oracle, item.coreav)) \
+            or not last_packet_of_track(occurrence, item.track_id, item.offset, item.size):
+        return None
+    return Pair(str(item.oracle), str(item.coreav))
 
 
 def matroska_facts(path):
@@ -346,20 +386,31 @@ def valid_absence(proof, occurrence):
             or occurrence.reference != str(proof.oracle) or summary is None or not summary.same_count \
             or summary.sole_difference != context.packet_index:
         return False
+    return last_packet_of_track(occurrence, proof.track_id, proof.offset, proof.size)
+
+
+def last_packet_of_track(occurrence, track_id, offset, size):
+    context, summary = occurrence.context, occurrence.context.packet_summary
     reference, candidate = context.reference_packet, context.candidate_packet
     index = reference.get('stream_index')
-    if index != candidate.get('stream_index') or summary.last_reference.get(index) != context.packet_index \
+    if summary is None or not isinstance(index, str) or not re.fullmatch(r'[0-9]+', index) \
+            or index != candidate.get('stream_index') or summary.last_reference.get(index) != context.packet_index \
             or summary.last_candidate.get(index) != context.packet_index:
         return False
+    stream_index = int(index)
     for packet, document in ((reference, context.reference), (candidate, context.candidate)):
-        if packet.get('pos') != str(proof.offset) or packet.get('size') != str(proof.size):
+        streams = document.get('streams', [])
+        if packet.get('pos') != str(offset) or packet.get('size') != str(size) \
+                or stream_index >= len(streams) or type(streams[stream_index].get('index')) is not int \
+                or streams[stream_index]['index'] != stream_index:
             return False
-        try:
-            stream_index = int(index)
-            streams = document['streams']
-            if not 0 <= stream_index < len(streams) or int(str(streams[stream_index]['id']), 0) != proof.track_id:
-                return False
-        except (KeyError, TypeError, ValueError):
+        ids = []
+        for stream in streams:
+            try:
+                ids.append(int(str(stream.get('id')), 0))
+            except (TypeError, ValueError):
+                ids.append(None)
+        if ids[stream_index] != track_id or ids.count(track_id) != 1:
             return False
     return True
 
@@ -519,7 +570,8 @@ def occurrences(capture, attack=None, *, summarize=False):
         other = next(got, {})
         context = Context(capture.reference, candidate, ref, other, i, summary)
         for path, key, value, present, actual in run.key_pairs(ref, other, f'packets[{i}].'):
-            yield Occurrence(path, key, value, present, actual, context, capture.packet_code == 0)
+            yield Occurrence(path, key, value, present, actual, context,
+                             capture.section_code == 0 and capture.packet_code == 0)
 
 
 def compare(capture, media, registry, container):
