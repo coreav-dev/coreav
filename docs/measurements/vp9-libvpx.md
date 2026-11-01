@@ -161,7 +161,9 @@ This is a decode-path diagnosis on the same 10 B5 files, not a new B5 result or 
 
 ### Method and checks
 
-One GCP c4-standard-8, Xeon Platinum 8581C, SMT off, four available cores, Debian 13. CoreAV harness source: `7304293f1a7ede681147c2311360d1183511d70c`. FFmpeg: the pinned 9.0.2 build (`n9.0.2-17-g2a571b6068-20260930`). The harness is `tools/decode-oracle` with its extra packing and MD5 removed, and a local thread-count override. Those harness changes are not product changes.
+The decision rule was fixed in a private, timestamped method record before the first run, not in a Git commit beforehand. The thresholds below are unchanged from that record.
+
+One GCP c4-standard-8, Xeon Platinum 8581C, SMT off, four available cores, Debian 13. CoreAV harness source: `7304293f1a7ede681147c2311360d1183511d70c`. FFmpeg: the pinned 9.0.2 build (`n9.0.2-17-g2a571b6068-20260930`). The harness is `tools/decode-oracle` with its extra packing and MD5 removed, and a local thread-count override. The exact local changes are published in [harness.patch](vp9-libvpx/release-build/harness.patch); they are not applied to the product.
 
 The builds are:
 
@@ -173,6 +175,8 @@ The builds are:
 Every arm decodes the selected video stream in one process. The default CoreAV arms use four libvpx threads with row multithreading. FFmpeg uses its default native `vp9` threading. A second set forces one input decoder thread on each side. `method.json` records commands and configure flags, and `host.txt` records binary hashes and dynamic linkage.
 
 The page cache is primed before each file. Each file has three rotated rounds. Files whose preliminary FFmpeg wall time is below two seconds use a unit of repeated invocations, with the same unit size for every arm. CPU is each process's user plus system time from `wait4`, summed within a unit. Per-file ratios use the median CPU over rounds. Intervals resample the 10 per-file ratios 10,000 times, seed 518.
+
+The three rotations preserve the pairwise order `deb` before `rel` before `gnu`. They change absolute positions but do not balance build-comparison order, so within-round host effects could bias those comparisons. Neither the before-and-after gate nor the identical FFmpeg control rules out that order effect. `runs.jsonl` retains the executed sequence in each file's `runs` array; `method.json` also lists each round's arm order. This completed diagnosis keeps that limitation rather than changing the method and rerunning.
 
 All 5,790 measured invocations exit successfully. All 300 retained arm-round frame counts agree within their file; for a repeated unit, the harness retains its last invocation's count. These checks do not compare pixel hashes. The host gate changes from 2.876 to 2.891 seconds, +0.53%, below the predefined 5% drift limit. The identical FFmpeg control has median CPU ratio 1.001, with a 95% bootstrap interval of 0.996 to 1.003. All 10 files and arms complete.
 

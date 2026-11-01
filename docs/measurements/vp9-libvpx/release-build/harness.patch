@@ -1,0 +1,30 @@
+diff --git a/tools/decode-oracle/src/main.rs b/tools/decode-oracle/src/main.rs
+index d5b7421..9156bbd 100644
+--- a/tools/decode-oracle/src/main.rs
++++ b/tools/decode-oracle/src/main.rs
+@@ -210,12 +210,7 @@ fn run(args: &[String]) -> Result<Value, String> {
+ fn drain(decoder: &mut dyn Decoder, frames: &mut Vec<Value>) -> Result<(), String> {
+     while let Some(frame) = decoder.receive_frame().map_err(|e| e.to_string())? {
+         let picture = frame.to_cpu().map_err(|e| e.to_string())?;
+-        let mut packed = Vec::new();
+-        picture
+-            .write_packed(&mut packed)
+-            .map_err(|e| e.to_string())?;
+-        let digest = Md5::digest(&packed);
+-        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
++        let hex = String::new();
+         frames.push(json!({
+             "pts": frame.pts,
+             "width": picture.width(),
+@@ -408,7 +403,10 @@ fn in_process_libvpx(
+     stream: &coreav_decode::StreamConfig,
+     limits: &Limits,
+ ) -> Result<Box<dyn Decoder>, String> {
+-    let options = coreav_backend_libvpx::LibvpxOptions::default();
++    let mut options = coreav_backend_libvpx::LibvpxOptions::default();
++    if let Some(t) = std::env::var("COREAV_HARNESS_VPX_THREADS").ok().and_then(|v| v.parse().ok()) {
++        options.threads = t;
++    }
+     coreav_backend_libvpx::LibvpxDecoder::open(&options, stream, limits)
+         .map(|d| Box::new(d) as Box<dyn Decoder>)
+         .map_err(|e| e.to_string())

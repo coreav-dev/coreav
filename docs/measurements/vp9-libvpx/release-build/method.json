@@ -138,5 +138,44 @@
       "height": 480,
       "pix_fmt": "yuv420p"
     }
-  ]
+  ],
+  "round_arm_order": [
+    [
+      "ff",
+      "ff_aa",
+      "deb",
+      "rel",
+      "gnu",
+      "nohbd",
+      "ff_t1",
+      "deb_t1",
+      "rel_t1",
+      "gnu_t1"
+    ],
+    [
+      "ff_aa",
+      "deb",
+      "rel",
+      "gnu",
+      "nohbd",
+      "ff_t1",
+      "deb_t1",
+      "rel_t1",
+      "gnu_t1",
+      "ff"
+    ],
+    [
+      "deb",
+      "rel",
+      "gnu",
+      "nohbd",
+      "ff_t1",
+      "deb_t1",
+      "rel_t1",
+      "gnu_t1",
+      "ff",
+      "ff_aa"
+    ]
+  ],
+  "order_limitation": "Three rotations preserve deb before rel before gnu; pairwise build order is not balanced. Gate and identical FFmpeg control do not rule out within-round order effects."
 }
