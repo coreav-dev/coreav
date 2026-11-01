@@ -92,6 +92,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT" = pull_request ]; then SET=rehearsal; COMMIT=; fi
+          if [ "$SET" != rehearsal ] || [ "$OPEN" = true ]; then
+            echo '::error::this calibration branch accepts spent rehearsal inputs only'
+            exit 1
+          fi
           if [ "$SET" = draw6 ] && [ "$OPEN" != true ]; then
             echo "::error::draw6 spends the draw: set open_draw as well"
             exit 1
@@ -147,6 +151,7 @@ jobs:
     timeout-minutes: 330
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         shard: [0, 1, 2, 3]
     steps:
@@ -188,6 +193,7 @@ jobs:
           python3 -I -c 'import json, sys; [print(e["path"]) for e in json.load(open(sys.argv[1]))]' \
             "$RUNNER_TEMP/media/files.json" > "$RUNNER_TEMP/private/list.txt"
       - name: R2, the keys of the set
+        if: ${{ false }}
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
@@ -255,7 +261,7 @@ jobs:
     # the draw's place, a few files a family and one round. A shared runner
     # does not qualify for R4, so its timings are a check of the tools only.
     needs: [compat-plan, compat-build]
-    if: needs.compat-plan.outputs.set == 'rehearsal'
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
@@ -332,7 +338,7 @@ jobs:
     # an R4 run (tools/compat-corpus/r4_scan.py), on the gate's files and on
     # the rehearsal's spent R4 files: every pair once, nothing timed.
     needs: [compat-plan, compat-build]
-    if: needs.compat-plan.outputs.set == 'rehearsal'
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -430,7 +436,7 @@ jobs:
 
   compat-report:
     needs: [compat-plan, compat-build, compat-measure, compat-r4-rehearsal]
-    if: always() && needs.compat-plan.outputs.creds == 'true'
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

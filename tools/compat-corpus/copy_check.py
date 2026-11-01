@@ -36,11 +36,13 @@ import concurrent.futures
 import fractions
 import hashlib
 import json
+import os
 import re
 import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -433,6 +435,19 @@ def oracle(record, tools):
     return [str(p) for p in problems]
 
 
+def timed_check(sequence, check, record, *args):
+    started = time.monotonic()
+    completed = False
+    try:
+        result = check(record, *args)
+        completed = True
+        return result
+    finally:
+        event = {"event": "copy_check_call", "sequence": sequence, "check": check.__name__,
+                 "job": record["job"], "seconds": time.monotonic() - started, "completed": completed}
+        os.write(sys.stdout.fileno(), (json.dumps(event) + "\n").encode())
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--records", required=True)
@@ -456,10 +471,11 @@ def main():
     for record in written:
         groups[(record["source"], record["job"], digest(outputs(record)))].append(record)
     failures = []
+    sequence = os.getpid()
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:
-        judged = {key: pool.submit(oracle, group[0], tools) for key, group in groups.items()
+        judged = {key: pool.submit(timed_check, sequence, oracle, group[0], tools) for key, group in groups.items()
                   if pathlib.Path(key[0]).name not in UNMODELLED.get(key[1], ())}
-        mapped = {id(r): pool.submit(selection, r, tools["ffmpeg"]) for r in written}
+        mapped = {id(r): pool.submit(timed_check, sequence, selection, r, tools["ffmpeg"]) for r in written}
         for key, group in groups.items():
             try:
                 problems = judged[key].result() if key in judged else None

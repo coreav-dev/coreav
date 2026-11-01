@@ -50,6 +50,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -186,8 +187,13 @@ def check_copies(opts, judged, scratch, env):
     if opts.mediainfo:
         cmd += ['--mediainfo', opts.mediainfo]
     with open(opts.log, 'ab') as log:
-        code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
-                              check=False).returncode
+        started = time.monotonic()
+        with subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                              start_new_session=True) as child:
+            code = child.wait()
+            log.write((json.dumps({'event': 'copy_check_sequence', 'sequence': child.pid,
+                                  'records': len(judged), 'seconds': time.monotonic() - started,
+                                  'exit': code}) + '\n').encode())
     report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
     if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
         report = None

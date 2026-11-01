@@ -234,6 +234,18 @@ class Judge(unittest.TestCase):
         self.addCleanup(setattr, r3, 'TIMEOUT', timeout)
         self.assertEqual(self.judge(['C01'], FAKE_CHECK='slow'), {('C01', 0): ('passed', None)})
 
+    def test_each_copy_sequence_records_elapsed_time_and_outcome(self):
+        self.assertEqual(self.judge(['C01', 'C02']),
+                         {('C01', 0): ('passed', None), ('C02', 0): ('passed', None)})
+        events = [json.loads(line) for line in pathlib.Path(self.opts.log).read_text().splitlines()]
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event['event'], 'copy_check_sequence')
+        self.assertEqual(event['records'], 2)
+        self.assertEqual(event['exit'], 0)
+        self.assertGreater(event['sequence'], 0)
+        self.assertGreaterEqual(event['seconds'], 0)
+
     def test_a_refusal_runs_the_binary_and_reaches_the_fallback_log(self):
         self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})
         self.assertEqual(release_round.fallback_verdict(self.log), {'lines': 1, 'refused': 1, 'void': True})
