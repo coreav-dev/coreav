@@ -93,10 +93,45 @@ STOPS_SHELL = ('help', 'version', 'dump-strings', 'dump-po-strings')
 TAKES_OPERAND = ('rcfile', 'init-file')
 
 
+def commands(line):
+    """The commands of a script line, each a list of words: split at the
+    shell's separators (`;`, `&`, `|`, `&&`, `||`, parentheses) and without a
+    comment, which starts at a `#` outside quotes at the start of a word.
+    A line with an unclosed quote has none."""
+    kept, quote, previous, escaped = [], '', ' ', False
+    for char in line:
+        if escaped:
+            escaped = False
+        elif char == '\\' and quote != "'":
+            escaped = True
+        elif quote:
+            quote = '' if char == quote else quote
+        elif char in '\'"':
+            quote = char
+        elif char == '#' and previous in ' \t;&|()':
+            break
+        kept.append(char)
+        previous = char
+    lexer = shlex.shlex(''.join(kept), posix=True, punctuation_chars=';&|()')
+    lexer.whitespace_split = True
+    lexer.commenters = ''
+    try:
+        words = list(lexer)
+    except ValueError:
+        return []
+    out = [[]]
+    for word in words:
+        if set(word) <= set(';&|()'):
+            out.append([])
+        else:
+            out[-1].append(word)
+    return [command for command in out if command]
+
+
 def calls_installer(line):
-    """True when a script line runs the installer: as a command, or through
-    `bash` or `sh` (after `sudo`) as its script or as the string of `-c`.
-    The options are read the way bash reads them, so the ones that stop the
+    """True when a command of a script line runs the installer: as a command,
+    or through `bash` or `sh` (after `sudo`) as its script or in the string of
+    `-c`. The options are read the way bash reads them, so the ones that stop the
     shell before it runs anything are no call: `-n` (until a `+n` or
     `+o noexec` undoes it), `-D`, `-s` without `-c` (the script then
     comes from standard input), `--help`, `--version`, `--dump-strings` and
@@ -104,10 +139,10 @@ def calls_installer(line):
     `--` ends the options, and the word after them is the script (or, with
     `-c`, the command string).
     """
-    try:
-        words = shlex.split(line)
-    except ValueError:
-        return False
+    return any(runs_installer(words) for words in commands(line))
+
+
+def runs_installer(words):
     if words[:1] == ['sudo']:
         words = words[1:]
     if not words:
