@@ -155,12 +155,22 @@ const SPEC_LIMITS: Limits = Limits {
     max_packet_bytes: 64 << 20,
 };
 
-/// Lists whose entries name another size than the frames they hash, with
-/// the evidence. Their frame counts are still checked.
-const WRONG_SIZES: [(&str, &str); 1] = [(
-    "vp90-2-15-segkey_adpq.webm",
-    "every entry names 1280x720, but the 150 MD5s are those FFmpeg 9.0.2's framemd5 gives for the stream's 852x480 frames",
-)];
+/// Lists whose entries do not give the size of the frames they hash, with
+/// the reason. Their frame counts are still checked.
+const UNSIZED: [(&str, &str); 3] = [
+    (
+        "vp90-2-15-segkey_adpq.webm",
+        "every entry names 1280x720, but the 150 MD5s are those FFmpeg 9.0.2's framemd5 gives for the stream's 852x480 frames",
+    ),
+    (
+        "vp90-2-19-skip.webm",
+        "its entries name frame numbers only (01.yuv, 02.yuv and so on)",
+    ),
+    (
+        "vp90-2-19-skip-01.webm",
+        "its entries name frame numbers only (01.yuv, 02.yuv and so on)",
+    ),
+];
 
 /// The vector whose packets show several frames each.
 const LAYERED: &str = "vp90-2-22-svc_1280x720_3.ivf";
@@ -174,7 +184,7 @@ const LAYERED: &str = "vp90-2-22-svc_1280x720_3.ivf";
 fn check(dir: &Path, name: &str) -> Option<String> {
     let data = std::fs::read(dir.join(name)).unwrap();
     let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
-    let mut expected: Vec<Option<(u32, u32)>> = list
+    let expected: Vec<Option<(u32, u32)>> = list
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| entry_size(l.split_whitespace().nth(1).unwrap()))
@@ -218,9 +228,6 @@ fn check(dir: &Path, name: &str) -> Option<String> {
         }
         shown.extend(in_packet.last());
     }
-    if WRONG_SIZES.iter().any(|(wrong, _)| *wrong == name) {
-        expected.iter_mut().for_each(|size| *size = None);
-    }
     if shown.len() != expected.len() {
         return Some(format!(
             "{} frames shown, the list has {}",
@@ -228,10 +235,16 @@ fn check(dir: &Path, name: &str) -> Option<String> {
             expected.len()
         ));
     }
+    if UNSIZED
+        .iter()
+        .any(|(unsized_name, _)| *unsized_name == name)
+    {
+        return None;
+    }
     let wrong = shown
         .iter()
         .zip(&expected)
-        .position(|(s, e)| e.is_some_and(|e| e != *s))?;
+        .position(|(s, e)| *e != Some(*s))?;
     Some(format!(
         "frame {wrong} is {:?}, the list says {:?}",
         shown[wrong], expected[wrong]
