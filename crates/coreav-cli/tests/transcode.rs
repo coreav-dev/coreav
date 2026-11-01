@@ -908,7 +908,27 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
     ]);
     let five = dir.join("five.mp4");
     made(5, &five);
-    for (source, rate, keyint_min) in [(&declared, "10/1", 10), (&five, "5/1", 5)] {
+    let skipped = dir.join("unlisted-track.mkv");
+    ffmpeg(&[
+        "-i",
+        five.to_str().unwrap(),
+        "-map",
+        "0:v",
+        "-map",
+        "0:v",
+        "-c",
+        "copy",
+        skipped.to_str().unwrap(),
+    ]);
+    let mut bytes = std::fs::read(&skipped).unwrap();
+    let track_type = bytes.windows(3).position(|w| w == [0x83, 0x81, 1]).unwrap();
+    bytes[track_type + 2] = 3;
+    std::fs::write(&skipped, bytes).unwrap();
+    for (source, rate, keyint_min) in [
+        (&declared, "10/1", 10),
+        (&five, "5/1", 5),
+        (&skipped, "5/1", 5),
+    ] {
         let probed = probe_json(&tools, &["-show_entries", "stream=r_frame_rate"], source);
         assert_eq!(probed["streams"][0]["r_frame_rate"], rate);
         let baseline = dir.join("baseline.mp4");
@@ -944,6 +964,10 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
             all.extend(args.iter().map(String::as_str));
             let run = transcode(Some(&tools), &all);
             assert_eq!(run.code, 0, "{encoder}: {}", run.stderr);
+            if source == &skipped {
+                let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                assert_eq!(summary["video"]["stream_index"], 1);
+            }
             assert_eq!(
                 x264_options(&tools, &out),
                 expected,

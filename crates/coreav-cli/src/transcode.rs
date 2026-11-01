@@ -114,8 +114,6 @@ pub fn make<S: Source>(
     } else {
         SourceKind::Mp4
     };
-    // The streams' rates as `ffprobe` finds them; a source the probe does
-    // not read leaves the encoder its own minimum GOP length.
     let frame_rates = match source.len() {
         Ok(size) => crate::ffprobe::probe(&mut source, size, "", None)
             .map(|probed| {
@@ -123,12 +121,15 @@ pub fn make<S: Source>(
                     .report
                     .streams
                     .iter()
-                    .map(|stream| {
+                    .filter_map(|stream| {
                         let (num, den) = stream.r_frame_rate()?;
-                        Some(FrameRate {
-                            num: u32::try_from(num).ok()?,
-                            den: u32::try_from(den).ok()?,
-                        })
+                        Some((
+                            stream.source_index?,
+                            FrameRate {
+                                num: u32::try_from(num).ok()?,
+                                den: u32::try_from(den).ok()?,
+                            },
+                        ))
                     })
                     .collect()
             })

@@ -145,9 +145,9 @@ pub struct TranscodeOptions {
     /// The frame rate FFmpeg finds for each source stream (`ffprobe`'s
     /// `r_frame_rate`), by stream index. FFmpeg tells libx264 the video
     /// stream's, which sets x264's minimum GOP length; the encoder is given
-    /// that length ([`crate::encoder::min_keyint`]). Empty, or `None` for
-    /// the stream: the encoder's own.
-    pub frame_rates: Vec<Option<FrameRate>>,
+    /// that length ([`crate::encoder::min_keyint`]). A stream absent from
+    /// the list keeps the encoder's own choice.
+    pub frame_rates: Vec<(usize, FrameRate)>,
     /// Wall clock for the whole transcode.
     pub timeout: Duration,
     /// Which codecs may be decoded, by which backends.
@@ -1306,9 +1306,8 @@ impl Run<'_> {
             min_keyint: self
                 .options
                 .frame_rates
-                .get(self.video.stream_index)
-                .copied()
-                .flatten()
+                .iter()
+                .find_map(|(index, rate)| (*index == self.video.stream_index).then_some(*rate))
                 .map(min_keyint),
             ..EncoderSettings::new(out_w, out_h, picture.format(), self.frame_rate)
         };

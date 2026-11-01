@@ -1978,6 +1978,7 @@ fn stream(
         });
     }
     Stream {
+        source_index: Some(index),
         kind: kind(st),
         attached_pic: false,
         entries: e,

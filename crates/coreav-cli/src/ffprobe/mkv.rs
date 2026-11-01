@@ -1652,6 +1652,7 @@ fn stream(
         meta.add(&mut tags, &meta.by_track, uid);
     }
     Stream {
+        source_index: Some(track.stream_index),
         kind: stream_kind,
         attached_pic: false,
         entries: e,
@@ -2659,6 +2660,7 @@ fn attachment_stream(
         e.push(("extradata_size", int(attachment.size)));
     }
     Stream {
+        source_index: None,
         kind: StreamKind::Attachment,
         attached_pic: false,
         entries: e,
@@ -2772,6 +2774,7 @@ pub(super) fn picture_stream(
     ];
     e.shrink_to_fit();
     Stream {
+        source_index: None,
         kind: StreamKind::Video,
         attached_pic: true,
         entries: e,

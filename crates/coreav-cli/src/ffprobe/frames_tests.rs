@@ -26,6 +26,7 @@ impl PacketSource for SelectedPayloads {
 #[test]
 fn frames_request_payloads_only_for_selected_decoders() {
     let stream = |kind, codec| Stream {
+        source_index: None,
         kind,
         attached_pic: false,
         entries: vec![

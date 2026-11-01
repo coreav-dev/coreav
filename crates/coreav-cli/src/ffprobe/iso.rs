@@ -1578,6 +1578,7 @@ fn stream(
         });
     }
     Stream {
+        source_index: Some(track.stream_index),
         kind: if chapter_data(movie, track) || as_data(track) {
             StreamKind::Data
         } else {
@@ -3566,6 +3567,7 @@ mod tests {
     #[test]
     fn the_listing_reads_the_printed_base_rate() {
         let stream = Stream {
+            source_index: Some(0),
             kind: StreamKind::Video,
             attached_pic: false,
             entries: vec![("r_frame_rate", s("30000/1001"))],

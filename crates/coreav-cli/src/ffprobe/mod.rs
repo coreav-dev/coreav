@@ -73,6 +73,9 @@ pub struct SideData {
 /// One stream.
 #[derive(Clone, Debug)]
 pub struct Stream {
+    /// The container's stream index, before unlisted tracks are removed.
+    /// Attached files and pictures have no source track.
+    pub source_index: Option<usize>,
     /// What the stream is.
     pub kind: StreamKind,
     /// An attached picture (`V` leaves it out).
