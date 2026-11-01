@@ -781,6 +781,27 @@ mod tests {
     #[cfg(unix)]
     use std::time::Duration;
 
+    /// Writes `body` at `path` as an executable `/bin/sh` script. A child
+    /// process writes it, so this process never holds it open for writing:
+    /// a child another test forks would inherit that descriptor until its
+    /// exec, and running the script meanwhile fails with ETXTBSY.
+    #[cfg(unix)]
+    fn write_script(path: &Path, body: &str) {
+        let mut sh = std::process::Command::new("/bin/sh")
+            .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+            .arg(path)
+            .env("PATH", "/usr/bin:/bin")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        sh.stdin
+            .take()
+            .unwrap()
+            .write_all(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").as_bytes())
+            .unwrap();
+        assert!(sh.wait().unwrap().success());
+    }
+
     /// Runs the Opus encoder process's reading side on `body`, a `/bin/sh`
     /// script that stands in for the encoder, sending it `samples` stereo
     /// samples of silence. Returns the packet sizes, or the error, and how
@@ -791,12 +812,10 @@ mod tests {
         body: &str,
         samples: usize,
     ) -> (Result<Vec<u32>, coreav_decode::Error>, Duration) {
-        use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("coreav-opus-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let script = dir.join("encoder.sh");
-        std::fs::write(&script, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_script(&script, body);
         let spool = Spool::create(&dir.join("out.mp4"), "opus").unwrap();
         let start = Instant::now();
         let deadline = start + Duration::from_secs(5);
@@ -923,12 +942,10 @@ mod tests {
     /// script that stands in for the `ffmpeg` program.
     #[cfg(unix)]
     fn ffmpeg_stand_in(name: &str, body: &str) -> (PathBuf, PathBuf) {
-        use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("coreav-aac-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let script = dir.join("ffmpeg");
-        std::fs::write(&script, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_script(&script, body);
         (dir, script)
     }
 
