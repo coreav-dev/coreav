@@ -179,6 +179,43 @@ class Credentials(unittest.TestCase):
                 self.run_main('--local')
         self.assertFalse(self.credential.exists())
 
+    def test_remote_execution_exceptions_remove_credentials(self):
+        for error in (OSError('launch failed'), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                shutil.rmtree(self.out, ignore_errors=True)
+                with mock.patch.object(subprocess, 'run', side_effect=error):
+                    with self.assertRaises(type(error)):
+                        self.run_main()
+                self.assertFalse(self.credential.exists())
+
+    def test_normal_paths_preserve_the_verdict_and_reports(self):
+        for local in (False, True):
+            with self.subTest(local=local):
+                shutil.rmtree(self.out, ignore_errors=True)
+                def execute(*args, **kwargs):
+                    self.assertTrue(self.credential.is_file())
+                    self.assertEqual(self.credential.stat().st_mode & 0o777, 0o600)
+                    if local:
+                        self.credential.unlink()
+                        reports = self.out / 'upload' / 'out'
+                        reports.mkdir()
+                        (reports / 'report.json').write_text('{}')
+                    return subprocess.CompletedProcess([], 1)
+                with mock.patch.object(subprocess, 'run', side_effect=execute):
+                    with mock.patch.object(compat_r4_gcp, 'judge', return_value=5):
+                        self.assertEqual(self.run_main(*(['--local'] if local else [])), 5)
+                self.assertFalse(self.credential.exists())
+                self.assertTrue((self.out / 'run.json').is_file())
+                if local:
+                    self.assertTrue((self.out / 'vm' / 'report.json').is_file())
+
+    def test_refusing_an_existing_output_does_not_remove_its_credentials(self):
+        self.credential.parent.mkdir(parents=True)
+        self.credential.write_text('test-only')
+        with self.assertRaises(SystemExit):
+            self.run_main()
+        self.assertTrue(self.credential.exists())
+
     def test_collect_removes_credentials_left_by_an_interrupted_driver(self):
         self.credential.parent.mkdir(parents=True)
         self.credential.write_text('test-only')
