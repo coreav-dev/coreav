@@ -68,6 +68,14 @@ These are not isolate-wide guarantees. Response bodies, output queues, index cop
 
 Upload byte caps, HTTPS/host/userinfo policy, authorization, tenant scoping and HLS cache identity are application responsibilities. Example applications and their security tests are a separate change, not a blanket permission to expose arbitrary remote inputs.
 
+## Application examples
+
+The [Worker examples](../../packages/wasm/examples/README.md) show these application boundaries without adding them to the library. One media Worker owns the input policy for every document and stream-copy route. A separate HLS Worker serves only R2 objects. Each refuses requests until its authentication hook is replaced; anonymous access is enabled only by the local test harness.
+
+Uploads count actual bytes, URLs require an explicitly allowed HTTPS host without credentials, and response messages and outcome logs do not copy arbitrary host exceptions. Every remote source explicitly sets a 40 MiB reader bound. HLS cache identities include the tenant-prefixed key, ETag, options and exact WASM fingerprint, with separate hash-named stored records. Admission precedes stored reads; retained and reserved bytes share an 8 MiB cap, with at most 16 ready or loading entries and one build. Rebuilds distinguish stored bytes from freshly built bytes and keep one loading owner per identity.
+
+These are retention limits, not isolate-wide memory guarantees. A completed index is generated before its size can be refused, serving copies it into WASM, pending writes and evicted in-use arrays can retain bytes, and warm memory does not shrink. Local workerd checks compare synthetic fixtures with the native operations and record memory without a memory acceptance bar. Deployment, publishing and real R2 validation are outside these examples.
+
 ## Build and verification
 
 The build reads the wasm-bindgen pin from `crates/coreav-wasm/Cargo.toml`, compiles profile `edge` for `wasm32-unknown-unknown` with SIMD, and generates web-target glue. It refuses `CARGO_ENCODED_RUSTFLAGS`, which would override the target flags. `wasm-opt` is optional and its absence is reported. After optimization, the build writes a SHA-256 fingerprint of the exact module bytes. `moduleInfo().build` exposes this packaged-artifact fingerprint; a root caller must supply the corresponding module, not an arbitrary compatible build. The prepack check recomputes the hash and refuses stale metadata. Generated artifacts and license copies are ignored by Git; the package includes the two licenses, `NOTICE` and fingerprint when packed.

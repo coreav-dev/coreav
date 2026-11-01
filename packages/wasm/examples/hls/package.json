@@ -1,0 +1,8 @@
+{
+  "name": "coreav-hls-example",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "dependencies": { "@coreav/wasm": "^0.0.1" }
+}
