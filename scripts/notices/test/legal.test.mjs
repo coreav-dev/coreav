@@ -50,6 +50,26 @@ test("legacy Cargo licence alternatives preserve the existing SPDX choice semant
 
 const statement = '<h2 id="in-tree-files">In-tree files</h2>\n<p>License: Apache-2.0 OR MIT</p>\n<p>Copyright: Rust Project Developers</p>\n<p>License: Unicode-3.0</p>\n<p>&#34;quoted&#34; &#39;notice&#39; &#60;value&#62;</p>\n<h2 id="out-of-tree-dependencies">Other crates</h2>';
 
+test("toolchain WITH expressions retain exception text without reading an operator file", () => {
+  const tc = { version: "1.2.3", commit: "a".repeat(40), sysroot: "/toolchain", library: "/library" };
+  const crates = ["std", "core", "alloc"].map((name) => ({ name, version: "0.0.0", license: "MIT OR Apache-2.0" }));
+  const html = statement.replace("License: Unicode-3.0", "License: Apache-2.0 WITH LLVM-exception");
+  const files = new Map([["/toolchain/share/doc/rust/COPYRIGHT-library.html", Buffer.from(html)]]);
+  for (const name of ["Apache-2.0", "MIT", "LLVM-exception"]) files.set(`/toolchain/share/doc/rust/licenses/${name}.txt`, Buffer.from(`${name} upstream licence\n`));
+  const requested = [];
+  const read = (path) => {
+    path = path.replaceAll("\\", "/");
+    requested.push(path);
+    if (!files.has(path)) throw new Error("absent");
+    return files.get(path);
+  };
+  const text = renderToolchain(tc, crates, policy, read);
+  assert.match(text, /--- licenses\/LLVM-exception.txt ---\nLLVM-exception upstream licence/);
+  assert.equal(requested.some((path) => path.endsWith("/WITH.txt")), false);
+  files.delete("/toolchain/share/doc/rust/licenses/LLVM-exception.txt");
+  assert.throws(() => renderToolchain(tc, crates, policy, read), /licenses\/LLVM-exception.txt/);
+});
+
 test("Rust copyright extraction retains statement text and refuses unknown markup entities", () => {
   assert.equal(inTreeStatement(statement), 'In-tree files\nLicense: Apache-2.0 OR MIT\nCopyright: Rust Project Developers\nLicense: Unicode-3.0\n"quoted" \'notice\' <value>\n');
   assert.throws(() => inTreeStatement(statement.replace('id="in-tree-files"', 'id="missing"')), /boundaries/);

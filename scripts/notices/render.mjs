@@ -159,7 +159,7 @@ export function renderToolchain(tc, crates, policy, read = (path) => readFileSyn
   const ids = new Set();
   for (const expression of [...statement.matchAll(/^License:\s*(.+)$/gm)].map((match) => match[1])) {
     if (!permitted(expression, allowed)) throw new Error(`Rust ${tc.version}: unapproved in-tree licence expression`);
-    for (const id of expression.match(/[A-Za-z0-9.+-]+/g).filter((id) => !["AND", "OR"].includes(id))) ids.add(id);
+    for (const id of expression.match(/[A-Za-z0-9.+-]+/g).filter((id) => !["AND", "OR", "WITH"].includes(id))) ids.add(id);
   }
   if (!ids.size) throw new Error(`Rust ${tc.version}: copyright statement has no licence expressions`);
   const sections = [`=== Rust standard library ${tc.version} (${tc.commit}) (Rust toolchain) ===\nLicense: MIT OR Apache-2.0\nCrates: ${normal.map((crate) => crate.name).sort().join(", ")}\n\n${statement}`];
