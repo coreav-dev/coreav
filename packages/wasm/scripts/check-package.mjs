@@ -7,7 +7,8 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { allowedLicenses, linkedCrates, permitted, renderNotices } from "./legal.mjs";
+import { allowedLicenses, packageNotices, permitted } from "./legal.mjs";
+import { noticeSections, validateEvidence } from "./module-evidence.mjs";
 
 export const PACKED = Object.freeze([
   "package/LICENSE-APACHE", "package/LICENSE-MIT", "package/NOTICE", "package/README.md",
@@ -129,6 +130,9 @@ export function validateProvenance(provenance, wasm, fingerprint, pins) {
   assert.equal(provenance.target, "wasm32-unknown-unknown", "build for wasm32-unknown-unknown");
   assert.ok(Number.isSafeInteger(provenance.simdInstructions) && provenance.simdInstructions > 0, "build with wasm-dis beside the pinned wasm-opt to verify SIMD instructions");
   assert.match(provenance.rustc, /^rustc \S+ .+$/, "missing rustc build provenance");
+  assert.match(provenance.rawWasmSha256, /^[a-f0-9]{64}$/, "missing raw module build provenance");
+  assert.ok(Array.isArray(provenance.rustflags) && provenance.rustflags.every((flag) => typeof flag === "string" && !flag.startsWith("--remap-path-prefix")) && provenance.rustflags.some((flag, index) => flag === "-C" && provenance.rustflags[index + 1] === "target-feature=+simd128"), "missing SIMD build flags in provenance");
+  assert.ok(provenance.rustc.startsWith(`rustc ${pins.rust} `), "build with the pinned WASM Rust toolchain");
   return hash;
 }
 
@@ -145,17 +149,6 @@ export function scanPaths(files, prefixes) {
       assert.ok(!prefix || !texts.some(text => text.includes(prefix)), `${path}: contains a ${label} path prefix`);
     }
   }
-}
-
-export function validateNoticeCoverage(text, crates, roster) {
-  const allHeaders = [...text.matchAll(/^=== .* \(crates\.io\) ===$/gm)];
-  const headers = [...text.matchAll(/^=== ([^\n]+) \(crates\.io\) ===\nLicense: ([^\n]+)$/gm)];
-  assert.equal(headers.length, allHeaders.length, "malformed third-party notice header or missing licence");
-  const labels = headers.map(match => match[1]);
-  assert.equal(new Set(labels).size, labels.length, "duplicate third-party notice header");
-  assert.deepEqual([...labels].sort(), [...roster].sort(), "third-party notice headers differ from the linked cargo tree");
-  const licenses = new Map(crates.map(crate => [`${crate.name} ${crate.version}`, crate.license]));
-  for (const match of headers) assert.equal(match[2], licenses.get(match[1]), `third-party notice licence differs: ${match[1]}`);
 }
 
 export function validateCompressedSize(raw, compressed) {
@@ -337,32 +330,27 @@ export async function main(args = process.argv.slice(2)) {
     const bindgen = /^wasm-bindgen = "=([^"]+)"$/m.exec(readFileSync(join(repo, "crates/coreav-wasm/Cargo.toml"), "utf8"));
     assert.ok(binaryen && bindgen, "missing tool pins");
     const provenance = JSON.parse(readFileSync(join(packageRoot, "wasm/provenance.json"), "utf8"));
-    const hash = validateProvenance(provenance, wasm, files.get("package/wasm/build.js"), { binaryen: binaryen[1], bindgen: bindgen[1] });
+    const expected = packageNotices(packageRoot, repo);
+    const hash = validateProvenance(provenance, wasm, files.get("package/wasm/build.js"), { binaryen: binaryen[1], bindgen: bindgen[1], rust: expected.tc.version });
     for (const name of ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"]) assert.deepEqual(files.get(`package/${name}`), readFileSync(join(repo, name)), `run npm run build: ${name} differs from the repository`);
-    const crates = linkedCrates(repo);
     const notices = files.get("package/THIRD-PARTY-NOTICES.txt").toString("utf8");
-    assert.equal(notices, renderNotices(crates, allowed), "run npm run build: third-party notices are stale");
-    const tree = run("cargo", ["tree", "--manifest-path", join(repo, "Cargo.toml"), "-p", "coreav-wasm", "--target", "wasm32-unknown-unknown", "-e", "normal,no-proc-macro", "--locked", "--offline", "--prefix", "none", "--format", "{p}", "--no-dedupe"]);
-    const roster = new Set(tree.trim().split(/\r?\n/).map(line => {
-      const match = /^([A-Za-z0-9_-]+) v([^\s]+)(?: \(([^)]+)\))?$/.exec(line);
-      assert.ok(match, "unrecognised independent cargo tree record");
-      if (match[3]) {
-        assert.ok(within(repo, realpathSync(match[3])), "linked path crate is outside the repository");
-        return null;
-      }
-      return `${match[1]} ${match[2]}`;
-    }).filter(Boolean));
-    validateNoticeCoverage(notices, crates, roster);
+    const sections = noticeSections(notices);
+    validateEvidence(expected.evidence, sections, expected.context);
+    assert.equal(notices, expected.text, "run npm run build: third-party notices are stale");
     const gzip = bytes => execFileSync("gzip", ["-9", "-n", "-c"], { input: bytes, maxBuffer: 64 * 1024 * 1024, timeout: 30_000 }).length;
     const wasmGzip = gzip(wasm);
     validateCompressedSize(wasm.length, wasmGzip);
     await checkConsumer(consumer, checkedTarball, files, manifest, hash, npm);
+    const { rustflags, ...publicProvenance } = provenance;
+    const evidence = Object.fromEntries(Object.entries(expected.evidence).map(([name, value]) => [name, value instanceof Map ? [...value].map(([crate, versions]) => ({ name: crate, versions: [...versions].sort() })) : [...value].sort()]));
     const record = {
       wasmBytes: wasm.length, wasmGzipBytes: wasmGzip, glueBytes: glue.length, glueGzipBytes: gzip(glue),
       sourceBytes: [...files].filter(([path]) => path.startsWith("package/src/")).reduce((sum, [, bytes]) => sum + bytes.length, 0),
       tarballBytes: compressed.length, tarballSha256: sha(compressed), unpackedBytes: [...files.values()].reduce((sum, bytes) => sum + bytes.length, 0),
       sha256: Object.fromEntries([...files].map(([path, bytes]) => [path.slice(8), sha(bytes)])),
-      node: process.versions.node, npm: run(process.execPath, [npm, "--version"], { env }).trim(), provenance,
+      noticeBytes: Buffer.byteLength(notices), noticeGzipBytes: gzip(Buffer.from(notices)),
+      noticeSections: Object.fromEntries(["crates.io", "Rust toolchain", "Rust toolchain, crates.io"].map((origin) => [origin, [...sections.values()].filter((section) => section.origin === origin).length])), evidence,
+      node: process.versions.node, npm: run(process.execPath, [npm, "--version"], { env }).trim(), provenance: publicProvenance,
     };
     console.log(JSON.stringify(record));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Installed WASM package\n\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`);

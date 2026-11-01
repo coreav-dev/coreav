@@ -7,7 +7,7 @@ import { allowedLicenses, permitted } from "../scripts/legal.mjs";
 import { fileURLToPath } from "node:url";
 import {
   archiveEntries, consumerEnv, PACKED, scanPaths, SIZE_BAR, validateArchive,
-  validateCompressedSize, validateManifest, validateNoticeCoverage, validateProvenance,
+  validateCompressedSize, validateManifest, validateProvenance,
 } from "../scripts/check-package.mjs";
 
 const allowed = new Set(["MIT", "Apache-2.0"]);
@@ -134,15 +134,15 @@ test("provenance and fingerprint describe the exact optimized SIMD module", () =
   const wasm = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
   const hash = createHash("sha256").update(wasm).digest("hex");
   const fingerprint = Buffer.from(`export const BUILD = "${hash}";\n`);
-  const pins = { binaryen: "133", bindgen: "0.2.129" };
-  const provenance = { wasmSha256: hash, wasmOpt: "wasm-opt version 133 (version_133)", wasmBindgen: pins.bindgen, profile: "edge", target: "wasm32-unknown-unknown", rustc: "rustc 1.90.0 (build date)", simdInstructions: 1 };
+  const pins = { binaryen: "133", bindgen: "0.2.129", rust: "1.99.1" };
+  const provenance = { wasmSha256: hash, rawWasmSha256: hash, rustflags: ["-C", "target-feature=+simd128"], wasmOpt: "wasm-opt version 133 (version_133)", wasmBindgen: pins.bindgen, profile: "edge", target: "wasm32-unknown-unknown", rustc: "rustc 1.99.1 (build date)", simdInstructions: 1 };
   assert.equal(validateProvenance(provenance, wasm, fingerprint, pins), hash);
   assert.throws(() => validateProvenance(provenance, Buffer.concat([wasm, Buffer.from([0])]), fingerprint, pins), /fingerprint/);
   assert.throws(() => validateProvenance({ ...provenance, wasmSha256: "stale" }, wasm, fingerprint, pins), /provenance/);
   for (const wasmOpt of [null, "wasm-opt version 132", "wasm-opt version 1330", "prefix wasm-opt version 133"]) {
     assert.throws(() => validateProvenance({ ...provenance, wasmOpt }, wasm, fingerprint, pins), /pinned wasm-opt/);
   }
-  for (const [key, value] of [["wasmBindgen", "different"], ["profile", "release"], ["target", "wasm32-wasip1"], ["rustc", ""], ["simdInstructions", null], ["simdInstructions", 0], ["simdInstructions", 1.5]]) {
+  for (const [key, value] of [["wasmBindgen", "different"], ["profile", "release"], ["target", "wasm32-wasip1"], ["rustc", ""], ["rustc", "rustc 1.99.0 (build date)"], ["rawWasmSha256", "stale"], ["rustflags", []], ["rustflags", ["-C", "target-feature=+simd128", "--remap-path-prefix=/private=/r"]], ["simdInstructions", null], ["simdInstructions", 0], ["simdInstructions", 1.5]]) {
     assert.throws(() => validateProvenance({ ...provenance, [key]: value }, wasm, fingerprint, pins));
   }
 });
@@ -165,18 +165,6 @@ test("local path scans cover all text and printable WASM strings without disclos
     }
   }
   assert.doesNotThrow(() => scanPaths(new Map([["package/NOTICE", Buffer.from("/cargo/registry and /coreav are remapped build roots")]]), prefixes));
-});
-
-test("notice headers independently match linked names, versions and metadata licences", () => {
-  const crates = [{ name: "first", version: "1.0.0", license: "MIT" }, { name: "second", version: "2.0.0", license: "MIT OR Apache-2.0" }];
-  const text = "=== first 1.0.0 (crates.io) ===\nLicense: MIT\n\n--- LICENSE ---\nupstream\n\n=== second 2.0.0 (crates.io) ===\nLicense: MIT OR Apache-2.0\n";
-  const roster = new Set(["first 1.0.0", "second 2.0.0"]);
-  assert.doesNotThrow(() => validateNoticeCoverage(text, crates, roster));
-  assert.throws(() => validateNoticeCoverage(text + text, crates, roster), /duplicate/);
-  assert.throws(() => validateNoticeCoverage(text, crates, new Set(["first 1.0.0"])), /cargo tree/);
-  assert.throws(() => validateNoticeCoverage(text.replace("first 1.0.0", "first 1.0.1"), crates, roster), /cargo tree/);
-  assert.throws(() => validateNoticeCoverage(text.replace("License: MIT\n", "License: Apache-2.0\n"), crates, roster), /licence differs/);
-  assert.throws(() => validateNoticeCoverage(text + "=== hidden 3.0.0 (crates.io) ===\n", crates, roster), /malformed/);
 });
 
 test("consumer environments cannot inherit npm, Node resolution or injected runtime options", () => {

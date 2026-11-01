@@ -74,7 +74,7 @@ The compressed size of the exact shipped WASM must be at most 1,048,576 bytes un
 
 On generated fixtures, fresh-isolate WebAssembly linear memory after probe, check, chapters, subtitle extraction, audio extraction or clip must be at most 32 MiB; remux and sanitize must be at most 64 MiB. Warm mixed sequences, ffprobe, HLS, concurrent operations, JavaScript heap and process resident memory are diagnostic records, not new acceptance bars. The existing module tests retain their own concurrent-read assertion. No local measurement establishes a production isolate-memory guarantee.
 
-The installed tarball is the package boundary. Its file set, exports, declarations, licences, notices and build fingerprint must agree with the built package. Generated third-party notices must contain the upstream licence and notice files of the locked registry dependency graph linked into the WASM, using the same target and selected features as the build. This adds distribution notices without changing any licence.
+The installed tarball is the package boundary. Its file set, exports, declarations, licences, notices and build fingerprint must agree with the built package. Generated notices cover the locked normal project Cargo graph with the build's target flags, excluding procedural macros, and the pinned standard-library dependency closure compiled for wasm32. This closure is a conservative superset of linker-retained code, not a claim of minimal linkage. This adds distribution notices without changing any licence.
 
 ## Application examples
 
@@ -92,7 +92,11 @@ The contract tier runs byte-reader, local HTTP, mocked R2-binding, fingerprint a
 
 The existing module job also validates the tarball in an offline temporary consumer, compiles installed declarations against real Workers types, checks neutral bundles and runs copied examples against the native reference. The shared optimizer installer does not add a workflow, job, matrix or required check. These checks add build and fixture work to that job; changing the shared optimizer also selects the existing npm validation that consumes it. Full format parity and real-runtime memory remain separate work; no timing or production isolate-memory result is claimed here.
 
-The build first fetches the locked workspace sources because Cargo's offline metadata needs manifests beyond the selected build, including host-specific packages. The notice generator still selects only the package's normal, non-procedural-macro graph for the WASM target. It includes every published license and notice candidate, checks file coverage for the permitted expression, and refuses missing or unreadable upstream data rather than substituting text. Packing creates missing legal files; validation refuses stale ones instead of silently refreshing them.
+The build probes offline metadata before fetching locked workspace sources. Metadata needs manifests beyond the selected build, including host-specific packages. Graph queries use the pinned compiler and recorded non-remap Rust flags. Remap arguments are unit-separated so checkout and Cargo paths can contain spaces. The build remains the only legal-file writer; packing refuses missing or stale legal content.
+
+The WASM-only Rust version and commit live in `scripts/rust-wasm.env`; other workflows keep their existing toolchain. The generator selects the closure rooted at `std` and `panic_abort` in rust-src's library lock, retaining packages with a unique target rlib. In-tree copyright comes from the compiler's library copyright statement and its named license texts. `compiler_builtins` has an explicit row for its own and bundled libm texts. Vendored crate and copied-file checksums must agree with the toolchain lock and vendor metadata. Unknown in-tree licenses or missing upstream files fail with the library named.
+
+Independent verification reads paths from both final and pre-strip module bytes, plus owner crate names from the pre-strip name section. The raw-module hash must match provenance, source compiler commits must match the pin, and every observed identity must have notice coverage. This does not repeat the generator's Cargo query. Evidence is only a lower bound: a crate with no surviving path or name relies on the conservative closures, and the two recorded hashes do not themselves prove the raw-to-final transformation.
 
 ## Alternatives
 

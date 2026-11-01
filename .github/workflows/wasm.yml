@@ -22,6 +22,7 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
+      - scripts/rust-wasm.env
       - .github/workflows/wasm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -42,6 +43,7 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
+      - scripts/rust-wasm.env
       - .github/workflows/wasm.yml
   workflow_dispatch:
 
@@ -77,10 +79,17 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24.22.1'
+      - name: Read the WASM compiler pin
+        id: rust
+        run: |
+          . scripts/rust-wasm.env
+          echo "version=$RUST_WASM_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$RUST_WASM_TOOLCHAIN" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
-          toolchain: stable
+          toolchain: ${{ steps.rust.outputs.version }}
           targets: wasm32-unknown-unknown
+          components: rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           shared-key: wasm-jspi
