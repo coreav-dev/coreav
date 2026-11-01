@@ -1,6 +1,6 @@
 //! Audio kernels of CoreAV: the inner loop of the resampler of
 //! `coreav-audio` (`docs/design/audio-decode.md`, "Resampling and
-//! downmixing").
+//! downmixing"), and the FFT of `coreav-opus`'s inverse MDCT ([`Fft`]).
 //!
 //! [`Fir::run`] computes output samples of a polyphase filter: each is the
 //! dot product of a window of the input with a row of a coefficient table.
@@ -29,9 +29,11 @@
 #[cfg(target_arch = "x86_64")]
 mod avx;
 mod checked;
+mod fft;
 mod portable;
 
 use checked::Checked;
+pub use fft::{Fft, Twiddles};
 
 /// Taps are a multiple of this: the kernels' lanes.
 pub const LANES: usize = 8;

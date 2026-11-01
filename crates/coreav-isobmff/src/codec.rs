@@ -900,6 +900,25 @@ pub fn avc_max_num_ref_frames(avcc: &[u8]) -> Option<u32> {
     bitstream::avc_max_num_ref_frames(avcc)
 }
 
+/// The sequence and picture parameter set NAL units of an `avcC` payload
+/// (ISO/IEC 14496-15 5.3.3.1), in its order and without their lengths;
+/// `None` when the record ends inside them.
+pub fn avc_parameter_sets(avcc: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut sets = Vec::new();
+    let mut at = 5usize;
+    for mask in [0x1f, 0xff] {
+        let count = avcc.get(at)? & mask;
+        at += 1;
+        for _ in 0..count {
+            let len = usize::from(crate::bytes::be_u16_at(avcc, at)?);
+            let end = at.checked_add(2)?.checked_add(len)?;
+            sets.push(avcc.get(at + 2..end)?);
+            at = end;
+        }
+    }
+    Some(sets)
+}
+
 /// `num_units_in_tick` and `time_scale` of the first sequence parameter
 /// set of an `avcC` payload (ITU-T H.264 E.2.1), the clock the stream
 /// states for itself: a field lasts `num_units_in_tick / time_scale`

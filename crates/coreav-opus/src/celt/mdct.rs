@@ -20,6 +20,8 @@ use std::sync::OnceLock;
 /// The window's overlap, in samples (4.3.7).
 pub(super) const OVERLAP: usize = 120;
 
+use coreav_kernels_audio::Twiddles;
+
 /// A complex number.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Complex {
@@ -28,14 +30,6 @@ struct Complex {
 }
 
 impl Complex {
-    #[inline(always)]
-    fn mul(self, o: Self) -> Self {
-        Self {
-            re: self.re * o.re - self.im * o.im,
-            im: self.re * o.im + self.im * o.re,
-        }
-    }
-
     /// exp(-i 2 pi k / n).
     fn root(k: usize, n: usize) -> Self {
         let (s, c) = trig::sin_cos(-2.0 * core::f64::consts::PI * k as f64 / n as f64);
@@ -46,227 +40,27 @@ impl Complex {
     }
 }
 
-/// The values one butterfly computes on: one complex number, or [`Quad`]'s
-/// four side by side.
-trait Lane: Copy {
-    /// The complex numbers in one value.
-    const WIDTH: usize;
-    const ONE: Self;
-    /// The values from the first [`Self::WIDTH`] of `re` and `im`.
-    fn load(re: &[f32], im: &[f32]) -> Option<Self>;
-    fn store(self, re: &mut [f32], im: &mut [f32]);
-    fn mul(self, o: Self) -> Self;
-    fn add(self, o: Self) -> Self;
-    fn sub(self, o: Self) -> Self;
-    fn scale(self, s: f32) -> Self;
-    /// `-i` times the value.
-    fn times_minus_i(self) -> Self;
-}
-
-impl Lane for Complex {
-    const WIDTH: usize = 1;
-    const ONE: Self = Self { re: 1.0, im: 0.0 };
-
-    #[inline(always)]
-    fn load(re: &[f32], im: &[f32]) -> Option<Self> {
-        Some(Self {
-            re: *re.first()?,
-            im: *im.first()?,
-        })
-    }
-
-    #[inline(always)]
-    fn store(self, re: &mut [f32], im: &mut [f32]) {
-        if let (Some(r), Some(i)) = (re.first_mut(), im.first_mut()) {
-            (*r, *i) = (self.re, self.im);
-        }
-    }
-
-    #[inline(always)]
-    fn mul(self, o: Self) -> Self {
-        Complex::mul(self, o)
-    }
-
-    #[inline(always)]
-    fn add(self, o: Self) -> Self {
-        Self {
-            re: self.re + o.re,
-            im: self.im + o.im,
-        }
-    }
-
-    #[inline(always)]
-    fn sub(self, o: Self) -> Self {
-        Self {
-            re: self.re - o.re,
-            im: self.im - o.im,
-        }
-    }
-
-    #[inline(always)]
-    fn scale(self, s: f32) -> Self {
-        Self {
-            re: self.re * s,
-            im: self.im * s,
-        }
-    }
-
-    #[inline(always)]
-    fn times_minus_i(self) -> Self {
-        Self {
-            re: self.im,
-            im: -self.re,
-        }
-    }
-}
-
-/// Four complex numbers, as their real and imaginary parts, which the
-/// compiler keeps in vector registers.
-#[derive(Clone, Copy, Debug)]
-struct Quad {
-    re: [f32; 4],
-    im: [f32; 4],
-}
-
-/// `f` on each lane of `a` and `b`.
-#[inline(always)]
-fn lanes(mut a: [f32; 4], b: [f32; 4], f: impl Fn(f32, f32) -> f32) -> [f32; 4] {
-    for (a, b) in a.iter_mut().zip(b) {
-        *a = f(*a, b);
-    }
-    a
-}
-
-impl Lane for Quad {
-    const WIDTH: usize = 4;
-    const ONE: Self = Self {
-        re: [1.0; 4],
-        im: [0.0; 4],
-    };
-
-    #[inline(always)]
-    fn load(re: &[f32], im: &[f32]) -> Option<Self> {
-        Some(Self {
-            re: *re.first_chunk()?,
-            im: *im.first_chunk()?,
-        })
-    }
-
-    #[inline(always)]
-    fn store(self, re: &mut [f32], im: &mut [f32]) {
-        if let (Some(r), Some(i)) = (re.first_chunk_mut(), im.first_chunk_mut()) {
-            (*r, *i) = (self.re, self.im);
-        }
-    }
-
-    #[inline(always)]
-    fn mul(self, o: Self) -> Self {
-        let rr = lanes(self.re, o.re, |a, b| a * b);
-        let ii = lanes(self.im, o.im, |a, b| a * b);
-        let ri = lanes(self.re, o.im, |a, b| a * b);
-        let ir = lanes(self.im, o.re, |a, b| a * b);
-        Self {
-            re: lanes(rr, ii, |a, b| a - b),
-            im: lanes(ri, ir, |a, b| a + b),
-        }
-    }
-
-    #[inline(always)]
-    fn add(self, o: Self) -> Self {
-        Self {
-            re: lanes(self.re, o.re, |a, b| a + b),
-            im: lanes(self.im, o.im, |a, b| a + b),
-        }
-    }
-
-    #[inline(always)]
-    fn sub(self, o: Self) -> Self {
-        Self {
-            re: lanes(self.re, o.re, |a, b| a - b),
-            im: lanes(self.im, o.im, |a, b| a - b),
-        }
-    }
-
-    #[inline(always)]
-    fn scale(self, s: f32) -> Self {
-        Self {
-            re: self.re.map(|v| v * s),
-            im: self.im.map(|v| v * s),
-        }
-    }
-
-    #[inline(always)]
-    fn times_minus_i(self) -> Self {
-        Self {
-            re: self.im,
-            im: self.re.map(|v| -v),
-        }
-    }
-}
-
-/// The radix-2 butterfly; `w[0]` is not used.
-#[inline(always)]
-fn radix2<T: Lane>([a, b]: [T; 2], [_, w1]: [T; 2]) -> [T; 2] {
-    let t = b.mul(w1);
-    [a.add(t), a.sub(t)]
-}
-
-/// The radix-3 butterfly.
-#[inline(always)]
-fn radix3<T: Lane>([a, b, c]: [T; 3], [_, w1, w2]: [T; 3]) -> [T; 3] {
-    // exp(-i 2 pi / 3) = -1/2 - i sqrt(3)/2.
-    const S: f32 = 0.866_025_4;
-    let (t1, t2) = (b.mul(w1), c.mul(w2));
-    let (s, d) = (t1.add(t2), t1.sub(t2).scale(S).times_minus_i());
-    let r = a.sub(s.scale(0.5));
-    [a.add(s), r.add(d), r.sub(d)]
-}
-
-/// The radix-4 butterfly.
-#[inline(always)]
-fn radix4<T: Lane>([a, b, c, d]: [T; 4], [_, w1, w2, w3]: [T; 4]) -> [T; 4] {
-    let (t1, t2, t3) = (b.mul(w1), c.mul(w2), d.mul(w3));
-    let (s0, s1) = (a.add(t2), a.sub(t2));
-    let (s2, s3) = (t1.add(t3), t1.sub(t3).times_minus_i());
-    [s0.add(s2), s1.add(s3), s0.sub(s2), s1.sub(s3)]
-}
-
-/// The radix-4 butterfly with twiddles of 1.
-#[inline(always)]
-fn radix4_unit<T: Lane>([a, b, c, d]: [T; 4]) -> [T; 4] {
-    let (s0, s1) = (a.add(c), a.sub(c));
-    let (s2, s3) = (b.add(d), b.sub(d).times_minus_i());
-    [s0.add(s2), s1.add(s3), s0.sub(s2), s1.sub(s3)]
-}
-
-/// The radix-5 butterfly.
-#[inline(always)]
-fn radix5<T: Lane>([t0, b, c, d, e]: [T; 5], [_, w1, w2, w3, w4]: [T; 5]) -> [T; 5] {
-    // cos and sin of 2 pi / 5 and 4 pi / 5.
-    const C1: f32 = 0.309_017;
-    const C2: f32 = -0.809_017;
-    const S1: f32 = 0.951_056_5;
-    const S2: f32 = 0.587_785_24;
-    let (t1, t2, t3, t4) = (b.mul(w1), c.mul(w2), d.mul(w3), e.mul(w4));
-    let (a1, b1, a2, b2) = (t1.add(t4), t1.sub(t4), t2.add(t3), t2.sub(t3));
-    let r1 = t0.add(a1.scale(C1)).add(a2.scale(C2));
-    let r2 = t0.add(a1.scale(C2)).add(a2.scale(C1));
-    let i1 = b1.scale(S1).add(b2.scale(S2)).times_minus_i();
-    let i2 = b1.scale(S2).sub(b2.scale(S1)).times_minus_i();
-    [
-        t0.add(a1).add(a2),
-        r1.add(i1),
-        r2.add(i2),
-        r2.sub(i2),
-        r1.sub(i1),
-    ]
-}
-
-/// Twiddle factors, as their real and imaginary parts.
+/// Complex factors, as their real and imaginary parts.
 #[derive(Debug)]
-struct Twiddles {
+struct Roots {
     re: Vec<f32>,
     im: Vec<f32>,
+}
+
+impl Roots {
+    fn new(roots: impl Iterator<Item = Complex> + Clone) -> Self {
+        Self {
+            re: roots.clone().map(|c| c.re).collect(),
+            im: roots.map(|c| c.im).collect(),
+        }
+    }
+
+    fn view(&self) -> Twiddles<'_> {
+        Twiddles {
+            re: &self.re,
+            im: &self.im,
+        }
+    }
 }
 
 /// One pass of the FFT: `radix`-point butterflies over blocks of
@@ -274,138 +68,12 @@ struct Twiddles {
 /// `twiddles[q - 1]` at `k`.
 #[derive(Debug)]
 struct Pass {
-    radix: usize,
     m: usize,
-    twiddles: Vec<Twiddles>,
-}
-
-/// Runs of [`Lane::WIDTH`] values of `re` and `im`.
-#[inline(always)]
-fn runs<'a, T: Lane>(
-    re: &'a mut [f32],
-    im: &'a mut [f32],
-) -> core::iter::Zip<core::slice::ChunksExactMut<'a, f32>, core::slice::ChunksExactMut<'a, f32>> {
-    re.chunks_exact_mut(T::WIDTH)
-        .zip(im.chunks_exact_mut(T::WIDTH))
-}
-
-/// The twiddles of `t`, [`Lane::WIDTH`] at a time.
-#[inline(always)]
-fn twiddle_runs<T: Lane>(t: &Twiddles) -> impl Iterator<Item = T> + '_ {
-    t.re.chunks_exact(T::WIDTH)
-        .zip(t.im.chunks_exact(T::WIDTH))
-        .map(|(r, i)| T::load(r, i).unwrap_or(T::ONE))
-}
-
-#[inline(always)]
-fn get<T: Lane>((r, i): &(&mut [f32], &mut [f32])) -> T {
-    T::load(r, i).unwrap_or(T::ONE)
-}
-
-#[inline(always)]
-fn put<T: Lane>((r, i): (&mut [f32], &mut [f32]), v: T) {
-    v.store(r, i);
-}
-
-impl Pass {
-    /// The pass on `re` and `im`, [`Lane::WIDTH`] butterflies at a time.
-    #[inline(always)]
-    fn run<T: Lane>(&self, re: &mut [f32], im: &mut [f32]) {
-        let m = self.m;
-        let size = self.radix * m;
-        for (re, im) in re.chunks_exact_mut(size).zip(im.chunks_exact_mut(size)) {
-            match self.twiddles.as_slice() {
-                [t1] => {
-                    let [ar, br] = parts(re, m);
-                    let [ai, bi] = parts(im, m);
-                    for ((a, b), w1) in runs::<T>(ar, ai)
-                        .zip(runs::<T>(br, bi))
-                        .zip(twiddle_runs::<T>(t1))
-                    {
-                        let [x, y] = radix2([get(&a), get(&b)], [T::ONE, w1]);
-                        put(a, x);
-                        put(b, y);
-                    }
-                }
-                [t1, t2] => {
-                    let [ar, br, cr] = parts(re, m);
-                    let [ai, bi, ci] = parts(im, m);
-                    for (((a, b), c), (w1, w2)) in runs::<T>(ar, ai)
-                        .zip(runs::<T>(br, bi))
-                        .zip(runs::<T>(cr, ci))
-                        .zip(twiddle_runs::<T>(t1).zip(twiddle_runs::<T>(t2)))
-                    {
-                        let [x, y, z] = radix3([get(&a), get(&b), get(&c)], [T::ONE, w1, w2]);
-                        put(a, x);
-                        put(b, y);
-                        put(c, z);
-                    }
-                }
-                [t1, t2, t3] => {
-                    let [ar, br, cr, dr] = parts(re, m);
-                    let [ai, bi, ci, di] = parts(im, m);
-                    let w = twiddle_runs::<T>(t1)
-                        .zip(twiddle_runs::<T>(t2))
-                        .zip(twiddle_runs::<T>(t3));
-                    for ((((a, b), c), d), ((w1, w2), w3)) in runs::<T>(ar, ai)
-                        .zip(runs::<T>(br, bi))
-                        .zip(runs::<T>(cr, ci))
-                        .zip(runs::<T>(dr, di))
-                        .zip(w)
-                    {
-                        let [x, y, z, v] =
-                            radix4([get(&a), get(&b), get(&c), get(&d)], [T::ONE, w1, w2, w3]);
-                        put(a, x);
-                        put(b, y);
-                        put(c, z);
-                        put(d, v);
-                    }
-                }
-                [t1, t2, t3, t4] => {
-                    let [ar, br, cr, dr, er] = parts(re, m);
-                    let [ai, bi, ci, di, ei] = parts(im, m);
-                    let w = twiddle_runs::<T>(t1)
-                        .zip(twiddle_runs::<T>(t2))
-                        .zip(twiddle_runs::<T>(t3))
-                        .zip(twiddle_runs::<T>(t4));
-                    for (((((a, b), c), d), e), (((w1, w2), w3), w4)) in runs::<T>(ar, ai)
-                        .zip(runs::<T>(br, bi))
-                        .zip(runs::<T>(cr, ci))
-                        .zip(runs::<T>(dr, di))
-                        .zip(runs::<T>(er, ei))
-                        .zip(w)
-                    {
-                        let [x, y, z, v, u] = radix5(
-                            [get(&a), get(&b), get(&c), get(&d), get(&e)],
-                            [T::ONE, w1, w2, w3, w4],
-                        );
-                        put(a, x);
-                        put(b, y);
-                        put(c, z);
-                        put(d, v);
-                        put(e, u);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
-/// `x` cut into `R` runs of `m`.
-#[inline(always)]
-fn parts<const R: usize>(x: &mut [f32], m: usize) -> [&mut [f32]; R] {
-    let mut rest = x;
-    core::array::from_fn(|_| {
-        let all = core::mem::take(&mut rest);
-        let (head, tail) = all.split_at_mut(m.min(all.len()));
-        rest = tail;
-        head
-    })
+    twiddles: Vec<Roots>,
 }
 
 /// A forward FFT of one size, on values stored as their real and imaginary
-/// parts apart, so that a pass's butterflies run four at a time.
+/// parts apart; the butterflies are `coreav-kernels-audio`'s.
 #[derive(Debug)]
 struct Fft {
     /// Innermost first.
@@ -444,16 +112,9 @@ impl Fft {
         for &radix in &inner {
             let step = n / (radix * m);
             let twiddles = (1..radix)
-                .map(|q| {
-                    let roots: Vec<Complex> =
-                        (0..m).map(|k| Complex::root(q * k * step, n)).collect();
-                    Twiddles {
-                        re: roots.iter().map(|c| c.re).collect(),
-                        im: roots.iter().map(|c| c.im).collect(),
-                    }
-                })
+                .map(|q| Roots::new((0..m).map(|k| Complex::root(q * k * step, n))))
                 .collect();
-            passes.push(Pass { radix, m, twiddles });
+            passes.push(Pass { m, twiddles });
             m *= radix;
         }
         Self { passes, position }
@@ -462,31 +123,25 @@ impl Fft {
     /// Transforms `re` and `im`, already in digit-reversed order, in place.
     #[cfg(test)]
     fn run(&self, re: &mut [f32], im: &mut [f32]) {
-        self.passes_from(0, re, im);
+        self.passes_from(&coreav_kernels_audio::Fft::detect(), 0, re, im);
     }
 
     /// The passes from the `first` on.
-    fn passes_from(&self, first: usize, re: &mut [f32], im: &mut [f32]) {
+    fn passes_from(
+        &self,
+        kernels: &coreav_kernels_audio::Fft,
+        first: usize,
+        re: &mut [f32],
+        im: &mut [f32],
+    ) {
         for pass in self.passes.iter().skip(first) {
-            if pass.m == 1 && pass.radix == 4 {
-                // Twiddles of 1, on four neighbours.
-                for (r, i) in re.chunks_exact_mut(4).zip(im.chunks_exact_mut(4)) {
-                    if let (Some(r), Some(i)) = (r.first_chunk_mut::<4>(), i.first_chunk_mut::<4>())
-                    {
-                        let out = radix4_unit(core::array::from_fn(|q| Complex {
-                            re: r.get(q).copied().unwrap_or_default(),
-                            im: i.get(q).copied().unwrap_or_default(),
-                        }));
-                        for ((r, i), v) in r.iter_mut().zip(i.iter_mut()).zip(out) {
-                            (*r, *i) = (v.re, v.im);
-                        }
-                    }
-                }
-            } else if pass.m % 4 == 0 {
-                pass.run::<Quad>(re, im);
-            } else {
-                pass.run::<Complex>(re, im);
-            }
+            let views: [Twiddles<'_>; 4] = core::array::from_fn(|q| {
+                pass.twiddles
+                    .get(q)
+                    .map_or(Twiddles { re: &[], im: &[] }, Roots::view)
+            });
+            let w = views.get(..pass.twiddles.len()).unwrap_or(&[]);
+            kernels.pass(pass.m, w, re, im);
         }
     }
 }
@@ -498,13 +153,13 @@ struct Imdct {
     n: usize,
     fft: Fft,
     /// exp(-i pi (k + 1/4) / n), before the FFT.
-    pre: Twiddles,
+    pre: Roots,
     /// Where the FFT's inputs k, k + n/8, k + n/4 and k + 3n/8 go, for k
     /// below n/8: four neighbours from this position, the first pass's
     /// radix-4 butterfly (radix 4 is the innermost of every CELT size).
     first: Vec<usize>,
     /// exp(-i pi k / n), after it.
-    post: Twiddles,
+    post: Roots,
 }
 
 impl Imdct {
@@ -518,19 +173,12 @@ impl Imdct {
         };
         let fft = Fft::new(n / 2);
         let first = fft.position.iter().take(n / 8).copied().collect();
-        let pre: Vec<Complex> = (0..n / 2).map(|k| rotation(k as f64 + 0.25)).collect();
         Self {
             n,
             fft,
-            pre: Twiddles {
-                re: pre.iter().map(|c| c.re).collect(),
-                im: pre.iter().map(|c| c.im).collect(),
-            },
+            pre: Roots::new((0..n / 2).map(|k| rotation(k as f64 + 0.25))),
             first,
-            post: Twiddles {
-                re: (0..n / 2).map(|k| rotation(k as f64).re).collect(),
-                im: (0..n / 2).map(|k| rotation(k as f64).im).collect(),
-            },
+            post: Roots::new((0..n / 2).map(|k| rotation(k as f64))),
         }
     }
 }
@@ -539,6 +187,8 @@ struct Tables {
     /// 120, 240, 480 and 960 coefficients.
     sizes: [Imdct; 4],
     window: [f32; OVERLAP],
+    /// The FFT kernels this CPU runs.
+    kernels: coreav_kernels_audio::Fft,
 }
 
 fn tables() -> &'static Tables {
@@ -554,6 +204,7 @@ fn tables() -> &'static Tables {
         Tables {
             sizes: [120, 240, 480, 960].map(Imdct::new),
             window,
+            kernels: coreav_kernels_audio::Fft::detect(),
         }
     })
 }
@@ -583,35 +234,6 @@ impl Default for Scratch {
     }
 }
 
-/// The four runs of `quads` values of `v` that start `eighth` apart.
-fn quarters(v: &[f32], eighth: usize, quads: usize) -> [&[f32]; 4] {
-    core::array::from_fn(|q| v.get(q * eighth..q * eighth + quads).unwrap_or(&[]))
-}
-
-/// `v` four values at a time.
-fn fours(v: &[f32]) -> impl Iterator<Item = [f32; 4]> + '_ {
-    v.chunks_exact(4)
-        .map(|c| c.first_chunk::<4>().copied().unwrap_or_default())
-}
-
-/// The columns of four rows of four.
-#[inline(always)]
-fn transpose(
-    [
-        [x0, x1, x2, x3],
-        [y0, y1, y2, y3],
-        [z0, z1, z2, z3],
-        [w0, w1, w2, w3],
-    ]: [[f32; 4]; 4],
-) -> [[f32; 4]; 4] {
-    [
-        [x0, y0, z0, w0],
-        [x1, y1, z1, w1],
-        [x2, y2, z2, w2],
-        [x3, y3, z3, w3],
-    ]
-}
-
 /// The inverse MDCT of the `n` coefficients `coeffs[0]`, `coeffs[stride]`,
 /// ... (`n` one of 120, 240, 480, 960), windowed: adds its first
 /// [`OVERLAP`] samples to `out` and writes the next `n`.
@@ -630,7 +252,6 @@ pub(super) fn inverse(
     let Some(coeffs) = coeffs.get(..(n - 1) * stride + 1) else {
         return;
     };
-
     // The DCT-IV of the coefficients, `u`, through the FFT: X[2k] and
     // X[n - 1 - 2k], rotated, make the FFT's input k. They are made in
     // order in `u`, real parts then imaginary, and the first pass of the
@@ -660,112 +281,84 @@ pub(super) fn inverse(
             (*r, *i) = (x, y);
         }
     }
-    for ((r, i), (&pr, &pi)) in vr
-        .iter_mut()
-        .zip(vi.iter_mut())
-        .zip(t.pre.re.iter().zip(&t.pre.im))
-    {
-        (*r, *i) = (*r * pr - *i * pi, *r * pi + *i * pr);
-    }
-    // The first pass: input k + q n/8 is value q of the butterfly at
-    // first[k], four butterflies at a time, each one's outputs turned
-    // into neighbours.
-    let eighth = half / 4;
-    let quads = eighth / 4 * 4;
-    let ([r0, r1, r2, r3], [i0, i1, i2, i3]) =
-        (quarters(vr, eighth, quads), quarters(vi, eighth, quads));
-    let reals = fours(r0).zip(fours(r1)).zip(fours(r2).zip(fours(r3)));
-    let imags = fours(i0).zip(fours(i1)).zip(fours(i2).zip(fours(i3)));
-    for ((((a, b), (c, d)), ((e, f), (g, h))), targets) in
-        reals.zip(imags).zip(t.first.chunks_exact(4))
-    {
-        let quad = |re, im| Quad { re, im };
-        let [a, b, c, d] = radix4_unit([quad(a, e), quad(b, f), quad(c, g), quad(d, h)]);
-        let real = transpose([a.re, b.re, c.re, d.re]);
-        let imag = transpose([a.im, b.im, c.im, d.im]);
-        for ((&pos, r4), i4) in targets.iter().zip(real).zip(imag) {
-            if let (Some(r), Some(i)) = (
-                re.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
-                im.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
-            ) {
-                (*r, *i) = (r4, i4);
-            }
-        }
-    }
-    // The butterflies left over, one at a time (n/8 is 15 or 30 for the
-    // two shortest sizes).
-    for (k, &pos) in t.first.iter().enumerate().skip(quads) {
-        let input = core::array::from_fn(|q| Complex {
-            re: vr.get(k + q * eighth).copied().unwrap_or(0.0),
-            im: vi.get(k + q * eighth).copied().unwrap_or(0.0),
-        });
-        for (q, v) in radix4_unit(input).into_iter().enumerate() {
-            if let (Some(r), Some(i)) = (re.get_mut(pos + q), im.get_mut(pos + q)) {
-                (*r, *i) = (v.re, v.im);
-            }
-        }
-    }
-    t.fft.passes_from(1, re, im);
-    // y[j] = v[j] post[j]; u[2j] = re y[j] and u[n - 1 - 2j] = -im y[j]: the
-    // pair u[2j], u[2j + 1] takes y[j] and y[half - 1 - j].
-    for ((r, i), (&pr, &pi)) in re
-        .iter_mut()
-        .zip(im.iter_mut())
-        .zip(t.post.re.iter().zip(&t.post.im))
-    {
-        (*r, *i) = (*r * pr - *i * pi, *r * pi + *i * pr);
-    }
-    let u = u.get_mut(..n).unwrap_or(&mut []);
-    for ((eight, y), z) in u
-        .chunks_exact_mut(8)
-        .zip(re.chunks_exact(4))
-        .zip(im.rchunks_exact(4))
-    {
-        if let ([a0, b0, a1, b1, a2, b2, a3, b3], &[y0, y1, y2, y3], &[z0, z1, z2, z3]) =
-            (eight, y, z)
-        {
-            (*a0, *b0, *a1, *b1) = (y0, -z3, y1, -z2);
-            (*a2, *b2, *a3, *b3) = (y2, -z1, y3, -z0);
-        }
-    }
+    let kernels = &tables.kernels;
+    kernels.rotate(vr, vi, t.pre.view());
+    // The first pass, whose radix-4 butterfly k reads input k + q n/8 as
+    // its value q.
+    kernels.first_pass(vr, vi, &t.first, re, im);
+    t.fft.passes_from(kernels, 1, re, im);
+    // y[j] = v[j] post[j], the DCT-IV u: u[2j] = re y[j] and u[n - 1 - 2j]
+    // = -im y[j].
+    kernels.rotate(re, im, t.post.view());
 
-    // The window's support: `y[j + (n - 120) / 2]` is `u` at `j + n - 60`,
-    // extended by the DCT-IV's symmetries: u[n - 60 + j] for j < 60,
-    // -u[n + 59 - j] up to n + 60, then -u[j - n - 60].
+    // The output, from u extended by the DCT-IV's symmetries:
+    // `y[j + (n - 120) / 2]` is u at `j + n - 60` for j < 60, -u at
+    // `n + 59 - j` up to n + 60, then -u at `j - n - 60`. The window's
+    // two ends read u[0..60] and u[n - 60..n], from y's first and last 30
+    // values; the middle reads the rest, without the window.
     let window = &tables.window;
     let h = OVERLAP / 2;
+    let q = h / 2;
     let Some(out) = out.get_mut(..n + OVERLAP) else {
         return;
     };
     let (head, rest) = out.split_at_mut(OVERLAP);
     let (body, tail) = rest.split_at_mut(n - OVERLAP);
+    // j from 120 to n: -u[n + 59 - j], from n - 61 down: im y[30 + t] at
+    // even offsets 2t, -re y[half - 31 - t] at odd ones.
+    let (middle_re, middle_im) = (
+        re.get(q..half - q).unwrap_or(&[]),
+        im.get(q..half - q).unwrap_or(&[]),
+    );
+    for ((pair, &i), &r) in body
+        .chunks_exact_mut(2)
+        .zip(middle_im)
+        .zip(middle_re.iter().rev())
+    {
+        if let [a, b] = pair {
+            (*a, *b) = (i, -r);
+        }
+    }
+    // u[0..60] and u[n - 60..n].
+    let (mut low, mut high) = ([0f32; OVERLAP / 2], [0f32; OVERLAP / 2]);
+    let (first_re, first_im) = (re.get(..q).unwrap_or(&[]), im.get(..q).unwrap_or(&[]));
+    for (j, (&r, &i)) in first_re.iter().zip(first_im).enumerate() {
+        set(&mut low, 2 * j, r);
+        set(&mut high, h - 1 - 2 * j, -i);
+    }
+    let (last_re, last_im) = (
+        re.get(half - q..).unwrap_or(&[]),
+        im.get(half - q..).unwrap_or(&[]),
+    );
+    for (j, (&r, &i)) in last_re.iter().zip(last_im).enumerate() {
+        set(&mut high, 2 * j, r);
+        set(&mut low, h - 1 - 2 * j, -i);
+    }
     let (rise, rise2) = window.split_at(h);
     let (head1, head2) = head.split_at_mut(h);
     let (tail1, tail2) = tail.split_at_mut(h);
-    let part = |r: core::ops::Range<usize>| u.get(r).unwrap_or(&[]);
     // j < 60: u[n - 60 + j]; then -u[n + 59 - j], down from n - 1.
-    for ((o, &w), &v) in head1.iter_mut().zip(rise).zip(part(n - h..n)) {
+    for ((o, &w), &v) in head1.iter_mut().zip(rise).zip(&high) {
         *o += w * v;
     }
-    for ((o, &w), &v) in head2.iter_mut().zip(rise2).zip(part(n - h..n).iter().rev()) {
+    for ((o, &w), &v) in head2.iter_mut().zip(rise2).zip(high.iter().rev()) {
         *o -= w * v;
-    }
-    // j from 120 to n: -u[n + 59 - j], down from n - 61 to 60.
-    for (o, &v) in body.iter_mut().zip(part(h..n - h).iter().rev()) {
-        *o = -v;
     }
     // j from n to n + 120, the window falling: -u[n + 59 - j] down to
     // u[0], then -u[j - n - 60] up from it.
     let fall = window.iter().rev();
-    for ((o, &w), &v) in tail1
-        .iter_mut()
-        .zip(fall.clone())
-        .zip(part(0..h).iter().rev())
-    {
+    for ((o, &w), &v) in tail1.iter_mut().zip(fall.clone()).zip(low.iter().rev()) {
         *o = -w * v;
     }
-    for ((o, &w), &v) in tail2.iter_mut().zip(fall.skip(h)).zip(part(0..h)) {
+    for ((o, &w), &v) in tail2.iter_mut().zip(fall.skip(h)).zip(&low) {
         *o = -w * v;
+    }
+}
+
+/// Sets `v[i]`, if it exists.
+fn set(v: &mut [f32], i: usize, value: f32) {
+    if let Some(x) = v.get_mut(i) {
+        *x = value;
     }
 }
 

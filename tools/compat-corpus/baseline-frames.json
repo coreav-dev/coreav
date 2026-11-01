@@ -37,7 +37,6 @@
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|audio_mp3.mp4",
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|codec_h264_gray.mp4",
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|edit_multi_bframes.mp4",
-  "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|mkv_mp3.mkv",
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|nested_10000.mp4",
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|truncated.mp4",
   "-v error -of json -show_frames -show_entries packet=stream_index,pts,dts,size,pos,flags INPUT|ts_h264_1080.ts",
