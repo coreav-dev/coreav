@@ -61,4 +61,4 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
 | M4A extraction with copied metadata preserves each header's distinct creation and modification times, widening the header when either requires 64 bits | `source_creation_and_modification_times_stay_distinct` in `coreav-isobmff-write/tests/extract.rs` checks stored values in both header versions and the metadata-clearing modes |
 | Design notes change in the same pull request as the design | Not enforced: judgment |
-| Code is written from specifications, never from other implementations' source | The code-similarity check for `coreav-h264`, `coreav-kernels-h264`, `coreav-opus` and `coreav-kernels-audio` (`docs/design/ci-checks.md`, "Before opening a pull request"); elsewhere review |
+| Code is written from specifications, never from other implementations' source | The code-similarity check for `coreav-h264`, `coreav-kernels-h264`, `coreav-opus`, `coreav-kernels-audio` and `coreav-vp9` (`docs/design/ci-checks.md`, "Before opening a pull request"); elsewhere review |
