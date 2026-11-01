@@ -94,8 +94,8 @@ jobs:
 
   package:
     concurrency:
-      group: ${{ github.workflow }}-package-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-package-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Draft pull requests skip it. A label event does the same work as any
     # other pull-request event, `binaries` or not: a label must never report
     # a green `npm-report` over the failure an earlier event of the same
@@ -232,8 +232,8 @@ jobs:
 
   smoke:
     concurrency:
-      group: ${{ github.workflow }}-smoke-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-smoke-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: package
     strategy:
       fail-fast: false
@@ -259,8 +259,8 @@ jobs:
 
   binaries:
     concurrency:
-      group: ${{ github.workflow }}-binaries-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-binaries-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: package
     # Tags, manual and weekly runs, and pull requests labelled `binaries`.
     if: >-
@@ -359,8 +359,8 @@ jobs:
 
   smoke-platforms:
     concurrency:
-      group: ${{ github.workflow }}-smoke-platforms-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-smoke-platforms-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: [package, binaries]
     strategy:
       fail-fast: false

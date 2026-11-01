@@ -31,7 +31,7 @@
   report job has a group, or the workflow has a group of its own: a whole-run
   main cancellation can discard jobs a replacement skips, a group two jobs share
   cancels one of them in every run, a gate job without one can start an
-  old run's jobs after the new run's, which then cancel the new ones, and
+  old PR run's jobs after the new run's, which then cancel the new ones, and
   a report job in another job's group can cancel that job;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
@@ -93,7 +93,6 @@ WORKFLOW_GROUP = ("${{ github.workflow }}-"
                   "github.ref == 'refs/heads/main')) && github.ref || github.run_id }}")
 WORKFLOW_CANCEL = ("${{ github.event_name == 'pull_request' || "
                    "(github.event_name == 'push' && github.ref == 'refs/heads/main') }}")
-JOB_GROUP = WORKFLOW_GROUP.replace('${{ github.workflow }}-', '${{ github.workflow }}-JOB_ID-', 1)
 # After JOB_ID in the group of a job with a `strategy:`: each leg of its
 # matrix in a group of its own.
 MATRIX = '-${{ strategy.job-index }}'
@@ -183,7 +182,7 @@ def concurrency_problems(workflow, lines, jobs):
     out = []
     if workflow_concurrency(lines) is not None:
         out.append(f'{workflow}: remove workflow-level `concurrency:`: a replacement may skip jobs '
-                   'the cancelled run still owes; cancel only matching selected jobs '
+                   'the cancelled run still owes; give main jobs independent run-id groups '
                    '(docs/design/ci-checks.md, "Concurrency")')
     for job, fields in sorted(jobs.items()):
         if job.endswith('-report'):
@@ -191,12 +190,10 @@ def concurrency_problems(workflow, lines, jobs):
                 out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
                            'cancelled run too, and in another job\'s group it can cancel that job')
             continue
-        gate = job.endswith('-changes')
-        group = (GROUP if gate else JOB_GROUP).replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
-        cancel = CANCEL if gate else WORKFLOW_CANCEL
-        if fields['concurrency'] != {'group': group, 'cancel-in-progress': cancel}:
+        group = GROUP.replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
+        if fields['concurrency'] != {'group': group, 'cancel-in-progress': CANCEL}:
             out.append(f'{workflow}: give `{job}` exactly `concurrency: {{group: {group}, '
-                       f'cancel-in-progress: {cancel}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')
+                       f'cancel-in-progress: {CANCEL}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')
     return out
 
 

@@ -81,8 +81,8 @@ jobs:
 
   python-fixtures:
     concurrency:
-      group: ${{ github.workflow }}-python-fixtures-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-python-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Draft pull requests skip it. A label event does the same work as any
     # other pull-request event, `wheels` or not: a label must never report
     # a green `python-report` over the failure an earlier event of the same
@@ -121,8 +121,8 @@ jobs:
 
   linux-x86_64:
     concurrency:
-      group: ${{ github.workflow }}-linux-x86_64-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-linux-x86_64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: python-fixtures
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -175,8 +175,8 @@ jobs:
 
   linux-arm64:
     concurrency:
-      group: ${{ github.workflow }}-linux-arm64-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-linux-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Every wheel: tags, manual and weekly runs, and the `wheels` label.
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/') || contains(github.event.pull_request.labels.*.name, 'wheels')
     needs: python-fixtures
@@ -216,8 +216,8 @@ jobs:
 
   macos-arm64:
     concurrency:
-      group: ${{ github.workflow }}-macos-arm64-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-macos-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Every wheel: tags, manual and weekly runs, and the `wheels` label.
     # Built natively: a wheel cross-compiled on Linux with zig records a
     # minimum of macOS 15 whatever deployment target is asked for, so it

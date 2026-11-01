@@ -1,4 +1,5 @@
 """Evaluate the workflow conditions for queue-tested main trees and fallback events."""
+import itertools
 import json
 import math
 import pathlib
@@ -65,6 +66,53 @@ class MainPlan(unittest.TestCase):
                     covered = retained | set(new[name])
                     self.assertTrue(set(old[name]) <= covered,
                                     f'needed work dropped: {set(old[name]) - covered}')
+
+    def test_main_work_survives_every_three_push_gate_ordering(self):
+        """Reserve one of four runner slots for gates; children run or all wait."""
+        events = [(kind, run) for run in range(3) for kind in ('push', 'gate')]
+        orders = [order for order in itertools.permutations(events)
+                  if all(order.index(('push', run)) < order.index(('gate', run)) for run in range(3))]
+        self.assertEqual(len(orders), 90)
+        failures = []
+        checked = 0
+        for evidence in itertools.product((False, True), repeat=3):
+            plans = [self.plan('push', evidence[run], code=run != 1, h264=run != 1)
+                     for run in range(3)]
+            for name in ('ci', 'python', 'npm'):
+                workflow = self.workflows[name]
+                self.assertNotIn('concurrency', workflow)
+                gate = name + '-changes'
+                selected = [[(job, index) for job, count in plan[name].items()
+                             if not job.endswith('-report') for index in range(count)] for plan in plans]
+                expected = {(run, job, index) for run in range(3) for job, index in selected[run]}
+                for order in orders:
+                    for blocked in (False, True):
+                        checked += 1
+                        running, pending, completed = {}, {}, set()
+                        for kind, run in order:
+                            if kind == 'push':
+                                arriving = [(gate, 0)]
+                            else:
+                                key, _ = self.concurrency(workflow['jobs'][gate]['concurrency'], name, str(run))
+                                token = pending.pop(key, None)
+                                if token != (run, gate, 0):
+                                    continue
+                                completed.add(token)
+                                arriving = [(job, index) for job, index in selected[run] if job != gate]
+                            for job, index in arriving:
+                                setting = workflow['jobs'][job]['concurrency']
+                                key, cancel = self.concurrency(setting, name, str(run), matrix_index=index)
+                                pending.pop(key, None)
+                                if cancel:
+                                    running.pop(key, None)
+                                pending[key] = (run, job, index)
+                                if job != gate and not blocked and key not in running and len(running) < 3:
+                                    running[key] = pending.pop(key)
+                        retained = completed | set(running.values()) | set(pending.values())
+                        if not expected <= retained:
+                            failures.append((name, evidence, order, blocked, expected - retained))
+        self.assertEqual(checked, 4320)
+        self.assertEqual(len(failures), 0, f'{len(failures)} lost-work orderings; first: {failures[:1]}')
 
     def plan(self, event, reused, code=True, h264=True):
         plans = {}
@@ -136,7 +184,7 @@ class MainPlan(unittest.TestCase):
                 if 'concurrency' in fields]
             for job, setting in settings:
                 with self.subTest(workflow=name, job=job):
-                    gate = job.endswith('-changes')
+                    unfiltered = name == 'deny'
                     keys = []
                     for event, ref, run_id in (('merge_group', 'refs/heads/gh-readonly-queue/main/group', '1'),
                                                ('merge_group', 'refs/heads/gh-readonly-queue/main/group', '2'),
@@ -144,11 +192,11 @@ class MainPlan(unittest.TestCase):
                                                ('push', 'refs/heads/main', '4')):
                         key, cancel = self.concurrency(setting, name, run_id, event, ref)
                         keys.append(key)
-                        self.assertEqual(cancel, event == 'pull_request' or (event == 'push' and not gate))
+                        self.assertEqual(cancel, event == 'pull_request' or (event == 'push' and unfiltered))
                     self.assertEqual(len(set(keys)), len(keys))
                     for event in ('push', 'pull_request'):
                         pair = [self.concurrency(setting, name, run_id, event)[0] for run_id in ('5', '6')]
-                        self.assertEqual(pair[0] == pair[1], event == 'pull_request' or not gate)
+                        self.assertEqual(pair[0] == pair[1], event == 'pull_request' or unfiltered)
                     if 'strategy' in workflow['jobs'].get(job, {}):
                         pair = [self.concurrency(setting, name, '5', matrix_index=index)[0] for index in (0, 1)]
                         self.assertNotEqual(*pair)

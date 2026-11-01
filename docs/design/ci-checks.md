@@ -244,25 +244,19 @@ Main stopped fuzzing on push because the run had outgrown its job. Every target 
 
 ## Concurrency
 
-`ci.yml`, `python.yml` and `npm.yml` cancel superseded work job by job, never as a whole workflow. A newer main push may select fewer jobs than an older one: an H.264 merge followed by a documentation merge still owes the first merge's baseline guard, arm64 conformance and cache maintenance. Cancelling the entire older run would lose those obligations. A skipped job never joins its concurrency group, so only a replacement that actually selects the same job can cancel it.
+`ci.yml`, `python.yml` and `npm.yml` cancel superseded PR work job by job, never as a whole workflow. Every main job has an independent run-id group. A docs push cannot discard unfinished source maintenance, and a delayed older changes job cannot cancel a newer push's jobs. GitHub orders concurrency-group arrivals, not commits; selecting the same job does not prove that the replacing run is newer.
 
-Every non-report job except the changes job has this form, with its own job id (and `-${{ strategy.job-index }}` after the id for a matrix job):
-
-```yaml
-concurrency:
-  group: ${{ github.workflow }}-<job id>-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
-```
-
-The changes jobs are different. Every main changes job has a group of its own run, so a docs push cannot cancel a queued source changes job before it selects the work it owes. PR changes jobs still cancel a superseded PR gate, preventing its old jobs from entering their groups after the new run's jobs:
+Every non-report job, including the changes job, has this form, with its own job id (and `-${{ strategy.job-index }}` after the id for a matrix job):
 
 ```yaml
 concurrency:
-  group: ${{ github.workflow }}-<changes job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  group: ${{ github.workflow }}-<job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
-Reports have no concurrency group and carry `if: always()`. They wait for their own run's jobs and fail on failure or cancellation; they never turn cancellation into a skipped green check. Main may therefore retain an older changes/report pair and still-needed jobs, while overlapping selected jobs are cancelled. This spends a few lightweight jobs to avoid discarding unfinished source checks or an unproven direct push's fallback suite.
+PR changes jobs cancel superseded PR gates before they can dispatch old jobs. Reports have no concurrency group and carry `if: always()`. They wait for their own run's jobs and fail on failure or cancellation; they never turn cancellation into a skipped green check.
+
+Setting only `cancel-in-progress: false` on a shared main group is insufficient: GitHub still replaces its pending job when another arrives. Unique run-id groups protect both queued and running work. Protecting only main maintenance is also insufficient: a delayed old gate could still cancel the newest full fallback suite. Successful same-tree queue evidence removes duplicate suites instead. If evidence is unavailable for two overlapping main pushes, both fallback suites run; there is no extra API orchestration to cancel one.
 
 `deny.yml` is the exception: every run does the full unfiltered check or proves that the same full check passed for the exact tree in the queue. Its replacement always covers the same obligation, so it may cancel whole PR/main runs:
 
@@ -272,7 +266,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 ```
 
-Merge groups, schedules, tags and manual runs always get independent run-id groups and cannot cancel one another. `workflow_check.py` requires the exact job forms, refuses workflow-level concurrency on the three filtered workflows, and reads top-level concurrency through Psych's YAML nodes so quoted/spaced keys cannot hide it. Its explicit workflow list also catches removing every job group. The two-push job-plan regression requires all source obligations to survive a following docs push, with successful queue evidence, without it, and in mixed evidence/fallback cases.
+Merge groups, schedules, tags and manual runs always get independent run-id groups and cannot cancel one another. `workflow_check.py` requires one exact form for every filtered-workflow job, refuses workflow-level concurrency there, and reads top-level concurrency through Psych's YAML nodes so quoted/spaced keys cannot hide it. Its explicit workflow list also catches removing every job group. The job-plan regression checks all 90 orderings of three push arrivals and their gate completions, requiring each gate to follow its own arrival. It uses source/docs/source changes, every reuse/fallback combination, every selected matrix leg and both running and pending child states. One of four runner slots is reserved for gates. Across the three filtered workflows, all 4,320 scheduling cases retain every main job instance. This is a local scheduling model, not a live Actions execution.
 
 ## The merge queue
 
@@ -285,7 +279,7 @@ The `main` ruleset can require a merge queue. The queue applies each pull reques
 - **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
 - **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
 - **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
-- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. On main, only selected matching jobs may cancel one another in the filtered workflows; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency").
+- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Main jobs in the filtered workflows are independent too; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency").
 
 ## Main pushes after the queue
 
@@ -299,7 +293,7 @@ On a proven tree, `python-report` and `npm-report` retain their changes and repo
 - `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
 - `isobmff-fixture-set`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
 
-The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only jobs may be cancelled only when the replacing run selects the same job. A following docs-only push does not select those jobs, so unfinished source maintenance and fallback checks continue in their original run.
+The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only maintenance and fallback checks continue in their original run, even when later pushes arrive or older gates finish late.
 
 ### Load measurements
 

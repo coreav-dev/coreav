@@ -183,8 +183,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
     concurrency:
-      group: ${{ github.workflow }}-check-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-check-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     # About 6 minutes with a warm cache; a cold one rebuilds every clippy
     # configuration and the release tests.
@@ -342,8 +342,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
     concurrency:
-      group: ${{ github.workflow }}-check-macos-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-check-macos-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -401,8 +401,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
     concurrency:
-      group: ${{ github.workflow }}-check-windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-check-windows-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: windows-2025
     timeout-minutes: 60
     defaults:
@@ -455,8 +455,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
     concurrency:
-      group: ${{ github.workflow }}-msrv-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-msrv-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     # Under a minute with a warm cache; `cargo check` only.
     timeout-minutes: 20
@@ -505,8 +505,8 @@ jobs:
       matrix:
         shard: [1, 2]
     concurrency:
-      group: ${{ github.workflow }}-fuzz-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-fuzz-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -556,8 +556,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-isobmff-fixtures-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-isobmff-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -851,8 +851,8 @@ jobs:
       needs.ci-changes.outputs.fixtures == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-isobmff-fixture-set-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-isobmff-fixture-set-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -910,8 +910,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-isobmff-writers-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-isobmff-writers-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1102,8 +1102,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-isobmff-decode-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-isobmff-decode-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1286,8 +1286,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-b9-shard-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-b9-shard-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1369,8 +1369,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-b9-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-b9-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -1440,8 +1440,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-mkv-fixtures-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-mkv-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1659,8 +1659,8 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-ts-fixtures-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-ts-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1835,8 +1835,8 @@ jobs:
       needs.ci-changes.outputs.h264-conformance == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-conformance-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-conformance-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -1895,8 +1895,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.h264-conformance == 'true'
     concurrency:
-      group: ${{ github.workflow }}-vector-width-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-vector-width-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1942,8 +1942,8 @@ jobs:
       needs.ci-changes.outputs.h264-conformance == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-modes-identity-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-modes-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1995,8 +1995,8 @@ jobs:
        (!github.event.pull_request.draft &&
         github.event.pull_request.head.repo.full_name == github.repository))
     concurrency:
-      group: ${{ github.workflow }}-training-identity-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-training-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -2077,8 +2077,8 @@ jobs:
     # suite follows on a push to main, where the arm64 runner's cost is
     # paid once rather than per push to a branch.
     concurrency:
-      group: ${{ github.workflow }}-kernels-arm64-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-kernels-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
@@ -2109,8 +2109,8 @@ jobs:
       needs.ci-changes.outputs.h264-main == 'true' &&
       github.event_name == 'push'
     concurrency:
-      group: ${{ github.workflow }}-conformance-arm64-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-conformance-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
@@ -2158,8 +2158,8 @@ jobs:
       needs.ci-changes.outputs.bench-guard == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-bench-guard-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-bench-guard-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -2315,8 +2315,8 @@ jobs:
     needs: ci-changes
     if: needs.ci-changes.outputs.main-cache == 'true'
     concurrency:
-      group: ${{ github.workflow }}-main-cache-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      group: ${{ github.workflow }}-main-cache-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

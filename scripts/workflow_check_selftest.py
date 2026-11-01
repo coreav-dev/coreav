@@ -181,8 +181,8 @@ class Repository(unittest.TestCase):
         self.assertIn('ci.yml: no report job waits for bench-guard', found)
 
     def test_a_job_without_its_concurrency_group_is_reported(self):
-        group = ('    concurrency:\n      group: ' + check.JOB_GROUP.replace('JOB_ID', 'msrv') +
-                 '\n      cancel-in-progress: ' + check.WORKFLOW_CANCEL + '\n')
+        group = ('    concurrency:\n      group: ' + check.GROUP.replace('JOB_ID', 'msrv') +
+                 '\n      cancel-in-progress: ' + check.CANCEL + '\n')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
 
     def test_a_group_another_job_has_is_reported(self):
@@ -214,10 +214,18 @@ class Repository(unittest.TestCase):
                 self.assertTrue(any('remove workflow-level `concurrency:`' in p for p in found), found)
 
     def test_the_main_only_cancellation_gate_is_required(self):
-        old = ('    concurrency:\n      group: ' + check.JOB_GROUP.replace('JOB_ID', 'msrv') +
-               '\n      cancel-in-progress: ' + check.WORKFLOW_CANCEL + '\n')
-        found = self.ci(old, old.replace(check.WORKFLOW_CANCEL, 'true'))
+        old = ('    concurrency:\n      group: ' + check.GROUP.replace('JOB_ID', 'msrv') +
+               '\n      cancel-in-progress: ' + check.CANCEL + '\n')
+        found = self.ci(old, old.replace(check.CANCEL, 'true'))
         self.assertTrue(any('give `msrv` exactly' in p for p in found), found)
+
+    def test_main_jobs_cannot_share_a_pending_group_even_without_cancellation(self):
+        for job in ('bench-guard', 'msrv'):
+            with self.subTest(job=job):
+                group = check.GROUP.replace('JOB_ID', job)
+                shared = check.WORKFLOW_GROUP.replace('${{ github.workflow }}-', f'${{{{ github.workflow }}}}-{job}-', 1)
+                found = self.edit('ci.yml', group, shared)
+                self.assertTrue(any(f'give `{job}` exactly' in p for p in found), found)
 
     def test_main_changes_gates_do_not_cancel_main_runs(self):
         for workflow, gate in (('ci.yml', 'ci-changes'), ('python.yml', 'python-changes'),
