@@ -145,14 +145,20 @@ fn is_cover(key: &metadata::ListKey) -> bool {
 }
 
 /// The covers of the movie's item lists, one per `data` box, in file
-/// order, that `ffprobe` lists: those typed JPEG (13) or PNG (14) (found black box: the same picture typed 0 or 1 is not listed; one typed
+/// order, that `ffprobe` lists: none of a `meta` box without the handler box
+/// ISO/IEC 14496-12 8.11.1 requires, as for the list's tags; of the others,
+/// those typed JPEG (13) or PNG (14) (found black box: the same picture typed 0 or 1 is not listed; one typed
 /// 27, BMP, is listed as BMP, which is not described here).
 fn covers(meta: &metadata::Metadata) -> Vec<Cover> {
     meta.items
         .iter()
         .filter(|item| item.track.is_none())
         .filter_map(|item| match &item.value {
-            metadata::ItemValue::ListItem { key, data, .. } if is_cover(key) => Some(data),
+            metadata::ItemValue::ListItem { list, key, data }
+                if is_cover(key) && *list != (ListPlace::Meta { handler: None }) =>
+            {
+                Some(data)
+            }
             _ => None,
         })
         .flatten()

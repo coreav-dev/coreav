@@ -18,7 +18,7 @@
 //!
 //! ```
 //! use coreav_isobmff::{Allowlist, Limits, SliceSource};
-//! use coreav_isobmff_write::{TrackChoice, extract_audio};
+//! use coreav_isobmff_write::{HeaderMetadata, TrackChoice, extract_audio};
 //!
 //! let not_a_movie = b"RIFF\x24\x00\x00\x00AVI LIST";
 //! let mut out = Vec::new();
@@ -27,6 +27,7 @@
 //!     &Limits::default(),
 //!     &Allowlist::default(),
 //!     TrackChoice::FirstAudio,
+//!     HeaderMetadata::Copy,
 //!     &mut out,
 //! );
 //! assert!(result.is_err());
@@ -66,6 +67,18 @@ pub use split::split_mp4;
 
 use core::fmt;
 use coreav_isobmff::{Codec, Error, FourCc, Rational, TrackKind};
+
+/// What [`extract_audio`] carries over from the source besides the samples
+/// and their timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderMetadata {
+    /// The creation times of the movie, track and media headers, and the
+    /// media header's language.
+    Copy,
+    /// None of them: the times are written as 0 ("not set") and the
+    /// language as `und`.
+    Clear,
+}
 
 /// Which track to extract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -242,9 +255,10 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied.
     pub on_unsupported: OnUnsupported,
@@ -333,7 +347,7 @@ pub struct RemuxTrack {
     /// `track_ID` of the track in the source.
     pub source_track_id: u32,
     /// `track_ID` in the output: the kept tracks are numbered from 1 in
-    /// source order.
+    /// output order.
     pub track_id: u32,
     /// The track's kind.
     pub kind: TrackKind,
@@ -466,13 +480,15 @@ pub struct Cleared {
 /// What [`remux_mp4`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`RemuxOptions::streams`).
     pub tracks: Vec<RemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
     pub dropped_tracks: Vec<DroppedTrack>,
-    /// Boxes of the source that are not in the output, in file order (those
-    /// of dropped streams are not listed): at most 256.
+    /// Boxes of the source that are not in the output, each once (those
+    /// of dropped streams are not listed): those outside the tracks, then
+    /// each kept stream's in source order, then the boxes too large to
+    /// copy; each group in file order; at most 256.
     pub dropped_boxes: Vec<DroppedBox>,
     /// Dropped boxes beyond those listed.
     pub dropped_boxes_not_listed: u64,

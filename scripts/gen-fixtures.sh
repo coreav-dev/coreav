@@ -362,6 +362,12 @@ try_gen multitrack.mp4 \
   -metadata:s:a:0 language=eng -metadata:s:a:1 language=kor -metadata:s:s:0 language=eng
 rm -f "$OUT/subs.srt"
 
+# --- Audio before video, both tagged English (docs/design/compat-cli.md,
+# "Stream order"): ffmpeg's automatic selection writes the video first, and
+# -map 0:v -map 0:m:language:eng maps the video twice. ---
+try_gen av_audio_first.mp4 "${ASRC[@]}" "${VSRC[@]}" -map 0:a -map 1:v "${VID[@]}" "${AUD[@]}" \
+  -metadata:s:a:0 language=eng -metadata:s:v:0 language=eng
+
 # --- Text (docs/design/text.md): 3GPP timed text with styling, non-ASCII
 # text, characters WebVTT escapes, line breaks and gaps; a subtitle track
 # shifted by an edit; and QuickTime chapter tracks in MP4, M4A and MOV. The
