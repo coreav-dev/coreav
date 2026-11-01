@@ -4,8 +4,8 @@
 //! CoreAV's probe output schema: `coreav.probe/1` for MP4, MOV and other ISO
 //! base media files (`docs/schema/probe-v1.md`), `coreav.probe-matroska/1`
 //! for Matroska and WebM (`docs/schema/probe-matroska-v1.md`) and
-//! `coreav.probe-mpegts/1` for MPEG transport streams
-//! (`docs/schema/probe-mpegts-v1.md`).
+//! `coreav.probe-mpegts/2` for MPEG transport streams
+//! (`docs/schema/probe-mpegts-v2.md`).
 //! `--ffprobe-compat` prints the subset of `ffprobe -of json -show_format
 //! -show_streams` that is checked against `ffprobe`. `coreav clip --start
 //! TIME INPUT OUTPUT` cuts a keyframe-aligned clip of an MP4/MOV file by
@@ -1034,7 +1034,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         }
     };
     if args.audio == "aac" {
-        if let Err(message) = strict_safe.aac() {
+        if let Err(message) = strict_safe.aac("use --audio copy, none or opus") {
             let _ = writeln!(
                 std::io::stderr(),
                 "{}",

@@ -3,7 +3,7 @@
 be reached.
 
 The origin of record stays the publisher's archive named in
-`scripts/oracle-ffmpeg.env`; the bench bucket keeps the same archive under
+`scripts/oracle-ffmpeg.env`; the corpus bucket keeps the same archive under
 `tools/`, so that a host without a route to the publisher can still run the
 oracle. It is checked against the pin's SHA-256 before it is written, and
 `scripts/install-oracle-ffmpeg.sh` checks it again and extracts the two
@@ -11,11 +11,12 @@ executables.
 
   oracle_from_r2.py /absolute/path/of/the/archive [KEY SHA256]
 
-KEY and SHA256 name another archive of the bench bucket and its hash (the
+KEY and SHA256 name another archive of the corpus bucket and its hash (the
 historical training extractor's, `docs/measurements/h264-training/`); without
 them the pinned oracle archive is fetched.
 
-Credentials from R2_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.
+Credentials from R2_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY, and
+the bucket from R2_BUCKET.
 Uses only the standard library (through tools/stage3-report/r2pool.py).
 Exit 0 when the archive is written, 1 otherwise.
 """

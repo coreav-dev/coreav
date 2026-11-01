@@ -199,6 +199,15 @@ pub struct SampleDescription {
     /// is kept as stored: writers copy it, and it cannot hold a rate of
     /// 65,536 Hz or more.
     pub configured_sample_rate: Option<u32>,
+    /// For AAC, the samples one frame decodes to at
+    /// [`SampleDescription::configured_sample_rate`]: 960 or 1,024 by the
+    /// `AudioSpecificConfig`'s `frameLengthFlag` (ISO/IEC 14496-3
+    /// 4.5.1.1), twice that with SBR signalled explicitly at twice the core
+    /// frequency (4.6.18.2.2). `None` without a readable configuration, for
+    /// object types other than AAC main, LC and LTP (and their
+    /// error-resilient LC and LTP), and for other codecs. SBR signalled only
+    /// in the bitstream (implicitly) is not known.
+    pub aac_frame_length: Option<u32>,
     /// The bits per sample the codec configuration declares: FLAC's
     /// `STREAMINFO` in `dfLa`, the ALAC magic cookie's `bitDepth`;
     /// `None` for other codecs and when it cannot be read.
@@ -419,6 +428,7 @@ pub(crate) fn parse_sample_entry(
         channels: None,
         sample_rate: None,
         configured_sample_rate: None,
+        aac_frame_length: None,
         configured_bits: None,
         implicit_ps_possible: false,
         pcm: None,
@@ -625,6 +635,7 @@ pub(crate) fn parse_sample_entry(
             // its configuration is trusted.
             let layout = esds.as_ref().and_then(|e| e.layout);
             desc.configured_sample_rate = layout.and_then(|l| l.rate);
+            desc.aac_frame_length = layout.and_then(|l| l.frame);
             let configured = layout.and_then(|l| l.channels);
             let no_ps = layout.is_some_and(|l| l.no_ps);
             let (core, ps) = match parsed {
@@ -1140,11 +1151,20 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
         channels: configured_channels(configuration),
         no_ps: false,
         rate: core_rate,
+        frame: None,
     };
     // Explicit hierarchical signalling (5: SBR, 29: SBR and parametric
-    // stereo): the extension sampling frequency is the output's.
+    // stereo): the extension sampling frequency is the output's, and the
+    // core object type and its `GASpecificConfig` follow.
     if matches!(object_type, 5 | 29) {
-        layout.rate = sampling_frequency(&mut bits).flatten().or(core_rate);
+        let extension = sampling_frequency(&mut bits).flatten();
+        layout.rate = extension.or(core_rate);
+        let core = audio_object_type(&mut bits);
+        let short = bits.flag();
+        layout.frame = core
+            .zip(short)
+            .and_then(|(core, short)| frame_length(core, short))
+            .and_then(|frame| aac_frame(frame, core_rate, extension));
         return Some(layout);
     }
     // GASpecificConfig (4.4.1) only for the general audio object types.
@@ -1152,9 +1172,10 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
         return Some(layout);
     }
     // frameLengthFlag, dependsOnCoreCoder (+ 14-bit delay), extensionFlag.
-    if bits.skip(1).is_none() {
+    let Some(short) = bits.flag() else {
         return Some(layout);
-    }
+    };
+    layout.frame = frame_length(object_type, short);
     match bits.flag() {
         Some(true) if bits.skip(14).is_some() => {}
         Some(false) => {}
@@ -1186,6 +1207,9 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
                 let frequency = sampling_frequency(&mut ext);
                 if let Some(Some(rate)) = frequency {
                     layout.rate = Some(rate);
+                    layout.frame = layout
+                        .frame
+                        .and_then(|frame| aac_frame(frame, core_rate, Some(rate)));
                 }
                 frequency.is_some()
                     && ext.clone().bits(12).is_some()
@@ -1506,6 +1530,34 @@ struct AacLayout {
     /// 1.6.2.1, 1.6.5); `None` for a reserved index. Implicitly signalled
     /// SBR is in the bitstream only, which probe does not decode.
     rate: Option<u32>,
+    /// The samples one frame decodes to at [`AacLayout::rate`]: 960 or
+    /// 1,024 by `frameLengthFlag` (ISO/IEC 14496-3 4.5.1.1), times the
+    /// ratio of the output frequency to the core frequency when SBR is
+    /// signalled explicitly (4.6.18.2.2); `None` for object types other
+    /// than AAC main, LC and LTP (and their error-resilient LC and LTP), and
+    /// for an SBR ratio other than 1 or 2.
+    frame: Option<u32>,
+}
+
+/// The samples an AAC frame of `core` samples at `core_rate` decodes to at
+/// `rate`: the same with SBR at the core frequency (downsampled SBR), twice
+/// as many at twice it.
+fn aac_frame(core: u32, core_rate: Option<u32>, rate: Option<u32>) -> Option<u32> {
+    let (core_rate, rate) = (core_rate?, rate?);
+    if rate == core_rate {
+        Some(core)
+    } else if Some(rate) == core_rate.checked_mul(2) {
+        core.checked_mul(2)
+    } else {
+        None
+    }
+}
+
+/// The samples a `GASpecificConfig`'s `frameLengthFlag` gives an object
+/// type's frame (ISO/IEC 14496-3 4.5.1.1); `None` for the object types
+/// whose frames have other lengths.
+fn frame_length(object_type: u8, short: bool) -> Option<u32> {
+    matches!(object_type, 1 | 2 | 4 | 17 | 19).then_some(if short { 960 } else { 1024 })
 }
 
 /// The `objectTypeIndication` and `DecoderSpecificInfo` of an `esds`
@@ -1698,6 +1750,35 @@ mod tests {
     }
 
     #[test]
+    fn aac_frame_lengths() {
+        let frame = |config: &[u8]| aac_layout(config).and_then(|l| l.frame);
+        // LC at 48 kHz, stereo: frameLengthFlag 0 and 1.
+        assert_eq!(frame(&[0x11, 0x90]), Some(1024));
+        assert_eq!(frame(&[0x11, 0x94]), Some(960));
+        // SBR signalled hierarchically: LC core at 24 kHz, output at 48 kHz,
+        // then at the core's 24 kHz (downsampled SBR), then at 44.1 kHz.
+        let sbr = |extension| pack(&[(5, 5), (6, 4), (2, 4), (extension, 4), (2, 5), (0, 3)]);
+        assert_eq!(frame(&sbr(3)), Some(2048));
+        assert_eq!(frame(&sbr(6)), Some(1024));
+        assert_eq!(frame(&sbr(4)), None);
+        // The backward-compatible extension, sbrPresentFlag 1 at 48 kHz.
+        let compatible = pack(&[
+            (2, 5),
+            (6, 4),
+            (2, 4),
+            (0, 3),
+            (0x2b7, 11),
+            (5, 5),
+            (1, 1),
+            (3, 4),
+        ]);
+        assert_eq!(frame(&compatible), Some(2048));
+        // AAC LD (object type 23) has frames of 480 or 512 samples; not read.
+        assert_eq!(frame(&pack(&[(23, 5), (3, 4), (2, 4), (0, 3)])), None);
+        assert_eq!(frame(&[0x11]), None);
+    }
+
+    #[test]
     fn aac_channel_configuration() {
         let channels = |config: &[u8]| aac_layout(config).and_then(|l| l.channels);
         // LC, 44.1 kHz: channelConfiguration 2, then 6 (5.1) and 7 (7.1).
@@ -1801,6 +1882,7 @@ mod tests {
                 channels: Some(1),
                 no_ps: true,
                 rate: Some(44100),
+                frame: Some(1024),
             })
         );
         // Without the extension, or with SBR present: not known.

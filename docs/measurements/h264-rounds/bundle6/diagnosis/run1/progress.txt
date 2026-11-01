@@ -1,0 +1,12 @@
+start 05:24:44
+stat round 0 done
+stat round 1 done
+stat round 2 done
+stat round 3 done
+stat round 4 done
+stat round 5 done
+stat round 6 done
+stat round 7 done
+topdown round 0 done
+topdown round 1 done
+end rc=0 05:39:49

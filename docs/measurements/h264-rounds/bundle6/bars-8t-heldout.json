@@ -1,0 +1,26 @@
+{
+ "new": "k",
+ "old": "base",
+ "seed": 20261031,
+ "calls": {
+  "t8": {
+   "label": "8 threads, 64 held-out, 5 rounds",
+   "streams": "docs/measurements/h264-n2-heldout/es.json"
+  }
+ },
+ "bars": [
+  {
+   "name": "B6-7",
+   "checks": [
+    {
+     "call": "t8",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 0.997
+    }
+   ]
+  }
+ ]
+}

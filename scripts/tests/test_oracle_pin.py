@@ -109,6 +109,59 @@ class OraclePin(unittest.TestCase):
                 uncached = all('if' not in s for s in installers)
                 self.assertTrue(verified or uncached, f'{path.name}: {name}: verify cached oracle binaries')
 
+    @staticmethod
+    def workflow_data(path):
+        return json.loads(subprocess.check_output(
+            ['ruby', '-ryaml', '-rjson', '-e',
+             'puts JSON.generate(YAML.safe_load(File.read(ARGV[0]), aliases: true))', str(path)]))
+
+    @staticmethod
+    def extractor_credential_problems(data):
+        needed = {'R2_ENDPOINT': 'secrets.COREAV_CORPUS_R2_ENDPOINT',
+                  'R2_ACCESS_KEY_ID': 'secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID',
+                  'R2_SECRET_ACCESS_KEY': 'secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY',
+                  'R2_BUCKET': 'vars.COREAV_CORPUS_R2_BUCKET'}
+        problems = []
+        for name, job in data.get('jobs', {}).items():
+            for step in job.get('steps', []):
+                if 'install-extractor.sh' not in step.get('run', ''):
+                    continue
+                env = step.get('env', {})
+                missing = [key for key, source in needed.items() if env.get(key) != '${{ ' + source + ' }}']
+                if missing:
+                    problems.append(f'{name}: the extractor install does not receive {", ".join(missing)}')
+                if 'pip' in step['run']:
+                    problems.append(f'{name}: the extractor install step also installs packages with the credentials')
+                if 'head.repo.full_name == github.repository' not in str(job.get('if', '')):
+                    problems.append(f'{name}: the job with the credentials runs for a fork')
+        return problems
+
+    def test_the_extractor_install_receives_the_credentials_of_its_r2_fallback(self):
+        script = ROOT / 'docs/measurements/h264-training/tools/install-extractor.sh'
+        self.assertIn('oracle_from_r2.py', script.read_text())
+        data = self.workflow_data(ROOT / '.github/workflows/ci.yml')
+        self.assertEqual(self.extractor_credential_problems(data), [])
+        steps = data['jobs']['training-identity']['steps']
+        install = next(step for step in steps if 'install-extractor.sh' in step.get('run', ''))
+        del install['env']['R2_SECRET_ACCESS_KEY']
+        self.assertEqual(self.extractor_credential_problems(data),
+                         ['training-identity: the extractor install does not receive R2_SECRET_ACCESS_KEY'])
+        install['env']['R2_SECRET_ACCESS_KEY'] = '${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}'
+        del install['env']['R2_BUCKET']
+        self.assertEqual(self.extractor_credential_problems(data),
+                         ['training-identity: the extractor install does not receive R2_BUCKET'])
+        install['env']['R2_BUCKET'] = '${{ secrets.COREAV_CORPUS_R2_BUCKET }}'
+        install['env']['R2_ACCESS_KEY_ID'] = '${{ vars.COREAV_CORPUS_R2_ACCESS_KEY_ID }}'
+        install['env']['R2_ENDPOINT'] = '${{ secrets.R2_ENDPOINT }}'
+        self.assertEqual(self.extractor_credential_problems(data),
+                         ['training-identity: the extractor install does not receive '
+                          'R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_BUCKET'])
+        install['env'].clear()
+        install['run'] += '\npip install boto3'
+        self.assertEqual(len(self.extractor_credential_problems(data)), 2)
+        data['jobs']['training-identity']['if'] = 'true'
+        self.assertEqual(len(self.extractor_credential_problems(data)), 3)
+
 
 if __name__ == '__main__':
     unittest.main()

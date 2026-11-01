@@ -1,0 +1,112 @@
+{
+ "new": "k",
+ "old": "base",
+ "seed": 20261031,
+ "calls": {
+  "g": {
+   "label": "1 thread pinned, fixed-frequency class, 32 training, 20 rounds",
+   "streams": "docs/measurements/h264-training/es.json"
+  }
+ },
+ "subsets": {
+  "cavlc": [
+   "5185721dda11",
+   "6f7799768413",
+   "9db41aa16b5a",
+   "b71b6b31e54f",
+   "ec473c99c538",
+   "f9e973f44570"
+  ],
+  "cabac": [
+   "175433794e02",
+   "1d4b1775d78a",
+   "278dbf5a63bb",
+   "36501d448eaa",
+   "3b1b441e23ae",
+   "3c593b8f0809",
+   "41e324ebb708",
+   "4b54de28c2b3",
+   "65ec61f95a00",
+   "6b18d9f0f88d",
+   "6da34958296c",
+   "6e90422a670a",
+   "7650ae466748",
+   "76e0b1692494",
+   "81ed4778ece2",
+   "8ae90cadb5bc",
+   "a6af290d9053",
+   "a81de82106be",
+   "ae16bb7c7192",
+   "af38b0cfd840",
+   "b41f70a7fa60",
+   "c7ecda16e4a7",
+   "dcb262cf0138",
+   "e624cbe0d2be",
+   "ed75c044e944",
+   "f8d92a911e72"
+  ]
+ },
+ "bars": [
+  {
+   "name": "B6-5",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "sd"
+     ],
+     "median_max": 0.995
+    },
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "cavlc"
+     ],
+     "median_max": 0.98,
+     "ci_high_below": 1.0
+    }
+   ]
+  },
+  {
+   "name": "B6-6",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1.0
+    },
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1.0
+    },
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "classes",
+      "cabac"
+     ],
+     "median_max": 1.003
+    },
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "classes",
+      "cabac"
+     ],
+     "median_max": 1.003
+    }
+   ]
+  }
+ ]
+}
