@@ -382,6 +382,42 @@ fn vp9_and_opus_from_webm() {
     assert_eq!(remux(&source).1, output);
 }
 
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same frames, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = mkv::small_webm();
+    let options = MatroskaRemuxOptions {
+        streams: Some(vec![1, 0, 0]),
+        ..MatroskaRemuxOptions::default()
+    };
+    let (summary, output) = remux_with(&source, &Allowlist::default(), &options).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| (t.stream_index, t.track_id))
+            .collect::<Vec<_>>(),
+        [(1, 1), (0, 2), (0, 3)]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    let most = coreav_isobmff::Limits::default().max_tracks as usize;
+    let too_many = MatroskaRemuxOptions {
+        streams: Some(vec![0; most + 1]),
+        ..MatroskaRemuxOptions::default()
+    };
+    assert!(matches!(
+        remux_with(&source, &Allowlist::default(), &too_many),
+        Err(MatroskaRemuxError::Output(
+            coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::Tracks,
+                ..
+            }
+        ))
+    ));
+}
+
 #[test]
 fn h264_b_frames_get_decode_times() {
     let presentation = [0i16, 120, 40, 80, 240, 160, 200, 280];
