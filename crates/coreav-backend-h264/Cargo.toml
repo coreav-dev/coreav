@@ -20,3 +20,5 @@ workspace = true
 [dev-dependencies]
 coreav-counting-alloc = { path = "../../tools/counting-alloc" }
 coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-thumbnail = { path = "../coreav-thumbnail" }
+md-5 = "0.10"
