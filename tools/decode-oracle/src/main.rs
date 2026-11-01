@@ -12,10 +12,16 @@
 //! conformance of `coreav transcode`'s output (`docs/design/transcode.md`,
 //! bar B1).
 //!
+//! `decode-oracle stream FILE` decodes the whole video stream as `coreav
+//! transcode` would and prints every frame's pts and MD5 with the outcome
+//! (see `stream.rs`).
+//!
 //! `decode-oracle thumbnail FILE --at SECONDS --skip on|off -o OUT.png`
 //! writes the `--exact` thumbnail at the display size, as PNG, with
 //! disposable packets skipped or not (`docs/design/thumbnails.md`, "Frames
 //! nothing depends on"), and prints the frame's time and the packets sent.
+
+mod stream;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -33,7 +39,24 @@ const LOOKAHEAD: usize = 64;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some(coreav_worker::WORKER_ARG) {
-        return coreav_worker::worker_main(|_| Ok(()));
+        let strict_safe = args.get(1).map(String::as_str) == Some(stream::STRICT_SAFE_ARG);
+        return coreav_worker::worker_main(|backend| stream::worker_allows(backend, strict_safe));
+    }
+    if args.first().map(String::as_str) == Some("stream") {
+        return match stream::run(args.get(1..).unwrap_or(&[])) {
+            Ok((document, ok)) => {
+                println!("{document}");
+                if ok {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
+            }
+            Err(message) => {
+                println!("{}", json!({ "error": message }));
+                ExitCode::from(1)
+            }
+        };
     }
     let result = if args.first().map(String::as_str) == Some("thumbnail") {
         run_thumbnail(args.get(1..).unwrap_or(&[]))

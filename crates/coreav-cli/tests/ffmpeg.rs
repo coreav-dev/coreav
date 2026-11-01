@@ -474,13 +474,16 @@ fn patched_movie(dir: &Path, name: &str, patch: &[(usize, &[u32], &[u32])]) -> S
     path.to_string_lossy().into_owned()
 }
 
+/// A join places each file where the concat demuxer does, after the files
+/// before it, each as long as its duration (the pinned `ffmpeg` 9.0.2,
+/// black box: a file whose audio outlasts its video is followed at the
+/// audio's end, and its last video frame is held until then).
 #[test]
-fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
-    let dir = scratch("ffmpeg-concat-not-native");
+fn a_join_places_each_file_where_the_concat_demuxer_does() {
+    let dir = scratch("ffmpeg-concat-placement");
     movie(&dir);
     // The audio lasts 0.32 s, twice the video (its `stts`, `mdhd` and the
-    // movie's duration): the concat demuxer places the next file at 0.32 s,
-    // the join at the video's end.
+    // movie's duration).
     patched_movie(
         &dir,
         "long.mp4",
@@ -490,6 +493,26 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
             (1, &[1000, 160], &[1000, 320]),
         ],
     );
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file long.mp4\nfile long.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let args: Vec<String> = ["-f", "concat", "-i", list.to_str().unwrap(), "-c", "copy"]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(true)) else {
+        panic!("the join is refused");
+    };
+    let inputs = summary["inputs"].as_array().unwrap();
+    assert_eq!(inputs[1]["offset"]["seconds"], json!(0.32));
+    assert!(inputs[0]["extended"].as_u64().unwrap() > 0, "{summary:#}");
+}
+
+#[test]
+fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
+    let dir = scratch("ffmpeg-concat-not-native");
+    movie(&dir);
     // The video's media timescale is 20000 rather than 12800.
     patched_movie(
         &dir,
@@ -526,10 +549,6 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     let output = dir.join("out.mp4");
     let o = output.to_str().unwrap();
     for (files, named) in [
-        (
-            "file long.mp4\nfile long.mp4\n",
-            "streams end at different times",
-        ),
         ("file in.mp4\nfile timescale.mp4\n", "streams differ"),
         ("file pcm.mp4\nfile pcm.mp4\n", "not supported"),
         (
@@ -1001,6 +1020,19 @@ fn the_0_1_0_commands_on_the_fixtures() {
     .unwrap();
 }
 
+/// The job a writer's summary says CoreAV chose, by its schema.
+fn chosen(summary: &Value) -> Option<&'static str> {
+    match summary["schema"].as_str()? {
+        "coreav.remux/1" => Some("remux"),
+        "coreav.clip/1" => Some("clip"),
+        "coreav.split/1" => Some("split"),
+        "coreav.join/1" => Some("join"),
+        "coreav.extract-audio/1" => Some("extract-audio"),
+        "coreav.transcode/1" => Some("transcode"),
+        _ => None,
+    }
+}
+
 /// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
 /// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
 /// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
@@ -1010,7 +1042,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
 /// with its `status` (`written`, `refused`, `not taken`, `usage`,
 /// `rejected` or `io`), its `detail` (the writer's summary, which the
 /// binary does not print, or the reason) and the number of files left in
-/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. A written pair
+/// also gets `chosen`, the job CoreAV chose (`remux`, `clip`, `split`,
+/// `join`, `extract-audio` or `transcode`), read from the schema of the
+/// summary the writer returned and never from the command, so a pair needs
+/// no `job` (`tools/compat-corpus/encode_breadth.py` gives none). Unlike
 /// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
 /// asserted: the files are not the fixtures, and the runner judges.
 #[test]
@@ -1045,6 +1081,7 @@ fn the_0_1_0_commands_on_listed_pairs() {
                 failure.to_json(),
             ),
         };
+        pair["chosen"] = json!((status == "written").then(|| chosen(&detail)).flatten());
         pair["status"] = json!(status);
         pair["detail"] = detail;
         pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());

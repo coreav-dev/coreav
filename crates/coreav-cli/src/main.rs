@@ -81,7 +81,8 @@ use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
 use coreav_isobmff_write::{
     AudioChoice, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions, MatroskaRemuxOptions,
-    Metadata, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    Metadata, OnUnsupported, Placement, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
+    VideoChoice,
 };
 use coreav_policy::Policy;
 #[cfg(not(feature = "net"))]
@@ -2213,6 +2214,7 @@ fn run_join(args: &JoinArgs) -> ExitCode {
     let options = JoinOptions {
         video: VideoChoice::First,
         audio,
+        placement: Placement::AfterVideo,
     };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.

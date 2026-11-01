@@ -11,7 +11,8 @@ corpus store. Everything this writes names files by hash: keep it private.
     round_files.py fetch --files FILES.json --dest DIR [--shard I/N]
         Downloads the files (or every Nth from the Ith, counting from 0)
         to DIR/<sha256>.<ext>, checks each one's size and SHA-256, and
-        writes DIR/files.json as {family, path}, in the same order.
+        writes DIR/files.json as {family, sha256, key, ext, path}, in the
+        same order.
 
 Sets:
   draw6          every `real` file of v2-heldout draw 6 (R2, R3)
@@ -28,6 +29,14 @@ Sets:
                  sha256("coreav-compat-rehearsal:" + sha256)
   r4-rehearsal   the R4 rule over v2-heldout draws 1 to 5, spent files
                  standing in for draw 6 in a rehearsal of the R4 host
+  v1-coverage    V1 of the codec coverage bars
+                 (docs/measurements/compat-0.1.0/codec-coverage-plan.md):
+                 every `real` file of corpus v1, held out or not, whatever
+                 its container, in the order sha256("coreav-codec-v1:" +
+                 sha256); its family is null outside the round's families
+  v1-coverage-rehearsal
+                 the first 40 `real` files of corpus v1 in the order
+                 sha256("coreav-codec-rehearsal:" + sha256)
 
 Credentials: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and
 R2_BUCKET; never printed. Python 3 standard library only.
@@ -105,7 +114,25 @@ def ordered(pool_, salt, limit, per_family):
     return out
 
 
+def v1_coverage(local, salt, limit=None):
+    """Every `real` file of corpus v1 in the order sha256(salt + sha256), the
+    first `limit` of them when it is given."""
+    out = []
+    for e in manifest('v1', local):
+        if e.get('set') != 'real':
+            continue
+        key = e['key'] if e['key'].startswith('corpus/') else f"corpus/v1/{e['key']}"
+        out.append({'family': release_round.family('x.' + e['ext']), 'sha256': e['sha256'], 'ext': e['ext'],
+                    'size': e['size'], 'key': key})
+    out.sort(key=lambda e: hashlib.sha256((salt + e['sha256']).encode()).hexdigest())
+    return out[:limit] if limit else out
+
+
 def select(name, local=None, per_family=None):
+    if name == 'v1-coverage':
+        return v1_coverage(local, 'coreav-codec-v1:')
+    if name == 'v1-coverage-rehearsal':
+        return v1_coverage(local, 'coreav-codec-rehearsal:', 40)
     v2 = candidates('v2-heldout', manifest('v2-heldout', local))
     draw6 = [(f, e) for f, e in v2 if e['draw'] == 6]
     spent_v2 = [(f, e) for f, e in v2 if e['draw'] in (1, 2, 3, 4, 5)]
@@ -123,7 +150,7 @@ def select(name, local=None, per_family=None):
     raise SystemExit(f'no set {name!r}')
 
 
-SETS = ('draw6', 'r4-draw6', 'r4-gate', 'rehearsal', 'r4-rehearsal')
+SETS = ('draw6', 'r4-draw6', 'r4-gate', 'rehearsal', 'r4-rehearsal', 'v1-coverage', 'v1-coverage-rehearsal')
 
 
 def fetch_one(p, entry, dest):
@@ -166,7 +193,8 @@ def fetch(files, dest, shard=None):
             paths = list(workers.map(lambda e: fetch_one(p, e, dest), files))
     finally:
         p.close()
-    listing = [{'family': e['family'], 'path': str(path)} for e, path in zip(files, paths)]
+    listing = [{'family': e['family'], 'sha256': e['sha256'], 'key': e['key'], 'ext': e['ext'], 'path': str(path)}
+               for e, path in zip(files, paths)]
     (dest / 'files.json').write_text(json.dumps(listing, indent=1) + '\n')
     return listing
 
