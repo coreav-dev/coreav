@@ -1,0 +1,17 @@
+--- a/crates/coreav-backend-libvpx/src/decoder.rs
++++ b/crates/coreav-backend-libvpx/src/decoder.rs
+@@ -549,14 +549,3 @@
+-    #[test]
+-    fn exported_rows_keep_unaligned_bytes_and_short_tails() {
+-        for width in [0, 1, 63, 64, 65, 127, 128, 129, 321, 7680] {
+-            let source: Vec<u8> = (0u8..=250).cycle().take(width).collect();
+-            let mut data = vec![9, 8, 7];
+-            data.reserve_exact(source.len());
+-            append_row(&mut data, &source);
+-            assert_eq!(data, [vec![9, 8, 7], source].concat());
+-        }
+-    }
+-
+     #[test]
+     fn the_memory_estimate_refuses_what_does_not_fit() {
+         let stream = |width: u32, height: u32| StreamConfig {

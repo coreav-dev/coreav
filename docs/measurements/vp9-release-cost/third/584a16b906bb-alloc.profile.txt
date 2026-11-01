@@ -1,0 +1,59 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 170  of event 'cycles'
+# Event count (approx.): 1843643298
+#
+# Overhead  Command   Shared Object      Symbol                                                                                                                                                                            IPC   [IPC Coverage]
+# ........  ........  .................  ................................................................................................................................................................................  ....................
+#
+    34.09%  do-alloc  do-alloc           [.] memcpy                                                                                                                                                                        -      -
+     6.27%  do-alloc  do-alloc           [.] vpx_lpf_horizontal_16_dual_avx2                                                                                                                                               -      -
+     6.08%  do-alloc  do-alloc           [.] vpx_convolve_copy_sse2.loop64                                                                                                                                                 -      -
+     5.44%  do-alloc  do-alloc           [.] vpx_convolve_copy_sse2.loop32                                                                                                                                                 -      -
+     4.28%  do-alloc  do-alloc           [.] decode_coefs                                                                                                                                                                  -      -
+     4.26%  do-alloc  do-alloc           [.] vpx_lpf_vertical_16_dual_sse2                                                                                                                                                 -      -
+     3.74%  do-alloc  do-alloc           [.] recon_block                                                                                                                                                                   -      -
+     3.25%  do-alloc  do-alloc           [.] memset                                                                                                                                                                        -      -
+     2.47%  do-alloc  do-alloc           [.] row_decode_worker_hook                                                                                                                                                        -      -
+     2.33%  do-alloc  do-alloc           [.] vp9_setup_dst_planes                                                                                                                                                          -      -
+     2.19%  do-alloc  do-alloc           [.] vp9_read_mode_info                                                                                                                                                            -      -
+     2.13%  do-alloc  do-alloc           [.] vpx_lpf_horizontal_8_dual_sse2                                                                                                                                                -      -
+     2.03%  do-alloc  do-alloc           [.] read_partition                                                                                                                                                                -      -
+     1.96%  do-alloc  do-alloc           [.] idct32_34_8x32_ssse3                                                                                                                                                          -      -
+     1.80%  do-alloc  do-alloc           [.] vp9_build_mask                                                                                                                                                                -      -
+     1.48%  do-alloc  do-alloc           [.] dec_build_inter_predictors_sb                                                                                                                                                 -      -
+     1.34%  do-alloc  do-alloc           [.] set_offsets                                                                                                                                                                   -      -
+     1.06%  do-alloc  do-alloc           [.] vpx_lpf_vertical_8_dual_sse2                                                                                                                                                  -      -
+     0.80%  do-alloc  [kernel.kallsyms]  [k] clear_page_erms                                                                                                                                                               -      -
+     0.79%  do-alloc  do-alloc           [.] vpx_convolve8_vert_avx2                                                                                                                                                       -      -
+     0.79%  do-alloc  do-alloc           [.] vp9_filter_block_plane_ss00                                                                                                                                                   -      -
+     0.79%  do-alloc  do-alloc           [.] _RNvMsi_NtNtNtCshUCiHv8I5f8_5alloc11collections5btree3mapINtB5_8BTreeMapNtNtBb_6string6StringNtNtCshuQXI2AED1F_10serde_json5value5ValueE6insertCsfRS14DLddgl_13decode_oracle  -      -
+     0.78%  do-alloc  do-alloc           [.] __private_cond_signal                                                                                                                                                         -      -
+     0.67%  do-alloc  do-alloc           [.] vpx_dc_predictor_32x32_sse2                                                                                                                                                   -      -
+     0.66%  do-alloc  [kernel.kallsyms]  [k] __flush_smp_call_function_queue                                                                                                                                               -      -
+     0.64%  do-alloc  do-alloc           [.] __pthread_mutex_lock                                                                                                                                                          -      -
+     0.61%  do-alloc  do-alloc           [.] vpx_lpf_horizontal_8_sse2                                                                                                                                                     -      -
+     0.60%  do-alloc  [kernel.kallsyms]  [k] do_mmap                                                                                                                                                                       -      -
+     0.59%  do-alloc  [kernel.kallsyms]  [k] _raw_spin_lock                                                                                                                                                                -      -
+     0.59%  do-alloc  [kernel.kallsyms]  [k] futex_q_lock                                                                                                                                                                  -      -
+     0.56%  do-alloc  do-alloc           [.] process_partition                                                                                                                                                             -      -
+     0.53%  do-alloc  [kernel.kallsyms]  [k] native_flush_tlb_one_user                                                                                                                                                     -      -
+     0.52%  do-alloc  do-alloc           [.] __pthread_mutex_unlock                                                                                                                                                        -      -
+     0.50%  do-alloc  do-alloc           [.] vp9_adjust_mask                                                                                                                                                               -      -
+     0.50%  do-alloc  do-alloc           [.] filter_selectively_vert_row2                                                                                                                                                  -      -
+     0.49%  do-alloc  do-alloc           [.] filter_selectively_horiz                                                                                                                                                      -      -
+     0.48%  do-alloc  do-alloc           [.] vpx_convolve8_horiz_avx2                                                                                                                                                      -      -
+     0.45%  do-alloc  do-alloc           [.] vp9_inc_mv                                                                                                                                                                    -      -
+     0.44%  do-alloc  [kernel.kallsyms]  [k] __futex_wait                                                                                                                                                                  -      -
+     0.39%  do-alloc  [kernel.kallsyms]  [k] __list_del_entry_valid_or_report                                                                                                                                              -      -
+     0.30%  do-alloc  [kernel.kallsyms]  [k] vm_unmapped_area                                                                                                                                                              -      -
+     0.22%  do-alloc  [kernel.kallsyms]  [k] asm_exc_page_fault                                                                                                                                                            -      -
+     0.14%  do-alloc  do-alloc           [.] vp9_decode_block_tokens                                                                                                                                                       -      -
+
+
+#
+# (Tip: See assembly instructions with percentage: perf annotate <symbol>)
+#

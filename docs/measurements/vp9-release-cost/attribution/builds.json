@@ -1,0 +1,203 @@
+{
+  "base": "065479c8a6d3a47a965301d4e5eba6ee10c88e68",
+  "diagnostic_only": true,
+  "profile": "dist",
+  "worker_arena_reserve_kib": 131072,
+  "binaries": {
+    "gnu-debian-count": "d0d93f4f434eabfbe62d53f70f6963c41823e5fefec0d5d2061673f47c088636",
+    "gnu-debian-plain": "e1696ea6e84086345d7451fe97d134ede39fc31441e3691b951eedf9b5e5834e",
+    "gnu-debian-plain-hash": "cbb6ca052306951a7e2507b6601d0e78b32629e79734350dc986bba46b698d88",
+    "gnu-pinned-count": "cbf56e85ca28de41479c45814508e2573e171a891ae85030d98b3d249d28d5c1",
+    "gnu-pinned-plain": "97288047ba448b4a852a5d8ed31ff74bbc2151acf76c8e7dc7a5deb15f415ec6",
+    "gnu-pinned-plain-hash": "fc79a5f619672baf02caed2dfe9f0f3a627aa98c40345cedede4799101505957",
+    "musl-chunk": "1e3f18c42b638219feeee6e63ba6859885ad57833bdb962ab8a4dc0edc4bddd7",
+    "musl-chunk-hash": "4b445358695f11935ae4ecce48cd96a3944e025d04284f69b7dfeabe9df29db0",
+    "musl-count": "bb6ebb5af6d57957881acf8dbd1d539fc2369d85831730a0936521de56254c5c",
+    "musl-plain": "f71ac932535fc951a17408e39e3045e2e386f95e48a464c715573d646e156216",
+    "musl-plain-hash": "9f41b0afb37d926e6ced5136f50a28b1df55cde45194412cc40b73ee30e79fd4",
+    "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+  },
+  "variants": {
+    "gnu-debian-count": {
+      "variant": "gnu-debian-count",
+      "target": "x86_64-unknown-linux-gnu",
+      "features": "libvpx",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "count.rs": "0d53b23f779238cd139a43c3183a231e69db628c197b34395b04d394bd2bdecb",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "gnu-debian-count": "d0d93f4f434eabfbe62d53f70f6963c41823e5fefec0d5d2061673f47c088636"
+      },
+      "vpx_version": "1.15.0",
+      "build_pkg_config_vpx_version": "1.14.0",
+      "timed_features": "libvpx,no-frame-hash",
+      "hash_features": null,
+      "allocator": "system",
+      "copy": "count",
+      "patch_sha256": "7b868b8a66ed336e2b33f13cd9d20c771ff5a0442b2c986a58d1dfd13dc0d021"
+    },
+    "gnu-debian-plain": {
+      "variant": "gnu-debian-plain",
+      "target": "x86_64-unknown-linux-gnu",
+      "features": "libvpx",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "plain.rs": "61c49f9ac9c622439bd997ecebe62dc94d0b9596393f3acc486544e22ef865ab",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "gnu-debian-plain": "e1696ea6e84086345d7451fe97d134ede39fc31441e3691b951eedf9b5e5834e",
+        "gnu-debian-plain-hash": "cbb6ca052306951a7e2507b6601d0e78b32629e79734350dc986bba46b698d88"
+      },
+      "vpx_version": "1.15.0",
+      "build_pkg_config_vpx_version": "1.14.0",
+      "timed_features": "libvpx,no-frame-hash",
+      "hash_features": "libvpx",
+      "allocator": "system",
+      "copy": "plain",
+      "patch_sha256": "e3d503b0b8dae5259ef908fe6128c7e1bd0e78b0cecfe6d8798ee4c4c0706f10"
+    },
+    "gnu-pinned-count": {
+      "variant": "gnu-pinned-count",
+      "target": "x86_64-unknown-linux-gnu",
+      "features": "libvpx",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "count.rs": "0d53b23f779238cd139a43c3183a231e69db628c197b34395b04d394bd2bdecb",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "gnu-pinned-count": "cbf56e85ca28de41479c45814508e2573e171a891ae85030d98b3d249d28d5c1"
+      },
+      "vpx_version": "1.14.1",
+      "build_pkg_config_vpx_version": "1.14.1",
+      "timed_features": "libvpx,no-frame-hash",
+      "hash_features": null,
+      "allocator": "system",
+      "copy": "count",
+      "patch_sha256": "7b868b8a66ed336e2b33f13cd9d20c771ff5a0442b2c986a58d1dfd13dc0d021"
+    },
+    "gnu-pinned-plain": {
+      "variant": "gnu-pinned-plain",
+      "target": "x86_64-unknown-linux-gnu",
+      "features": "libvpx",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "plain.rs": "61c49f9ac9c622439bd997ecebe62dc94d0b9596393f3acc486544e22ef865ab",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "gnu-pinned-plain": "97288047ba448b4a852a5d8ed31ff74bbc2151acf76c8e7dc7a5deb15f415ec6",
+        "gnu-pinned-plain-hash": "fc79a5f619672baf02caed2dfe9f0f3a627aa98c40345cedede4799101505957"
+      },
+      "vpx_version": "1.14.1",
+      "build_pkg_config_vpx_version": "1.14.1",
+      "timed_features": "libvpx,no-frame-hash",
+      "hash_features": "libvpx",
+      "allocator": "system",
+      "copy": "plain",
+      "patch_sha256": "e3d503b0b8dae5259ef908fe6128c7e1bd0e78b0cecfe6d8798ee4c4c0706f10"
+    },
+    "musl-chunk": {
+      "variant": "musl-chunk",
+      "target": "x86_64-unknown-linux-musl",
+      "features": "libvpx,release-allocator",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "chunk.rs": "8daa301114166630577152e392d960c289a2206fae525eb6197ed904977391c3",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "musl-chunk": "1e3f18c42b638219feeee6e63ba6859885ad57833bdb962ab8a4dc0edc4bddd7",
+        "musl-chunk-hash": "4b445358695f11935ae4ecce48cd96a3944e025d04284f69b7dfeabe9df29db0"
+      },
+      "vpx_version": "1.14.1",
+      "build_pkg_config_vpx_version": "1.14.1",
+      "timed_features": "libvpx,release-allocator,no-frame-hash",
+      "hash_features": "libvpx,release-allocator",
+      "allocator": "mimalloc 0.1.52 / libmimalloc-sys 0.1.49",
+      "copy": "chunk",
+      "patch_sha256": "1a59e597c8c36782d863f60d40779f489b206b5fba36c0cc63d01c482c63f8c2"
+    },
+    "musl-count": {
+      "variant": "musl-count",
+      "target": "x86_64-unknown-linux-musl",
+      "features": "libvpx,release-allocator",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "count.rs": "0d53b23f779238cd139a43c3183a231e69db628c197b34395b04d394bd2bdecb",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "musl-count": "bb6ebb5af6d57957881acf8dbd1d539fc2369d85831730a0936521de56254c5c"
+      },
+      "vpx_version": "1.14.1",
+      "build_pkg_config_vpx_version": "1.14.1",
+      "timed_features": "libvpx,release-allocator,no-frame-hash",
+      "hash_features": null,
+      "allocator": "mimalloc 0.1.52 / libmimalloc-sys 0.1.49",
+      "copy": "count",
+      "patch_sha256": "7b868b8a66ed336e2b33f13cd9d20c771ff5a0442b2c986a58d1dfd13dc0d021"
+    },
+    "musl-plain": {
+      "variant": "musl-plain",
+      "target": "x86_64-unknown-linux-musl",
+      "features": "libvpx,release-allocator",
+      "profile": "dist",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "rustflags": "",
+      "sources": {
+        "plain.rs": "61c49f9ac9c622439bd997ecebe62dc94d0b9596393f3acc486544e22ef865ab",
+        "ffi.rs": "515f0c3deba35a39cf5789c3ceefeb0a1e461ed69e4b6a426a6a1de9a8e12a4b",
+        "oracle.rs": "46d75359e73f614b337891cecaf144e3593fed0bf0db98f1e410f8eb115804aa"
+      },
+      "cargo_lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+      "binaries": {
+        "musl-plain": "f71ac932535fc951a17408e39e3045e2e386f95e48a464c715573d646e156216",
+        "musl-plain-hash": "9f41b0afb37d926e6ced5136f50a28b1df55cde45194412cc40b73ee30e79fd4"
+      },
+      "vpx_version": "1.14.1",
+      "build_pkg_config_vpx_version": "1.14.1",
+      "timed_features": "libvpx,release-allocator,no-frame-hash",
+      "hash_features": "libvpx,release-allocator",
+      "allocator": "mimalloc 0.1.52 / libmimalloc-sys 0.1.49",
+      "copy": "plain",
+      "patch_sha256": "e3d503b0b8dae5259ef908fe6128c7e1bd0e78b0cecfe6d8798ee4c4c0706f10"
+    }
+  },
+  "patches": {
+    "chunk": "1a59e597c8c36782d863f60d40779f489b206b5fba36c0cc63d01c482c63f8c2",
+    "plain": "e3d503b0b8dae5259ef908fe6128c7e1bd0e78b0cecfe6d8798ee4c4c0706f10",
+    "count": "7b868b8a66ed336e2b33f13cd9d20c771ff5a0442b2c986a58d1dfd13dc0d021"
+  },
+  "codec_archives": {
+    "musl": "02bb054e3ab6a4d8ded304c3ff333caff96778d357c1cd6037109114365484a4",
+    "gnu-pinned": "1e3c16f0188a60e5dc81dbed7c8414f288fab5b902912164b4cc6e6d3125bf47"
+  }
+}

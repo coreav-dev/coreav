@@ -13,6 +13,8 @@ VIDEO_ONLY = {
     ('scripts/stsd_craft.py', 'fixture'): 'video stream only',
     ('scripts/thumbnail_oracle.py', 'framemd5_command'): 'video stream only',
     ('scripts/transcode_check.py', 'native_conformance'): 'video stream only',
+    ('scripts/vp9_release_cost.py', 'hashes'): 'selected video stream only',
+    ('scripts/vp9_release_attribution.py', 'hashes'): 'selected video stream only',
 }
 FORMATS = {'md5', 'framemd5', 'f32le', 's32le', 's16le', 'pcm_f32le'}
 

@@ -1,0 +1,18 @@
+{
+  "machine_type": "c4-standard-8",
+  "zone": "us-east1-b",
+  "cpu_platform": "Intel Emerald Rapids",
+  "advanced_machine_features": {
+    "threadsPerCore": 1,
+    "performanceMonitoringUnit": "STANDARD",
+    "turboMode": "ALL_CORE_MAX"
+  },
+  "provisioning": "STANDARD",
+  "os": "Debian 13",
+  "architecture": "x86_64",
+  "physical_cores": 4,
+  "smt": false,
+  "affinity": "0-3",
+  "turbo_policy": "ALL_CORE_MAX",
+  "scope": "in-process; MIMALLOC_ARENA_RESERVE=131072; pre-correction binaries at dd03412"
+}
