@@ -53,6 +53,7 @@ import importlib.util
 import json
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -88,20 +89,67 @@ UNLISTED = '# workflow-check: not required'
 # The oracle FFmpeg's pin and its installer: a workflow that runs the
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
-# A script line that calls the installer, as a command or through a shell
-# with options (`bash -e`, `bash -eo pipefail`, `bash --norc`). The options
-# that stop the shell before it runs the script are no call: `-n`, `-o
-# noexec`, `-D`, `-s` (the script is then read from standard input),
-# `--help`, `--version`, `--dump-strings` and `--dump-po-strings`. `-o` and
-# `-O` take the next word as their operand, and `-c` takes the command
-# string, which may be quoted. `--` ends the options: the word after it is
-# the script, whatever it starts with.
+STOPS_SHELL = ('help', 'version', 'dump-strings', 'dump-po-strings')
+TAKES_OPERAND = ('rcfile', 'init-file')
 
-SHELL_OPTION = (r'(?:-(?![A-Za-z]*[nDs])[A-Za-z]*[oO]\s+(?!noexec\b)\w+'
-                r'|-(?![A-Za-z]*[nDsoO])[A-Za-z]+'
-                r'|--(?!(?:help|version|dump-strings|dump-po-strings)\s)[a-z-]+)\s+')
-INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*(?:--\s+)?)?['"]?(?:\./)?'''
-                      + re.escape(ORACLE_PIN[1]) + r'''(?:\s|['"]|\Z)''')
+
+def calls_installer(line):
+    """True when a script line runs the installer: as a command, or through
+    `bash` or `sh` (after `sudo`) as its script or as the string of `-c`.
+    The options are read the way bash reads them, so the ones that stop the
+    shell before it runs anything are no call: `-n` (until a `+n` or
+    `+o noexec` undoes it), `-D`, `-s` without `-c` (the script then
+    comes from standard input), `--help`, `--version`, `--dump-strings` and
+    `--dump-po-strings`. `-o` and `-O` take the next word as their operand,
+    `--` ends the options, and the word after them is the script (or, with
+    `-c`, the command string).
+    """
+    try:
+        words = shlex.split(line)
+    except ValueError:
+        return False
+    if words[:1] == ['sudo']:
+        words = words[1:]
+    if not words:
+        return False
+    if words[0] not in ('bash', 'sh'):
+        return words[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
+    noexec = command_string = stdin = False
+    i = 1
+    while i < len(words):
+        word = words[i]
+        i += 1
+        if word == '--':
+            break
+        if word.startswith('--'):
+            if word[2:] in STOPS_SHELL:
+                return False
+            i += word[2:] in TAKES_OPERAND
+            continue
+        if word[:1] not in '-+' or len(word) == 1:
+            i -= 1
+            break
+        enable = word[0] == '-'
+        for letter in word[1:]:
+            if letter == 'D' and enable:
+                return False
+            if letter == 'n':
+                noexec = enable
+            elif letter == 'c':
+                command_string = enable
+            elif letter == 's':
+                stdin = enable
+            elif letter in 'oO':
+                operand = words[i] if i < len(words) else ''
+                i += 1
+                if letter == 'o' and operand == 'noexec':
+                    noexec = enable
+    rest = words[i:]
+    if noexec or not rest or (stdin and not command_string):
+        return False
+    if command_string:
+        return calls_installer(rest[0])
+    return rest[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
 
 
 def load_changed_paths(root):
@@ -458,7 +506,7 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
-        if any(INSTALLS.match(line) for line in run_lines(lines)):
+        if any(calls_installer(line) for line in run_lines(lines)):
             for event, key, listed in trigger_filters(lines):
                 if listed is None:
                     problems.append(f'{path.name}: the `{key}` filter of `{event}` is not a list this check reads')
