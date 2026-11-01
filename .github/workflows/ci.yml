@@ -70,6 +70,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
       h264-conformance: ${{ steps.h264-conformance.outputs.run }}
+      oracle-installer: ${{ steps.oracle-installer.outputs.run }}
       bench-guard: ${{ steps.bench-guard.outputs.run }}
       fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
       # Whether `check-macos` and `check-windows` run: always on a push or
@@ -133,6 +134,13 @@ jobs:
             docs/measurements/h264-training/**
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
+      # The one job of that group that runs the installer, `modes-identity`,
+      # starts on a change of it as well; the rest of the group does not.
+      - id: oracle-installer
+        uses: ./.github/actions/changed-paths
+        with:
+          paths: |
+            scripts/install-oracle-ffmpeg.sh
       - id: bench-guard
         uses: ./.github/actions/changed-paths
         with:
@@ -1933,7 +1941,8 @@ jobs:
     # the step summary reports.
     needs: ci-changes
     if: >-
-      needs.ci-changes.outputs.h264-conformance == 'true' &&
+      (needs.ci-changes.outputs.h264-conformance == 'true' ||
+      needs.ci-changes.outputs.oracle-installer == 'true') &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
       group: ${{ github.workflow }}-modes-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}

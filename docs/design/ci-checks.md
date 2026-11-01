@@ -31,7 +31,7 @@ and from the path filters an earlier change put on the heavy workflows:
   has to run; every other job carries `needs:` on it and an `if:` on its
   output, next to whatever condition it had. In `ci.yml` that job is
   `ci-changes`, and it gives one output per group of jobs (`run`,
-  `h264-conformance`, `bench-guard`; "One changes job" below);
+  `h264-conformance`, `oracle-installer`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
 - **Each required workflow ends in a report job** (`ci-report`,
   `python-report`, `npm-report`), which carries `if: always()`, waits for
@@ -199,7 +199,10 @@ checked out the repository and diffed the same two commits. Now
 `ci-changes` runs the changed-paths action once per filter list, in one
 job, and the moved jobs read its outputs: `run` for the three fixture
 oracles, whose list was the same as `ci.yml`'s, and `h264-conformance`
-and `bench-guard` for the two that had their own. The fuzz job's list of
+and `bench-guard` for the two that had their own. `oracle-installer` is a
+list of one path, `scripts/install-oracle-ffmpeg.sh`, which only
+`modes-identity` reads beside `h264-conformance`: the group's other jobs do
+not run the installer. The fuzz job's list of
 targets is its `fuzz-plan` output, which a job of its own,
 `fuzz-changes`, used to compute. The job ids did not
 change, so neither did a required check name: the ruleset matches a check
