@@ -755,24 +755,30 @@ impl Shared {
     }
 
     fn stop(&self) {
-        let queued = match self.queue.lock() {
-            Ok(mut queue) => {
-                queue.stopped = true;
-                std::mem::take(&mut queue.frames)
-            }
-            Err(_) => VecDeque::new(),
-        };
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.stopped = true;
+        }
         self.changed.notify_all();
-        drop(queued);
     }
 
     /// Records how the encoder ended and stops the session, which wakes a
     /// caller waiting for room in the queue.
     fn ended(&self, exit: Exit) {
-        if let Ok(mut slot) = self.exit.lock() {
-            *slot = Some(exit);
-        }
-        self.stop();
+        let queued = {
+            let mut queue = self.queue.lock().ok();
+            if let Ok(mut slot) = self.exit.lock() {
+                *slot = Some(exit);
+            }
+            match queue.as_mut() {
+                Some(queue) => {
+                    queue.stopped = true;
+                    std::mem::take(&mut queue.frames)
+                }
+                None => VecDeque::new(),
+            }
+        };
+        self.changed.notify_all();
+        drop(queued);
     }
 
     /// How the encoder ended, waiting for it at most `patience`.
@@ -1442,6 +1448,7 @@ fn exit_error(name: &str, status: ExitStatus) -> Error {
 /// records how it ended ([`Shared::ended`]), which stops the session.
 fn keep(mut child: Child, deadline: Instant, orders: &Receiver<()>, shared: &Shared) {
     let mut output_ended_at = None;
+    let mut stopped_at = None;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
@@ -1461,6 +1468,11 @@ fn keep(mut child: Child, deadline: Instant, orders: &Receiver<()>, shared: &Sha
                 by_itself: true,
             });
             return;
+        }
+        if shared.queue.lock().is_ok_and(|queue| queue.stopped)
+            && stopped_at.get_or_insert_with(Instant::now).elapsed() >= EXIT_SETTLE
+        {
+            break;
         }
     }
     let exited = exec::has_exited(&mut child);
@@ -1748,7 +1760,10 @@ mod tests {
             })
             .collect();
         assert!(leases.iter().all(|lease| lease.upgrade().is_some()));
-        shared.stop();
+        shared.ended(Exit {
+            status: None,
+            by_itself: true,
+        });
         assert!(
             leases.iter().all(|lease| lease.upgrade().is_none()),
             "a stopped encoder must return every queued decoder slot"

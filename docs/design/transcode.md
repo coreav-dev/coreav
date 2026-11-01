@@ -118,10 +118,14 @@ frames to the writer), so a slow encoder slows decoding instead of growing
 memory, and the readers drain both of the encoder's output pipes, so no
 pipe can fill and stall it.
 
-Stopping the encoder drops every queued frame and returns any lent decoder
-slots before the pipeline waits for more decoded frames. The stopped queue
-accepts no further frames, so an early encoder exit cannot strand all of
-the decoder's slots in a queue without a writer.
+Stopping the encoder marks its queue stopped without destroying frames on
+the caller's thread. After killing the process group and reaping the
+encoder, the keeper publishes its exit and wakes waiters before dropping
+queued frames on its own thread, returning any lent decoder slots. A
+stopped encoder that has not exited within the 250 ms settling time is
+killed. The stopped queue accepts no further frames, so an early encoder
+exit or closed input cannot strand the decoder's slots in a queue without
+a writer.
 
 The main thread sends the next packet only after it has handed every frame
 the decoder has ready to the writer's queue. Packets in flight therefore
