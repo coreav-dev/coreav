@@ -294,9 +294,14 @@ no fixture keys and sets nothing aside on the fixtures.
   evidence: an element of unknown size other than the Segment, a header
   cut short, or an element past its parent or the file. The conditions
   also give the exact pair of values.
-  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
-  its tests fail when the pinned oracle stops printing `0` and
-  `0.000000`. Not excludable yet: no corpus row is excluded until the
+  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence and
+  retains a `spans` tuple of (block data offset, frame size) pairs in file
+  order. The offset points to the block's TrackNumber vint; every frame
+  of a lace shares it. `policy_ref.matroska_block_frames` exposes each
+  block's offset and frames from the same complete walk that supplies
+  `matroska_frames`. These pairs let a consumer bind packets by their
+  bytes rather than treating TrackEntry order as stream order. Its tests
+  fail when the pinned oracle stops printing `0` and `0.000000`. Not excludable yet: no corpus row is excluded until the
   corpus comparator gates rows on that evidence.
 
 ## Corpus differences not set aside

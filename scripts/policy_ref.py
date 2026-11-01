@@ -1383,11 +1383,13 @@ def _complete(f, start, end, unknown=False):
         at = data + size
 
 
-def matroska_frames(path, number):
-    """The frames of the track numbered `number`, in file order: each
-    SimpleBlock's and Block's data in every Cluster, a lace split into its
-    frames (RFC 9559 10.3 to 10.6). Every element of the Segment is walked,
-    each within its parent and the file, so that no frame is left unread;
+def matroska_block_frames(path, number):
+    """(block data offset, frames) for each block of the track numbered
+    `number`, in file order. The offset is the file position of the
+    TrackNumber vint in the SimpleBlock or Block; frames are its data,
+    a lace split into its frames (RFC 9559 10.3 to 10.6). Every element of
+    the Segment is walked, each within its parent and the file, so that no
+    frame is left unread;
     only the Segment may be of unknown size. Raises ValueError for a walk
     that cannot reach every block, a block or lace that does not fit its
     element, or a block of the track over MAX_BLOCK, OSError for an
@@ -1420,7 +1422,14 @@ def matroska_frames(path, number):
                     block = f.read(bstop - bbody)
                     if len(block) != bstop - bbody:
                         raise ValueError('a block cut short')
-                    yield from _laced(block[n + 3:], block[n + 2] >> 1 & 3)
+                    yield bbody, _laced(block[n + 3:], block[n + 2] >> 1 & 3)
+
+
+def matroska_frames(path, number):
+    """The frames of the track numbered `number`, in file order, from the
+    same complete, bounded walk as `matroska_block_frames`."""
+    for _, frames in matroska_block_frames(path, number):
+        yield from frames
 
 
 def _laced(data, lacing):
