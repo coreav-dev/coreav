@@ -1,5 +1,5 @@
 callgrind (valgrind 3.24, Debian 13) on Compute Engine c4-standard-8 (Xeon Platinum 8581C; valgrind hides AVX-512: AVX2 tiers), --discard, a third of each class's frames (sd 600, 720p 300, 1080p 100, 4k 50); diagnosis/run2/cg.sh.
-Builds: base and k as in binaries.sha256; p14 is bundle 5's P1 and P4 on the same base (diagnosis/README.md).
+Builds: base and k as in binaries.sha256; p14 is bundle 5's P1 and P4 on the same base (README.md, `diagnosis/`).
 Eight threads: the cut of the motion compensation path's own instructions (predict_fast, reference_band, KeptViews, predict_list_any, edge_window), per instruction of deblock_rows (which counts macroblocks decoded, including the pictures in flight past --frames), as a share of base's instructions. One thread: total instructions, k over base.
 From: python3 -I diagnosis/ceiling.py CGDIR
 
