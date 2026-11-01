@@ -384,3 +384,72 @@ fn intra_and_error_resilient_frames_reset_the_contexts_clause_7_2_names() {
         [1, 2, 3, 4]
     );
 }
+
+/// An inter frame of `profile` (0 or 1) that predicts from slots 0, 1 and
+/// 2 at the size of slot 0, then one byte of compressed header.
+fn inter_frame(profile: u32) -> Vec<u8> {
+    let mut w = W::default();
+    w.f(2, 2).f(1, profile).f(1, 0).f(1, 0); // marker, profile, not show-existing
+    w.f(1, 1).f(1, 1).f(1, 0); // inter, shown, not error resilient
+    w.f(2, 0).f(8, 0); // reset_frame_context, refresh nothing
+    for i in 0..3 {
+        w.f(3, i).f(1, 0);
+    }
+    w.f(1, 1).f(1, 0); // the size of slot 0, render size the same
+    w.f(1, 0).f(1, 0).f(2, 0); // no hp, filter 0
+    w.f(1, 0).f(1, 0).f(2, 0); // context 0
+    w.plain_tail();
+    w.bytes()
+}
+
+fn key_frame_bytes() -> Vec<u8> {
+    key_frame(64, 48).plain_tail().bytes()
+}
+
+#[test]
+fn a_reference_of_the_same_profile_and_colour_space_is_accepted() {
+    let mut decoder = crate::Decoder::new(crate::Limits::default());
+    decoder.read_headers(&key_frame_bytes()).unwrap();
+    assert!(matches!(
+        decoder.read_headers(&inter_frame(0)).unwrap().as_slice(),
+        [Header::Frame { .. }]
+    ));
+}
+
+#[test]
+fn a_reference_of_another_profile_is_refused() {
+    let mut decoder = crate::Decoder::new(crate::Limits::default());
+    decoder.read_headers(&key_frame_bytes()).unwrap();
+    assert_eq!(
+        decoder.read_headers(&inter_frame(1)),
+        Err(Error::Invalid(
+            "a reference frame of another profile, bit depth, subsampling or colour space"
+        ))
+    );
+}
+
+#[test]
+fn a_reference_of_another_colour_space_is_refused() {
+    let mut decoder = crate::Decoder::new(crate::Limits::default());
+    decoder.read_headers(&key_frame_bytes()).unwrap();
+    let mut w = W::default();
+    w.f(2, 2).f(2, 0).f(1, 0); // marker, profile 0, not show-existing
+    w.f(1, 1).f(1, 0).f(1, 0); // not a key frame, hidden, not error resilient
+    w.f(1, 1).f(2, 0); // intra_only, reset_frame_context 0
+    w.f(24, 0x49_83_42).f(8, 0); // sync code, refresh no slot
+    w.f(16, 63).f(16, 47).f(1, 0); // 64x48
+    w.f(1, 0).f(1, 0).f(2, 0);
+    w.plain_tail();
+    let intra_only = w.bytes();
+    let headers = decoder.read_headers(&intra_only).unwrap();
+    let [Header::Frame { header: h, .. }] = headers.as_slice() else {
+        panic!("{headers:?}")
+    };
+    assert_eq!(h.color.color_space, ColorSpace::Bt601);
+    assert_eq!(
+        decoder.read_headers(&inter_frame(0)),
+        Err(Error::Invalid(
+            "a reference frame of another profile, bit depth, subsampling or colour space"
+        ))
+    );
+}

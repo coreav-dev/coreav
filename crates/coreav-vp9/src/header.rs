@@ -157,24 +157,26 @@ pub struct TileInfo {
     pub rows_log2: u8,
 }
 
-/// A reference slot as the uncompressed header needs it: the size and
-/// format clause 8.10 stores with the frame.
+/// A reference slot as the uncompressed header needs it: the size, profile
+/// and colour configuration of the frame clause 8.10 stores there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Slot {
     pub(crate) width: u32,
     pub(crate) height: u32,
-    pub(crate) bit_depth: u8,
-    pub(crate) subsampling_x: bool,
-    pub(crate) subsampling_y: bool,
+    pub(crate) profile: u8,
+    pub(crate) color: ColorConfig,
 }
 
 impl Slot {
-    /// Whether a frame coded in `color` may predict from this slot: the
-    /// same bit depth and subsampling (clause 7.2).
-    fn matches(&self, color: &ColorConfig) -> bool {
-        self.bit_depth == color.bit_depth
-            && self.subsampling_x == color.subsampling_x
-            && self.subsampling_y == color.subsampling_y
+    /// Whether a frame of `profile` coded in `color` may predict from this
+    /// slot: the same bit depth, profile, subsampling and colour space
+    /// (clause 7.2, `ref_frame_idx`).
+    fn matches(&self, profile: u8, color: &ColorConfig) -> bool {
+        self.profile == profile
+            && self.color.bit_depth == color.bit_depth
+            && self.color.subsampling_x == color.subsampling_x
+            && self.color.subsampling_y == color.subsampling_y
+            && self.color.color_space == color.color_space
     }
 }
 
@@ -293,9 +295,8 @@ impl FrameHeader {
         Slot {
             width: self.width,
             height: self.height,
-            bit_depth: self.color.bit_depth,
-            subsampling_x: self.color.subsampling_x,
-            subsampling_y: self.color.subsampling_y,
+            profile: self.profile,
+            color: self.color,
         }
     }
 
@@ -437,26 +438,19 @@ pub(crate) fn parse(
                     *bias = r.bit(H)?;
                 }
             }
-            let mut refs = [Slot {
-                width: 0,
-                height: 0,
-                bit_depth: 0,
-                subsampling_x: false,
-                subsampling_y: false,
-            }; 3];
-            for (slot, idx) in refs.iter_mut().zip(ref_frame_idx) {
-                *slot = slots
-                    .get(usize::from(idx))
-                    .copied()
-                    .flatten()
-                    .ok_or(Error::Invalid(
-                        "ref_frame_idx names an empty reference slot",
-                    ))?;
-                if !slot.matches(&color) {
+            let refs = match ref_frame_idx.map(|idx| slots.get(usize::from(idx)).copied().flatten())
+            {
+                [Some(last), Some(golden), Some(altref)] => [last, golden, altref],
+                _ => {
                     return Err(Error::Invalid(
-                        "a reference frame of another bit depth or subsampling",
+                        "ref_frame_idx names an empty reference slot",
                     ));
                 }
+            };
+            if !refs.iter().all(|slot| slot.matches(profile, &color)) {
+                return Err(Error::Invalid(
+                    "a reference frame of another profile, bit depth, subsampling or colour space",
+                ));
             }
             (width, height) = frame_size_with_refs(&mut r, &refs)?;
             if !refs.iter().any(|s| {
