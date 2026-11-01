@@ -1,0 +1,76 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 573  of event 'cycles'
+# Event count (approx.): 10726671057
+#
+# Overhead  Command     Shared Object      Symbol                                IPC   [IPC Coverage]
+# ........  ..........  .................  ....................................  ....................
+#
+    16.12%  musl-count  musl-count         [.] vpx_convolve_copy_sse2.loop64     -      -
+    15.78%  musl-count  musl-count         [.] memcpy                            -      -
+     9.50%  musl-count  musl-count         [.] vpx_lpf_horizontal_16_dual_avx2   -      -
+     7.34%  musl-count  musl-count         [.] decode_coefs                      -      -
+     6.51%  musl-count  musl-count         [.] vp9_read_mode_info                -      -
+     4.63%  musl-count  musl-count         [.] dec_build_inter_predictors_sb     -      -
+     4.29%  musl-count  musl-count         [.] vpx_convolve_copy_sse2.loop32     -      -
+     4.28%  musl-count  musl-count         [.] recon_block                       -      -
+     2.93%  musl-count  musl-count         [.] vpx_lpf_vertical_16_dual_sse2     -      -
+     2.01%  musl-count  musl-count         [.] memset                            -      -
+     1.98%  musl-count  musl-count         [.] vp9_setup_dst_planes              -      -
+     1.87%  musl-count  musl-count         [.] decode_tiles                      -      -
+     1.67%  musl-count  musl-count         [.] set_offsets                       -      -
+     1.49%  musl-count  musl-count         [.] parse_block                       -      -
+     1.49%  musl-count  musl-count         [.] extend_and_predict                -      -
+     1.30%  musl-count  musl-count         [.] process_partition                 -      -
+     1.12%  musl-count  musl-count         [.] vp9_build_mask                    -      -
+     1.12%  musl-count  musl-count         [.] vpx_lpf_horizontal_8_dual_sse2    -      -
+     1.11%  musl-count  musl-count         [.] read_partition                    -      -
+     0.93%  musl-count  musl-count         [.] filter_selectively_vert_row2      -      -
+     0.87%  musl-count  musl-count         [.] vp9_predict_intra_block           -      -
+     0.75%  musl-count  musl-count         [.] vpx_idct32x32_34_add_ssse3        -      -
+     0.75%  musl-count  musl-count         [.] idct32_34_8x32_ssse3              -      -
+     0.67%  musl-count  [kernel.kallsyms]  [k] clear_page_erms                   -      -
+     0.56%  musl-count  musl-count         [.] dec_find_mv_refs                  -      -
+     0.56%  musl-count  musl-count         [.] vp9_setup_pre_planes              -      -
+     0.56%  musl-count  musl-count         [.] filter_selectively_horiz          -      -
+     0.55%  musl-count  musl-count         [.] vp9_filter_block_plane_ss00       -      -
+     0.52%  musl-count  [kernel.kallsyms]  [k] asm_exc_page_fault                -      -
+     0.41%  musl-count  [kernel.kallsyms]  [k] _raw_spin_lock                    -      -
+     0.37%  musl-count  musl-count         [.] vpx_convolve_copy_sse2            -      -
+     0.37%  musl-count  musl-count         [.] vpx_convolve8_horiz_avx2          -      -
+     0.19%  musl-count  musl-count         [.] vpx_idct32x32_1_add_sse2          -      -
+     0.19%  musl-count  musl-count         [.] mi_free                           -      -
+     0.19%  musl-count  musl-count         [.] vp9_diff_update_prob              -      -
+     0.19%  musl-count  musl-count         [.] _mi_theap_realloc_zero            -      -
+     0.19%  musl-count  musl-count         [.] vpx_idct8x8_64_add_sse2           -      -
+     0.19%  musl-count  musl-count         [.] idct16_16col                      -      -
+     0.19%  musl-count  musl-count         [.] idct16_8col                       -      -
+     0.19%  musl-count  musl-count         [.] vpx_dc_predictor_8x8_sse2         -      -
+     0.19%  musl-count  musl-count         [.] vpx_lpf_horizontal_8_sse2         -      -
+     0.19%  musl-count  musl-count         [.] vpx_idct32x32_135_add_avx2        -      -
+     0.19%  musl-count  musl-count         [.] vpx_lpf_horizontal_16_avx2        -      -
+     0.19%  musl-count  [kernel.kallsyms]  [k] _find_next_bit                    -      -
+     0.18%  musl-count  musl-count         [.] vpx_idct8_sse2                    -      -
+     0.18%  musl-count  musl-count         [.] vp9_idct16x16_add                 -      -
+     0.18%  musl-count  musl-count         [.] vpx_convolve_copy_sse2.loop16     -      -
+     0.17%  python3     python3.13         [.] PyObject_GC_Del                   -      -
+     0.17%  python3     [kernel.kallsyms]  [k] ext4_block_write_begin            -      -
+     0.17%  python3     python3.13         [.] _PyObject_GenericGetAttrWithDict  -      -
+     0.17%  musl-count  [kernel.kallsyms]  [k] do_anonymous_page                 -      -
+     0.17%  musl-count  [kernel.kallsyms]  [k] folio_batch_move_lru              -      -
+     0.16%  python3     [kernel.kallsyms]  [k] __d_lookup_rcu                    -      -
+     0.16%  musl-count  [kernel.kallsyms]  [k] sync_regs                         -      -
+     0.15%  musl-count  [kernel.kallsyms]  [k] __handle_mm_fault                 -      -
+     0.15%  python3     python3.13         [.] 0x000000000014bfd7                -      -
+     0.14%  musl-count  [kernel.kallsyms]  [k] error_entry                       -      -
+     0.14%  python3     python3.13         [.] 0x000000000017dce3                -      -
+     0.12%  python3     libc.so.6          [.] 0x000000000009eb1d                -      -
+     0.11%  python3     python3.13         [.] 0x000000000013099a                -      -
+
+
+#
+# (Tip: To count events every 1000 msec: perf stat -I 1000)
+#

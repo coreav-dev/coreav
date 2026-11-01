@@ -1,0 +1,70 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cycles'
+# Event count (approx.): 22662434406
+#
+# Overhead  Command     Shared Object         Symbol                                                                               IPC   [IPC Coverage]
+# ........  ..........  ....................  ...................................................................................  ....................
+#
+    14.63%  musl-chunk  musl-chunk            [.] _RNvMs_NtCs9Mt8dvKRJ17_21coreav_backend_libvpx7decoderNtB4_13LibvpxDecoder4send  -      -
+    13.71%  musl-chunk  musl-chunk            [.] vpx_convolve_copy_sse2.loop64                                                    -      -
+    12.14%  musl-chunk  musl-chunk            [.] memcpy                                                                           -      -
+     5.58%  musl-chunk  musl-chunk            [.] recon_block                                                                      -      -
+     4.97%  musl-chunk  musl-chunk            [.] vpx_lpf_horizontal_16_dual_avx2                                                  -      -
+     4.58%  musl-chunk  musl-chunk            [.] vp9_read_mode_info                                                               -      -
+     4.45%  musl-chunk  musl-chunk            [.] vpx_lpf_vertical_16_dual_sse2                                                    -      -
+     4.40%  musl-chunk  musl-chunk            [.] vpx_convolve_copy_sse2.loop32                                                    -      -
+     3.83%  musl-chunk  musl-chunk            [.] dec_build_inter_predictors_sb                                                    -      -
+     3.08%  musl-chunk  musl-chunk            [.] memset                                                                           -      -
+     2.96%  musl-chunk  musl-chunk            [.] decode_coefs                                                                     -      -
+     2.75%  musl-chunk  musl-chunk            [.] __pthread_mutex_lock                                                             -      -
+     1.65%  musl-chunk  musl-chunk            [.] set_offsets                                                                      -      -
+     1.47%  musl-chunk  musl-chunk            [.] dec_find_mv_refs                                                                 -      -
+     1.47%  musl-chunk  musl-chunk            [.] vp9_build_mask                                                                   -      -
+     0.89%  musl-chunk  musl-chunk            [.] vp9_setup_dst_planes                                                             -      -
+     0.88%  musl-chunk  musl-chunk            [.] vpx_lpf_vertical_8_dual_sse2                                                     -      -
+     0.81%  musl-chunk  musl-chunk            [.] process_partition                                                                -      -
+     0.74%  musl-chunk  musl-chunk            [.] row_decode_worker_hook                                                           -      -
+     0.62%  musl-chunk  musl-chunk            [.] idct32_34_8x32_ssse3                                                             -      -
+     0.61%  musl-chunk  musl-chunk            [.] vpx_convolve8_horiz_avx2                                                         -      -
+     0.59%  musl-chunk  musl-chunk            [.] parse_block                                                                      -      -
+     0.58%  musl-chunk  musl-chunk            [.] vpx_lpf_horizontal_8_dual_sse2                                                   -      -
+     0.54%  musl-chunk  musl-chunk            [.] extend_and_predict                                                               -      -
+     0.52%  musl-chunk  musl-chunk            [.] read_partition                                                                   -      -
+     0.51%  musl-chunk  musl-chunk            [.] vpx_convolve_copy_sse2.loop8                                                     -      -
+     0.47%  musl-chunk  [kernel.kallsyms]     [k] _raw_spin_lock                                                                   -      -
+     0.44%  musl-chunk  musl-chunk            [.] vpx_idct32x32_34_add_ssse3                                                       -      -
+     0.43%  musl-chunk  musl-chunk            [.] vp9_setup_pre_planes                                                             -      -
+     0.43%  musl-chunk  musl-chunk            [.] filter_selectively_vert_row2                                                     -      -
+     0.39%  musl-chunk  musl-chunk            [.] __private_cond_signal                                                            -      -
+     0.35%  musl-chunk  musl-chunk            [.] vpx_convolve8_vert_avx2                                                          -      -
+     0.35%  musl-chunk  [kernel.kallsyms]     [k] clear_page_erms                                                                  -      -
+     0.26%  musl-chunk  [kernel.kallsyms]     [k] native_flush_tlb_one_user                                                        -      -
+     0.24%  musl-chunk  [kernel.kallsyms]     [k] asm_exc_page_fault                                                               -      -
+     0.22%  musl-chunk  musl-chunk            [.] vpx_lpf_vertical_16_sse2                                                         -      -
+     0.20%  musl-chunk  [kernel.kallsyms]     [k] mas_data_end                                                                     -      -
+     0.18%  musl-chunk  musl-chunk            [.] vp9_adjust_mask                                                                  -      -
+     0.18%  musl-chunk  musl-chunk            [.] __pthread_mutex_timedlock                                                        -      -
+     0.17%  musl-chunk  musl-chunk            [.] vp9_decode_block_tokens                                                          -      -
+     0.17%  musl-chunk  musl-chunk            [.] vp9_predict_intra_block                                                          -      -
+     0.15%  musl-chunk  musl-chunk            [.] vpx_convolve_copy_sse2                                                           -      -
+     0.15%  musl-chunk  musl-chunk            [.] __pthread_mutex_unlock                                                           -      -
+     0.15%  musl-chunk  [kernel.kallsyms]     [k] mas_walk                                                                         -      -
+     0.15%  musl-chunk  [kernel.kallsyms]     [k] available_idle_cpu                                                               -      -
+     0.14%  musl-chunk  musl-chunk            [.] __lock                                                                           -      -
+     0.14%  musl-chunk  musl-chunk            [.] vpx_idct8x8_64_add_sse2                                                          -      -
+     0.14%  musl-chunk  musl-chunk            [.] __pthread_mutex_trylock                                                          -      -
+     0.12%  musl-chunk  musl-chunk            [.] vpx_lpf_vertical_8_sse2                                                          -      -
+     0.12%  musl-chunk  [kernel.kallsyms]     [k] rcu_note_context_switch                                                          -      -
+     0.12%  musl-chunk  [kernel.kallsyms]     [k] lru_add                                                                          -      -
+     0.11%  musl-chunk  musl-chunk            [.] vpx_idct8_sse2                                                                   -      -
+     0.11%  musl-chunk  musl-chunk            [.] vpx_convolve_copy_sse2.loop16                                                    -      -
+     0.10%  musl-chunk  musl-chunk            [.] vp9_iht16x16_256_add_sse2                                                        -      -
+
+
+#
+# (Tip: Search options using a keyword: perf report -h <keyword>)
+#
