@@ -1223,6 +1223,7 @@ jobs:
       - name: coreav transcode on the fixtures, with both encoders
         env:
           COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_TEST_DIAGNOSTICS: ${{ runner.temp }}/coreav-test-diagnostics
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
@@ -1232,6 +1233,14 @@ jobs:
           # The Opus and AAC encodes pass over AAC in a build that decodes it, and Opus.
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
             --target-dir target/fallback -- opus_encode aac_encode
+      - name: Keep timed-out test process snapshots
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: transcode-timeout-snapshots
+          path: ${{ runner.temp }}/coreav-test-diagnostics
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
           PYTHONDONTWRITEBYTECODE: '1'
