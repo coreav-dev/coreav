@@ -446,11 +446,143 @@ def overlay(reports, reference_dir, candidate_dir, media_dir=None):
     result['passed'] = all(levels['in_scope']['passed'] for levels in result['levels'].values())
     return result
 
-
 # ---------------------------------------------------------------- corpus evidence
 
 # Byte evidence for the round-9 corpus comparator's records
 # (tools/compat-corpus/ffmpeg9.json), read from the file alone.
+
+DOWNMIX_KEYS = ('dmix_mode', 'ltrt_cmixlev', 'ltrt_surmixlev', 'loro_cmixlev', 'loro_surmixlev')
+# What `ffprobe` 9.0.2 prints for these keys of a stream that states no
+# downmix, and of one that states it in the alternate syntax.
+NO_DOWNMIX = ('0', '0.000000', '0.000000', '0.000000', '0.000000')
+Ac3Downmix = collections.namedtuple('Ac3Downmix', 'position number frames oracle coreav')
+# The bit rates of ATSC A/52 table 5.18, in kbit/s, one for each pair of
+# frame size codes.
+AC3_RATES = (32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640)
+
+
+class _Bits:
+    """An MSB-first bit reader with AV1's uvlc() (4.10)."""
+
+    def __init__(self, data):
+        self.data, self.at = data, 0
+
+    def f(self, n):
+        value = 0
+        for _ in range(n):
+            if self.at >> 3 >= len(self.data):
+                raise ValueError('the bit payload ends early')
+            value = value << 1 | self.data[self.at >> 3] >> (7 - (self.at & 7)) & 1
+            self.at += 1
+        return value
+
+    def uvlc(self):
+        zeros = 0
+        while not self.f(1):
+            zeros += 1
+        return (1 << 32) - 1 if zeros >= 32 else self.f(zeros) + (1 << zeros) - 1
+
+
+def _crc_table():
+    table = []
+    for byte in range(256):
+        crc = byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x8005 if crc & 0x8000 else crc << 1) & 0xFFFF
+        table.append(crc)
+    return table
+
+
+AC3_CRC = _crc_table()
+
+
+def ac3_crc(data):
+    """What the CRC register of ATSC A/52 7.10.1 (x^16 + x^15 + x^2 + 1,
+    zeroed first) holds after `data`."""
+    crc = 0
+    for byte in data:
+        crc = (crc << 8 & 0xFFFF) ^ AC3_CRC[crc >> 8 ^ byte]
+    return crc
+
+
+def mix_level(code):
+    """The gain of a mix level code of ATSC A/52 tables D2.3 to D2.6, 1.5 dB
+    a step down from +3 dB, the last code muting, as the listings print a
+    gain."""
+    return '0.000000' if code == 7 else f'{2 ** ((2 - code) / 4):.6f}'
+
+
+def ac3_annex_d(frame):
+    """The five downmix values that `frame`, one whole AC-3 syncframe, states
+    in the alternate syntax (ATSC A/52 Annex D, `bsid` 6) with its first extra
+    information (`xbsi1e`) on more than two channels (`acmod` above 2),
+    each value only where Annex D 2.3.1.2 to 2.3.1.6 define it; None for
+    any other frame or for a reserved surround level (codes 0 to 2). The
+    frame is a syncframe when its sample rate and frame size codes are
+    listed (tables 5.6 and 5.18), it is exactly that size, and its first
+    5/8, which hold every field read here, pass `crc1` (7.10.1)."""
+    if len(frame) < 6 or frame[:2] != b'\x0b\x77':
+        return None
+    fscod, frmsizecod = frame[4] >> 6, frame[4] & 0x3F
+    if fscod == 3 or frmsizecod >= 2 * len(AC3_RATES):
+        return None
+    rate = AC3_RATES[frmsizecod >> 1]
+    words = (rate * 2, rate * 320 // 147 + (frmsizecod & 1), rate * 3)[fscod]
+    if len(frame) != 2 * words or ac3_crc(frame[2:2 * ((words >> 1) + (words >> 3))]):
+        return None
+    bits = _Bits(frame[5:])
+    try:
+        bsid, _, acmod = bits.f(5), bits.f(3), bits.f(3)
+        if bsid != 6 or acmod <= 2:
+            return None
+        bits.f(2 * (acmod & 1) + 2 * bool(acmod & 4) + 1)
+        bits.f(5)
+        for width in (8, 8, 7):
+            if bits.f(1):
+                bits.f(width)
+        bits.f(2)
+        if not bits.f(1):
+            return None
+        mode, ltrt_c, ltrt_s, loro_c, loro_s = (bits.f(n) for n in (2, 3, 3, 3, 3))
+    except ValueError:
+        return None
+    centre, surround = acmod & 1, acmod & 4
+    if surround and min(ltrt_s, loro_s) < 3:
+        return None
+    return (str(mode),
+            mix_level(ltrt_c) if centre else '0.000000',
+            mix_level(ltrt_s) if surround else '0.000000',
+            mix_level(loro_c) if centre else '0.000000',
+            mix_level(loro_s) if surround else '0.000000')
+
+
+def annex_d_downmix(path):
+    """KD-FF9-ANNEX-D-DOWNMIX evidence, from the file's bytes alone: for each
+    `A_AC3` audio track without content encodings, every frame of which is
+    one AC-3 syncframe stating the same downmix values in the alternate
+    syntax (`ac3_annex_d`) and whose values are not all zero: its position
+    among the track entries, `TrackNumber`, frame count, and the values
+    `ffprobe` 9.0.2 (`oracle`, none stated) and CoreAV (`coreav`, the stated
+    ones) print for `DOWNMIX_KEYS`. A track with no frames, a frame of another
+    shape, or frames that state different values is left out."""
+    found = []
+    for position, track in enumerate((policy_ref.matroska_headers(path) or {}).get('tracks') or []):
+        if track['codec_id'] != 'A_AC3' or track['type'] != 2 or track['encoding'] != 'none' \
+                or track['number'] is None:
+            continue
+        stated, frames = set(), 0
+        try:
+            for frame in policy_ref.matroska_frames(path, track['number']):
+                stated.add(ac3_annex_d(frame))
+                frames += 1
+                if None in stated or len(stated) > 1:
+                    break
+        except (OSError, ValueError):
+            continue
+        if len(stated) == 1 and None not in stated and stated != {NO_DOWNMIX}:
+            found.append(Ac3Downmix(position, track['number'], frames, NO_DOWNMIX, stated.pop()))
+    return found
+
 
 Av1Sequence = collections.namedtuple(
     'Av1Sequence', 'profile level tier high_bitdepth twelve_bit depth mono subsampling position described '
@@ -462,28 +594,6 @@ AV1_DEFAULT_SUFFIX = '.0.110.01.01.01.0'
 # `ChromaSitingHorz` and `ChromaSitingVert` by `chroma_sample_position`, from
 # the AV1 codec mapping in Matroska.
 AV1_SITING = {0: (0, 0), 1: (1, 2), 2: (1, 1)}
-
-
-class _Bits:
-    """The AV1 specification's f(n) and uvlc() (4.10) over a byte string."""
-
-    def __init__(self, data):
-        self.data, self.at = data, 0
-
-    def f(self, n):
-        value = 0
-        for _ in range(n):
-            if self.at >> 3 >= len(self.data):
-                raise ValueError('the sequence header ends early')
-            value = value << 1 | self.data[self.at >> 3] >> (7 - (self.at & 7)) & 1
-            self.at += 1
-        return value
-
-    def uvlc(self):
-        zeros = 0
-        while not self.f(1):
-            zeros += 1
-        return (1 << 32) - 1 if zeros >= 32 else self.f(zeros) + (1 << zeros) - 1
 
 
 def _sequence_header(payload):

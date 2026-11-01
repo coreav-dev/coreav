@@ -18,7 +18,7 @@
 //!
 //! ```
 //! use coreav_isobmff::{Allowlist, Limits, SliceSource};
-//! use coreav_isobmff_write::{TrackChoice, extract_audio};
+//! use coreav_isobmff_write::{HeaderMetadata, TrackChoice, extract_audio};
 //!
 //! let not_a_movie = b"RIFF\x24\x00\x00\x00AVI LIST";
 //! let mut out = Vec::new();
@@ -27,6 +27,7 @@
 //!     &Limits::default(),
 //!     &Allowlist::default(),
 //!     TrackChoice::FirstAudio,
+//!     HeaderMetadata::Copy,
 //!     &mut out,
 //! );
 //! assert!(result.is_err());
@@ -66,6 +67,18 @@ pub use split::split_mp4;
 
 use core::fmt;
 use coreav_isobmff::{Codec, Error, FourCc, Rational, TrackKind};
+
+/// What [`extract_audio`] carries over from the source besides the samples
+/// and their timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderMetadata {
+    /// The creation times of the movie, track and media headers, and the
+    /// media header's language.
+    Copy,
+    /// None of them: the times are written as 0 ("not set") and the
+    /// language as `und`.
+    Clear,
+}
 
 /// Which track to extract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

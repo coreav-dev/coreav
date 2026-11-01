@@ -962,12 +962,16 @@ def _elements(f, start, end):
         at, count = stop, count + 1
 
 
+def _fits(data, size, end):
+    return data + size <= end
+
+
 def _payload(f, body, stop, end, limit):
     """The payload of an element from `body` to `stop`, read whole into
     memory when it ends within its parent's `end` (itself within the file)
     and holds at most `limit` octets; ValueError otherwise, so that a
     `_children` walk sees the whole of it."""
-    if stop > end:
+    if not _fits(body, stop - body, end):
         raise ValueError('an element past its parent')
     if stop - body > limit:
         raise ValueError('an element larger than the read takes')
@@ -987,7 +991,7 @@ def _children(data):
             raise ValueError('a child header cut short')
         if size is None:
             raise ValueError('a child of unknown size')
-        if at + n + m + size > len(data):
+        if not _fits(at + n + m, size, len(data)):
             raise ValueError('a child past its parent')
         yield eid, data[at + n + m:at + n + m + size]
         at += n + m + size
@@ -1376,6 +1380,117 @@ def laced_tracks(path):
         pass
     return found
 
+
+
+# The largest block of the track asked for that matroska_frames reads.
+MAX_BLOCK = 1 << 24
+
+
+def _complete(f, start, end, unknown=False):
+    """(id, data start, data end) of each element between start and end, the
+    whole range or ValueError: a header cut short, an element past its
+    parent, more than MAX_ELEMENTS, or one of unknown size, which only with
+    `unknown` ends the range."""
+    at, count = start, 0
+    while at < end:
+        count += 1
+        if count > MAX_ELEMENTS:
+            raise ValueError('more elements than the walk reads')
+        f.seek(at)
+        head = f.read(min(12, end - at))
+        eid, n = _vint(head, 0, True)
+        size, m = _vint(head, n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('an element header cut short')
+        data = at + n + m
+        if size is None:
+            if not unknown:
+                raise ValueError('an element of unknown size')
+            yield eid, data, end
+            return
+        if not _fits(data, size, end):
+            raise ValueError('an element past its parent')
+        yield eid, data, data + size
+        at = data + size
+
+
+def matroska_frames(path, number):
+    """The frames of the track numbered `number`, in file order: each
+    SimpleBlock's and Block's data in every Cluster, a lace split into its
+    frames (RFC 9559 10.3 to 10.6). Every element of the Segment is walked,
+    each within its parent and the file, so that no frame is left unread;
+    only the Segment may be of unknown size. Raises ValueError for a walk
+    that cannot reach every block, a block or lace that does not fit its
+    element, or a block of the track over MAX_BLOCK, OSError for an
+    unreadable file."""
+    with open(path, 'rb') as f:
+        end = f.seek(0, 2)
+        segment = next((e for e in _complete(f, 0, end, unknown=True) if e[0] == SEGMENT_ID), None)
+        if segment is None:
+            return
+        for eid, body, stop in _complete(f, segment[1], segment[2]):
+            if eid != CLUSTER_ID:
+                continue
+            for cid, cbody, cstop in _complete(f, body, stop):
+                blocks = [(cid, cbody, cstop)]
+                if cid == 0xA0:
+                    blocks = [b for b in _complete(f, cbody, cstop) if b[0] == 0xA1]
+                for bid, bbody, bstop in blocks:
+                    if bid not in (0xA3, 0xA1):
+                        continue
+                    f.seek(bbody)
+                    head = f.read(min(12, bstop - bbody))
+                    track, n = _vint(head, 0, False)
+                    if not n or len(head) < n + 3:
+                        raise ValueError('a block header cut short')
+                    if track != number:
+                        continue
+                    if bstop - bbody > MAX_BLOCK:
+                        raise ValueError('a block larger than the walk reads')
+                    f.seek(bbody)
+                    block = f.read(bstop - bbody)
+                    if len(block) != bstop - bbody:
+                        raise ValueError('a block cut short')
+                    yield from _laced(block[n + 3:], block[n + 2] >> 1 & 3)
+
+
+def _laced(data, lacing):
+    """The frames of a block's data under its lacing bits (RFC 9559 10.3:
+    none, Xiph, fixed-size or EBML)."""
+    if not lacing:
+        return [data]
+    if not data:
+        raise ValueError('a lace without its frame count')
+    count, at, sizes = data[0] + 1, 1, []
+    if lacing == 1:
+        for _ in range(count - 1):
+            size = 0
+            while True:
+                if at >= len(data):
+                    raise ValueError('Xiph lace sizes cut short')
+                size, at = size + data[at], at + 1
+                if data[at - 1] != 255:
+                    break
+            sizes.append(size)
+    elif lacing == 3:
+        for i in range(count - 1):
+            value, n = _vint(data, at, False)
+            if not n or value is None:
+                raise ValueError('an EBML lace size that cannot be read')
+            at += n
+            sizes.append(value if i == 0 else sizes[-1] + value - ((1 << (7 * n - 1)) - 1))
+    elif (len(data) - at) % count:
+        raise ValueError('a fixed-size lace that does not divide its data')
+    else:
+        sizes = [(len(data) - at) // count] * (count - 1)
+    last = len(data) - at - sum(sizes)
+    if any(size < 0 for size in sizes) or last < 0:
+        raise ValueError('lace sizes past the block')
+    frames = []
+    for size in sizes + [last]:
+        frames.append(data[at:at + size])
+        at += size
+    return frames
 
 def packet_spans(rows, time_bases):
     """Per stream index: (span in seconds, bytes, span of the starts) from

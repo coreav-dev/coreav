@@ -553,6 +553,55 @@ fn annex_b_h264_without_parameter_sets_is_dropped() {
     );
 }
 
+/// The `hvcC` of `movies::EMPTY_WINDOW_HVCC`: one sequence parameter set,
+/// 1280x720, whose conformance window leaves no picture.
+const EMPTY_WINDOW_HVCC: &[u8] = &[
+    0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x01, 0xa1, 0x00, 0x01, 0x00, 0x2f, 0x42, 0x01, 0x01, 0x01,
+    0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x5d, 0xa0, 0x02,
+    0x80, 0x80, 0x2d, 0x18, 0x02, 0x72, 0x0a, 0xf9, 0x65, 0x66, 0x92, 0x4c, 0xaf, 0x01, 0x68, 0x08,
+    0x00, 0x00, 0x03, 0x00, 0x08, 0x00, 0x00, 0x03, 0x00, 0xc8, 0x40,
+];
+
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1), whatever the container: the remux refuses
+/// it, and `drop_video` does not turn the refusal into a dropped stream.
+#[test]
+fn an_hevc_stream_with_an_empty_conformance_window_is_refused() {
+    let blocks: Vec<Vec<u8>> = (0..3)
+        .map(|n| simple_block(1, n as i16 * 40, n == 0, &frame(n, 25)))
+        .collect();
+    let source = file(
+        "matroska",
+        &[
+            info(None),
+            tracks(&[entry(
+                1,
+                1,
+                "V_MPEGH/ISO/HEVC",
+                &video_el(1280, 720, &[]),
+                &el(CODEC_PRIVATE, EMPTY_WINDOW_HVCC),
+            )]),
+            cluster(0, &blocks),
+        ],
+    );
+    for drop_video in [false, true] {
+        let options = MatroskaRemuxOptions {
+            drop_video,
+            ..MatroskaRemuxOptions::default()
+        };
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &options),
+                Err(MatroskaRemuxError::Output(
+                    coreav_isobmff::Error::InvalidStream { track_id: 1, .. }
+                ))
+            ),
+            "drop_video: {drop_video}"
+        );
+    }
+}
+
 #[test]
 fn hevc_and_av1_keep_their_records() {
     let hvcc = cat(&[vec![

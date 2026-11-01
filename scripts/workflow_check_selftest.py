@@ -211,6 +211,37 @@ class Repository(unittest.TestCase):
         found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
         self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
 
+    def edit(self, workflow, old, new):
+        """The problems of the repository with one edit of a workflow, which
+        is then undone."""
+        path = self.root / '.github' / 'workflows' / workflow
+        text = path.read_text()
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new, 1))
+        try:
+            return check.check(self.root)
+        finally:
+            path.write_text(text)
+
+    def test_a_required_workflow_without_a_merge_group_trigger_is_reported(self):
+        missing = ('deny.yml: required `deny`, but the workflow has no `merge_group:` trigger '
+                   '(`types: [checks_requested]`), so the merge queue waits for the check until it times out '
+                   '(docs/design/ci-checks.md, "The merge queue")')
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n', ''), [missing])
+        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'), [missing])
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n',
+                                   '  merge_group:\n'), [])
+
+    def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
+        group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+        for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
+                         ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", 'cancel-in-progress: true')):
+            with self.subTest(new=new):
+                found = self.edit('python.yml', old, new)
+                self.assertEqual(len(found), 1, found)
+                self.assertTrue(found[0].startswith('python.yml: required `python-report`, so give the workflow '
+                                                    'exactly `concurrency:'), found)
+
     def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
         workflows = self.root / '.github' / 'workflows'
         audio = workflows / 'audio-conformance.yml'

@@ -18,9 +18,8 @@ full-range monochrome sequence and of a position-only chroma change,
 prints a full-range RGB sequence's range as 0, and ignores an `nclx`
 override of a BT.2020/PQ sequence. CoreAV follows the specified values
 and omits only the complete default suffix. The byte-validated generated
-fixture exception near the end of this page covers one exact `nclx`
-disagreement, and two corpus records after it describe two exact Matroska
-and WebM shapes. Other differing strings still fail B3a on the corpus.
+fixture exception at the end of this page covers one exact `nclx`
+disagreement. Other differing strings still fail B3a on the corpus.
 
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
@@ -56,8 +55,8 @@ twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
 there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
-The last two are corpus records for Matroska and WebM AV1 tracks; they
-name no fixture keys and set nothing aside on the fixtures.
+The last three are corpus records for Matroska and WebM AC-3 and AV1
+tracks; they name no fixture keys and set nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -271,6 +270,34 @@ name no fixture keys and set nothing aside on the fixtures.
   the oracle starts agreeing on the codec string, they fail explicitly
   and require removal of the obsolete exception. Other files, including
   corpus files, do not use it.
+
+## KD-FF9-ANNEX-D-DOWNMIX
+
+- Keys: `streams.dmix_mode`, `streams.ltrt_cmixlev`,
+  `streams.ltrt_surmixlev`, `streams.loro_cmixlev` and
+  `streams.loro_surmixlev`, on Matroska and WebM corpus files; no fixture.
+- Cause: the same as KD-TS-ANNEX-D-DOWNMIX in MPEG-TS
+  (coreav-dev/coreav#146). An AC-3 frame with `bsid` 6 uses the alternate
+  syntax of ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give the preferred
+  downmix and the Lt/Rt and Lo/Ro mix levels their meaning. Annex D 3.2
+  lets a legacy decoder ignore them; it does not make the stream state no
+  downmix. On a track whose frames state these values on more than two
+  channels (`xbsi1e` set, `acmod` above 2), CoreAV prints them, each only
+  for the channel modes Annex D defines it for. The pinned oracle prints
+  `0` and `0.000000`, as for a stream that states no downmix: an oracle
+  error.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone. Every frame of the
+  track must be one whole AC-3 syncframe that passes `crc1`, and all must
+  state the same values, so that the stream, not only its first frame,
+  states them. A file whose blocks cannot all be reached gives no
+  evidence: an element of unknown size other than the Segment, a header
+  cut short, or an element past its parent or the file. The conditions
+  also give the exact pair of values.
+  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
+  its tests fail when the pinned oracle stops printing `0` and
+  `0.000000`. Not excludable yet: no corpus row is excluded until the
+  corpus comparator gates rows on that evidence.
 
 ## KD-FF9-AV1-DEFAULT-SUFFIX
 

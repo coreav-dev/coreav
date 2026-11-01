@@ -585,6 +585,18 @@ fn remux<S: Source, R: Source, W: Write>(
                 continue;
             }
         }
+        if track.codec == Codec::Hevc
+            && track
+                .codec_private
+                .as_deref()
+                .is_some_and(coreav_isobmff::hevc_window_empty)
+        {
+            return Err(coreav_isobmff::Error::InvalidStream {
+                track_id: u32::try_from(track.number).unwrap_or(u32::MAX),
+                reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+            }
+            .into());
+        }
         match plan(track) {
             Ok(plan) => plans.push(plan),
             Err(reason) => {
