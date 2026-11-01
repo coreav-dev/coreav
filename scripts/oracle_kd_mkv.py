@@ -455,7 +455,7 @@ DOWNMIX_KEYS = ('dmix_mode', 'ltrt_cmixlev', 'ltrt_surmixlev', 'loro_cmixlev', '
 # What `ffprobe` 9.0.2 prints for these keys of a stream that states no
 # downmix, and of one that states it in the alternate syntax.
 NO_DOWNMIX = ('0', '0.000000', '0.000000', '0.000000', '0.000000')
-Ac3Downmix = collections.namedtuple('Ac3Downmix', 'position number frames oracle coreav')
+Ac3Downmix = collections.namedtuple('Ac3Downmix', 'position number frames oracle coreav spans')
 # The bit rates of ATSC A/52 table 5.18, in kbit/s, one for each pair of
 # frame size codes.
 AC3_RATES = (32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640)
@@ -557,24 +557,29 @@ def annex_d_downmix(path):
     syntax (`ac3_annex_d`) and whose values are not all zero: its position
     among the track entries, `TrackNumber`, frame count, and the values
     `ffprobe` 9.0.2 (`oracle`, none stated) and CoreAV (`coreav`, the stated
-    ones) print for `DOWNMIX_KEYS`. A track with no frames, a frame of another
-    shape, or frames that state different values is left out."""
+    ones) print for `DOWNMIX_KEYS`, and nonempty `spans`: one
+    (block data offset, frame size) pair per frame in file order. Frames
+    of a lace share the block's data offset. A track with no frames, a frame
+    of another shape, or frames that state different values is left out."""
     found = []
     for position, track in enumerate((policy_ref.matroska_headers(path) or {}).get('tracks') or []):
         if track['codec_id'] != 'A_AC3' or track['type'] != 2 or track['encoding'] != 'none' \
                 or track['number'] is None:
             continue
-        stated, frames = set(), 0
+        stated, spans = set(), []
         try:
-            for frame in policy_ref.matroska_frames(path, track['number']):
-                stated.add(ac3_annex_d(frame))
-                frames += 1
+            for offset, frames in policy_ref.matroska_block_frames(path, track['number']):
+                for frame in frames:
+                    stated.add(ac3_annex_d(frame))
+                    spans.append((offset, len(frame)))
+                    if None in stated or len(stated) > 1:
+                        break
                 if None in stated or len(stated) > 1:
                     break
         except (OSError, ValueError):
             continue
         if len(stated) == 1 and None not in stated and stated != {NO_DOWNMIX}:
-            found.append(Ac3Downmix(position, track['number'], frames, NO_DOWNMIX, stated.pop()))
+            found.append(Ac3Downmix(position, track['number'], len(spans), NO_DOWNMIX, stated.pop(), tuple(spans)))
     return found
 
 

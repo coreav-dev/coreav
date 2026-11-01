@@ -289,12 +289,60 @@ class AnnexDDownmix(unittest.TestCase):
     def test_every_frame_states_the_same_values(self):
         frame = ac3_frame()
         stated = ('1', '0.707107', '0.707107', '0.707107', '0.707107')
-        self.assertEqual(self.evidence(ac3_matroska(single(frame, frame, frame))),
-                         [kd.Ac3Downmix(0, 1, 3, kd.NO_DOWNMIX, stated)])
+        data = ac3_matroska(single(frame, frame, frame))
+        spans = tuple((m.start() - 4, len(frame)) for m in re.finditer(re.escape(frame), data))
+        self.assertEqual(self.evidence(data), [kd.Ac3Downmix(0, 1, 3, kd.NO_DOWNMIX, stated, spans)])
         # Each lacing: Xiph (sizes as 255s and a remainder), fixed, EBML.
         laces = [(bytes([2, 128, 128]) + frame * 3, 1), (bytes([2]) + frame * 3, 2),
                  (bytes([2, 0x40, 128, 0xBF]) + frame * 3, 3)]
-        self.assertEqual(self.evidence(ac3_matroska(laces)), [kd.Ac3Downmix(0, 1, 9, kd.NO_DOWNMIX, stated)])
+        data = ac3_matroska(laces)
+        spans = tuple((data.index(bytes([0x81, 0, 32 * i, 0x80 | lacing << 1]) + payload), len(frame))
+                      for i, (payload, lacing) in enumerate(laces) for _ in range(3))
+        self.assertEqual(self.evidence(data), [kd.Ac3Downmix(0, 1, 9, kd.NO_DOWNMIX, stated, spans)])
+
+    def test_block_offsets_and_frame_sizes_are_taken_from_the_file(self):
+        frame = ac3_frame()
+        other = ac3_frame(bsid=8)
+        unknown = ebml(0xAE, ebml(0xD7, b'\x07') + ebml(0x83, b'\x99'))
+        laces = [
+            (b'', [frame], 0),
+            (bytes([1, 128]), [frame, frame], 1),
+            (bytes([2]), [frame, frame, frame], 2),
+            (bytes([1, 0x40, 128]), [frame, frame], 3),
+        ]
+        blocks, payloads = [], []
+        for i, (lace, frames, lacing) in enumerate(laces):
+            payload = bytes([0x82, 0, i * 32, 0x80 | lacing << 1]) + lace + b''.join(frames)
+            payloads.append((payload, frames))
+            block = ebml(0xA3 if i % 2 == 0 else 0xA1, payload)
+            blocks.append(block if i % 2 == 0 else ebml(0xA0, block))
+        ignored = ebml(0xA3, bytes([0x87, 0, 0, 0x80]) + other)
+        cluster = ebml(0x1F43B675, ebml(0xE7, b'\x00') + ignored + b''.join(blocks))
+        data = ac3_matroska([], before=unknown, clusters=cluster)
+        directory = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory)
+        path = directory / 'spans.mkv'
+        path.write_bytes(data)
+        expected = [(data.index(payload), frames) for payload, frames in payloads]
+        self.assertEqual(list(kd.policy_ref.matroska_block_frames(path, 2)), expected)
+        self.assertEqual(list(kd.policy_ref.matroska_frames(path, 2)),
+                         [f for _, frames in expected for f in frames])
+        (found,) = kd.annex_d_downmix(path)
+        self.assertEqual((found.position, found.number, found.frames), (1, 2, 8))
+        self.assertEqual(found.spans, tuple((offset, len(f)) for offset, frames in expected for f in frames))
+        self.assertTrue(found.spans)
+        for (offset, frames), (payload, _) in zip(expected, payloads):
+            self.assertEqual(data[offset:offset + len(payload)], payload)
+            self.assertEqual(data[offset], 0x82)
+            self.assertEqual(data[offset + len(payload) - sum(map(len, frames)):offset + len(payload)],
+                             b''.join(frames))
+        if pinned('ffprobe'):
+            listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_streams', '-show_packets',
+                                     str(path)], capture_output=True, timeout=60, check=True).stdout
+            document = json.loads(listed)
+            (stream,) = document['streams']
+            self.assertEqual((stream['index'], stream['codec_name']), (0, 'ac3'))
+            self.assertEqual(tuple((int(p['pos']), int(p['size'])) for p in document['packets']), found.spans)
 
     def test_values_only_where_annex_d_defines_them(self):
         # No surround channels (3/0) keeps no surround level; no centre
@@ -335,7 +383,8 @@ class AnnexDDownmix(unittest.TestCase):
         frame, other = ac3_frame(), ac3_frame(mode=2)
         stated = ('1', '0.707107', '0.707107', '0.707107', '0.707107')
         twice = ac3_matroska([], clusters=ac3_cluster(frame) + ac3_cluster(frame))
-        self.assertEqual(self.evidence(twice), [kd.Ac3Downmix(0, 1, 2, kd.NO_DOWNMIX, stated)])
+        spans = tuple((m.start() - 4, len(frame)) for m in re.finditer(re.escape(frame), twice))
+        self.assertEqual(self.evidence(twice), [kd.Ac3Downmix(0, 1, 2, kd.NO_DOWNMIX, stated, spans)])
         for name, data in (
                 # A cluster of unknown size, whatever follows it.
                 ('unknown size, then the same', ac3_matroska([], clusters=ac3_cluster(frame, known=False)
