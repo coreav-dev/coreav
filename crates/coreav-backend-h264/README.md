@@ -16,8 +16,8 @@ yours to make.
 
 ## What it does
 
-- Decodes the streams `coreav-h264` decodes: High profile, 8-bit 4:2:0,
-  progressive. A stream outside that is refused from its configuration
+- Decodes the streams `coreav-h264` decodes: High profile, 8-bit 4:2:0
+  and monochrome (whose frames are 4:2:0 with neutral chroma), progressive. A stream outside that is refused from its configuration
   record, before a decoder is opened — the parameter sets decide most of
   the scope, not the profile — so the boundary moves on to the next
   backend in the policy's order. What only a slice can decide (data

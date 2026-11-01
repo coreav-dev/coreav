@@ -665,7 +665,9 @@ impl BandData {
     }
 }
 
-/// A decoded picture: 8-bit 4:2:0 luma and chroma planes.
+/// A decoded picture: 8-bit 4:2:0 luma and chroma planes. A monochrome
+/// picture has them too, its chroma 128 throughout (`docs/design/h264.md`,
+/// "Monochrome").
 ///
 /// The planes hold whole macroblocks, with slack rows before and after
 /// them at the picture's edges (`Geometry::luma_slack`); `width` and

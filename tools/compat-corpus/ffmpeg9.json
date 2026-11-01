@@ -1630,32 +1630,8 @@
     }
    },
    "keys": {
-    "packets.duration": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_live_clusters.webm",
-     "mkv_timestamp_scale.webm",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
-    "packets.duration_time": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_live_clusters.webm",
-     "mkv_timestamp_scale.webm",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
+    "packets.duration": [],
+    "packets.duration_time": [],
     "packets.side_data_list[Skip Samples]": [],
     "packets.side_data_list[]": []
    }
@@ -1673,51 +1649,6 @@
       ],
       "edit_multi_av.mp4": [
        [677, "680", "1024"]
-      ],
-      "mkv_lace_ac3_44k.mkv": [
-       [1, "35", "34"],
-       [2, "35", "34"],
-       [3, "35", "34"],
-       [5, "35", "34"],
-       [6, "35", "34"],
-       [7, "35", "34"],
-       [9, "35", "34"],
-       [10, "35", "34"],
-       [11, "35", "34"],
-       [13, "35", "34"],
-       [14, "35", "34"],
-       [15, "35", "34"],
-       [17, "35", "34"],
-       [18, "35", "34"],
-       [19, "35", "34"],
-       [21, "35", "34"],
-       [22, "35", "34"],
-       [23, "35", "34"],
-       [25, "35", "34"],
-       [26, "35", "34"],
-       [27, "35", "34"],
-       [29, "35", "34"],
-       [30, "35", "34"],
-       [31, "35", "34"],
-       [33, "35", "34"],
-       [34, "35", "34"],
-       [35, "35", "34"],
-       [37, "35", "34"],
-       [38, "35", "34"],
-       [39, "35", "34"],
-       [41, "35", "34"],
-       [42, "35", "34"],
-       [43, "35", "34"],
-       [45, "35", "34"],
-       [46, "35", "34"],
-       [47, "35", "34"],
-       [49, "35", "34"],
-       [50, "35", "34"],
-       [51, "35", "34"],
-       [53, "35", "34"],
-       [54, "35", "34"],
-       [55, "35", "34"],
-       [57, "35", "34"]
       ]
      }
     },
@@ -1731,51 +1662,6 @@
       ],
       "edit_multi_av.mp4": [
        [677, "0.015420", "0.023220"]
-      ],
-      "mkv_lace_ac3_44k.mkv": [
-       [1, "0.035000", "0.034000"],
-       [2, "0.035000", "0.034000"],
-       [3, "0.035000", "0.034000"],
-       [5, "0.035000", "0.034000"],
-       [6, "0.035000", "0.034000"],
-       [7, "0.035000", "0.034000"],
-       [9, "0.035000", "0.034000"],
-       [10, "0.035000", "0.034000"],
-       [11, "0.035000", "0.034000"],
-       [13, "0.035000", "0.034000"],
-       [14, "0.035000", "0.034000"],
-       [15, "0.035000", "0.034000"],
-       [17, "0.035000", "0.034000"],
-       [18, "0.035000", "0.034000"],
-       [19, "0.035000", "0.034000"],
-       [21, "0.035000", "0.034000"],
-       [22, "0.035000", "0.034000"],
-       [23, "0.035000", "0.034000"],
-       [25, "0.035000", "0.034000"],
-       [26, "0.035000", "0.034000"],
-       [27, "0.035000", "0.034000"],
-       [29, "0.035000", "0.034000"],
-       [30, "0.035000", "0.034000"],
-       [31, "0.035000", "0.034000"],
-       [33, "0.035000", "0.034000"],
-       [34, "0.035000", "0.034000"],
-       [35, "0.035000", "0.034000"],
-       [37, "0.035000", "0.034000"],
-       [38, "0.035000", "0.034000"],
-       [39, "0.035000", "0.034000"],
-       [41, "0.035000", "0.034000"],
-       [42, "0.035000", "0.034000"],
-       [43, "0.035000", "0.034000"],
-       [45, "0.035000", "0.034000"],
-       [46, "0.035000", "0.034000"],
-       [47, "0.035000", "0.034000"],
-       [49, "0.035000", "0.034000"],
-       [50, "0.035000", "0.034000"],
-       [51, "0.035000", "0.034000"],
-       [53, "0.035000", "0.034000"],
-       [54, "0.035000", "0.034000"],
-       [55, "0.035000", "0.034000"],
-       [57, "0.035000", "0.034000"]
       ]
      }
     }
@@ -1784,14 +1670,12 @@
     "packets.duration": [
      "edit_multi_audio.mp4",
      "edit_multi_audio_average.mp4",
-     "edit_multi_av.mp4",
-     "mkv_lace_ac3_44k.mkv"
+     "edit_multi_av.mp4"
     ],
     "packets.duration_time": [
      "edit_multi_audio.mp4",
      "edit_multi_audio_average.mp4",
-     "edit_multi_av.mp4",
-     "mkv_lace_ac3_44k.mkv"
+     "edit_multi_av.mp4"
     ]
    }
   },
@@ -2119,14 +2003,16 @@
    "fields": ["side_data_list.discard_padding"],
    "conditions": {
     "track": "an audio track of an unfragmented movie, without composition offsets, with one sample description, which every chunk names, an mp4a with an AudioSpecificConfig of AAC LC (object type 2) at the media time scale, with no dependsOnCoreCoder or extensionFlag, then the extension that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0) and nothing else, since without it implicit SBR is open at any core rate (ISO/IEC 14496-3 1.6.5.3); its frame is 960 or 1,024 samples by frameLengthFlag",
-    "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that reaches the end of the samples; neither edit's duration in media ticks falls halfway between two ticks",
+    "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that starts at or before the last sample and reaches the end of the samples, its duration counted in media ticks rounded down; the empty edit's duration counted in media ticks rounded to the nearest, halves up as ffprobe 9.0.2 does",
     "samples": "the media header's duration is the samples' total, and the last sample lasts less than a frame and starts inside the media edit",
     "candidate": "the frame less the last sample's duration",
     "reference": "the last sample's time less the media time plus the empty edit's duration in media ticks (p), plus a frame, less the end of the samples, when p is before that end and p plus the last sample's duration is after it",
     "occurrence": "the last packet of that track, by its offset and size; both values present and different",
-    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived predicate oracle_kd.empty_edit_padding (coreav-dev/coreav#160) gates them in the corpus comparator; only the fixture scope (keys, accepts) applies"
+    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived predicate oracle_kd.empty_edit_padding (coreav-dev/coreav#160) gates them in the corpus comparator; the absence case only through its ProvenAbsence evidence and corpus_absence below; only the fixture scope (keys, accepts) applies now",
+    "absence": "a second case: the media time scale is the configuration's core rate, so a frame spans 1,024 or 960 ticks by frameLengthFlag whatever SBR does; the last sample lasts exactly that span, and its decoded frame ends at or before the media edit's end, so nothing is decoded past the presentation; the configuration needs no extension (zero bytes after it signal none) and the media header may differ from the samples; CoreAV lists no side data on that packet and ffprobe exactly the value 'reference' gives with that frame, every other packet agreeing; a last sample shorter than a frame never qualifies"
    },
-   "basis": "ISO/IEC 14496-12 8.6.6: the media edit ends the presentation at its end in media time; ffprobe 9.0.2 places the packet after the empty edit but keeps that end in media time",
+   "basis": "ISO/IEC 14496-12 8.6.6: the media edit ends the presentation at its end in media time, so a last sample ending at or before it has nothing past it to discard; ffprobe 9.0.2 places the packet after the empty edit but keeps that end in media time",
+   "corpus_absence": "last-sample-within-media-edit",
    "accepts": {
     "packets.side_data_list[Skip Samples]": {
      "evidence": "empty edit padding",
@@ -2140,6 +2026,33 @@
    "keys": {
     "packets.side_data_list[Skip Samples]": ["clip_audio_late.mp4", "edit_list.mp4"],
     "packets.side_data_list[]": ["clip_audio_late.mp4", "edit_list.mp4"]
+   }
+  },
+  {
+   "id": "KD-FF9-FIXTURE-MKV-MP3-DURATION",
+   "accepts": {
+    "packets.duration": {
+     "where": {
+      "codec_name": "mp3",
+      "packet": "last"
+     },
+     "pairs": [["24", "7"]]
+    },
+    "packets.duration_time": {
+     "where": {
+      "codec_name": "mp3",
+      "packet": "last"
+     },
+     "pairs": [["0.024000", "0.007000"]]
+    }
+   },
+   "keys": {
+    "packets.duration": [
+     "mkv_mp3.mkv"
+    ],
+    "packets.duration_time": [
+     "mkv_mp3.mkv"
+    ]
    }
   },
   {
@@ -2186,53 +2099,6 @@
    "keys": {
     "streams.bit_rate": [
      "fragmented_sidx.mp4"
-    ]
-   }
-  },
-  {
-   "id": "KD-FF9-FIXTURE-MKV-LAST-DURATION",
-   "accepts": {
-    "packets.duration": {
-     "where": {
-      "codec_name": "aac",
-      "packet": "last"
-     },
-     "relation": "ffprobe smaller"
-    },
-    "packets.duration_time": {
-     "where": {
-      "codec_name": "aac",
-      "packet": "last"
-     },
-     "relation": "ffprobe smaller"
-    }
-   },
-   "keys": {
-    "packets.duration": [
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv"
-    ],
-    "packets.duration_time": [
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv"
     ]
    }
   },

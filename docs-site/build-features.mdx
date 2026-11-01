@@ -52,7 +52,7 @@ The `libopus` feature adds Opus audio to `coreav transcode` (`--audio opus`), en
 Decoding H.264 may require a patent licence, depending on where you are and what you do with it. Patents essential to H.264 are still in force in some jurisdictions, and pool licences exist for decoders as well as encoders. Deciding whether you may use this decoder is yours to make. Nothing here is legal advice.
 </Warning>
 
-That is why the native H.264 decoder is opt-in behind `native-h264` and never in a default build. It decodes High profile, 8-bit 4:2:0, progressive streams, and rejects what it does not decode (field pictures, MBAFF, 4:2:2, 4:4:4 and bit depths above 8, among others) with an error instead of a wrong picture ([`coreav-h264`](https://github.com/coreav-dev/coreav/blob/main/crates/coreav-h264/README.md)).
+That is why the native H.264 decoder is opt-in behind `native-h264` and never in a default build. It decodes High profile, 8-bit 4:2:0 and monochrome, progressive streams, and rejects what it does not decode (field pictures, MBAFF, 4:2:2, 4:4:4 and bit depths above 8, among others) with an error instead of a wrong picture ([`coreav-h264`](https://github.com/coreav-dev/coreav/blob/main/crates/coreav-h264/README.md)).
 
 ## Licence notices
 
