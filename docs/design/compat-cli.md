@@ -523,6 +523,29 @@ spelling of the set counted on its own, as the bar says "each command".
 The summary lists every command of the set, including one with no file of
 its families, as taken by no file and not counted.
 
+Each `copy_check.py` sequence has its own total deadline, separate from
+the 600-second limit on an inner oracle invocation. Its budget is three
+times the longest completed sequence in the spent-input calibration,
+rounded up to a whole minute, with a 600-second floor: **8,580 seconds**
+from the [calibration and sanitized timing records](../measurements/r3-deadline/README.md).
+A sequence may contain several selection and oracle checks, so one invocation's limit
+is not a valid total for the sequence. The calibration records wall time
+inside each check worker and around each complete sequence; worker times
+exclude queueing, while sequence time includes it and process startup.
+The private copy-check log retains these timing events without changing
+the per-pair correctness outcomes or the public R3 counters.
+
+The runner gives each checker its own process group. On the registered
+Linux host it becomes a child subreaper, kills the group when the checker
+exits or times out, reaps the checker first, then reaps its adopted
+descendants by group. Concurrent file workers cannot reap one another's
+checker groups. A timeout fails all pairs of that sequence as
+`copy_check timeout`, even if the checker already wrote a passing report;
+stale, missing or incomplete reports remain failures. The known checker
+and oracle processes do not start new sessions. A descendant that escapes
+the group, or an uninterruptible kernel operation, is outside this
+process-group guarantee.
+
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
 `aa` FFmpeg against itself and `null` CoreAV against itself, the same
 command for both sides, on every file of its families that R3's rule lets

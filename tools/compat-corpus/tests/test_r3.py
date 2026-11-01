@@ -2,9 +2,13 @@
 take, and the counts of a report. No FFmpeg, no media."""
 import argparse
 import contextlib
+import csv
+import ctypes
 import io
 import json
+import os
 import pathlib
+import signal
 import subprocess
 import sys
 import tempfile
@@ -184,17 +188,27 @@ if os.environ.get('FAKE_STATUS') == 'refused':
 pathlib.Path(sys.argv[-1]).write_bytes(b'x')
 '''
 CHECK = r'''#!/usr/bin/env python3
-import collections, json, os, sys
+import collections, json, os, subprocess, sys, time
 args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 if os.environ.get('FAKE_CHECK') == 'crash':
     sys.exit(1)
 if os.environ.get('FAKE_CHECK') == 'slow':
-    import time
     time.sleep(3)
 counts = collections.defaultdict(collections.Counter)
 for r in json.load(open(args['--records'])):
+    if os.environ.get('FAKE_CHECK') == 'multi':
+        for _ in range(2):
+            subprocess.run([sys.executable, '-c', 'import time; time.sleep(1.2)'], timeout=2, check=True)
     counts[r['id']][r['status']] += 1
 json.dump({'counts': counts, 'failures': []}, open(args['--report'], 'w'))
+if os.environ.get('FAKE_CHECK') == 'stuck':
+    with open(os.environ['FAKE_PIDS'], 'a') as f:
+        f.write(str(os.getpid()) + '\n')
+    marker = "import os, time\nwith open(os.environ['FAKE_PIDS'], 'a') as f:\n    f.write(str(os.getpid()) + '\\n')\n"
+    grandchild = marker + 'time.sleep(60)\n'
+    child = marker + f'import subprocess, sys\nsubprocess.Popen([sys.executable, "-c", {grandchild!r}])\ntime.sleep(60)\n'
+    subprocess.Popen([sys.executable, '-c', child])
+    time.sleep(60)
 '''
 
 
@@ -229,10 +243,101 @@ class Judge(unittest.TestCase):
         self.assertEqual(self.judge(['C01']), {('C01', 0): ('passed', None)})
         self.assertEqual(self.judge(['C02'], FAKE_CHECK='crash'), {('C02', 0): ('failed', 'copy_check crashed')})
 
+    def test_the_total_budget_has_an_inner_call_floor_and_rounds_up(self):
+        self.assertEqual(r3.copy_check_deadline(0), 600)
+        self.assertEqual(r3.copy_check_deadline(200), 600)
+        self.assertEqual(r3.copy_check_deadline(200.1), 660)
+        self.assertEqual(r3.copy_check_deadline(600), 1800)
+
+    def test_the_default_budget_matches_the_complete_calibration(self):
+        evidence = HERE.parents[1] / 'docs/measurements/r3-deadline'
+        summary = json.loads((evidence / 'summary.json').read_text())
+        with (evidence / 'sequences.csv').open() as f:
+            sequences = {int(r['sequence']): r for r in csv.DictReader(f)}
+        with (evidence / 'checks.csv').open() as f:
+            checks = list(csv.DictReader(f))
+        self.assertEqual(len(sequences), summary['sequences']['n'])
+        self.assertEqual(len(checks), summary['checks']['n'])
+        self.assertTrue(all(c['completed'] == 'true' for c in checks))
+        self.assertEqual({int(c['sequence']) for c in checks}, set(sequences))
+        for sequence, row in sequences.items():
+            calls = [c for c in checks if int(c['sequence']) == sequence]
+            self.assertEqual(sum(c['check'] == 'selection' for c in calls), int(row['records']))
+            self.assertTrue(all(float(c['seconds']) <= float(row['seconds']) for c in calls))
+        longest = max(float(s['seconds']) for s in sequences.values())
+        self.assertEqual(longest, summary['sequences']['max'])
+        self.assertEqual(r3.COPY_CHECK_TIMEOUT, r3.copy_check_deadline(longest))
+        self.assertEqual(r3.COPY_CHECK_TIMEOUT, summary['deadline_rule']['budget_seconds'])
+
     def test_a_slow_check_is_not_cut_short(self):
         timeout, r3.TIMEOUT = r3.TIMEOUT, 1
         self.addCleanup(setattr, r3, 'TIMEOUT', timeout)
         self.assertEqual(self.judge(['C01'], FAKE_CHECK='slow'), {('C01', 0): ('passed', None)})
+
+    def test_each_copy_sequence_records_elapsed_time_and_outcome(self):
+        self.assertEqual(self.judge(['C01', 'C02']),
+                         {('C01', 0): ('passed', None), ('C02', 0): ('passed', None)})
+        events = [json.loads(line) for line in pathlib.Path(self.opts.log).read_text().splitlines()]
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event['event'], 'copy_check_sequence')
+        self.assertEqual(event['records'], 2)
+        self.assertEqual(event['exit'], 0)
+        self.assertGreater(event['sequence'], 0)
+        self.assertGreaterEqual(event['seconds'], 0)
+
+    def test_a_valid_multi_check_sequence_is_not_cut_short(self):
+        deadline = r3.COPY_CHECK_TIMEOUT
+        r3.COPY_CHECK_TIMEOUT = deadline / r3.TIMEOUT * 2
+        timeout, r3.TIMEOUT = r3.TIMEOUT, 2
+        self.addCleanup(setattr, r3, 'TIMEOUT', timeout)
+        self.addCleanup(setattr, r3, 'COPY_CHECK_TIMEOUT', deadline)
+        self.assertEqual(self.judge(['C01', 'C02', 'C03'], FAKE_CHECK='multi'),
+                         {(name, 0): ('passed', None) for name in ('C01', 'C02', 'C03')})
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux child-subreaper regression')
+    def test_a_stuck_check_and_its_descendants_are_stopped_and_reaped(self):
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+        self.assertEqual(libc.prctl(36, 1, 0, 0, 0), 0)
+        pids = self.d / 'pids'
+        script = f'''
+import argparse, json, os, pathlib, sys
+sys.path.insert(0, {str(HERE)!r})
+import r3
+r3.HERE = pathlib.Path({str(self.d)!r})
+r3.COPY_CHECK_TIMEOUT = 3
+scratch = pathlib.Path({str(self.d / 'scratch')!r})
+scratch.mkdir()
+result = r3.judge(argparse.Namespace(**{vars(self.opts)!r}), {self.pairs(['C01', 'C02'])!r}, scratch, dict(os.environ))
+assert result == {{('C01', 0): ('failed', 'copy_check timeout'), ('C02', 0): ('failed', 'copy_check timeout')}}, result
+assert json.loads((scratch / 'check.json').read_text())['failures'] == []
+pids = [int(line) for line in pathlib.Path({str(pids)!r}).read_text().splitlines()]
+assert len(pids) == 3, pids
+for pid in pids:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        pass
+    else:
+        raise AssertionError(f'process {{pid}} is alive or unreaped')
+'''
+        env = {**release_round.environment(self.log), 'FAKE_CHECK': 'stuck', 'FAKE_PIDS': str(pids)}
+        with subprocess.Popen([sys.executable, '-I', '-c', script], env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, start_new_session=True) as child:
+            try:
+                out, err = child.communicate(timeout=15)
+            finally:
+                descendants = [int(line) for line in pids.read_text().splitlines()] if pids.exists() else []
+                for pid in descendants:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(pid, signal.SIGKILL)
+                child.kill()
+                child.wait()
+                for pid in descendants:
+                    with contextlib.suppress(ChildProcessError):
+                        os.waitpid(pid, 0)
+        self.assertEqual(child.returncode, 0, (out + err).decode())
 
     def test_a_refusal_runs_the_binary_and_reaches_the_fallback_log(self):
         self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})

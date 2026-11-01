@@ -43,13 +43,19 @@ library only.
 import argparse
 import collections
 import concurrent.futures
+import contextlib
+import ctypes
 import hashlib
 import json
+import math
+import os
 import pathlib
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -57,7 +63,12 @@ import copy_check  # noqa: E402
 import release_round  # noqa: E402
 
 TIMEOUT = 600
+COPY_CHECK_TIMEOUT = 8580
 TEST = 'the_0_1_0_commands_on_listed_pairs'
+
+
+def copy_check_deadline(longest):
+    return max(TIMEOUT, 60 * math.ceil(3 * longest / 60))
 
 
 def media_files(opts):
@@ -176,8 +187,9 @@ def judge(opts, pairs, scratch, env):
 
 
 def check_copies(opts, judged, scratch, env):
-    """Runs copy_check.py over written harness records: each one's outcome
-    and, for a failure, why."""
+    """Runs copy_check.py over written harness records with one total deadline.
+    A timed-out sequence fails every pair without accepting a partial report.
+    """
     (scratch / 'judged.json').write_text(json.dumps(judged))
     check = scratch / 'check.json'
     check.unlink(missing_ok=True)
@@ -185,9 +197,36 @@ def check_copies(opts, judged, scratch, env):
            '--ffmpeg', opts.ffmpeg, '--ffprobe', opts.ffprobe, '--jobs', '1', '--report', str(check)]
     if opts.mediainfo:
         cmd += ['--mediainfo', opts.mediainfo]
+    cmd += ['--timings']
+    if sys.platform == 'linux':
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+        libc.prctl.restype = ctypes.c_int
+        if libc.prctl(36, 1, 0, 0, 0) != 0:
+            error = ctypes.get_errno()
+            raise OSError(error, os.strerror(error))
     with open(opts.log, 'ab') as log:
-        code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
-                              check=False).returncode
+        started = time.monotonic()
+        with subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                              start_new_session=True) as child:
+            code = None
+            try:
+                code = child.wait(timeout=COPY_CHECK_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                pass
+            finally:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child.pid, signal.SIGKILL)
+                child.wait()
+                if sys.platform == 'linux':
+                    with contextlib.suppress(ChildProcessError):
+                        while True:
+                            os.waitid(os.P_PGID, child.pid, os.WEXITED)
+                log.write((json.dumps({'event': 'copy_check_sequence', 'sequence': child.pid,
+                                      'records': len(judged), 'seconds': time.monotonic() - started,
+                                      'exit': code}) + '\n').encode())
+    if code is None:
+        return {(r['id'], r['command']): ('failed', 'copy_check timeout') for r in judged}
     report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
     if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
         report = None
