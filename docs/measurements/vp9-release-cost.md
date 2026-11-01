@@ -2,6 +2,8 @@
 
 The release's static musl build has additional decode CPU cost compared with a GNU build linked to Debian's libvpx. This round isolates that additional cost. It does not attempt to close libvpx's remaining gap against FFmpeg's native VP9 decoder.
 
+Neither tested candidate meets all acceptance bars. The second meets the large-file and no-regression bars, but its ten-file median still uses more CPU than Debian. It is not accepted as an overall parity fix.
+
 ## Plan and acceptance bars
 
 The measured base is the copy-once head `065479c8a6d3a47a965301d4e5eba6ee10c88e68` of coreav-dev/coreav#178. The harness and candidate use that exact base, not the earlier measurement's source. The implementation branch is based on main after the copy-once change merged.
@@ -62,3 +64,15 @@ The post-timing profiles still attribute 26.16% of the odd-width file's cycles t
 The complete per-file medians, ranges, peak RSS and ratios are in [`first/analysis.json`](vp9-release-cost/first/analysis.json). Sanitized invocation records are in [`first/calls.jsonl.gz`](vp9-release-cost/first/calls.jsonl.gz), with the exact binary hashes in [`first/builds.json`](vp9-release-cost/first/builds.json), host class in [`first/host.json`](vp9-release-cost/first/host.json), and the two function-level profiles beside them. [`first/frames.json.gz`](vp9-release-cost/first/frames.json.gz) retains stock and candidate frame metadata and hashes, plus FFmpeg's per-frame hashes. This is an integration measurement with allocation and export, not a decoder-kernel benchmark. Each end-to-end transcode has only one observation per side and is retained as byte-identity and timing context, not a speed verdict.
 
 Recompute the first verdict with `python3 -I scripts/vp9_release_cost.py --analyse docs/measurements/vp9-release-cost/first`. This needs no media or binaries. Exit status 1 is the recorded bar miss; status 3 would instead mean invalid host controls.
+
+## Second candidate: overall parity still missing
+
+The copy-and-128-MiB candidate was fixed at `67b0db8` before its comparison. All 4,900 timed invocations succeeded. All 5,534 decoded frames match stock and FFmpeg, and all three large-file transcodes produce identical H.264 bytes. The host gate ratio is 0.9825 and the identical-command median is 0.9994, so the result is valid and final for this composition.
+
+The large-file candidate/Debian median is 1.0177, passing the 1.02 bar. Every file uses less CPU than stock, passing the no-regression bar. The ten-file candidate/Debian median is 1.1816, with a 95% file-bootstrap interval of 1.0700 to 1.2232, so the 1.03 overall bar fails. The candidate/stock median is 0.9289, with an interval of 0.8335 to 0.9529. Candidate/FFmpeg is 1.4460, with an interval of 1.0642 to 1.7071; two of ten files are cheaper than FFmpeg. The three large-file candidate/FFmpeg ratios are 1.1899, 1.1821 and 1.4440.
+
+All seven files outside the large-file group remain at least 12% above Debian. The odd-width profile now attributes 17.56% of cycles to CoreAV's `LibvpxDecoder::send` and 11.29% to `memcpy`. Moving the export copy into constant-size Rust copies did not establish an overall CPU gain over Debian. The allocator and copy changes were measured together, so this comparison does not identify their individual effects. Comparisons between the first and second hosts are not paired timing evidence.
+
+The replayable evidence is in [`second/analysis.json`](vp9-release-cost/second/analysis.json), [`second/calls.jsonl.gz`](vp9-release-cost/second/calls.jsonl.gz), [`second/frames.json.gz`](vp9-release-cost/second/frames.json.gz), [`second/builds.json`](vp9-release-cost/second/builds.json), and [`second/host.json`](vp9-release-cost/second/host.json). The per-file statistics retain medians and ranges for CPU and wall time, plus peak child RSS. CPU includes process startup, and child RSS can include its pre-exec measurement process. The two profiles and original host-gate values are beside the reports.
+
+Recompute this verdict with `python3 -I scripts/vp9_release_cost.py --analyse docs/measurements/vp9-release-cost/second`; exit status 1 records the failed overall bar. Further work must test a different explanation for the remaining cost rather than repeat either completed candidate.

@@ -1,0 +1,23 @@
+{
+  "base": "065479c8a6d3a47a965301d4e5eba6ee10c88e68",
+  "libvpx_static": "1.14.1",
+  "libvpx_debian": "1.15.0-2.1+deb13u1",
+  "mimalloc": "0.1.52",
+  "libmimalloc_sys": "0.1.49",
+  "binaries": {
+    "coreav-alloc": "39cf2186c11f41704dec10abe4a97efe309a94894b7792cbb17f4068eb3210cf",
+    "coreav-stock": "ba56261bb20d81a62819c47866cac2c2ce531568e3a1779248f68b887f78e794",
+    "do-alloc": "fb15f6173d1a72e0909d332f5fb546cc840317174350f143eebd78c9ca313b2b",
+    "do-alloc-hash": "fe6f6a4431034c367aa256ac7cde167bbc98b50d6d23d8a0151eec5a8dc9ab83",
+    "do-deb": "b5320a4a02aa0b569072f6f872f0d5ee3dfc9c7c1dacc45b32a7fece1b02509c",
+    "do-rel": "2f48ba6fafdf2bc18420f0f9fabfc1c8a07aae6af3fcbfa7ffd5963f9c4e2e4b",
+    "do-rel-hash": "b56de785c942f420015a93d11ecb2a1c77327b19b6822643e49484439bf7e6a3",
+    "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+  },
+  "harness": "decode-oracle, in-process, MD5 omitted only for timed builds",
+  "profile": "dist",
+  "target": "x86_64-unknown-linux-musl; Debian control x86_64-unknown-linux-gnu",
+  "worker_arena_reserve_kib": 131072,
+  "musl_export_chunk_bytes": 64,
+  "rustc": "1.99.1"
+}

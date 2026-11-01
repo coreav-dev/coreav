@@ -1,0 +1,58 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 151  of event 'cycles'
+# Event count (approx.): 2186344105
+#
+# Overhead  Command   Shared Object      Symbol                                                                               IPC   [IPC Coverage]
+# ........  ........  .................  ...................................................................................  ....................
+#
+    17.56%  do-alloc  do-alloc           [.] _RNvMs_NtCs9Mt8dvKRJ17_21coreav_backend_libvpx7decoderNtB4_13LibvpxDecoder4send  -      -
+    11.29%  do-alloc  do-alloc           [.] memcpy                                                                           -      -
+     7.74%  do-alloc  do-alloc           [.] vpx_convolve_copy_sse2.loop64                                                    -      -
+     6.78%  do-alloc  do-alloc           [.] vpx_convolve_copy_sse2.loop32                                                    -      -
+     5.25%  do-alloc  do-alloc           [.] vp9_read_mode_info                                                               -      -
+     4.35%  do-alloc  do-alloc           [.] __pthread_mutex_lock                                                             -      -
+     4.32%  do-alloc  do-alloc           [.] vpx_lpf_horizontal_16_dual_avx2                                                  -      -
+     4.10%  do-alloc  do-alloc           [.] decode_coefs                                                                     -      -
+     3.79%  do-alloc  do-alloc           [.] dec_build_inter_predictors_sb                                                    -      -
+     3.32%  do-alloc  do-alloc           [.] vpx_lpf_vertical_16_dual_sse2                                                    -      -
+     2.88%  do-alloc  do-alloc           [.] read_partition                                                                   -      -
+     2.58%  do-alloc  do-alloc           [.] recon_block                                                                      -      -
+     2.24%  do-alloc  do-alloc           [.] extend_and_predict                                                               -      -
+     2.20%  do-alloc  do-alloc           [.] memset                                                                           -      -
+     1.95%  do-alloc  [kernel.kallsyms]  [k] sync_regs                                                                        -      -
+     1.64%  do-alloc  do-alloc           [.] vp9_setup_dst_planes                                                             -      -
+     1.32%  do-alloc  do-alloc           [.] vpx_lpf_horizontal_8_dual_sse2                                                   -      -
+     1.31%  do-alloc  do-alloc           [.] idct32_34_8x32_ssse3                                                             -      -
+     1.19%  do-alloc  do-alloc           [.] vp9_build_mask                                                                   -      -
+     1.03%  do-alloc  do-alloc           [.] row_decode_worker_hook                                                           -      -
+     0.97%  do-alloc  do-alloc           [.] vp9_get_pred_context_single_ref_p1                                               -      -
+     0.92%  do-alloc  [kernel.kallsyms]  [k] native_flush_tlb_one_user                                                        -      -
+     0.89%  do-alloc  [kernel.kallsyms]  [k] clear_page_erms                                                                  -      -
+     0.85%  do-alloc  do-alloc           [.] vpx_convolve_copy_sse2.loop8                                                     -      -
+     0.85%  do-alloc  do-alloc           [.] idct32_1024_16x32                                                                -      -
+     0.81%  do-alloc  do-alloc           [.] vpx_convolve8_horiz_avx2                                                         -      -
+     0.78%  do-alloc  do-alloc           [.] __private_cond_signal                                                            -      -
+     0.72%  do-alloc  [kernel.kallsyms]  [k] _raw_spin_lock                                                                   -      -
+     0.70%  do-alloc  [kernel.kallsyms]  [k] llist_add_batch                                                                  -      -
+     0.70%  do-alloc  do-alloc           [.] vp9_filter_block_plane_ss00                                                      -      -
+     0.67%  do-alloc  do-alloc           [.] vp9_setup_pre_planes                                                             -      -
+     0.62%  do-alloc  [kernel.kallsyms]  [k] put_prev_entity                                                                  -      -
+     0.61%  do-alloc  [kernel.kallsyms]  [k] get_page_from_freelist                                                           -      -
+     0.52%  do-alloc  do-alloc           [.] vpx_reader_fill                                                                  -      -
+     0.50%  do-alloc  do-alloc           [.] dec_find_mv_refs                                                                 -      -
+     0.48%  do-alloc  do-alloc           [.] process_partition                                                                -      -
+     0.45%  do-alloc  do-alloc           [.] vp9_loopfilter_job                                                               -      -
+     0.43%  do-alloc  do-alloc           [.] idct16_16col                                                                     -      -
+     0.25%  do-alloc  do-alloc           [.] vpx_lpf_vertical_8_dual_sse2                                                     -      -
+     0.22%  do-alloc  do-alloc           [.] vpx_idct32x32_1_add_sse2                                                         -      -
+     0.11%  do-alloc  [kernel.kallsyms]  [k] futex_wake_mark                                                                  -      -
+     0.11%  do-alloc  do-alloc           [.] iadst8_sse2                                                                      -      -
+
+
+#
+# (Tip: To collect Processor Trace with samples use perf record -e '{intel_pt//,cycles}' ; perf script --call-trace or --insn-trace --xed -F +ipc (remove --xed if no xed))
+#
