@@ -205,12 +205,14 @@ class Judge(unittest.TestCase):
     """The judge on a made-up run: which inputs each bar judges, and what bars
     2 and 5 report, from the commands it runs."""
 
-    def run_judge(self, inputs, decoded, drop_result=False):
+    def run_judge(self, inputs, decoded, drop_result=False, hang=lambda args: False):
         calls = []
 
         def fake(args, timeout=None, **kw):
             args = [str(a) for a in args]
             calls.append(args)
+            if hang(args):
+                raise subprocess.TimeoutExpired(args, timeout or h.TIMEOUT)
             if 'decode_audio_check.py' in ' '.join(args):
                 files = args[args.index('--out') + 2:]
                 results = [{'status': 'ok', 'model': True, 'length': True, 'timeline': True, 'ffmpeg': 'equal'}
@@ -256,6 +258,23 @@ class Judge(unittest.TestCase):
         _, out, _ = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs}, drop_result=True)
         self.assertEqual([(r['input'], r['pass'], r.get('reason')) for r in out['bar3']['results']],
                          [(k, False, 'no result') for k in ('g', 'g.implicit', 'c.copy', 'm')])
+
+    def test_a_child_past_its_time_limit_fails_its_row_and_the_report_is_still_written(self):
+        inputs = self.inputs()
+        decoded = {r['path']: row(level_blocks=[]) for r in inputs}
+        hang = lambda args: (args[-2:] == ['g', '-'] and '--threads' in args  # noqa: E731
+                             or 'decode_audio_check.py' in ' '.join(args)
+                             or args[:2] == ['coreav', 'decode-audio'] and args[-2] == 'g.mka' and '--threads' not in args)
+        code, out, _ = self.run_judge(inputs, decoded, hang=hang)
+        self.assertEqual((code, out['verdict']), (1, 'missed'))
+        self.assertEqual([(r['input'], r['pass'], r.get('reason')) for r in out['bar6']['results'] if r['input'] == 'g'],
+                         [('g', False, 'timeout')])
+        self.assertTrue(all(r['pass'] for r in out['bar6']['results'] if r['input'] != 'g'))
+        self.assertEqual({(r['pass'], r['reason']) for r in out['bar3']['results']}, {(False, 'timeout')})
+        self.assertEqual(len(out['bar3']['results']), 4)
+        reported = {r['input']: r['reported'] for r in out['bar5']['results']}
+        self.assertEqual(reported['g.mka'], {'reason': 'timeout'})
+        self.assertIn('per_channel', reported['c'])
 
     def test_the_corpus_copies_gate_but_stay_out_of_the_reported_numbers(self):
         inputs = self.inputs()

@@ -714,9 +714,14 @@ def channel_differences(mine, theirs, channels, block, level_blocks):
 def bar5_report(a, ref, r):
     """What bar 5 reports of one Matroska file: `coreav decode-audio --format
     f32` against ffmpeg's default decode, over the common length with the
-    rules, and both lengths."""
-    cv = run([a.coreav, 'decode-audio', '--format', 'f32', ref['path'], '-'])
-    ff = run([a.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT, '-i', ref['path'], '-map', '0:a:0', '-f', 'f32le', '-'])
+    rules, and both lengths. A command past its time limit is reported as
+    a timeout."""
+    try:
+        cv = run([a.coreav, 'decode-audio', '--format', 'f32', ref['path'], '-'])
+        ff = run([a.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT, '-i', ref['path'], '-map', '0:a:0', '-f', 'f32le',
+                  '-'])
+    except subprocess.TimeoutExpired:
+        return {'reason': 'timeout'}
     out = {'coreav_exit': cv.returncode, 'ffmpeg_exit': ff.returncode}
     mine = wav_data(cv.stdout) if cv.returncode == 0 else None
     if mine is None or ff.returncode != 0 or r is None or r['status'] != 'decoded':
@@ -778,13 +783,16 @@ def judge(a):
         'results': bar2}
     # Bar 3: every MP4 file of the generated and corpus sets.
     timeline_inputs = [r for r in meta['inputs'] if 3 in bars_of(r)]
-    results = []
+    results, timed_out = [], False
     if timeline_inputs:
-        run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
+        try:
+            run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
              '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--tolerance', MAX_RMS, MAX_ABS,
-             '--out', work / 'timeline.json', *[r['path'] for r in timeline_inputs]],
-            timeout=TIMEOUT * len(timeline_inputs))
-        if (work / 'timeline.json').exists():
+                 '--out', work / 'timeline.json', *[r['path'] for r in timeline_inputs]],
+                timeout=TIMEOUT * len(timeline_inputs))
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        if not timed_out and (work / 'timeline.json').exists():
             results = json.loads((work / 'timeline.json').read_text())['results']
     paths = [r['path'] for r in timeline_inputs]
     by_path = dict(zip(paths, results)) if len(results) == len(paths) else {}
@@ -792,7 +800,8 @@ def judge(a):
     for r in timeline_inputs:
         res = by_path.get(r['path'])
         if res is None:
-            bar3.append({'input': r['key'], 'pass': False, 'ffmpeg': None, 'reason': 'no result'})
+            bar3.append({'input': r['key'], 'pass': False, 'ffmpeg': None,
+                         'reason': 'timeout' if timed_out else 'no result'})
             continue
         d = decoded.get(r['path'])
         samples = d is not None and level_only(d) == 0
@@ -813,7 +822,12 @@ def judge(a):
     for r in meta['inputs']:
         if 6 not in bars_of(r):
             continue
-        outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-']) for t in ('1', '8')]
+        try:
+            outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-'])
+                    for t in ('1', '8')]
+        except subprocess.TimeoutExpired:
+            bar6.append({'input': r['key'], 'pass': False, 'reason': 'timeout'})
+            continue
         bar6.append({'input': r['key'],
                      'pass': all(o.returncode == 0 for o in outs) and outs[0].stdout == outs[1].stdout})
     out['bar6'] = summary_of(bar6, copies) | {'results': bar6}
