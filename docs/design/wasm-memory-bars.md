@@ -1,0 +1,93 @@
+# WASM memory bars
+
+These proposed bars take effect only after this plan merges. Scope: the WebAssembly linear-memory gates of the WASM package's example integration check (`packages/wasm/examples/test/check.mjs`). This note fixes every bar, the scenarios it applies to and the rules for judging it before any run judges it. The change that turns the gates on reads the bars from the block at the end of this note.
+
+## What is measured
+
+The package instantiates its module once per JavaScript isolate. The module has one linear memory: it imports none and declares no other. The check reads `moduleInfo().memoryBytes`, the byte length of that memory, through a test-only route of the harness Worker.
+
+Linear memory grows in 64 KiB pages and never shrinks. The value read after a step is therefore the largest size the memory reached since the isolate started, including the size after initialization. It is a peak, not a sample. It counts the module's logical pages, not live allocations, resident pages, or the runtime's larger virtual-address reservation.
+
+All requests in flight in one isolate share that memory. A reading after a concurrent batch is the high-water mark of the shared memory over the whole batch. Nothing is added up across requests or across isolates.
+
+The gates do not measure the JavaScript heap. Range-reader buffers and their 40 MiB bound, upload bodies, output queues, the HLS index cache and response bodies live there. They also do not measure process resident memory or any hosted platform's per-isolate accounting. The check may record the heap and resident memory where the local runtime exposes them. Those records never pass or fail anything.
+
+The runtime is the `workerd` version pinned by the examples' lock file, started locally by the check, one process per isolate. Results describe that local runtime and the generated fixtures only.
+
+## Scenarios and bars
+
+Every request reads its fixture by object key through the examples' R2 reader. Fixtures come from the examples' fixture generator; `video-only.mp4` is the native remux of the video stream of `av.mp4`.
+
+| Gate step | Isolate | Work before the reading | Fixtures | Bar |
+| --- | --- | --- | --- | --- |
+| `fresh-probe`, `fresh-check`, `fresh-chapters`, `fresh-extract-audio`, `fresh-extract-subtitles`, `fresh-clip` | New, one per step | One request of that operation | `av-text.mp4` | 32 MiB |
+| `fresh-ffprobe` | New | One `ffprobe` request | `av-text.mp4` | 32 MiB |
+| `fresh-remux`, `fresh-sanitize` | New, one per step | One request of that operation | `av-text.mp4` | 64 MiB |
+| `hls-built` | New | Crawl every playlist and segment of each fixture in turn, building each index | `av.mp4`, `audio.m4a`, `video-only.mp4` | 64 MiB |
+| `hls-concurrent` | Same as `hls-built` | Then four parallel requests for one video segment | `av.mp4` | 64 MiB |
+| `hls-reloaded` | New | Crawl using the stored index | `av.mp4` | 64 MiB |
+| `hls-rebuilt` | New | Crawl after the stored index is damaged, so it is rebuilt once | `av.mp4` | 64 MiB |
+| `concurrent-with-writers-1`, `-4`, `-6` | New, one per level | 18 requests, each of probe, ffprobe, check, chapters, extract-audio, extract-subtitles, clip, remux and sanitize twice in that order, with at most 1, 4 or 6 in flight | `av-text.mp4` | 16 MiB |
+
+The eight `fresh-*` bars other than `fresh-ffprobe` were gates before this note and are carried forward unchanged. The other eight gates are new.
+
+## How the bars were set
+
+The existing fresh-operation gates allow 32 MiB for operations that return a document or stream a small output, and 64 MiB for remux and sanitize, which hold output sample tables. This note carries those budgets forward rather than predicting real-media costs from the generated fixtures.
+
+`ffprobe` joins the 32 MiB class. It reads the same structures as `probe`, under the same table limit, and returns a document.
+
+HLS joins the 64 MiB class. Building an index holds the sample tables of the whole file, like remux, and serving a resource copies the index into the module. Because memory never shrinks, the bar applies to each reading of the HLS isolate after all the work before it.
+
+Concurrent batches with writers have no earlier measurement to inherit a class from. Their bar follows a rule fixed here: take the highest local reading recorded for the three levels on the generated fixtures, multiply it by the highest covered level (6), round up to a power of two in MiB, and never exceed the heaviest class in the batch (64 MiB). The result is 16 MiB, for every level. Multiplying by the level is an envelope: it allows as much as if each of six requests in flight needed the whole recorded footprint at the same time. The local reading the rule used stays in a private record and is not published. This is a regression budget for these generated fixtures, not a class-wide maximum for arbitrary media. A mixed batch can fail this bar even when its fresh operations stay below their individual bars.
+
+Bars are exact byte counts: 1 MiB is 1,048,576 bytes, so 16, 32 and 64 MiB are 16,777,216, 33,554,432 and 67,108,864 bytes. A gate passes when its reading is at most its bar.
+
+## Judging rules
+
+- **One isolate, one reading source.** The harness Worker reports an identity created once per isolate beside every reading. Every reading of a scenario must carry the identity of the isolate that ran its work. Each new isolate must report an identity that no earlier isolate of the run reported.
+- **Fresh.** A fresh gate's isolate has served only the start-up readings before its one request.
+- **When the reading is taken.** After the client has read every response body of the step to its end, and after work the requests deferred (such as completion logs and index store writes) has finished.
+- **Build.** The module's reported build fingerprint must equal the SHA-256 of the module in the packed archive under test.
+- **Concurrency.** For each level the harness holds the first requests at entry until that many have arrived, then releases them together, and records the peak number of requests in flight. A level whose peak is below its number fails.
+- **Unavailable is a failure.** A missing, non-integer or non-positive reading, a changed isolate identity, a fingerprint mismatch, a registered gate that does not run, a gate step that is not registered, or a runtime that exits before its reading fails the run. Nothing unavailable counts as a pass. An unavailable heap or resident-memory record is written down and changes nothing.
+- **Inputs.** A judged run uses the generated fixtures only, without extra fixture directories.
+- **Output.** Public logs print verdicts only: the number of gates passed, and on a failure the step and its bar, without the reading. Raw readings stay on the machine that ran the check.
+- **Which run judges.** The first run of the gated check at the head of the change that turns these gates on judges them. A miss is reported and stands for that head. A bar is not changed in the change it judges. Changing a bar later needs an edit to this note, with its cause, merged before the run it judges. A run is repeated only after an independently evidenced infrastructure fault, never to overturn a miss. A crash, timeout or start-up failure fails the run and is not automatically a host fault.
+
+## Limits
+
+- The fixtures are generated, small (none above 16 KB) and few: one per fresh and concurrent scenario, three for HLS. The bars catch gross regressions on these inputs. They do not show that media of any real size stays within them.
+- Linear memory is one part of an isolate's memory. These gates bound nothing in the JavaScript heap.
+- A local `workerd` is not a hosted runtime. This note makes no claim that any workload fits a hosted platform's per-isolate memory limit.
+- Requests in flight are counted at the harness. Whether the module's own calls overlap while suspended on reads is not observed.
+- These records stay diagnostic, with no bar: the start-up readings, warm mixed passes, concurrent batches without writers, the library-default reader variant, and the long-lived isolate of the parity checks.
+
+## Registered bars
+
+<!-- wasm-memory-bars:begin -->
+```json
+{
+  "signal": "wasm_linear_bytes",
+  "predicate": "value <= bar",
+  "gates": {
+    "fresh-probe": 33554432,
+    "fresh-check": 33554432,
+    "fresh-chapters": 33554432,
+    "fresh-extract-audio": 33554432,
+    "fresh-extract-subtitles": 33554432,
+    "fresh-clip": 33554432,
+    "fresh-ffprobe": 33554432,
+    "fresh-remux": 67108864,
+    "fresh-sanitize": 67108864,
+    "hls-built": 67108864,
+    "hls-concurrent": 67108864,
+    "hls-reloaded": 67108864,
+    "hls-rebuilt": 67108864,
+    "concurrent-with-writers-1": 16777216,
+    "concurrent-with-writers-4": 16777216,
+    "concurrent-with-writers-6": 16777216
+  }
+}
+```
+<!-- wasm-memory-bars:end -->
