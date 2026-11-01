@@ -8,7 +8,9 @@ One instrumented rehearsal on the already-used inputs recorded elapsed wall time
 
 The source was `e7f36e034a61e1e8e7900b9f7d92762b06694031`. The workflow built the CLI and harness with the `dist` profile, verified the shared FFmpeg 9.0.2 pin in every shard, and put the pinned oracle directory first on R3's PATH. The downloaded binaries' SHA-256 values match the build log and are retained in [summary.json](summary.json). It used GitHub-hosted `ubuntu-24.04` x86-64 runners, one shard at a time, four file workers, one checker worker per sequence, and chunks of at most 16 records. The CPU model was not recorded; shared-runner variation is one reason for the margin, not evidence for a speed claim.
 
-The earlier attempt is not part of this distribution: 143 oracle checks raised a missing-program exception before doing their work. In the corrected rehearsal all 5,114 checks completed without a raised exception. Every previous pair was accounted for; 960 previously failed pairs now passed and the remaining selection disagreement was retained. No held-out inputs or judged release run were used.
+The earlier attempt is not part of this distribution. It recorded 143 raised oracle checks and 961 Matroska pair diagnostics naming a missing program. In the corrected rehearsal all 5,114 checks completed without a raised exception. The retained timings do not identify each check's container or output, so the artifacts cannot identify 143 replacement invocations one-to-one. No held-out inputs or judged release run were used.
+
+The separate `matroska_validation` counts in [summary.json](summary.json) come from the retained per-pair records and checker diagnostics, not inferred from the timing samples' job names. The records were matched privately by file, command ID and spelling index. All 1,988 Matroska pairs match between attempts: 961 reached the copy checker; the other 1,027 were unchanged refusals, ineligible pairs or failed oracle commands. Of the 961, the same 960 that previously failed their oracle now pass both oracle and selection, and one keeps its selection disagreement. The executed `copy_check.oracle` dispatches Matroska inputs to `mkv_remux_check.check`, so those 960 passes establish successful work on that oracle path. The missing-program diagnostic count falls from 961 to zero. This establishes recovered Matroska oracle work without claiming an unavailable per-invocation identity trail.
 
 ## Distribution
 
@@ -34,3 +36,5 @@ python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_r3.py
 ```
 
 The same tests preserve a valid six-invocation, three-record sequence with the production ratio of total to inner-call budget scaled down. A stopped-check regression requires the checker, its child and its grandchild to be absent after timeout, including no zombies, and requires all pairs to fail even when a passing report was already written. R4 and its reason table are unchanged.
+
+Encode breadth shares the checker entry point, including the deadline, timing events and Linux subreaper. Its regression runs a stopped checker and requires a tooling fault that voids the run, not a CoreAV oracle disagreement.

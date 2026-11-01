@@ -113,6 +113,40 @@
     "ffmpeg fails": 1121,
     "passed": 3860
   },
+  "matroska_validation": {
+    "source": "Matched per-pair records and checker diagnostic logs from both attempts",
+    "pair_identity_checked_privately": [
+      "file",
+      "id",
+      "command"
+    ],
+    "matched_pairs": 1988,
+    "judged_written_pairs": 961,
+    "pair_outcomes": {
+      "prior": {
+        "cannot take": 339,
+        "failed: oracle": 960,
+        "failed: refused": 64,
+        "failed: selection": 1,
+        "ffmpeg fails": 624
+      },
+      "corrected": {
+        "cannot take": 339,
+        "failed: refused": 64,
+        "failed: selection": 1,
+        "ffmpeg fails": 624,
+        "passed": 960
+      }
+    },
+    "missing_program_diagnostic_rows": {
+      "prior": 961,
+      "corrected": 0
+    },
+    "prior_raised_oracle_checks_all_containers": 143,
+    "corrected_raised_checks_all_containers": 0,
+    "per_check_container_identity_retained": false,
+    "limit": "The artifacts cannot identify 143 replacement invocations one-to-one. They show 960 matched Matroska pairs now pass both checks, one retains a selection failure, and no checker call raises an exception."
+  },
   "samples": {
     "sequences": "sequences.csv",
     "checks": "checks.csv",

@@ -299,6 +299,9 @@ class Judge(unittest.TestCase):
     def test_a_stuck_check_and_its_descendants_are_stopped_and_reaped(self):
         libc = ctypes.CDLL(None, use_errno=True)
         libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+        previous = ctypes.c_int()
+        self.assertEqual(libc.prctl(37, ctypes.addressof(previous), 0, 0, 0), 0)
+        self.addCleanup(libc.prctl, 36, previous.value, 0, 0, 0)
         self.assertEqual(libc.prctl(36, 1, 0, 0, 0), 0)
         pids = self.d / 'pids'
         script = f'''

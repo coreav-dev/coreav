@@ -534,6 +534,10 @@ inside each check worker and around each complete sequence; worker times
 exclude queueing, while sequence time includes it and process startup.
 The private copy-check log retains these timing events without changing
 the per-pair correctness outcomes or the public R3 counters.
+Encode breadth's copy-only commands share this checker entry point, so
+they receive the same deadline, timing events and process cleanup. A
+checker timeout there is a tooling fault like a checker crash: the command
+has no result and voids the run, rather than becoming an oracle disagreement.
 
 The runner gives each checker its own process group. On the registered
 Linux host it becomes a child subreaper, kills the group when the checker
@@ -545,6 +549,10 @@ stale, missing or incomplete reports remain failures. The known checker
 and oracle processes do not start new sessions. A descendant that escapes
 the group, or an uninterruptible kernel operation, is outside this
 process-group guarantee.
+The Linux subreaper setting is process-wide. Orphans left by other child
+launchers can remain as zombies until the runner exits. On normal checker
+exit, reaping precedes group cleanup, leaving a narrow PID-reuse window
+if the PID space wraps between those operations.
 
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
 `aa` FFmpeg against itself and `null` CoreAV against itself, the same
