@@ -1618,9 +1618,9 @@ Rules for every comparison:
   packets' stated durations do not give it: in a dry run of the sets
   before any CoreAV command, FFmpeg's decode for this bar was the
   packets times the output frame length on all 457 inputs, while the
-  stated durations were 62 to 3,846 samples shorter on 13 of the 31
+  stated durations were 62 to 3,846 samples shorter on 14 of the 31
   corpus MP4 files (their writers shorten the last packet's duration to
-  the stream's length), off by 8 to 117,768 samples on the 9 MP4
+  the stream's length), off by 8 to 117,768 samples on 8 of the 9 MP4
   copies of the corpus's Matroska files, and on Matroska are whole
   milliseconds, which do not hold an AAC frame. Samples are compared
   over that length. The presentation length, which the edit list and a
