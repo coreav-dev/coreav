@@ -20,13 +20,14 @@ In strict-safe mode CoreAV never runs an `ffmpeg` or `ffprobe` program, for any 
 | In place of a command line that `coreav ffprobe` or `coreav ffmpeg` does not implement (the [fallback](#the-ffmpeg-fallback)) | Refuses the command line, with exit status 4. |
 | As the decoder of `coreav thumbnail`, `coreav transcode` and the `libx264` command lines of `coreav ffmpeg`, in a build with the `ffmpeg-fallback` backend ([decoding through FFmpeg](#decoding-through-ffmpeg-in-builds-with-a-decoder-backend)) | Decodes with the build's other backends (`native-h264`, `dav1d`, `libvpx`). A video that only FFmpeg would decode is refused, with exit status 4. |
 | As the encoder of `coreav transcode` and the `libx264` command lines of `coreav ffmpeg` | Encodes with an `x264` program only. `--encoder ffmpeg` is refused, and so is `--encoder auto` (the default) when no `x264` program is found (`COREAV_X264`, `--x264`, or `x264` on `PATH`), both with exit status 4 and before the input is read. |
+| As the AAC encoder of `coreav transcode --audio aac` and the `-c:a aac` command lines of `coreav ffmpeg` ([encoding AAC audio through FFmpeg](#encoding-aac-audio-through-ffmpeg)) | Refuses them, with exit status 4 and before the input is read. A `-c:a aac` command line is never handed to FFmpeg; the fallback log records it with `not_run` `strict_safe`. |
 | In CoreAV's internal decode worker and encoder launcher, which CoreAV starts in strict-safe mode when it is on, or which are run directly with `COREAV_STRICT_SAFE` set | The worker refuses the FFmpeg backend, and the launcher refuses a program whose file name, or the file it links to, begins with `ffmpeg` or `ffprobe`. An `x264` program named that way is refused before the input is read. |
 
 On macOS (and Windows), the operating system cannot hold CoreAV's sandboxed worker and encoder to their memory budget, so strict-safe mode starts neither there: `coreav transcode` and the `libx264` command lines are refused before the input is read, and a video that only the `dav1d` or `libvpx` backend would decode is refused, both with exit status 4 and a message that begins `strict-safe: no enforceable memory limit for the sandbox on this platform`. The `native-h264` decoder runs inside the `coreav` process and still decodes there. Outside strict-safe mode the budget is advisory on those systems.
 
 A default build, which the release binaries planned for 0.1.0 are, has no decoder backend, so only the first row applies to it. The `dav1d` and `libvpx` backends are C libraries of their own, not FFmpeg, and run in the sandboxed worker in strict-safe mode too.
 
-To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP8 and VP9 ([build features](/build-features)).
+To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP8 and VP9 ([build features](/build-features)). The audio can be copied, dropped, or encoded to Opus in a build with the `libopus` feature; CoreAV has no AAC encoder of its own, so `--audio aac` and `-c:a aac` are refused.
 
 ## Turn on strict-safe mode
 
@@ -64,7 +65,7 @@ $ echo $?
 4
 ```
 
-A refused encoder (`--encoder ffmpeg`, or no `x264` program) is refused before the input is read. A refused decoder is refused once CoreAV has read the container and before any frame is decoded. Neither leaves an output file.
+A refused encoder (`--encoder ffmpeg`, `--audio aac`, or no `x264` program) is refused before the input is read. A refused decoder is refused once CoreAV has read the container and before any frame is decoded. Neither leaves an output file.
 
 ## The FFmpeg fallback
 
@@ -117,7 +118,18 @@ Builds with the `ffmpeg-fallback` [build feature](/build-features) also use an `
 - The decoder is chosen by name from an allowlist, so a file cannot steer FFmpeg to another decoder.
 - FFmpeg runs as a child of a separate worker process with resource limits. Its libraries are never linked into CoreAV.
 
+## Encoding AAC audio through FFmpeg
+
+CoreAV has no AAC encoder of its own. [`coreav transcode --audio aac`](/commands/transcode) and the `-c:a aac` command lines of [`coreav ffmpeg`](/commands/ffmpeg) encode AAC-LC with FFmpeg's built-in `aac` encoder, run as a separate program that you install. Both are in every build with a decoder backend, and strict-safe mode refuses both ([what strict-safe mode covers](#what-strict-safe-mode-covers)). Outside strict-safe mode:
+
+- **The program.** CoreAV runs the `ffmpeg` program that `--ffmpeg` names (`coreav transcode` only), else the file that `COREAV_FFMPEG` names, else the first `ffmpeg` on `PATH`. If `COREAV_FFMPEG` names something that is not a file, CoreAV does not look on `PATH`. The program must have FFmpeg's built-in `aac` encoder.
+- **When it is missing.** Before any audio is decoded, CoreAV asks the program with `-h encoder=aac`. If no program is found, or its answer does not describe the `aac` encoder, `coreav transcode` stops with exit status 1 and a `coreav.error/1` object of kind `unsupported_feature`, whose message begins `no ffmpeg program for AAC audio` or says that the program `has no aac encoder`. No output is written. For `coreav ffmpeg` these are refusals like any other: the [fallback](#the-ffmpeg-fallback) runs the command line with the real `ffmpeg` when it finds one, and otherwise the refusal stands, with exit status 4.
+- **What FFmpeg sees.** CoreAV decodes the audio itself and sends the encoder only 32-bit float samples on its standard input, never the file. The encoder runs with resource limits (no file writes, an address space of 2 GiB, killed at the deadline), and CoreAV reads its output back with its own Matroska parser and checks it before it uses any of it.
+- **Which inputs.** The audio encodes, `--audio aac` and `--audio opus`, take FLAC or MP3 only, in every build, although CoreAV also decodes Opus and, in a build with the `aac` feature, AAC. The encode takes the first FLAC or MP3 audio stream and passes over AAC and Opus streams before it; a source without one is refused. The stream must be mono or stereo, and for AAC sampled at 8 to 64 kHz: CoreAV does not resample it.
+- **Known limit.** When an MP4 source's audio track starts with an empty edit (its sound starts after time 0), CoreAV's decoder writes that edit as silence, and the encoder encodes the silence. The output's audio track starts at time 0 with that silence instead of an empty edit. The sound stays in sync with the video. A Matroska audio stream that starts after time 0 keeps its start as an empty edit.
+
 ## More detail
 
 - [Fallback to FFmpeg](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md#fallback-to-ffmpeg), the design note, covers the rules above in full, including how the log is redacted.
 - [The FFmpeg fallback](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-ffmpeg-fallback) and [the sandboxed worker](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-sandboxed-worker) cover the decode path.
+- [AAC audio](https://github.com/coreav-dev/coreav/blob/main/docs/design/transcode.md#aac-audio) covers the AAC encode in full.
