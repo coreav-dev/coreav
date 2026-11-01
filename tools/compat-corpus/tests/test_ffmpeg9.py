@@ -366,6 +366,7 @@ class EmptyEditPadding(unittest.TestCase):
     def covered(self, listing):
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
             path.write_bytes(self.fixture())
             run.empty_edit_padding_fixture.cache_clear()
             with mock.patch.object(run, 'canonical', return_value=listing):
@@ -415,9 +416,42 @@ class EmptyEditPadding(unittest.TestCase):
             self.covered(self.listing(last_ref=self.side(self.PADDING)))
         self.assertFalse(run.empty_edit_padding_fixture('coreav', pathlib.Path('another.mp4')))
 
+    def test_ordinary_namesakes_are_compared_in_both_command_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'edit_list.mp4'
+            path.write_bytes(b'not a generated fixture')
+            manifest = path.parent / 'MANIFEST'
+            for content in (None, 'generated another.mp4\n', 'skipped edit_list.mp4 unavailable\n'):
+                if content is not None:
+                    manifest.write_text(content)
+                run.empty_edit_padding_fixture.cache_clear()
+                with self.subTest(manifest=content), mock.patch.object(run, 'canonical') as canonical:
+                    self.assertFalse(run.empty_edit_padding_fixture('coreav', path))
+                    canonical.assert_not_called()
+                opts = argparse.Namespace(media=[str(path)], coreav='coreav', jobs=1, report=None,
+                                          top=0, baseline=None, write_baseline=None)
+                record = {'tool': 'ffprobe', 'label': 'in-scope', 'args': ['-show_packets', 'INPUT']}
+                for mode in (run.cmd_commands, run.cmd_commands_010):
+                    run.empty_edit_padding_fixture.cache_clear()
+                    with self.subTest(mode=mode.__name__, manifest=content), \
+                            contextlib.redirect_stdout(io.StringIO()), \
+                            mock.patch.dict(run.ENV, {'COREAV_FALLBACK_LOG': 'unused'}), \
+                            mock.patch.object(run, 'load_commands', return_value=[record]), \
+                            mock.patch.object(run, 'ffmpeg_refusals', return_value=({}, None)), \
+                            mock.patch.object(run.release_round, 'commands',
+                                              return_value=[({'id': 'probe'}, 0, record)]), \
+                            mock.patch.object(run.release_round, 'containers', return_value={run.release_round.family(path)}), \
+                            mock.patch.object(run.release_round, 'fallback_verdict', return_value={'void': False}), \
+                            mock.patch.object(run, 'run', return_value=(0, b'packet', b'')) as invoke:
+                        self.assertEqual(mode(opts), 0)
+                        self.assertEqual(invoke.call_count, 2)
+                        self.assertEqual(invoke.call_args_list[0].args[0][0], 'ffprobe')
+                        self.assertEqual(invoke.call_args_list[1].args[0][:2], ['coreav', 'ffprobe'])
+
     def test_changed_bytes_fail_loudly(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
             path.write_bytes(self.fixture(last=1024, edits=[(2691328, 0xFFFFFFFF), (11534336, 0)]))
             with mock.patch.object(run, 'canonical', return_value=self.listing()), \
                     self.assertRaisesRegex(SystemExit, 'KD-FF9-EMPTY-EDIT-PADDING: changed sample timing'):
@@ -428,6 +462,7 @@ class EmptyEditPadding(unittest.TestCase):
         side = 'packets.side_data_list[Skip Samples]'
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
             path.write_bytes(self.fixture())
             for listing, expected in [(self.listing(), True),
                                       (self.listing(first=self.side(999999, 999999)), False),
