@@ -156,18 +156,22 @@ const SPEC_LIMITS: Limits = Limits {
 };
 
 /// Lists whose entries do not give the size of the frames they hash, with
-/// the reason. Their frame counts are still checked.
-const UNSIZED: [(&str, &str); 3] = [
+/// the size of every frame FFmpeg 9.0.2's `ffprobe -show_frames` reports
+/// instead, and the reason.
+const SIZE_OVERRIDES: [(&str, (u32, u32), &str); 3] = [
     (
         "vp90-2-15-segkey_adpq.webm",
+        (852, 480),
         "every entry names 1280x720, but the 150 MD5s are those FFmpeg 9.0.2's framemd5 gives for the stream's 852x480 frames",
     ),
     (
         "vp90-2-19-skip.webm",
+        (208, 144),
         "its entries name frame numbers only (01.yuv, 02.yuv and so on)",
     ),
     (
         "vp90-2-19-skip-01.webm",
+        (208, 144),
         "its entries name frame numbers only (01.yuv, 02.yuv and so on)",
     ),
 ];
@@ -184,10 +188,13 @@ const LAYERED: &str = "vp90-2-22-svc_1280x720_3.ivf";
 fn check(dir: &Path, name: &str) -> Option<String> {
     let data = std::fs::read(dir.join(name)).unwrap();
     let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
+    let overridden = SIZE_OVERRIDES
+        .iter()
+        .find_map(|(vector, size, _)| (*vector == name).then_some(*size));
     let expected: Vec<Option<(u32, u32)>> = list
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .map(|l| entry_size(l.split_whitespace().nth(1).unwrap()))
+        .map(|l| overridden.or_else(|| entry_size(l.split_whitespace().nth(1).unwrap())))
         .collect();
     let packets = if data.starts_with(b"DKIF") {
         ivf_packets(&data)
@@ -226,12 +233,6 @@ fn check(dir: &Path, name: &str) -> Option<String> {
             shown.len(),
             expected.len()
         ));
-    }
-    if UNSIZED
-        .iter()
-        .any(|(unsized_name, _)| *unsized_name == name)
-    {
-        return None;
     }
     let wrong = shown
         .iter()
