@@ -1,0 +1,10 @@
+{
+ "new": "k", "old": "base", "seed": 20261101,
+ "calls": {"g": {"label": "1 thread pinned, fixed-frequency class, 32 training, 20 rounds", "streams": "docs/measurements/h264-training/es.json"}},
+ "bars": [{"name": "SB-6", "checks": [
+  {"call": "g", "pairing": "discard", "groups": ["overall"], "median_max": 1.003, "ci_high_below": 1.005},
+  {"call": "g", "pairing": "write", "groups": ["overall"], "median_max": 1.003, "ci_high_below": 1.005},
+  {"call": "g", "pairing": "discard", "groups": ["classes"], "median_max": 1.005},
+  {"call": "g", "pairing": "write", "groups": ["classes"], "median_max": 1.005}
+ ]}]
+}

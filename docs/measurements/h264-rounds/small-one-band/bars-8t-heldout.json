@@ -1,0 +1,11 @@
+{
+ "new": "k", "old": "base", "seed": 20261101,
+ "calls": {"t8": {"label": "8 threads, 64 validation, 5 rounds", "streams": "docs/measurements/h264-n2-heldout/es.json"}},
+ "bars": [
+  {"name": "SB-4", "checks": [{"call": "t8", "pairing": "discard", "groups": ["sd"], "median_max": 0.99, "ci_high_below": 1.0}]},
+  {"name": "SB-5", "checks": [
+   {"call": "t8", "pairing": "discard", "groups": ["overall", "classes"], "median_max": 1.003},
+   {"call": "t8", "pairing": "write", "groups": ["overall", "classes"], "median_max": 1.003}
+  ]}
+ ]
+}

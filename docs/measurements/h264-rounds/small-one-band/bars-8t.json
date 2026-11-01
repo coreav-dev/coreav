@@ -1,0 +1,11 @@
+{
+ "new": "k", "old": "base", "seed": 20261101,
+ "calls": {"t8": {"label": "8 threads, 32 training, 10 rounds", "streams": "docs/measurements/h264-training/es.json"}},
+ "bars": [
+  {"name": "SB-1", "checks": [{"call": "t8", "pairing": "discard", "groups": ["sd"], "median_max": 0.985, "ci_high_below": 1.0}]},
+  {"name": "SB-2", "checks": [
+   {"call": "t8", "pairing": "discard", "groups": ["overall", "classes"], "median_max": 1.003},
+   {"call": "t8", "pairing": "write", "groups": ["overall", "classes"], "median_max": 1.003}
+  ]}
+ ]
+}
