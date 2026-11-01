@@ -74,8 +74,8 @@ pub struct Packet {
     /// included.
     pub block_additions: Option<(u64, u64)>,
     /// The `BlockAdditions` hold a `BlockMore` whose `BlockAddID` is 1,
-    /// its default: additional data the codec defines (RFC 9559
-    /// 5.1.3.5.2.3).
+    /// its default, with its `BlockAdditional`: additional data the codec
+    /// defines (RFC 9559 5.1.3.5.2.2 and 5.1.3.5.2.3).
     pub codec_addition: bool,
 }
 
@@ -351,7 +351,8 @@ impl<'a, S: Source> Packets<'a, S> {
     }
 
     /// Whether the `BlockMore` elements from `at` to `end` include one whose
-    /// `BlockAddID` is 1, or left out and so 1.
+    /// `BlockAddID` is 1, or left out and so 1, and that holds its
+    /// `BlockAdditional`, without which it carries no data.
     fn codec_addition(&mut self, mut at: u64, end: u64) -> Result<bool, Error> {
         let mut codec = false;
         while at < end {
@@ -367,6 +368,7 @@ impl<'a, S: Source> Packets<'a, S> {
                 })?;
             if more.id == ids::BLOCK_MORE {
                 let mut id = 1;
+                let mut data = false;
                 let mut inner = more.data_offset();
                 while inner < more_end {
                     self.count(inner)?;
@@ -381,12 +383,14 @@ impl<'a, S: Source> Packets<'a, S> {
                                 reason: "element runs past its BlockMore",
                             })?;
                     if h.id == ids::BLOCK_ADD_ID {
-                        let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
-                        id = ebml::uint(&data, &h)?;
+                        let value = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                        id = ebml::uint(&value, &h)?;
+                    } else if h.id == ids::BLOCK_ADDITIONAL {
+                        data = true;
                     }
                     inner = h_end;
                 }
-                codec |= id == 1;
+                codec |= id == 1 && data;
             }
             at = more_end;
         }

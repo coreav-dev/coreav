@@ -39,8 +39,10 @@
 //!   Stereo 3D names each packing a `StereoMode` states (none for the
 //!   anaglyph modes), with both views packed and the camera values
 //!   unknown. A block's BlockAdditional side data is listed only for a
-//!   `BlockMore` of `BlockAddID` 1, data its codec defines; another ID
-//!   is not read without the track's mapping.
+//!   `BlockMore` of `BlockAddID` 1 that holds its `BlockAdditional`,
+//!   data its codec defines; another ID is not read without the track's
+//!   mapping, and a `BlockMore` without that mandatory element carries no
+//!   data.
 //! - Timing: the stream time base is `TimestampScale`. A stream none of
 //!   whose packets come before `ffprobe`'s analysis stops (one packet per
 //!   audio stream; for video one, the reorder depth plus two for H.264
