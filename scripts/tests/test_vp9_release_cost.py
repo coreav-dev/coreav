@@ -11,6 +11,8 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import vp9_release_cost as runner
 
+EVIDENCE = pathlib.Path(__file__).resolve().parents[2] / 'docs/measurements/vp9-release-cost'
+
 
 class ReleaseCostTests(unittest.TestCase):
     def setUp(self):
@@ -18,8 +20,7 @@ class ReleaseCostTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = pathlib.Path(self.temp.name)
         (self.root / 'mimalloc-arena-reserve-kib.txt').write_text('32768\n')
-        prefixes = sorted(runner.LARGE) + [f'{n:012x}' for n in range(7)]
-        self.files = [{'sha256': name + '0' * 52, 'ext': 'webm'} for name in prefixes]
+        self.files = json.loads((EVIDENCE / 'files.json').read_text())['files']
         self.stack = mock.patch.multiple(runner, ROOT=self.root, OUT=self.root, FILES=self.files)
         self.stack.start()
         self.addCleanup(self.stack.stop)
@@ -39,11 +40,86 @@ class ReleaseCostTests(unittest.TestCase):
             if name in runner.LARGE:
                 for arm in ['stock', 'alloc']:
                     self.rows.append(dict(kind='transcode-hash', file=name, arm=arm, sha256='a' * 64))
+        for file in self.files:
+            self.rows.append(dict(kind='input', file=file['sha256'][:12], sha256=file['sha256']))
         (self.root / 'completed.json').write_text(json.dumps(dict(files=10, arms=runner.ARMS, rounds=5)))
         (self.root / 'gate.json').write_text(json.dumps(dict(before=1.0, after=1.0, ratio=1.0)))
 
     def write_rows(self, rows=None):
         (self.root / 'calls.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in (self.rows if rows is None else rows)))
+
+    def replaced_rosters(self):
+        same_prefix = self.files[1]['sha256'][:-1] + ('0' if self.files[1]['sha256'][-1] != '0' else '1')
+        return {
+            'same prefix, changed suffix': [dict(file, sha256=same_prefix) if index == 1 else file
+                                            for index, file in enumerate(self.files)],
+            'replaced non-large input': [dict(file, sha256='c' * 64) if index == 2 else file
+                                         for index, file in enumerate(self.files)],
+            'omitted input': self.files[:-1],
+            'duplicate input': self.files + [self.files[0]],
+            'duplicate replacing an input': self.files[:-1] + [self.files[0]],
+            'reordered inputs': [self.files[1], self.files[0]] + self.files[2:],
+        }
+
+    def test_the_frozen_roster_is_the_committed_roster(self):
+        self.assertEqual([file['sha256'] for file in self.files], list(runner.INPUTS))
+        self.assertLessEqual(runner.LARGE, {sha[:12] for sha in runner.INPUTS})
+        for run in ['first', 'second', 'third']:
+            maps = json.loads((EVIDENCE / run / 'maps.json').read_text())['files']
+            self.assertEqual([file['sha256'] for file in maps], list(runner.INPUTS))
+
+    def test_capture_refuses_a_replaced_roster_before_writing_or_launching(self):
+        for name, files in self.replaced_rosters().items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                (root / 'maps.json').write_text(json.dumps(dict(files=files)))
+                with mock.patch.multiple(runner, ROOT=root, OUT=root / 'out'), \
+                        mock.patch.object(sys, 'argv', ['vp9_release_cost.py']), \
+                        mock.patch.object(runner.os, 'fork', side_effect=AssertionError('launched')) as fork:
+                    with self.assertRaisesRegex(RuntimeError, 'frozen ten-input roster'):
+                        runner.main()
+                fork.assert_not_called()
+                self.assertEqual([path.name for path in root.iterdir()], ['maps.json'])
+
+    def test_replay_refuses_a_replaced_roster_before_writing(self):
+        with gzip.open(self.root / 'calls.jsonl.gz', 'wt') as stream:
+            stream.write(''.join(json.dumps(row) + '\n' for row in self.rows))
+        for name, files in self.replaced_rosters().items():
+            with self.subTest(name):
+                (self.root / 'maps.json').write_text(json.dumps(dict(files=files)))
+                result = subprocess.run([sys.executable, '-I', runner.__file__, '--analyse', str(self.root)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('frozen ten-input roster', result.stderr)
+                self.assertFalse((self.root / 'analysis.json').exists())
+
+    def test_replay_refuses_recorded_inputs_outside_the_frozen_roster(self):
+        (self.root / 'maps.json').write_text(json.dumps(dict(files=self.files)))
+        inputs = [row for row in self.rows if row['kind'] == 'input']
+        others = [row for row in self.rows if row['kind'] != 'input']
+        for name, files in self.replaced_rosters().items():
+            with self.subTest(name):
+                recorded = [dict(inputs[0], file=file['sha256'][:12], sha256=file['sha256']) for file in files]
+                with gzip.open(self.root / 'calls.jsonl.gz', 'wt') as stream:
+                    stream.write(''.join(json.dumps(row) + '\n' for row in others + recorded))
+                result = subprocess.run([sys.executable, '-I', runner.__file__, '--analyse', str(self.root)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('recorded inputs are not the frozen roster', result.stderr)
+                self.assertFalse((self.root / 'analysis.json').exists())
+
+    def test_replay_refuses_a_recorded_digest_relabeled_onto_another_file(self):
+        (self.root / 'maps.json').write_text(json.dumps(dict(files=self.files)))
+        rows = copy.deepcopy(self.rows)
+        inputs = [row for row in rows if row['kind'] == 'input']
+        inputs[0]['file'], inputs[1]['file'] = inputs[1]['file'], inputs[0]['file']
+        with gzip.open(self.root / 'calls.jsonl.gz', 'wt') as stream:
+            stream.write(''.join(json.dumps(row) + '\n' for row in rows))
+        result = subprocess.run([sys.executable, '-I', runner.__file__, '--analyse', str(self.root)],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('recorded inputs are not the frozen roster', result.stderr)
+        self.assertFalse((self.root / 'analysis.json').exists())
 
     def test_complete_report_and_missed_bars(self):
         self.write_rows()

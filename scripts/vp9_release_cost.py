@@ -13,7 +13,25 @@ ROOT = pathlib.Path.cwd()
 OUT = ROOT / 'out'
 FILES = []
 ARMS = ['ff', 'rel', 'alloc', 'deb', 'ff_aa']
+INPUTS = (
+    'f51a56ed57180d981ef841e22cbb62769158a5029c1d4664d2d1ed938ee2fdaa',
+    'a084bd45168cdcfc2669340caa638118af76d90400b923c83efe9fe42df1ac0b',
+    '70eec00bc7d29be5a44a93fbd563a72e3b24a2dd32ace474a504799414de3225',
+    '9ffa165e752abaf7bf8e150f103062272832fba591b1102727b62afa390c2d1c',
+    '584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff',
+    'ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded',
+    'bb5d39d47357846042a8c1a1890dc3a9c01c879068dde7f7b1833070984af657',
+    'b267a2ddac45b26d329f13b78b293976543bbb29c749c3656c0c0f27e6618445',
+    'f944c05afaa135a9151a6c73ba0fbbfd9eff864ab715bfda069b85c7090b73e9',
+    '59ad8ee403b369a1cd0e4602d2a2f084abbf1ebae648ecc397db11b728d12e08',
+)
 LARGE = {'f51a56ed5718', '9ffa165e752a', 'ea684713a5be'}
+
+def roster(root):
+    files = json.loads((root / 'maps.json').read_text())['files']
+    if [file['sha256'] for file in files] != list(INPUTS):
+        raise RuntimeError('the frozen ten-input roster is required')
+    return files
 
 def record(row):
     with (OUT / 'calls.jsonl').open('a') as stream:
@@ -130,9 +148,6 @@ def transcode(file):
         raise RuntimeError('transcode byte mismatch')
 
 def verify_artifacts():
-    prefixes = {file['sha256'][:12] for file in FILES}
-    if len(FILES) != 10 or len(prefixes) != 10 or not LARGE <= prefixes:
-        raise RuntimeError('the complete ten-file roster is required')
     builds = json.loads((ROOT / 'builds.json').read_text())
     for name, expected in builds['binaries'].items():
         path = ROOT / 'bin' / name
@@ -174,6 +189,8 @@ def analyse():
     rows = [json.loads(line) for line in text.splitlines()]
     if any(row.get('rc', 0) or 'error' in row for row in rows):
         raise RuntimeError('a failed invocation cannot enter analysis')
+    if [(row['file'], row['sha256']) for row in rows if row['kind'] == 'input'] != [(sha[:12], sha) for sha in INPUTS]:
+        raise RuntimeError('the recorded inputs are not the frozen roster')
     by_file = {}
     for file in FILES:
         name = file['sha256'][:12]
@@ -249,7 +266,7 @@ def main():
     args = parser.parse_args()
     if args.analyse:
         ROOT = OUT = args.analyse.resolve()
-    FILES = json.loads((ROOT / 'maps.json').read_text())['files']
+    FILES = roster(ROOT)
     if args.analyse:
         report()
         return
