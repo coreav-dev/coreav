@@ -1,0 +1,88 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 746  of event 'cycles'
+# Event count (approx.): 10996689738
+#
+# Overhead  Command     Shared Object      Symbol                                                                                                    IPC   [IPC Coverage]
+# ........  ..........  .................  ........................................................................................................  ....................
+#
+    28.76%  musl-plain  musl-plain         [.] memcpy                                                                                                -      -
+    13.87%  musl-plain  musl-plain         [.] vpx_convolve_copy_sse2.loop64                                                                         -      -
+     6.72%  musl-plain  musl-plain         [.] vpx_lpf_horizontal_16_dual_avx2                                                                       -      -
+     5.75%  musl-plain  musl-plain         [.] vp9_read_mode_info                                                                                    -      -
+     4.76%  musl-plain  musl-plain         [.] decode_coefs                                                                                          -      -
+     4.23%  musl-plain  musl-plain         [.] dec_build_inter_predictors_sb                                                                         -      -
+     3.52%  musl-plain  musl-plain         [.] recon_block                                                                                           -      -
+     3.24%  musl-plain  musl-plain         [.] vpx_convolve_copy_sse2.loop32                                                                         -      -
+     2.74%  musl-plain  musl-plain         [.] vpx_lpf_vertical_16_dual_sse2                                                                         -      -
+     2.63%  musl-plain  musl-plain         [.] memset                                                                                                -      -
+     1.41%  musl-plain  musl-plain         [.] vp9_setup_dst_planes                                                                                  -      -
+     1.26%  musl-plain  musl-plain         [.] vp9_build_mask                                                                                        -      -
+     1.26%  musl-plain  musl-plain         [.] vpx_lpf_horizontal_8_dual_sse2                                                                        -      -
+     1.11%  musl-plain  musl-plain         [.] read_partition                                                                                        -      -
+     1.00%  musl-plain  [kernel.kallsyms]  [k] clear_page_erms                                                                                       -      -
+     0.99%  musl-plain  musl-plain         [.] set_offsets                                                                                           -      -
+     0.93%  musl-plain  musl-plain         [.] parse_block                                                                                           -      -
+     0.78%  musl-plain  musl-plain         [.] vp9_predict_intra_block                                                                               -      -
+     0.71%  musl-plain  musl-plain         [.] vpx_convolve8_horiz_avx2                                                                              -      -
+     0.71%  musl-plain  musl-plain         [.] filter_selectively_horiz                                                                              -      -
+     0.70%  musl-plain  musl-plain         [.] vp9_setup_pre_planes                                                                                  -      -
+     0.57%  musl-plain  musl-plain         [.] extend_and_predict                                                                                    -      -
+     0.57%  musl-plain  musl-plain         [.] idct32_34_8x32_ssse3                                                                                  -      -
+     0.56%  musl-plain  musl-plain         [.] process_partition                                                                                     -      -
+     0.56%  musl-plain  musl-plain         [.] vp9_filter_block_plane_ss00                                                                           -      -
+     0.56%  musl-plain  musl-plain         [.] filter_selectively_vert_row2                                                                          -      -
+     0.42%  musl-plain  musl-plain         [.] mi_bitmap_setN                                                                                        -      -
+     0.42%  musl-plain  musl-plain         [.] decode_tiles                                                                                          -      -
+     0.42%  musl-plain  musl-plain         [.] inverse_transform_block_inter                                                                         -      -
+     0.42%  musl-plain  musl-plain         [.] dec_find_mv_refs                                                                                      -      -
+     0.42%  musl-plain  musl-plain         [.] vpx_lpf_vertical_8_dual_sse2                                                                          -      -
+     0.42%  musl-plain  musl-plain         [.] vpx_convolve_copy_sse2.loop8                                                                          -      -
+     0.38%  musl-plain  musl-plain         [.] vpx_reader_fill                                                                                       -      -
+     0.38%  musl-plain  musl-plain         [.] vpx_convolve8_vert_avx2                                                                               -      -
+     0.28%  musl-plain  musl-plain         [.] vpx_idct32x32_34_add_ssse3                                                                            -      -
+     0.28%  musl-plain  musl-plain         [.] vpx_idct8x8_1_add_sse2                                                                                -      -
+     0.28%  musl-plain  musl-plain         [.] vp9_adjust_mask                                                                                       -      -
+     0.28%  musl-plain  musl-plain         [.] vp9_decode_frame                                                                                      -      -
+     0.26%  python3     python3.13         [.] _PyEval_EvalFrameDefault                                                                              -      -
+     0.25%  musl-plain  musl-plain         [.] vpx_dc_predictor_16x16_sse2                                                                           -      -
+     0.22%  musl-plain  musl-plain         [.] vpx_idct16x16_10_add_sse2                                                                             -      -
+     0.14%  musl-plain  [kernel.kallsyms]  [k] unmap_page_range                                                                                      -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_idct4x4_16_add_sse2                                                                               -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_dc_predictor_8x8_sse2                                                                             -      -
+     0.14%  musl-plain  musl-plain         [.] vp9_diff_update_prob                                                                                  -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_lpf_vertical_16_sse2                                                                              -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_dc_predictor_4x4_sse2                                                                             -      -
+     0.14%  musl-plain  musl-plain         [.] _RNvXsb_NtCsbmXhRpVI7Qh_12coreav_frame6formatNtB5_11PixelFormatNtNtCs1gUZZmupoa8_4core3fmt5Debug3fmt  -      -
+     0.14%  musl-plain  musl-plain         [.] idct4_sse2                                                                                            -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_lpf_horizontal_4_dual_sse2                                                                        -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_convolve_copy_sse2.w64                                                                            -      -
+     0.14%  musl-plain  [kernel.kallsyms]  [k] folio_remove_rmap_ptes                                                                                -      -
+     0.14%  musl-plain  musl-plain         [.] vp9_above_block_mode                                                                                  -      -
+     0.14%  musl-plain  musl-plain         [.] vp9_get_pred_context_single_ref_p1                                                                    -      -
+     0.14%  musl-plain  musl-plain         [.] vpx_idct8_sse2                                                                                        -      -
+     0.14%  musl-plain  musl-plain         [.] vp9_loop_filter_worker                                                                                -      -
+     0.14%  musl-plain  musl-plain         [.] get_tile_buffers                                                                                      -      -
+     0.14%  musl-plain  musl-plain         [.] mi_bbitmap_try_find_and_clear_generic                                                                 -      -
+     0.14%  musl-plain  musl-plain         [.] _RNvMs_NtCs9Mt8dvKRJ17_21coreav_backend_libvpx7decoderNtB4_13LibvpxDecoder4send                       -      -
+     0.14%  musl-plain  [kernel.kallsyms]  [k] lru_gen_add_folio                                                                                     -      -
+     0.14%  musl-plain  [kernel.kallsyms]  [k] do_anonymous_page                                                                                     -      -
+     0.14%  musl-plain  [kernel.kallsyms]  [k] __list_del_entry_valid_or_report                                                                      -      -
+     0.14%  python3     [kernel.kallsyms]  [k] asm_exc_page_fault                                                                                    -      -
+     0.14%  musl-plain  musl-plain         [.] read_mv_component                                                                                     -      -
+     0.13%  musl-plain  musl-plain         [.] vpx_convolve_copy_sse2.loop16                                                                         -      -
+     0.13%  python3     python3.13         [.] 0x0000000000130991                                                                                    -      -
+     0.13%  python3     libcrypto.so.3     [.] OPENSSL_LH_doall_arg_thunk                                                                            -      -
+     0.13%  python3     python3.13         [.] _PyEval_FrameClearAndPop                                                                              -      -
+     0.12%  python3     python3.13         [.] _PyBytes_Resize                                                                                       -      -
+     0.11%  python3     [kernel.kallsyms]  [k] do_wp_page                                                                                            -      -
+     0.11%  python3     python3.13         [.] 0x0000000000159b82                                                                                    -      -
+     0.10%  python3     [kernel.kallsyms]  [k] alloc_vmap_area                                                                                       -      -
+
+
+#
+# (Tip: To measure approximate function latency with Processor Trace use perf record -e intel_pt// ... ; perf script --call-ret-trace)
+#

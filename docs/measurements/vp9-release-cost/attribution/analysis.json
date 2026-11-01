@@ -1,0 +1,2220 @@
+{
+  "diagnostic_only": true,
+  "files": {
+    "a084bd45168c": {
+      "musl-plain:t0:r1": {
+        "median": 0.0584114,
+        "minimum": 0.05762389999999999,
+        "maximum": 0.0587981,
+        "wall": {
+          "median": 0.048315086549999366,
+          "minimum": 0.047972421649997446,
+          "maximum": 0.0486908063499996
+        },
+        "nondecode_cpu": {
+          "median": 0.002688,
+          "minimum": 0.002425,
+          "maximum": 0.002817
+        },
+        "nondecode_wall": {
+          "median": 0.002888482000003023,
+          "minimum": 0.0026132260000082397,
+          "maximum": 0.0030174080000051617
+        },
+        "instructions": 210097986,
+        "cycles": 174229752
+      },
+      "musl-plain:t1:r1": {
+        "median": 0.04530865,
+        "minimum": 0.045243,
+        "maximum": 0.0455031,
+        "wall": {
+          "median": 0.0454941314999985,
+          "minimum": 0.04544528854999967,
+          "maximum": 0.04574862200000496
+        },
+        "nondecode_cpu": {
+          "median": 0.002414,
+          "minimum": 0.002023,
+          "maximum": 0.0026449999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.002671295999988388,
+          "minimum": 0.0022347059999958674,
+          "maximum": 0.002827635000016926
+        },
+        "instructions": 197002069,
+        "cycles": 138653849
+      },
+      "musl-plain:t2:r1": {
+        "median": 0.0513415,
+        "minimum": 0.05087265,
+        "maximum": 0.05161015,
+        "wall": {
+          "median": 0.046083491950002296,
+          "minimum": 0.04570977710000364,
+          "maximum": 0.04623538514999979
+        },
+        "nondecode_cpu": {
+          "median": 0.002619,
+          "minimum": 0.001947,
+          "maximum": 0.0027159999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0028150610000068355,
+          "minimum": 0.002121178999999529,
+          "maximum": 0.002906204999987949
+        },
+        "instructions": 204030339,
+        "cycles": 156084212
+      },
+      "musl-chunk:t0:r1": {
+        "median": 0.057982599999999995,
+        "minimum": 0.05715954999999999,
+        "maximum": 0.058702149999999995,
+        "wall": {
+          "median": 0.0481624490999998,
+          "minimum": 0.04762649900000184,
+          "maximum": 0.0487304220000027
+        },
+        "nondecode_cpu": {
+          "median": 0.002484,
+          "minimum": 0.002059,
+          "maximum": 0.0027949999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.002710839000002352,
+          "minimum": 0.0022717880000016066,
+          "maximum": 0.00298766599999567
+        },
+        "instructions": 214204924,
+        "cycles": 171386064
+      },
+      "musl-chunk:t1:r1": {
+        "median": 0.0462019,
+        "minimum": 0.04577225,
+        "maximum": 0.04627465,
+        "wall": {
+          "median": 0.046428867999998145,
+          "minimum": 0.04610945480000126,
+          "maximum": 0.04648387020000087
+        },
+        "nondecode_cpu": {
+          "median": 0.002534,
+          "minimum": 0.002006,
+          "maximum": 0.002683
+        },
+        "nondecode_wall": {
+          "median": 0.0027610220000156005,
+          "minimum": 0.0026499060000020336,
+          "maximum": 0.002890288999992663
+        },
+        "instructions": 201080038,
+        "cycles": 139500953
+      },
+      "musl-chunk:t2:r1": {
+        "median": 0.0510344,
+        "minimum": 0.050880499999999995,
+        "maximum": 0.051884799999999995,
+        "wall": {
+          "median": 0.04596713404999804,
+          "minimum": 0.04573379044999868,
+          "maximum": 0.04651487025000165
+        },
+        "nondecode_cpu": {
+          "median": 0.0022589999999999997,
+          "minimum": 0.00207,
+          "maximum": 0.0025269999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0024516510000012204,
+          "minimum": 0.0022531540000017003,
+          "maximum": 0.002732360999999628
+        },
+        "instructions": 208033047,
+        "cycles": 158287812
+      },
+      "musl-count:t0:r1": {
+        "median": 0.055636200000000004,
+        "minimum": 0.05491819999999999,
+        "maximum": 0.05648489999999999,
+        "wall": {
+          "median": 0.04580447545000084,
+          "minimum": 0.04537744244999971,
+          "maximum": 0.04623068934999992
+        },
+        "nondecode_cpu": {
+          "median": 0.0028209999999999997,
+          "minimum": 0.002588,
+          "maximum": 0.0029159999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.0030093320000048607,
+          "minimum": 0.002802091999996037,
+          "maximum": 0.003157651999998734
+        },
+        "instructions": 208494921,
+        "cycles": 163456904
+      },
+      "musl-count:t1:r1": {
+        "median": 0.044148599999999996,
+        "minimum": 0.04403675,
+        "maximum": 0.04448075,
+        "wall": {
+          "median": 0.04435957199999976,
+          "minimum": 0.0442243061500001,
+          "maximum": 0.04467474489999788
+        },
+        "nondecode_cpu": {
+          "median": 0.0023769999999999998,
+          "minimum": 0.0021449999999999998,
+          "maximum": 0.002699
+        },
+        "nondecode_wall": {
+          "median": 0.0025909240000032696,
+          "minimum": 0.0023389030000089406,
+          "maximum": 0.002887635000007549
+        },
+        "instructions": 195535339,
+        "cycles": 134531635
+      },
+      "musl-count:t2:r1": {
+        "median": 0.048613399999999994,
+        "minimum": 0.048276349999999996,
+        "maximum": 0.04894715,
+        "wall": {
+          "median": 0.043595025999999135,
+          "minimum": 0.04327763250000061,
+          "maximum": 0.04377585010000047
+        },
+        "nondecode_cpu": {
+          "median": 0.002642,
+          "minimum": 0.002505,
+          "maximum": 0.00276
+        },
+        "nondecode_wall": {
+          "median": 0.0028820659999979625,
+          "minimum": 0.0026860549999980776,
+          "maximum": 0.003474370000006388
+        },
+        "instructions": 202867971,
+        "cycles": 145299120
+      },
+      "gnu-pinned-plain:t0:r1": {
+        "median": 0.05022685,
+        "minimum": 0.049641149999999995,
+        "maximum": 0.0505655,
+        "wall": {
+          "median": 0.04388353225000117,
+          "minimum": 0.04355692495000056,
+          "maximum": 0.044106426900000176
+        },
+        "nondecode_cpu": {
+          "median": 0.002134,
+          "minimum": 0.0021089999999999998,
+          "maximum": 0.0021449999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.0023123480000037944,
+          "minimum": 0.002276561000002175,
+          "maximum": 0.0023930719999896155
+        },
+        "instructions": 204460930,
+        "cycles": 144458634
+      },
+      "gnu-pinned-plain:t1:r1": {
+        "median": 0.0403092,
+        "minimum": 0.040257799999999996,
+        "maximum": 0.04036865,
+        "wall": {
+          "median": 0.04051350799999796,
+          "minimum": 0.04046448750000238,
+          "maximum": 0.04057218160000246
+        },
+        "nondecode_cpu": {
+          "median": 0.002167,
+          "minimum": 0.002104,
+          "maximum": 0.002293
+        },
+        "nondecode_wall": {
+          "median": 0.0023826880000115125,
+          "minimum": 0.002304749999993305,
+          "maximum": 0.002518723999997974
+        },
+        "instructions": 194270490,
+        "cycles": 122543687
+      },
+      "gnu-pinned-plain:t2:r1": {
+        "median": 0.0452543,
+        "minimum": 0.04484054999999999,
+        "maximum": 0.045426249999999994,
+        "wall": {
+          "median": 0.04211200270000148,
+          "minimum": 0.04172783675000034,
+          "maximum": 0.04228080810000563
+        },
+        "nondecode_cpu": {
+          "median": 0.0021,
+          "minimum": 0.002029,
+          "maximum": 0.002222
+        },
+        "nondecode_wall": {
+          "median": 0.002290264999999181,
+          "minimum": 0.0021905259999925875,
+          "maximum": 0.002704270000009501
+        },
+        "instructions": 201140581,
+        "cycles": 135373328
+      },
+      "gnu-pinned-count:t0:r1": {
+        "median": 0.0474427,
+        "minimum": 0.04711815,
+        "maximum": 0.047806249999999995,
+        "wall": {
+          "median": 0.04125572265000201,
+          "minimum": 0.040938845850000405,
+          "maximum": 0.04131312010000201
+        },
+        "nondecode_cpu": {
+          "median": 0.002177,
+          "minimum": 0.002097,
+          "maximum": 0.002356
+        },
+        "nondecode_wall": {
+          "median": 0.0023838460000007444,
+          "minimum": 0.0022810969999937925,
+          "maximum": 0.002601320999986001
+        },
+        "instructions": 198943511,
+        "cycles": 138044032
+      },
+      "gnu-pinned-count:t1:r1": {
+        "median": 0.0395893,
+        "minimum": 0.0395495,
+        "maximum": 0.03970095,
+        "wall": {
+          "median": 0.03979516619999899,
+          "minimum": 0.03973357309999983,
+          "maximum": 0.039914220199996464
+        },
+        "nondecode_cpu": {
+          "median": 0.002075,
+          "minimum": 0.002062,
+          "maximum": 0.002144
+        },
+        "nondecode_wall": {
+          "median": 0.0022713969999870187,
+          "minimum": 0.0022674469999941493,
+          "maximum": 0.002831131999982972
+        },
+        "instructions": 192100375,
+        "cycles": 119476865
+      },
+      "gnu-pinned-count:t2:r1": {
+        "median": 0.042234249999999994,
+        "minimum": 0.0419041,
+        "maximum": 0.0424678,
+        "wall": {
+          "median": 0.03922300830000012,
+          "minimum": 0.038894098899999105,
+          "maximum": 0.03935137179999657
+        },
+        "nondecode_cpu": {
+          "median": 0.002202,
+          "minimum": 0.0020989999999999997,
+          "maximum": 0.0022459999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.002412100999976019,
+          "minimum": 0.0023105390000068837,
+          "maximum": 0.002451802999999586
+        },
+        "instructions": 195868160,
+        "cycles": 128904346
+      },
+      "gnu-debian-plain:t0:r1": {
+        "median": 0.050316799999999995,
+        "minimum": 0.049316099999999995,
+        "maximum": 0.05053704999999999,
+        "wall": {
+          "median": 0.04396213964999731,
+          "minimum": 0.04323935219999697,
+          "maximum": 0.04598990615000176
+        },
+        "nondecode_cpu": {
+          "median": 0.002215,
+          "minimum": 0.002166,
+          "maximum": 0.0023079999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0023947440000000597,
+          "minimum": 0.0023446919999940974,
+          "maximum": 0.0025218600000016522
+        },
+        "instructions": 204362470,
+        "cycles": 144713382
+      },
+      "gnu-debian-plain:t1:r1": {
+        "median": 0.040095599999999995,
+        "minimum": 0.03999055,
+        "maximum": 0.040154449999999994,
+        "wall": {
+          "median": 0.04030736090000033,
+          "minimum": 0.040207139950000935,
+          "maximum": 0.04054971079999916
+        },
+        "nondecode_cpu": {
+          "median": 0.002287,
+          "minimum": 0.002098,
+          "maximum": 0.002314
+        },
+        "nondecode_wall": {
+          "median": 0.002516783999993777,
+          "minimum": 0.002277304000017466,
+          "maximum": 0.0025248309999881258
+        },
+        "instructions": 193815074,
+        "cycles": 121847104
+      },
+      "gnu-debian-plain:t2:r1": {
+        "median": 0.045121049999999996,
+        "minimum": 0.0445937,
+        "maximum": 0.04553785,
+        "wall": {
+          "median": 0.04199463934999557,
+          "minimum": 0.04154232084999876,
+          "maximum": 0.042281360899999496
+        },
+        "nondecode_cpu": {
+          "median": 0.002239,
+          "minimum": 0.002039,
+          "maximum": 0.002339
+        },
+        "nondecode_wall": {
+          "median": 0.002433331999981192,
+          "minimum": 0.0022177559999931873,
+          "maximum": 0.002535598999998001
+        },
+        "instructions": 200924291,
+        "cycles": 135913269
+      },
+      "gnu-debian-count:t0:r1": {
+        "median": 0.04733564999999999,
+        "minimum": 0.04666125,
+        "maximum": 0.0479413,
+        "wall": {
+          "median": 0.04105799860000019,
+          "minimum": 0.04072520909999895,
+          "maximum": 0.04135813150000445
+        },
+        "nondecode_cpu": {
+          "median": 0.0022069999999999998,
+          "minimum": 0.002156,
+          "maximum": 0.002351
+        },
+        "nondecode_wall": {
+          "median": 0.0024104900000025964,
+          "minimum": 0.002366481000024123,
+          "maximum": 0.0035142259999929593
+        },
+        "instructions": 198621538,
+        "cycles": 135807692
+      },
+      "gnu-debian-count:t1:r1": {
+        "median": 0.03937155,
+        "minimum": 0.03931845,
+        "maximum": 0.0395102,
+        "wall": {
+          "median": 0.039673512150000076,
+          "minimum": 0.03955142284999909,
+          "maximum": 0.039721152999999274
+        },
+        "nondecode_cpu": {
+          "median": 0.002198,
+          "minimum": 0.0021319999999999998,
+          "maximum": 0.002333
+        },
+        "nondecode_wall": {
+          "median": 0.002393367999985685,
+          "minimum": 0.002321452999993312,
+          "maximum": 0.0025402779999978975
+        },
+        "instructions": 191656814,
+        "cycles": 118198923
+      },
+      "gnu-debian-count:t2:r1": {
+        "median": 0.042197599999999995,
+        "minimum": 0.041865599999999996,
+        "maximum": 0.042431149999999994,
+        "wall": {
+          "median": 0.03906216725000178,
+          "minimum": 0.03878695414999953,
+          "maximum": 0.0392033617000024
+        },
+        "nondecode_cpu": {
+          "median": 0.002217,
+          "minimum": 0.002097,
+          "maximum": 0.002313
+        },
+        "nondecode_wall": {
+          "median": 0.002439132000006339,
+          "minimum": 0.002299065999991967,
+          "maximum": 0.0026082420000079765
+        },
+        "instructions": 195500393,
+        "cycles": 126525605
+      },
+      "musl-plain:t1:r0": {
+        "median": 0.044765099999999995,
+        "minimum": 0.044637899999999994,
+        "maximum": 0.045000599999999995,
+        "wall": {
+          "median": 0.044964610199998846,
+          "minimum": 0.04489562930000233,
+          "maximum": 0.04523478855000178
+        },
+        "nondecode_cpu": {
+          "median": 0.0024419999999999997,
+          "minimum": 0.001952,
+          "maximum": 0.0026709999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.002628493000003118,
+          "minimum": 0.0021348129999978482,
+          "maximum": 0.0028324440000062623
+        },
+        "instructions": 190882280,
+        "cycles": 136984811
+      },
+      "gnu-pinned-plain:t1:r0": {
+        "median": 0.040761599999999995,
+        "minimum": 0.0406611,
+        "maximum": 0.0412049,
+        "wall": {
+          "median": 0.04101216180000193,
+          "minimum": 0.04085145800000021,
+          "maximum": 0.04147928089999766
+        },
+        "nondecode_cpu": {
+          "median": 0.002203,
+          "minimum": 0.0019779999999999997,
+          "maximum": 0.0023409999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.002393955000002279,
+          "minimum": 0.0021551330000022517,
+          "maximum": 0.0025535629999922094
+        },
+        "instructions": 192026326,
+        "cycles": 122792190
+      },
+      "gnu-debian-plain:t1:r0": {
+        "median": 0.040663099999999994,
+        "minimum": 0.04058965,
+        "maximum": 0.04070765,
+        "wall": {
+          "median": 0.04088696064999979,
+          "minimum": 0.04081836505000354,
+          "maximum": 0.040960733899998304
+        },
+        "nondecode_cpu": {
+          "median": 0.002118,
+          "minimum": 0.00202,
+          "maximum": 0.002271
+        },
+        "nondecode_wall": {
+          "median": 0.0023851669999999103,
+          "minimum": 0.0022258549999918387,
+          "maximum": 0.00270073800001569
+        },
+        "instructions": 191569373,
+        "cycles": 121851659
+      },
+      "musl-plain-aa:t0:r1": {
+        "median": 0.058419349999999995,
+        "minimum": 0.05735525,
+        "maximum": 0.058733499999999994,
+        "wall": {
+          "median": 0.048218026249998755,
+          "minimum": 0.047761732599999364,
+          "maximum": 0.04903215739999496
+        },
+        "nondecode_cpu": {
+          "median": 0.00234,
+          "minimum": 0.00219,
+          "maximum": 0.003107
+        },
+        "nondecode_wall": {
+          "median": 0.002630837999987534,
+          "minimum": 0.0023953129999938483,
+          "maximum": 0.0033293589999914275
+        },
+        "instructions": 210019513,
+        "cycles": 170203257
+      }
+    },
+    "70eec00bc7d2": {
+      "musl-plain:t0:r1": {
+        "median": 1.733451,
+        "minimum": 1.697804,
+        "maximum": 1.7452480000000001,
+        "wall": {
+          "median": 0.65442005700001,
+          "minimum": 0.6448453044999951,
+          "maximum": 0.6571292615000175
+        },
+        "nondecode_cpu": {
+          "median": 0.003728,
+          "minimum": 0.003273,
+          "maximum": 0.0037809999999999996
+        },
+        "nondecode_wall": {
+          "median": 0.00406815900004176,
+          "minimum": 0.0035540200000241384,
+          "maximum": 0.004108040999994955
+        },
+        "instructions": 8929496179,
+        "cycles": 5167581486
+      },
+      "musl-plain:t1:r1": {
+        "median": 1.1548285,
+        "minimum": 1.1520190000000001,
+        "maximum": 1.1554415,
+        "wall": {
+          "median": 1.1553511650000132,
+          "minimum": 1.1524981295000032,
+          "maximum": 1.1558786610000027
+        },
+        "nondecode_cpu": {
+          "median": 0.003388,
+          "minimum": 0.003175,
+          "maximum": 0.003676
+        },
+        "nondecode_wall": {
+          "median": 0.003701744000011331,
+          "minimum": 0.0035000959999820225,
+          "maximum": 0.004000526000027094
+        },
+        "instructions": 8537183071,
+        "cycles": 3568858619
+      },
+      "musl-plain:t2:r1": {
+        "median": 1.4272265,
+        "minimum": 1.393236,
+        "maximum": 1.4294725000000001,
+        "wall": {
+          "median": 0.7821421945000111,
+          "minimum": 0.7657863909999918,
+          "maximum": 0.783506257500008
+        },
+        "nondecode_cpu": {
+          "median": 0.00348,
+          "minimum": 0.0032849999999999997,
+          "maximum": 0.0036439999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0038108210000018516,
+          "minimum": 0.0035950149999735004,
+          "maximum": 0.003971142000011696
+        },
+        "instructions": 8710013866,
+        "cycles": 4372711537
+      },
+      "musl-chunk:t0:r1": {
+        "median": 1.7207819999999998,
+        "minimum": 1.6838980000000001,
+        "maximum": 1.742515,
+        "wall": {
+          "median": 0.654088333499999,
+          "minimum": 0.6426115735000053,
+          "maximum": 0.6642971524999979
+        },
+        "nondecode_cpu": {
+          "median": 0.003502,
+          "minimum": 0.0032389999999999997,
+          "maximum": 0.003718
+        },
+        "nondecode_wall": {
+          "median": 0.0038204249999580497,
+          "minimum": 0.003580278000015369,
+          "maximum": 0.004033740000011221
+        },
+        "instructions": 9050864419,
+        "cycles": 5196364772
+      },
+      "musl-chunk:t1:r1": {
+        "median": 1.1737385,
+        "minimum": 1.164261,
+        "maximum": 1.1788195000000001,
+        "wall": {
+          "median": 1.1742025015000053,
+          "minimum": 1.164778452500002,
+          "maximum": 1.1793469639999898
+        },
+        "nondecode_cpu": {
+          "median": 0.003502,
+          "minimum": 0.00339,
+          "maximum": 0.0038069999999999996
+        },
+        "nondecode_wall": {
+          "median": 0.003826524000032805,
+          "minimum": 0.003701294999984839,
+          "maximum": 0.004099244999963503
+        },
+        "instructions": 8660317940,
+        "cycles": 3594488471
+      },
+      "musl-chunk:t2:r1": {
+        "median": 1.415885,
+        "minimum": 1.3895705,
+        "maximum": 1.4535035,
+        "wall": {
+          "median": 0.7775426884999774,
+          "minimum": 0.7645733224999987,
+          "maximum": 0.8027352200000166
+        },
+        "nondecode_cpu": {
+          "median": 0.003784,
+          "minimum": 0.0035229999999999997,
+          "maximum": 0.003986
+        },
+        "nondecode_wall": {
+          "median": 0.004128722999951151,
+          "minimum": 0.0038853759999710746,
+          "maximum": 0.004280906999952094
+        },
+        "instructions": 8833633759,
+        "cycles": 4300396398
+      },
+      "musl-count:t0:r1": {
+        "median": 1.6314734999999998,
+        "minimum": 1.6241849999999998,
+        "maximum": 1.6769794999999998,
+        "wall": {
+          "median": 0.578808273500016,
+          "minimum": 0.5748761910000013,
+          "maximum": 0.5904770369999994
+        },
+        "nondecode_cpu": {
+          "median": 0.003544,
+          "minimum": 0.003509,
+          "maximum": 0.004116
+        },
+        "nondecode_wall": {
+          "median": 0.0038581819999876643,
+          "minimum": 0.0038317419999884805,
+          "maximum": 0.00443289800000457
+        },
+        "instructions": 8891632004,
+        "cycles": 4977945249
+      },
+      "musl-count:t1:r1": {
+        "median": 1.139389,
+        "minimum": 1.1357095,
+        "maximum": 1.1419834999999998,
+        "wall": {
+          "median": 1.1399526000000009,
+          "minimum": 1.1361093960000233,
+          "maximum": 1.1425240265000127
+        },
+        "nondecode_cpu": {
+          "median": 0.0037099999999999998,
+          "minimum": 0.003296,
+          "maximum": 0.0038299999999999996
+        },
+        "nondecode_wall": {
+          "median": 0.0040342720000126064,
+          "minimum": 0.003590083999995386,
+          "maximum": 0.0041526150000095186
+        },
+        "instructions": 8499904477,
+        "cycles": 3511765712
+      },
+      "musl-count:t2:r1": {
+        "median": 1.3716145000000002,
+        "minimum": 1.3502904999999998,
+        "maximum": 1.3921074999999998,
+        "wall": {
+          "median": 0.7280029469999931,
+          "minimum": 0.7173430854999765,
+          "maximum": 0.7386923625000179
+        },
+        "nondecode_cpu": {
+          "median": 0.003854,
+          "minimum": 0.0033569999999999997,
+          "maximum": 0.004047
+        },
+        "nondecode_wall": {
+          "median": 0.0041744739999671765,
+          "minimum": 0.0036567530000297666,
+          "maximum": 0.004378776999999445
+        },
+        "instructions": 8675132423,
+        "cycles": 4139308597
+      },
+      "gnu-pinned-plain:t0:r1": {
+        "median": 1.4995370000000001,
+        "minimum": 1.4780469999999999,
+        "maximum": 1.5101315,
+        "wall": {
+          "median": 0.6208888135000024,
+          "minimum": 0.6153741904999919,
+          "maximum": 0.6270256679999875
+        },
+        "nondecode_cpu": {
+          "median": 0.0026409999999999997,
+          "minimum": 0.002474,
+          "maximum": 0.002878
+        },
+        "nondecode_wall": {
+          "median": 0.0029713190000393297,
+          "minimum": 0.00279290500000684,
+          "maximum": 0.0032102570000063224
+        },
+        "instructions": 8766081481,
+        "cycles": 4313389730
+      },
+      "gnu-pinned-plain:t1:r1": {
+        "median": 1.0093705000000002,
+        "minimum": 1.0059875,
+        "maximum": 1.0127959999999998,
+        "wall": {
+          "median": 1.0099269874999948,
+          "minimum": 1.0065166699999963,
+          "maximum": 1.0133414214999874
+        },
+        "nondecode_cpu": {
+          "median": 0.002666,
+          "minimum": 0.0026479999999999997,
+          "maximum": 0.002706
+        },
+        "nondecode_wall": {
+          "median": 0.0029730340000071465,
+          "minimum": 0.0029618089999985386,
+          "maximum": 0.003045348999989983
+        },
+        "instructions": 8512490283,
+        "cycles": 3114382264
+      },
+      "gnu-pinned-plain:t2:r1": {
+        "median": 1.2001705,
+        "minimum": 1.1935855,
+        "maximum": 1.220508,
+        "wall": {
+          "median": 0.6511748120000078,
+          "minimum": 0.6493482349999908,
+          "maximum": 0.665034642500018
+        },
+        "nondecode_cpu": {
+          "median": 0.002695,
+          "minimum": 0.002483,
+          "maximum": 0.002832
+        },
+        "nondecode_wall": {
+          "median": 0.003017975999995315,
+          "minimum": 0.0027986550000207444,
+          "maximum": 0.003154599000026792
+        },
+        "instructions": 8589678441,
+        "cycles": 3701897595
+      },
+      "gnu-pinned-count:t0:r1": {
+        "median": 1.4311189999999998,
+        "minimum": 1.413579,
+        "maximum": 1.4664959999999998,
+        "wall": {
+          "median": 0.5468019200000072,
+          "minimum": 0.5419688059999999,
+          "maximum": 0.5582270879999953
+        },
+        "nondecode_cpu": {
+          "median": 0.002717,
+          "minimum": 0.00262,
+          "maximum": 0.002861
+        },
+        "nondecode_wall": {
+          "median": 0.0030170249999912357,
+          "minimum": 0.0029173930000183645,
+          "maximum": 0.003223255000023073
+        },
+        "instructions": 8693675237,
+        "cycles": 4206373774
+      },
+      "gnu-pinned-count:t1:r1": {
+        "median": 0.990246,
+        "minimum": 0.989781,
+        "maximum": 0.9919505,
+        "wall": {
+          "median": 0.990816609999996,
+          "minimum": 0.9903383789999793,
+          "maximum": 0.9924672115000135
+        },
+        "nondecode_cpu": {
+          "median": 0.00266,
+          "minimum": 0.002525,
+          "maximum": 0.002813
+        },
+        "nondecode_wall": {
+          "median": 0.0030067160000157855,
+          "minimum": 0.0028903449999972963,
+          "maximum": 0.003141954000000169
+        },
+        "instructions": 8444594816,
+        "cycles": 3065393819
+      },
+      "gnu-pinned-count:t2:r1": {
+        "median": 1.1686225000000001,
+        "minimum": 1.1617065,
+        "maximum": 1.1758859999999998,
+        "wall": {
+          "median": 0.6151183269999763,
+          "minimum": 0.6117211494999992,
+          "maximum": 0.6188766029999897
+        },
+        "nondecode_cpu": {
+          "median": 0.002632,
+          "minimum": 0.0024289999999999997,
+          "maximum": 0.002868
+        },
+        "nondecode_wall": {
+          "median": 0.0030680480000455645,
+          "minimum": 0.0027334629999984372,
+          "maximum": 0.0032197760000372
+        },
+        "instructions": 8521440770,
+        "cycles": 3577710569
+      },
+      "gnu-debian-plain:t0:r1": {
+        "median": 1.521984,
+        "minimum": 1.4838005,
+        "maximum": 1.5425209999999998,
+        "wall": {
+          "median": 0.6304625139999871,
+          "minimum": 0.6187445340000011,
+          "maximum": 0.6384303899999964
+        },
+        "nondecode_cpu": {
+          "median": 0.002796,
+          "minimum": 0.0027329999999999998,
+          "maximum": 0.0029679999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0031255840000312674,
+          "minimum": 0.0030585340000186534,
+          "maximum": 0.0033112219999793524
+        },
+        "instructions": 8894828938,
+        "cycles": 4341360119
+      },
+      "gnu-debian-plain:t1:r1": {
+        "median": 1.0139855,
+        "minimum": 1.0110465,
+        "maximum": 1.0169445000000001,
+        "wall": {
+          "median": 1.0145216390000087,
+          "minimum": 1.011997663499983,
+          "maximum": 1.0174568880000123
+        },
+        "nondecode_cpu": {
+          "median": 0.002786,
+          "minimum": 0.00259,
+          "maximum": 0.002832
+        },
+        "nondecode_wall": {
+          "median": 0.0031268089999798576,
+          "minimum": 0.0029248879999954625,
+          "maximum": 0.003161067999997158
+        },
+        "instructions": 8639377501,
+        "cycles": 3129048904
+      },
+      "gnu-debian-plain:t2:r1": {
+        "median": 1.2102615,
+        "minimum": 1.2018300000000002,
+        "maximum": 1.229756,
+        "wall": {
+          "median": 0.6597270014999879,
+          "minimum": 0.6550180265000023,
+          "maximum": 0.6671912179999993
+        },
+        "nondecode_cpu": {
+          "median": 0.0027159999999999997,
+          "minimum": 0.002682,
+          "maximum": 0.00275
+        },
+        "nondecode_wall": {
+          "median": 0.0030579079999597525,
+          "minimum": 0.003018093999997973,
+          "maximum": 0.0030610009999918475
+        },
+        "instructions": 8718799829,
+        "cycles": 3718933348
+      },
+      "gnu-debian-count:t0:r1": {
+        "median": 1.4293395000000002,
+        "minimum": 1.4180905,
+        "maximum": 1.459794,
+        "wall": {
+          "median": 0.5487342710000007,
+          "minimum": 0.5450696190000031,
+          "maximum": 0.5553149379999951
+        },
+        "nondecode_cpu": {
+          "median": 0.00277,
+          "minimum": 0.0026709999999999998,
+          "maximum": 0.002908
+        },
+        "nondecode_wall": {
+          "median": 0.0030685650000350506,
+          "minimum": 0.0030409230000145726,
+          "maximum": 0.0031951420000098096
+        },
+        "instructions": 8826365894,
+        "cycles": 4191263609
+      },
+      "gnu-debian-count:t1:r1": {
+        "median": 0.991212,
+        "minimum": 0.9887054999999999,
+        "maximum": 0.992653,
+        "wall": {
+          "median": 0.9917337290000034,
+          "minimum": 0.9892137969999908,
+          "maximum": 0.9931695065000099
+        },
+        "nondecode_cpu": {
+          "median": 0.002802,
+          "minimum": 0.002603,
+          "maximum": 0.002868
+        },
+        "nondecode_wall": {
+          "median": 0.003097921000005499,
+          "minimum": 0.0029145099999823287,
+          "maximum": 0.003201869000008628
+        },
+        "instructions": 8571730542,
+        "cycles": 3053970594
+      },
+      "gnu-debian-count:t2:r1": {
+        "median": 1.1776944999999999,
+        "minimum": 1.1481404999999998,
+        "maximum": 1.1826979999999998,
+        "wall": {
+          "median": 0.6198364804999983,
+          "minimum": 0.603890551500001,
+          "maximum": 0.6221609600000022
+        },
+        "nondecode_cpu": {
+          "median": 0.002719,
+          "minimum": 0.002669,
+          "maximum": 0.002885
+        },
+        "nondecode_wall": {
+          "median": 0.0030769509999970523,
+          "minimum": 0.0029899449999959415,
+          "maximum": 0.003277052000044023
+        },
+        "instructions": 8650297756,
+        "cycles": 3625111719
+      },
+      "musl-plain:t1:r0": {
+        "median": 1.118107,
+        "minimum": 1.1158895000000002,
+        "maximum": 1.1210499999999999,
+        "wall": {
+          "median": 1.1186842729999853,
+          "minimum": 1.116389330000004,
+          "maximum": 1.121552908500007
+        },
+        "nondecode_cpu": {
+          "median": 0.003519,
+          "minimum": 0.0033669999999999998,
+          "maximum": 0.003916
+        },
+        "nondecode_wall": {
+          "median": 0.003853164000020115,
+          "minimum": 0.003662391999995407,
+          "maximum": 0.004226353999968069
+        },
+        "instructions": 8067727790,
+        "cycles": 3449419031
+      },
+      "gnu-pinned-plain:t1:r0": {
+        "median": 0.9731544999999999,
+        "minimum": 0.9709794999999999,
+        "maximum": 0.974842,
+        "wall": {
+          "median": 0.9736383445000172,
+          "minimum": 0.971486367500006,
+          "maximum": 0.9752294974999813
+        },
+        "nondecode_cpu": {
+          "median": 0.00266,
+          "minimum": 0.002467,
+          "maximum": 0.0028049999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.0030108810000228914,
+          "minimum": 0.002811290000011013,
+          "maximum": 0.003119122000043717
+        },
+        "instructions": 8042204053,
+        "cycles": 3003922700
+      },
+      "gnu-debian-plain:t1:r0": {
+        "median": 0.9773019999999999,
+        "minimum": 0.9749239999999999,
+        "maximum": 0.98146,
+        "wall": {
+          "median": 0.9777484450000031,
+          "minimum": 0.9755384950000234,
+          "maximum": 0.9819132339999896
+        },
+        "nondecode_cpu": {
+          "median": 0.00279,
+          "minimum": 0.002734,
+          "maximum": 0.002874
+        },
+        "nondecode_wall": {
+          "median": 0.00309378999997989,
+          "minimum": 0.0030627650000383255,
+          "maximum": 0.003217538000001241
+        },
+        "instructions": 8159251734,
+        "cycles": 3021587264
+      },
+      "musl-plain-aa:t0:r1": {
+        "median": 1.712778,
+        "minimum": 1.6801724999999998,
+        "maximum": 1.7316924999999999,
+        "wall": {
+          "median": 0.647644408000005,
+          "minimum": 0.6393823395000027,
+          "maximum": 0.654107138000029
+        },
+        "nondecode_cpu": {
+          "median": 0.003666,
+          "minimum": 0.003279,
+          "maximum": 0.003805
+        },
+        "nondecode_wall": {
+          "median": 0.003978376000020489,
+          "minimum": 0.0036134329999981674,
+          "maximum": 0.0041339119999861396
+        },
+        "instructions": 8928094498,
+        "cycles": 5186393561
+      }
+    },
+    "584a16b906bb": {
+      "musl-plain:t0:r1": {
+        "median": 0.71372525,
+        "minimum": 0.66501175,
+        "maximum": 0.7310285,
+        "wall": {
+          "median": 0.29860892275000595,
+          "minimum": 0.2865977107500015,
+          "maximum": 0.30975790524999525
+        },
+        "nondecode_cpu": {
+          "median": 0.003547,
+          "minimum": 0.003323,
+          "maximum": 0.00374
+        },
+        "nondecode_wall": {
+          "median": 0.0038747650000345857,
+          "minimum": 0.003594111999973393,
+          "maximum": 0.00406555600000047
+        },
+        "instructions": 2299789267,
+        "cycles": 2401323003
+      },
+      "musl-plain:t1:r1": {
+        "median": 0.46123725,
+        "minimum": 0.4477295,
+        "maximum": 0.463618,
+        "wall": {
+          "median": 0.4618080515000429,
+          "minimum": 0.44821996249999074,
+          "maximum": 0.46413411599999677
+        },
+        "nondecode_cpu": {
+          "median": 0.0036599999999999996,
+          "minimum": 0.0029259999999999998,
+          "maximum": 0.003858
+        },
+        "nondecode_wall": {
+          "median": 0.003995376999966993,
+          "minimum": 0.0031679909999411393,
+          "maximum": 0.004161138999961622
+        },
+        "instructions": 2201985997,
+        "cycles": 1461449826
+      },
+      "musl-plain:t2:r1": {
+        "median": 0.58658925,
+        "minimum": 0.562858,
+        "maximum": 0.606578,
+        "wall": {
+          "median": 0.3583474087500065,
+          "minimum": 0.34599756074999277,
+          "maximum": 0.3685553117500291
+        },
+        "nondecode_cpu": {
+          "median": 0.0036119999999999998,
+          "minimum": 0.003133,
+          "maximum": 0.0038689999999999996
+        },
+        "nondecode_wall": {
+          "median": 0.003922709999983454,
+          "minimum": 0.0034917360000008557,
+          "maximum": 0.004144427000028372
+        },
+        "instructions": 2262635838,
+        "cycles": 1957670927
+      },
+      "musl-chunk:t0:r1": {
+        "median": 0.715967,
+        "minimum": 0.701407,
+        "maximum": 0.7699275,
+        "wall": {
+          "median": 0.3081629164999953,
+          "minimum": 0.30712406199999975,
+          "maximum": 0.32718176375001917
+        },
+        "nondecode_cpu": {
+          "median": 0.003754,
+          "minimum": 0.0034379999999999997,
+          "maximum": 0.003953
+        },
+        "nondecode_wall": {
+          "median": 0.0040788840000232085,
+          "minimum": 0.0037422060000267265,
+          "maximum": 0.004255242999988695
+        },
+        "instructions": 2501133250,
+        "cycles": 2417504293
+      },
+      "musl-chunk:t1:r1": {
+        "median": 0.4889925,
+        "minimum": 0.4827105,
+        "maximum": 0.5029455,
+        "wall": {
+          "median": 0.4894745694999756,
+          "minimum": 0.4832555360000299,
+          "maximum": 0.5033929362499947
+        },
+        "nondecode_cpu": {
+          "median": 0.0036669999999999997,
+          "minimum": 0.0031209999999999996,
+          "maximum": 0.003744
+        },
+        "nondecode_wall": {
+          "median": 0.003987341999959426,
+          "minimum": 0.003443715000003067,
+          "maximum": 0.004072892000067441
+        },
+        "instructions": 2404836646,
+        "cycles": 1540494345
+      },
+      "musl-chunk:t2:r1": {
+        "median": 0.611062,
+        "minimum": 0.57897625,
+        "maximum": 0.6231585,
+        "wall": {
+          "median": 0.37938025750001714,
+          "minimum": 0.3617134407500089,
+          "maximum": 0.3869320112499821
+        },
+        "nondecode_cpu": {
+          "median": 0.003724,
+          "minimum": 0.003637,
+          "maximum": 0.003793
+        },
+        "nondecode_wall": {
+          "median": 0.004064802000016243,
+          "minimum": 0.003970995999964089,
+          "maximum": 0.00412542799995208
+        },
+        "instructions": 2470035757,
+        "cycles": 1818694180
+      },
+      "musl-count:t0:r1": {
+        "median": 0.60357425,
+        "minimum": 0.5508195,
+        "maximum": 0.6598499999999999,
+        "wall": {
+          "median": 0.18862323975001516,
+          "minimum": 0.17450358725000115,
+          "maximum": 0.20202727199999515
+        },
+        "nondecode_cpu": {
+          "median": 0.003878,
+          "minimum": 0.003756,
+          "maximum": 0.003925
+        },
+        "nondecode_wall": {
+          "median": 0.004209238000044024,
+          "minimum": 0.004100434000065434,
+          "maximum": 0.0042512669999723585
+        },
+        "instructions": 2262168992,
+        "cycles": 2046821887
+      },
+      "musl-count:t1:r1": {
+        "median": 0.41081325,
+        "minimum": 0.4075875,
+        "maximum": 0.41611774999999995,
+        "wall": {
+          "median": 0.41142439000002184,
+          "minimum": 0.40826915749998705,
+          "maximum": 0.41656363524998596
+        },
+        "nondecode_cpu": {
+          "median": 0.0037549999999999997,
+          "minimum": 0.0036799999999999997,
+          "maximum": 0.0037719999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.004085024000005433,
+          "minimum": 0.003994455999986712,
+          "maximum": 0.00412905499996441
+        },
+        "instructions": 2162137415,
+        "cycles": 1278551722
+      },
+      "musl-count:t2:r1": {
+        "median": 0.5025587499999999,
+        "minimum": 0.49513774999999993,
+        "maximum": 0.5171295,
+        "wall": {
+          "median": 0.27004861899999355,
+          "minimum": 0.2661713742500069,
+          "maximum": 0.2772583854999908
+        },
+        "nondecode_cpu": {
+          "median": 0.003688,
+          "minimum": 0.0034379999999999997,
+          "maximum": 0.003754
+        },
+        "nondecode_wall": {
+          "median": 0.004014126000015494,
+          "minimum": 0.003749065000022256,
+          "maximum": 0.0040523110000094675
+        },
+        "instructions": 2222619137,
+        "cycles": 1566965139
+      },
+      "gnu-pinned-plain:t0:r1": {
+        "median": 0.58575125,
+        "minimum": 0.55851875,
+        "maximum": 0.6011185,
+        "wall": {
+          "median": 0.2226717542500154,
+          "minimum": 0.2179585205000052,
+          "maximum": 0.2330072552499871
+        },
+        "nondecode_cpu": {
+          "median": 0.002722,
+          "minimum": 0.002616,
+          "maximum": 0.003098
+        },
+        "nondecode_wall": {
+          "median": 0.0030062229999998635,
+          "minimum": 0.0029156850000049417,
+          "maximum": 0.003428797999958988
+        },
+        "instructions": 2286933419,
+        "cycles": 1854899668
+      },
+      "gnu-pinned-plain:t1:r1": {
+        "median": 0.38543425,
+        "minimum": 0.3764855,
+        "maximum": 0.3887645,
+        "wall": {
+          "median": 0.38591510324998524,
+          "minimum": 0.37700437399999487,
+          "maximum": 0.38929074425000465
+        },
+        "nondecode_cpu": {
+          "median": 0.002564,
+          "minimum": 0.002472,
+          "maximum": 0.0028409999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.002900796000005812,
+          "minimum": 0.0028009999999767388,
+          "maximum": 0.003178902999991351
+        },
+        "instructions": 2232675872,
+        "cycles": 1222980869
+      },
+      "gnu-pinned-plain:t2:r1": {
+        "median": 0.47971975,
+        "minimum": 0.4772635,
+        "maximum": 0.493077,
+        "wall": {
+          "median": 0.2860558410000067,
+          "minimum": 0.28391657299999906,
+          "maximum": 0.29166307299998095
+        },
+        "nondecode_cpu": {
+          "median": 0.002621,
+          "minimum": 0.002562,
+          "maximum": 0.002745
+        },
+        "nondecode_wall": {
+          "median": 0.0029928769999969518,
+          "minimum": 0.0028609580000420465,
+          "maximum": 0.003085621000025185
+        },
+        "instructions": 2280651413,
+        "cycles": 1523100704
+      },
+      "gnu-pinned-count:t0:r1": {
+        "median": 0.5477885,
+        "minimum": 0.45718775,
+        "maximum": 0.551491,
+        "wall": {
+          "median": 0.16608127499999625,
+          "minimum": 0.14158661350001012,
+          "maximum": 0.16682176049998532
+        },
+        "nondecode_cpu": {
+          "median": 0.0026899999999999997,
+          "minimum": 0.0026609999999999997,
+          "maximum": 0.002833
+        },
+        "nondecode_wall": {
+          "median": 0.003066209000053277,
+          "minimum": 0.0029645080001046153,
+          "maximum": 0.0031816249999678803
+        },
+        "instructions": 2190674697,
+        "cycles": 1692458348
+      },
+      "gnu-pinned-count:t1:r1": {
+        "median": 0.335223,
+        "minimum": 0.322594,
+        "maximum": 0.34309599999999996,
+        "wall": {
+          "median": 0.3358780184999972,
+          "minimum": 0.3231137657500085,
+          "maximum": 0.3435403417499856
+        },
+        "nondecode_cpu": {
+          "median": 0.002681,
+          "minimum": 0.002567,
+          "maximum": 0.002794
+        },
+        "nondecode_wall": {
+          "median": 0.003025747999970463,
+          "minimum": 0.002901617000020451,
+          "maximum": 0.0031181170000422753
+        },
+        "instructions": 2134209338,
+        "cycles": 1036446103
+      },
+      "gnu-pinned-count:t2:r1": {
+        "median": 0.4165315,
+        "minimum": 0.37442499999999995,
+        "maximum": 0.41928575,
+        "wall": {
+          "median": 0.22301945249999733,
+          "minimum": 0.20129406074997291,
+          "maximum": 0.22427593674999002
+        },
+        "nondecode_cpu": {
+          "median": 0.002604,
+          "minimum": 0.002487,
+          "maximum": 0.002835
+        },
+        "nondecode_wall": {
+          "median": 0.002931229000012081,
+          "minimum": 0.002742377000004126,
+          "maximum": 0.0031576509999808877
+        },
+        "instructions": 2177388600,
+        "cycles": 1320104244
+      },
+      "gnu-debian-plain:t0:r1": {
+        "median": 0.5651315,
+        "minimum": 0.524396,
+        "maximum": 0.6044015,
+        "wall": {
+          "median": 0.22100369100000705,
+          "minimum": 0.20997806049999213,
+          "maximum": 0.23150504875000877
+        },
+        "nondecode_cpu": {
+          "median": 0.0028,
+          "minimum": 0.002675,
+          "maximum": 0.00293
+        },
+        "nondecode_wall": {
+          "median": 0.003088952999974026,
+          "minimum": 0.0029709589999811215,
+          "maximum": 0.0032294499999920845
+        },
+        "instructions": 2308054174,
+        "cycles": 1854517133
+      },
+      "gnu-debian-plain:t1:r1": {
+        "median": 0.3833375,
+        "minimum": 0.368209,
+        "maximum": 0.39276875,
+        "wall": {
+          "median": 0.3841097545000025,
+          "minimum": 0.36889175250000505,
+          "maximum": 0.39350142200001414
+        },
+        "nondecode_cpu": {
+          "median": 0.002735,
+          "minimum": 0.002675,
+          "maximum": 0.002839
+        },
+        "nondecode_wall": {
+          "median": 0.0030692249999901833,
+          "minimum": 0.0030158200000300894,
+          "maximum": 0.0031647570000359337
+        },
+        "instructions": 2255876293,
+        "cycles": 1176241250
+      },
+      "gnu-debian-plain:t2:r1": {
+        "median": 0.4872165,
+        "minimum": 0.4615955,
+        "maximum": 0.49262775,
+        "wall": {
+          "median": 0.28881954249999353,
+          "minimum": 0.27543423975001247,
+          "maximum": 0.29066176074999817
+        },
+        "nondecode_cpu": {
+          "median": 0.002727,
+          "minimum": 0.0025559999999999997,
+          "maximum": 0.002797
+        },
+        "nondecode_wall": {
+          "median": 0.003038640999989184,
+          "minimum": 0.0028793100000257255,
+          "maximum": 0.0031136429999492066
+        },
+        "instructions": 2298419712,
+        "cycles": 1531830597
+      },
+      "gnu-debian-count:t0:r1": {
+        "median": 0.50553175,
+        "minimum": 0.495444,
+        "maximum": 0.54364225,
+        "wall": {
+          "median": 0.15526527225001985,
+          "minimum": 0.15254542775001312,
+          "maximum": 0.16476984699997388
+        },
+        "nondecode_cpu": {
+          "median": 0.0027979999999999997,
+          "minimum": 0.0027259999999999997,
+          "maximum": 0.00294
+        },
+        "nondecode_wall": {
+          "median": 0.0031311240000491125,
+          "minimum": 0.003042044000039823,
+          "maximum": 0.003276405999997678
+        },
+        "instructions": 2212856332,
+        "cycles": 1705972790
+      },
+      "gnu-debian-count:t1:r1": {
+        "median": 0.32726924999999996,
+        "minimum": 0.31501275,
+        "maximum": 0.342951,
+        "wall": {
+          "median": 0.3279736417499919,
+          "minimum": 0.3155215470000172,
+          "maximum": 0.34367612499997335
+        },
+        "nondecode_cpu": {
+          "median": 0.002715,
+          "minimum": 0.0025139999999999997,
+          "maximum": 0.002846
+        },
+        "nondecode_wall": {
+          "median": 0.0030207560000121703,
+          "minimum": 0.0028708379999784484,
+          "maximum": 0.0038942109999879904
+        },
+        "instructions": 2155316863,
+        "cycles": 1038609420
+      },
+      "gnu-debian-count:t2:r1": {
+        "median": 0.424794,
+        "minimum": 0.410398,
+        "maximum": 0.434797,
+        "wall": {
+          "median": 0.22769798974999844,
+          "minimum": 0.22014190174999726,
+          "maximum": 0.23229260725000245
+        },
+        "nondecode_cpu": {
+          "median": 0.0027329999999999998,
+          "minimum": 0.002693,
+          "maximum": 0.002822
+        },
+        "nondecode_wall": {
+          "median": 0.0030516019999708988,
+          "minimum": 0.00302202200003876,
+          "maximum": 0.003154835000032108
+        },
+        "instructions": 2195183840,
+        "cycles": 1334544968
+      },
+      "musl-plain:t1:r0": {
+        "median": 0.45828974999999994,
+        "minimum": 0.44399299999999997,
+        "maximum": 0.46436099999999997,
+        "wall": {
+          "median": 0.4588181837500116,
+          "minimum": 0.4444612205000027,
+          "maximum": 0.46484438575001263
+        },
+        "nondecode_cpu": {
+          "median": 0.0036839999999999998,
+          "minimum": 0.0029,
+          "maximum": 0.0038299999999999996
+        },
+        "nondecode_wall": {
+          "median": 0.004013548999978411,
+          "minimum": 0.003200273000004472,
+          "maximum": 0.004173856000022624
+        },
+        "instructions": 2073480613,
+        "cycles": 1466711417
+      },
+      "gnu-pinned-plain:t1:r0": {
+        "median": 0.38209525,
+        "minimum": 0.36906774999999997,
+        "maximum": 0.38414125,
+        "wall": {
+          "median": 0.38244211324999355,
+          "minimum": 0.36957914349999044,
+          "maximum": 0.38461939600000505
+        },
+        "nondecode_cpu": {
+          "median": 0.00262,
+          "minimum": 0.002437,
+          "maximum": 0.002721
+        },
+        "nondecode_wall": {
+          "median": 0.002950742999985323,
+          "minimum": 0.002753442999960498,
+          "maximum": 0.0030249989999902027
+        },
+        "instructions": 2129668384,
+        "cycles": 1219425635
+      },
+      "gnu-debian-plain:t1:r0": {
+        "median": 0.37045625,
+        "minimum": 0.36752375,
+        "maximum": 0.38369775,
+        "wall": {
+          "median": 0.3708897120000074,
+          "minimum": 0.36801428649998513,
+          "maximum": 0.38419867275000286
+        },
+        "nondecode_cpu": {
+          "median": 0.002653,
+          "minimum": 0.002636,
+          "maximum": 0.002881
+        },
+        "nondecode_wall": {
+          "median": 0.0029781360000242785,
+          "minimum": 0.0029260489999956008,
+          "maximum": 0.0031816189999744893
+        },
+        "instructions": 2148893425,
+        "cycles": 1014421945
+      },
+      "musl-plain-aa:t0:r1": {
+        "median": 0.7619674999999999,
+        "minimum": 0.752398,
+        "maximum": 0.77191425,
+        "wall": {
+          "median": 0.317084253250016,
+          "minimum": 0.31347994725001627,
+          "maximum": 0.3198736065000105
+        },
+        "nondecode_cpu": {
+          "median": 0.003689,
+          "minimum": 0.003607,
+          "maximum": 0.0038269999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.004017196999996031,
+          "minimum": 0.0039067949999207485,
+          "maximum": 0.004133075999959601
+        },
+        "instructions": 2303628543,
+        "cycles": 2411853817
+      }
+    },
+    "bb5d39d47357": {
+      "musl-plain:t0:r1": {
+        "median": 1.2911163333333333,
+        "minimum": 1.196254,
+        "maximum": 1.413977,
+        "wall": {
+          "median": 0.47631570900000497,
+          "minimum": 0.4528735676666429,
+          "maximum": 0.512401703333353
+        },
+        "nondecode_cpu": {
+          "median": 0.003248,
+          "minimum": 0.002979,
+          "maximum": 0.0033209999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0035373929999877873,
+          "minimum": 0.0032533610000200497,
+          "maximum": 0.0036330970000335583
+        },
+        "instructions": 4851132018,
+        "cycles": 4452433131
+      },
+      "musl-plain:t1:r1": {
+        "median": 0.8547859999999999,
+        "minimum": 0.7392956666666666,
+        "maximum": 1.0577846666666666,
+        "wall": {
+          "median": 0.8552382173333323,
+          "minimum": 0.7397950836666874,
+          "maximum": 1.0582433453333806
+        },
+        "nondecode_cpu": {
+          "median": 0.003047,
+          "minimum": 0.002976,
+          "maximum": 0.003296
+        },
+        "nondecode_wall": {
+          "median": 0.0033677299999226307,
+          "minimum": 0.0032639800000424657,
+          "maximum": 0.003610265000020263
+        },
+        "instructions": 4664078654,
+        "cycles": 2330350037
+      },
+      "musl-plain:t2:r1": {
+        "median": 1.0934726666666668,
+        "minimum": 1.0826973333333332,
+        "maximum": 1.2794443333333334,
+        "wall": {
+          "median": 0.6262478440000147,
+          "minimum": 0.6181276249999806,
+          "maximum": 0.7219066833332969
+        },
+        "nondecode_cpu": {
+          "median": 0.003189,
+          "minimum": 0.002807,
+          "maximum": 0.003365
+        },
+        "nondecode_wall": {
+          "median": 0.00349998499996218,
+          "minimum": 0.0031248629999254263,
+          "maximum": 0.004317082000056871
+        },
+        "instructions": 4813262424,
+        "cycles": 4029207883
+      },
+      "musl-chunk:t0:r1": {
+        "median": 1.321859,
+        "minimum": 1.284354,
+        "maximum": 1.4047093333333336,
+        "wall": {
+          "median": 0.5089142053333641,
+          "minimum": 0.496910559333287,
+          "maximum": 0.5360743219999904
+        },
+        "nondecode_cpu": {
+          "median": 0.0032229999999999997,
+          "minimum": 0.002532,
+          "maximum": 0.0034159999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.0035463829999571317,
+          "minimum": 0.002878521999946315,
+          "maximum": 0.006311365000101432
+        },
+        "instructions": 5242291646,
+        "cycles": 4488169210
+      },
+      "musl-chunk:t1:r1": {
+        "median": 0.9811013333333333,
+        "minimum": 0.964461,
+        "maximum": 1.1333253333333333,
+        "wall": {
+          "median": 0.9817238513333374,
+          "minimum": 0.965149336999995,
+          "maximum": 1.134011220999999
+        },
+        "nondecode_cpu": {
+          "median": 0.003126,
+          "minimum": 0.002923,
+          "maximum": 0.003153
+        },
+        "nondecode_wall": {
+          "median": 0.003439722000052825,
+          "minimum": 0.0032044820000010077,
+          "maximum": 0.0035797660000298492
+        },
+        "instructions": 5054766012,
+        "cycles": 3080989687
+      },
+      "musl-chunk:t2:r1": {
+        "median": 1.2427243333333333,
+        "minimum": 1.1447053333333332,
+        "maximum": 1.2565103333333332,
+        "wall": {
+          "median": 0.7291218116666869,
+          "minimum": 0.6715450986666838,
+          "maximum": 0.7318282456666338
+        },
+        "nondecode_cpu": {
+          "median": 0.003087,
+          "minimum": 0.002395,
+          "maximum": 0.003152
+        },
+        "nondecode_wall": {
+          "median": 0.003360229000008985,
+          "minimum": 0.0027074859999629552,
+          "maximum": 0.00344435199997406
+        },
+        "instructions": 5207655623,
+        "cycles": 4102604449
+      },
+      "musl-count:t0:r1": {
+        "median": 1.107226,
+        "minimum": 1.0175836666666667,
+        "maximum": 1.1871289999999999,
+        "wall": {
+          "median": 0.31889454133336886,
+          "minimum": 0.29452383633334495,
+          "maximum": 0.34043396499995043
+        },
+        "nondecode_cpu": {
+          "median": 0.0032459999999999998,
+          "minimum": 0.0032059999999999996,
+          "maximum": 0.003322
+        },
+        "nondecode_wall": {
+          "median": 0.003550353000036921,
+          "minimum": 0.0035081790000504043,
+          "maximum": 0.0037646910000148637
+        },
+        "instructions": 4810763206,
+        "cycles": 3814125594
+      },
+      "musl-count:t1:r1": {
+        "median": 0.922514,
+        "minimum": 0.8538503333333333,
+        "maximum": 0.9633906666666666,
+        "wall": {
+          "median": 0.9232620263333425,
+          "minimum": 0.8543228580000081,
+          "maximum": 0.9639744230000057
+        },
+        "nondecode_cpu": {
+          "median": 0.003155,
+          "minimum": 0.002982,
+          "maximum": 0.003316
+        },
+        "nondecode_wall": {
+          "median": 0.0034731440000541625,
+          "minimum": 0.003283357999976033,
+          "maximum": 0.0036752570000544438
+        },
+        "instructions": 4621976591,
+        "cycles": 2854337080
+      },
+      "musl-count:t2:r1": {
+        "median": 1.1546953333333334,
+        "minimum": 1.1214076666666666,
+        "maximum": 1.194326,
+        "wall": {
+          "median": 0.5971244363333122,
+          "minimum": 0.5804429283333169,
+          "maximum": 0.617127149000036
+        },
+        "nondecode_cpu": {
+          "median": 0.003241,
+          "minimum": 0.002977,
+          "maximum": 0.003323
+        },
+        "nondecode_wall": {
+          "median": 0.0036158179999574713,
+          "minimum": 0.0033469109999941793,
+          "maximum": 0.0036912289999690984
+        },
+        "instructions": 4779770693,
+        "cycles": 3592526973
+      },
+      "gnu-pinned-plain:t0:r1": {
+        "median": 1.1505256666666668,
+        "minimum": 1.091236,
+        "maximum": 1.1611423333333333,
+        "wall": {
+          "median": 0.3950399060000033,
+          "minimum": 0.38065630500000225,
+          "maximum": 0.4026413193332701
+        },
+        "nondecode_cpu": {
+          "median": 0.002582,
+          "minimum": 0.002518,
+          "maximum": 0.0026089999999999998
+        },
+        "nondecode_wall": {
+          "median": 0.0029073429999471045,
+          "minimum": 0.0028489530000115337,
+          "maximum": 0.0029445210000176303
+        },
+        "instructions": 4782488925,
+        "cycles": 3617179118
+      },
+      "gnu-pinned-plain:t1:r1": {
+        "median": 0.7353006666666667,
+        "minimum": 0.6870193333333333,
+        "maximum": 0.8002433333333333,
+        "wall": {
+          "median": 0.7357993536667209,
+          "minimum": 0.6874466773333552,
+          "maximum": 0.801169021333294
+        },
+        "nondecode_cpu": {
+          "median": 0.002617,
+          "minimum": 0.002379,
+          "maximum": 0.002747
+        },
+        "nondecode_wall": {
+          "median": 0.0029595529999824066,
+          "minimum": 0.0027201059999697463,
+          "maximum": 0.003106117000015729
+        },
+        "instructions": 4631868764,
+        "cycles": 2106291351
+      },
+      "gnu-pinned-plain:t2:r1": {
+        "median": 0.921966,
+        "minimum": 0.8913626666666666,
+        "maximum": 0.99276,
+        "wall": {
+          "median": 0.5243486139999808,
+          "minimum": 0.5093889063333185,
+          "maximum": 0.5605545956666825
+        },
+        "nondecode_cpu": {
+          "median": 0.0024579999999999997,
+          "minimum": 0.002398,
+          "maximum": 0.00265
+        },
+        "nondecode_wall": {
+          "median": 0.002802620000011302,
+          "minimum": 0.0027097460000504725,
+          "maximum": 0.002982786000075066
+        },
+        "instructions": 4756398993,
+        "cycles": 3206903698
+      },
+      "gnu-pinned-count:t0:r1": {
+        "median": 0.959011,
+        "minimum": 0.861263,
+        "maximum": 1.0094673333333333,
+        "wall": {
+          "median": 0.27720184299998135,
+          "minimum": 0.2512804996666394,
+          "maximum": 0.29187908533337276
+        },
+        "nondecode_cpu": {
+          "median": 0.002506,
+          "minimum": 0.0024029999999999998,
+          "maximum": 0.00258
+        },
+        "nondecode_wall": {
+          "median": 0.002785044999995989,
+          "minimum": 0.0026897899999767105,
+          "maximum": 0.0029223559999991267
+        },
+        "instructions": 4715062571,
+        "cycles": 3302563308
+      },
+      "gnu-pinned-count:t1:r1": {
+        "median": 0.6364416666666667,
+        "minimum": 0.5571663333333333,
+        "maximum": 0.7038336666666666,
+        "wall": {
+          "median": 0.6372400300000057,
+          "minimum": 0.5575612726666653,
+          "maximum": 0.7046643249999912
+        },
+        "nondecode_cpu": {
+          "median": 0.002499,
+          "minimum": 0.002456,
+          "maximum": 0.002637
+        },
+        "nondecode_wall": {
+          "median": 0.0027844909999430456,
+          "minimum": 0.0027535400000715526,
+          "maximum": 0.0029666819999647487
+        },
+        "instructions": 4563147589,
+        "cycles": 2192441948
+      },
+      "gnu-pinned-count:t2:r1": {
+        "median": 0.830223,
+        "minimum": 0.7967210000000001,
+        "maximum": 0.882802,
+        "wall": {
+          "median": 0.4348244306666705,
+          "minimum": 0.4175080829999918,
+          "maximum": 0.46002298933331076
+        },
+        "nondecode_cpu": {
+          "median": 0.002536,
+          "minimum": 0.0023599999999999997,
+          "maximum": 0.002702
+        },
+        "nondecode_wall": {
+          "median": 0.002847419999966405,
+          "minimum": 0.0026543389999460487,
+          "maximum": 0.003023690000077295
+        },
+        "instructions": 4692626117,
+        "cycles": 2850162423
+      },
+      "gnu-debian-plain:t0:r1": {
+        "median": 1.0813483333333334,
+        "minimum": 0.9823256666666665,
+        "maximum": 1.1437296666666668,
+        "wall": {
+          "median": 0.380427035333355,
+          "minimum": 0.358502908333359,
+          "maximum": 0.39948859833339156
+        },
+        "nondecode_cpu": {
+          "median": 0.0026089999999999998,
+          "minimum": 0.0025859999999999998,
+          "maximum": 0.002688
+        },
+        "nondecode_wall": {
+          "median": 0.002981063999982325,
+          "minimum": 0.002918776000001344,
+          "maximum": 0.003065309999897181
+        },
+        "instructions": 4809780788,
+        "cycles": 3586447559
+      },
+      "gnu-debian-plain:t1:r1": {
+        "median": 0.7459836666666666,
+        "minimum": 0.6580506666666667,
+        "maximum": 0.7877333333333333,
+        "wall": {
+          "median": 0.7464800189999702,
+          "minimum": 0.6585828933332701,
+          "maximum": 0.7889322673333558
+        },
+        "nondecode_cpu": {
+          "median": 0.0025729999999999998,
+          "minimum": 0.002479,
+          "maximum": 0.0026279999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.002894007000008969,
+          "minimum": 0.0027560109999740234,
+          "maximum": 0.0029925000000048385
+        },
+        "instructions": 4661834280,
+        "cycles": 1918339172
+      },
+      "gnu-debian-plain:t2:r1": {
+        "median": 0.8888146666666668,
+        "minimum": 0.8111096666666667,
+        "maximum": 0.9474049999999999,
+        "wall": {
+          "median": 0.5086967686666716,
+          "minimum": 0.46902094699999,
+          "maximum": 0.5378744726666961
+        },
+        "nondecode_cpu": {
+          "median": 0.002668,
+          "minimum": 0.002404,
+          "maximum": 0.002751
+        },
+        "nondecode_wall": {
+          "median": 0.0030036050000035175,
+          "minimum": 0.0027296320000687047,
+          "maximum": 0.0030473099999426267
+        },
+        "instructions": 4791245784,
+        "cycles": 3225093453
+      },
+      "gnu-debian-count:t0:r1": {
+        "median": 1.0390403333333333,
+        "minimum": 1.023882,
+        "maximum": 1.0581566666666666,
+        "wall": {
+          "median": 0.29655375133328715,
+          "minimum": 0.2929816433333296,
+          "maximum": 0.30326850833334146
+        },
+        "nondecode_cpu": {
+          "median": 0.0027429999999999998,
+          "minimum": 0.002474,
+          "maximum": 0.0028309999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0030650249999553125,
+          "minimum": 0.0027807870000060575,
+          "maximum": 0.00314318200003072
+        },
+        "instructions": 4743443473,
+        "cycles": 3342762519
+      },
+      "gnu-debian-count:t1:r1": {
+        "median": 0.7017103333333333,
+        "minimum": 0.6865956666666667,
+        "maximum": 0.7083073333333333,
+        "wall": {
+          "median": 0.7021726466666299,
+          "minimum": 0.6871276876666267,
+          "maximum": 0.7087748566666884
+        },
+        "nondecode_cpu": {
+          "median": 0.002616,
+          "minimum": 0.002525,
+          "maximum": 0.002751
+        },
+        "nondecode_wall": {
+          "median": 0.002947382000002108,
+          "minimum": 0.002845104000016363,
+          "maximum": 0.0030790450000495184
+        },
+        "instructions": 4597602350,
+        "cycles": 2235753109
+      },
+      "gnu-debian-count:t2:r1": {
+        "median": 0.8638129999999999,
+        "minimum": 0.8186373333333332,
+        "maximum": 0.8731796666666667,
+        "wall": {
+          "median": 0.4517283099999834,
+          "minimum": 0.4287314289999813,
+          "maximum": 0.45599902333333375
+        },
+        "nondecode_cpu": {
+          "median": 0.002603,
+          "minimum": 0.002505,
+          "maximum": 0.002776
+        },
+        "nondecode_wall": {
+          "median": 0.002943528000059814,
+          "minimum": 0.0028527519999670403,
+          "maximum": 0.0030905610000218076
+        },
+        "instructions": 4727205397,
+        "cycles": 2863184057
+      },
+      "musl-plain:t1:r0": {
+        "median": 0.855851,
+        "minimum": 0.8169693333333333,
+        "maximum": 0.9274876666666666,
+        "wall": {
+          "median": 0.8563485736666129,
+          "minimum": 0.8174338156666181,
+          "maximum": 0.9282117103333576
+        },
+        "nondecode_cpu": {
+          "median": 0.0028799999999999997,
+          "minimum": 0.0023829999999999997,
+          "maximum": 0.003178
+        },
+        "nondecode_wall": {
+          "median": 0.0031692600000496896,
+          "minimum": 0.0027456510000547496,
+          "maximum": 0.0035800680000193097
+        },
+        "instructions": 4550869930,
+        "cycles": 2361376836
+      },
+      "gnu-pinned-plain:t1:r0": {
+        "median": 0.7417246666666667,
+        "minimum": 0.7269713333333332,
+        "maximum": 0.7770099999999999,
+        "wall": {
+          "median": 0.7421620943333286,
+          "minimum": 0.7275874140000269,
+          "maximum": 0.777485137000023
+        },
+        "nondecode_cpu": {
+          "median": 0.0026179999999999997,
+          "minimum": 0.002472,
+          "maximum": 0.002669
+        },
+        "nondecode_wall": {
+          "median": 0.0029471420000390935,
+          "minimum": 0.002815731000055166,
+          "maximum": 0.0030021950000218567
+        },
+        "instructions": 4518331015,
+        "cycles": 2438587958
+      },
+      "gnu-debian-plain:t1:r0": {
+        "median": 0.7224379999999999,
+        "minimum": 0.7121556666666667,
+        "maximum": 0.7808263333333333,
+        "wall": {
+          "median": 0.7229415159999538,
+          "minimum": 0.712575124666652,
+          "maximum": 0.7814905766666698
+        },
+        "nondecode_cpu": {
+          "median": 0.002614,
+          "minimum": 0.002532,
+          "maximum": 0.002711
+        },
+        "nondecode_wall": {
+          "median": 0.0029337519999899087,
+          "minimum": 0.002858198000012635,
+          "maximum": 0.0029987679999976535
+        },
+        "instructions": 4547789370,
+        "cycles": 2375125959
+      },
+      "musl-plain-aa:t0:r1": {
+        "median": 1.2200846666666667,
+        "minimum": 1.172707,
+        "maximum": 1.4423516666666665,
+        "wall": {
+          "median": 0.45469088033333566,
+          "minimum": 0.44469167933334575,
+          "maximum": 0.5187602363333023
+        },
+        "nondecode_cpu": {
+          "median": 0.003038,
+          "minimum": 0.002534,
+          "maximum": 0.0033469999999999997
+        },
+        "nondecode_wall": {
+          "median": 0.0033727109999972527,
+          "minimum": 0.002880065999988801,
+          "maximum": 0.0036739249999300228
+        },
+        "instructions": 4860376414,
+        "cycles": 4563737382
+      }
+    }
+  },
+  "identical_control": 0.9941050911930829,
+  "gate": {
+    "before": 3.698220816999992,
+    "after": 3.7190656520000402,
+    "ratio": 1.0056364495338483
+  },
+  "host_valid": true
+}

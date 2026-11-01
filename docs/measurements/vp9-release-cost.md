@@ -100,3 +100,39 @@ The first attribution run at `eacf3b8` completed all 4,000 timed calls without a
 The retained evidence is in [`attribution/host-fault/analysis.json`](vp9-release-cost/attribution/host-fault/analysis.json), with compressed calls and complete metadata beside it. Replay it with `python3 -I scripts/vp9_release_attribution.py --analyse docs/measurements/vp9-release-cost/attribution/host-fault`; exit status 3 preserves the invalid-host result. It is not an acceptance miss or a successful attribution.
 
 A replacement diagnostic is permitted only because that committed host gate failed. It keeps the exact binary hashes, cells, inputs, repetition rule and thresholds. Before the replacement, fix the host's turbo policy to `ALL_CORE_MAX` on the same c4-standard-8 class, retaining SMT-off and four-core affinity. This constrains boost variation but does not establish the cause of the first drift. Both host controls remain mandatory; no result is selected from the invalid run.
+
+### Replacement diagnostic: CPU and latency tradeoffs
+
+The replacement completes 3,625 timed calls without an invocation failure, with all nondecode, pixel, counter and profile rosters complete. Its host gate ratio is 1.0056 and its identical-command ratio is 0.9941, so the host is valid. The four files return 41, 1,177, 258 and 236 real decoded frames respectively. The report and compressed calls are in [`attribution/analysis.json`](vp9-release-cost/attribution/analysis.json) and [`attribution/calls.jsonl.gz`](vp9-release-cost/attribution/calls.jsonl.gz); the metadata and six function-only profiles are beside them. Replay the report with the attribution command above. Host validity does not make this a product acceptance run.
+
+Thread caps reduce CPU by giving up parallel decode latency on three inputs. These ratios compare the same 64-byte-copy binary and row-multithreading setting within the diagnostic; automatic resolves to a configured cap of four:
+
+| Input | One/auto CPU | One/auto wall | Two/auto CPU | Two/auto wall |
+|---|---:|---:|---:|---:|
+| `a084bd45168c` | 0.7968 | 0.9640 | 0.8802 | 0.9544 |
+| `70eec00bc7d2` | 0.6821 | 1.7952 | 0.8228 | 1.1887 |
+| `584a16b906bb` | 0.6830 | 1.5884 | 0.8535 | 1.2311 |
+| `bb5d39d47357` | 0.7422 | 1.9291 | 0.9401 | 1.4327 |
+
+A one-thread cap therefore increases wall time by 59% to 93% on the three larger diagnostic inputs. The tiny 400-by-250 input improves on both measures, but one input cannot establish a resolution-based policy. The GNU arms also trade CPU for latency when their caps change. A candidate that caps only musl must disclose that tradeoff rather than imply that its decoder or exports became cheaper at the same parallelism. No thread-policy change is selected here.
+
+At the automatic cap, the 64-byte copy has no consistent CPU benefit over the original whole-row append. Its instruction counts increase in every diagnostic input; these are single hardware-counter observations, not repeated timing medians:
+
+| Input | Chunk/whole-row CPU | Chunk/whole-row instructions | No-export/chunk CPU | No-export/Debian whole-row CPU |
+|---|---:|---:|---:|---:|
+| `a084bd45168c` | 0.9927 | 1.0195 | 0.9595 | 1.1057 |
+| `70eec00bc7d2` | 0.9927 | 1.0136 | 0.9481 | 1.0719 |
+| `584a16b906bb` | 1.0031 | 1.0875 | 0.8430 | 1.0680 |
+| `bb5d39d47357` | 1.0238 | 1.0806 | 0.8376 | 1.0239 |
+
+With one thread and row multithreading enabled, the chunked copy uses 1.6% more CPU on `70eec00bc7d2` and 6.0% more on `584a16b906bb`, with nonoverlapping five-unit ranges. Other small differences must be read beside the ranges and per-file identical controls in the raw report. The copy moves sampled work from `memcpy` into CoreAV's send function without establishing an automatic-thread CPU saving on this set.
+
+Even the unattainable no-export arm remains 6.8% to 10.6% above Debian's real-output arm on three of four inputs. This does not prove that every export-only change must miss a ten-file median, but it gives no basis for another copy-only parity claim. The odd-width no-export profile still samples `memcpy` and libvpx's internal copy routines; matched static GNU, libc, allocator and toolchain differences remain possible explanations. The flat profiles do not isolate a libc-only cause. Nondecode CPU is at most 4.3% of the chunked automatic command here and is retained as context, not subtracted.
+
+These inputs do not include 4K or 8K, the counter counts are single observations, and the harness measures the owned-copy path rather than transcode's lending path. No cross-host timing comparison or full-set performance verdict follows from this diagnostic.
+
+## Third candidate: remove the unproven copy loop
+
+The next composition retains mimalloc and the 128 MiB reservation but restores whole-row appends, with no thread-policy change. The row-byte regression remains. This removes the extra per-chunk checks rather than optimizing them again; the diagnostic's smaller instruction count is not assumed to transfer to large-file CPU performance.
+
+Its three candidate binaries are rebuilt on the same approved measured base, without diagnostic environment controls or dummy output. Reuse the five original control binaries, retain all ten inputs and the unchanged acceptance bars, and judge this distinct composition once. The judged host keeps the replacement diagnostic's `ALL_CORE_MAX` policy, SMT-off and four-core affinity. Both real 512 MiB decoder and exec-launcher tests pass on that base and merged main before the comparison, as does the row-byte regression. The [new binary/source identities](vp9-release-cost/third/builds.json) and [source patch](vp9-release-cost/third/source.patch) are fixed before timing. The measured-base CLI retains its earlier binary allocator declaration; the production binary-only entry is separately tested and does not affect the decode harness's CPU comparison. Both earlier misses and the invalid attribution host remain final, retained results. This candidate is not accepted as a full-set fix before its prospective comparison.

@@ -1,0 +1,39 @@
+{
+  "base": "065479c8a6d3a47a965301d4e5eba6ee10c88e68",
+  "libvpx_static": "1.14.1",
+  "libvpx_debian": "1.15.0-2.1+deb13u1",
+  "mimalloc": "0.1.52",
+  "libmimalloc_sys": "0.1.49",
+  "binaries": {
+    "coreav-alloc": "557291f95b82268574cfa7ef258867998381305274989328f26ed929998a6afe",
+    "coreav-stock": "ba56261bb20d81a62819c47866cac2c2ce531568e3a1779248f68b887f78e794",
+    "do-alloc": "18022a7a71798e1e16499dc1c6e700f941913882f159a5da50589bf72f0b3c05",
+    "do-alloc-hash": "95d511763115ca2807615c663ccdee932dddac347a437a875493beb77dc0cc76",
+    "do-deb": "b5320a4a02aa0b569072f6f872f0d5ee3dfc9c7c1dacc45b32a7fece1b02509c",
+    "do-rel": "2f48ba6fafdf2bc18420f0f9fabfc1c8a07aae6af3fcbfa7ffd5963f9c4e2e4b",
+    "do-rel-hash": "b56de785c942f420015a93d11ecb2a1c77327b19b6822643e49484439bf7e6a3",
+    "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d"
+  },
+  "harness": "decode-oracle, in-process, MD5 omitted only for timed builds",
+  "profile": "dist",
+  "target": "x86_64-unknown-linux-musl; Debian control x86_64-unknown-linux-gnu",
+  "worker_arena_reserve_kib": 131072,
+  "rustc": "1.99.1",
+  "musl_export": "whole-row Vec append",
+  "composition": "mimalloc with 128 MiB initial arena; original whole-row output copies",
+  "turbo_policy": "ALL_CORE_MAX",
+  "measured_source_hashes": {
+    "Cargo.lock": "309a3db4dd5c1ddc7d1f87a1d8deaa5b62c931b10f921d59f8a66d882520367c",
+    "crates/coreav-backend-libvpx/src/decoder.rs": "f2392c964495d7a9674baa0c9d2604b01141eb43f08ec3109373d423f0b5b683",
+    "crates/coreav-backend-libvpx/src/ffi.rs": "c7e475f3beab65bd5bacaccec828fbde7d8d7b15805bc467d88b48aa0459ad75",
+    "tools/decode-oracle/Cargo.toml": "2bc6a917aac3d3c1608748fab54f8eda061f9c49b95346e2725805bdac58eda5",
+    "tools/decode-oracle/src/main.rs": "a72626a07a435eb4694e283184667749effaa02d7a39bbee7ccfdb861499d1cd",
+    "crates/coreav-cli/Cargo.toml": "aa953aef126bbc1c9c0713c47d68aaac204f94a67bf763c243c80e308333b4d6",
+    "crates/coreav-cli/src/main.rs": "3f4c5dd98beea70acb671fc163f9333fd8ecdf8435e671037cad03169ab2bb33",
+    "crates/coreav-worker/src/sandbox.rs": "79ee1a7aef908097c5e182291dac9d6bf7ee295fe552dbc55d890c4f16d36947",
+    "crates/coreav-worker/src/parent.rs": "7120fc6c96b185f30acd220f1e80789e9681805f3c02b29214b50b1f530a1295",
+    "crates/coreav-worker/src/exec.rs": "40490404370221bd6c04f383683534fb67d6276e458cb5e4df83f7670beba7cd",
+    "crates/coreav-worker/src/mimalloc-arena-reserve-kib.txt": "38ea4bbef6fea8d73df79e1cfd9ee0e1e8aa44b963877e0285c6e892018cacda"
+  },
+  "source_patch_sha256": "8efe99f548cc2c19ae6d26203d68999b1c6bdc7aa670b3cfe04f8ed0fc9e2ee3"
+}

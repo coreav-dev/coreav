@@ -481,19 +481,7 @@ fn convert(view: &View<'_>, layout: &Layout, color: ColorInfo) -> Result<(Frame,
 }
 
 fn append_row(data: &mut Vec<u8>, row: &[u8]) {
-    if cfg!(all(
-        target_os = "linux",
-        target_env = "musl",
-        target_arch = "x86_64"
-    )) {
-        let mut chunks = row.chunks_exact(64);
-        for chunk in &mut chunks {
-            data.extend_from_slice(chunk);
-        }
-        data.extend_from_slice(chunks.remainder());
-    } else {
-        data.extend_from_slice(row);
-    }
+    data.extend_from_slice(row);
 }
 
 /// A frame shown by the packet [`LibvpxDecoder::send_packet_lending`] is
