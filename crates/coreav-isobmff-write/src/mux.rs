@@ -675,6 +675,35 @@ pub fn audio_sample_entry(
     entry_box(fourcc, entry, children)
 }
 
+/// An `esds` payload (ISO/IEC 14496-1 7.2.6.5): an ES descriptor with a
+/// decoder configuration for AAC (object type 0x40, audio stream) holding
+/// `config`, and the predefined SL configuration 2.
+pub fn esds(config: &[u8]) -> Vec<u8> {
+    fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
+        let mut out = vec![tag];
+        let mut len = body.len();
+        let mut bytes = [0u8; 4];
+        for slot in bytes.iter_mut().rev() {
+            *slot = u8::try_from(len & 0x7F).unwrap_or(0);
+            len >>= 7;
+        }
+        for (i, b) in bytes.iter().enumerate() {
+            out.push(if i < 3 { b | 0x80 } else { *b });
+        }
+        out.extend_from_slice(body);
+        out
+    }
+    let mut decoder = vec![0x40, 0x15, 0, 0, 0];
+    decoder.extend_from_slice(&[0; 8]);
+    decoder.extend(descriptor(0x05, config));
+    let mut es = vec![0, 0, 0];
+    es.extend(descriptor(0x04, &decoder));
+    es.extend(descriptor(0x06, &[0x02]));
+    let mut out = vec![0, 0, 0, 0];
+    out.extend(descriptor(0x03, &es));
+    out
+}
+
 fn entry_box(fourcc: FourCc, mut entry: Vec<u8>, children: &[RawBox]) -> Result<Vec<u8>, Error> {
     for child in children {
         Node::leaf(&child.kind.0, child.payload.clone())

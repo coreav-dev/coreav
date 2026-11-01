@@ -38,6 +38,10 @@ on:
     tags: ['v*']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+  # A group of the merge queue, filtered by what the group changes on main
+  # (docs/design/ci-checks.md, "The merge queue").
+  merge_group:
+    types: [checks_requested]
   schedule:
     # Every binary once a week (Monday 04:30 UTC), on main.
     - cron: '30 4 * * 1'
@@ -48,7 +52,8 @@ permissions:
 
 concurrency:
   # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
+  # main, manual runs and merge groups each get their own group, so none is
+  # dropped.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -195,6 +200,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/packages"
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/packages")
           (cd packages/cli/npm/linux-x64 && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
           for tarball in "$RUNNER_TEMP/packages"/*.tgz; do npm publish --dry-run --access public "$tarball"; done
       # The smoke tests and the other platforms compare with these.
       - name: Expected outputs
@@ -331,6 +337,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/packages"
           (cd packages/cli/npm/${{ matrix.platform }} && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
           npm publish --dry-run --access public "$RUNNER_TEMP/packages"/*.tgz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

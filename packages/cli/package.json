@@ -34,7 +34,8 @@
     "wasm/coreav.wasm",
     "README.md",
     "LICENSE-MIT",
-    "LICENSE-APACHE"
+    "LICENSE-APACHE",
+    "NOTICE"
   ],
   "engines": {
     "node": ">=20"
@@ -42,7 +43,7 @@
   "scripts": {
     "build": "scripts/build.sh",
     "test": "node --test test/*.test.mjs",
-    "prepack": "node -e \"const fs = require('fs'); for (const f of ['wasm/coreav.wasm', 'LICENSE-MIT', 'LICENSE-APACHE']) if (!fs.existsSync(f)) { console.error('run scripts/build.sh first: ' + f + ' is missing'); process.exit(1); } if (fs.readFileSync('bin/coreav').subarray(0, 2).toString() !== '#!') { console.error('bin/coreav is not the launcher; restore it (git checkout bin/coreav)'); process.exit(1); }\"",
+    "prepack": "node -e \"const fs = require('fs'); for (const f of ['wasm/coreav.wasm', 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE']) if (!fs.existsSync(f)) { console.error('run scripts/build.sh first: ' + f + ' is missing'); process.exit(1); } if (fs.readFileSync('bin/coreav').subarray(0, 2).toString() !== '#!') { console.error('bin/coreav is not the launcher; restore it (git checkout bin/coreav)'); process.exit(1); }\"",
     "postinstall": "node install.js"
   },
   "optionalDependencies": {

@@ -73,6 +73,10 @@ pub struct Packet {
     /// a VP8 or VP9 alpha plane): its absolute offset and size, header
     /// included.
     pub block_additions: Option<(u64, u64)>,
+    /// The `BlockAdditions` hold a `BlockMore` whose `BlockAddID` is 1,
+    /// its default: additional data the codec defines (RFC 9559
+    /// 5.1.3.5.2.3).
+    pub codec_addition: bool,
 }
 
 impl Packet {
@@ -346,6 +350,49 @@ impl<'a, S: Source> Packets<'a, S> {
         Ok(())
     }
 
+    /// Whether the `BlockMore` elements from `at` to `end` include one whose
+    /// `BlockAddID` is 1, or left out and so 1.
+    fn codec_addition(&mut self, mut at: u64, end: u64) -> Result<bool, Error> {
+        let mut codec = false;
+        while at < end {
+            self.count(at)?;
+            let more = read_header(&mut self.source, at, end, self.segment.max_size_len)?;
+            let more_end = more
+                .end()
+                .filter(|e| *e <= end)
+                .ok_or(Error::InvalidElement {
+                    offset: at,
+                    id: more.id,
+                    reason: "element runs past its BlockAdditions",
+                })?;
+            if more.id == ids::BLOCK_MORE {
+                let mut id = 1;
+                let mut inner = more.data_offset();
+                while inner < more_end {
+                    self.count(inner)?;
+                    let h =
+                        read_header(&mut self.source, inner, more_end, self.segment.max_size_len)?;
+                    let h_end =
+                        h.end()
+                            .filter(|e| *e <= more_end)
+                            .ok_or(Error::InvalidElement {
+                                offset: inner,
+                                id: h.id,
+                                reason: "element runs past its BlockMore",
+                            })?;
+                    if h.id == ids::BLOCK_ADD_ID {
+                        let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                        id = ebml::uint(&data, &h)?;
+                    }
+                    inner = h_end;
+                }
+                codec |= id == 1;
+            }
+            at = more_end;
+        }
+        Ok(codec)
+    }
+
     fn block_group(&mut self, group: &ElementHeader) -> Result<(), Error> {
         let end = group.end().ok_or(Error::Overflow {
             offset: group.offset,
@@ -379,7 +426,23 @@ impl<'a, S: Source> Packets<'a, S> {
                     extra.duration = Some(ebml::uint(&data, &h)?);
                 }
                 ids::REFERENCE_BLOCK => extra.referenced = true,
-                ids::BLOCK_ADDITIONS => extra.additions = Some((h.offset, child_end - h.offset)),
+                ids::BLOCK_ADDITIONS => {
+                    extra.additions = Some((h.offset, child_end - h.offset));
+                    // A malformed addition, optional metadata, leaves the
+                    // frame without one; a failed read or the work budget
+                    // still stops the listing.
+                    extra.codec_addition = match self.codec_addition(h.data_offset(), child_end) {
+                        Ok(codec) => codec,
+                        Err(
+                            error @ (Error::Io(_)
+                            | Error::LimitExceeded {
+                                limit: LimitKind::BlockWork,
+                                ..
+                            }),
+                        ) => return Err(error),
+                        Err(_) => false,
+                    };
+                }
                 ids::DISCARD_PADDING => {
                     let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
                     extra.discard_padding = Some(ebml::int(&data, &h)?);
@@ -534,6 +597,7 @@ impl<'a, S: Source> Packets<'a, S> {
                 discardable: group.is_none() && header.discardable(),
                 discard_padding: group.and_then(|g| g.discard_padding),
                 block_additions: group.and_then(|g| g.additions).filter(|_| lace == 0),
+                codec_addition: group.is_some_and(|g| g.codec_addition) && lace == 0,
             });
         }
         Ok(())
@@ -546,6 +610,7 @@ struct GroupFields {
     referenced: bool,
     discard_padding: Option<i64>,
     additions: Option<(u64, u64)>,
+    codec_addition: bool,
 }
 
 /// How a track's block timestamps become presentation timestamps.

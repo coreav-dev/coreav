@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the coreav command for WASI into wasm/coreav.wasm and copies the
-# license files next to it (docs/design/npm-cli.md, "Build"):
+# license files and NOTICE next to it (docs/design/npm-cli.md, "Build"):
 #   1. cargo, profile `edge`, target wasm32-wasip1;
 #   2. wasm-opt -O3, when WASM_OPT names a binaryen wasm-opt or one is on
 #      PATH.
@@ -27,7 +27,8 @@ if [ -n "$opt" ]; then
 else
   echo "wasm-opt: not found; the module is not optimized by binaryen" >&2
 fi
-cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$here/"
+# NOTICE with every build of the command (docs/release/notices.md).
+cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$here/"
 cd "$out"
 sha256sum coreav.wasm
 echo "coreav.wasm: $(wc -c < coreav.wasm) bytes, gzip -9 $(gzip -9 -n -c coreav.wasm | wc -c) bytes"

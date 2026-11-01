@@ -36,6 +36,11 @@
 //!   the stored float with terms up to 2^31 - 1 (a 4-byte float keeps its
 //!   power-of-two denominator). H.265 chroma location comes from the VUI
 //!   (4:2:0 only, else `left`); AV1 `film_grain` from the sequence header.
+//!   Stereo 3D names each packing a `StereoMode` states (none for the
+//!   anaglyph modes), with both views packed and the camera values
+//!   unknown. A block's BlockAdditional side data is listed only for a
+//!   `BlockMore` of `BlockAddID` 1, data its codec defines; another ID
+//!   is not read without the track's mapping.
 //! - Timing: the stream time base is `TimestampScale`. A stream none of
 //!   whose packets come before `ffprobe`'s analysis stops (one packet per
 //!   audio stream; for video one, the reorder depth plus two for H.264
@@ -1934,6 +1939,14 @@ fn video_entries(e: &mut Entries, track: &Track, info: &Info, side_data: &mut Ve
                     ("side_data_type", s("Stereo 3D")),
                     ("type", s(typ)),
                     ("inverted", Value::Int(i64::from(inverted))),
+                    // Matroska states no view, primary eye, camera
+                    // baseline, disparity or field of view: both views
+                    // are packed in the frame and the rest is unknown.
+                    ("view", s("packed")),
+                    ("primary_eye", s("none")),
+                    ("baseline", Value::Int(0)),
+                    ("horizontal_disparity_adjustment", s("0/1")),
+                    ("horizontal_field_of_view", s("0/1")),
                 ],
             });
         }
@@ -2112,15 +2125,24 @@ fn stereo_name(mode: u64) -> Option<&'static str> {
     })
 }
 
-/// The `StereoMode` values `ffprobe` names: its type and whether the
-/// right eye comes first.
+/// The packing a `StereoMode` states (RFC 9559 5.1.4.1.28.3), as
+/// `ffprobe` names it, and whether the right eye comes first; none for
+/// the anaglyph modes, which pack no separate views.
 fn stereo(mode: u64) -> Option<(&'static str, bool)> {
     Some(match mode {
         0 => ("2D", false),
         1 => ("side by side", false),
         2 => ("top and bottom", true),
         3 => ("top and bottom", false),
+        4 => ("checkerboard", true),
+        5 => ("checkerboard", false),
+        6 => ("interleaved lines", true),
+        7 => ("interleaved lines", false),
+        8 => ("interleaved columns", true),
+        9 => ("interleaved columns", false),
         11 => ("side by side", true),
+        13 => ("frame alternate", false),
+        14 => ("frame alternate", true),
         _ => return None,
     })
 }
@@ -3017,10 +3039,13 @@ impl<S: Source> PacketSource for MkvPackets<S> {
             state.front -= skipped;
             let skip = if state.count == 1 { info.skip } else { 0 }.saturating_add(skipped);
             let mut side_data = Vec::new();
-            if p.block_additions.is_some() {
+            if p.codec_addition {
                 side_data.push(SideData {
                     typ: "matroska_blockadditional",
-                    entries: vec![("side_data_type", s("Matroska BlockAdditional"))],
+                    entries: vec![
+                        ("side_data_type", s("Matroska BlockAdditional")),
+                        ("block_additional_id", Value::Int(1)),
+                    ],
                 });
             }
             let Some(stream) = info.stream else {
