@@ -364,21 +364,18 @@ fn signed_offsets(track: &Track, mut p: coreav_isobmff::Packet) -> coreav_isobmf
 
 /// Reads video rates without building reports or scanning all samples for DTS shifts.
 #[cfg(feature = "transcode")]
-pub(super) fn frame_rates<S: Source>(
-    source: &mut S,
-    size: u64,
-) -> Result<Vec<(usize, String)>, Failure> {
-    let probed = crate::probe::run_source(&mut *source, size, &Allowlist::listing(), true)?;
+pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, String)>, Failure> {
     let limits = Limits::default();
-    Ok(probed
-        .movie
+    let movie = coreav_isobmff::probe(&mut *source, &limits, &Allowlist::listing())
+        .map_err(Failure::library)?;
+    Ok(movie
         .tracks
         .iter()
         .filter(|track| track.kind == TrackKind::Video)
         .map(|track| {
-            let head = head(&probed.movie, track, &mut *source, &limits);
+            let head = head(&movie, track, &mut *source, &limits);
             let info = video_info(track, &head, &mut *source).unwrap_or_default();
-            let (real, _) = video_rates(&probed.movie, track, &head, &info);
+            let (real, _) = video_rates(&movie, track, &head, &info);
             (track.stream_index, real)
         })
         .collect())
@@ -880,6 +877,7 @@ struct Head {
     first_pts: Option<i64>,
     /// The decode times of the first packets, in ticks.
     decode_times: Vec<i64>,
+    first_duration: Option<u32>,
 }
 
 fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits) -> Head {
@@ -912,6 +910,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
             .min(),
         reorder,
         first: packets.first().map(|p| (p.offset, p.size)),
+        first_duration: packets.first().map(|p| p.duration),
         decode_times,
         first_pts: packets
             .first()
@@ -1706,9 +1705,22 @@ fn video_rates(movie: &Movie, track: &Track, head: &Head, info: &VideoInfo) -> (
         .filter(|d| *d > 0)
         .and_then(|d| rate(u64::from(track.timescale.max(1)).checked_mul(frames)?, d))
         .unwrap_or_else(|| "0/0".to_owned());
-    let real = if frames == 1 {
-        if head.start.is_some() && avg != "0/0" {
+    let unscanned_fragments = movie.has_fragments() && track.fragment_samples == 0;
+    let single_frame = if unscanned_fragments {
+        head.decode_times.len() == 1
+    } else {
+        frames == 1
+    };
+    let real = if single_frame {
+        let single_rate = if unscanned_fragments {
+            head.first_duration
+                .and_then(|duration| rate(u64::from(track.timescale.max(1)), u64::from(duration)))
+                .unwrap_or_else(|| "0/0".to_owned())
+        } else {
             avg.clone()
+        };
+        if head.start.is_some() && single_rate != "0/0" {
+            single_rate
         } else {
             "1/0".to_owned()
         }
@@ -3421,6 +3433,43 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn rate_probe_reads_only_the_fragment_header_window() {
+        use crate::test_isobmff::fragments::{Fragmented, Track};
+
+        for (fragments, samples) in [(1, 1), (1, 2), (2, 1), (10_000, 1)] {
+            let track = Track {
+                timescale: 1000,
+                duration: 200,
+                samples,
+                size: 16,
+                ..Track::H264
+            };
+            let mut source = Fragmented::new(&[track], fragments);
+            let rates =
+                frame_rates(&mut source).unwrap_or_else(|error| panic!("{}", error.to_json()));
+            assert_eq!(rates, [(0, "5/1".to_owned())]);
+            assert!(
+                source.read_bytes() < 100_000,
+                "{} bytes for {fragments} fragments",
+                source.read_bytes()
+            );
+            let mut full = Fragmented::new(&[track], fragments);
+            let size = full.len().unwrap();
+            let full = probe(&mut full, size, "fragmented.mp4")
+                .unwrap_or_else(|error| panic!("{}", error.to_json()));
+            let reported = full.report.streams.first().and_then(|stream| {
+                stream.entries.iter().find_map(|(name, value)| match value {
+                    Value::Str(text) if *name == "r_frame_rate" => Some(text.as_str()),
+                    _ => None,
+                })
+            });
+            assert_eq!(reported, Some("5/1"));
+        }
+    }
 
     /// Decode times from a first time of 0 and these intervals.
     fn times(steps: &[i64]) -> Vec<i64> {

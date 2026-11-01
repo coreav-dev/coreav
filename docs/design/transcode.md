@@ -312,7 +312,9 @@ same rule (`decode.md`, "The FFmpeg fallback").
     apart, and on 5 frames a second in MP4). Where the probe finds no
     rate, the encoders choose. A rate-only probe reuses the rate estimator's
     bounded packet window without building a full report or scanning all
-    samples for DTS shifts or chapters. This probe consumes the transcode timeout
+    samples for DTS shifts, chapters or fragment totals. A single-frame
+    fragmented source takes its rate from that packet's stored duration.
+    This probe consumes the transcode timeout
     budget: reads check the deadline and the pipeline gets only the time
     left. A synchronous read already in progress cannot be interrupted.
   - **VUI timing** is what each encoder derives from those times, as for

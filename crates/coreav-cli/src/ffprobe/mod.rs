@@ -110,13 +110,12 @@ pub(crate) fn parse_rate(text: &str) -> Option<(u64, u64)> {
 #[cfg(feature = "transcode")]
 pub(crate) fn source_frame_rates<S: Source>(
     source: &mut S,
-    size: u64,
 ) -> Result<Vec<(usize, String)>, Failure> {
     let mut source = coreav_isobmff::BufferedSource::new(source);
     if crate::matroska::detect_source(&mut source)? {
         mkv::frame_rates(&mut source)
     } else {
-        iso::frame_rates(&mut source, size)
+        iso::frame_rates(&mut source)
     }
 }
 

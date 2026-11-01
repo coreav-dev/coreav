@@ -192,7 +192,7 @@ fn source_rates<S: Source>(
     let deadline = Instant::now().checked_add(timeout).ok_or_else(expired)?;
     let mut source = RateSource { source, deadline };
     let rates = match source.len() {
-        Ok(size) => crate::ffprobe::source_frame_rates(&mut source, size)
+        Ok(_) => crate::ffprobe::source_frame_rates(&mut source)
             .map(|rates| {
                 rates
                     .into_iter()

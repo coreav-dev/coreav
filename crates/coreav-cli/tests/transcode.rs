@@ -908,6 +908,18 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
     ]);
     let five = dir.join("five.mp4");
     made(5, &five);
+    let fragmented = dir.join("fragmented.mp4");
+    ffmpeg(&[
+        "-i",
+        five.to_str().unwrap(),
+        "-c",
+        "copy",
+        "-movflags",
+        "empty_moov+frag_keyframe",
+        "-frag_duration",
+        "200000",
+        fragmented.to_str().unwrap(),
+    ]);
     let skipped = dir.join("unlisted-track.mkv");
     ffmpeg(&[
         "-i",
@@ -927,6 +939,7 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
     for (source, rate, keyint_min) in [
         (&declared, "10/1", 10),
         (&five, "5/1", 5),
+        (&fragmented, "5/1", 5),
         (&skipped, "5/1", 5),
     ] {
         let probed = probe_json(&tools, &["-show_entries", "stream=r_frame_rate"], source);
