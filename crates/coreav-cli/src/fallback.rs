@@ -432,6 +432,14 @@ mod tests {
     }
 
     #[test]
+    fn a_value_the_listing_shows_without_an_argument_name_is_not_an_input() {
+        assert_eq!(
+            redacted(Tool::Ffprobe, "-data_dump_format xxd -show_data in.mp4"),
+            "-data_dump_format VALUE -show_data INPUT"
+        );
+    }
+
+    #[test]
     fn times_are_ffmpeg_syntax() {
         for time in [
             "10",

@@ -29,13 +29,13 @@ Options:
           Output size as FFmpeg's scale filter takes it: W:H, each side in pixels, -1 (from the other side, keeping the aspect ratio) or -2 (the same, even). Default: the source's size
 
       --audio <MODE>
-          `copy` every audio stream MP4 can carry (the others are dropped and listed), `none`, or `opus`: the first audio stream CoreAV decodes (FLAC or MP3, mono or stereo) encoded to Opus by libopus, the others dropped and listed. `opus` needs a coreav built with the opt-in libopus feature; other builds refuse it
+          `copy` every audio stream MP4 can carry (the others are dropped and listed), `none`, `opus` or `aac`: the first audio stream CoreAV decodes (FLAC or MP3, mono or stereo) encoded, the others dropped and listed. `opus` is Opus by libopus, and needs a coreav built with the opt-in libopus feature; other builds refuse it. `aac` is AAC-LC by the ffmpeg program's built-in aac encoder (--ffmpeg), at the stream's own rate, 8 to 64 kHz; --strict-safe refuses it
           
           [default: copy]
-          [possible values: copy, none, opus]
+          [possible values: copy, none, opus, aac]
 
       --audio-bitrate <KBPS>
-          With --audio opus (opt-in libopus builds only), the Opus bit rate in kbit/s, 6 to 510 (default: 64 for mono, 96 for stereo)
+          With --audio opus or aac, the bit rate in kbit/s: Opus 6 to 510 (default: 64 for mono, 96 for stereo), AAC 16 to 512 (default: the aac encoder's own)
 
       --encoder <ENCODER>
           The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`: x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg` is refused and `auto` is x264 only

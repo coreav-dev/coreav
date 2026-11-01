@@ -55,11 +55,13 @@
         fails it (R4) or fails the gate; a pair whose untimed run failed has
         no ratio, as the plan registers, and is counted by the side that
         failed. Exit 1 when a class misses or the gate fails,
-        2 when the run is void (its fallback log holds a non-exempt line),
+        2 when the run is void (a non-exempt log event or a CoreAV failure
+        without a valid refusal record beside a failed oracle),
         3 when no pair has a ratio. A qualifying run-observed strict-safe
         refusal is excluded from timing and counted with its reason group;
-        coverage accompanies every speed number. `r4` exits 3 when it
-        has no pair to time.
+        an oracle-failed pair's valid refusal is a separate diagnostic.
+        Coverage and diagnostic reasons accompany every speed number.
+        `r4` exits 3 when it has no pair to time.
 
 Every run has no gconv modules (release_round.NO_GCONV). Python 3 standard
 library only, besides boto3 for `select`.
@@ -516,6 +518,8 @@ def r4_coverage(rows, sides):
     counts = dict.fromkeys(('eligible', 'refused', 'timed', 'failed', 'oracle_failed', 'unprocessed'), 0)
     groups = dict.fromkeys(('codec_container', 'option', 'layout', 'unknown'), 0)
     reasons = collections.Counter()
+    oracle_refusal_pairs = 0
+    oracle_refusal_reasons = collections.Counter()
     for row in rows:
         counts['eligible'] += 1
         outcome = row.get('outcome')
@@ -535,8 +539,13 @@ def r4_coverage(rows, sides):
         if outcome == 'refused':
             groups[row.get('refusal_group', 'unknown')] += 1
             reasons.update(set(row.get('refusal_reasons', [])))
+        if outcome == 'oracle_failed' and row.get('oracle_refusal_reasons'):
+            oracle_refusal_pairs += 1
+            oracle_refusal_reasons.update(set(row['oracle_refusal_reasons']))
     return {**counts, 'timed_share': counts['timed'] / counts['eligible'] if counts['eligible'] else None,
-            'refusal_groups': groups, 'refusal_reasons': dict(sorted(reasons.items()))}
+            'refusal_groups': groups, 'refusal_reasons': dict(sorted(reasons.items())),
+            'oracle_refusal_pairs': oracle_refusal_pairs,
+            'oracle_refusal_reasons': dict(sorted(oracle_refusal_reasons.items()))}
 
 
 def r4(opts):
@@ -562,7 +571,7 @@ def r4(opts):
     commands = [{'id': entry['id'], 'command': i, 'class': entry['job']}
                 for entry in release_round.entries() for i, _ in enumerate(entry['commands'])]
     log_lines = 0
-    refusal_lines = excluded_lines = 0
+    refusal_lines = excluded_lines = diagnostic_lines = 0
     void, aborted, row = False, True, None
     try:
         preflight_lines = [line for line in log.read_bytes().splitlines() if line.strip()] if log.exists() else []
@@ -599,9 +608,19 @@ def r4(opts):
                                refusal_group=next(iter(groups)) if len(groups) == 1 else 'unknown')
                     excluded_lines += lines
                 else:
-                    void |= bool(lines)
-                    if any(side == 'ffmpeg' and code != 0 for side, code in zip((left, right), warm)):
+                    oracle_failed = any(side == 'ffmpeg' and code != 0
+                                        for side, code in zip((left, right), warm))
+                    if oracle_failed:
                         row['outcome'] = 'oracle_failed'
+                    if oracle_failed and 'coreav' in (left, right) and all(
+                            call['refusal'] if side == 'coreav' else not call['lines']
+                            for call, side in zip(calls, (left, right))):
+                        row['oracle_refusal_reasons'] = sorted(
+                            {reason for call in calls for reason in call['reasons']})
+                        diagnostic_lines += lines
+                    else:
+                        void |= bool(lines) or (oracle_failed and any(
+                            side == 'coreav' and code != 0 for side, code in zip((left, right), warm)))
                 continue
             if lines:
                 void = True
@@ -636,7 +655,8 @@ def r4(opts):
              'rounds': opts.rounds, 'cpus': opts.cpus, 'aborted': aborted,
              'files': dict(collections.Counter(f for f, _ in files)), 'commands': commands,
              'fallback_log': {'lines': log_lines, 'refusal_lines': refusal_lines,
-                              'excluded_lines': excluded_lines, 'void': void}, 'results': results}) + '\n')
+                              'excluded_lines': excluded_lines, 'diagnostic_lines': diagnostic_lines,
+                              'void': void}, 'results': results}) + '\n')
     return 0
 
 
@@ -709,6 +729,8 @@ def r4_report(opts):
         share = f"{counts['timed_share']:.1%}" if counts['timed_share'] is not None else 'unmeasured'
         return (f"refused={counts['refused']} eligible={counts['eligible']} "
                 f"timed={counts['timed']} failed={counts['failed']} oracle_failed={counts['oracle_failed']} "
+                f"oracle_refusal_pairs={counts['oracle_refusal_pairs']} "
+                f"oracle_refusal_reasons={json.dumps(counts['oracle_refusal_reasons'], sort_keys=True)} "
                 f"unprocessed={counts['unprocessed']} timed_share={share}")
 
     if summary['aborted']:
@@ -734,7 +756,7 @@ def r4_report(opts):
     if summary['aborted']:
         return 1
     if summary['fallback_log']['void']:
-        print('VOID: the fallback log holds a non-exempt line')
+        print('VOID: a non-exempt log event or invalid CoreAV failure')
         return 2
     if not summary['classes']:
         print('UNMEASURED: no pair has a ratio')

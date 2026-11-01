@@ -21,6 +21,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod aac;
 pub mod annexb;
 pub mod audio;
 pub mod encoder;
@@ -29,6 +30,7 @@ pub mod rawmkv;
 pub mod scale;
 pub mod timing;
 
+pub use aac::AacAudio;
 pub use audio::{AudioSummary, OpusAudio};
 pub use coreav_frame::PixelFormat;
 pub use pipeline::{

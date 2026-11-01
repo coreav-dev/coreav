@@ -1,0 +1,66 @@
+name: aac-encode
+
+# The AAC bars of docs/design/transcode.md ("AAC bars"): `coreav transcode
+# --audio aac` against FFmpeg's `-c:a aac` on the same sources, judged by
+# scripts/aac_encode_check.py against the pinned oracle FFmpeg
+# (scripts/oracle-ffmpeg.env), which is also both arms' AAC encoder. Only a
+# manual run judges the bars, so the judged run is one started on purpose;
+# a run for a change to the encoder or this workflow builds coreav and
+# checks the oracle, and judges nothing.
+
+on:
+  push:
+    branches: [main]
+    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/aac-encode.yml"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/aac-encode.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  aac-bars:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Check the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Build coreav
+        run: cargo build --locked --release -p coreav-cli --features native-h264
+      - name: Judge the AAC bars
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/aac_encode_check.py --coreav target/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --work "$RUNNER_TEMP/aac-encode" --out "$RUNNER_TEMP/aac-encode-report.json"
+      - name: Keep the report
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aac-encode-report
+          path: ${{ runner.temp }}/aac-encode-report.json
