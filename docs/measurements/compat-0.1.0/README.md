@@ -12,6 +12,8 @@ the first run of the round is recorded below as a deviation, not edited in.
 
 ## The commit
 
+Release candidate: `4062842fc42babef9e6661a37bbb18f7e375a80c`.
+
 Every bar runs on one commit of `main`, the release candidate. A pull
 request that only adds its SHA to this page names it, after every
 prerequisite below has merged and before the first run. The binary is
