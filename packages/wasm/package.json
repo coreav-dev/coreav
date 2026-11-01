@@ -32,19 +32,22 @@
     "README.md",
     "LICENSE-MIT",
     "LICENSE-APACHE",
-    "NOTICE"
+    "NOTICE",
+    "THIRD-PARTY-NOTICES.txt"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "test": "node --test test/sources.test.mjs test/http.test.mjs test/r2.test.mjs test/errors.test.mjs test/build.test.mjs",
+    "test": "node --test test/sources.test.mjs test/http.test.mjs test/r2.test.mjs test/errors.test.mjs test/build.test.mjs test/package.test.mjs test/legal.test.mjs test/module-evidence.test.mjs",
     "test:module": "node --experimental-wasm-jspi --experimental-wasm-exnref --test test/module.test.mjs test/streams.test.mjs",
     "test:types": "node scripts/check-types.mjs",
+    "check:package": "node scripts/check-package.mjs",
     "prepack": "node scripts/prepack.mjs"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261101.1",
     "typescript": "5.9.3"
   }
 }

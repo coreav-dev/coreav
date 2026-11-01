@@ -3,8 +3,9 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
@@ -12,6 +13,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { build, stop as stopBundler } from "esbuild";
 import { fixtures } from "./synth.mjs";
 import { indexIdentity } from "../hls/src/indexes.js";
+import { archiveEntries, validateArchive, validateManifest, consumerEnv } from "../../scripts/check-package.mjs";
+import { allowedLicenses } from "../../scripts/legal.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const platform = process.platform === "win32" ? "windows" : process.platform;
@@ -19,16 +22,40 @@ const architecture = process.arch === "x64" ? "64" : process.arch;
 const workerd = createRequire(import.meta.url).resolve(`@cloudflare/workerd-${platform}-${architecture}/bin/workerd${process.platform === "win32" ? ".exe" : ""}`);
 const output = join(root, ".harness");
 const args = process.argv.slice(2);
-let native, extra = [], packageRoot = resolve(root, "..");
+let native, tarball, extra = [];
 while (args.length) {
   const arg = args.shift();
   if (arg === "--edge-native" && args.length) native = resolve(args.shift());
   else if (arg === "--fixtures" && args.length) extra.push(...args.shift().split(",").map((path) => resolve(path)));
-  else if (arg === "--wasm-package" && args.length) packageRoot = resolve(args.shift());
-  else throw new Error("usage: check --edge-native PATH [--fixtures DIR,...] [--wasm-package DIR]");
+  else if (arg === "--tarball" && args.length) tarball = resolve(args.shift());
+  else throw new Error("usage: check --edge-native PATH --tarball PATH [--fixtures DIR,...]");
 }
 assert.ok(native && existsSync(native), "build edge-native and pass --edge-native PATH");
-assert.ok(existsSync(join(packageRoot, "wasm/coreav_bg.wasm")), "build the WASM package first");
+assert.ok(tarball && existsSync(tarball), "pack the WASM package and pass --tarball PATH");
+const archive = readFileSync(tarball);
+const packed = validateArchive(archiveEntries(archive));
+validateManifest(JSON.parse(packed.get("package/package.json")), allowedLicenses(resolve(root, "../../..")));
+const consumer = mkdtempSync(join(tmpdir(), "coreav-wasm-examples-"));
+tarball = join(consumer, "checked.tgz");
+writeFileSync(tarball, archive);
+const packageRoot = join(consumer, "node_modules/@coreav/wasm");
+function install(directory) {
+  const manifest = existsSync(join(directory, "package.json")) ? JSON.parse(readFileSync(join(directory, "package.json"))) : { name: "installed-example", private: true, type: "module" };
+  writeFileSync(join(directory, "package.json"), JSON.stringify({ ...manifest, dependencies: { ...manifest.dependencies, "@coreav/wasm": `file:${tarball}` } }));
+  const result = spawnSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false"], { cwd: directory, env: consumerEnv(), encoding: "utf8", timeout: 30000 });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(realpathSync(join(directory, "node_modules/@coreav/wasm")), join(realpathSync(directory), "node_modules/@coreav/wasm"), "the package must be installed, not linked to the repository");
+}
+try {
+  install(consumer);
+  for (const name of ["media", "hls"]) cpSync(join(root, name, "src"), join(consumer, name, "src"), { recursive: true });
+  mkdirSync(join(consumer, "test"));
+  for (const name of ["harness.js", "fake-r2.mjs"]) cpSync(join(root, "test", name), join(consumer, "test", name));
+} catch (error) {
+  rmSync(consumer, { recursive: true, force: true });
+  throw error;
+}
 rmSync(output, { recursive: true, force: true });
 mkdirSync(join(output, "fixtures"), { recursive: true });
 const files = new Map([...fixtures()].map(([name, bytes]) => [name, { bytes, etag: "fixture-v1" }]));
@@ -45,6 +72,7 @@ let puts = 0, comparisons = 0, resources = 0;
 const logs = [];
 const workers = new Set();
 const memory = [];
+const memoryGates = [];
 const secret = /SECRETSIG|SECRETTOK|SECRETPW|SECRETKEY/;
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
@@ -99,21 +127,36 @@ async function freePort() {
   return port;
 }
 
-async function start(example, pkg = packageRoot, settings = {}) {
-  const directory = join(output, `worker-${workers.size}-${example}-${basename(pkg)}`);
+let workerNumber = 0;
+function checkInputs(result, directory) {
+  for (const path of Object.keys(result.metafile.inputs)) {
+    const suffix = relative(directory, resolve(directory, path));
+    assert.ok(!isAbsolute(suffix) && suffix !== ".." && !suffix.startsWith("../"), "bundle input escaped its installed consumer");
+  }
+}
+
+async function start(example, pkg = packageRoot, settings = {}, defaultReaders = false) {
+  const directory = join(output, `worker-${workerNumber++}-${example}`);
   mkdirSync(directory, { recursive: true });
   let wasm;
-  await build({
-    entryPoints: [join(root, "test/harness.js")], outfile: join(directory, "bundle.js"), bundle: true, format: "esm", platform: "neutral",
-    alias: { EXAMPLE: join(root, example, "src/index.js"), "@coreav/wasm/workers": join(pkg, "src/workers.js") },
+  const result = await build({
+    absWorkingDir: consumer, metafile: true,
+    entryPoints: [join(consumer, "test/harness.js")], outfile: join(directory, "bundle.js"), bundle: true, format: "esm", platform: "neutral",
+    alias: { EXAMPLE: join(consumer, example, "src/index.js"), ...(pkg === packageRoot ? {} : { "@coreav/wasm/workers": join(pkg, "src/workers.js") }) },
     plugins: [{ name: "wasm-module", setup(builder) {
       builder.onResolve({ filter: /\.wasm$/ }, (args) => {
         wasm = resolve(args.resolveDir, args.path);
         cpSync(wasm, join(directory, "coreav_bg.wasm"));
         return { path: "./coreav_bg.wasm", external: true };
       });
+      if (defaultReaders) builder.onLoad({ filter: /\/(?:input|indexes)\.js$/ }, ({ path }) => {
+        const contents = readFileSync(path, "utf8");
+        assert.equal(contents.split("memoryBytes: READER_MEMORY_BYTES").length, 2, "the test-only reader variant must change exactly one bound");
+        return { contents: contents.replace("memoryBytes: READER_MEMORY_BYTES", "memoryBytes: 0"), loader: "js" };
+      });
     } }]
   });
+  checkInputs(result, consumer);
   assert.ok(wasm, "the bundle must contain a compiled WASM module");
   const port = await freePort();
   const variables = { DEV_ANONYMOUS: "1", ALLOWED_HOSTS: "fixtures.test", MAX_UPLOAD_BYTES: "16777216", SEGMENT_DURATION: "1", ...settings };
@@ -127,12 +170,13 @@ const config :Workerd.Config = (
   ], sockets = [(name = "http", address = "127.0.0.1:${port}", http = (), service = "example")]
 );
 `);
-  const child = spawn(workerd, ["serve", join(directory, "config.capnp")], { stdio: ["ignore", "pipe", "pipe"] });
+  const inspectorPort = await freePort();
+  const child = spawn(workerd, ["serve", "--inspector-addr", `127.0.0.1:${inspectorPort}`, join(directory, "config.capnp")], { stdio: ["ignore", "pipe", "pipe"] });
   let launchError;
   child.on("error", (error) => { launchError = error; });
   child.stdout.on("data", (chunk) => logs.push(chunk.toString()));
   child.stderr.on("data", (chunk) => logs.push(chunk.toString()));
-  const worker = { child, base: `http://127.0.0.1:${port}`, build: sha(readFileSync(wasm)) };
+  const worker = { child, base: `http://127.0.0.1:${port}`, inspector: `http://127.0.0.1:${inspectorPort}`, build: sha(readFileSync(wasm)), defaultReaders };
   workers.add(worker);
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (launchError) throw launchError;
@@ -145,6 +189,7 @@ const config :Workerd.Config = (
       const info = await response.json();
       assert.equal(info.build, worker.build, "moduleInfo fingerprint must describe the embedded WASM");
       worker.version = info.version;
+      await recordMemory(worker, `${example}-boot`);
       return worker;
     }
     await delay(50);
@@ -232,12 +277,116 @@ async function crawl(worker, name) {
   await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(15000) }).then((response) => response.json());
 }
 
-async function recordMemory(worker, step) {
-  const result = await fetch(worker.base + "/__harness/memory").then((response) => response.json());
-  memory.push({ step, ...result });
+async function heapUsage(worker) {
+  if (worker.heapUnavailable) return { heap: null, heapError: "inspector_unavailable" };
+  let socket;
+  try {
+    const targets = await fetch(worker.inspector + "/json/list", { signal: AbortSignal.timeout(1000) }).then((response) => response.json());
+    const target = targets.find((target) => target.webSocketDebuggerUrl);
+    assert.ok(target, "inspector has no worker target");
+    socket = new WebSocket(target.webSocketDebuggerUrl);
+    return await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("inspector timeout")), 1000);
+      const finish = (error, value) => { clearTimeout(timer); error ? reject(error) : resolve(value); };
+      socket.addEventListener("error", () => finish(new Error("inspector connection failed")));
+      socket.addEventListener("close", () => finish(new Error("inspector closed")));
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ id: 1, method: "HeapProfiler.collectGarbage" })));
+      socket.addEventListener("message", (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.error) throw new Error("inspector method unavailable");
+          if (message.id === 1) socket.send(JSON.stringify({ id: 2, method: "Runtime.getHeapUsage" }));
+          if (message.id === 2) {
+            const { usedSize, totalSize } = message.result;
+            assert.ok(Number.isFinite(usedSize) && usedSize >= 0 && Number.isFinite(totalSize) && totalSize >= usedSize);
+            finish(null, { heap: { usedBytes: usedSize, totalBytes: totalSize }, heapError: null });
+          }
+        } catch (error) { finish(error); }
+      });
+    });
+  } catch {
+    worker.heapUnavailable = true;
+    return { heap: null, heapError: "inspector_unavailable" };
+  } finally { socket?.close(); }
+}
+
+async function recordMemory(worker, step, bar = null) {
+  const { memoryBytes, ...details } = await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(15000) }).then((response) => response.json());
+  assert.ok(Number.isSafeInteger(memoryBytes) && memoryBytes > 0, "moduleInfo must report linear memory");
+  let peakRss = null, peakRssError = "unavailable_on_this_os";
+  if (process.platform === "linux") {
+    const match = /^VmHWM:\s+(\d+) kB$/m.exec(readFileSync(`/proc/${worker.child.pid}/status`, "utf8"));
+    peakRss = match ? Number(match[1]) * 1024 : null;
+    peakRssError = match ? null : "process_high_water_mark_unavailable";
+  }
+  memory.push({ step, classification: bar === null ? "diagnostic" : "gate", wasm: memoryBytes, ...await heapUsage(worker), peakRss, peakRssError, readerMemoryBytes: worker.defaultReaders ? 0 : 40 * 1024 * 1024, ...details });
+  if (bar !== null) memoryGates.push({ step, signal: "wasm_linear_bytes", value: memoryBytes, bar, source: "fresh_operation", pass: memoryBytes <= bar });
+}
+
+async function standalone(example) {
+  const directory = join(consumer, `standalone-${example}`);
+  cpSync(join(root, example), directory, { recursive: true, filter: (path) => !["node_modules", "dist", ".wrangler"].some((name) => path.split(/[\\/]/).includes(name)) });
+  install(directory);
+  let modules = 0;
+  const result = await build({
+    absWorkingDir: directory, entryPoints: ["src/index.js"], outfile: join(directory, "bundle.js"), bundle: true, format: "esm", platform: "neutral", metafile: true,
+    plugins: [{ name: "installed-wasm", setup(builder) {
+      builder.onResolve({ filter: /\.wasm$/ }, (args) => {
+        modules += 1;
+        assert.equal(sha(readFileSync(resolve(args.resolveDir, args.path))), sha(readFileSync(join(packageRoot, "wasm/coreav_bg.wasm"))));
+        return { path: "./coreav_bg.wasm", external: true };
+      });
+    } }]
+  });
+  assert.equal(modules, 1, "the standalone bundle must import one compiled module");
+  checkInputs(result, directory);
+}
+
+async function memoryMatrix() {
+  for (const route of routes) {
+    const worker = await start("media");
+    await compareMedia(worker, "av-text.mp4", route, "key");
+    const bar = route[0] === "ffprobe" ? null : (route[0] === "remux" || route[0] === "sanitize" ? 64 : 32) * 1024 * 1024;
+    await recordMemory(worker, `fresh-${route[0]}`, bar);
+    await stop(worker);
+  }
+  const warm = await start("media");
+  for (let pass = 1; pass <= 3; pass += 1) {
+    for (const route of [routes[7], routes[8], ...routes.slice(0, 7)]) {
+      await compareMedia(warm, "av-text.mp4", route, "key");
+      await recordMemory(warm, `warm-${pass}-${route[0]}`);
+    }
+    const upload = new Uint8Array(16 * 1024 * 1024); upload.set(files.get("av.mp4").bytes);
+    assert.equal((await get(warm, "/probe", { method: "POST", body: upload })).status, 200);
+    await recordMemory(warm, `warm-${pass}-upload`);
+  }
+  await stop(warm);
+  for (const [name, list] of [["read-only", routes.slice(0, 7)], ["with-writers", routes]]) {
+    for (const concurrency of [1, 4, 6]) {
+      const worker = await start("media");
+      const requests = [...list, ...list];
+      let at = 0;
+      await Promise.all(Array.from({ length: concurrency }, async () => {
+        while (at < requests.length) {
+          const route = requests[at++];
+          await compareMedia(worker, "av-text.mp4", route, "key");
+        }
+      }));
+      await recordMemory(worker, `concurrent-${name}-${concurrency}`);
+      await stop(worker);
+    }
+  }
+  for (const route of routes) {
+    const worker = await start("media", packageRoot, {}, true);
+    await compareMedia(worker, "av-text.mp4", route, "key");
+    await recordMemory(worker, `library-default-reader-${route[0]}`);
+    await stop(worker);
+  }
 }
 
 try {
+  await standalone("media");
+  await standalone("hls");
   const media = await start("media");
   for (const name of files.keys()) for (const route of routes) for (const kind of ["key", "url", "post"]) await compareMedia(media, name, route, kind);
   for (const route of [
@@ -274,6 +423,8 @@ try {
   await stop(configured);
   assert.equal((await get(media, "/probe", { method: "POST", body: new Uint8Array(8), headers: { "content-encoding": "gzip" } })).status, 415);
   await stop(media);
+
+  await memoryMatrix();
 
   const video = reference("remux", "av.mp4", { streams: [0] });
   assert.equal(video.status, 0);
@@ -315,11 +466,11 @@ try {
   await crawl(hls, "av.mp4"); assert.equal(records.size, storedCount + 1, "new ETag uses a new identity");
   changed.etag = "fixture-v1";
   await stop(hls);
-  const copy = join(output, "package-b"); mkdirSync(copy);
+  const copy = join(consumer, "package-b"); mkdirSync(copy);
   for (const name of ["src", "wasm", "package.json"]) cpSync(join(packageRoot, name), join(copy, name), { recursive: true });
   const original = readFileSync(join(copy, "wasm/coreav_bg.wasm"));
   writeFileSync(join(copy, "wasm/coreav_bg.wasm"), Buffer.concat([original, Buffer.from([0, 2, 1, 120])]));
-  const fingerprint = spawnSync(process.execPath, [join(packageRoot, "scripts/fingerprint.mjs"), copy], { encoding: "utf8" });
+  const fingerprint = spawnSync(process.execPath, [join(root, "../scripts/fingerprint.mjs"), copy], { encoding: "utf8" });
   assert.equal(fingerprint.status, 0, fingerprint.stderr);
   hls = await start("hls", copy);
   assert.equal(hls.version, version); assert.notEqual(hls.build, aBuild);
@@ -337,11 +488,17 @@ try {
   await stop(hls);
   assert.ok(comparisons > 0 && resources > 0 && files.size > 0, "empty verification is not a pass");
   assert.doesNotMatch(logs.join(""), secret);
-  writeFileSync(join(output, "memory.json"), JSON.stringify(memory, null, 2) + "\n");
-  writeFileSync(join(output, "runtime.log"), logs.join(""));
-  console.log(JSON.stringify({ fixtures: files.size, comparisons, resources, storedIndexes: records.size, memory }));
+  assert.equal(memoryGates.length, 8, "all fresh-operation memory gates must run");
+  const failed = memoryGates.filter((gate) => !gate.pass);
+  assert.equal(failed.length, 0, `memory gates failed: ${failed.map((gate) => `${gate.step} (bar ${gate.bar / 1024 / 1024} MiB)`).join(", ")}`);
+  console.log(JSON.stringify({ fixtures: files.size, comparisons, resources, storedIndexes: records.size }));
+  console.log(`memory: ${memoryGates.length} gates passed (synthetic fixtures; not a platform isolate measurement)`);
+  if (!process.env.CI) console.log("Local diagnostic records: .harness/memory.json");
 } finally {
+  writeFileSync(join(output, "memory.json"), JSON.stringify({ gates: memoryGates, records: memory, limitations: ["Small generated fixtures, not a held-out or platform isolate measurement", "The fake bucket retains whole fixture bodies in JavaScript", "Heap and process RSS are diagnostic; RSS is unavailable on macOS", "Zero readerMemoryBytes means library defaults, not a zero-byte reader", "Warm, HLS and all new concurrency observations have no acceptance bar"] }, null, 2) + "\n");
+  writeFileSync(join(output, "runtime.log"), logs.join(""));
   for (const worker of [...workers]) await stop(worker);
   await new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); });
   stopBundler();
+  rmSync(consumer, { recursive: true, force: true });
 }

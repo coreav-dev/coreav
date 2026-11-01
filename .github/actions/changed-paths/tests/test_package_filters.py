@@ -94,6 +94,15 @@ class PackageFilters(unittest.TestCase):
             with self.subTest(workflow=name):
                 self.assertTrue(self.selected(['.github/workflows/' + name + '.yml'])[name])
 
+    def test_shared_optimizer_inputs_keep_npm_validation(self):
+        for path in ('scripts/binaryen.env', 'scripts/install-binaryen.sh'):
+            with self.subTest(path=path):
+                self.assertTrue(self.selected([path])['npm'])
+                self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - ' + path + '\n'), 2)
+
+    def test_the_wasm_compiler_pin_selects_the_wasm_workflow(self):
+        self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - scripts/rust-wasm.env\n'), 2)
+
     def test_pr_push_and_merge_group_apply_the_same_package_filters(self):
         for event in ('pull_request', 'push', 'merge_group'):
             for paths, expected in ((['packages/wasm/src/node.js'], False),

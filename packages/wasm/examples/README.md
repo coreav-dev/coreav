@@ -53,10 +53,10 @@ From the repository root, build the WASM package and native reference, then run:
 ```sh
 npm ci --prefix packages/wasm/examples --ignore-scripts
 npm test --prefix packages/wasm/examples
-npm run check --prefix packages/wasm/examples -- --edge-native "$(pwd)/target/edge/edge-native"
+npm run check --prefix packages/wasm/examples -- --edge-native "$(pwd)/target/edge/edge-native" --tarball /path/to/coreav-wasm-0.0.1.tgz
 ```
 
-The integration check uses `workerd`, `esbuild`, deterministic ISO fixtures generated from this repository's test structures, and a local R2 stand-in. It makes no cloud requests. An alternate built package can be selected with `--wasm-package DIR`; `--fixtures DIR,...` adds uniquely named fixtures. Use only trusted generated fixtures on a personal machine.
+First pack the optimized package with `npm pack` in `packages/wasm` and check that archive with `npm run check:package --prefix packages/wasm -- --tarball FILE`. The integration check installs the same archive offline outside the repository, bundles copied examples through the installed exports, and uses `workerd`, deterministic ISO fixtures and a local R2 stand-in. It makes no cloud requests. `--fixtures DIR,...` adds uniquely named fixtures. Use only trusted generated fixtures on a personal machine.
 
 | Coverage | Local checks |
 | --- | --- |
@@ -67,5 +67,8 @@ The integration check uses `workerd`, `esbuild`, deterministic ISO fixtures gene
 | HLS | Native playlist/segment crawl, missing resources, CORS, store-less mode |
 | Cache | Size and admission limits, reservations, shared builds, races, damaged records, ETag and build changes |
 | Tool graph | Fresh lock checked against the repository license policy |
+| Installed consumers | Standalone copied examples and runtime harness resolve only their installed package |
 
-The harness records warm WASM memory and cache statistics in `.harness/memory.json` as evidence, not as a pass against an isolate-memory bar. It also checks stored-index reuse across restarts and two distinct WASM builds at one version. Empty comparisons fail. Tarball installation, copied-example installation, full format fixtures and hostile-input checks belong to the separate packaging validation; a local smoke run does not establish them.
+The harness records linear memory, inspector heap where available, Linux process high-water RSS and retained cache statistics in local `.harness/memory.json`. Fresh isolates enforce 32 MiB after probe, check, chapters, subtitle extraction, audio extraction and clip, and 64 MiB after remux and sanitize. Warm mixed passes, concurrency 1/4/6, writer interleaving, ffprobe and HLS are diagnostic only. A test-only copy also removes the reader bound to compare library defaults with the examples' explicit 40 MiB setting; it does not change the examples' configuration.
+
+The fake bucket retains fixture bodies in JavaScript; inspector collection perturbs heap observations; macOS RSS is recorded as unavailable. None of these local signals is platform isolate accounting. Raw memory records remain local and are not uploaded; CI emits verdicts only. Stored-index reuse, rebuilds and distinct WASM builds at one version remain correctness checks. Empty comparisons fail. Full format fixtures, hostile inputs and production memory require separate verification.
