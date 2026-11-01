@@ -76,9 +76,9 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
 One encode is taken since: in a build with a decoder backend, a command
-line that encodes the video with `libx264`, and in a build with the
-`libopus` feature also its audio with `libopus` (`-c:a libopus`, `-b:a`),
-with the few options
+line that encodes the video with `libx264`, and also its audio with
+FFmpeg's `aac` (`-c:a aac`, `-b:a`), or in a build with the `libopus`
+feature with `libopus` (`-c:a libopus`, `-b:a`), with the few options
 [`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
 through `coreav transcode`'s pipeline, and its bar is B9 there. The
 vocabulary above and the labels of the command-coverage set stay step 1's,
@@ -88,7 +88,11 @@ build with a decoder backend needs those lines relabelled first, a change
 to `classify.py` this step does not make. A build with the `libopus`
 feature encodes a `-c:a libopus` line natively; in any other build such a
 line is not native, so it runs FFmpeg outside strict-safe mode ("Fallback
-to FFmpeg") and is refused in strict-safe mode, where nothing runs.
+to FFmpeg") and is refused in strict-safe mode, where nothing runs. A
+`-c:a aac` line is encoded natively in every build with a decoder
+backend, its `aac` encoder the `ffmpeg` program run as a process of its
+own (`coreav transcode --audio aac`), so strict-safe mode refuses every
+such line before the input is read.
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
@@ -235,6 +239,9 @@ without a configuration record uses the first level whose picture size,
 sample rate, bit rate and edge limits cover the known stream values
 ([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
 listing estimate, not a check of every level constraint of every frame.
+The sample rate counts only a stated average frame rate: `r_frame_rate`
+can be a guess from the time base, such as the 1,000 a second of a
+variable-rate Matroska stream's millisecond tick.
 VP8 and VP9 ISO sample entries share the
 [`vpcC` pixel-format reader](https://www.webmproject.org/vp9/mp4/):
 bit depth and chroma subsampling select the planar format; full range
@@ -263,6 +270,17 @@ MPEG-TS access unit carries its PES identifier as packet side data,
 including further audio frames of one PES packet and the EOF flush.
 ISO base media packets keep the decode durations in `stts` and `trun`,
 even when the stream has composition offsets.
+
+Matroska and WebM list the samples a decoder discards as Skip Samples
+packet side data (RFC 9559): a track's `CodecDelay` on its first packet,
+a block's `DiscardPadding` from its last frames, or from its first when
+negative, each frame at most its own samples, each rounded to the nearest sample at the rate the decoder outputs (48
+kHz for Opus, RFC 7845 5.1; the output sampling frequency, which SBR
+doubles, RFC 9559 5.1.4.1.29.2). The frames of a block with end padding
+wait for its last frame without their payloads, each read when its frame
+is listed. An audio stream with a codec delay
+starts at its first block's own timestamp, the first sample played,
+while its packets keep the presentation times the delay moves earlier.
 
 ## The 0.1.0 command set
 
@@ -1023,7 +1041,7 @@ implies:
 | The command | The writer |
 |---|---|
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
-| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1`, without the input's header metadata (below) |
+| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`, with the source's metadata (below); with `-map_metadata -1` or `0:s:N`, with the metadata that option gives (below) |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
@@ -1031,6 +1049,79 @@ implies:
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
+
+**M4A metadata.** `ffmpeg`'s documentation says "by default, global
+metadata is copied from the first input file, per-stream and per-chapter
+metadata is copied along with streams/chapters". The extraction
+(`HeaderMetadata::Copy`) carries over the movie's and the extracted
+track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
+8.11.1: user data describes the presentation or the track that contains
+it, and both are the output's), the track's handler name (8.4.3.3), its
+language, and the separate creation and modification times of the movie,
+track and media headers,
+as the remux does (`remux.md`, "Metadata and other boxes"). Two things
+are left out: every cover picture item (`covr`, or an entry keyed
+`com.apple.quicktime.artwork` through its `meta` box's `keys`; whole,
+whatever number of pictures it holds, in the movie's and the track's
+item lists), since a
+cover picture is a stream of its own (below) and the output carries one
+audio stream, as the pinned `ffmpeg` leaves it out of `-map 0:a` and
+`-vn` (black box); and, when the extraction turns an `iTunSMPB` item
+into an edit list, that item, located where the timing read it, so that
+the delay and padding are not given twice. The boxes are walked as
+copied, not through a separate reader with its own limits: a list whose
+children do not parse to its end is cut where they stop, so that no such
+item is copied unseen, a `meta` box whose `keys` box does not hold every
+key it counts is left out (its keyed artwork could not be told apart),
+and a box that holds the `iTunSMPB` item where the walk does not reach
+it is left out. An empty handler
+name is written as `SoundHandler`. Black box, the pinned `ffmpeg` 9.0.2
+on a file with an item list, a track `udta`, a named handler and nonzero
+header times (`plain_extraction_metadata_agrees_with_the_pinned_ffmpeg`
+in `tests/ffmpeg.rs` checks the tags in CI): the same title, artist,
+album, date, comment, genre, track and disc items and the same handler
+name and language. Known divergences; where a cited text decides one it
+is named, and where none does both readings are given:
+
+- Creation times. `ffmpeg` writes 0 in all six fields of the movie,
+  track and media headers. ISO/IEC 14496-12 defines each as a creation or
+  modification time in seconds since midnight, 1 January 1904, in UTC
+  (8.2.2.3, 8.3.2.3, 8.4.2.3). It has no value for a time not given; 0 is
+  the one writers use for that by convention (`HeaderMetadata::Clear`
+  too, for `-map_metadata -1`). For the media header the text decides:
+  its `creation_time` declares the creation time of the media in the
+  track, and the output's media is the source's, sample for sample, so
+  the source's time is a true value and 0 gives none. For the movie and
+  track headers it does not: the clauses define the creation time of the
+  presentation and of the track, and do not say whether a stream copy
+  into a new file is the same presentation and track (the source's times)
+  or a new one (the time of the copy). Neither reading gives no time. The
+  extraction keeps each source header's creation and modification times
+  separately, including distinct values and 64-bit modification times.
+  Copying these stored values keeps its output the same on every run.
+  `ffprobe` then lists a
+  `creation_time` for the file and the stream on `coreav ffmpeg`'s
+  output and none on `ffmpeg`'s.
+- Items stored in another form. The item list (`ilst`) and its entries
+  are an iTunes convention that ISO/IEC 14496-12 does not define (8.11.1
+  defines the metadata box and its handler, not the list), so no cited
+  text decides between copying the entries as stored and rewriting them.
+  The two readings: the entries as stored, in the source's order, locales
+  and forms, with the source's `©too` (the extraction; the audio is not
+  re-encoded); or the list rewritten as `ffmpeg` writes it, with its own
+  encoder name in `©too`, its own item order, locale 0 and an 8-byte
+  `disk`, without free-form (`----`) items or the track's `udta`, and a
+  `moov/meta` list gathered into `moov/udta/meta`. An `ffprobe` tag
+  `ffmpeg` drops or renames (`encoder`, a free-form item) then differs.
+- Handler names that are not a plain null-terminated string. ISO/IEC
+  14496-12 8.4.3.3 defines the name as a null-terminated UTF-8 string, so
+  the extraction always writes one. A QuickTime source states the name as
+  a counted string (QuickTime File Format, handler reference atom,
+  "component name"); the extraction writes that string's text, and
+  `ffmpeg` writes `SoundHandler` instead. An ISO source whose name has no
+  terminating NUL is malformed, and no cited text says how to read it:
+  as the bytes to the end of the box (the extraction) or as no name
+  (`ffmpeg`, which writes `SoundHandler`).
 
 **`-map_metadata -1` on an M4A output.** `ffmpeg`'s documentation says "a
 negative file index can be used to create a dummy mapping that just
@@ -1040,11 +1131,48 @@ a creation time): the media header's language is `und`, the handler name
 its own `SoundHandler`, the creation and modification times of the movie,
 track and media headers 0, and no item of the input's list is written. The
 extraction writes the same with `HeaderMetadata::Clear`: the language
-`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2). It writes
-no item list and the handler name `SoundHandler` in any case. Its samples,
+`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2), the
+handler name `SoundHandler`, and no `udta` or `meta` box. Its samples,
 sample tables and edit list do not change: they are timing, not metadata.
 `stripped_metadata_agrees_with_the_pinned_ffmpeg` in `tests/ffmpeg.rs`
 checks both outputs' tags in CI.
+
+**`-map_metadata 0:s:N` on an M4A output.** `ffmpeg`'s documentation gives
+this form as its example ("to copy metadata from the first stream of the
+input file to global metadata of the output file: `ffmpeg -i in.ogg
+-map_metadata 0:s:0 out.mp3`"), but it does not decide what happens to the
+stream's own metadata. It says "If metadata specifier is omitted, it
+defaults to global" and "These default mappings are disabled by creating
+any mapping of the relevant type". Two readings follow. In the first, a
+mapping whose source is a stream is of the stream type too, so the default
+copy of each stream's metadata stops and the stream loses its language and
+handler name. In the second, only the omitted output side counts, so the
+mapping is global and the stream keeps them. The pinned `ffmpeg` 9.0.2
+follows the first (black box: an AAC stream tagged `eng` with a handler
+name gets `und` and `SoundHandler`, while `-map_metadata 0` and
+`-map_metadata:g 0:g` keep both). Decision: the first, because `coreav ffmpeg` stands in for
+`ffmpeg` command lines, and where the documentation leaves a meaning open,
+the reference implementation's behaviour is what users rely on; nothing in
+the documentation contradicts it. Both readings agree on the file's side:
+it takes the stream's creation time, which `ffmpeg` reads from the media
+header and writes into the movie, track and media headers, as creation
+and modification time (black box: a media header time differing from the
+movie header's). The extraction writes the same with
+`HeaderMetadata::MediaTime`: the media header's creation time in all six
+fields, the language `und`, the handler name `SoundHandler`, and no `udta`
+or `meta` box. A known divergence: ISO/IEC 14496-12
+8.4.2.3 counts a header's creation time in seconds since midnight, 1 January
+1904, UTC, in 32 bits in a version 0 box and 64 in a version 1 box, and the
+extraction keeps the instant the media header names. The pinned `ffmpeg`
+writes the same value only between 1970 and 2040 (black box: a media header
+time of 1, or one second before 1970, comes out 2,082,844,800 higher; 1970
+itself comes out 0; one above 2^32 wraps to its low 32 bits), so outside
+those years the two outputs differ and `coreav ffmpeg`'s is the one the
+standard defines. N must be the extracted stream, the only
+one whose media header the output has; another stream is refused. N is an
+input stream's index (`0:s:a` and other specifiers are refused).
+`stream_metadata_agrees_with_the_pinned_ffmpeg` checks both outputs' tags
+in CI.
 
 **Stream selection**, as the pinned `ffmpeg` 7.0.2 makes it (black box: its
 `Stream mapping` for the same command). Without `-map`: the video stream
@@ -1117,7 +1245,7 @@ unchanged). An encode (`-c:v libx264`, [`transcode.md`](transcode.md),
 cover pictures not selected to the pipeline's remux
 (`TranscodeOptions::left_out_covers`), so the default selection leaves the
 cover picture out and `-map 0 -c:v libx264 -c:v:1 copy -c:a copy` keeps it
-unchanged, as `ffmpeg` does (black box, also with `-c:a libopus`). A
+unchanged, as `ffmpeg` does (black box, also with `-c:a libopus` or `aac`). A
 command that would encode a cover picture (`-map 0 -c:v libx264`) is
 refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
 234, and writes nothing. The clip, segment and M4A jobs carry no cover
@@ -1216,7 +1344,8 @@ without video must also start where the command says. A join's
 list names the fixture twice, and its timing is held to `ffmpeg -f concat`'s
 with no tolerance: every input placed where the demuxer places it (after
 the files before it, each as long as its format duration, less its own
-start time, to the microsecond), and the video packets' times, from the
+start time, in microseconds, then rounded to the nearest tick of the video,
+where the muxer places it), and the video packets' times, from the
 first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
@@ -1234,12 +1363,10 @@ FFmpeg).**
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
   without `-safe 0`, no file, a directive written quoted or escaped) is
   rejected, exit 1.
-- A join that would not be timed as the concat demuxer times it: an input
-  `join_mp4` places elsewhere than the demuxer, which follows each file at
-  its format duration where `join_mp4` follows it at its video's end (black
-  box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
-  `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
-  reads by its own edit model. Also inputs that do not match the first
+- A join that would not be timed as the concat demuxer times it: inputs
+  whose tracks have several edits, which the demuxer reads by its own edit
+  model, and an input the demuxer would place before the previous input's
+  video ends. Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
@@ -1273,9 +1400,9 @@ FFmpeg).**
 - Cover pictures mapped twice, before a track or out of their order, and an
   encode whose selection names a stream twice or leaves the input's order.
 - Options with a meaning the writers do not reproduce: `-fflags` other than
-  `+genpts`, `-map_metadata` other than `-1` (C25's `0:s:0`), and
-  `-map_metadata -1` except on an M4A output: the remux and the clip copy
-  the metadata. C26's `+igndts` has `ffmpeg` drop an MP4 or MOV input's
+  `+genpts`, `-map_metadata` other than one `-1` or `0:s:N`, and either
+  of those except on an M4A output (`0:s:N` only when N is the extracted
+  stream): the remux and the clip copy the metadata. C26's `+igndts` has `ffmpeg` drop an MP4 or MOV input's
   decode times and derive new ones from the presentation times, by rules no
   specification states (black box, the pinned `ffmpeg` 9.0.2: on 8 of the
   generated MP4 fixtures the video's decode times, sample durations and edit
@@ -1688,9 +1815,21 @@ on crafted files and the development set:
   carries, copied to its syntactic end (ISO/IEC 14496-3 1.6.2.1, 4.4.1),
   as `extradata`; explicit SBR (object type 5 or 29) gives `HE-AAC` at the
   extension rate. A configuration this reader cannot end (a program config
-  element, `epConfig` 2 or 3) falls back to the two-byte one. Parametric
-  stereo signalled implicitly inside SBR data is not found: that needs the
-  raw data blocks, as `KD-TS-AAC-PROFILE` describes.
+  element, `epConfig` 2 or 3) falls back to the two-byte one. AAC-LC at
+  24 kHz or less, where SBR is commonly implicit, is read for SBR data as
+  ADTS is: the raw data block of each of the first 16 frames whose
+  `StreamMuxConfig` (its own or the last before it) has one program, one
+  layer, one subframe and `frameLengthType` 0, so that `PayloadLengthInfo`
+  gives its length; the stream is `HE-AAC` at twice the rate when at most
+  two disagree (a DVB capture of the corpus, all 16 frames with SBR data).
+  The scan from a block's end does not read the bits after `ID_END`, which
+  that capture's encoder sets to ones, and allows one fill element of
+  `EXT_FILL_DATA` (fill bytes `10100101` only, ISO/IEC 14496-3 table
+  4.57) between the SBR element and `ID_END`, which 44 of its 114 frames
+  carry; on 2,602 frames of plain AAC-LC from twelve captures that raises
+  the frames that look like SBR from 1.0% to 1.4%, and none of those
+  captures shows more than one in its first 16 frames. Parametric stereo
+  signalled implicitly inside SBR data is not found.
 - Audio frames before a stream's first stated time take that time minus
   the durations between, and the stream's start moves with them (crafted
   AAC, MPEG audio, AC-3 and Opus files). Rejected: leaving them untimed,
@@ -2088,7 +2227,7 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 The name lists are taken from the pinned binaries' own listings and from the
 documentation, committed with the implementation, never from the command
 being logged: `scripts/fallback_names.py` generates
-`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 7.0.2's `-h full`,
+`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 9.0.2's `-h full`,
 `-encoders`, `-formats` and `ffprobe -sections`, and the keys from
 `coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of

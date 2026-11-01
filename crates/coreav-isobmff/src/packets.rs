@@ -425,6 +425,18 @@ impl<S: Source> Packets<'_, S> {
             .filter(|d| *d > 0)
     }
 
+    /// The sample description index (1-based, ISO/IEC 14496-12 8.7.4) of
+    /// the last sample returned: the one the sample to chunk box gives its
+    /// chunk, or for a sample of a movie fragment
+    /// [`fragment_description`](Self::fragment_description). `None` for a
+    /// fragment that states none.
+    pub fn description(&self) -> Option<u32> {
+        match &self.cursor {
+            Some(cursor) => cursor.description(&self.track.tables),
+            None => self.fragment_description(),
+        }
+    }
+
     /// The source the packets are read from, so a caller can read each
     /// packet's bytes between calls without opening a second source
     /// (the M4A writer copies samples while iterating). Reads

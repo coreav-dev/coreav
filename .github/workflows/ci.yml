@@ -70,6 +70,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
       h264-conformance: ${{ steps.h264-conformance.outputs.run }}
+      oracle-installer: ${{ steps.oracle-installer.outputs.run }}
       bench-guard: ${{ steps.bench-guard.outputs.run }}
       fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
       # Whether `check-macos` and `check-windows` run: always on a push or
@@ -92,6 +93,7 @@ jobs:
             *.md
             .context/**
             docs/spikes/**
+            packages/wasm/**
       # The code that differs between Linux, macOS and Windows (the sandbox,
       # the processes it starts, positioned file reads, code that differs by
       # target architecture), the backends the
@@ -131,6 +133,13 @@ jobs:
             docs/measurements/h264-training/**
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
+      # The one job of that group that runs the installer, `modes-identity`,
+      # starts on a change of it as well; the rest of the group does not.
+      - id: oracle-installer
+        uses: ./.github/actions/changed-paths
+        with:
+          paths: |
+            scripts/install-oracle-ffmpeg.sh
       - id: bench-guard
         uses: ./.github/actions/changed-paths
         with:
@@ -1931,7 +1940,8 @@ jobs:
     # the step summary reports.
     needs: ci-changes
     if: >-
-      needs.ci-changes.outputs.h264-conformance == 'true' &&
+      (needs.ci-changes.outputs.h264-conformance == 'true' ||
+      needs.ci-changes.outputs.oracle-installer == 'true') &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
       group: ${{ github.workflow }}-modes-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
@@ -1975,8 +1985,10 @@ jobs:
     # both modes, at 1 and 8 threads. They are corpus v1's, read with read-only credentials that
     # only this repository's own runs receive; where they are not set (a
     # fork's pull request, or before they exist) the job says so in its
-    # summary and decodes nothing. Only the two steps that read the
-    # credentials see them, not the actions, builds or installs in between.
+    # summary and decodes nothing. Only the three steps that read the
+    # credentials see them (the check, the extractor's install, whose bench
+    # bucket copy is its last source, and the extraction), not the actions,
+    # builds or package installs in between.
     # The streams are not redistributed, so they are cached only in a
     # private repository: a public one's cache can be restored by an
     # approved pull-request run (docs/design/ci-checks.md).
@@ -2022,10 +2034,17 @@ jobs:
         if: steps.creds.outputs.present == 'true'
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install the historical training extractor and boto3
+      - name: Install the historical training extractor
+        if: steps.creds.outputs.present == 'true'
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: bash docs/measurements/h264-training/tools/install-extractor.sh
+      - name: Install boto3
         if: steps.creds.outputs.present == 'true'
         run: |
-          bash docs/measurements/h264-training/tools/install-extractor.sh
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
       - name: Cache the training set's elementary streams

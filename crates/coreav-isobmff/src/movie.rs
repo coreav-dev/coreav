@@ -14,6 +14,7 @@ use crate::{
     Allowlist, Codec, Error, FourCc, Limits, Rational, SampleDescription, SliceSource, Source,
 };
 use core::cell::Cell;
+use std::collections::BTreeSet;
 
 /// What a track carries, from its handler type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -263,6 +264,10 @@ pub struct Track {
     pub description: SampleDescription,
     /// Number of sample descriptions.
     pub descriptions: u32,
+    /// The sample descriptions after the first, in the sample description
+    /// box's order: index 2 onward of [`crate::Packets::description`].
+    /// Their bytes and their size count against `max_retained_bytes`.
+    pub later_descriptions: Vec<SampleDescription>,
     /// Samples in the movie box tables (fragments excluded).
     pub sample_count: u32,
     /// Samples in fragments, when they were scanned.
@@ -286,8 +291,12 @@ pub struct Track {
     /// Track header creation time, seconds since 1904-01-01 UTC as stored
     /// (see [`unix_time`]).
     pub creation_time: u64,
+    /// Track header modification time, seconds since 1904-01-01 UTC as stored.
+    pub modification_time: u64,
     /// Media header creation time, seconds since 1904-01-01 UTC as stored.
     pub media_creation_time: u64,
+    /// Media header modification time, seconds since 1904-01-01 UTC as stored.
+    pub media_modification_time: u64,
     /// Recoverable problems.
     pub warnings: Vec<Warning>,
     pub(crate) tables: SampleTables,
@@ -305,9 +314,19 @@ pub struct Track {
     /// The handler name's bytes (at most 256), decoded into `handler_name`
     /// once the file is known to be QuickTime or not.
     pub(crate) handler_name_bytes: Vec<u8>,
+    /// The track box's `udta` and `meta` boxes, located but never read by
+    /// probe; at most [`MAX_TAG_ROOTS`].
+    pub(crate) tag_boxes: Vec<BoxHeader>,
 }
 
 impl Track {
+    /// The track box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
+    /// and 8.11.1), in file order, at most four: located by probe, their
+    /// contents unread.
+    pub fn tag_boxes(&self) -> &[BoxHeader] {
+        &self.tag_boxes
+    }
+
     /// The track's `trex` defaults, when the movie box declares movie
     /// fragments for it: what listing one fragment on its own needs
     /// ([`crate::fragment_samples`]).
@@ -587,6 +606,8 @@ pub struct Movie {
     /// Movie header creation time, seconds since 1904-01-01 UTC as stored
     /// (see [`unix_time`]).
     pub creation_time: u64,
+    /// Movie header modification time, seconds since 1904-01-01 UTC as stored.
+    pub modification_time: u64,
     /// Tracks in file order, without dropped streams.
     pub tracks: Vec<Track>,
     /// Streams left out because their codec is not allowed.
@@ -630,6 +651,13 @@ pub struct Movie {
 }
 
 impl Movie {
+    /// The movie box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
+    /// and 8.11.1), in file order, at most four: located by probe, their
+    /// contents unread.
+    pub fn tag_boxes(&self) -> &[BoxHeader] {
+        &self.tag_boxes
+    }
+
     /// Whether the movie has fragments: an `mvex` box and at least one `moof`.
     /// Its header durations then describe only the movie box samples.
     pub fn has_fragments(&self) -> bool {
@@ -665,12 +693,27 @@ impl Movie {
     ///
     /// [`Error::Io`] when `source` fails to read.
     pub fn itunes_gapless<S: Source>(&self, source: S) -> Result<Option<ItunesGapless>, Error> {
+        Ok(self.itunes_gapless_item(source)?.map(|(values, _)| values))
+    }
+
+    /// [`Movie::itunes_gapless`], with the offset in `source` of the `----`
+    /// item box it was read from, for a caller that copies the movie's
+    /// metadata without that item; `None` for a compressed movie, whose
+    /// item was in its inflated movie box.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when `source` fails to read.
+    pub fn itunes_gapless_item<S: Source>(
+        &self,
+        source: S,
+    ) -> Result<Option<(ItunesGapless, Option<u64>)>, Error> {
         if let Some(found) = self.inflated_gapless {
             // A compressed movie's metadata was read from its inflated box.
-            return Ok(found);
+            return Ok(found.map(|values| (values, None)));
         }
         let mut source = source;
-        gapless::read(&mut source, &self.tag_boxes)
+        Ok(gapless::read(&mut source, &self.tag_boxes)?.map(|(values, at)| (values, Some(at))))
     }
 
     /// Whether [`Movie::scan_fragments`] would tell more than probe: the
@@ -1358,7 +1401,7 @@ fn parse_moov<S: Source>(
     allowlist: &Allowlist,
     inflated: bool,
 ) -> Result<Movie, Error> {
-    let mut mvhd: Option<(u32, u64, u64, [i32; 9])> = None;
+    let mut mvhd: Option<(u32, u64, u64, u64, [i32; 9])> = None;
     let mut cmov: Option<(BoxHeader, u32)> = None;
     let mut tracks: Vec<Track> = Vec::new();
     let mut trex: Vec<Trex> = Vec::new();
@@ -1375,7 +1418,7 @@ fn parse_moov<S: Source>(
             b"mvhd" => {
                 let payload = w.payload(&child)?;
                 let mut b = Bytes::new(&payload, child.payload_offset());
-                let (version, created, timescale, duration) = media_times(&mut b)?;
+                let (version, created, modified, timescale, duration) = media_times(&mut b)?;
                 if timescale == 0 {
                     return Err(invalid(&child, "zero timescale"));
                 }
@@ -1395,6 +1438,7 @@ fn parse_moov<S: Source>(
                     timescale,
                     unknown_duration(version, duration),
                     created,
+                    modified,
                     matrix,
                 ));
             }
@@ -1470,7 +1514,7 @@ fn parse_moov<S: Source>(
         }
         return parse_compressed_moov(w, &cmov, depth, allowlist);
     }
-    let (timescale, mvhd_duration, creation_time, matrix) =
+    let (timescale, mvhd_duration, creation_time, modification_time, matrix) =
         mvhd.ok_or(invalid(moov, "missing movie header"))?;
     // `trex` may come before or after the tracks; resolve it now.
     for defaults in &trex {
@@ -1536,6 +1580,7 @@ fn parse_moov<S: Source>(
         timescale,
         mvhd_duration,
         creation_time,
+        modification_time,
         matrix,
         tracks,
         dropped,
@@ -1601,7 +1646,8 @@ fn parse_compressed_moov<S: Source>(
     movie.inflated_gapless = Some(
         gapless::read(&mut SliceSource::new(&inflated), &movie.tag_boxes)
             .ok()
-            .flatten(),
+            .flatten()
+            .map(|(values, _)| values),
     );
     movie.tag_boxes.clear();
     Ok(movie)
@@ -1792,14 +1838,20 @@ impl Default for DroppedTiming {
 struct TrackParts {
     tkhd: Option<Tkhd>,
     edits: Option<(EditList, Vec<Edit>)>,
-    mdhd: Option<(u32, u64, Option<[u8; 3]>, u64)>,
+    mdhd: Option<MediaHeader>,
     handler: Option<(FourCc, Vec<u8>)>,
     quicktime_handler: bool,
-    description: Option<(SampleDescription, u32, u16)>,
+    description: Option<(
+        SampleDescription,
+        Vec<SampleDescription>,
+        u32,
+        BTreeSet<u16>,
+    )>,
     self_contained: Option<Vec<bool>>,
     tables: SampleTables,
     table_problem: Option<&'static str>,
     warnings: Vec<Warning>,
+    tag_boxes: Vec<BoxHeader>,
 }
 
 fn parse_trak<S: Source>(
@@ -1819,6 +1871,9 @@ fn parse_trak<S: Source>(
     let walked = w.children(trak, depth, &mut |w, child, depth| {
         match &child.kind.0 {
             b"tref" => track_references(w, &child, &mut chapters)?,
+            b"udta" | b"meta" if parts.tag_boxes.len() < MAX_TAG_ROOTS => {
+                parts.tag_boxes.push(child)
+            }
             // The edit list is still read after a drop: it places the
             // dropped stream on the timeline.
             b"edts" => w.children(&child, depth, &mut |w, e, _| {
@@ -1874,9 +1929,9 @@ fn parse_trak<S: Source>(
         }
     }
     if let Some(error) = not_allowed {
-        if let Some((timescale, duration, ..)) = parts.mdhd {
-            dropped.timescale = timescale;
-            dropped.mdhd_duration = duration;
+        if let Some(header) = parts.mdhd {
+            dropped.timescale = header.timescale;
+            dropped.mdhd_duration = header.duration;
         }
         dropped.edit_list = parts.edits.map_or(EditList::None, |(list, _)| list);
         return Err(error);
@@ -1886,24 +1941,29 @@ fn parse_trak<S: Source>(
         matrix,
         size: presentation_size,
         created: creation_time,
+        modified: modification_time,
         ..
     } = parts.tkhd.ok_or(invalid(trak, "missing track header"))?;
-    let (timescale, mdhd_duration, language, media_creation_time) =
-        parts.mdhd.ok_or(invalid(trak, "missing media header"))?;
+    let MediaHeader {
+        timescale,
+        duration: mdhd_duration,
+        language,
+        created: media_creation_time,
+        modified: media_modification_time,
+    } = parts.mdhd.ok_or(invalid(trak, "missing media header"))?;
     let (handler, handler_name_bytes) = parts.handler.ok_or(invalid(trak, "missing handler"))?;
-    let (description, descriptions, data_reference) = parts
+    let (description, later_descriptions, descriptions, data_references) = parts
         .description
         .ok_or(invalid(trak, "missing sample description"))?;
     let kind = handler_kind(handler);
-    let external_data = parts
-        .self_contained
-        .as_ref()
-        .and_then(|entries| {
-            entries
-                .get(usize::from(data_reference).checked_sub(1)?)
-                .copied()
+    let external_data = parts.self_contained.as_ref().is_some_and(|entries| {
+        data_references.iter().any(|reference| {
+            usize::from(*reference)
+                .checked_sub(1)
+                .and_then(|i| entries.get(i))
+                .is_some_and(|self_contained| !self_contained)
         })
-        .is_some_and(|self_contained| !self_contained);
+    });
     let mut warnings = parts.warnings;
     if external_data {
         crate::error::warn(&mut warnings, Warning::ExternalData);
@@ -1959,6 +2019,7 @@ fn parse_trak<S: Source>(
         handler,
         // Decoded with the file's kind (`handler_name_bytes`).
         handler_name: None,
+        tag_boxes: parts.tag_boxes,
         language,
         timescale,
         mdhd_duration,
@@ -1973,6 +2034,7 @@ fn parse_trak<S: Source>(
         rotation: rotation(&matrix),
         description,
         descriptions,
+        later_descriptions,
         sample_count: parts.tables.sample_count(),
         fragment_samples: 0,
         fragment_start: None,
@@ -1981,7 +2043,9 @@ fn parse_trak<S: Source>(
         tables_valid: problem.is_none(),
         sample_bytes: stsz_bytes,
         creation_time,
+        modification_time,
         media_creation_time,
+        media_modification_time,
         warnings,
         tables: parts.tables,
         stsz_bytes,
@@ -2063,7 +2127,7 @@ fn parse_mdia<S: Source>(
             b"mdhd" => {
                 let payload = w.payload(&child)?;
                 let mut b = Bytes::new(&payload, child.payload_offset());
-                let (version, created, timescale, duration) = media_times(&mut b)?;
+                let (version, created, modified, timescale, duration) = media_times(&mut b)?;
                 if timescale == 0 {
                     return Err(invalid(&child, "zero timescale"));
                 }
@@ -2073,7 +2137,13 @@ fn parse_mdia<S: Source>(
                     [10u16, 5, 0]
                         .map(|shift| (((packed >> shift) & 0x1f) as u8).saturating_add(0x60))
                 });
-                parts.mdhd = Some((timescale, duration, language, created));
+                parts.mdhd = Some(MediaHeader {
+                    timescale,
+                    duration,
+                    language,
+                    created,
+                    modified,
+                });
             }
             b"hdlr" => {
                 let payload = w.payload(&child)?;
@@ -2133,23 +2203,24 @@ fn parse_stbl<S: Source>(
                 _ => EntryLayout::Other,
             };
             let payload = w.payload(&child)?;
-            let parsed = parse_stsd(
+            let retained = w.retained;
+            let parsed = match parse_stsd(
                 &payload,
                 child.payload_offset(),
                 layout,
                 allowlist,
                 &mut parts.warnings,
-            )?;
+                &mut |bytes, at| w.retain(bytes, at),
+            ) {
+                Err(error @ Error::CodecNotAllowed { .. }) => {
+                    w.retained = retained;
+                    return Err(error);
+                }
+                parsed => parsed?,
+            };
             if parts.description.is_some() {
                 return Err(invalid(&child, "second sample description box"));
             }
-            let kept = parsed
-                .0
-                .codec_config
-                .iter()
-                .chain(&parsed.0.entry_boxes)
-                .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
-            w.retain(kept, child.offset)?;
             parts.description = Some(parsed);
             return Ok(());
         }
@@ -2187,7 +2258,16 @@ fn parse_stsd(
     layout: EntryLayout,
     allowlist: &Allowlist,
     warnings: &mut Vec<Warning>,
-) -> Result<(SampleDescription, u32, u16), Error> {
+    retain: &mut dyn FnMut(usize, u64) -> Result<(), Error>,
+) -> Result<
+    (
+        SampleDescription,
+        Vec<SampleDescription>,
+        u32,
+        BTreeSet<u16>,
+    ),
+    Error,
+> {
     let mut b = Bytes::new(payload, offset);
     b.version_flags()?;
     let count = b.u32()?;
@@ -2199,6 +2279,8 @@ fn parse_stsd(
         });
     }
     let mut first = None;
+    let mut later = Vec::new();
+    let mut data_references = BTreeSet::new();
     for _ in 0..count {
         let entry_offset = b.offset();
         let size = b.clone().u32()?;
@@ -2217,16 +2299,37 @@ fn parse_stsd(
                 fourcc: description.fourcc,
             });
         }
+        let kept = description
+            .codec_config
+            .iter()
+            .chain(&description.entry_boxes)
+            .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
+        data_references.insert(crate::bytes::be_u16_at(entry, 14).unwrap_or(1));
         if first.is_none() {
-            let data_reference = crate::bytes::be_u16_at(entry, 14).unwrap_or(1);
-            first = Some((description, data_reference));
+            retain(kept, entry_offset)?;
+            first = Some(description);
+        } else {
+            retain(
+                kept.saturating_add(core::mem::size_of::<SampleDescription>()),
+                entry_offset,
+            )?;
+            later.push(description);
         }
     }
     if count > 1 {
         crate::error::warn(warnings, Warning::MultipleSampleEntries);
     }
-    let (description, data_reference) = first.ok_or(Error::Truncated { offset })?;
-    Ok((description, count, data_reference))
+    let description = first.ok_or(Error::Truncated { offset })?;
+    Ok((description, later, count, data_references))
+}
+
+#[derive(Clone, Copy)]
+struct MediaHeader {
+    timescale: u32,
+    duration: u64,
+    language: Option<[u8; 3]>,
+    created: u64,
+    modified: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -2237,23 +2340,24 @@ struct Tkhd {
     matrix: [i32; 9],
     size: (u32, u32),
     created: u64,
+    modified: u64,
 }
 
 /// The identity transformation matrix (ISO/IEC 14496-12 8.2.2.3).
 pub const IDENTITY_MATRIX: [i32; 9] = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000];
 
-/// Version, creation time, timescale and duration of `mvhd` or `mdhd`
-/// (ISO/IEC 14496-12 8.2.2 and 8.4.2); the modification time is skipped.
-fn media_times(b: &mut Bytes<'_>) -> Result<(u8, u64, u32, u64), Error> {
+/// Version, creation and modification times, timescale and duration of
+/// `mvhd` or `mdhd` (ISO/IEC 14496-12 8.2.2 and 8.4.2).
+fn media_times(b: &mut Bytes<'_>) -> Result<(u8, u64, u64, u32, u64), Error> {
     let (version, _) = b.version_flags()?;
     if version == 1 {
         let created = b.u64()?;
-        b.skip(8)?;
-        Ok((version, created, b.u32()?, b.u64()?))
+        let modified = b.u64()?;
+        Ok((version, created, modified, b.u32()?, b.u64()?))
     } else {
         let created = u64::from(b.u32()?);
-        b.skip(4)?;
-        Ok((version, created, b.u32()?, u64::from(b.u32()?)))
+        let modified = u64::from(b.u32()?);
+        Ok((version, created, modified, b.u32()?, u64::from(b.u32()?)))
     }
 }
 
@@ -2322,18 +2426,18 @@ fn sum_be_u32(entries: &[u8]) -> u64 {
 fn parse_tkhd(payload: &[u8], offset: u64) -> Result<Tkhd, Error> {
     let mut b = Bytes::new(payload, offset);
     let (version, flags) = b.version_flags()?;
-    let (created, track_id) = if version == 1 {
+    let (created, modified, track_id) = if version == 1 {
         let created = b.u64()?;
-        b.skip(8)?;
+        let modified = b.u64()?;
         let id = b.u32()?;
         b.skip(12)?;
-        (created, id)
+        (created, modified, id)
     } else {
         let created = u64::from(b.u32()?);
-        b.skip(4)?;
+        let modified = u64::from(b.u32()?);
         let id = b.u32()?;
         b.skip(8)?;
-        (created, id)
+        (created, modified, id)
     };
     b.skip(16)?;
     let mut matrix = [0i32; 9];
@@ -2350,6 +2454,7 @@ fn parse_tkhd(payload: &[u8], offset: u64) -> Result<Tkhd, Error> {
         matrix,
         size: (width, height),
         created,
+        modified,
     })
 }
 

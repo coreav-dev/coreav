@@ -474,13 +474,16 @@ fn patched_movie(dir: &Path, name: &str, patch: &[(usize, &[u32], &[u32])]) -> S
     path.to_string_lossy().into_owned()
 }
 
+/// A join places each file where the concat demuxer does, after the files
+/// before it, each as long as its duration (the pinned `ffmpeg` 9.0.2,
+/// black box: a file whose audio outlasts its video is followed at the
+/// audio's end, and its last video frame is held until then).
 #[test]
-fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
-    let dir = scratch("ffmpeg-concat-not-native");
+fn a_join_places_each_file_where_the_concat_demuxer_does() {
+    let dir = scratch("ffmpeg-concat-placement");
     movie(&dir);
     // The audio lasts 0.32 s, twice the video (its `stts`, `mdhd` and the
-    // movie's duration): the concat demuxer places the next file at 0.32 s,
-    // the join at the video's end.
+    // movie's duration).
     patched_movie(
         &dir,
         "long.mp4",
@@ -490,6 +493,26 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
             (1, &[1000, 160], &[1000, 320]),
         ],
     );
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file long.mp4\nfile long.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let args: Vec<String> = ["-f", "concat", "-i", list.to_str().unwrap(), "-c", "copy"]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(true)) else {
+        panic!("the join is refused");
+    };
+    let inputs = summary["inputs"].as_array().unwrap();
+    assert_eq!(inputs[1]["offset"]["seconds"], json!(0.32));
+    assert!(inputs[0]["extended"].as_u64().unwrap() > 0, "{summary:#}");
+}
+
+#[test]
+fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
+    let dir = scratch("ffmpeg-concat-not-native");
+    movie(&dir);
     // The video's media timescale is 20000 rather than 12800.
     patched_movie(
         &dir,
@@ -526,10 +549,6 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     let output = dir.join("out.mp4");
     let o = output.to_str().unwrap();
     for (files, named) in [
-        (
-            "file long.mp4\nfile long.mp4\n",
-            "streams end at different times",
-        ),
         ("file in.mp4\nfile timescale.mp4\n", "streams differ"),
         ("file pcm.mp4\nfile pcm.mp4\n", "not supported"),
         (
@@ -1001,6 +1020,19 @@ fn the_0_1_0_commands_on_the_fixtures() {
     .unwrap();
 }
 
+/// The job a writer's summary says CoreAV chose, by its schema.
+fn chosen(summary: &Value) -> Option<&'static str> {
+    match summary["schema"].as_str()? {
+        "coreav.remux/1" => Some("remux"),
+        "coreav.clip/1" => Some("clip"),
+        "coreav.split/1" => Some("split"),
+        "coreav.join/1" => Some("join"),
+        "coreav.extract-audio/1" => Some("extract-audio"),
+        "coreav.transcode/1" => Some("transcode"),
+        _ => None,
+    }
+}
+
 /// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
 /// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
 /// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
@@ -1010,7 +1042,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
 /// with its `status` (`written`, `refused`, `not taken`, `usage`,
 /// `rejected` or `io`), its `detail` (the writer's summary, which the
 /// binary does not print, or the reason) and the number of files left in
-/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. A written pair
+/// also gets `chosen`, the job CoreAV chose (`remux`, `clip`, `split`,
+/// `join`, `extract-audio` or `transcode`), read from the schema of the
+/// summary the writer returned and never from the command, so a pair needs
+/// no `job` (`tools/compat-corpus/encode_breadth.py` gives none). Unlike
 /// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
 /// asserted: the files are not the fixtures, and the runner judges.
 #[test]
@@ -1045,6 +1081,7 @@ fn the_0_1_0_commands_on_listed_pairs() {
                 failure.to_json(),
             ),
         };
+        pair["chosen"] = json!((status == "written").then(|| chosen(&detail)).flatten());
         pair["status"] = json!(status);
         pair["detail"] = detail;
         pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());
@@ -1637,7 +1674,15 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
             ])
             .output()
             .unwrap();
-        String::from_utf8(out.stdout).unwrap()
+        assert!(out.status.success(), "{} stream {index}", path.display());
+        let digest = String::from_utf8(out.stdout).unwrap();
+        let hex = digest.trim().strip_prefix("MD5=");
+        assert!(
+            hex.is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_hexdigit())),
+            "{} stream {index}: {digest:?}",
+            path.display()
+        );
+        digest
     };
     let picture_md5s = |path: &Path| -> Vec<String> {
         let listed = streams(path);
@@ -1782,25 +1827,7 @@ fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
         .status()
         .unwrap();
     assert!(status.success());
-    let tags = |path: &Path| -> Value {
-        let out = Command::new(&ffprobe_bin)
-            .args([
-                "-v",
-                "error",
-                "-select_streams",
-                "a",
-                "-show_entries",
-                "format_tags=creation_time,title:stream_tags=language,creation_time,handler_name",
-                "-of",
-                "json",
-            ])
-            .arg(path)
-            .output()
-            .unwrap();
-        assert!(out.status.success(), "{}", path.display());
-        let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
-        json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
-    };
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
     let source = tags(&input);
     assert_eq!(source[0]["creation_time"], "2020-01-02T03:04:05.000000Z");
     assert_eq!(source[1]["language"], "eng");
@@ -1835,5 +1862,215 @@ fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
     assert_eq!(
         tags(&ours),
         json!([{}, {"language": "und", "handler_name": "SoundHandler"}])
+    );
+}
+
+/// A plain M4A extraction against the pinned `ffmpeg`, on a file it makes
+/// with an item list, a language, a handler name and a creation time: both
+/// outputs carry the same file and stream tags, the creation times and the
+/// file type box's brands aside.
+/// `coreav ffmpeg` keeps the headers' creation times, which `ffmpeg`
+/// writes as 0 (`docs/design/compat-cli.md`, "M4A metadata").
+#[test]
+fn plain_extraction_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-plain-metadata-oracle");
+    let input = dir.join("in.mp4");
+    let mut make = Command::new(&ffmpeg_bin);
+    make.args([
+        "-nostdin",
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=160x120:rate=10:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=1",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-metadata:s:a:0",
+        "language=eng",
+        "-metadata:s:a:0",
+        "handler_name=A handler",
+    ]);
+    for tag in [
+        "creation_time=2020-01-02T03:04:05Z",
+        "title=A title",
+        "artist=An artist",
+        "album=An album",
+        "date=2020",
+        "comment=A comment",
+        "genre=A genre",
+        "track=3/9",
+        "disc=1/2",
+    ] {
+        make.args(["-metadata", tag]);
+    }
+    assert!(make.arg(&input).status().unwrap().success());
+    let tags = |path: &Path| {
+        let out = Command::new(&ffprobe_bin)
+            .args(["-v", "error", "-select_streams", "a", "-show_entries"])
+            .args(["format_tags:stream_tags", "-of", "json"])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", path.display());
+        let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
+        json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
+    };
+    let created = json!("2020-01-02T03:04:05.000000Z");
+    let source = tags(&input);
+    assert_eq!(source[0]["creation_time"], created);
+    assert_eq!(source[1]["handler_name"], "A handler");
+    for selection in [["-map", "0:a"], ["-vn", "-sn"]] {
+        let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+        let command = |output: &Path| -> Vec<String> {
+            ["-y", "-i", input.to_str().unwrap()]
+                .iter()
+                .chain(&selection)
+                .chain(&["-c:a", "copy"])
+                .map(|a| (*a).to_owned())
+                .chain([output.display().to_string()])
+                .collect()
+        };
+        let status = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(command(&theirs))
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let args = command(&ours);
+        let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        let (mut ours, mut theirs) = (tags(&ours), tags(&theirs));
+        for side in 0..2 {
+            assert_eq!(ours[side]["creation_time"], created, "{selection:?}");
+            assert_eq!(theirs[side].get("creation_time"), None, "{selection:?}");
+            ours[side].as_object_mut().unwrap().remove("creation_time");
+        }
+        // The file type box is each writer's own, not metadata.
+        for tags in [&mut ours, &mut theirs] {
+            assert_eq!(tags[0]["major_brand"], "M4A ");
+            for brand in ["major_brand", "minor_version", "compatible_brands"] {
+                tags[0].as_object_mut().unwrap().remove(brand);
+            }
+        }
+        assert_eq!(ours, theirs, "{selection:?}");
+        assert_eq!(ours[0]["title"], "A title");
+        assert_eq!(ours[1]["handler_name"], "A handler");
+        assert_eq!(ours[1]["language"], "eng");
+        assert_eq!(ours[0]["genre"], "A genre");
+    }
+}
+
+/// The tags `ffprobe` lists for `path` that `-map_metadata` decides: the
+/// file's creation time and title, and the first audio stream's language,
+/// creation time and handler name.
+fn metadata_tags(ffprobe: &Path, path: &Path) -> Value {
+    let out = Command::new(ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "format_tags=creation_time,title:stream_tags=language,creation_time,handler_name",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", path.display());
+    let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
+    json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
+}
+
+/// `-map_metadata 0:s:0` on an M4A extraction against the pinned `ffmpeg`,
+/// on an audio-only file it makes with a language, a handler name, a title
+/// and a creation time: the file takes its metadata from the stream (its
+/// creation time), and the stream keeps none of its own (the language
+/// `und`), in both outputs.
+#[test]
+fn stream_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-stream-metadata-oracle");
+    let input = dir.join("in.m4a");
+    let status = Command::new(&ffmpeg_bin)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-c:a",
+            "aac",
+            "-metadata",
+            "creation_time=2020-01-02T03:04:05Z",
+            "-metadata",
+            "title=A title",
+            "-metadata:s:a:0",
+            "language=eng",
+            "-metadata:s:a:0",
+            "handler_name=A handler",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
+    let source = tags(&input);
+    assert_eq!(source[0]["title"], "A title");
+    assert_eq!(source[1]["language"], "eng");
+    let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+    let command = |output: &Path| -> Vec<String> {
+        [
+            "-y",
+            "-i",
+            input.to_str().unwrap(),
+            "-acodec",
+            "copy",
+            "-map",
+            "0",
+            "-map_metadata",
+            "0:s:0",
+        ]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect()
+    };
+    let status = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(command(&theirs))
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let args = command(&ours);
+    let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(tags(&ours), tags(&theirs));
+    let created = "2020-01-02T03:04:05.000000Z";
+    assert_eq!(
+        tags(&ours),
+        json!([
+            {"creation_time": created},
+            {"creation_time": created, "language": "und", "handler_name": "SoundHandler"}
+        ])
     );
 }

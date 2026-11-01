@@ -29,7 +29,9 @@ coreav-backend-libvpx = { path = "../../crates/coreav-backend-libvpx", optional 
 coreav-decode = { path = "../../crates/coreav-decode" }
 coreav-frame = { path = "../../crates/coreav-frame" }
 coreav-isobmff = { path = "../../crates/coreav-isobmff" }
+coreav-mkv = { path = "../../crates/coreav-mkv" }
 coreav-thumbnail = { path = "../../crates/coreav-thumbnail" }
+coreav-transcode = { path = "../../crates/coreav-transcode" }
 coreav-worker = { path = "../../crates/coreav-worker", features = ["ffmpeg"] }
 md-5 = "0.10"
 serde_json = { workspace = true }

@@ -22,12 +22,12 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
-use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
+use args::{Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions,
-    JoinSummary, MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions,
-    TrackChoice, VideoChoice,
+    JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions, SplitAt,
+    SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -105,7 +105,7 @@ pub enum Job {
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
     /// The video stream encoded with libx264 and these audio streams copied,
-    /// or the one audio stream encoded with libopus, as MP4
+    /// or the one audio stream encoded with libopus or aac, as MP4
     /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
     Transcode(TranscodeJob),
     /// The files of a concat list, joined in order.
@@ -126,8 +126,9 @@ pub struct TranscodeJob {
     pub video: usize,
     /// The audio streams, in input order.
     pub audio: Vec<usize>,
-    /// The audio stream, then the only one, is encoded with libopus.
-    pub opus: bool,
+    /// The encoder of the audio stream, then the only one; `None` when the
+    /// audio is copied.
+    pub audio_encoder: Option<args::AudioEncoder>,
     /// Whether the decoder reorders the video's frames (B-frames).
     pub reordered: bool,
     /// The cover pictures that are not selected, as
@@ -308,10 +309,20 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if command.strip_metadata && command.muxer != Muxer::Ipod {
-        return Err(Refusal::not_native(
-            "-map_metadata -1 on another output than an M4A file",
-        ));
+    if command.muxer != Muxer::Ipod {
+        match command.map_metadata {
+            MapMetadata::Default => {}
+            MapMetadata::Strip => {
+                return Err(Refusal::not_native(
+                    "-map_metadata -1 on another output than an M4A file",
+                ));
+            }
+            MapMetadata::Stream(_) => {
+                return Err(Refusal::not_native(
+                    "-map_metadata from a stream on another output than an M4A file",
+                ));
+            }
+        }
     }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
@@ -327,17 +338,29 @@ pub fn plan(
             .collect()
     };
     let encoded = coded(Codec::Libx264);
-    let opus = coded(Codec::Libopus);
+    let audio_encoded: Vec<(usize, args::AudioEncoder)> = output
+        .iter()
+        .zip(&decided)
+        .filter_map(|((index, _), codec)| match codec {
+            Some(Codec::Audio(encoder)) => Some((*index, *encoder)),
+            _ => None,
+        })
+        .collect();
     if !encoded.is_empty() {
         if list.is_some() {
             return Err(Refusal::not_native("encoding the files of a concat list"));
         }
-        return transcode_job(command, report, &output, &encoded, &opus, trims);
+        return transcode_job(command, report, &output, &encoded, &audio_encoded, trims);
     }
-    if !opus.is_empty() {
-        return Err(Refusal::not_native(
-            "encoding audio with libopus without encoding the video with libx264",
-        ));
+    if let Some((_, encoder)) = audio_encoded.first() {
+        return Err(Refusal::not_native(match encoder {
+            args::AudioEncoder::Libopus => {
+                "encoding audio with libopus without encoding the video with libx264"
+            }
+            args::AudioEncoder::Aac => {
+                "encoding audio with aac without encoding the video with libx264"
+            }
+        }));
     }
     if (args::Encoding {
         threads: None,
@@ -455,10 +478,15 @@ pub fn plan(
         }
         return Ok(Job::ExtractAudio {
             stream: *stream,
-            metadata: if command.strip_metadata {
-                HeaderMetadata::Clear
-            } else {
-                HeaderMetadata::Copy
+            metadata: match command.map_metadata {
+                MapMetadata::Default => HeaderMetadata::Copy,
+                MapMetadata::Strip => HeaderMetadata::Clear,
+                MapMetadata::Stream(index) if index == *stream => HeaderMetadata::MediaTime,
+                MapMetadata::Stream(_) => {
+                    return Err(Refusal::not_native(
+                        "metadata from another stream than the one extracted",
+                    ));
+                }
             },
         });
     }
@@ -500,13 +528,14 @@ fn left_out_covers(report: &Report, selected: &[usize]) -> Vec<u64> {
 
 /// The job of a command that encodes: one video stream with libx264, the
 /// other selected streams audio, copied, or one audio stream encoded with
-/// libopus (`opus`, the selected streams it names), into one MP4 file.
+/// libopus or aac (`audio`, the selected streams it names and their
+/// encoders), into one MP4 file.
 fn transcode_job(
     command: &Command,
     report: &Report,
     output: &[(usize, &Stream)],
     encoded: &[usize],
-    opus: &[usize],
+    audio: &[(usize, args::AudioEncoder)],
     trims: bool,
 ) -> Result<Job, Refusal> {
     if output
@@ -518,7 +547,11 @@ fn transcode_job(
         ));
     }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
-    if encoded.iter().chain(opus).any(|i| cover(*i)) {
+    if encoded
+        .iter()
+        .chain(audio.iter().map(|(i, _)| i))
+        .any(|i| cover(*i))
+    {
         return Err(Refusal::not_native("encoding a cover picture"));
     }
     let [video] = encoded else {
@@ -570,28 +603,32 @@ fn transcode_job(
             "copying a stream other than audio beside the encoded video",
         ));
     }
-    let encodes_opus = match (opus, others.as_slice()) {
-        ([], _) => false,
-        ([index], [(other, stream)]) if index == other => {
-            opus_source(stream)?;
-            true
+    let audio_encoder = match (audio, others.as_slice()) {
+        ([], _) => None,
+        ([(index, encoder)], [(other, stream)]) if index == other => {
+            audio_source(*encoder, stream)?;
+            Some(*encoder)
         }
-        ([_], _) => {
-            return Err(Refusal::not_native(
-                "copying audio beside the audio stream libopus encodes",
-            ));
+        ([(_, encoder)], _) => {
+            return Err(Refusal::not_native(match encoder {
+                args::AudioEncoder::Libopus => {
+                    "copying audio beside the audio stream libopus encodes"
+                }
+                args::AudioEncoder::Aac => "copying audio beside the audio stream aac encodes",
+            }));
         }
-        _ => {
-            return Err(Refusal::not_native(
-                "encoding more than one audio stream with libopus",
-            ));
+        ([(_, encoder), ..], _) => {
+            return Err(Refusal::not_native(match encoder {
+                args::AudioEncoder::Libopus => "encoding more than one audio stream with libopus",
+                args::AudioEncoder::Aac => "encoding more than one audio stream with aac",
+            }));
         }
     };
     let selected: Vec<usize> = output.iter().map(|(i, _)| *i).collect();
     Ok(Job::Transcode(TranscodeJob {
         video: *video,
         audio: others.iter().map(|(i, _)| *i).collect(),
-        opus: encodes_opus,
+        audio_encoder,
         reordered: output
             .iter()
             .any(|(i, s)| i == video && int(s, "has_b_frames") > 0),
@@ -599,12 +636,15 @@ fn transcode_job(
     }))
 }
 
-/// The refusals of an audio stream to encode with libopus where the
+/// The refusals of an audio stream to encode with `encoder` where the
 /// pipeline would not encode it as `ffmpeg` does: audio CoreAV does not
 /// decode (it decodes FLAC and MP3), more than two channels (`ffmpeg`
-/// writes a surround Opus stream), or a build without the encoder.
-fn opus_source(stream: &Stream) -> Result<(), Refusal> {
-    if !cfg!(feature = "libopus") {
+/// writes a surround stream), a build without libopus, or for aac a sample
+/// rate outside 8 to 64 kHz (the pipeline encodes AAC at the source's rate
+/// and does not resample; `ffmpeg` encodes 88.2 and 96 kHz as they are).
+fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refusal> {
+    let opus = encoder == args::AudioEncoder::Libopus;
+    if opus && !cfg!(feature = "libopus") {
         return Err(Refusal::not_native(
             "encoding with libopus, in a build without the libopus feature",
         ));
@@ -614,13 +654,26 @@ fn opus_source(stream: &Stream) -> Result<(), Refusal> {
         _ => None,
     });
     if !matches!(codec, Some("flac" | "mp3")) {
-        return Err(Refusal::not_native(
-            "encoding audio other than FLAC or MP3 with libopus (CoreAV decodes only those)",
-        ));
+        return Err(Refusal::not_native(if opus {
+            "encoding audio other than FLAC or MP3 with libopus (CoreAV decodes only those)"
+        } else {
+            "encoding audio other than FLAC or MP3 with aac (CoreAV decodes only those)"
+        }));
     }
     if !(1..=2).contains(&int(stream, "channels")) {
+        return Err(Refusal::not_native(if opus {
+            "encoding other than mono or stereo with libopus (ffmpeg writes a surround Opus stream)"
+        } else {
+            "encoding other than mono or stereo with aac (ffmpeg writes a surround AAC stream)"
+        }));
+    }
+    let rate = stream.entries.iter().find_map(|(k, v)| match v {
+        Value::Unit(hz, _) if *k == "sample_rate" => Some(*hz),
+        _ => None,
+    });
+    if !opus && rate.is_none_or(|hz| !(8_000..=64_000).contains(&hz)) {
         return Err(Refusal::not_native(
-            "encoding other than mono or stereo with libopus (ffmpeg writes a surround Opus stream)",
+            "encoding audio sampled outside 8 to 64 kHz with aac (CoreAV does not resample it)",
         ));
     }
     Ok(())
@@ -687,12 +740,13 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
     })
 }
 
-/// Where the concat demuxer of `ffmpeg` places each listed file, in whole
-/// microseconds from where it places the first: at the end of the files
-/// before it, each as long as its `duration`, less its own `start_time`
-/// (black box: a file whose audio outlasts its video is followed at the
-/// audio's end).
-fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<i128>, Stop> {
+/// Where the concat demuxer of `ffmpeg` places each listed file: the output
+/// time of its time 0, in seconds from the first file's, which follows the
+/// files before it, each as long as its `duration`, less its own
+/// `start_time`, in whole microseconds as `ffprobe` prints them (the
+/// demuxer's documentation: each file starts where the previous one ends;
+/// ISO/IEC 14496-12 8.2.2.3: a movie lasts as long as its longest track).
+fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
     let mut first = None;
@@ -710,42 +764,24 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<i128>, Stop> {
             return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
         };
         let first = *first.get_or_insert(start);
-        offsets.push(end.saturating_sub(start).saturating_add(first));
+        let offset = end.saturating_sub(start).saturating_add(first);
+        offsets.push(
+            Rational::new(offset, 1_000_000)
+                .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
+        );
         end = end.saturating_add(duration);
     }
     Ok(offsets)
 }
 
-/// Whether the join placed every input where the concat demuxer does
-/// ([`concat_offsets`]), to the microsecond.
-fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
-    let Some(first) = summary.inputs.first() else {
-        return false;
-    };
-    let from_first = |offset: Rational| {
-        Rational::new(first.offset.num.checked_neg()?, first.offset.den)
-            .and_then(|minus| offset.checked_add(minus))
-            .and_then(|r| Rational::new(r.num.checked_mul(1_000_000)?, r.den))
-            .map(Rational::round)
-    };
-    summary.inputs.len() == offsets.len()
-        && summary
-            .inputs
-            .iter()
-            .zip(offsets)
-            .all(|(input, expected)| from_first(input.offset) == Some(*expected))
-}
-
 /// Why a join is not native: a track it copies has more than one edit in
 /// its file (an empty one included), which the demuxer reads by its own
 /// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits, or it places an input elsewhere than the concat demuxer
-/// ([`placed_as_concat`]). The edits are counted in each file, as edits
-/// that meet merge in the output.
-fn concat_timing(
+/// edits. The edits are counted in each file, as edits that meet merge in
+/// the output.
+fn several_edits(
     paths: &[PathBuf],
     summary: &JoinSummary,
-    offsets: &[i128],
 ) -> Result<Option<&'static str>, WriteFailure> {
     for (path, input) in paths.iter().zip(&summary.inputs) {
         let file = FileSource::open(path)?;
@@ -763,8 +799,7 @@ fn concat_timing(
             return Ok(Some("a join of files whose tracks have several edits"));
         }
     }
-    Ok((!placed_as_concat(summary, offsets))
-        .then_some("a join of files whose streams end at different times"))
+    Ok(None)
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -1084,13 +1119,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             let options = JoinOptions {
                 video: VideoChoice::Stream(*video),
                 audio: *audio,
+                placement: Placement::At(offsets.clone()),
             };
             let summary =
                 crate::join::run(paths, &options, &allowlist, out).map_err(|failure| {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = concat_timing(paths, &summary, &offsets)? {
+            if let Some(words) = several_edits(paths, &summary)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),
@@ -1188,6 +1224,55 @@ mod tests {
         };
         let (start, end) = clip_range(&command, origin).unwrap();
         (tenths(start), end.map(tenths))
+    }
+
+    /// The audio streams `-c:a aac` encodes: FLAC or MP3, mono or stereo,
+    /// sampled at 8 to 64 kHz.
+    #[test]
+    fn aac_takes_flac_or_mp3_mono_or_stereo_at_8_to_64_khz() {
+        use crate::ffprobe::model::Unit;
+        let stream = |codec: &str, channels: i64, rate: i64| Stream {
+            kind: StreamKind::Audio,
+            attached_pic: false,
+            entries: vec![
+                ("codec_name", Value::Str(codec.to_owned())),
+                ("sample_rate", Value::Unit(rate, Unit::Hertz)),
+                ("channels", Value::Int(channels)),
+            ],
+            disposition: Vec::new(),
+            tags: Vec::new(),
+            side_data: Vec::new(),
+        };
+        let refusal = |codec, channels, rate| match audio_source(
+            args::AudioEncoder::Aac,
+            &stream(codec, channels, rate),
+        ) {
+            Ok(()) => None,
+            Err(Refusal::NotNative(n)) => Some(n.message),
+            Err(other) => panic!("{other:?}"),
+        };
+        for (codec, channels, rate) in [
+            ("flac", 2, 48_000),
+            ("flac", 1, 8_000),
+            ("mp3", 2, 44_100),
+            ("flac", 2, 64_000),
+        ] {
+            assert_eq!(refusal(codec, channels, rate), None, "{codec} {rate}");
+        }
+        for (codec, channels, rate, says) in [
+            ("aac", 2, 48_000, "other than FLAC or MP3 with aac"),
+            ("opus", 2, 48_000, "other than FLAC or MP3 with aac"),
+            ("flac", 6, 48_000, "other than mono or stereo with aac"),
+            ("flac", 2, 96_000, "outside 8 to 64 kHz with aac"),
+            ("flac", 2, 88_200, "outside 8 to 64 kHz with aac"),
+            ("mp3", 1, 7_350, "outside 8 to 64 kHz with aac"),
+        ] {
+            let message = refusal(codec, channels, rate).unwrap_or_default();
+            assert!(
+                message.contains(says),
+                "{codec} {channels} {rate}: {message}"
+            );
+        }
     }
 
     #[test]

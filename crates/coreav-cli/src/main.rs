@@ -4,8 +4,8 @@
 //! CoreAV's probe output schema: `coreav.probe/1` for MP4, MOV and other ISO
 //! base media files (`docs/schema/probe-v1.md`), `coreav.probe-matroska/1`
 //! for Matroska and WebM (`docs/schema/probe-matroska-v1.md`) and
-//! `coreav.probe-mpegts/1` for MPEG transport streams
-//! (`docs/schema/probe-mpegts-v1.md`).
+//! `coreav.probe-mpegts/2` for MPEG transport streams
+//! (`docs/schema/probe-mpegts-v2.md`).
 //! `--ffprobe-compat` prints the subset of `ffprobe -of json -show_format
 //! -show_streams` that is checked against `ffprobe`. `coreav clip --start
 //! TIME INPUT OUTPUT` cuts a keyframe-aligned clip of an MP4/MOV file by
@@ -81,7 +81,8 @@ use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
 use coreav_isobmff_write::{
     AudioChoice, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions, MatroskaRemuxOptions,
-    Metadata, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    Metadata, OnUnsupported, Placement, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
+    VideoChoice,
 };
 use coreav_policy::Policy;
 #[cfg(not(feature = "net"))]
@@ -251,9 +252,8 @@ enum Command {
     /// untrusted input, anything else is refused with exit status 4;
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
-    /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
-    /// as `ffprobe` does the same.
+    /// MP4/MOV, Matroska/WebM and MPEG-TS (docs/measurements/compat-ffprobe.md).
+    /// `coreav` run as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
     /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
@@ -1034,7 +1034,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         }
     };
     if args.audio == "aac" {
-        if let Err(message) = strict_safe.aac() {
+        if let Err(message) = strict_safe.aac("use --audio copy, none or opus") {
             let _ = writeln!(
                 std::io::stderr(),
                 "{}",
@@ -2214,6 +2214,7 @@ fn run_join(args: &JoinArgs) -> ExitCode {
     let options = JoinOptions {
         video: VideoChoice::First,
         audio,
+        placement: Placement::AfterVideo,
     };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.

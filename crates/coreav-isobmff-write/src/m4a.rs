@@ -7,12 +7,14 @@ use crate::moov::{
     EditEntry, Media, MovieBox, Ties, TrackBox, TrackFlags, UNIT_RATE, ftyp, language, overflow,
     rescale, write_head,
 };
-use crate::mux::RawBox;
+use crate::mux::{RawBox, copied};
+use crate::remux::{Exclude, Retained, tags_without};
+use crate::scan::Path;
 use crate::tables::Tables;
 use crate::{ExtractError, HeaderMetadata, Summary, TrackChoice};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, EditList, Error, ItunesGapless, Limits, Movie, Source, Track,
-    TrackKind, probe,
+    Allowlist, Budget, Codec, EditList, Error, FourCc, ItunesGapless, Limits, Movie, Profile,
+    Source, Track, TrackKind, probe,
 };
 use std::io::Write;
 
@@ -27,14 +29,20 @@ const MAX_REGIONS: usize = 1 << 16;
 /// Copies one AAC track of `source` into an M4A file written to `out`.
 ///
 /// The source is probed with `limits` and `allowlist`; the track is chosen by
-/// `choice`; `metadata` says whether the header times and the language are
-/// the source's. Its samples are listed once to build the sample tables, then
+/// `choice`; `metadata` says which of the source's header times, language,
+/// handler name and `udta` and `meta` boxes the output carries. Its samples are listed once to build the sample tables, then
 /// listed again and copied, so `out` receives `ftyp`, `moov` and `mdat` in
 /// that order without seeking. `out` gets many small writes; give it a
 /// buffered writer.
 ///
 /// Timing: the output keeps the source's media timescale, sample durations
 /// and order, and its movie timescale, so its edit list is copied exactly,
+/// except that an HE-AAC track whose configuration signals SBR and whose
+/// media timescale divides its decoded rate (a 22,050 Hz core decoded at
+/// 44,100 Hz, say) is written at that rate, every media duration and media
+/// time multiplied alike, and its sample entry states that rate ([`sbr_rate`]; ISO/IEC 14496-12 12.2.3.3:
+/// an audio timescale matches the sampling rate or is an integer multiple
+/// of it);
 /// entry by entry, whether it is the simple model's one media edit or
 /// several (`docs/design/edit-list-writers.md`, "M4A extraction"). The media header duration is the source's when it declares one
 /// for a movie without fragments, even when it disagrees with the sample
@@ -67,11 +75,22 @@ pub fn extract_audio<S: Source, W: Write>(
     let mut source = source;
     let movie = probe(&mut source, limits, allowlist)?;
     let track = select(&movie, choice)?;
-    let entry = audio_sample_entry(track)?;
+    let sbr = sbr_rate(track);
+    let entry = audio_sample_entry_at(track, sbr)?;
     let mut budget = Budget::new(limits);
+    // An HE-AAC track whose timescale is the core's is written at the
+    // decoded rate, an exact multiple: ISO/IEC 14496-12 12.2.3.3 asks for an
+    // audio timescale that matches the sampling rate or is an integer
+    // multiple of it.
+    let scale = sbr
+        .filter(|rate| *rate > track.timescale && rate % track.timescale == 0)
+        .map_or(1, |rate| rate / track.timescale);
 
     // Pass 1: the output tables, from sizes and times only.
-    let mut tables = Tables::new(track.timescale, limits.max_table_bytes);
+    let mut tables = Tables::new(
+        track.timescale.checked_mul(scale).ok_or_else(overflow)?,
+        limits.max_table_bytes,
+    );
     let mut first_dts = None;
     let mut next_dts = None;
     // Where the samples start and end in the source, for the advice to the
@@ -110,21 +129,43 @@ pub fn extract_audio<S: Source, W: Write>(
                 .ok_or_else(overflow)?,
         );
         first_dts.get_or_insert(packet.dts);
-        tables.push(packet.size, packet.duration, packet.keyframe)?;
+        tables.push(
+            packet.size,
+            packet.duration.checked_mul(scale).ok_or_else(overflow)?,
+            packet.keyframe,
+        )?;
     }
     tables.finish();
     let first_dts = first_dts.unwrap_or(0);
     let gapless = if matches!(track.edit_list, EditList::None) && first_dts == 0 {
-        gapless_edit(&movie, &mut source, &tables)?
+        gapless_edit(&movie, &mut source, &tables, scale)?
     } else {
         None
     };
-    let header = Header::new(&movie, track, &tables, first_dts, gapless, metadata)?;
+    let header = Header::new(
+        &movie,
+        track,
+        &tables,
+        first_dts,
+        gapless.map(|(values, _)| values),
+        scale,
+        metadata,
+    )?;
+    let described = match metadata {
+        HeaderMetadata::Copy => described(
+            &movie,
+            track,
+            gapless.and_then(|(_, at)| at),
+            &mut source,
+            limits,
+        )?,
+        HeaderMetadata::Clear | HeaderMetadata::MediaTime => Described::default(),
+    };
     let (data_start, data_bytes) = write_head(
         &mut out,
         ftyp(b"M4A ", &[b"M4A ", b"mp42", b"isom"]),
-        &header.movie(),
-        vec![header.track(entry, &tables)],
+        &header.movie(&described),
+        vec![header.track(entry, &tables, &described)],
         Ties::TrackOrder,
     )?;
 
@@ -166,7 +207,7 @@ pub fn extract_audio<S: Source, W: Write>(
         samples: copied,
         bytes_written: data_start.saturating_add(data_bytes),
         timescale: track.timescale,
-        duration: tables.duration,
+        duration: tables.duration / u64::from(scale),
     })
 }
 
@@ -237,6 +278,26 @@ fn select(movie: &Movie, choice: TrackChoice) -> Result<&Track, Error> {
     Ok(track)
 }
 
+/// The sampling rate an HE-AAC decoder outputs for `track` (ISO/IEC
+/// 14496-3 1.6.5.2, table 1.22) when its `AudioSpecificConfig` signals SBR
+/// (object type 5 or 29, or a backward-compatible extension with
+/// `sbrPresentFlag` 1): the extension frequency it gives, when the sample
+/// entry's 16.16 rate holds it (ISO/IEC 14496-12 12.2.3.2). `None` for
+/// other tracks, including AAC LC whose frames alone carry SBR data (implicit
+/// signalling): only a reader that parses every element of a
+/// `raw_data_block()` can find a fill element, and that parsing is the
+/// opt-in AAC decoder's (`docs/design/edit-list-writers.md`, "HE-AAC
+/// timescale").
+fn sbr_rate(track: &Track) -> Option<u32> {
+    match track.description.profile {
+        Some(Profile::Aac { sbr: true, .. }) => track
+            .description
+            .configured_sample_rate
+            .filter(|rate| *rate <= u32::from(u16::MAX)),
+        _ => None,
+    }
+}
+
 /// The `stsd` payload of a copy that holds part of an audio track's samples
 /// (an M4A file, a clip, a split) or begins a join: the track's sample entry
 /// (14496-12 12.2.3; 14496-14 5.6 for `mp4a`) as an ISO version 0 sound
@@ -247,6 +308,12 @@ fn select(movie: &Movie, choice: TrackChoice) -> Result<&Track, Error> {
 /// version 1 and 2 layouts have no place in MP4 and are written as
 /// version 0. The callers choose which codecs they copy.
 pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
+    audio_sample_entry_at(track, None)
+}
+
+/// [`audio_sample_entry`], stating `rate`, when given, instead of the
+/// source's sample rate.
+fn audio_sample_entry_at(track: &Track, rate: Option<u32>) -> Result<Vec<u8>, Error> {
     let description = &track.description;
     let kind = audio::config_kind(description.fourcc)
         .filter(|_| description.codec != Codec::Other)
@@ -264,8 +331,8 @@ pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
         .ok_or(unsupported(
             "channel count outside the version 0 sound entry",
         ))?;
-    let mut rate = description
-        .sample_rate
+    let mut rate = rate
+        .or(description.sample_rate)
         .ok_or(unsupported("the audio sample entry has no sample rate"))?;
     if matches!(description.codec, Codec::Flac | Codec::Alac) {
         rate = audio::entry_rate(rate);
@@ -291,12 +358,15 @@ pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
 /// padding add up exactly to the track's sample durations (the item counts
 /// samples at the decoded rate, which then equals the media timescale). An
 /// item that disagrees, such as one describing a longer original recording,
-/// is ignored rather than shifting the audio.
+/// is ignored rather than shifting the audio. The item is checked against
+/// the source's timescale, `tables` holding durations `scale` times the
+/// source's.
 fn gapless_edit<S: Source>(
     movie: &Movie,
     source: &mut S,
     tables: &Tables,
-) -> Result<Option<ItunesGapless>, Error> {
+    scale: u32,
+) -> Result<Option<(ItunesGapless, Option<u64>)>, Error> {
     let audio = movie
         .tracks
         .iter()
@@ -305,13 +375,79 @@ fn gapless_edit<S: Source>(
     if audio != 1 {
         return Ok(None);
     }
-    let Some(item) = movie.itunes_gapless(source)? else {
+    let Some((item, at)) = movie.itunes_gapless_item(source)? else {
         return Ok(None);
     };
     let total = u64::from(item.encoder_delay)
         .checked_add(u64::from(item.padding))
-        .and_then(|t| t.checked_add(item.original_samples));
-    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some(item))
+        .and_then(|t| t.checked_add(item.original_samples))
+        .and_then(|t| t.checked_mul(u64::from(scale)));
+    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some((item, at)))
+}
+
+/// What describes the source's movie and track beside their headers: their
+/// user data (ISO/IEC 14496-12 8.10.1) and metadata boxes (8.11.1), and the
+/// track's handler name (8.4.3).
+#[derive(Default)]
+struct Described<'m> {
+    movie: Vec<RawBox>,
+    track: Vec<RawBox>,
+    handler_name: Option<&'m str>,
+}
+
+/// The source's `udta` and `meta` boxes of the movie and of `track`, as
+/// stored, without their cover pictures: every entry of an item list that
+/// [`coreav_isobmff::metadata::ListKey::is_cover`] names (`covr`, or keyed
+/// artwork), whole, since the output carries one audio stream and a cover
+/// picture is a stream of its own (`docs/design/compat-cli.md`, "Cover
+/// pictures"). With `smpb`, the offset of the movie's `iTunSMPB` item box
+/// that the output's edit list stands for, that item is left out too, so
+/// that the delay and padding are not given twice. The boxes are walked as
+/// copied ([`Exclude::Extraction`]): a list that does not parse to its end
+/// is cut where it stops, and a box holding `smpb` where the walk does not
+/// reach it is left out. A box larger than what `max_retained_bytes`
+/// leaves is left out. A compressed movie's boxes are not copied: its
+/// file's movie box holds only the compressed data
+/// (`docs/design/compressed-movie.md`).
+fn described<'m, S: Source>(
+    movie: &Movie,
+    track: &'m Track,
+    smpb: Option<u64>,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<Described<'m>, Error> {
+    let handler_name = track.handler_name.as_deref();
+    if movie.compressed {
+        return Ok(Described {
+            handler_name,
+            ..Described::default()
+        });
+    }
+    let mut retained = Retained::new(limits);
+    let moov = Path::top().with(FourCc(*b"moov"));
+    let movie_boxes = tags_without(
+        None,
+        moov,
+        movie.tag_boxes(),
+        Exclude::Extraction { item: smpb },
+        source,
+        &mut retained,
+        &mut |_| {},
+    )?;
+    let track_boxes = tags_without(
+        Some(track.stream_index),
+        moov.with(FourCc(*b"trak")),
+        track.tag_boxes(),
+        Exclude::Extraction { item: None },
+        source,
+        &mut retained,
+        &mut |_| {},
+    )?;
+    Ok(Described {
+        movie: movie_boxes,
+        track: track_boxes,
+        handler_name,
+    })
 }
 
 /// Header values of the output movie.
@@ -324,29 +460,41 @@ struct Header {
     /// without one.
     edits: Vec<EditEntry>,
     movie_created: u64,
+    movie_modified: u64,
     track_created: u64,
+    track_modified: u64,
     media_created: u64,
+    media_modified: u64,
     language: [u8; 3],
 }
 
 impl Header {
-    fn movie(&self) -> MovieBox<'static> {
+    fn movie<'a>(&self, described: &'a Described<'_>) -> MovieBox<'a> {
         MovieBox {
             timescale: self.movie_timescale,
             created: self.movie_created,
+            modified: Some(self.movie_modified),
             duration: self.movie_duration,
-            extra: Vec::new(),
+            extra: copied(&described.movie),
         }
     }
 
-    fn track<'a>(&self, stsd: Vec<u8>, tables: &'a Tables) -> TrackBox<'a> {
+    fn track<'a>(
+        &self,
+        stsd: Vec<u8>,
+        tables: &'a Tables,
+        described: &'a Described<'_>,
+    ) -> TrackBox<'a> {
         let edits = self.edits.clone();
         TrackBox {
             track_id: TRACK_ID,
             media: Media::Audio,
+            handler_name: described.handler_name,
             header: TrackFlags::DEFAULT,
             created: self.track_created,
+            modified: Some(self.track_modified),
             media_created: self.media_created,
+            media_modified: Some(self.media_modified),
             language: self.language,
             media_timescale: self.media_timescale,
             media_duration: self.media_duration,
@@ -354,23 +502,27 @@ impl Header {
             edits: edits.into(),
             stsd,
             tables,
-            extra: Vec::new(),
+            extra: copied(&described.track),
             stbl_extra: Vec::new(),
         }
     }
 
     /// The output keeps the source's movie timescale, so the edit's
     /// durations are copied exactly; a source movie timescale of 0 (no
-    /// usable movie header times) is replaced by the media timescale.
+    /// usable movie header times) is replaced by the media timescale. Its
+    /// media timescale is `scale` times the source's, and every media time
+    /// and duration with it.
     fn new(
         movie: &Movie,
         track: &Track,
         tables: &Tables,
         first_dts: i64,
         gapless: Option<ItunesGapless>,
+        scale: u32,
         metadata: HeaderMetadata,
     ) -> Result<Self, Error> {
-        let media_timescale = track.timescale;
+        let media_timescale = tables.timescale();
+        let scaled = |media: i64| media.checked_mul(i64::from(scale)).ok_or_else(overflow);
         let movie_timescale = if movie.timescale == 0 {
             media_timescale
         } else {
@@ -379,10 +531,12 @@ impl Header {
         // The output's decode times start at 0, so every media time moves
         // with them.
         let moved = |media_time: i64| -> Result<i64, Error> {
-            media_time
-                .checked_sub(first_dts)
-                .filter(|t| *t >= 0)
-                .ok_or(unsupported("edit starts before the first sample"))
+            scaled(
+                media_time
+                    .checked_sub(first_dts)
+                    .filter(|t| *t >= 0)
+                    .ok_or(unsupported("edit starts before the first sample"))?,
+            )
         };
         let edits: Vec<EditEntry> = match track.edit_list {
             // Without an edit list the source presents its first sample at
@@ -396,9 +550,13 @@ impl Header {
             // The gapless item's delay and content length.
             EditList::None => gapless
                 .map(|g| -> Result<EditEntry, Error> {
+                    let original = g
+                        .original_samples
+                        .checked_mul(u64::from(scale))
+                        .ok_or_else(overflow)?;
                     Ok(EditEntry {
-                        duration: rescale(g.original_samples, media_timescale, movie_timescale)?,
-                        media_time: i64::from(g.encoder_delay),
+                        duration: rescale(original, media_timescale, movie_timescale)?,
+                        media_time: scaled(i64::from(g.encoder_delay))?,
                         rate: UNIT_RATE,
                     })
                 })
@@ -463,7 +621,10 @@ impl Header {
         // With fragments the movie header durations cover only part of the
         // samples, so the sum is written.
         let media_duration = if !movie.has_fragments() && track.mdhd_duration != 0 {
-            track.mdhd_duration
+            track
+                .mdhd_duration
+                .checked_mul(u64::from(scale))
+                .ok_or_else(overflow)?
         } else {
             tables.duration
         };
@@ -486,6 +647,22 @@ impl Header {
                 language(track.language),
             ),
             HeaderMetadata::Clear => (0, 0, 0, *b"und"),
+            HeaderMetadata::MediaTime => (
+                track.media_creation_time,
+                track.media_creation_time,
+                track.media_creation_time,
+                *b"und",
+            ),
+        };
+        let (movie_modified, track_modified, media_modified) = match metadata {
+            HeaderMetadata::Copy => (
+                movie.modification_time,
+                track.modification_time,
+                track.media_modification_time,
+            ),
+            HeaderMetadata::Clear | HeaderMetadata::MediaTime => {
+                (movie_created, track_created, media_created)
+            }
         };
         Ok(Self {
             movie_timescale,
@@ -494,8 +671,11 @@ impl Header {
             movie_duration,
             edits,
             movie_created,
+            movie_modified,
             track_created,
+            track_modified,
             media_created,
+            media_modified,
             language,
         })
     }

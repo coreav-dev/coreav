@@ -63,6 +63,9 @@ fn interface(codec: Codec) -> Option<Interface> {
     }
 }
 
+/// Where [`LibvpxDecoder::send_packet_lending`] sends each frame.
+type Take<'a> = &'a mut dyn FnMut(&LentFrame<'_>) -> Result<(), Error>;
+
 /// A VP8 or VP9 decoder: one libvpx instance.
 ///
 /// A packet is one frame (VP8), or one frame or superframe (VP9), as the
@@ -70,7 +73,9 @@ fn interface(codec: Codec) -> Option<Interface> {
 /// decodes it at once and makes ready the frame it shows, if any, which
 /// takes the packet's pts; neither codec reorders frames. Frames are
 /// copied out of libvpx's images into packed planes at once, so libvpx's
-/// buffers are never held.
+/// buffers are never held: into a [`Frame`] by [`Decoder::send_packet`],
+/// or by the caller from a [`LentFrame`] with
+/// [`LibvpxDecoder::send_packet_lending`].
 pub struct LibvpxDecoder {
     vpx: Vpx,
     interface: Interface,
@@ -147,10 +152,50 @@ impl LibvpxDecoder {
         Ok(())
     }
 
+    /// [`Decoder::send_packet`], except that each frame the packet makes
+    /// ready goes to `take` while it is still in libvpx's buffer, instead of
+    /// being copied into a [`Frame`] for [`Decoder::receive_frame`]: for a
+    /// caller that copies it where it goes next at once (the sandboxed
+    /// worker, into its shared memory). An error from `take` fails the
+    /// decoder.
+    pub fn send_packet_lending(
+        &mut self,
+        packet: &Packet<'_>,
+        take: &mut dyn FnMut(&LentFrame<'_>) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        self.send(packet, Some(take))
+    }
+
+    fn send(&mut self, packet: &Packet<'_>, take: Option<Take<'_>>) -> Result<(), Error> {
+        if self.eof {
+            return Err(Error::new(ErrorKind::InvalidData, "packet after the end"));
+        }
+        self.usable()?;
+        self.limits.check_packet(packet)?;
+        let pts = packet
+            .pts
+            .or(packet.dts)
+            .or_else(|| self.last_pts.map(|p| p.saturating_add(1)))
+            .unwrap_or(0);
+        self.last_pts = Some(pts);
+        let result = self.decode(packet, pts, take);
+        if result.is_err() {
+            self.failed = true;
+            self.ready.clear();
+        }
+        result
+    }
+
     /// Checks the sizes the packet's frames state, then decodes it: a VP9
     /// packet with its superframe index, so that libvpx decodes those
-    /// frames only, a VP8 packet as it is.
-    fn decode(&mut self, packet: &Packet<'_>, pts: i64) -> Result<(), Error> {
+    /// frames only, a VP8 packet as it is. Each frame shown goes to `take`,
+    /// or without one is copied into the frames ready.
+    fn decode(
+        &mut self,
+        packet: &Packet<'_>,
+        pts: i64,
+        mut take: Option<Take<'_>>,
+    ) -> Result<(), Error> {
         let malformed = |codec: &str, e: header::Malformed| {
             Error::new(ErrorKind::InvalidData, format!("{codec} packet: {e}"))
         };
@@ -170,7 +215,7 @@ impl LibvpxDecoder {
                 Cow::Borrowed(packet.data)
             }
         };
-        let (color, limits) = (self.color, &self.limits);
+        let (color, limits, decoded) = (self.color, &self.limits, &mut self.decoded);
         let mut made = Vec::new();
         self.vpx
             .decode(&data, |view| {
@@ -178,19 +223,30 @@ impl LibvpxDecoder {
                     let (width, height) = view.size();
                     return limits.check_frame(width, height, 0);
                 }
-                made.push(convert(&view, color, limits)?);
-                Ok::<(), Error>(())
+                let layout = Layout::of(&view, limits)?;
+                *decoded = decoded.saturating_add(layout.bytes);
+                if *decoded > limits.max_decoded_bytes {
+                    return Err(Error::new(
+                        ErrorKind::Limit,
+                        "decoded bytes exceed the limit",
+                    ));
+                }
+                match take.as_mut() {
+                    Some(take) => take(&LentFrame {
+                        pts,
+                        color,
+                        layout: &layout,
+                        view: &view,
+                    }),
+                    None => {
+                        made.push(convert(&view, &layout, color)?);
+                        Ok(())
+                    }
+                }
             })
             .map_err(|e| failure("decoding", &e))??;
         for (mut frame, bytes) in made {
             frame.pts = Some(pts);
-            self.decoded = self.decoded.saturating_add(bytes);
-            if self.decoded > self.limits.max_decoded_bytes {
-                return Err(Error::new(
-                    ErrorKind::Limit,
-                    "decoded bytes exceed the limit",
-                ));
-            }
             self.ready_bytes = self.ready_bytes.saturating_add(bytes);
             if self.ready_bytes > self.limits.max_pending_bytes {
                 return Err(Error::new(
@@ -206,23 +262,7 @@ impl LibvpxDecoder {
 
 impl Decoder for LibvpxDecoder {
     fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
-        if self.eof {
-            return Err(Error::new(ErrorKind::InvalidData, "packet after the end"));
-        }
-        self.usable()?;
-        self.limits.check_packet(packet)?;
-        let pts = packet
-            .pts
-            .or(packet.dts)
-            .or_else(|| self.last_pts.map(|p| p.saturating_add(1)))
-            .unwrap_or(0);
-        self.last_pts = Some(pts);
-        let result = self.decode(packet, pts);
-        if result.is_err() {
-            self.failed = true;
-            self.ready.clear();
-        }
-        result
+        self.send(packet, None)
     }
 
     fn send_eof(&mut self) -> Result<(), Error> {
@@ -318,7 +358,7 @@ fn failure(what: &str, error: &Failure) -> Error {
 fn frame_bytes(frame: &Frame) -> u64 {
     match &frame.pixels {
         Pixels::Cpu(picture) => u64::try_from(picture.packed_len()).unwrap_or(u64::MAX),
-        Pixels::Cuda(_) => 0,
+        Pixels::Cuda(_) | Pixels::Shared(_) => 0,
     }
 }
 
@@ -328,58 +368,98 @@ const I422: i32 = 0x105;
 const I444: i32 = 0x106;
 const I440: i32 = 0x107;
 
-/// Copies a libvpx image into a frame with packed planes, checked against
-/// the limits first; also returns its bytes.
-fn convert(view: &View<'_>, color: ColorInfo, limits: &Limits) -> Result<(Frame, u64), Error> {
-    let bad = |what: &str| Error::new(ErrorKind::Backend, format!("libvpx image: {what}"));
-    let (width, height) = view.size();
-    let high = view.format() & FMT_HIGH_BIT_DEPTH != 0;
-    let (chroma, shifts) = match view.format() & !FMT_HIGH_BIT_DEPTH {
-        I420 => (Chroma::Cs420, (1, 1)),
-        I422 => (Chroma::Cs422, (1, 0)),
-        I444 => (Chroma::Cs444, (0, 0)),
-        I440 => {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "VP9 4:4:0 (profile 1 or 3) has no pixel format in CoreAV's frame model",
-            ));
+/// A libvpx image's frame-model geometry, checked against the limits.
+struct Layout {
+    width: u32,
+    height: u32,
+    format: PixelFormat,
+    high: bool,
+    /// Each plane's bytes per row and rows.
+    planes: Vec<(usize, usize)>,
+    /// Bytes of the planes packed.
+    bytes: u64,
+}
+
+impl Layout {
+    fn of(view: &View<'_>, limits: &Limits) -> Result<Self, Error> {
+        let (width, height) = view.size();
+        let high = view.format() & FMT_HIGH_BIT_DEPTH != 0;
+        let (chroma, shifts) = match view.format() & !FMT_HIGH_BIT_DEPTH {
+            I420 => (Chroma::Cs420, (1, 1)),
+            I422 => (Chroma::Cs422, (1, 0)),
+            I444 => (Chroma::Cs444, (0, 0)),
+            I440 => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "VP9 4:4:0 (profile 1 or 3) has no pixel format in CoreAV's frame model",
+                ));
+            }
+            _ => return Err(bad("unknown format")),
+        };
+        if view.shifts() != shifts {
+            return Err(bad("subsampling differs from its format"));
         }
-        _ => return Err(bad("unknown format")),
-    };
-    if view.shifts() != shifts {
-        return Err(bad("subsampling differs from its format"));
-    }
-    let depth = u8::try_from(view.bit_depth()).map_err(|_| bad("bit depth"))?;
-    if high != (depth > 8) {
-        return Err(bad("sample size differs from its bit depth"));
-    }
-    let format = PixelFormat::Yuv { chroma, depth };
-    format.validate().map_err(|_| bad("bit depth"))?;
-    let mut sizes = Vec::with_capacity(format.plane_count());
-    let mut total = 0u64;
-    for index in 0..format.plane_count() {
-        let row = format
-            .row_bytes(index, width, height)
-            .ok_or_else(|| bad("row size"))?;
-        let (_, rows) = format
-            .plane_size(index, width, height)
-            .ok_or_else(|| bad("plane size"))?;
-        let rows = usize::try_from(rows).map_err(|_| bad("plane size"))?;
-        let (samples, view_rows) = view.plane_size(index).ok_or_else(|| bad("plane size"))?;
-        if samples.checked_mul(view.sample_bytes()) != Some(row) || view_rows != rows {
-            return Err(bad("plane size differs from the frame model's"));
+        let depth = u8::try_from(view.bit_depth()).map_err(|_| bad("bit depth"))?;
+        if high != (depth > 8) {
+            return Err(bad("sample size differs from its bit depth"));
         }
-        let bytes = row.checked_mul(rows).ok_or_else(|| bad("plane size"))?;
-        total = total
-            .checked_add(u64::try_from(bytes).map_err(|_| bad("plane size"))?)
-            .ok_or_else(|| bad("plane size"))?;
-        sizes.push((row, rows, bytes));
+        let format = PixelFormat::Yuv { chroma, depth };
+        format.validate().map_err(|_| bad("bit depth"))?;
+        let mut planes = Vec::with_capacity(format.plane_count());
+        let mut bytes = 0u64;
+        for index in 0..format.plane_count() {
+            let row = format
+                .row_bytes(index, width, height)
+                .ok_or_else(|| bad("row size"))?;
+            let (_, rows) = format
+                .plane_size(index, width, height)
+                .ok_or_else(|| bad("plane size"))?;
+            let rows = usize::try_from(rows).map_err(|_| bad("plane size"))?;
+            let (samples, view_rows) = view.plane_size(index).ok_or_else(|| bad("plane size"))?;
+            if samples.checked_mul(view.sample_bytes()) != Some(row) || view_rows != rows {
+                return Err(bad("plane size differs from the frame model's"));
+            }
+            let plane = row.checked_mul(rows).ok_or_else(|| bad("plane size"))?;
+            bytes = bytes
+                .checked_add(u64::try_from(plane).map_err(|_| bad("plane size"))?)
+                .ok_or_else(|| bad("plane size"))?;
+            planes.push((row, rows));
+        }
+        limits.check_frame(width, height, bytes)?;
+        Ok(Self {
+            width,
+            height,
+            format,
+            high,
+            planes,
+            bytes,
+        })
     }
-    limits.check_frame(width, height, total)?;
-    let mut planes = Vec::with_capacity(sizes.len());
-    for (index, (row, rows, bytes)) in sizes.into_iter().enumerate() {
+}
+
+fn bad(what: &str) -> Error {
+    Error::new(ErrorKind::Backend, format!("libvpx image: {what}"))
+}
+
+/// Samples of more than 8 bits are little-endian in the frame model; libvpx
+/// writes them in the host's order.
+#[cfg_attr(target_endian = "little", allow(unused_variables))]
+fn to_little_endian(high: bool, plane: &mut [u8]) {
+    #[cfg(target_endian = "big")]
+    if high {
+        for pair in plane.chunks_exact_mut(2) {
+            pair.swap(0, 1);
+        }
+    }
+}
+
+/// Copies a libvpx image into a frame with packed planes; also returns its
+/// bytes.
+fn convert(view: &View<'_>, layout: &Layout, color: ColorInfo) -> Result<(Frame, u64), Error> {
+    let mut planes = Vec::with_capacity(layout.planes.len());
+    for (index, &(row, rows)) in layout.planes.iter().enumerate() {
         let mut data = Vec::new();
-        data.try_reserve_exact(bytes)
+        data.try_reserve_exact(row.saturating_mul(rows))
             .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
         for r in 0..rows {
             let line = view
@@ -387,21 +467,78 @@ fn convert(view: &View<'_>, color: ColorInfo, limits: &Limits) -> Result<(Frame,
                 .ok_or_else(|| bad("plane shorter than its rows"))?;
             data.extend_from_slice(line);
         }
-        #[cfg(target_endian = "big")]
-        if high {
-            for pair in data.chunks_exact_mut(2) {
-                pair.swap(0, 1);
-            }
-        }
+        to_little_endian(layout.high, &mut data);
         planes.push(Plane::new(data, row));
     }
-    let picture = Picture::new(width, height, format, planes).map_err(|e| bad(&e.to_string()))?;
+    let picture = Picture::new(layout.width, layout.height, layout.format, planes)
+        .map_err(|e| bad(&e.to_string()))?;
     let frame = Frame {
         pts: None,
         color,
         pixels: Pixels::Cpu(picture),
     };
-    Ok((frame, total))
+    Ok((frame, layout.bytes))
+}
+
+/// A frame shown by the packet [`LibvpxDecoder::send_packet_lending`] is
+/// decoding, still in libvpx's buffer, which it is lent from for one call:
+/// checked against the frame model and the limits.
+pub struct LentFrame<'a> {
+    /// The packet's presentation time.
+    pub pts: i64,
+    /// The stream's colour description.
+    pub color: ColorInfo,
+    layout: &'a Layout,
+    view: &'a View<'a>,
+}
+
+impl LentFrame<'_> {
+    /// Width in pixels.
+    pub fn width(&self) -> u32 {
+        self.layout.width
+    }
+
+    /// Height in pixels.
+    pub fn height(&self) -> u32 {
+        self.layout.height
+    }
+
+    /// Pixel format.
+    pub fn format(&self) -> PixelFormat {
+        self.layout.format
+    }
+
+    /// Bytes of the planes in order with their rows packed.
+    pub fn packed_len(&self) -> u64 {
+        self.layout.bytes
+    }
+
+    /// Copies the planes in order with their rows packed, as
+    /// [`Picture::write_packed`] lays them out, into `out`, which is
+    /// [`LentFrame::packed_len`] bytes long.
+    pub fn write_packed(&self, out: &mut [u8]) -> Result<(), Error> {
+        let short = || Error::new(ErrorKind::Backend, "frame buffer of the wrong size");
+        let mut rest = out;
+        for (index, &(row, rows)) in self.layout.planes.iter().enumerate() {
+            let (plane, after) = rest
+                .split_at_mut_checked(row.checked_mul(rows).ok_or_else(short)?)
+                .ok_or_else(short)?;
+            for (r, target) in plane.chunks_exact_mut(row.max(1)).enumerate() {
+                let line = self
+                    .view
+                    .row(index, r)
+                    .ok_or_else(|| bad("plane shorter than its rows"))?;
+                target.copy_from_slice(line);
+            }
+            to_little_endian(self.layout.high, plane);
+            rest = after;
+        }
+        if rest.is_empty() {
+            Ok(())
+        } else {
+            Err(short())
+        }
+    }
 }
 
 #[cfg(test)]
