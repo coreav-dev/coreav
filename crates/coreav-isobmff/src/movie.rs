@@ -14,6 +14,7 @@ use crate::{
     Allowlist, Codec, Error, FourCc, Limits, Rational, SampleDescription, SliceSource, Source,
 };
 use core::cell::Cell;
+use std::collections::BTreeSet;
 
 /// What a track carries, from its handler type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -263,6 +264,10 @@ pub struct Track {
     pub description: SampleDescription,
     /// Number of sample descriptions.
     pub descriptions: u32,
+    /// The sample descriptions after the first, in the sample description
+    /// box's order: index 2 onward of [`crate::Packets::description`].
+    /// Their bytes and their size count against `max_retained_bytes`.
+    pub later_descriptions: Vec<SampleDescription>,
     /// Samples in the movie box tables (fragments excluded).
     pub sample_count: u32,
     /// Samples in fragments, when they were scanned.
@@ -1836,7 +1841,12 @@ struct TrackParts {
     mdhd: Option<MediaHeader>,
     handler: Option<(FourCc, Vec<u8>)>,
     quicktime_handler: bool,
-    description: Option<(SampleDescription, u32, u16)>,
+    description: Option<(
+        SampleDescription,
+        Vec<SampleDescription>,
+        u32,
+        BTreeSet<u16>,
+    )>,
     self_contained: Option<Vec<bool>>,
     tables: SampleTables,
     table_problem: Option<&'static str>,
@@ -1942,19 +1952,18 @@ fn parse_trak<S: Source>(
         modified: media_modification_time,
     } = parts.mdhd.ok_or(invalid(trak, "missing media header"))?;
     let (handler, handler_name_bytes) = parts.handler.ok_or(invalid(trak, "missing handler"))?;
-    let (description, descriptions, data_reference) = parts
+    let (description, later_descriptions, descriptions, data_references) = parts
         .description
         .ok_or(invalid(trak, "missing sample description"))?;
     let kind = handler_kind(handler);
-    let external_data = parts
-        .self_contained
-        .as_ref()
-        .and_then(|entries| {
-            entries
-                .get(usize::from(data_reference).checked_sub(1)?)
-                .copied()
+    let external_data = parts.self_contained.as_ref().is_some_and(|entries| {
+        data_references.iter().any(|reference| {
+            usize::from(*reference)
+                .checked_sub(1)
+                .and_then(|i| entries.get(i))
+                .is_some_and(|self_contained| !self_contained)
         })
-        .is_some_and(|self_contained| !self_contained);
+    });
     let mut warnings = parts.warnings;
     if external_data {
         crate::error::warn(&mut warnings, Warning::ExternalData);
@@ -2025,6 +2034,7 @@ fn parse_trak<S: Source>(
         rotation: rotation(&matrix),
         description,
         descriptions,
+        later_descriptions,
         sample_count: parts.tables.sample_count(),
         fragment_samples: 0,
         fragment_start: None,
@@ -2193,23 +2203,24 @@ fn parse_stbl<S: Source>(
                 _ => EntryLayout::Other,
             };
             let payload = w.payload(&child)?;
-            let parsed = parse_stsd(
+            let retained = w.retained;
+            let parsed = match parse_stsd(
                 &payload,
                 child.payload_offset(),
                 layout,
                 allowlist,
                 &mut parts.warnings,
-            )?;
+                &mut |bytes, at| w.retain(bytes, at),
+            ) {
+                Err(error @ Error::CodecNotAllowed { .. }) => {
+                    w.retained = retained;
+                    return Err(error);
+                }
+                parsed => parsed?,
+            };
             if parts.description.is_some() {
                 return Err(invalid(&child, "second sample description box"));
             }
-            let kept = parsed
-                .0
-                .codec_config
-                .iter()
-                .chain(&parsed.0.entry_boxes)
-                .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
-            w.retain(kept, child.offset)?;
             parts.description = Some(parsed);
             return Ok(());
         }
@@ -2247,7 +2258,16 @@ fn parse_stsd(
     layout: EntryLayout,
     allowlist: &Allowlist,
     warnings: &mut Vec<Warning>,
-) -> Result<(SampleDescription, u32, u16), Error> {
+    retain: &mut dyn FnMut(usize, u64) -> Result<(), Error>,
+) -> Result<
+    (
+        SampleDescription,
+        Vec<SampleDescription>,
+        u32,
+        BTreeSet<u16>,
+    ),
+    Error,
+> {
     let mut b = Bytes::new(payload, offset);
     b.version_flags()?;
     let count = b.u32()?;
@@ -2259,6 +2279,8 @@ fn parse_stsd(
         });
     }
     let mut first = None;
+    let mut later = Vec::new();
+    let mut data_references = BTreeSet::new();
     for _ in 0..count {
         let entry_offset = b.offset();
         let size = b.clone().u32()?;
@@ -2277,16 +2299,28 @@ fn parse_stsd(
                 fourcc: description.fourcc,
             });
         }
+        let kept = description
+            .codec_config
+            .iter()
+            .chain(&description.entry_boxes)
+            .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
+        data_references.insert(crate::bytes::be_u16_at(entry, 14).unwrap_or(1));
         if first.is_none() {
-            let data_reference = crate::bytes::be_u16_at(entry, 14).unwrap_or(1);
-            first = Some((description, data_reference));
+            retain(kept, entry_offset)?;
+            first = Some(description);
+        } else {
+            retain(
+                kept.saturating_add(core::mem::size_of::<SampleDescription>()),
+                entry_offset,
+            )?;
+            later.push(description);
         }
     }
     if count > 1 {
         crate::error::warn(warnings, Warning::MultipleSampleEntries);
     }
-    let (description, data_reference) = first.ok_or(Error::Truncated { offset })?;
-    Ok((description, count, data_reference))
+    let description = first.ok_or(Error::Truncated { offset })?;
+    Ok((description, later, count, data_references))
 }
 
 #[derive(Clone, Copy)]

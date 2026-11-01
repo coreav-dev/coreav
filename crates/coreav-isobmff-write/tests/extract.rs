@@ -826,9 +826,9 @@ fn the_source_description_is_copied() {
     assert_eq!(read.covers().count(), 0);
     assert!(!has(&output, cover));
     let title = read.items.iter().find_map(|item| match &item.value {
-        coreav_isobmff::metadata::ItemValue::ListItem {
-            data: Some(data), ..
-        } if item.track.is_none() => Some(data.value.clone()),
+        coreav_isobmff::metadata::ItemValue::ListItem { data, .. } if item.track.is_none() => {
+            data.first().map(|value| value.value.clone())
+        }
         _ => None,
     });
     assert_eq!(title.as_deref(), Some(b"A title".as_slice()));

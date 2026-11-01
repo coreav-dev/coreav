@@ -21,7 +21,7 @@ change.
 | `output.bytes` | integer | Bytes written. |
 | `video` | video | The re-encoded video stream. |
 | `audio` | array of stream | The audio streams copied, in source order. |
-| `encoded_audio` | encoded audio or `null` | With `--audio opus`, the audio stream encoded to Opus; `null` otherwise. |
+| `encoded_audio` | encoded audio or `null` | With `--audio opus` or `--audio aac`, the audio stream encoded to Opus or to AAC-LC; `null` otherwise. |
 | `other` | array of other stream | Streams copied that are neither the re-encoded video nor audio (another video stream, MP4 text), in source order: the remux keeps every stream MP4 can carry. |
 | `dropped` | array of dropped stream | Streams of the source that are not in the output, in source order. |
 
@@ -44,15 +44,15 @@ change.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `stream_index` | integer | The source stream's position among all of its streams. The output's Opus stream keeps its place in the track order. |
+| `stream_index` | integer | The source stream's position among all of its streams. The output's encoded stream keeps its place in the track order. |
 | `codec` | string | The source stream's codec: `flac` or `mp3`. |
-| `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. |
-| `encoder` | string | Always `libopus`. |
-| `channels` | integer | The Opus stream's channels, 1 or 2: the source's. |
-| `bit_rate` | integer | The bit rate the encoder was asked for, in bits a second (`--audio-bitrate` times 1,000, else 64,000 for mono and 96,000 for stereo). |
-| `samples` | integer | Samples per channel at 48 kHz that the output presents: the decoded source stream's. |
-| `pre_skip` | integer | The encoder's delay in samples at 48 kHz, which the edit list leaves out (`ffprobe`'s `initial_padding`). |
-| `packets` | integer | Opus packets written, 20 ms each. |
+| `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. The AAC stream has the source's rate, 8 to 64 kHz. |
+| `encoder` | string | `libopus` for Opus; `aac`, FFmpeg's built-in AAC encoder, for AAC-LC. |
+| `channels` | integer | The encoded stream's channels, 1 or 2: the source's. |
+| `bit_rate` | integer or `null` | The bit rate the encoder was asked for, in bits a second: `--audio-bitrate` times 1,000, else for Opus 64,000 for mono and 96,000 for stereo, and for AAC `null` (the `aac` encoder's own default). |
+| `samples` | integer | Samples per channel that the output presents, at the encoded stream's rate: the decoded source stream's. |
+| `pre_skip` | integer | The encoder's delay in samples at the encoded stream's rate, which the edit list leaves out (for Opus, `ffprobe`'s `initial_padding`). |
+| `packets` | integer | Packets written: Opus packets of 20 ms, or AAC frames of 1,024 samples. |
 
 ## Stream
 
@@ -68,7 +68,7 @@ An other stream has `kind` too (`video`, `subtitle`, ...).
 | Key | Type | Meaning |
 |---|---|---|
 | `stream_index` | integer | Position of the stream among all streams of the source. |
-| `reason` | string | `not_selected` (`--audio none` drops every stream but the video, `--audio opus` every stream but the video and the encoded audio), `codec_not_allowed` (left out by the container's default allowlist) or `unsupported` (MP4 cannot carry it, as `coreav remux` drops it: Vorbis, PCM in MOV, a timecode track). |
+| `reason` | string | `not_selected` (`--audio none` drops every stream but the video, `--audio opus` and `--audio aac` every stream but the video and the encoded audio), `codec_not_allowed` (left out by the container's default allowlist) or `unsupported` (MP4 cannot carry it, as `coreav remux` drops it: Vorbis, PCM in MOV, a timecode track). |
 | `message` | string or `null` | For `unsupported`, why. |
 
 ## Errors
@@ -78,9 +78,11 @@ standard error ([`probe-v1.md`](probe-v1.md), "Errors") with exit code 1,
 or 3 for an I/O error, and leaves no output and no spool file. Besides the
 probe's kinds: `unsupported_feature` for refusals by design (a pixel format
 the encoder does not take, an odd size without `--scale`, an edit list
-outside the simple model, no encoder program; with `--audio opus`, audio
-CoreAV does not decode, more than two channels, or a build without the
-`libopus` feature), `decode` (the decoder failed
+outside the simple model, no encoder program; with `--audio opus` or `aac`,
+audio other than FLAC or MP3, or more than two channels; with `--audio
+opus`, a build without the `libopus` feature; with `--audio aac`, a rate
+outside 8 to 64 kHz, no `ffmpeg` program, or an `ffmpeg` without the `aac`
+encoder), `decode` (the decoder failed
 on the data: the message starts with `decoding:`; or the encoding side
 failed: the encoder program, the reading of its output, which must be one
 picture for each frame sent, or the MP4 writer: the message starts with
@@ -90,10 +92,11 @@ the decoder and the checks before the encoder starts) reports
 `unsupported_feature`, `unsupported_container`, `truncated_structure` or
 `invalid_structure`; the encoding side reports `decode` (or `limit`, or
 `io` for an I/O error), so that a defect there never reads as a refusal. Usage errors (an invalid `--scale`,
-`--crf` with `--bitrate`, an output that is the input, exists without
+`--crf` with `--bitrate`, an `--audio-bitrate` outside its codec's range
+or without `--audio opus` or `aac`, an output that is the input, exists without
 `--force`, or is `-`) exit with 2. In strict-safe mode (`--strict-safe`,
 `COREAV_STRICT_SAFE`) what would run an `ffmpeg` program, the `ffmpeg`
-encoder (`--encoder ffmpeg`, or `auto` without an `x264` program) or the
+encoder (`--encoder ffmpeg`, or `auto` without an `x264` program), the AAC encode (`--audio aac`) or the
 FFmpeg decoder for a video no other decoder of the build takes, is refused
 with exit status 4 and kind `unsupported_feature`, leaving no output; its
 message names the way out (`docs/design/compat-cli.md`, "Strict-safe

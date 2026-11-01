@@ -256,6 +256,8 @@ dependencies = [
  "coreav-frame",
  "coreav-h264",
  "coreav-isobmff",
+ "coreav-thumbnail",
+ "md-5",
 ]
 
 [[package]]
@@ -296,6 +298,7 @@ dependencies = [
  "coreav-thumbnail",
  "coreav-transcode",
  "coreav-worker",
+ "miniz_oxide",
  "rustix",
  "rustls",
  "rustls-native-certs",
@@ -413,6 +416,9 @@ dependencies = [
 [[package]]
 name = "coreav-opus"
 version = "0.0.1"
+dependencies = [
+ "coreav-kernels-audio",
+]
 
 [[package]]
 name = "coreav-oracle"

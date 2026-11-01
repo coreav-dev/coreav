@@ -108,7 +108,7 @@ def make_sources(ffmpeg, work, duration=DURATION):
 
 def probe_audio(ffprobe, path):
     done = run([ffprobe, '-v', 'error', '-select_streams', 'a', '-show_entries',
-                'stream=codec_name,start_pts,duration_ts,initial_padding,bit_rate,channels',
+                'stream=codec_name,profile,sample_rate,start_pts,duration_ts,initial_padding,bit_rate,channels',
                 '-of', 'json', path])
     streams = json.loads(done.stdout or b'{}').get('streams') or [{}]
     return streams[0]

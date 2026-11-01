@@ -69,21 +69,23 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// The movie's cover pictures: the first `data` box, holding a value, of
-    /// each entry of the movie's item lists whose key
-    /// [`ListKey::is_cover`], in file order.
+    /// The movie's cover pictures, one per nonempty data value of each
+    /// entry whose key [`ListKey::is_cover`], in file order. A metadata
+    /// box without a handler contributes none, as for its tags.
     pub fn covers(&self) -> impl Iterator<Item = &ItemData> {
         self.items
             .iter()
             .filter(|item| item.track.is_none())
             .filter_map(|item| match &item.value {
-                ItemValue::ListItem {
-                    key,
-                    data: Some(data),
-                    ..
-                } if key.is_cover() && !data.value.is_empty() => Some(data),
+                ItemValue::ListItem { list, key, data }
+                    if key.is_cover() && *list != (ListPlace::Meta { handler: None }) =>
+                {
+                    Some(data.as_slice())
+                }
                 _ => None,
             })
+            .flatten()
+            .filter(|data| !data.value.is_empty())
     }
 }
 
@@ -220,8 +222,9 @@ pub enum ItemValue {
         list: ListPlace,
         /// The entry's key.
         key: ListKey,
-        /// Its first `data` box, if any.
-        data: Option<ItemData>,
+        /// Its `data` boxes, in order: one for most entries; a cover
+        /// picture entry (`covr`) holds one per picture.
+        data: Vec<ItemData>,
     },
 }
 
@@ -744,12 +747,15 @@ impl<S: Source> Reader<'_, S> {
     ) -> Result<(), Error> {
         for entry in self.children(ilst.payload_offset(), ilst.end())? {
             let keyed = keyed(entry.kind, keys);
-            let (mut mean, mut name, mut data) = (None, None, None);
+            let (mut mean, mut name, mut data) = (None, None, Vec::new());
             for part in self.children(entry.payload_offset(), entry.end())? {
                 match &part.kind.0 {
-                    b"data" if data.is_none() => {
+                    b"data" => {
                         if let Some(payload) = self.payload(&part)? {
-                            data = item_data(&payload, part.payload_offset().saturating_add(8));
+                            data.extend(item_data(
+                                &payload,
+                                part.payload_offset().saturating_add(8),
+                            ));
                         }
                     }
                     b"mean" if mean.is_none() => {
@@ -1172,6 +1178,40 @@ mod tests {
         [ftyp, boxed(b"free", &[]), moov].concat()
     }
 
+    /// Every `data` box of an item list entry is read, in order, with where
+    /// its value starts: a cover picture entry holds one per picture.
+    #[test]
+    fn reads_every_data_box_of_an_entry() {
+        let covr = boxed(
+            b"covr",
+            &[data(13, b"\xff\xd8one"), data(14, b"\x89PNGtwo")].concat(),
+        );
+        let hdlr = boxed(b"hdlr", &[&[0u8; 8][..], b"mdir", &[0; 13]].concat());
+        let meta = boxed(
+            b"meta",
+            &[&[0u8; 4][..], &hdlr, &boxed(b"ilst", &covr)].concat(),
+        );
+        let file = boxed(b"moov", &boxed(b"udta", &meta));
+        let read = read(SliceSource::new(&file), &Limits::default()).unwrap();
+        let [
+            Item {
+                value: ItemValue::ListItem { data, .. },
+                ..
+            },
+        ] = &read.items[..]
+        else {
+            panic!("{:?}", read.items);
+        };
+        let values: Vec<(u32, &[u8], u64)> = data
+            .iter()
+            .map(|d| (d.type_indicator, d.value.as_slice(), d.offset))
+            .collect();
+        assert_eq!(
+            values,
+            [(13, &b"\xff\xd8one"[..], 93), (14, &b"\x89PNGtwo"[..], 114)]
+        );
+    }
+
     #[test]
     fn reads_every_box_it_reports() {
         let file = movie();
@@ -1246,7 +1286,8 @@ mod tests {
                 name: b"com.x.k".to_vec()
             }
         );
-        assert_eq!(data.as_ref().unwrap().type_indicator, 23);
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].type_indicator, 23);
         assert_eq!(
             meta.nero_chapters,
             Some(vec![NeroChapter {
@@ -1279,8 +1320,10 @@ mod tests {
         let unplaced = |items: &[Item]| {
             let mut items = items.to_vec();
             for item in &mut items {
-                if let ItemValue::ListItem { data: Some(d), .. } = &mut item.value {
-                    d.offset = 0;
+                if let ItemValue::ListItem { data, .. } = &mut item.value {
+                    for d in data {
+                        d.offset = 0;
+                    }
                 }
             }
             items
