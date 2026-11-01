@@ -25,9 +25,9 @@ use crate::strict_safe::StrictSafe;
 use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary,
-    MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions, SplitAt, SplitOptions,
-    TrackChoice, VideoChoice,
+    AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions,
+    JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions, SplitAt,
+    SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -95,6 +95,8 @@ pub enum Job {
     ExtractAudio {
         /// The stream.
         stream: usize,
+        /// The header metadata: none with `-map_metadata -1`.
+        metadata: HeaderMetadata,
     },
     /// A keyframe-aligned clip.
     Clip(ClipOptions),
@@ -443,19 +445,22 @@ pub fn plan(
                 "an M4A output of other than one audio stream",
             ));
         };
-        let Some(chosen) = streams.get(*stream).filter(|s| s.kind == StreamKind::Audio) else {
+        if streams
+            .get(*stream)
+            .is_none_or(|s| s.kind != StreamKind::Audio)
+        {
             return Err(Refusal::not_native(
                 "an M4A output of other than one audio stream",
             ));
-        };
-        if command.strip_metadata
-            && tag(chosen, "language").is_some_and(|language| language != "und")
-        {
-            return Err(Refusal::not_native(
-                "-map_metadata -1 on a stream with a language",
-            ));
         }
-        return Ok(Job::ExtractAudio { stream: *stream });
+        return Ok(Job::ExtractAudio {
+            stream: *stream,
+            metadata: if command.strip_metadata {
+                HeaderMetadata::Clear
+            } else {
+                HeaderMetadata::Copy
+            },
+        });
     }
     let tracks: Vec<usize> = selected.iter().copied().filter(|i| !cover(*i)).collect();
     let pictures: Vec<usize> = selected
@@ -1041,10 +1046,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
                 .map(|summary| crate::remux::matroska_document(&summary))
         }
-        Job::ExtractAudio { stream } => {
-            crate::extract::run(input, TrackChoice::Stream(*stream), &allowlist, out)
-                .map(|summary| crate::extract::document(&summary))
-        }
+        Job::ExtractAudio { stream, metadata } => crate::extract::run(
+            input,
+            TrackChoice::Stream(*stream),
+            &allowlist,
+            *metadata,
+            out,
+        )
+        .map(|summary| crate::extract::document(&summary)),
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
         Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
