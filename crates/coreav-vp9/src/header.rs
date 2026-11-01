@@ -1,7 +1,10 @@
-//! The uncompressed header (clauses 6.2 and 7.2).
+//! A frame's headers: the uncompressed header (clauses 6.2 and 7.2), then
+//! the compressed header (clause 6.3) with the probabilities it updates.
 
 use crate::bits::BitReader;
+use crate::compressed::{self, CompressedHeader};
 use crate::error::{Error, Result};
+use crate::probs::{Contexts, Probs};
 
 /// The smallest width of a tile, in superblocks (`MIN_TILE_WIDTH_B64`).
 const MIN_TILE_WIDTH_B64: u32 = 4;
@@ -309,7 +312,7 @@ impl FrameHeader {
     }
 }
 
-/// An uncompressed header.
+/// A frame's headers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Header {
     /// `show_existing_frame`: show the frame in this reference slot again.
@@ -324,12 +327,31 @@ pub enum Header {
         height: u32,
     },
     /// A frame to decode.
-    Frame(Box<FrameHeader>),
+    Frame {
+        /// Its uncompressed header.
+        header: Box<FrameHeader>,
+        /// Its compressed header.
+        compressed: CompressedHeader,
+    },
 }
 
-/// Reads the uncompressed header at the start of `data`, a frame,
-/// given the reference slots and what earlier headers left.
-pub(crate) fn parse(data: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) -> Result<Header> {
+/// A frame's headers, and for a frame to decode, the probabilities.
+pub(crate) struct Parsed {
+    pub(crate) header: Header,
+    /// The saved frame contexts after the uncompressed header's resets
+    /// (clause 7.2), and the frame's probabilities after its compressed
+    /// header; `None` for `show_existing_frame`.
+    pub(crate) probs: Option<Box<(Contexts, Probs)>>,
+}
+
+/// Reads the headers of the frame `data`, given the reference slots, what
+/// earlier headers left and the saved frame contexts.
+pub(crate) fn parse(
+    data: &[u8],
+    slots: &[Option<Slot>; 8],
+    carried: &Carried,
+    contexts: &Contexts,
+) -> Result<Parsed> {
     let mut r = BitReader::new(data);
     const H: &str = "the uncompressed header";
     if r.f(2, H)? != 2 {
@@ -350,11 +372,14 @@ pub(crate) fn parse(data: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) -
             .ok_or(Error::Invalid(
                 "show_existing_frame of an empty reference slot",
             ))?;
-        return Ok(Header::ShowExisting {
-            profile,
-            slot,
-            width: shown.width,
-            height: shown.height,
+        return Ok(Parsed {
+            header: Header::ShowExisting {
+                profile,
+                slot,
+                width: shown.width,
+                height: shown.height,
+            },
+            probs: None,
         });
     }
     let key_frame = !r.bit(H)?;
@@ -479,7 +504,7 @@ pub(crate) fn parse(data: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) -
     let tiles = tile_info(&mut r, width)?;
     let compressed_header_size = r.f(16, H)? as u16;
     let trailing_bits_zero = r.byte_align(H)?;
-    Ok(Header::Frame(Box::new(FrameHeader {
+    let h = FrameHeader {
         profile,
         key_frame,
         show_frame,
@@ -506,7 +531,24 @@ pub(crate) fn parse(data: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) -
         compressed_header_size,
         uncompressed_size: r.position() / 8,
         trailing_bits_zero,
-    })))
+    };
+    if compressed_header_size == 0 {
+        return Err(Error::Invalid("header_size_in_bytes is 0"));
+    }
+    let bytes = data
+        .get(h.uncompressed_size..h.uncompressed_size + usize::from(compressed_header_size))
+        .ok_or(Error::Truncated("the compressed header"))?;
+    let mut contexts = contexts.clone();
+    contexts.reset(&h);
+    let mut probs = contexts.load(h.frame_context_idx);
+    let compressed = compressed::read(bytes, &h, &mut probs);
+    Ok(Parsed {
+        header: Header::Frame {
+            header: Box::new(h),
+            compressed,
+        },
+        probs: Some(Box::new((contexts, probs))),
+    })
 }
 
 fn frame_sync_code(r: &mut BitReader<'_>) -> Result<()> {

@@ -1,7 +1,7 @@
 //! The test vectors of `tests/data/vectors.json` (`docs/design/vp9.md`,
-//! milestone 1, gate G1): every frame's uncompressed header parses, and the
-//! frames shown, with their sizes, are the entries of the vector's published
-//! MD5 list.
+//! milestone 1, gate G1): every frame's headers parse, its compressed header
+//! ends inside its size with its padding 0, and the frames shown, with their
+//! sizes, are the entries of the vector's published MD5 list.
 //!
 //! The vectors are not committed. `COREAV_VP9_VECTORS` names a directory
 //! holding each vector and its `.md5` file, checked against the manifest's
@@ -216,9 +216,17 @@ fn check(dir: &Path, name: &str) -> Option<String> {
         for header in headers {
             match header {
                 Header::ShowExisting { width, height, .. } => in_packet.push((width, height)),
-                Header::Frame(h) => {
+                Header::Frame {
+                    header: h,
+                    compressed,
+                } => {
                     if !h.trailing_bits_zero {
                         return Some(format!("packet {i}: a trailing bit is not 0"));
+                    }
+                    if !compressed.ends_cleanly {
+                        return Some(format!(
+                            "packet {i}: the compressed header does not end cleanly"
+                        ));
                     }
                     if h.show_frame {
                         in_packet.push((h.width, h.height));

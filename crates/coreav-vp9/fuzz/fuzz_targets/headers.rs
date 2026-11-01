@@ -1,6 +1,6 @@
 //! Arbitrary bytes as a stream of packets through the header reader: each
-//! packet is split into its frames and every frame's uncompressed header
-//! read, with the reference slots carried from packet to packet. The result
+//! packet is split into its frames and every frame's headers read, with the
+//! reference slots and probability contexts carried from packet to packet. The result
 //! is headers or errors, never a panic or an unbounded allocation.
 //!
 //! Each packet is a 2-byte little-endian length and that many bytes.
@@ -23,7 +23,7 @@ fuzz_target!(|data: &[u8]| {
             continue;
         };
         for header in headers {
-            if let Header::Frame(h) = header {
+            if let Header::Frame { header: h, .. } = header {
                 assert!(h.width <= 512 && h.height <= 512);
                 assert!(
                     h.uncompressed_size + usize::from(h.compressed_header_size) <= packet.len()
