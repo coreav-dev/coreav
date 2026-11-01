@@ -29,8 +29,11 @@ Every run sets `COREAV_STRICT_SAFE=1` and `COREAV_FALLBACK_LOG`, as the
 note requires; R1 to R3 keep the rule that any log line voids the run.
 R4 implements the [refusal timing-set registration](r4-refusal-plan.md):
 only qualifying run-observed strict-safe refusals leave the timing set,
-with refusal counts and coverage beside speed. Other log events keep
-their existing validity rules. Every run of the pinned
+with refusal counts and coverage beside speed. Oracle-failed pairs keep
+their outcome and no ratio; valid attributed CoreAV refusal lines on
+those pairs are separate diagnostics, with counts and reasons beside
+speed, not refused-pair counts. Other log events keep their existing
+validity rules. Every run of the pinned
 `ffmpeg` or `ffprobe` sets `GCONV_PATH` to a directory with no gconv
 modules, as `scripts/oracle-ffprobe.sh` does, and CoreAV's runs get the
 same environment: the static 7.0.2 build crashed on transport streams
