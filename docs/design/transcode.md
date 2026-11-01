@@ -118,6 +118,11 @@ frames to the writer), so a slow encoder slows decoding instead of growing
 memory, and the readers drain both of the encoder's output pipes, so no
 pipe can fill and stall it.
 
+Stopping the encoder drops every queued frame and returns any lent decoder
+slots before the pipeline waits for more decoded frames. The stopped queue
+accepts no further frames, so an early encoder exit cannot strand all of
+the decoder's slots in a queue without a writer.
+
 The main thread sends the next packet only after it has handed every frame
 the decoder has ready to the writer's queue. Packets in flight therefore
 stay near the decoder's reorder depth, far below

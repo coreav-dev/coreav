@@ -20,10 +20,11 @@ mod common;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Error, ErrorKind};
-use coreav_frame::PixelFormat;
+use coreav_frame::{PixelFormat, SharedMemory, SharedPicture};
 use coreav_transcode::encoder::{Encoder, EncoderLimits, EncoderProgram, KEPT_STDERR};
 use coreav_worker::ExecLauncher;
 
@@ -38,9 +39,13 @@ fn main() -> ExitCode {
         eprintln!("skipping: the launcher needs Unix");
         return ExitCode::SUCCESS;
     }
-    let cases: [(&str, fn()); 13] = [
+    let cases: [(&str, fn()); 14] = [
         ("real encoders through the launcher", real_encoders),
         ("an encoder that exits early with an error", exits_early),
+        (
+            "a stopped encoder gives back its queued frames",
+            returns_queued_frames,
+        ),
         ("an encoder that floods its output", floods_output),
         ("an encoder that never reads its input", never_reads),
         ("an encoder that hangs after its input", hangs),
@@ -180,6 +185,71 @@ fn exits_early() {
     assert_eq!(e.kind, ErrorKind::Backend, "{e:?}");
     assert!(e.message.contains("something is wrong"), "{e:?}");
     assert!(e.message.contains("exit status: 3"), "{e:?}");
+}
+
+struct LentFrame(Vec<u8>);
+
+impl SharedMemory for LentFrame {
+    fn read_packed(&self, at: usize, out: &mut [u8]) -> Option<usize> {
+        let rest = self.0.get(at..)?;
+        let n = rest.len().min(out.len());
+        out.get_mut(..n)?.copy_from_slice(rest.get(..n)?);
+        Some(n)
+    }
+}
+
+fn returns_queued_frames() {
+    let dir = scratch("return-queued-frames");
+    let go = dir.join("go");
+    let p = script(
+        "return-queued-frames",
+        &format!(
+            "while [ ! -e '{}' ]; do sleep 0.01; done\nhead -c 1000 > /dev/null\nexit 0",
+            go.display()
+        ),
+    );
+    let format = PixelFormat::YUV420P;
+    let s = settings(640, 480, format);
+    let mut packed = Vec::new();
+    moving(s.width, s.height, format, 0)
+        .write_packed(&mut packed)
+        .unwrap();
+    let mut encoder = Encoder::spawn(
+        &EncoderProgram::X264(p),
+        &s,
+        Some(&launcher()),
+        &EncoderLimits::new(1 << 30),
+        Instant::now() + Duration::from_secs(60),
+        Collect::new(),
+    )
+    .unwrap();
+    let leases: Vec<_> = (0..3)
+        .map(|_| {
+            let memory = Arc::new(LentFrame(packed.clone()));
+            let lease = Arc::downgrade(&memory);
+            encoder
+                .send_frame(SharedPicture {
+                    width: s.width,
+                    height: s.height,
+                    format,
+                    memory,
+                })
+                .unwrap();
+            lease
+        })
+        .collect();
+    assert!(leases.iter().all(|lease| lease.upgrade().is_some()));
+    std::fs::write(&go, []).unwrap();
+    let until = Instant::now() + Duration::from_secs(10);
+    while leases.iter().any(|lease| lease.upgrade().is_some()) && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        leases.iter().all(|lease| lease.upgrade().is_none()),
+        "the encoder retained decoder frames after its early exit"
+    );
+    drop(encoder);
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 fn floods_output() {

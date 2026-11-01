@@ -755,10 +755,15 @@ impl Shared {
     }
 
     fn stop(&self) {
-        if let Ok(mut queue) = self.queue.lock() {
-            queue.stopped = true;
-        }
+        let queued = match self.queue.lock() {
+            Ok(mut queue) => {
+                queue.stopped = true;
+                std::mem::take(&mut queue.frames)
+            }
+            Err(_) => VecDeque::new(),
+        };
         self.changed.notify_all();
+        drop(queued);
     }
 
     /// Records how the encoder ended and stops the session, which wakes a
@@ -1721,6 +1726,34 @@ mod tests {
             out.get_mut(..n)?.copy_from_slice(rest.get(..n)?);
             Some(n)
         }
+    }
+
+    #[test]
+    fn stopping_an_encoder_returns_its_queued_decoder_frames() {
+        let shared = Shared::default();
+        let leases: Vec<_> = (0..QUEUED_FRAMES)
+            .map(|_| {
+                let memory = Arc::new(Packed(vec![0; 6]));
+                let lease = Arc::downgrade(&memory);
+                shared.queue.lock().unwrap().frames.push_back(Chunk::Frame {
+                    head: Vec::new(),
+                    pixels: Pixels::Shared(SharedPicture {
+                        width: 2,
+                        height: 2,
+                        format: PixelFormat::YUV420P,
+                        memory,
+                    }),
+                });
+                lease
+            })
+            .collect();
+        assert!(leases.iter().all(|lease| lease.upgrade().is_some()));
+        shared.stop();
+        assert!(
+            leases.iter().all(|lease| lease.upgrade().is_none()),
+            "a stopped encoder must return every queued decoder slot"
+        );
+        shared.stop();
     }
 
     #[test]
