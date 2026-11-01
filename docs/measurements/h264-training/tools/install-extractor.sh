@@ -29,8 +29,9 @@ for AREA in releases old-releases; do
     sleep 20
   done
 done
-# The bench bucket keeps the same archive, for a host with R2 credentials
-# (no workflow passes them).
+# The corpus bucket keeps the same archive, for a host with R2 credentials
+# and R2_BUCKET (the training job passes them to this step alone, not to the
+# package install).
 if [[ -z "$OK" ]] && python3 -I "$HERE/../../../../scripts/oracle_from_r2.py" "$ARCHIVE" \
   "tools/ffmpeg-$VERSION-amd64-static.tar.xz" "$SHA256"; then
   OK=1
