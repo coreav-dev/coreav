@@ -20,13 +20,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main, manual runs and merge groups each get their own group, so none is
-  # dropped.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Supersede PR runs and main pushes. Merge groups, manual and scheduled
+  # runs have run-id groups of their own (docs/design/ci-checks.md).
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 jobs:
   deny:
@@ -41,11 +41,16 @@ jobs:
           # Full history and every branch, so the DCO step can list the
           # PR's commits and skip those already on main.
           fetch-depth: 0
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        with:
+          workflow: deny.yml
       # The required checks and the workflows have to agree whatever a change
       # touches, and docs/design/ci-checks.md, which names them, is
       # itself behind ci.yml's filter; so this runs here, where nothing is
       # filtered (docs/design/ci-checks.md).
       - name: Check the workflows against the required-check list
+        if: steps.result.outputs.reuse != 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
@@ -67,12 +72,14 @@ jobs:
       # holds (tools/compat-corpus/record.py). It runs here, not in ci.yml,
       # because the notes it reads are behind that workflow's path filter.
       - name: Check the command-coverage set against its rules
+        if: steps.result.outputs.reuse != 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_*.py'
       # The pure parts of the transcode oracle (docs/design/transcode.md,
       # "Bars"): seconds long, no FFmpeg, no corpus.
       - name: Self-test the transcode oracle
+        if: steps.result.outputs.reuse != 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I scripts/transcode_check_selftest.py
@@ -82,15 +89,18 @@ jobs:
       # one analyzer, complete reports"). It runs here, not in ci.yml, because
       # that workflow's filter skips a change to docs/measurements alone.
       - name: Check the measurement analyzers
+        if: steps.result.outputs.reuse != 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        if: steps.result.outputs.reuse != 'true'
       # The fuzz projects are outside the workspace; check their own license
       # graphs. Projects are found as scripts/fuzz_plan.py finds them
       # (crates/*/fuzz), so a new one is checked without editing this file;
       # finding none fails. cargo-deny is the version the action above runs.
       - name: Install cargo-deny
+        if: steps.result.outputs.reuse != 'true'
         env:
           VERSION: 0.20.2
           SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
@@ -103,6 +113,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/deny.tar.gz" -C "$RUNNER_TEMP" "$name/cargo-deny"
           echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
       - name: Check the licenses of every fuzz project
+        if: steps.result.outputs.reuse != 'true'
         run: |
           set -euo pipefail
           # As the action does: make sure rust-toolchain.toml's toolchain is
@@ -121,7 +132,7 @@ jobs:
       # installs rust-toolchain.toml's toolchain itself if the step above
       # did not run (docs/design/ci-checks.md, "Default builds and patents").
       - name: Default builds link no still-patented codec
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.result.outputs.reuse != 'true' }}
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I scripts/patent_free_check.py

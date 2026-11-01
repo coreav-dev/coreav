@@ -177,7 +177,7 @@ class Repository(unittest.TestCase):
         return check.check(self.root)
 
     def test_a_job_no_report_waits_for_is_reported(self):
-        found = self.ci(', conformance-arm64, bench-guard]\n', ', conformance-arm64]\n')
+        found = self.ci(', conformance-arm64, bench-guard, main-cache]\n', ', conformance-arm64, main-cache]\n')
         self.assertIn('ci.yml: no report job waits for bench-guard', found)
 
     def test_a_job_without_its_concurrency_group_is_reported(self):
@@ -194,7 +194,7 @@ class Repository(unittest.TestCase):
         ci = self.root / '.github' / 'workflows' / 'ci.yml'
         text = ci.read_text()
         bare = re.sub(r'    concurrency:\n      group: .*\n      cancel-in-progress: .*\n', '', text)
-        self.assertNotIn('concurrency:', bare)
+        self.assertNotIn('    concurrency:', bare)
         ci.write_text(bare)
         found = check.check(self.root)
         self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
@@ -207,9 +207,13 @@ class Repository(unittest.TestCase):
         found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
         self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
 
-    def test_a_workflow_group_beside_the_job_groups_is_reported(self):
-        found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
-        self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
+    def test_a_workflow_group_that_joins_pr_or_merge_group_runs_is_reported(self):
+        found = self.ci(check.MAIN_GROUP, '${{ github.workflow }}-${{ github.ref }}')
+        self.assertTrue(any('give its workflow-level `concurrency:` exactly' in p for p in found), found)
+
+    def test_the_main_only_cancellation_gate_is_required(self):
+        found = self.ci(f'  cancel-in-progress: {check.MAIN_CANCEL}', '  cancel-in-progress: true')
+        self.assertTrue(any('give its workflow-level `concurrency:` exactly' in p for p in found), found)
 
     def edit(self, workflow, old, new):
         """The problems of the repository with one edit of a workflow, which
@@ -233,9 +237,9 @@ class Repository(unittest.TestCase):
                                    '  merge_group:\n'), [])
 
     def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
-        group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+        group = check.WORKFLOW_GROUP
         for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
-                         ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", 'cancel-in-progress: true')):
+                         (f"cancel-in-progress: {check.WORKFLOW_CANCEL}", 'cancel-in-progress: true')):
             with self.subTest(new=new):
                 found = self.edit('python.yml', old, new)
                 self.assertEqual(len(found), 1, found)

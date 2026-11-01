@@ -17,9 +17,9 @@
   reaches, or no `merge_group:` trigger (`checks_requested`), never reports
   it on a pull request, or leaves the merge queue waiting for it;
 - the workflow-level `concurrency:` of a workflow with a required check is
-  not exactly `WORKFLOW_GROUP` with `cancel-in-progress: CANCEL`: a merge
-  group's run needs a group of its own, and only a pull request's run may be
-  cancelled;
+  not the prescribed main-push cancellation group, with PR cancellation in
+  the workflow group or the job groups: superseded main pushes must not
+  accumulate, and merge-group runs must never cancel one another;
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
@@ -28,8 +28,8 @@
   than a report job has no group, or not exactly `GROUP` with its own job
   id (and `MATRIX` after it for a job with a `strategy:`, whose legs would
   otherwise share one group) and `cancel-in-progress: CANCEL`, or a report job has a group, or the
-  workflow has a group of its own as well: a workflow group keeps the next
-  run waiting for the old run's report jobs, a group two jobs share
+  workflow lacks its main-only cancellation group: a shared PR workflow
+  group keeps the next run waiting for the old run's report jobs, a group two jobs share
   cancels one of them in every run, a gate job without one can start an
   old run's jobs after the new run's, which then cancel the new ones, and
   a report job in another job's group can cancel that job;
@@ -86,9 +86,17 @@ GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
 CANCEL = "${{ github.event_name == 'pull_request' }}"
 # The workflow-level group of a workflow with a required check that cancels
-# a superseded pull request run as a whole: a push to main, a manual run and
-# a merge group each get a group of their own run.
-WORKFLOW_GROUP = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+# a superseded pull request run as a whole, and its superseded main push.
+# Manual and merge-group runs each get a group of their own run.
+WORKFLOW_GROUP = ("${{ github.workflow }}-"
+                  "${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && "
+                  "github.ref == 'refs/heads/main')) && github.ref || github.run_id }}")
+WORKFLOW_CANCEL = ("${{ github.event_name == 'pull_request' || "
+                   "(github.event_name == 'push' && github.ref == 'refs/heads/main') }}")
+MAIN_GROUP = ("${{ github.workflow }}-main-"
+              "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
+              "github.ref || github.run_id }}")
+MAIN_CANCEL = "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
 # After JOB_ID in the group of a job with a `strategy:`: each leg of its
 # matrix in a group of its own.
 MATRIX = '-${{ strategy.job-index }}'
@@ -176,9 +184,10 @@ def concurrency_problems(workflow, lines, jobs):
     if workflow not in JOB_GROUPS and all(fields['concurrency'] is None for fields in jobs.values()):
         return []
     out = []
-    if any(re.match(r'\Aconcurrency:', line) for line in lines):
-        out.append(f'{workflow}: its jobs carry concurrency groups, so remove the workflow\'s own '
-                   '`concurrency:`: it keeps the next run waiting until the report jobs of this one end')
+    if workflow_concurrency(lines) != {'group': MAIN_GROUP, 'cancel-in-progress': MAIN_CANCEL}:
+        out.append(f'{workflow}: give its workflow-level `concurrency:` exactly `group: {MAIN_GROUP}` and '
+                   f'`cancel-in-progress: {MAIN_CANCEL}`: supersede main pushes, but keep PR and '
+                   'merge-group runs independent (docs/design/ci-checks.md, "Concurrency")')
     for job, fields in sorted(jobs.items()):
         if job.endswith('-report'):
             if fields['concurrency'] is not None:
@@ -534,11 +543,12 @@ def check(root):
                             '(`types: [checks_requested]`), so the merge queue waits for the check until it '
                             'times out (docs/design/ci-checks.md, "The merge queue")')
         setting = workflow_concurrency(lines)
-        if setting is not None and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': CANCEL}:
+        by_job = workflow in JOB_GROUPS or any(fields['concurrency'] is not None for fields in jobs[workflow].values())
+        if not by_job and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': WORKFLOW_CANCEL}:
             problems.append(f'{workflow}: required `{name}`, so give the workflow exactly `concurrency: '
-                            f'{{group: {WORKFLOW_GROUP}, cancel-in-progress: {CANCEL}}}`, as a block: a merge '
-                            'group\'s run needs a group of its own, and only a pull request\'s run may be '
-                            'cancelled (docs/design/ci-checks.md, "The merge queue")')
+                            f'{{group: {WORKFLOW_GROUP}, cancel-in-progress: {WORKFLOW_CANCEL}}}`, as a block: '
+                            'supersede PRs and main pushes, never merge groups '
+                            '(docs/design/ci-checks.md, "The merge queue")')
         job = where[0][1]
         fields = jobs[workflow][job]
         if not job.endswith('-report'):

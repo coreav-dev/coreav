@@ -40,13 +40,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main, manual runs and merge groups each get their own group, so none is
-  # dropped.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Supersede PR runs and main pushes. Merge groups, manual and scheduled
+  # runs have run-id groups of their own (docs/design/ci-checks.md).
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 jobs:
   python-changes:
@@ -56,12 +56,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      run: ${{ steps.filter.outputs.run }}
+      run: ${{ steps.result.outputs.reuse != 'true' && steps.filter.outputs.run == 'true' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # A pull request's merge commit and its first parent, the base.
           fetch-depth: 2
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        with:
+          workflow: python.yml
       - id: filter
         uses: ./.github/actions/changed-paths
         with:
@@ -75,6 +79,8 @@ jobs:
             scripts/oracle-ffmpeg.env
             .github/workflows/python.yml
             .github/actions/changed-paths/**
+            .github/actions/merge-group-result/**
+            scripts/merge_group_result.py
 
   python-fixtures:
     # Draft pull requests skip it. A label event does the same work as any

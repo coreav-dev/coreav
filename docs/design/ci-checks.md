@@ -254,9 +254,9 @@ concurrency:
 ```
 
 When the new run's job joins its group, GitHub cancels the old run's job
-of the same id. A push to main, a manual run and a merge group get a group
-of their own run, so nothing on main or in the merge queue is cancelled or
-dropped.
+of the same id. A manual run and a merge group get groups of their own
+run. A superseded push to main is cancelled as a whole, while a merge-group
+run is never cancelled by another run.
 
 - **Not one group for the workflow.** That was the earlier shape. A
   cancelled run is over only when every job has ended, and `always()`
@@ -286,13 +286,24 @@ dropped.
 - **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-${{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
 - **Re-running an old run's job** cancels the head's job of the same id,
   whose `ci-report` then fails: re-run the head's run instead.
-- `github.job` is not available where GitHub reads a job's `concurrency`,
-  so each group names its job id. `workflow_check.py` fails on a job
-  without its group, a group other than exactly this one, a report job
-  with a group (in another job's group it could cancel that job), and a
-  workflow group beside job groups. It names `ci.yml` as a workflow that
-  cancels job by job, so removing every group fails too. `python.yml` and
-  `npm.yml` keep one group for the workflow.
+- `github.job` is not available where GitHub reads a job's `concurrency`, so each group names its job id. `workflow_check.py` fails on a job without its group, a group other than exactly this one, or a report job with a group. It names `ci.yml` as a workflow that cancels PR jobs individually, so removing every job group fails too.
+- **Superseded main pushes are different.** They are post-merge maintenance of the latest main tree, not admission checks for entries in the queue. Running every old main tree again competes with PR and merge-group jobs. The newest main push cancels the older run as a whole, including heavy jobs the newest change's path filters would skip. A separate workflow-level group handles this; on PRs it uses the run id, so it cannot hold a new PR run behind an old report job:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-main-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+```
+
+`deny.yml`, `python.yml` and `npm.yml`, which cancel whole PR runs already, use one workflow group for PR cancellation and main-push cancellation:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+```
+
+`workflow_check.py` requires these exact forms, including a missing workflow-level group. A merge group, tag, schedule or manual run still has a unique run-id group; none can cancel or replace another run.
 
 ## The merge queue
 
@@ -305,7 +316,27 @@ The `main` ruleset can require a merge queue. The queue applies each pull reques
 - **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
 - **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
 - **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
-- **Concurrency.** Outside a pull request every group, of a job in `ci.yml` and of the workflow in `deny.yml`, `python.yml` and `npm.yml`, ends in the run id, so each merge group's run has groups of its own: it never cancels another group's run or a pull request's, and none cancels it. `cancel-in-progress` is true for a pull request only. A group that shares a key across runs would also drop the pending run when a third joins, even without cancelling. `workflow_check.py` holds every group of a workflow with a required check to that form. When the queue drops a group (one ahead of it failed), GitHub deletes its branch and starts a new group; the old run is not cancelled and ends on its own.
+- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Superseded PRs and pushes to main may be cancelled, but their groups are separate from merge groups ("Concurrency").
+
+## Main pushes after the queue
+
+A squash commit does not have the merge group's commit SHA, but can have the same Git tree. `.github/actions/merge-group-result` is the single lookup used by each required workflow. On a push to `main` only, it searches up to 20 recent merge-group runs of that same workflow created in the last 24 hours. The newest matching tree must have completed successfully; a newer matching failure or unfinished run blocks reuse of an older success. It accepts a run only if it completed successfully, came from this repository's `gh-readonly-queue/main/` branch, names the expected workflow file, and its head commit's tree equals the checked-out tree. It logs and links the reused run in the job summary. Commit messages, parents and squash SHAs need not match; every tracked input, including the workflows and the lookup itself, must match. The run API retains `head_commit.tree_id` alongside the head commit id, so the comparison needs one metadata request per workflow and does not depend on fetching a deleted queue branch.
+
+Missing evidence, a mismatching tree, an API error, unavailable commit metadata, or the search limit means the normal suite runs. PRs, merge groups, tags, schedules and manual runs never reuse results. The token gets `actions: read` as well as `contents: read`, and only the lookup step sees it.
+
+On a proven tree, `python-report` and `npm-report` retain their changes and report jobs, but skip the repeated wheel/package tests. `deny` logs its evidence instead of repeating the licence, advisory and repository checks. Their required names still report conclusions. `ci-report` retains:
+
+- `ci-changes` and the report itself, so the evidence and all maintenance outcomes remain visible.
+- `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
+- `isobmff-fixture-set`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
+
+The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only results may be cancelled when a newer main push supersedes them; the newest tree still receives the applicable maintenance checks.
+
+### Load measurements
+
+A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 10 jobs for the ordinary Rust case and 11 for the full case; the documentation case stays at 7 lightweight jobs. These after counts are tested job plans, not production observations.
+
+For one merge-group cohort, first actual job starts were 9m45s–15m03s after workflow creation, with `ci` at 15m03s. In a later cohort Python started at 12m50s, while the other three workflows were still queued after at least 15m07s at observation. Queued jobs' placeholder `started_at` values are not starts. A post-change production wait has not yet been observed; cancellation of old runs also changes the queue, so these snapshots cannot establish a causal wait-time improvement.
 
 ## Caches
 
@@ -506,10 +537,10 @@ failed.
 
 | Check | Workflow | Note |
 |---|---|---|
-| `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard |
-| `python-report` | `python.yml` | The abi3 wheel and its tests |
-| `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
+| `deny` | `deny.yml` | Licence, advisory, repository and PR DCO checks; on main, a successful same-tree merge-group result may replace repeated checks |
+| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard; on proven main trees, only the baseline guard, arm64 conformance and shared-cache maintenance are repeated |
+| `python-report` | `python.yml` | The abi3 wheel and its tests, or on main their successful same-tree merge-group result |
+| `npm-report` | `npm.yml` | The npm packages, launcher and smoke tests, or on main their successful same-tree merge-group result |
 
 ## The pull request's shape
 
@@ -541,7 +572,7 @@ because the report jobs carry `if: always()`, a run superseded by a new push
 starts its report job too, which then reports the cancellation as a failure
 on the superseded commit ("Concurrency" above says why not `!cancelled()`).
 
-With the merge queue on, a pull request's required workflows run once more for its merge group (without fuzzing) before the push to `main` runs them again.
+With the merge queue on, a pull request's required workflows run once more for its merge group (without fuzzing); the resulting main push reuses a matching successful tree rather than repeating the suite ("Main pushes after the queue").
 
 Measured on 2026-10-30, a pull request push that changes `ci.yml` (every job
 of `ci.yml` runs, and the changes and report jobs of `python.yml` and
