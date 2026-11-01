@@ -151,6 +151,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
+          python3 -I packages/cli/scripts/notices_check.py dist/*.whl
           for python in python3.9 python3.13; do
             "$python" -m venv "$RUNNER_TEMP/venv-$python"
             "$RUNNER_TEMP/venv-$python/bin/pip" install --quiet dist/*.whl pytest
