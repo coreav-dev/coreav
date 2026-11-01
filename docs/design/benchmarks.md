@@ -124,6 +124,13 @@ The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
   The instruction regression test injects 10% more case instructions,
   without changing start-up, and requires each case to fail at the
   baseline's tolerance, with a just-below-tolerance passing control.
+  The 14 initial counts and fixture digests come from
+  [the guard run](https://github.com/coreav-dev/coreav/actions/runs/41320935327)
+  on `481ab06`, with the shipped `dist` profile, Rust 1.99.1, Valgrind
+  3.22.0, Ubuntu 24.04 and the pinned FFmpeg 9.0.2 fixture generator.
+  Each count is the command's Cachegrind instruction total minus that
+  run's 496,437-instruction `coreav --version`. No existing baseline entry,
+  start-up count or tolerance changed.
 - **What it measures:** the number of instructions the `coreav` command
   executes (Valgrind's `cachegrind` tool with the cache simulation off) for
   a fixed list of cases, each user-facing command on one fixture, minus the

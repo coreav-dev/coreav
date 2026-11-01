@@ -44,7 +44,7 @@ class FfmpegGuard(unittest.TestCase):
                 fixture = work / case[0]
                 fixture.write_bytes(b"fixture")
                 startup = baseline["startup"]
-                before = baseline["cases"].get(name, {"instructions": 100_000})["instructions"]
+                before = baseline["cases"][name]["instructions"]
                 expected = {name: {"instructions": before, "sha256": bench_guard.hashlib.sha256(fixture.read_bytes()).hexdigest()}}
                 args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work, report_only=False, write=None)
                 for count, exit_code in ((before + math.floor(before * baseline["tolerance"]) - 1, 0),
