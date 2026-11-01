@@ -12,7 +12,14 @@
   may not be listed, and its report job need not be);
 - a required job does not always run: a workflow its trigger's `paths` or
   `paths-ignore` skips reports nothing at all, and a required check that
-  never reports leaves every pull request pending;
+  never reports leaves every pull request pending; a workflow with a
+  required check that has no `pull_request:` trigger an ordinary push
+  reaches, or no `merge_group:` trigger (`checks_requested`), never reports
+  it on a pull request, or leaves the merge queue waiting for it;
+- the workflow-level `concurrency:` of a workflow with a required check is
+  not exactly `WORKFLOW_GROUP` with `cancel-in-progress: CANCEL`: a merge
+  group's run needs a group of its own, and only a pull request's run may be
+  cancelled;
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
@@ -62,8 +69,13 @@ CONCURRENCY = re.compile(r'\A {6}(group|cancel-in-progress):\s*(.*?)\s*\Z')
 TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
-PULL_REQUEST = re.compile(r'\A {2}pull_request:\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
+EVENT = re.compile(r'\A {2}([a-z_]+):\s*\Z')
+# The triggers a workflow with a required check needs, each with the
+# activity type its `types:` list, where it has one, must hold: an ordinary
+# push to a pull request's branch, and a group the merge queue asks checks
+# for (docs/design/ci-checks.md, "The merge queue").
+REQUIRED_TRIGGERS = {'pull_request': 'synchronize', 'merge_group': 'checks_requested'}
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
@@ -73,6 +85,10 @@ LABELS = 'github.event.pull_request.labels'
 GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
 CANCEL = "${{ github.event_name == 'pull_request' }}"
+# The workflow-level group of a workflow with a required check that cancels
+# a superseded pull request run as a whole: a push to main, a manual run and
+# a merge group each get a group of their own run.
+WORKFLOW_GROUP = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
 # After JOB_ID in the group of a job with a `strategy:`: each leg of its
 # matrix in a group of its own.
 MATRIX = '-${{ strategy.job-index }}'
@@ -176,11 +192,11 @@ def concurrency_problems(workflow, lines, jobs):
     return out
 
 
-def trigger(lines):
-    """(a `paths` or `paths-ignore` key is in the `on:` block, the block
-    has a `pull_request:` trigger that an ordinary push to the branch
-    reaches)."""
-    filtered, pull_request, inside, seen_pull_request = False, False, False, False
+def triggers(lines):
+    """(a `paths` or `paths-ignore` key is in the `on:` block, the events
+    of REQUIRED_TRIGGERS the block has a trigger for whose `types:`, if it
+    lists them, hold the activity type named there)."""
+    filtered, events, inside, event = False, set(), False, None
     for line in lines:
         if line.rstrip() == 'on:':
             inside = True
@@ -193,15 +209,35 @@ def trigger(lines):
         # a block scalar. None of them may gate a required workflow.
         if re.match(r'\A +(paths|paths-ignore):', line):
             filtered = True
-        if PULL_REQUEST.match(line):
-            pull_request = True
-            seen_pull_request = True
+        if line.strip().startswith('#'):
             continue
-        if seen_pull_request and re.match(r'\A {4}types:', line):
-            pull_request = 'synchronize' in line
-        elif seen_pull_request and TRIGGER.match(line):
-            seen_pull_request = False
-    return filtered, pull_request
+        if TRIGGER.match(line):
+            match = EVENT.match(line)
+            event = match.group(1) if match else None
+            if event in REQUIRED_TRIGGERS:
+                events.add(event)
+            continue
+        if event in REQUIRED_TRIGGERS and re.match(r'\A {4}types:', line) and REQUIRED_TRIGGERS[event] not in line:
+            events.discard(event)
+    return filtered, events
+
+
+def workflow_concurrency(lines):
+    """The workflow-level `concurrency:` as {'group': str, 'cancel-in-progress':
+    str}, or None when there is none."""
+    setting = None
+    for line in lines:
+        if setting is not None:
+            if TOP.match(line):
+                break
+            match = re.match(r'\A {2}(group|cancel-in-progress):\s*(.*?)\s*\Z', line)
+            if match:
+                setting[match.group(1)] = match.group(2)
+            continue
+        match = re.match(r'\Aconcurrency:\s*(.*?)\s*\Z', line)
+        if match:
+            setting = {'group': match.group(1)} if match.group(1) else {}
+    return setting
 
 
 def run_lines(lines):
@@ -485,14 +521,24 @@ def check(root):
         if where[0][0] != workflow:
             problems.append(f'{note.name} puts `{name}` in {workflow}, but it is in {where[0][0]}')
             continue
-        filtered, pull_request = trigger(
-            (root / '.github' / 'workflows' / workflow).read_text().splitlines())
+        lines = (root / '.github' / 'workflows' / workflow).read_text().splitlines()
+        filtered, events = triggers(lines)
         if filtered:
             problems.append(f'{workflow}: required `{name}`, but the trigger carries a path filter, '
                             'so the check is not reported on every pull request')
-        if not pull_request:
+        if 'pull_request' not in events:
             problems.append(f'{workflow}: required `{name}`, but the workflow has no '
                             '`pull_request:` trigger, so the check is never reported on one')
+        if 'merge_group' not in events:
+            problems.append(f'{workflow}: required `{name}`, but the workflow has no `merge_group:` trigger '
+                            '(`types: [checks_requested]`), so the merge queue waits for the check until it '
+                            'times out (docs/design/ci-checks.md, "The merge queue")')
+        setting = workflow_concurrency(lines)
+        if setting is not None and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': CANCEL}:
+            problems.append(f'{workflow}: required `{name}`, so give the workflow exactly `concurrency: '
+                            f'{{group: {WORKFLOW_GROUP}, cancel-in-progress: {CANCEL}}}`, as a block: a merge '
+                            'group\'s run needs a group of its own, and only a pull request\'s run may be '
+                            'cancelled (docs/design/ci-checks.md, "The merge queue")')
         job = where[0][1]
         fields = jobs[workflow][job]
         if not job.endswith('-report'):

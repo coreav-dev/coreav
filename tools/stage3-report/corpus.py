@@ -195,7 +195,7 @@ HARNESS = ('scripts/oracle-capture.sh', 'scripts/oracle-ffprobe.sh', 'scripts/or
            'tools/mediainfo-oracle/mediainfo_oracle.py', 'docs/known-divergences.json',
            'docs/known-divergences-mkv.json', 'docs/known-divergences-ts.json',
            'scripts/compat_check.py')
-OVERLAY_IMPORTS = {'isobmff': (), 'matroska': ('scripts/policy_ref.py',), 'mpegts': (),
+OVERLAY_IMPORTS = {'isobmff': ('scripts/oracle_kd_ts.py',), 'matroska': ('scripts/policy_ref.py',), 'mpegts': (),
                    'mpegts-v2': ()}
 
 

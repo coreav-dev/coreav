@@ -36,6 +36,7 @@ mod select;
 mod skip;
 
 use core::fmt;
+use std::collections::BTreeMap;
 
 use coreav_decode::{
     Backend, Codec, CodecConfig, ConfigKind, Decoder, DecoderInfo, Packet, Policy, Skipped,
@@ -234,6 +235,27 @@ pub(crate) struct PacketRef {
     pub keyframe: bool,
 }
 
+/// Parameter sets a decoder needs before some packets that the file does
+/// not store there: an MP4 track whose samples change sample description
+/// (`mp4::in_band`). Empty for every other stream.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct InBand {
+    /// Parameter sets as NAL units, each after its length.
+    pub sets: Vec<Vec<u8>>,
+    /// Packet index, and the position in `sets` of what goes before it.
+    pub before: BTreeMap<usize, usize>,
+}
+
+impl InBand {
+    /// The bytes that go before packet `index`, empty for most.
+    fn prefix(&self, index: usize) -> &[u8] {
+        self.before
+            .get(&index)
+            .and_then(|&set| self.sets.get(set))
+            .map_or(&[], Vec::as_slice)
+    }
+}
+
 /// How a sync sample is checked against its coded data
 /// (`docs/design/cut-points.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -272,6 +294,9 @@ pub(crate) struct Plan {
     /// Bytes every packet starts with that the file does not store
     /// (Matroska header stripping).
     pub prefix: Vec<u8>,
+    /// Parameter sets some packets start with that the file stores in
+    /// another sample description (MP4).
+    pub in_band: InBand,
     pub rule: CutRule,
     /// Whether a sync flag is stated, per packet index (MP4 tables without
     /// `stss`); a frame whose coded data cannot be read keeps a stated
@@ -448,7 +473,8 @@ pub struct StreamPacket {
     /// Byte offset of its stored bytes in the file.
     pub offset: u64,
     /// Size of its stored bytes; [`VideoStream::read_packet`] adds the
-    /// stripped header of a Matroska track.
+    /// stripped header of a Matroska track, or the parameter sets an MP4
+    /// track's packet needs.
     pub size: u64,
     /// Presentation timestamp in the stream's units ([`Container`]): MP4,
     /// the composition time in media ticks (`coreav_isobmff::Packet::cts`);
@@ -499,6 +525,9 @@ pub struct VideoStream {
     pub warnings: Vec<String>,
     /// Bytes every packet starts with that the file does not store.
     prefix: Vec<u8>,
+    /// Parameter sets some packets start with that the file stores in
+    /// another sample description.
+    in_band: InBand,
 }
 
 impl VideoStream {
@@ -509,7 +538,10 @@ impl VideoStream {
     }
 
     /// Reads packet `index`'s bytes as a decoder takes them, the stripped
-    /// header first; a packet of more than `max` bytes with it is a
+    /// header first, or for the first packet of an MP4 track's sample
+    /// description, or a sync sample of one, the parameter sets of that
+    /// description (`docs/design/decode.md`, "Several sample
+    /// descriptions"); a packet of more than `max` bytes with them is a
     /// `Limit` error.
     pub fn read_packet<S: Source>(
         &self,
@@ -521,7 +553,11 @@ impl VideoStream {
             .packets
             .get(index)
             .ok_or_else(|| Error::Unsupported("no such packet".into()))?;
-        read_bytes(source, packet.offset, packet.size, &self.prefix, max)
+        let prefix = match self.in_band.prefix(index) {
+            [] => self.prefix.as_slice(),
+            sets => sets,
+        };
+        read_bytes(source, packet.offset, packet.size, prefix, max)
     }
 }
 
@@ -569,6 +605,7 @@ pub fn video_stream<S: Source>(
         packets,
         warnings: plan.warnings,
         prefix: plan.prefix,
+        in_band: plan.in_band,
     })
 }
 
@@ -746,7 +783,8 @@ fn negate(r: Rational) -> Option<Rational> {
     Rational::new(r.num.checked_neg()?, r.den)
 }
 
-/// Reads packet `index`'s bytes, the stripped header first.
+/// Reads packet `index`'s bytes, the stripped header or the parameter sets
+/// it needs first.
 fn read_packet<S: Source>(
     source: &mut S,
     plan: &Plan,
@@ -757,7 +795,11 @@ fn read_packet<S: Source>(
         .packets
         .get(index)
         .ok_or_else(|| Error::Unsupported("no such packet".into()))?;
-    read_bytes(source, packet.offset, packet.size, &plan.prefix, max)
+    let prefix = match plan.in_band.prefix(index) {
+        [] => plan.prefix.as_slice(),
+        sets => sets,
+    };
+    read_bytes(source, packet.offset, packet.size, prefix, max)
 }
 
 /// `prefix` and then the `size` bytes at `offset`; more than `max` bytes
@@ -1317,6 +1359,7 @@ mod skip_tests {
             samples: Vec::new(),
             packets: refs,
             prefix: Vec::new(),
+            in_band: InBand::default(),
             rule: CutRule::Hevc { length_size: 4 },
             stated: vec![true; 4],
             window: None,
@@ -1468,6 +1511,7 @@ mod skip_tests {
             samples: Vec::new(),
             packets: refs,
             prefix: Vec::new(),
+            in_band: InBand::default(),
             rule: CutRule::Hevc { length_size: 4 },
             stated: vec![true; 8],
             window: None,

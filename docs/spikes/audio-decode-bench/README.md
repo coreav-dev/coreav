@@ -788,6 +788,37 @@ gives library 1.035 (32.6% faster) and command 0.812 (96.7%)
    inputs measured again with the copies named `corpus-<hash>`.
 3. **Speed run**: all 604 inputs, every engine without a failure.
 
+## Opus round 2
+
+The one judged run of round 2 (`docs/design/audio-decode.md`, "Opus speed, round 2", whose bars were committed before draw 8 was fetched), for the change that speeds up CELT decoding with the same decoded bits. Binaries: dist builds of the change's head `9419b72` and of its base `9f7dd93`. Set: the derived set of `v2-heldout` draw 8's 144 `real` files, one MP4 and one Matroska/WebM input each, built by `make_opus_inputs.py` with the pinned `ffmpeg` 7.0.2 (`evidence/opus-round2-inputs.json`). Hosts: 8 GCP `c4-standard-4` VMs, SMT off, all Intel Xeon Platinum 8581C; each built its shard's inputs, ran bar 2 and the identity check on every input, and timed those that passed both (`perf.py`, 5 rounds after a warm-up, outputs on a tmpfs, against `lav_audio` built against the LGPL package of FFmpeg 9.0.2 and the pinned `ffmpeg` 9.0.2). The run was launched twice: the first launch stopped on every VM at its CPU check, before building any input, because the image's `lscpu` prints the model name in capitals and the check's match was case-sensitive; the second launch, with the match made case-insensitive, is the run below.
+
+| Bar | Result | Status |
+|---|---|---|
+| Same bits: head and base `coreav decode-audio --format s16` outputs equal byte-for-byte | **288 of 288** identical, no error (`evidence/opus-round2-identity.json`) | **Met** |
+| Minimum: at least 90 timed inputs per class, no binary error | MP4 144, Matroska/WebM 144; no engine failed on any input | **Met** |
+| Library, median ours / libav at most 1.00, overall and per class | **0.994** (95% CI 0.976 to 1.003), 288 inputs; MP4 0.995, Matroska 0.991 | **Met** |
+
+The intervals' upper ends are above 1.00, so the library pair is level with libavcodec's `opus` decoder on these inputs, not faster. Share of inputs where CoreAV is faster: library **53.1%** (MP4 52.8%, Matroska 53.5%), command **91.3%**.
+
+| Pair | Class | Inputs | Median | 95% CI | Faster (ratio < 1.00) | Max |
+|---|---|---:|---:|---|---:|---:|
+| library (gates) | all | 288 | 0.994 | 0.976 to 1.003 | 53.1% | 1.137 |
+| library (gates) | mp4 | 144 | 0.995 | 0.969 to 1.006 | 52.8% | 1.134 |
+| library (gates) | matroska | 144 | 0.991 | 0.958 to 1.007 | 53.5% | 1.137 |
+| command (reported) | all | 288 | 0.613 | 0.561 to 0.675 | 91.3% | 1.054 |
+| library vs `find_stream_info` (reference) | all | 288 | 1.002 | 0.990 to 1.014 | 48.3% | 1.142 |
+| decoder alone (reported) | all | 288 | 1.038 | 1.028 to 1.046 | 31.6% | 1.178 |
+
+By mode (the mode most of an input's packets carry; reported, not gating), medians:
+
+| Mode | Inputs | Library | Command | Decoder alone | Library faster |
+|---|---:|---:|---:|---:|---:|
+| SILK | 34 | 0.791 | 0.602 | 0.807 | 100.0% |
+| Hybrid | 44 | 1.004 | 0.864 | 1.021 | 47.7% |
+| CELT | 210 | 1.003 | 0.554 | 1.052 | 46.7% |
+
+Bar 2 (`evidence/opus-round2-agree.json`): 288 inputs, 283 counted, all 283 pass, lowest quality 99.7; MP4 lengths match the presentation model through `KD-A-EDIT-END`. Listed apart (5): Matroska inputs whose only message is the reference side's `f32le` muxer reporting non-monotonic timestamps (one equal to or below the one before it); all 5 pass, and as in round 1 they are timed. Over the 283 counted inputs alone the library medians are 0.993 overall, 0.995 MP4 and 0.988 Matroska. Against `ffmpeg`'s default decoder (reported): 234 of 283 within `opus_compare`, every length equal, SNR median 99.1 dB.
+
 ## Opus: the decoder-choice probe
 
 Indicative, not a bar: one input of the choice between a native Opus

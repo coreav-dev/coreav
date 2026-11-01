@@ -267,6 +267,108 @@ fn track(trak: &[u8], id: u32, enabled: bool, from: &[u8], to: &[u8]) -> Vec<u8>
     trak
 }
 
+/// Streams are written in the order `ffmpeg` maps them (its `Stream
+/// mapping`, black box): the automatic selection's video before its audio
+/// whatever their order in the file, `-map`s in their order, a stream
+/// mapped twice as two tracks. A clip writes its video first, so a clip
+/// that maps its audio first is refused.
+#[test]
+fn streams_are_written_in_the_order_they_are_mapped() {
+    let dir = scratch("ffmpeg-order");
+    let input = movie(&dir);
+    let audio_first = dir.join("audio-first.mp4");
+    std::fs::write(&audio_first, retracked(|v, a| vec![a.to_vec(), v.to_vec()])).unwrap();
+    let audio_first = audio_first.to_str().unwrap();
+    assert_eq!(listed(Path::new(audio_first)).0, [A, V]);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for (args, expected) in [
+        (vec!["-i", audio_first, "-c", "copy"], vec![V, A]),
+        (
+            vec![
+                "-i",
+                audio_first,
+                "-map",
+                "0:v",
+                "-map",
+                "0:a",
+                "-c",
+                "copy",
+            ],
+            vec![V, A],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:a", "-map", "0:v", "-c", "copy"],
+            vec![A, V],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:v", "-map", "0", "-c", "copy"],
+            vec![V, V, A],
+        ),
+        (
+            vec!["-i", audio_first, "-ss", "0", "-t", "1", "-c", "copy"],
+            vec![V, A],
+        ),
+    ] {
+        let r = ffmpeg(&[&["-y"], args.as_slice(), &[o]].concat());
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(listed(&output).0, expected, "{args:?}");
+    }
+    let r = ffmpeg(&[
+        "-y", "-i", &input, "-map", "0:a", "-map", "0:v", "-ss", "0", "-t", "1", "-c", "copy", o,
+    ]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("audio selected before the video"),
+        "{}",
+        r.stderr
+    );
+}
+
+/// More output streams than CoreAV writes to one file (`Limits::max_tracks`)
+/// are refused before any stream is planned, counted once `-an` and the
+/// negative maps have removed theirs: 3,000 `-map 0` on a file of two
+/// streams (near the longest command line Windows starts, 32,767
+/// characters) would otherwise plan 6,000 outputs, and 513 `-map 0` less
+/// the audio are 513 video tracks.
+#[test]
+fn a_selection_larger_than_an_output_holds_is_refused() {
+    let dir = scratch("ffmpeg-many-maps");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for less in [vec!["-an"], vec!["-map", "-0:a"]] {
+        let mut args = vec!["-y", "-i", input.as_str()];
+        for _ in 0..513 {
+            args.extend(["-map", "0"]);
+        }
+        args.extend(less.iter().copied());
+        args.extend(["-c", "copy", o]);
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 0, "{less:?}: {}", r.stderr);
+        assert_eq!(listed(&output).0, vec![V; 513], "{less:?}");
+    }
+    std::fs::remove_file(&output).unwrap();
+    for maps in [513, 3_000] {
+        let mut args = vec!["-y", "-i", input.as_str()];
+        for _ in 0..maps {
+            args.extend(["-map", "0"]);
+        }
+        args.extend(["-c", "copy", o]);
+        let started = std::time::Instant::now();
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 4, "{maps}: {}", r.stderr);
+        assert!(
+            r.stderr
+                .contains("more output streams than CoreAV writes to one file"),
+            "{}",
+            r.stderr
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(30));
+        assert!(!output.exists());
+    }
+}
+
 /// A join copies the video stream `ffmpeg` selects or refuses the command:
 /// of two video streams of one size, the first, which the join does not
 /// copy (MPEG-4 Visual), is refused (exit status 4), never replaced by the
@@ -1092,6 +1194,33 @@ fn a_cover_picture_is_copied_only_when_selected() {
     assert_eq!(listed(&output), (vec![V, A], vec![]));
 }
 
+/// A `meta` box needs a handler box (ISO/IEC 14496-12 8.11.1): without one
+/// its item list's cover picture is no stream, as the pinned `ffprobe`
+/// lists it (black box); a handler of any type keeps it.
+#[test]
+fn a_cover_picture_needs_the_meta_handler() {
+    let dir = scratch("ffmpeg-cover-handler");
+    let picture = jpeg(640, 480);
+    let input = covered(
+        &dir,
+        "in.mp4",
+        av_movie_with(aac_entry(), false),
+        &[std::slice::from_ref(&picture)],
+    );
+    let bytes = std::fs::read(&input).unwrap();
+    let hdlr = bytes.windows(4).rposition(|w| w == b"hdlr").unwrap();
+    for (name, at, kind, expected) in [
+        ("unknown.mp4", hdlr + 12, b"zzzz", vec![V, A, PICTURE]),
+        ("none.mp4", hdlr, b"free", vec![V, A]),
+    ] {
+        let mut changed = bytes.clone();
+        changed[at..at + 4].copy_from_slice(kind);
+        let path = dir.join(name);
+        std::fs::write(&path, changed).unwrap();
+        assert_eq!(listed(&path), (expected, vec![picture.clone()]), "{name}");
+    }
+}
+
 /// Of two cover pictures, the one selected stays.
 #[test]
 fn of_two_cover_pictures_the_selected_one_stays() {
@@ -1508,7 +1637,15 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
             ])
             .output()
             .unwrap();
-        String::from_utf8(out.stdout).unwrap()
+        assert!(out.status.success(), "{} stream {index}", path.display());
+        let digest = String::from_utf8(out.stdout).unwrap();
+        let hex = digest.trim().strip_prefix("MD5=");
+        assert!(
+            hex.is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_hexdigit())),
+            "{} stream {index}: {digest:?}",
+            path.display()
+        );
+        digest
     };
     let picture_md5s = |path: &Path| -> Vec<String> {
         let listed = streams(path);
@@ -1607,4 +1744,188 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
     let r = ffmpeg(&args);
     assert_eq!(r.code, 4, "{}", r.stderr);
     assert!(!ours.exists());
+}
+
+/// `-map_metadata -1` on an M4A extraction against the pinned `ffmpeg`, on
+/// a file it makes with a language, a handler name, a title and a creation
+/// time: both outputs carry none of them (the language `und`, the creation
+/// times not set), as `ffprobe` lists their tags.
+#[test]
+fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-strip-oracle");
+    let input = dir.join("in.mp4");
+    let status = Command::new(&ffmpeg_bin)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=160x120:rate=10:duration=1",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-metadata",
+            "creation_time=2020-01-02T03:04:05Z",
+            "-metadata",
+            "title=A title",
+            "-metadata:s:a:0",
+            "language=eng",
+            "-metadata:s:a:0",
+            "handler_name=A handler",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
+    let source = tags(&input);
+    assert_eq!(source[0]["creation_time"], "2020-01-02T03:04:05.000000Z");
+    assert_eq!(source[1]["language"], "eng");
+    let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+    let command = |output: &Path| -> Vec<String> {
+        [
+            "-y",
+            "-i",
+            input.to_str().unwrap(),
+            "-map",
+            "0:a",
+            "-c:a",
+            "copy",
+            "-map_metadata",
+            "-1",
+        ]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect()
+    };
+    let status = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(command(&theirs))
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let args = command(&ours);
+    let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(tags(&ours), tags(&theirs));
+    assert_eq!(
+        tags(&ours),
+        json!([{}, {"language": "und", "handler_name": "SoundHandler"}])
+    );
+}
+
+/// The tags `ffprobe` lists for `path` that `-map_metadata` decides: the
+/// file's creation time and title, and the first audio stream's language,
+/// creation time and handler name.
+fn metadata_tags(ffprobe: &Path, path: &Path) -> Value {
+    let out = Command::new(ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "format_tags=creation_time,title:stream_tags=language,creation_time,handler_name",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", path.display());
+    let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
+    json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
+}
+
+/// `-map_metadata 0:s:0` on an M4A extraction against the pinned `ffmpeg`,
+/// on an audio-only file it makes with a language, a handler name, a title
+/// and a creation time: the file takes its metadata from the stream (its
+/// creation time), and the stream keeps none of its own (the language
+/// `und`), in both outputs.
+#[test]
+fn stream_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-stream-metadata-oracle");
+    let input = dir.join("in.m4a");
+    let status = Command::new(&ffmpeg_bin)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-c:a",
+            "aac",
+            "-metadata",
+            "creation_time=2020-01-02T03:04:05Z",
+            "-metadata",
+            "title=A title",
+            "-metadata:s:a:0",
+            "language=eng",
+            "-metadata:s:a:0",
+            "handler_name=A handler",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
+    let source = tags(&input);
+    assert_eq!(source[0]["title"], "A title");
+    assert_eq!(source[1]["language"], "eng");
+    let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+    let command = |output: &Path| -> Vec<String> {
+        [
+            "-y",
+            "-i",
+            input.to_str().unwrap(),
+            "-acodec",
+            "copy",
+            "-map",
+            "0",
+            "-map_metadata",
+            "0:s:0",
+        ]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect()
+    };
+    let status = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(command(&theirs))
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let args = command(&ours);
+    let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(tags(&ours), tags(&theirs));
+    let created = "2020-01-02T03:04:05.000000Z";
+    assert_eq!(
+        tags(&ours),
+        json!([
+            {"creation_time": created},
+            {"creation_time": created, "language": "und", "handler_name": "SoundHandler"}
+        ])
+    );
 }
