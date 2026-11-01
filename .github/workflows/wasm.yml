@@ -12,6 +12,12 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/chap_craft.py
+      - scripts/colr_craft.py
+      - scripts/elst_craft.py
+      - scripts/iso_patch.py
+      - scripts/stss_craft.py
+      - docs/schema/policy-examples/**
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
       - .github/workflows/wasm.yml
@@ -24,6 +30,12 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/chap_craft.py
+      - scripts/colr_craft.py
+      - scripts/elst_craft.py
+      - scripts/iso_patch.py
+      - scripts/stss_craft.py
+      - docs/schema/policy-examples/**
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
       - .github/workflows/wasm.yml

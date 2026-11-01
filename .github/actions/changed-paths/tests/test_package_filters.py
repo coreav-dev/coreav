@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -11,6 +12,10 @@ SPEC = importlib.util.spec_from_file_location(
     'changed_paths', ROOT / '.github/actions/changed-paths/changed_paths.py')
 cp = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(cp)
+WORKFLOW_SPEC = importlib.util.spec_from_file_location(
+    'workflow_check', ROOT / 'scripts/workflow_check.py')
+workflow_check = importlib.util.module_from_spec(WORKFLOW_SPEC)
+WORKFLOW_SPEC.loader.exec_module(workflow_check)
 
 
 class PackageFilters(unittest.TestCase):
@@ -36,6 +41,26 @@ class PackageFilters(unittest.TestCase):
                    'packages/wasm/package.json', 'packages/wasm/scripts/build.sh',
                    'packages/wasm/test/streams.test.mjs', 'docs/design/wasm.md']
         self.assertEqual(self.selected(changed), dict.fromkeys(self.filters, False))
+
+    def test_wasm_triggers_cover_module_fixture_inputs(self):
+        helpers = re.findall(r'\$SCRIPTS/([A-Za-z0-9_.-]+)',
+                             (ROOT / 'scripts/gen-fixtures.sh').read_text())
+        inputs = {f'scripts/{name}' for name in helpers}
+        inputs.update(str(path.relative_to(ROOT)) for path in
+                      (ROOT / 'docs/schema/policy-examples').rglob('*.json'))
+        self.assertTrue(helpers)
+        filters = workflow_check.trigger_filters(
+            (ROOT / '.github/workflows/wasm.yml').read_text())
+        self.assertIsInstance(filters, list)
+        events = {event for event, _, _ in filters}
+        self.assertTrue({'push', 'pull_request'} <= events)
+        for event, key, patterns in filters:
+            self.assertIsNotNone(patterns)
+            for path in sorted(inputs):
+                with self.subTest(event=event, path=path):
+                    selected, _ = cp.decide([path], patterns if key == 'paths' else [],
+                                            patterns if key == 'paths-ignore' else [])
+                    self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
 
     def test_cli_package_and_shared_build_inputs_keep_native_validation(self):
         for path in ('packages/cli/package.json', 'packages/cli/scripts/codecs.sh',
