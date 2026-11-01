@@ -56,8 +56,8 @@ through npm would misrepresent the native command, which takes 0.13 to
 esbuild and Biome:
 
 - **One package per platform**, `@coreav/cli-linux-x64`, `-linux-arm64`,
-  `-darwin-arm64`, `-darwin-x64` and `-win32-x64`. Each holds only its
-  binary and is selected by npm through its `os` and `cpu` fields. The
+  `-darwin-arm64`, `-darwin-x64` and `-win32-x64`. Each holds its
+  binary and notices and is selected by npm through its `os` and `cpu` fields. The
   main package lists all of them as `optionalDependencies` of its own
   version, so npm installs the one that fits and skips the others.
 - **The install script makes the binary the command.** `install.js` runs
@@ -229,6 +229,8 @@ wording and keywords are positioning and the maintainer's to decide.
 
 ### Build
 
+Native builds use the compiler version and commit in `scripts/rust-dist.env`, with `rust-src` and the target standard library. `scripts/notices/main.mjs` generates notices for the same Cargo package, target, profile and features as the binary. The normal dependency graph excludes procedural macros; the target standard-library closure is a conservative superset of retained code. Every platform package ships `THIRD-PARTY-NOTICES.txt` (`docs/release/notices.md`). The main WASI package keeps its existing build and notices. This changes native distribution notices, not licences.
+
 - `packages/cli/scripts/build.sh`: `cargo build --locked -p coreav-cli
   --profile edge --target wasm32-wasip1`, then `wasm-opt -O3` when binaryen
   is on `PATH` or named by `WASM_OPT` (CI uses binaryen version_133).
@@ -237,11 +239,11 @@ wording and keywords are positioning and the maintainer's to decide.
   default features on Windows), with dav1d, libvpx and libopus from
   `scripts/codecs.sh` and a check that the binary loads none of them at
   run time, and the package around the binary, with `NOTICE`
-  and `licenses/` (`docs/release/notices.md`)
+  and target-specific Rust notices and `licenses/` (`docs/release/notices.md`)
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
 - The module, the binaries and the license files are build outputs, not
-  committed; `npm pack` refuses to run without them (`prepack`).
+  committed. Native packaging verifies a matching build-owned notice record using Node only, without rewriting files or requiring Rust; CI also regenerates notices and checks artifact evidence before packing. The record stays out of the packages. The main WASI package retains its existing `prepack` guard.
 - CI builds the WASI module and the Linux x86-64 package on every ready
   pull request. Tags, manual and weekly runs, and pull requests labelled
   `binaries` also build the four other platforms, each built, run and

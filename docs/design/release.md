@@ -71,7 +71,7 @@ The WebAssembly fallback stays the `cli` feature alone and carries no decoder. W
 | Default | `coreav-VERSION-TARGET.tar.gz` (`.zip` for Windows) | `coreav-VERSION-TARGET` |
 | Full | `coreav-full-VERSION-TARGET.tar.gz` (`.zip` for Windows) | `coreav-full-VERSION-TARGET` |
 
-The directory holds `coreav` (`coreav.exe`), `LICENSE-MIT`, `LICENSE-APACHE` and `NOTICE`, and, in a build that links dav1d, libvpx and libopus, `licenses/` with their licence files as the pinned tarballs carry them (`docs/release/notices.md`). `NOTICE` is in every archive, whatever the features: its statements are each conditional on what a build includes, so it is never wrong to ship, and an archive cannot lose it when the features change.
+The directory holds `coreav` (`coreav.exe`), `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE` and target-specific `THIRD-PARTY-NOTICES.txt`, and, in a build that links dav1d, libvpx and libopus, `licenses/` with their licence files as the pinned tarballs carry them (`docs/release/notices.md`). `NOTICE` is in every archive, whatever the features: its statements are each conditional on what a build includes, so it is never wrong to ship, and an archive cannot lose it when the features change.
 
 `SHA256SUMS` lists the SHA-256 of all ten archives, in `sha256sum`'s format. `packages/cli/scripts/release_assets.py` fails the run when the release's files are anything other than those ten archives and `SHA256SUMS`, or when `SHA256SUMS` lists other files: once after the checksums are written, and again in the draft job before anything is attested or attached. The smoke test's clips travel as the `smoke-clips` artifact, outside the `release-TARGET` artifacts that the checksum job gathers. Each archive and `SHA256SUMS` carry a build-provenance attestation (Sigstore, through GitHub's attestation store), which ties the file to this workflow, the tag and the commit:
 
@@ -89,6 +89,7 @@ On each target, for both builds:
 
 - Every action is pinned to a full commit sha (`scripts/workflow_check.py`); no third-party release action: the draft is made with the `gh` command and the built-in token.
 - Permissions are per job. The workflow grants nothing; the build and checksum jobs read the repository; only the draft job, which runs on a tag alone, gets `contents: write`, and `id-token: write` and `attestations: write` for the attestation. No secret.
+- The compiler version and commit are pinned in `scripts/rust-dist.env`; each target installs `rust-src`. `platform.sh` uses one Cargo selection for the binary and shared Rust notices, remaps build paths, and refuses missing texts or unclassified artifact evidence. Before packing, the workflow regenerates and compares notices and checks the build record; final archives must contain the target-specific notices beside the root licence files. The record is not shipped (`docs/release/notices.md`).
 - No build cache: a release builds from `Cargo.lock` (`--locked`) with nothing restored that another workflow saved. The checkout keeps no credentials.
 
 Rejected:

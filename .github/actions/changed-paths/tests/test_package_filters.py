@@ -103,6 +103,14 @@ class PackageFilters(unittest.TestCase):
     def test_the_wasm_compiler_pin_selects_the_wasm_workflow(self):
         self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - scripts/rust-wasm.env\n'), 2)
 
+    def test_native_rust_notices_select_npm_only(self):
+        for path in ('scripts/notices/main.mjs', 'scripts/notices/record.mjs',
+                     'scripts/rust-dist.env', 'deny.toml'):
+            with self.subTest(path=path):
+                selected = self.selected([path])
+                self.assertTrue(selected['npm'])
+                self.assertFalse(selected['python'])
+
     def test_pr_push_and_merge_group_apply_the_same_package_filters(self):
         for event in ('pull_request', 'push', 'merge_group'):
             for paths, expected in ((['packages/wasm/src/node.js'], False),

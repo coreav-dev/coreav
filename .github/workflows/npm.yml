@@ -80,6 +80,12 @@ jobs:
             crates/coreav-py/**
             crates/coreav-cli/**
             Cargo.lock
+            Cargo.toml
+            crates/**/Cargo.toml
+            deny.toml
+            scripts/rust-dist.env
+            scripts/notices/**
+            .gitattributes
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
             scripts/oracle-ffmpeg.env
@@ -112,6 +118,10 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-wasip1, x86_64-unknown-linux-musl
+      - name: Install the native distribution compiler
+        run: |
+          . scripts/rust-dist.env
+          rustup toolchain install "$RUST_DIST_TOOLCHAIN" --profile minimal --component rust-src --target x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -199,9 +209,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/packages"
+          node scripts/notices/main.mjs check packages/cli/npm/linux-x64
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/packages")
           (cd packages/cli/npm/linux-x64 && npm pack --pack-destination "$RUNNER_TEMP/packages")
           python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
+          python3 -I packages/cli/scripts/notices_check.py --third-party "$RUNNER_TEMP/packages"/coreav-cli-linux-x64-*.tgz
           for tarball in "$RUNNER_TEMP/packages"/*.tgz; do npm publish --dry-run --access public "$tarball"; done
       # The smoke tests and the other platforms compare with these.
       - name: Expected outputs
@@ -285,9 +297,16 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Read the distribution compiler pin
+        id: rust
+        run: |
+          . scripts/rust-dist.env
+          echo "version=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.rust.outputs.version }}
+          components: rust-src
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -343,8 +362,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/packages"
+          node scripts/notices/main.mjs check packages/cli/npm/${{ matrix.platform }}
           (cd packages/cli/npm/${{ matrix.platform }} && npm pack --pack-destination "$RUNNER_TEMP/packages")
-          python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
+          python3 -I packages/cli/scripts/notices_check.py --third-party "$RUNNER_TEMP/packages"/*.tgz
           npm publish --dry-run --access public "$RUNNER_TEMP/packages"/*.tgz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

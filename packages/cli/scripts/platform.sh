@@ -30,6 +30,8 @@ case "$platform" in
 esac
 target="${2:-$default}"
 build="${3:-default}"
+. "$root/scripts/rust-dist.env"
+export RUSTUP_TOOLCHAIN="$RUST_DIST_TOOLCHAIN"
 case "$build-$platform" in
   # Windows has no sandbox for the decoder worker or the encoder program
   # (docs/design/release.md, "Two builds"): the default features, and AAC
@@ -80,9 +82,11 @@ if [ "$target" = aarch64-unknown-linux-musl ] && [ "$(uname -m)" != aarch64 ]; t
   export RUSTFLAGS="${RUSTFLAGS:-} -C linker-flavor=ld.lld"
 fi
 # The `dist` profile, stripped for the package.
-CARGO_PROFILE_DIST_STRIP=symbols \
-  cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-cli --profile dist --target "$target" \
-  --features "$features"
+selection=(-p coreav-cli --profile dist --target "$target" --features "$features")
+CARGO_ENCODED_RUSTFLAGS="$(node "$root/scripts/notices/main.mjs" prepare -- "${selection[@]}")"
+export CARGO_ENCODED_RUSTFLAGS
+unset RUSTFLAGS
+CARGO_PROFILE_DIST_STRIP=symbols cargo build --locked --manifest-path "$root/Cargo.toml" "${selection[@]}"
 out="$here/npm/$platform"
 [ "$build" = full ] && out="$here/full/$platform"
 rm -rf "$out"
@@ -113,5 +117,6 @@ fi
 # files of the C libraries it links.
 cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$out/"
 [ -n "$codecs" ] && cp -R "$codecs/licenses" "$out/licenses"
+node "$root/scripts/notices/main.mjs" generate --out "$out" --artifact "$out/bin/$exe" -- "${selection[@]}"
 [ "$build" = default ] && node "$here/scripts/platform-package.js" "$platform" "$out"
 if command -v sha256sum > /dev/null; then sha256sum "$out/bin/$exe"; else shasum -a 256 "$out/bin/$exe"; fi
