@@ -19,7 +19,9 @@ The goal is a VP9 decoder, written from the specification in memory-safe Rust, t
 
 The finished decoder decodes every VP9 stream the specification defines: profiles 0 to 3; 8, 10 and 12 bits; 4:2:0, 4:2:2, 4:4:0 and 4:4:4; tiles, segmentation, lossless frames, intra-only frames, hidden frames and `show_existing_frame`, error-resilient and frame-parallel modes, reference frames of another size (scaled motion compensation), frame sizes that change within a stream, and superframes. No feature is permanently out of scope.
 
-Until a milestone lands, what it would add is refused with `Error::Unsupported`, never decoded wrongly. Until milestone 5, every stream of profiles 1 to 3 is refused when the backend opens (the profile is in the stream description, `StreamConfig`), so selection moves on to libvpx or the fallback.
+Until a milestone lands, what it would add is refused with `Error::Unsupported`, never decoded wrongly. Until milestone 5, the backend supports a stream only when its `StreamConfig` states profile 0. A stream of profiles 1 to 3, or one whose profile is absent or unknown, is not taken, so selection moves on to libvpx or the fallback before any packet is decoded. A later frame whose header states another profile is refused with `Error::Unsupported`.
+
+4:4:0 is decoded by the decoder crate, where bar C1 checks it, but `coreav-frame` has no 4:4:0 format. The backend therefore refuses a 4:4:0 stream with `Unsupported`, as the libvpx backend does: at open when the configuration record states 4:4:0, and otherwise at its first frame. Adding 4:4:0 to the frame model and its consumers is a separate change outside this plan.
 
 ## Packaging: opt-in, separately packaged
 
@@ -85,7 +87,7 @@ Each row is one or more pull requests, each reviewed independently; the rows tha
 | 3 | The loop filter: levels by segment, reference and mode (8.8.1); edge masks by transform and block size; the filters of 4, 8 and 16 samples; the order of 8.8.2 | 2 | G3: the MD5 of every intra frame of every profile 0 vector equals the published one, and the first frame of each 8-bit 4:2:0 development file of corpus v1 equals FFmpeg 9.0.2's |
 | 4 | Inter frames: inter mode info and reference selection; motion vector reading and prediction (6.5); compound prediction; the three 8-tap filters and bilinear; scaled references; intra-only refresh, hidden frames and `show_existing_frame`; error-resilient and frame-parallel modes and context resets | 4 | G4: bar C1 on every profile 0 vector; bar C2 on the 8-bit 4:2:0 corpus files |
 | B | The backend: `coreav-backend-vp9`, the `native-vp9` feature of the CLI and `tools/decode-oracle`, the keyframe-only mode, the boundary's limits, a backend fuzz target | 1 | Bars C1, C2 and C5 for the streams in scope; the decode boundary's bars 1, 2 and 4 (`docs/design/decode.md`, "Bars") for the new backend |
-| 5 | Profiles 1 to 3: 4:4:4, 4:2:2 and 4:4:0, 10 and 12 bits, through the sample-depth parameter | 2 | Bar C1 on every vector; bar C2 on every corpus file |
+| 5 | Profiles 1 to 3: 4:4:4, 4:2:2 and 4:4:0 (4:4:0 in the decoder crate only, see "Scope"), 10 and 12 bits, through the sample-depth parameter | 2 | Bar C1 on every vector; bar C2 on every corpus file |
 | 6 | SIMD kernels, AVX2 on x86-64 first (CoreAV's performance focus), then NEON: the inverse transforms, the interpolation and its average, the loop filters, intra prediction; each family a round with its ceiling measured first and its own bars | 4 to 6 | Bar C3 for each kernel; C1 with the SIMD kernels on; each round's bars |
 | 7 | Threading: tiles and loop-filter rows within a frame, then frames in flight with progress per superblock row; the thread count within the memory budget | 2 to 3 | T1 to T3 ("Threading (milestone 7)" below) |
 | R | The gated speed run: a round README with the held-out list and method, then the run | 2 | Bars VP-1 to VP-5 |
