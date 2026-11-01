@@ -46,6 +46,11 @@ pub mod time;
 #[cfg(feature = "transcode")]
 pub mod transcode;
 
+#[cfg(all(test, feature = "transcode"))]
+#[path = "../../coreav-isobmff/tests/common/mod.rs"]
+#[allow(clippy::indexing_slicing)]
+mod test_isobmff;
+
 /// Whether an input names a URL rather than a file (`remote::is_url`);
 /// always false without the `net` feature.
 pub fn remote_url(input: &str) -> bool {
