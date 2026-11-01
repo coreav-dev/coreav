@@ -59,20 +59,12 @@ of `coreav.probe/1`.
 | `audio` | object or `null` | Audio tracks: `channels`, `sample_rate` (integer Hz when `SamplingFrequency` is one), `sampling_frequency`, `output_sampling_frequency`, `bit_depth`. |
 | `warnings` | array of strings | Recoverable problems in this track, and a declared size that differs from a verified one (`declared size WxH, parameter sets give WxH`, `... the scanned frames give WxH`). |
 
-## `--ffprobe-compat`
+## ffprobe-compatible output
 
-The keys of `coreav.probe/1`'s compat output, with Matroska values:
-`format_name` `matroska,webm`; `codec_tag_string` `[0][0][0][0]` and
-`codec_tag` `0x0000`; `time_base` one tick (`1/1000` by default); no
-`duration_ts` or `duration`, because Matroska stores no stream duration;
-`sample_rate` the output rate (`OutputSamplingFrequency` when stored, as
-for SBR, else `SamplingFrequency`);
-`tags.language` the stored `Language` element, left out when the track
-stores none or `und` (not `LanguageBCP47` or the default `eng`, which the
-native `language` reports; where the segment's `Tags` hold a `LANGUAGE`
-SimpleTag for the track, `ffprobe` lists that instead: KD-MKV-TAG-LANGUAGE);
-`nb_streams` counts attachments, which
-`ffprobe` lists as streams, so `index` keeps its numbering.
+Use `coreav ffprobe -of json -show_format -show_streams`.
+This is a separate output contract, described in
+[`docs/design/compat-cli.md`](../design/compat-cli.md), not a mode of the
+native probe schema.
 
 ## Errors
 

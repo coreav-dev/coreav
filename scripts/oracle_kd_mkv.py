@@ -11,7 +11,7 @@ file names, except KD-MKV-DECLARED-SIZE, which also reads the file's
 track header and its first decoded frame (with --media, the directory of
 the captured files; without it the entry covers nothing), and
 KD-MKV-TAG-LANGUAGE, which reads the track entries and `Tags` and which
-scripts/compat_check.py applies to `--ffprobe-compat` output
+scripts/compat_check.py applies to `coreav ffprobe` output
 (`COMPAT_ENTRIES`), not this overlay. Captures are read, never rewritten.
 
 Usage: oracle_kd_mkv.py --report R [--report R2 ...] --reference DIR
@@ -255,7 +255,7 @@ PREDICATES = {
 
 
 # Entries for keys the stream oracle does not gate, which
-# scripts/compat_check.py applies to `--ffprobe-compat` output:
+# scripts/compat_check.py applies to `coreav ffprobe` output:
 # compat key -> (entry, predicate with the signature of `tag_language`).
 COMPAT_ENTRIES = {'streams.tags.language': ('KD-MKV-TAG-LANGUAGE', tag_language)}
 

@@ -1,5 +1,9 @@
 # Benchmarks: speed bars and the CI regression guard
 
+Historical results below that name `--ffprobe-compat` measure the retired
+command. They do not measure its replacement,
+`coreav ffprobe -of json -show_format -show_streams`.
+
 Status: Accepted. Scope: every user-facing operation has a speed bar, and
 CI runs a small, stable benchmark subset on main and fails on a significant
 slowdown against a stored baseline.
@@ -180,8 +184,6 @@ The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
   whole package of the same file.
 - **Cases per command**: `probe` on MP4,
   fragmented MP4, Matroska, WebM and a transport stream,
-  `--ffprobe-compat` on fragmented MP4
-  (it reads every fragment), Matroska and a transport stream, and
   `--scan-frame-sizes` on MP4
   and Matroska (every frame header; the block scan) and on a transport
   stream (`probe-packets-ts`: every access unit of the file,

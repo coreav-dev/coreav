@@ -113,8 +113,8 @@ pub fn probe<'a, S: Source + 'a>(
     mut source: S,
     size: u64,
     name: &str,
+    limits: Limits,
 ) -> Result<Probed<'a>, Failure> {
-    let limits = Limits::default();
     let segment = coreav_mkv::probe_with_metadata(&mut source, &limits, &Allowlist::any())
         .map_err(Failure::Matroska)?;
     let early = early_packets(&segment, &mut source, &limits);
@@ -164,6 +164,7 @@ pub fn probe<'a, S: Source + 'a>(
             segment,
             source,
             infos,
+            limits,
         }),
     })
 }
@@ -2786,6 +2787,7 @@ struct MkvPackets<S> {
     segment: Segment,
     source: S,
     infos: Vec<Info>,
+    limits: Limits,
 }
 
 /// Per track state of the listing.
@@ -2814,7 +2816,7 @@ impl<S: Source> PacketSource for MkvPackets<S> {
         payloads: &[bool],
         f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
     ) -> Result<(), Failure> {
-        let limits = Limits::default();
+        let limits = self.limits;
         let segment = &self.segment;
         let tb = time_base(segment);
         let mut states: Vec<State> = self

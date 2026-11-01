@@ -129,8 +129,8 @@ video counts, one 8 s past it does not; audio 3 s past the video counts; a
 file of only a `mov_text` track spans it.
 `Movie::ffprobe_format_duration_seconds` is that span (and
 `Movie::ffprobe_format_duration_micros` the value in microseconds, each
-stream's duration in whole ticks first); the adapter and `--ffprobe-compat`
-use it. The native `presentation_duration` keeps spanning every stream: a
+stream's duration in whole ticks first); the library adapter uses it.
+The native `presentation_duration` keeps spanning every stream: a
 subtitle track that runs past the video is presented, and the derived value
 describes the presentation, not `ffprobe`'s choice. Mapping `format_duration_us` to that derived span,
 rather than to the declared value, states the same quantity.
@@ -153,9 +153,11 @@ stream whose start `ffprobe` takes from its bitstream (a DVD subtitle
 track's first packet) stays uncovered: CoreAV does not read a dropped
 stream's samples.
 
-`coreav probe --ffprobe-compat` prints the derived value as the format
-`duration` for the same reason. The policy check keeps evaluating
-`duration` (the declared value), as it did before.
+`coreav ffprobe -of json -show_format -show_streams` computes its format
+`duration` from its own reported stream starts and durations. Those
+streams include codecs the native probe drops, and their timing can differ
+from the native container-derived values. The policy check keeps
+evaluating native `duration` (the declared value), as it did before.
 
 ## Measurement
 

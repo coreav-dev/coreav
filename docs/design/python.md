@@ -99,7 +99,7 @@ a `dict`.
 9. **Library defaults only.** The functions use `Limits::default()` and the
    default allowlists, as the commands do; `allow` and `strict` are the
    `--allow` and `--strict` options. Custom limits wait for a user request.
-   The `--ffprobe-compat` shape is not offered: it is a comparison format
+   The ffprobe-compatible shape is not offered by this package: it is a comparison format
    for the oracle, not a versioned document.
 10. **Document keys are made once.** Converting a document to a `dict`
     makes a `str` for every key, and making and hashing them was most of

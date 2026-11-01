@@ -2,7 +2,7 @@
 //! library defaults and the JSON documents the command prints, the native
 //! schemas `coreav.probe/1` (ISO base media), `coreav.probe-matroska/1`
 //! (Matroska and WebM) and `coreav.probe-mpegts/1` (MPEG transport
-//! streams), the `--ffprobe-compat` shape and the
+//! streams), the `coreav ffprobe` output and the
 //! `coreav.error/1` object; clips with their `coreav.clip/1`
 //! summary; splits (`docs/design/split.md`) with their `coreav.split/1`
 //! summary; full-file remuxes (`docs/design/remux.md`) with their

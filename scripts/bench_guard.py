@@ -81,10 +81,6 @@ CASES = {
     # file through the packet listing (docs/design/mpegts.md).
     "probe-ts": ("basic.ts", ["probe", "{}"]),
     "probe-packets-ts": ("basic.ts", ["probe", "--scan-frame-sizes", "{}"]),
-    # The ffprobe-shaped document, which also reads every movie fragment.
-    "probe-compat-mp4": ("fragmented_many.mp4", ["probe", "--ffprobe-compat", "{}"]),
-    "probe-compat-mkv": ("basic.mkv", ["probe", "--ffprobe-compat", "{}"]),
-    "probe-compat-ts": ("basic.ts", ["probe", "--ffprobe-compat", "{}"]),
     # `coreav ffprobe` (docs/design/compat-cli.md, B6): the stream and
     # format sections in JSON, and the packet listing in the default writer.
     "ffprobe-mp4": ("fragmented_many.mp4",

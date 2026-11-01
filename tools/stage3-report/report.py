@@ -222,7 +222,7 @@ def compat_bars(summary):
 
 
 def compat_lines(b):
-    lines = ['', f"`--ffprobe-compat`: every key it prints equal to `ffprobe`'s on at least "
+    lines = ['', f"`coreav ffprobe`: every key it prints equal to `ffprobe`'s on at least "
              f"{COMPAT_BAR}% of the files that print it, a known divergence counting only where the overlay "
              f"checked it on that field, on that file and stream, and the printed value is the one it checked "
              f"(`scripts/compat_check.py`); a file whose compat check failed or did not "
@@ -374,7 +374,7 @@ def summary_section(fixtures, corpus, hostile):
         rows.append(('Fixtures: probe stream and packet oracles, MP4/MOV and Matroska', '100%',
                      'uncovered items: ' + ', '.join(missed) if missed
                      else 'every item agrees, directly or through a known divergence', probe))
-        rows.append(('Fixtures: --ffprobe-compat and every stream-copy primitive', '100%',
+        rows.append(('Fixtures: coreav ffprobe and every stream-copy primitive', '100%',
                      f"{sum(c['passed'] for c in fixtures['checks'])}/{len(fixtures['checks'])} checks pass", checks))
     for family, s in ((corpus or {}).get('families') or {}).items():
         b = corpus_bars(s)
@@ -400,7 +400,7 @@ def summary_section(fixtures, corpus, hostile):
             else:
                 result = (f"no key compared; check failed on {cb['errors']:,} files, not run on "
                           f"{cb['not_run']:,}")
-            rows.append((f'Corpus, {FAMILIES[family]}: `--ffprobe-compat`, every key', f'≥ {COMPAT_BAR}% of files',
+            rows.append((f'Corpus, {FAMILIES[family]}: `coreav ffprobe`, every key', f'≥ {COMPAT_BAR}% of files',
                          result, cb['met']))
     if hostile:
         rows.append(('Hostile suite, native: rejected or bounded, no crash', 'every case',

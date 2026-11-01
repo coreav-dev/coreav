@@ -638,13 +638,13 @@ jobs:
           OUT="$RUNNER_TEMP/coreav-isobmff-oracle"
           python3 tools/oracle/kd_audit.py --reference "$OUT/reference" --candidate "$OUT/candidate" \
             --media "$RUNNER_TEMP/coreav-fixtures" --oracle target/release/coreav-oracle
-      # The coreav binary. Every key --ffprobe-compat prints is
+      # The coreav binary. Every selected coreav ffprobe key is
       # compared with ffprobe (known divergences from the overlay above apply),
       # native output is validated against docs/schema/probe-v1.schema.json, and
-      # the hostile-input suite runs through the binary in both output modes.
+      # the hostile-input suite runs through native probe and ffprobe.
       - name: Build the coreav binary
         run: cargo build --locked --release -p coreav-cli
-      - name: Compare coreav probe --ffprobe-compat with ffprobe
+      - name: Compare selected coreav ffprobe fields with ffprobe
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
@@ -688,23 +688,7 @@ jobs:
           [ -s "$RUNNER_TEMP/coreav-r1.json" ] || { verdict='not measured (no report)'; code=3; }
           { echo "### R1 of the 0.1.0 round, ISO base media fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/coreav-r1.sha256"; tail -n 15 "$RUNNER_TEMP/coreav-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           [ "$code" -le 2 ]
-      - name: Check the coreav binary against the library adapter
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          set -euo pipefail
-          OUT="$RUNNER_TEMP/coreav-isobmff-oracle"
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/coreav-fixtures" --out "$OUT/cli" \
-            --adapter scripts/oracle-coreav-cli.sh --levels streams
-          # The library adapter for each file's container (coreav-mkv for the
-          # WebM fixture) is the reference: every gating field, probe status
-          # and stream count must agree through the binary.
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/coreav-fixtures" --out "$OUT/library" \
-            --adapter scripts/oracle-library-adapter.sh --levels streams
-          target/release/coreav-oracle compare --reference "$OUT/library" --candidate "$OUT/cli" \
-            --levels streams --profile fixtures --max-diffs 1000000 --report "$OUT/cli-report.json"
-      # The extract-audio outputs are kept for the extraction oracles below.
-      - name: Validate coreav probe, clip, split, join, remux, extract-audio, extract-subtitles and chapters output against their schemas
+      - name: Validate native library parity and output schemas
         env:
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
           COREAV_EXTRACT_CLI_OUT: ${{ runner.temp }}/coreav-extract-cli
@@ -936,10 +920,10 @@ jobs:
         with:
           name: isobmff-fixture-set
           path: ${{ runner.temp }}/coreav-fixtures
-      # The coreav binary. Every key --ffprobe-compat prints is
+      # The coreav binary. Every selected coreav ffprobe key is
       # compared with ffprobe (known divergences from the overlay above apply),
       # native output is validated against docs/schema/probe-v1.schema.json, and
-      # the hostile-input suite runs through the binary in both output modes.
+      # the hostile-input suite runs through native probe and ffprobe.
       - name: Build the coreav binary
         run: cargo build --locked --release -p coreav-cli
       # Every MP4 and MOV fixture with a video track the clip writer accepts is
@@ -1494,7 +1478,7 @@ jobs:
           python3 -I scripts/oracle_kd_mkv.py --report "$OUT/report.json" --reference "$OUT/reference" \
             --candidate "$OUT/candidate" --out "$OUT/known-divergences.json" \
             --media "$RUNNER_TEMP/mkv-fixtures"
-      - name: Compare coreav probe --ffprobe-compat with ffprobe
+      - name: Compare selected coreav ffprobe fields with ffprobe
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
@@ -1537,19 +1521,7 @@ jobs:
           [ -s "$RUNNER_TEMP/mkv-r1.json" ] || { verdict='not measured (no report)'; code=3; }
           { echo "### R1 of the 0.1.0 round, Matroska and WebM fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/mkv-r1.sha256"; tail -n 15 "$RUNNER_TEMP/mkv-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           [ "$code" -le 2 ]
-      - name: Check the coreav binary against the library adapter
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          set -euo pipefail
-          OUT="$RUNNER_TEMP/mkv-oracle"
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/mkv-fixtures" --out "$OUT/cli" \
-            --adapter scripts/oracle-coreav-cli.sh --levels streams
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/mkv-fixtures" --out "$OUT/library" \
-            --adapter scripts/oracle-library-adapter.sh --levels streams
-          target/release/coreav-oracle compare --reference "$OUT/library" --candidate "$OUT/cli" \
-            --levels streams --profile fixtures --max-diffs 1000000 --report "$OUT/cli-report.json"
-      - name: Validate coreav probe and remux output against the schemas
+      - name: Validate native library parity and output schemas
         env:
           COREAV_FIXTURES: ${{ runner.temp }}/mkv-fixtures
         # The probe and remux outputs; clips take MP4 sources only.
@@ -1714,7 +1686,7 @@ jobs:
           [ "$status" -le 1 ]
           python3 -I scripts/oracle_kd_ts.py --report "$OUT/report.json" --reference "$OUT/reference" \
             --candidate "$OUT/candidate" --out "$OUT/known-divergences.json" --media "$RUNNER_TEMP/ts-fixtures"
-      - name: Compare coreav probe --ffprobe-compat with ffprobe
+      - name: Compare selected coreav ffprobe fields with ffprobe
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
@@ -1758,24 +1730,12 @@ jobs:
           [ -s "$RUNNER_TEMP/ts-r1.json" ] || { verdict='not measured (no report)'; code=3; }
           { echo "### R1 of the 0.1.0 round, MPEG-TS fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/ts-r1.sha256"; tail -n 15 "$RUNNER_TEMP/ts-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           [ "$code" -le 2 ]
-      - name: Check the coreav binary against the library adapter
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          set -euo pipefail
-          OUT="$RUNNER_TEMP/ts-oracle"
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/ts-fixtures" --out "$OUT/cli" \
-            --adapter scripts/oracle-coreav-cli.sh --levels streams
-          scripts/oracle-capture.sh --media "$RUNNER_TEMP/ts-fixtures" --out "$OUT/library" \
-            --adapter scripts/oracle-library-adapter.sh --levels streams
-          target/release/coreav-oracle compare --reference "$OUT/library" --candidate "$OUT/cli" \
-            --levels streams --profile fixtures --max-diffs 1000000 --report "$OUT/cli-report.json"
-      - name: Validate coreav probe output against the schema
+      - name: Validate native library parity and output schema
         env:
           COREAV_FIXTURES: ${{ runner.temp }}/ts-fixtures
         run: cargo test --locked -p coreav-cli --test cli -- --ignored fixtures_match_the_schema
       # docs/design/mpegts.md: the transport stream part of the hostile
-      # suite through the binary, in both output modes and with the packet
+      # suite through native probe and ffprobe, and with the packet
       # listing: no crash, hang or unstructured failure.
       - name: Run the transport stream hostile cases through the coreav binary
         env:

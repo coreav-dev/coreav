@@ -240,9 +240,8 @@ never by the file size.
   files print `coreav.probe-matroska/1`, documented in
   `docs/schema/probe-matroska-v1.md` with a JSON Schema twin. MP4 output is
   unchanged byte for byte.
-- `--ffprobe-compat` prints the same `ffprobe` shape for both containers:
-  `format_name` `matroska,webm`, `codec_tag` `0x0000`, the stream time base
-  of one Track Tick, no `duration_ts` (Matroska stores no stream duration).
+- `coreav ffprobe -of json -show_format -show_streams` prints the
+  ffprobe-compatible document. Native probe output stays separate.
 - `--allow` accepts the names of both containers' codecs; names a container
   does not have are ignored for that container.
 
@@ -264,7 +263,7 @@ never by the file size.
   `mkv-fixtures` workflow compares streams and packets with `ffprobe` through
   `tools/mkv-adapter`, applies the known divergences of
   `docs/known-divergences-mkv.md` with `scripts/oracle_kd_mkv.py`, checks
-  every `--ffprobe-compat` key with `scripts/compat_check.py`, validates the
+  every `coreav ffprobe` key with `scripts/compat_check.py`, validates the
   native output against its schema, and runs MediaInfo as the informational
   second oracle.
 - Corpus: `tools/mkv-adapter/corpus.py` streams the corpus v1 Matroska files

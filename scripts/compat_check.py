@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Compat check for `coreav probe --ffprobe-compat`.
+"""Compat check for a fixed selection of `coreav ffprobe` fields.
 
 For every file, runs `ffprobe -v error -of json -show_format -show_streams`
-and `coreav probe --ffprobe-compat`, and compares every key CoreAV printed
+and `coreav ffprobe -of json -show_format -show_streams -show_entries ENTRIES`,
+and compares every key CoreAV printed
 with the same key in ffprobe's output, as the value ffprobe prints. Streams
 are paired by `index`. Keys CoreAV leaves out are not compared.
+
+ENTRIES retains every field the retired probe compatibility document could
+print, including Dolby Vision side data. The full-command fixture check
+in tools/compat-corpus/run.py separately covers the wider ffprobe contract.
+CoreAV always runs in strict-safe mode, so fallback cannot satisfy this check.
 
 Files that either tool rejects are not compared. A file in scope (MP4, MOV,
 M4A) that ffprobe reads but CoreAV rejects fails the check unless the
 overlay shows KD-STRICT checked on that file; the check also fails when no
-file was compared. (Probe status through the binary is also gated by
-scripts/oracle-coreav-cli.sh against the library adapter.)
+file was compared. (Native probe status and documents are also checked against the library
+in coreav-cli's fixture tests.)
 
 A difference counts as agreement when the stream oracle's known-divergence
 overlay (`scripts/oracle_kd.py --out`, or `scripts/oracle_kd_mkv.py --out`
@@ -56,6 +62,15 @@ import oracle_kd_ts  # noqa: E402
 
 TIMEOUT = 120
 IN_SCOPE = ('.mp4', '.mov', '.m4a')
+ENTRIES = (
+    'format=bit_rate,duration,filename,format_name,nb_streams,size:'
+    'stream=channels,codec_name,codec_tag,codec_tag_string,codec_type,color_primaries,'
+    'color_range,color_space,color_transfer,display_aspect_ratio,duration,duration_ts,'
+    'height,id,index,level,profile,sample_aspect_ratio,sample_rate,time_base,width:'
+    'stream_side_data=rotation,side_data_type,dv_version_major,dv_version_minor,dv_profile,'
+    'dv_level,rpu_present_flag,el_present_flag,bl_present_flag,dv_bl_signal_compatibility_id:'
+    'stream_tags=handler_name,language:format_tags='
+)
 
 # The compat keys that follow each field the stream oracle gates, for the
 # field paths an overlay entry covered on a file (`covered_items[].paths`,
@@ -188,7 +203,8 @@ def harness_error(message):
 # iconv fails cleanly and the names are left as read; no compared key
 # depends on them. scripts/oracle-ffprobe.sh sets the same for the oracle's
 # captures (docs/design/mpegts.md, "The oracle's environment").
-CHILD_ENV = dict(os.environ, GCONV_PATH=os.environ.get('GCONV_PATH', '/nonexistent/gconv'))
+CHILD_ENV = dict(os.environ, GCONV_PATH=os.environ.get('GCONV_PATH', '/nonexistent/gconv'),
+                 COREAV_STRICT_SAFE='1')
 
 
 def run_json(argv, timeout=TIMEOUT):
@@ -288,7 +304,9 @@ def main():
     for path in media_files(args.media):
         ref_code, ref = run_json([args.ffprobe, '-v', 'error', '-of', 'json',
                                   '-show_format', '-show_streams', str(path)], args.timeout)
-        our_code, ours = run_json([args.coreav, 'probe', '--ffprobe-compat', str(path)], args.timeout)
+        our_code, ours = run_json([args.coreav, 'ffprobe', '-v', 'error', '-of', 'json',
+                                  '-show_format', '-show_streams', '-show_entries', ENTRIES,
+                                  str(path)], args.timeout)
         if our_code not in (0, 1, 3):
             harness_error(f'coreav exited {our_code} on {path.name}')
         if ref is None or ours is None:

@@ -5,8 +5,8 @@
 //! - [`ops`], independent of the target: each operation takes a
 //!   [`Source`](coreav_isobmff::Source), JSON options and, if it writes an
 //!   output, a [`std::io::Write`], and returns the JSON document `coreav`
-//!   prints (`coreav.probe/1`, `coreav.clip/1`) or a `coreav.error/1`
-//!   object. The native build of this layer is the reference the
+//!   prints (`coreav.probe/1`, `coreav.clip/1`, the text of
+//!   `coreav ffprobe`) or a `coreav.error/1` object. The native build of this layer is the reference the
 //!   WebAssembly build is compared with.
 //! - `bindings`, built for `wasm32` only: two `wasm-bindgen` exports,
 //!   `runDocument` and `runStream`, over a JavaScript source and sink. Reads

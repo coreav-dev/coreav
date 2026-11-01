@@ -6,8 +6,7 @@
 //! for Matroska and WebM (`docs/schema/probe-matroska-v1.md`) and
 //! `coreav.probe-mpegts/1` for MPEG transport streams
 //! (`docs/schema/probe-mpegts-v1.md`).
-//! `--ffprobe-compat` prints the subset of `ffprobe -of json -show_format
-//! -show_streams` that is checked against `ffprobe`. `coreav clip --start
+//! `coreav ffprobe` prints ffprobe-compatible output. `coreav clip --start
 //! TIME INPUT OUTPUT` cuts a keyframe-aligned clip of an MP4/MOV file by
 //! stream copy and prints its summary (`coreav.clip/1`,
 //! `docs/schema/clip-v1.md`). `coreav split --every TIME INPUT
@@ -74,8 +73,8 @@ use coreav_cli::output::{self, WriteFailure};
 #[cfg(feature = "net")]
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_cli::{
-    check, clip, compat, decode_audio, error::Failure, extract, hls, join, matroska, mpegts, names,
-    native, probe, remux, split, strict_safe::StrictSafe, text, thumbnail,
+    check, clip, decode_audio, error::Failure, extract, hls, join, matroska, mpegts, names, native,
+    probe, remux, split, strict_safe::StrictSafe, text, thumbnail,
 };
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
@@ -726,15 +725,11 @@ struct ClipArgs {
 struct ProbeArgs {
     /// The file to probe.
     file: PathBuf,
-    /// Print the `ffprobe -of json -show_format -show_streams` shape,
-    /// limited to fields checked against `ffprobe`.
-    #[arg(long)]
-    ffprobe_compat: bool,
     /// Read every movie fragment so that fragmented streams get their
-    /// durations (the default with --ffprobe-compat).
+    /// durations.
     #[arg(long, conflicts_with = "no_scan_fragments")]
     scan_fragments: bool,
-    /// Do not read movie fragments, even with --ffprobe-compat.
+    /// Do not read movie fragments (the default).
     #[arg(long)]
     no_scan_fragments: bool,
     /// Read the parameter sets and frame headers in every sample of each
@@ -1918,12 +1913,7 @@ fn run_probe(args: &ProbeArgs) -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    let scan = if args.ffprobe_compat {
-        !args.no_scan_fragments
-    } else {
-        args.scan_fragments
-    };
-    let name = args.file.to_string_lossy();
+    let scan = args.scan_fragments;
     let mut remote = match open_remote(&args.file) {
         Ok(remote) => remote,
         Err(exit) => return exit,
@@ -1969,15 +1959,8 @@ fn run_probe(args: &ProbeArgs) -> ExitCode {
         }
     };
     let document = match probed {
-        Ok(Probed::Matroska(probed)) if args.ffprobe_compat => {
-            matroska::compat_document(&probed, &name)
-        }
         Ok(Probed::Matroska(probed)) => matroska::document(&probed),
-        Ok(Probed::Mpegts(probed)) if args.ffprobe_compat => {
-            mpegts::compat_document(&probed, &name)
-        }
         Ok(Probed::Mpegts(probed)) => mpegts::document(&probed),
-        Ok(Probed::Iso(result)) if args.ffprobe_compat => compat::document(&result, &name),
         Ok(Probed::Iso(result)) => native::document(&result),
         Err(failure) => return fail(&failure),
     };

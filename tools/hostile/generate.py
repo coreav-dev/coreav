@@ -143,7 +143,7 @@ def structural(out: pathlib.Path) -> list:
     # `trun` can put every per-sample value in the `trex` and `tfhd`
     # defaults, so its count alone claims the fragment. Probe never
     # reads a fragment, so each file is `bounded`: it probes, and the
-    # commands that do read the fragment (`--ffprobe-compat`, which scans
+    # commands that do read the fragment (`coreav ffprobe`, which scans
     # by default, and `--scan-fragments`) must refuse it rather than report
     # what it claims. FFmpeg 7.0.2 refuses the first three at its header
     # and reads the fourth, whose count is small.

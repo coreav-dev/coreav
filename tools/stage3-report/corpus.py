@@ -225,7 +225,7 @@ def tools(family):
     for rel in HARNESS + OVERLAY_IMPORTS[family]:
         harness.update(f'{rel} {sha256_file(ROOT / rel)}\n'.encode())
     return {'adapter': sha256_file(release / FAMILIES[family]['adapter'])[:16],
-            # The command whose `--ffprobe-compat` output the compat check reads.
+            # The command whose `coreav ffprobe` output the compat check reads.
             'coreav': sha256_file(release / 'coreav')[:16],
             'oracle': sha256_file(oracle)[:16],
             'overlay': sha256_file(ROOT / 'scripts' / FAMILIES[family]['kd'])[:16],
@@ -301,7 +301,7 @@ def check_file(entry, family, out, work, made_by, local=None):
         levels = json.loads((root / 'kd.json').read_text())['levels']
         record['levels'] = {level: dict(groups['all'])
                             for level, groups in levels.items()}
-        # Every key `--ffprobe-compat` prints against ffprobe's, with this file's own overlay for the known divergences.
+        # Every key `coreav ffprobe` prints against ffprobe's, with this file's own overlay for the known divergences.
         # Its own extension in scope: every rejection of a file ffprobe reads
         # needs a known divergence. The captures' time bound, not the
         # script's default.
@@ -485,7 +485,7 @@ def summarize(out, family):
         stream_fields, packet_fields = {}, {}
         # The entries that cover each file covered at the streams level.
         covered_kd_sets = []
-        # --ffprobe-compat per key: files compared, and how each agreed.
+        # coreav ffprobe per key: files compared, and how each agreed.
         compat = {'keys': {}, 'compared': 0, 'rejected_unexplained': 0, 'errors': 0, 'records': 0, 'not_run': 0}
         for e in members:
             r = records.get(e['sha256'])

@@ -62,7 +62,7 @@ impl Write for Sink {
 
 const OPTIONS: [&str; 8] = [
     "{}",
-    r#"{"format": "ffprobe-compat", "scanFragments": true}"#,
+    r#"{"scanFragments": true}"#,
     r#"{"start": "0", "end": "1"}"#,
     r#"{"start": "0.5", "audio": "none", "limits": {"maxTableBytes": 4096}}"#,
     r#"{"stream": 1, "strict": true}"#,

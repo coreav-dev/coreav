@@ -81,7 +81,7 @@ its blocks the same way.
 | Key | Type | Probe value | Rule |
 |---|---|---|---|
 | `max_size` | integer | `file.size` | Bytes, at most this. |
-| `max_bit_rate` | integer | `file.size` and `duration` | Overall bit rate in bits per second, `file.size` × 8 ÷ `duration` seconds (exact; the format `bit_rate` of `--ffprobe-compat` is this value truncated), at most this. Unknown when the duration is unknown or 0. For a Matroska file without `Duration` (`duration` is `null`, a live recording), the duration is the longest stream duration, when every stream has one. |
+| `max_bit_rate` | integer | `file.size` and `duration` | Overall bit rate in bits per second, `file.size` × 8 ÷ `duration` seconds (exact; ffprobe-compatible output uses its own reported format duration), at most this. Unknown when the duration is unknown or 0. For a Matroska file without `Duration` (`duration` is `null`, a live recording), the duration is the longest stream duration, when every stream has one. |
 
 ## `container`
 

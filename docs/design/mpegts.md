@@ -1,5 +1,9 @@
 # MPEG transport stream demux (`coreav-mpegts`)
 
+Historical results below that name `--ffprobe-compat` measure the retired
+command. They do not measure its replacement,
+`coreav ffprobe -of json -show_format -show_streams`.
+
 Status: Accepted. Scope: MPEG-TS demux, a job of roadmap step 1. The input of HLS
 ingest and of broadcast captures, and, by FFmpeg's vulnerability history, a demuxer worth moving out of C first.
 
@@ -26,8 +30,8 @@ ingest and of broadcast captures, and, by FFmpeg's vulnerability history, a demu
   transport packet that starts it, timestamps unwrapped past the 33-bit
   wrap, and the keyframe flag.
 - `coreav probe` prints the result as `coreav.probe-mpegts/1`
-  (`docs/schema/probe-mpegts-v1.md`), and as the `ffprobe` shape with
-  `--ffprobe-compat`. With `--scan-frame-sizes` it also lists every access
+  (`docs/schema/probe-mpegts-v1.md`). `coreav ffprobe` prints the
+  ffprobe-compatible document. With `--scan-frame-sizes`, probe lists every access
   unit and reports what the listing counted per stream (`scan`: packets,
   bytes, the first and last presentation times, their span and the bit rate
   over it). That is the listing's own count, not a second duration
@@ -203,7 +207,7 @@ out stay listed: their packets before the change are the file's.
 `ffprobe` prints a picture size for every video stream, 0 by 0 for one
 whose parameters it never learnt (a scrambled stream, or the MVC video
 sub-bitstream of a Blu-ray 3D capture, stream type 0x20, whose subset
-sequence parameter sets give no size), so `--ffprobe-compat` does too; the
+sequence parameter sets give no size), so `coreav ffprobe` does too; the
 native document leaves the size out, since it is not known. A presentation
 graphics subtitle (stream type 0x90) states the picture it is composed on
 in its presentation composition segment (Blu-ray BD-ROM part 3-1

@@ -1,5 +1,9 @@
 # `coreav-mpegts` against `ffprobe`
 
+Historical results below that name `--ffprobe-compat` measure the retired
+command. They do not measure its replacement,
+`coreav ffprobe -of json -show_format -show_streams`.
+
 Results of the corpus run whose pass bars `docs/design/mpegts.md` fixed
 before it, with the design note in change A (`cdcd6e4`), part 1 of change B, where
 no real file had yet been compared. Counts only; per-file captures stay outside git.

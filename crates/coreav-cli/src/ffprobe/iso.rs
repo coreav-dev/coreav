@@ -372,10 +372,21 @@ fn signed_offsets(track: &Track, mut p: coreav_isobmff::Packet) -> coreav_isobmf
 }
 
 /// Probes `source` as ISO base media.
-pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProbed, Failure> {
-    let probed = crate::probe::run_source(&mut *source, size, &Allowlist::listing(), true)?;
+pub fn probe<S: Source>(
+    source: &mut S,
+    size: u64,
+    name: &str,
+    limits: &Limits,
+) -> Result<IsoProbed, Failure> {
+    let probed = crate::probe::run_source_limited(
+        &mut *source,
+        size,
+        &Allowlist::listing(),
+        true,
+        false,
+        limits,
+    )?;
     let movie = &probed.movie;
-    let limits = Limits::default();
     let mut report = Report::default();
     // The iTunes gapless tag gives the AAC priming of a file without an
     // edit list, which `ffprobe` skips as the edit list's (ISO/IEC 14496-12
@@ -391,7 +402,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
     let mut steps = Vec::with_capacity(movie.tracks.len());
     // Tags, dispositions, extradata sizes, chapters and protected entries,
     // as `ffprobe` reads them from the boxes (`iso_meta`).
-    let meta = super::iso_meta::read(movie, &mut *source)?;
+    let meta = super::iso_meta::read(movie, &mut *source, limits)?;
     for (i, original) in movie.tracks.iter().enumerate() {
         // A protected entry is described by the format it wraps, as
         // `ffprobe` reports it.
@@ -401,7 +412,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
             .and_then(Option::as_ref)
             .map(|p| unprotected(original, p));
         let track = unwrapped.as_ref().unwrap_or(original);
-        let mut head = head(movie, track, &mut *source, &limits);
+        let mut head = head(movie, track, &mut *source, limits);
         let skip = if track.kind != TrackKind::Audio {
             0
         } else if let Some(first) = head.first_pts.filter(|p| *p < 0) {
@@ -424,7 +435,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
             }
         }
         priming.push(skip);
-        shifts.push(dts_shift(movie, track, &mut *source, &limits));
+        shifts.push(dts_shift(movie, track, &mut *source, limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
         let mut audio_header = Vec::new();
@@ -1999,7 +2010,7 @@ pub fn packets<'a, S: Source + 'a>(
     probed: IsoProbedPackets,
     mut source: S,
 ) -> Box<dyn PacketSource + 'a> {
-    let limits = Limits::default();
+    let limits = probed.limits;
     let plans = probed
         .movie
         .tracks
@@ -2070,6 +2081,7 @@ pub fn packets<'a, S: Source + 'a>(
         steps: probed.steps,
         covers: probed.covers,
         pictures: probed.pictures,
+        limits,
     })
 }
 
@@ -2900,6 +2912,8 @@ pub struct IsoProbedPackets {
     pub covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pub pictures: Vec<usize>,
+    /// The limits the probe ran under, which the listing keeps.
+    pub limits: Limits,
 }
 
 /// A track's next packets, each with the duration it is listed with when
@@ -2925,6 +2939,7 @@ struct IsoPackets<S> {
     covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pictures: Vec<usize>,
+    limits: Limits,
 }
 
 /// One source shared by the iterators of every track, which are advanced
@@ -2955,7 +2970,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
     ) -> Result<(), Failure> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
-        let limits = Limits::default();
+        let limits = self.limits;
         for &index in &self.pictures {
             let Some(track) = self.movie.tracks.get(index) else {
                 continue;

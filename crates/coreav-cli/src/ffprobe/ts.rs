@@ -113,11 +113,12 @@ pub fn probe<'a, S: Source + 'a>(
     mut source: S,
     size: u64,
     name: &str,
+    listing: Limits,
 ) -> Result<Probed<'a>, Failure> {
     let limits = Limits {
         max_tail_bytes: TAIL_BYTES,
         tail_retries: TAIL_RETRIES,
-        ..Limits::default()
+        ..listing
     };
     let mut ts = coreav_mpegts::probe(&mut source, &limits, &Allowlist::default())
         .map_err(Failure::Mpegts)?;
@@ -237,7 +238,12 @@ pub fn probe<'a, S: Source + 'a>(
     report.format = format(&ts, &file, size, name, report.programs.len());
     Ok(Probed {
         report,
-        packets: Box::new(TsPackets { ts, source, listed }),
+        packets: Box::new(TsPackets {
+            ts,
+            source,
+            listed,
+            limits: listing,
+        }),
     })
 }
 
@@ -2399,6 +2405,7 @@ struct TsPackets<S> {
     source: S,
     /// Per stream of the probe.
     listed: Vec<Listed>,
+    limits: Limits,
 }
 
 impl<S: Source> PacketSource for TsPackets<S> {
@@ -2407,7 +2414,7 @@ impl<S: Source> PacketSource for TsPackets<S> {
         payloads: &[bool],
         f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
     ) -> Result<(), Failure> {
-        let limits = Limits::default();
+        let limits = self.limits;
         let packets = self
             .ts
             .packets(&mut self.source, &limits)

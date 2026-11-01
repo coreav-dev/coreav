@@ -2,7 +2,7 @@
 
 Status: Accepted. Scope: the colour fields of video streams in
 `coreav probe` for ISO base media files, and how the stream oracle and
-`--ffprobe-compat` map them to `ffprobe`'s fields.
+`coreav ffprobe` map them to `ffprobe`'s fields.
 
 ## Two sources
 
@@ -43,7 +43,7 @@ disagrees with their parameter set.
    (below); `null` and 2 mean different things.
 3. **`ffprobe`'s precedence is measured, not assumed, and lives in the
    mapping to `ffprobe`'s fields.** The stream oracle's adapter
-   (`tools/isobmff-adapter`) and `coreav probe --ffprobe-compat` report what
+   (`tools/isobmff-adapter`) and `coreav ffprobe -of json -show_format -show_streams` report what
    `ffprobe` reports, from the two raw sources. `ffprobe` 9.0.2, measured as
    a black box on files whose `colr` box was rewritten
    (`scripts/colr_craft.py`):

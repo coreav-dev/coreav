@@ -1,6 +1,6 @@
 //! MPEG transport streams (`docs/design/mpegts.md`): probing with the
 //! library defaults, the native schema `coreav.probe-mpegts/1`
-//! (`docs/schema/probe-mpegts-v1.md`) and the `--ffprobe-compat` shape.
+//! (`docs/schema/probe-mpegts-v1.md`) and shared ffprobe field derivations.
 //!
 //! A transport stream has no header to recognise, so the command offers a
 //! file here only once the Matroska and ISO base media readers have
@@ -9,7 +9,6 @@
 //! bytes alone would not (a stream may start after a prefix of other
 //! bytes).
 
-use crate::compat::put;
 use crate::error::Failure;
 use crate::names;
 use crate::native::{profile, rational};
@@ -17,16 +16,13 @@ use crate::time::to_f64;
 use coreav_isobmff::Rational;
 use coreav_mpegts::{
     Allowlist, BufferedSource, Codec, Descriptor, Error, FileSource, Limits, PacketSize, Source,
-    Stream, StreamKind, TransportStream, Video, arib_caption_profile, probe,
+    Stream, StreamKind, TransportStream, arib_caption_profile, probe,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::path::Path;
 
 /// The schema identifier.
 pub const SCHEMA: &str = "coreav.probe-mpegts/1";
-
-/// `ffprobe`'s format name for every transport stream.
-const FORMAT_NAME: &str = "mpegts";
 
 /// Transport stream timestamps are 90 kHz ticks (ISO/IEC 13818-1 2.4.3.7),
 /// and so is `ffprobe`'s time base for them.
@@ -507,136 +503,6 @@ pub(crate) fn level(s: &Stream) -> Option<u8> {
         return Some(level);
     }
     s.profile.and_then(names::level)
-}
-
-fn compat_stream(s: &Stream) -> Value {
-    let mut out = Map::new();
-    out.insert("index".to_owned(), json!(s.stream_index));
-    // `ffprobe` prints the PID as the stream's id, which names the same
-    // stream whatever order the two readers list the streams in.
-    out.insert("id".to_owned(), json!(format!("0x{:x}", s.pid)));
-    put(&mut out, "codec_name", ffprobe_codec(s).map(Value::from));
-    put(&mut out, "profile", profile_name(s).map(Value::from));
-    // `ffprobe` leaves the media type of a stream whose type names no
-    // codec it knows unknown, and prints no `codec_type` for it; a private
-    // stream (type 0x06) it reads as binary data is `data`.
-    if s.codec != Codec::Other || s.stream_type == 0x06 {
-        out.insert("codec_type".to_owned(), json!(kind(s.kind)));
-    }
-    let bytes = tag_bytes(s);
-    out.insert(
-        "codec_tag_string".to_owned(),
-        json!(codec_tag_string(bytes)),
-    );
-    out.insert("codec_tag".to_owned(), json!(codec_tag(bytes)));
-    if s.kind == StreamKind::Video || s.video.is_some() {
-        // `ffprobe` prints a size for every video stream, 0 when it has
-        // not learnt one (a stream whose parameter sets it never saw, an
-        // MVC sub-bitstream or a scrambled one); and for a presentation
-        // graphics subtitle the picture its composition segment states.
-        let v = s.video.unwrap_or(Video {
-            width: 0,
-            height: 0,
-        });
-        out.insert("width".to_owned(), json!(v.width));
-        out.insert("height".to_owned(), json!(v.height));
-        let color = s.color;
-        put(
-            &mut out,
-            "color_range",
-            color
-                .full_range
-                .map(|full| Value::from(if full { "pc" } else { "tv" })),
-        );
-        put(
-            &mut out,
-            "color_space",
-            color.matrix.and_then(names::matrix).map(Value::from),
-        );
-        put(
-            &mut out,
-            "color_transfer",
-            color.transfer.and_then(names::transfer).map(Value::from),
-        );
-        put(
-            &mut out,
-            "color_primaries",
-            color.primaries.and_then(names::primaries).map(Value::from),
-        );
-    }
-    put(&mut out, "level", level(s).map(Value::from));
-    if let Some(a) = s.audio.filter(|_| s.kind == StreamKind::Audio) {
-        out.insert("sample_rate".to_owned(), json!(a.sample_rate.to_string()));
-        if a.channels > 0 {
-            out.insert("channels".to_owned(), json!(a.channels));
-        }
-    }
-    out.insert("time_base".to_owned(), json!(format!("1/{TIMESCALE}")));
-    let duration_ts = s.duration();
-    put(&mut out, "duration_ts", duration_ts.map(Value::from));
-    put(
-        &mut out,
-        "duration",
-        duration_ts.map(|ticks| Value::from(seconds_string(ticks))),
-    );
-    if let Some(language) = s
-        .language
-        .as_deref()
-        .filter(|l| !l.is_empty() && *l != "und")
-    {
-        out.insert("tags".to_owned(), json!({ "language": language }));
-    }
-    Value::Object(out)
-}
-
-/// 90 kHz ticks as `ffprobe` prints a duration: seconds with six decimals.
-fn seconds_string(ticks: i64) -> String {
-    #[allow(clippy::cast_precision_loss)]
-    let seconds = ticks as f64 * (1.0 / f64::from(TIMESCALE));
-    format!("{seconds:.6}")
-}
-
-/// The `--ffprobe-compat` document.
-pub fn compat_document(probed: &Probed, filename: &str) -> Value {
-    let ts = &probed.stream;
-    let mut format = Map::new();
-    format.insert("filename".to_owned(), json!(filename));
-    format.insert(
-        "nb_streams".to_owned(),
-        json!(ts.streams.len().saturating_add(ts.dropped.len())),
-    );
-    format.insert("format_name".to_owned(), json!(FORMAT_NAME));
-    // Whole 90 kHz ticks, then microseconds, as the oracle adapter counts
-    // them: half a tick up, so that a duration printed by both sides rounds
-    // the same way.
-    let micros = ts.duration().and_then(|ticks| {
-        i64::try_from(
-            (i128::from(ticks) * 1_000_000 + i128::from(TIMESCALE) / 2)
-                .div_euclid(i128::from(TIMESCALE)),
-        )
-        .ok()
-        .filter(|us| *us > 0)
-    });
-    if let Some(us) = micros {
-        format.insert(
-            "duration".to_owned(),
-            json!(format!("{}.{:06}", us / 1_000_000, us % 1_000_000)),
-        );
-    }
-    format.insert("size".to_owned(), json!(probed.size.to_string()));
-    if let Some(rate) = micros
-        .and_then(|us| u128::try_from(us).ok())
-        .and_then(|us| {
-            u128::from(probed.size)
-                .checked_mul(8_000_000)
-                .and_then(|bits| bits.checked_div(us))
-        })
-        .and_then(|rate| u64::try_from(rate).ok())
-    {
-        format.insert("bit_rate".to_owned(), json!(rate.to_string()));
-    }
-    let streams: Vec<Value> = ts.streams.iter().map(compat_stream).collect();
-    json!({"streams": streams, "format": format})
 }
 
 #[cfg(test)]

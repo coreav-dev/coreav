@@ -237,7 +237,7 @@ class Fingerprint(unittest.TestCase):
         self.assertEqual(self.stale(), 2)
 
     def test_a_changed_coreav_command_makes_every_record_stale(self):
-        # The compat check runs `coreav probe --ffprobe-compat`.
+        # The compat check runs `coreav ffprobe -of json -show_format -show_streams`.
         (self.root / 'release' / 'coreav').write_bytes(b'coreav, rebuilt')
         self.assertEqual(self.stale(), 2)
 

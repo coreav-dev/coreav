@@ -223,9 +223,8 @@ fn protected(entry: &metadata::SampleEntry) -> Option<Protected> {
 
 /// Reads the metadata of `movie` from `source`, the file it was probed
 /// from.
-pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure> {
-    let limits = Limits::default();
-    let meta = metadata::read(&mut *source, &limits).map_err(Failure::library)?;
+pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result<IsoMeta, Failure> {
+    let meta = metadata::read(&mut *source, limits).map_err(Failure::library)?;
     let quicktime = match meta.file_types.first() {
         Some(f) => f.major_brand == FourCc(*b"qt  "),
         None => meta
@@ -280,7 +279,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
     let mut out = IsoMeta {
         covers: covers(&meta),
         format_tags: format_tags(&meta, &timecodes),
-        chapters: chapters(movie, &chapter_list, &meta, &mut *source)?,
+        chapters: chapters(movie, &chapter_list, &meta, &mut *source, limits)?,
         chapter_pictures,
         protection_headers: meta.protection_headers > 0,
         ..IsoMeta::default()
@@ -1114,8 +1113,8 @@ fn chapters<S: Source>(
     list: &[u32],
     meta: &Metadata,
     source: &mut S,
+    limits: &Limits,
 ) -> Result<Vec<Chapter>, Failure> {
-    let limits = Limits::default();
     let text_limits = coreav_text::TextLimits::default();
     // Every referenced text track in turn, each chapter replacing the one
     // of the same number before it (found black box: of `chap` 2, 1 with
@@ -1136,7 +1135,7 @@ fn chapters<S: Source>(
     let mut title_sizes: Vec<u64> = Vec::new();
     let mut title_bytes = 0u64;
     let read =
-        coreav_text::read_chapter_tracks(&mut *source, &ids, &limits, &text_limits, |result| {
+        coreav_text::read_chapter_tracks(&mut *source, &ids, limits, &text_limits, |result| {
             match result {
                 Ok(list) => {
                     let replaced: u64 = title_sizes.iter().take(list.chapters.len()).sum();

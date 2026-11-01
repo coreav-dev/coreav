@@ -13,6 +13,7 @@ pub mod args;
 mod frames;
 mod iso;
 mod iso_meta;
+mod limits;
 mod metadata;
 mod mkv;
 pub mod model;
@@ -181,12 +182,33 @@ pub struct Probed<'a> {
     pub packets: Box<dyn PacketSource + 'a>,
 }
 
-/// Probes `source` (`size` bytes, printed as `name`) and builds its report.
+/// Probes `source` (`size` bytes, printed as `name`) and builds its report,
+/// under the library's default limits.
 pub fn probe<'a, S: Source + 'a>(
     source: &'a mut S,
     size: u64,
     name: &str,
     force: Option<args::Container>,
+) -> Result<Probed<'a>, Failure> {
+    probe_limited(
+        source,
+        size,
+        name,
+        force,
+        &coreav_isobmff::Limits::default(),
+    )
+}
+
+/// [`probe`] under `limits`: they bound the ISO base media reader as they
+/// are, and the Matroska and transport stream readers through the limits
+/// they imply (`limits.rs`). The packets of the result are listed under the
+/// same limits.
+pub fn probe_limited<'a, S: Source + 'a>(
+    source: &'a mut S,
+    size: u64,
+    name: &str,
+    force: Option<args::Container>,
+    limits: &coreav_isobmff::Limits,
 ) -> Result<Probed<'a>, Failure> {
     let mut buffered = coreav_isobmff::BufferedSource::new(source);
     let matroska = crate::matroska::detect_source(&mut buffered)?;
@@ -195,10 +217,10 @@ pub fn probe<'a, S: Source + 'a>(
         if !wanted(args::Container::Matroska) {
             return Err(Failure::Library(coreav_isobmff::Error::NotIsobmff));
         }
-        return mkv::probe(buffered, size, name);
+        return mkv::probe(buffered, size, name, limits::matroska(limits));
     }
     if wanted(args::Container::Isobmff) {
-        match iso::probe(&mut buffered, size, name) {
+        match iso::probe(&mut buffered, size, name, limits) {
             Err(failure) if not_isobmff(&failure) => {}
             Ok(iso::IsoProbed {
                 mut report,
@@ -235,6 +257,7 @@ pub fn probe<'a, S: Source + 'a>(
                     steps,
                     covers,
                     pictures,
+                    limits: *limits,
                 };
                 return Ok(Probed {
                     report,
@@ -244,8 +267,15 @@ pub fn probe<'a, S: Source + 'a>(
             Err(other) => return Err(other),
         }
     }
-    if wanted(args::Container::Mpegts) && crate::mpegts::detect_source(&mut buffered)? {
-        return ts::probe(buffered, size, name);
+    if wanted(args::Container::Mpegts) {
+        let limits = limits::mpegts(limits);
+        match coreav_mpegts::detect(&mut buffered, &limits) {
+            Ok(_) => return ts::probe(buffered, size, name, limits),
+            Err(coreav_mpegts::Error::Io(kind)) => {
+                return Err(Failure::Mpegts(coreav_mpegts::Error::Io(kind)));
+            }
+            Err(_) => {}
+        }
     }
     Err(Failure::Library(coreav_isobmff::Error::NotIsobmff))
 }
