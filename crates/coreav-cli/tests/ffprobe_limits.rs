@@ -127,13 +127,13 @@ fn a_chapter_track_over_the_text_limits_is_still_left_out() {
     );
 }
 
-fn late_negative_offsets(sample_40: u32) -> Vec<u8> {
-    let mut sizes = vec![10; 64];
-    sizes[40] = sample_40;
+fn late_negative_offsets(sample_100: u32) -> Vec<u8> {
+    let mut sizes = vec![10; 128];
+    sizes[100] = sample_100;
     common::movie(&common::Spec {
         sizes,
         composition: Vec::new(),
-        ctts: Some(vec![(48, 0), (16, -1024)]),
+        ctts: Some(vec![(112, 0), (16, -1024)]),
         sync: Vec::new(),
         elst: Some(vec![(80, 0)]),
         ..common::Spec::default()
@@ -183,7 +183,7 @@ fn a_limit_the_decode_time_scan_exceeds_fails_the_listing() {
 #[test]
 fn a_sample_past_the_end_still_ends_the_decode_time_scan_quietly() {
     let mut bytes = late_negative_offsets(10);
-    let at = bytes.windows(4).position(|w| w == b"stsz").unwrap() + 16 + 4 * 40;
+    let at = bytes.windows(4).position(|w| w == b"stsz").unwrap() + 16 + 4 * 100;
     bytes[at..at + 4].copy_from_slice(&1_000_000u32.to_be_bytes());
     let mut probed = probe_limited(fixture(bytes), &Limits::default())
         .ok()
@@ -217,9 +217,8 @@ fn iso_base_media_probes_and_lists_within_the_limits() {
         max_packet_bytes: 50,
         ..Limits::default()
     };
-    let mut probed = probe_limited(movie(), &packets).ok().unwrap();
     assert!(matches!(
-        listed(&mut probed),
+        probe_limited(movie(), &packets),
         Err(Failure::Library(coreav_isobmff::Error::LimitExceeded {
             limit: coreav_isobmff::LimitKind::PacketBytes,
             ..

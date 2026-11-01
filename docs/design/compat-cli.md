@@ -1049,6 +1049,26 @@ samples keep their existing quiet end-of-scan behavior. The native packet
 listing also refuses such errors under its default limits; a stream
 selection does not exempt another track from this scan.
 
+The first-packet and audio-priming scans also retain source I/O and parser
+limit failures, but these scans derive report values, so their failures
+fail the report, including WebAssembly ffprobe. A malformed sample still
+ends those optional scans quietly. The first-packet window stays at 64
+packets, or 99 for video; rate-only probing keeps that bounded window and
+does not scan fragment totals or construct a report.
+
+Simple- and multiple-edit listing plans retain the same source failures
+in one preflight result with the decode-time shifts. A listing returns a
+failed preflight before any chapter picture, cover or regular packet;
+report-only probes do not require those plans. Malformed samples still
+drop an edit plan so the library listing can report them when reached.
+Exhausting the separate work budget for modelling repeated multi-edit
+listings still selects the library's ISO/IEC 14496-12 8.6.6 mapping where
+supported, with its existing unknown times for unsupported lists, not a
+partial repeated listing. A reader failure takes precedence if it occurs
+on the same sample as that exhaustion. These changes add error checks to
+existing scan windows and retain a typed preflight result, without adding
+scans or raising any instruction-guard threshold.
+
 The replacement is not the old document with a different command name.
 `coreav ffprobe` lists streams the old flag dropped and takes some values
 from the stream rather than the container. It also prints more keys.
