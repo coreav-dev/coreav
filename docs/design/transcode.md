@@ -355,9 +355,16 @@ same rule (`decode.md`, "The FFmpeg fallback").
 - **Transfer.** Planes are written to the encoder's standard input packed,
   without row padding, by the writer thread (for FFmpeg inside the
   Matroska blocks of "Rate control and timestamps", a few bytes of
-  element headers a frame). A 1080p 8-bit 4:2:0 frame is
-  3.1 MB; through a pipe that is about a millisecond of copying, against
-  tens of milliseconds of encoding a frame at the default preset.
+  element headers a frame). The writer takes each frame as the decoder
+  gave it and writes from there: a plane whose rows are packed in one
+  write, padded rows gathered through a 1 MiB buffer the thread reuses,
+  and a frame lent in the sandboxed worker's shared memory
+  (`docs/design/decode.md`, "Copy, or lend; never views") copied out
+  through the same buffer. So a frame's bytes are copied once on their
+  way into the pipe, and no frame-sized buffer is allocated per frame. A
+  1080p 8-bit 4:2:0 frame is 3.1 MB, an 8K one 54 MB. The buffer is
+  1 MiB because, in a local test of the copy alone, 64 KiB to 256 KiB
+  pieces took longer at 4K and 8K, and 2 to 4 MiB gained nothing.
 - **Colour.** The colour description the decoder applies (H.273 code
   points, as `coreav thumbnail` reads it) goes to the encoder's VUI
   options, as FFmpeg passes the decoded frames' description to libx264.
@@ -580,7 +587,14 @@ the encode does not take is refused before the video encoder starts:
    Matroska's `CodecDelay` and `DiscardPadding`; leading empty edits are
    silence) and resamples to 48 kHz 32-bit float
    (`docs/design/audio-decode.md`, "Resampling and downmixing"). Sample 0
-   is presentation time 0. More than two channels, an edit list the
+   is presentation time 0 of an MP4 stream; a Matroska stream's sample 0
+   is its first frame's presentation time on the segment's timeline
+   (`coreav_mkv::Packet::pts_ns`) plus the `CodecDelay` the decoder drops
+   (the first block's timestamp, for a block that is not laced), which the edit
+   list keeps as an empty edit (below), where the remux presents a copied
+   frame of it ([`mkv-remux.md`](mkv-remux.md), "Edit lists"); a Matroska
+   stream that starts before time 0, or whose start is not known, is
+   refused. More than two channels, an edit list the
    decoder does not apply exactly, or a source the demuxer stops reading
    early is refused (`unsupported_feature`): the samples would not be the
    stream's presentation.
@@ -609,7 +623,8 @@ the encode does not take is refused before the video encoder starts:
    the output channels, the pre-skip, the source's sample rate as the
    input rate, gain 0, channel mapping family 0), media timescale 48,000,
    every packet a 960-tick sync sample, an edit list that presents the
-   decoded samples from movie time 0 and leaves out the pre-skip and the
+   decoded samples from movie time 0 (from a Matroska stream's start,
+   after an empty edit) and leaves out the pre-skip and the
    padding (the edit's media time is the pre-skip), and a `roll` group
    of distance −4, 80 ms of 20 ms packets. The movie timescale becomes a
    multiple of 48,000 where the edit would round in it and the multiple
@@ -766,7 +781,8 @@ without it the encoder's own default applies, which the summary gives as
    (ISO/IEC 14496-1 7.2.6.5: object type 0x40, an audio stream, the
    `AudioSpecificConfig` as read), media timescale the sample rate, every
    frame a 1,024-tick sync sample, an edit list that presents the decoded
-   samples from movie time 0 and leaves out the delay and the padding (the
+   samples from movie time 0 (from a Matroska stream's start, after an
+   empty edit, as for Opus) and leaves out the delay and the padding (the
    edit's media time is the delay), and a `roll` group of distance −1,
    since a frame overlaps the one before it (ISO/IEC 14496-3 4.6.11).
 
@@ -834,16 +850,17 @@ wall time of each arm's whole command, median of three), as for Opus.
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
 `ffmpeg` command lines of this job through this pipeline: one input, the
-video re-encoded with libx264, the audio copied, dropped, or (in builds
-with the `libopus` feature) one audio stream encoded with libopus ("Opus
-audio"), one MP4 output. The command line is read by the compatibility parser and its
+video re-encoded with libx264, the audio copied, dropped, or one audio
+stream encoded with libopus (in builds with the `libopus` feature, "Opus
+audio") or with FFmpeg's `aac` ("AAC audio"), one MP4 output. The command line is read by the compatibility parser and its
 stream selection, the same as for `-c copy`; a command that selects a
 video stream for `libx264` is routed here before the refusal of encoder
 values, and every option this section does not list is still refused,
 naming it (exit status 4). The encoder is `--encoder auto`'s ("The encoder
 program"); in strict-safe mode that is an `x264` program only, and a
 command without one, or with a video only the FFmpeg decoder would decode,
-is refused (exit status 4) and never handed to FFmpeg.
+is refused (exit status 4) and never handed to FFmpeg, as is every
+`-c:a aac` command, whose encoder is the `ffmpeg` program.
 
 | Option | Taken as |
 |---|---|
@@ -851,7 +868,8 @@ is refused (exit status 4) and never handed to FFmpeg.
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
 | `-c:v:N copy`, or `-c copy`, for a selected MP4/MOV cover picture | the cover picture kept in the output's item list, unchanged; a cover picture the selection leaves out (the default selection does) is left out (`TranscodeOptions::left_out_covers`, [`compat-cli.md`](compat-cli.md), "Cover pictures"), and one the command would encode with libx264 is refused (`ffmpeg` fails on it) |
 | `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
-| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k as libopus takes it; only with `-c:a libopus` |
+| `-c:a`, `-acodec` `aac` | `--audio aac` for the one selected audio stream ("AAC audio"), beside a video encoded with libx264, by FFmpeg's built-in `aac` encoder: the `ffmpeg` program `--audio aac` finds without `--ffmpeg` (`COREAV_FFMPEG`, else `PATH`), run as a process of its own. Every build has it. Refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround AAC stream), for a sample rate outside 8 to 64 kHz (nothing is resampled; `ffmpeg` encodes 88.2 and 96 kHz as they are), without `-c:v libx264`, when no `ffmpeg` program is found or it has no `aac` encoder (`--audio aac`'s refusals), and always in strict-safe mode. Its other options (`-profile:a`, `-aac_coder`, `-q:a`, `-ar`, `-ac`, `-af`, `-strict`) and other AAC encoders (`libfdk_aac`) are refused as unlisted |
+| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
@@ -912,8 +930,8 @@ output, before the encoder starts:
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
 - **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; audio encoding is not in this pipeline, so a
-  command that selects an audio stream without copying it is refused.
+  selected audio to AAC; a command that selects an audio stream without
+  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

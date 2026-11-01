@@ -1,7 +1,7 @@
 # Known divergences: `coreav ffprobe` versus `ffprobe` 9.0.2 on the fixtures
 
 The fixture entries below also describe historical output that has since
-been corrected. Matching values need no exception. The corpus notes at
+been corrected. Matching values need no exception. The limitation notes at
 the end of this page are not fixture exceptions and do not turn a failed
 key comparison into agreement.
 
@@ -78,16 +78,13 @@ name no fixture keys and set nothing aside on the fixtures.
 
 - Keys: `packets.side_data_list[Skip Samples]`, `packets.side_data_list[]`,
   `packets.duration` and `packets.duration_time`.
-- Cause: FFmpeg 9.0.2 lists as Skip Samples side data both the samples a
-  decoder skips at the start of an audio stream (the encoder delay an edit
-  list or a Matroska `CodecDelay` states) and those it discards at its
-  end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
-  end of a Matroska one). In MP4 CoreAV lists what 7.0.2 did; in Matroska
-  and WebM it lists both, as 9.0.2 does, and gives the durations 9.0.2
-  gives, so the entry lists no Matroska or WebM fixture. A packet that
-  carries the side data gets another duration than 7.0.2 gave it (the
-  whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
-  gave the part the list keeps); in MP4 CoreAV gives 7.0.2's.
+- Cause: FFmpeg 9.0.2 lists the samples the decoder skips at the start
+  of an audio stream and those it discards at its end. CoreAV now lists
+  both for ISO base media, Matroska and WebM, so this entry names no
+  fixture for the side data keys. A packet that carries the side data
+  can get another duration than 7.0.2 gave it. Those duration differences
+  are now corrected for these fixtures too, so this entry retains no
+  fixture rows.
 - Accepts: side data entries CoreAV lists only some of, each of them one
   `ffprobe` lists too; another duration only on an audio packet that
   carries Skip Samples side data in `ffprobe`'s listing.
@@ -96,14 +93,15 @@ name no fixture keys and set nothing aside on the fixtures.
 
 - Keys: `packets.duration` and `packets.duration_time`.
 - Cause: FFmpeg 9.0.2 gives these packets other durations than 7.0.2, and
-  CoreAV gives 7.0.2's on every packet of these files (compared packet by
-  packet with 7.0.2): a sample the decode times give a duration (the next
-  decode time less its own) now gets that duration, where 7.0.2 gave it one
-  frame or none (the samples of a track with a `ctts` box in `vfr.mp4`,
-  the samples next to the edits of `edit_multi_*`, the first audio sample
-  and the timed text of a movie with fragments); the last AAC frame an
-  edit or the stream's end cuts gets the part kept, where 7.0.2 gave the
-  whole frame (1,024 samples).
+  CoreAV gives 7.0.2's (compared packet by packet with 7.0.2). In
+  `edit_multi_audio.mp4`, `edit_multi_audio_average.mp4` and
+  `edit_multi_av.mp4`, whose audio edit list lists some samples twice,
+  9.0.2 gives the 432nd audio packet it lists 680 ticks, the delta of the
+  432nd and last sample of the time-to-sample table. That packet is the
+  354th sample, as its offset and size show, and the table gives each
+  sample its own delta in decoding order (ISO/IEC 14496-12 8.6.1.2): 1,024
+  ticks, which CoreAV gives. The former Matroska lace rows now agree
+  and are no longer listed.
 - Accepts: only the packets listed in the twin, each by its position in
   the whole file's listing and with the two values found there.
 
@@ -117,15 +115,6 @@ name no fixture keys and set nothing aside on the fixtures.
   of the file), so not on the further audio frames a PES packet carries.
 - Accepts: the side data on packets where `ffprobe` alone lists it; on
   every packet where both list it, the same side data.
-
-## KD-FF9-AAC-PADDING
-
-- Key: `streams.initial_padding`.
-- Cause: FFmpeg 9.0.2 gives an audio stream's encoder delay as
-  `initial_padding` (1,024 samples for AAC, 256 for AC-3 and E-AC-3,
-  1,105 for MP3 and 50 for AMR-NB in these fixtures), where 7.0.2 and
-  CoreAV print 0.
-- Accepts: on an audio stream, 0 from CoreAV and more from `ffprobe`.
 
 ## KD-FF9-ANNEXB-EXTRADATA
 
@@ -195,6 +184,36 @@ name no fixture keys and set nothing aside on the fixtures.
   The ratio, not the bit rate, is fixed: the encoder's output, and so the
   file's size, depends on the number of processors of the machine that
   generates the fixtures.
+
+## KD-FF9-EMPTY-EDIT-PADDING
+
+- Keys: `packets.side_data_list[Skip Samples]` and
+  `packets.side_data_list[]` (`clip_audio_late.mp4`, `edit_list.mp4`).
+- Cause: each file's audio has an empty edit, then one media edit from
+  media time 0 to the end of its media (ISO/IEC 14496-12 8.6.6). Its last
+  sample lasts 640 and 136 ticks, and decodes to an AAC frame of 1,024
+  samples (ISO/IEC 14496-3 4.5.1), 384 and 888 of them past the end of
+  the media. The edit presents media time up to that end and no further,
+  so CoreAV lists them as the last packet's discard padding, as both
+  tools do for the same track without the empty edit. FFmpeg 9.0.2 moves
+  the packet later by the empty edit's length but keeps the edit's end in
+  media time. On these two files the packet so moved starts after that
+  end, and it lists no side data. Where it starts before that end and
+  ends after it, FFmpeg 9.0.2 lists the rest of the frame past the end, so
+  both tools list a value (for example 848 against CoreAV's 10).
+- Corpus scope: the record's `level`, `fields` and `conditions` give the
+  case with both values present, defined by the file's bytes alone; an
+  absent value on either side is never excluded. Not excludable yet: no
+  corpus row is excluded until the byte-derived predicate
+  `oracle_kd.empty_edit_padding` (coreav-dev/coreav#160) gates it in the
+  corpus comparator. Only the fixture scope below applies now.
+- Accepts: on these two files only, registered as `generated NAME` in
+  their directory's `MANIFEST`, while their bytes still have this
+  shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
+  them), CoreAV's Skip Samples side data on the last audio packet with
+  exactly the padding the bytes give, and ffprobe's none; every other
+  packet's side data must agree. Side data on another packet, a shifted
+  padding or a changed skip stays a failure.
 
 ## KD-FF9-FIXTURE-MKV-MP3-DURATION
 
@@ -336,10 +355,11 @@ name no fixture keys and set nothing aside on the fixtures.
   in the twin and its own evidence, `av1_chroma_position` in
   `scripts/oracle_kd_mkv.py`.
 
-## Corpus differences not set aside
+## Differences and limitations not set aside
 
-These notes explain remaining differences in `run.py keys`. They do not
-mask them, and the measured agreement rates still count them as failures.
+These notes describe remaining corpus differences and constructed cases
+that expose CoreAV limitations. They do not mask differences in
+`run.py keys`, and the measured agreement rates still count them as failures.
 
 - **EPG packets.** An EIT transport packet can finish several sections
   (ETSI EN 300 468 5.2.4; ISO/IEC 13818-1 2.4.4.2). CoreAV lists every
@@ -375,6 +395,23 @@ mask them, and the measured agreement rates still count them as failures.
   layout unknown where the configuration cannot establish them, rather
   than assuming that a mono core stays mono. Without a stored audio
   configuration, MIME strings depend on the same profile information.
+- **AAC SBR suffix false positives.** In the MPEG-TS `coreav ffprobe`
+  listing, a plain AAC LC frame's data payload can end with bytes that
+  look like an SBR extension. The suffix scan does not establish that
+  these bytes begin an actual SBR fill element. Repeated matching payloads
+  can therefore make CoreAV report HE-AAC and double the sample rate.
+  This affects the ADTS path on main and the LATM path in
+  coreav-dev/coreav#153, which uses the same scan after extracting the
+  raw AAC block from LOAS.
+  The [reviewer's constructed case in coreav-dev/coreav#162](https://github.com/coreav-dev/coreav/pull/162#issuecomment-6547397871)
+  uses mono LC configuration `13 88` and raw block
+  `00 00 00 04 00 1b 16 80 07`: a silent single-channel element, a data
+  stream element with three payload bytes, and `ID_END`, with no SBR fill
+  element. The native LC decoder produces 1,024 silent samples, but the
+  scan matches; repeating the block in 16 frames makes the rate decision
+  select 44,100 Hz instead of 22,050 Hz. This false positive has been
+  reproduced only on a constructed stream. It is a CoreAV limitation,
+  not an oracle error, and cannot exclude any B3a comparison.
 - **AAC average bit rates.** Neither ADTS nor LATM states an average bit
   rate for a variable-sized stream. CoreAV averages the frames its bounded
   head read sees; FFmpeg's analysis can stop at a different frame. These

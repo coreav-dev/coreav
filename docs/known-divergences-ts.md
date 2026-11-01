@@ -215,10 +215,12 @@ KD-TS-FRAME-TIME.
 - Fields: every gating field of a stream, and every field of a packet.
 - When: a file with more than one program, whose streams the two readers
   list in a different order.
-- What each reports: CoreAV lists the elementary streams of each Program
+- What each reports: CoreAV listed the elementary streams of each Program
   Map Table in the order that table gives them, the tables in the order
-  they are read, so the document follows the file's own tables.
-  `ffprobe` lists the streams of the first Program Map Table completed
+  they are read. It now lists them in `ffprobe`'s order
+  (`docs/schema/probe-mpegts-v2.md`), so the predicate finds no
+  reordering in its documents; the entry stays until the overlay drops
+  it. `ffprobe` lists the streams of the first Program Map Table completed
   after the PAT in table order
   and the others where the file first shows them from its start, a
   table or a PES packet that is not padding

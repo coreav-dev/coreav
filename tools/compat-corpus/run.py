@@ -175,6 +175,7 @@ def cmd_commands(opts):
     files = media_files(opts.media)
     for path in files:
         av1_nclx_fixture(opts.coreav, path)
+        empty_edit_padding_fixture(opts.coreav, path)
     records = [r for r in load_commands() if r['tool'] == 'ffprobe']
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     set_aside = collections.Counter()
@@ -437,6 +438,151 @@ def av1_nclx_fixture(coreav, path):
     return True
 
 
+EMPTY_EDIT_FIXTURES = ('clip_audio_late.mp4', 'edit_list.mp4')
+
+
+def empty_edit_padding(data):
+    """The discard padding ISO/IEC 14496-12 8.6.6 gives the last packet of
+    the one audio track of `data`, whose edit list is an empty edit and one
+    media edit and whose last sample ends inside an AAC LC frame, and the
+    one `ffprobe` 9.0.2 counts (more by the empty edit's length less the
+    media time, black box). Raises ValueError for any other layout."""
+    def boxes(start, end):
+        while start < end:
+            if start + 8 > end:
+                raise ValueError('truncated box header')
+            size = int.from_bytes(data[start:start + 4], 'big')
+            if size < 8 or start + size > end:
+                raise ValueError('changed or invalid box layout')
+            yield data[start + 4:start + 8], start + 8, start + size
+            start += size
+
+    def one(start, end, kind):
+        found = [(a, b) for k, a, b in boxes(start, end) if k == kind]
+        if len(found) != 1:
+            raise ValueError('expected exactly one ' + kind.decode('ascii') + ' box')
+        return found[0]
+
+    def u32(at):
+        return int.from_bytes(data[at:at + 4], 'big')
+
+    moov = one(0, len(data), b'moov')
+    a, _ = one(*moov, b'mvhd')
+    if data[a] != 0:
+        raise ValueError('changed movie header version')
+    movie_scale = u32(a + 12)
+    audio = []
+    for kind, a, b in boxes(*moov):
+        mdia = one(a, b, b'mdia') if kind == b'trak' else None
+        if mdia and data[one(*mdia, b'hdlr')[0] + 8:][:4] == b'soun':
+            audio.append((a, b, mdia))
+    if len(audio) != 1:
+        raise ValueError('expected exactly one audio track')
+    trak_start, trak_end, mdia = audio[0]
+    a, b = one(*one(trak_start, trak_end, b'edts'), b'elst')
+    if data[a] != 0 or u32(a + 4) != 2 or b - a != 8 + 2 * 12:
+        raise ValueError('changed edit list')
+    empty, empty_time, media, media_time = u32(a + 8), u32(a + 12), u32(a + 20), u32(a + 24)
+    if empty_time != 0xFFFFFFFF or media_time >= 0x80000000 \
+            or u32(a + 16) != 0x10000 or u32(a + 28) != 0x10000:
+        raise ValueError('changed edit list')
+    a, _ = one(*mdia, b'mdhd')
+    if data[a] != 0:
+        raise ValueError('changed media header version')
+    scale, duration = u32(a + 12), u32(a + 16)
+    stbl = one(*one(*mdia, b'minf'), b'stbl')
+    a, b = one(*stbl, b'stts')
+    count = u32(a + 4)
+    if b - a != 8 + 8 * count or count == 0:
+        raise ValueError('changed time-to-sample table')
+    deltas = [(u32(a + 8 + 8 * i), u32(a + 12 + 8 * i)) for i in range(count)]
+    total = sum(n * d for n, d in deltas)
+    last_start = total - deltas[-1][1]
+    a, b = one(*stbl, b'stsc')
+    count = u32(a + 4)
+    if b - a != 8 + 12 * count or count == 0 or any(u32(a + 16 + 12 * i) != 1 for i in range(count)):
+        raise ValueError('changed sample descriptions')
+    a, b = one(*stbl, b'stsd')
+    if u32(a + 4) != 1:
+        raise ValueError('changed sample descriptions')
+    entry = one(a + 8, b, b'mp4a')
+    a, b = one(entry[0] + 28, entry[1], b'esds')
+
+    def descriptor(at, tag):
+        """ISO/IEC 14496-1 8.3.3: the payload of the descriptor at `at`."""
+        if at >= b or data[at] != tag:
+            raise ValueError('changed AAC configuration')
+        size, at = 0, at + 1
+        for _ in range(4):
+            if at >= b:
+                raise ValueError('changed AAC configuration')
+            size, at = size << 7 | data[at] & 0x7F, at + 1
+            if not data[at - 1] & 0x80:
+                break
+        return at, at + size
+
+    es, _ = descriptor(a + 4, 3)
+    flags = data[es + 2]
+    at = es + 3 + (2 if flags & 0x80 else 0) + (2 if flags & 0x20 else 0)
+    if flags & 0x40:
+        at += 1 + data[at]
+    config, _ = descriptor(at, 4)
+    a, b = descriptor(config + 13, 5)
+    # AudioSpecificConfig (ISO/IEC 14496-3 1.6.2.1, 4.4.1): AAC LC, its
+    # sampling frequency, channels, then frameLengthFlag, dependsOnCoreCoder
+    # and extensionFlag; then the backward-compatible extension that rules
+    # SBR out (0x2b7, object type 5, sbrPresentFlag 0), without which
+    # implicit SBR is open at any core rate (1.6.5.3), and nothing else.
+    if b - a != 5 or data[a + 2:b] != b'\x56\xe5\x00':
+        raise ValueError('changed AAC configuration')
+    specific = int.from_bytes(data[a:a + 2], 'big')
+    rates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
+    index = specific >> 7 & 15
+    if specific >> 11 != 2 or index >= len(rates) or rates[index] != scale or specific & 3 != 0:
+        raise ValueError('changed AAC configuration')
+    frame = 960 if specific & 4 else 1024
+    edit_end = media_time + (media * scale + movie_scale // 2) // movie_scale
+    end = min(edit_end, duration, total)
+    padding = last_start + frame - end
+    oracle = padding + (empty * scale + movie_scale // 2) // movie_scale - media_time
+    if not 0 < padding < frame or oracle <= frame or media_time > last_start:
+        raise ValueError('changed sample timing')
+    return padding
+
+
+@functools.cache
+def empty_edit_padding_fixture(coreav, path):
+    """Validate an empty-edit fixture's bytes and its exact oracle
+    disagreement: only the last audio packet's Skip Samples side data
+    differs, CoreAV's with the padding the bytes give and ffprobe's absent
+    (KD-FF9-EMPTY-EDIT-PADDING). An oracle that starts agreeing must
+    retire this exception."""
+    if path.name not in EMPTY_EDIT_FIXTURES:
+        return False
+    manifest = path.parent / 'MANIFEST'
+    if not manifest.is_file() or ['generated', path.name] not in [
+            line.split() for line in manifest.read_text().splitlines()]:
+        return False
+    prefix = 'KD-FF9-EMPTY-EDIT-PADDING: '
+    try:
+        if path.stat().st_size > 64 * 1024 * 1024:
+            raise ValueError('fixture exceeds the evidence reader limit')
+        padding = empty_edit_padding(path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise SystemExit(prefix + str(error)) from error
+    pairs = (canonical(coreav, path) or {}).get('packets.side_data_list[Skip Samples]')
+    if not pairs:
+        return False
+    expected = json.dumps({'discard_padding': padding, 'discard_reason': 0, 'side_data_type': 'Skip Samples',
+                           'skip_reason': 0, 'skip_samples': 0}, sort_keys=True)
+    def tail(context):
+        return context.get('codec_type') == 'audio' and context.get('last')
+    last = [(f, c) for f, c, context in pairs if tail(context)]
+    if last == [(expected, expected)]:
+        raise SystemExit(prefix + 'oracle now agrees; remove the obsolete exception')
+    return last == [('N/A', expected)] and all(f == c for f, c, context in pairs if not tail(context))
+
+
 CANONICAL_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams', '-show_programs',
                   '-show_packets']
 
@@ -581,6 +727,9 @@ def accepts(coreav, path, key, rule, ref_values, values):
     difference there the one the rule names."""
     if isinstance(rule, dict) and rule.get('evidence') == 'av1 nclx':
         if key != 'streams.mime_codec_string' or not av1_nclx_fixture(coreav, path):
+            return False
+    if isinstance(rule, dict) and rule.get('evidence') == 'empty edit padding':
+        if not empty_edit_padding_fixture(coreav, path):
             return False
     only = rule.get('only') if isinstance(rule, dict) else None
     if only == 'ffprobe':
@@ -1273,6 +1422,7 @@ def cmd_commands_010(opts):
     files = [p for p in media_files(opts.media) if release_round.family(p)]
     for path in files:
         av1_nclx_fixture(opts.coreav, path)
+        empty_edit_padding_fixture(opts.coreav, path)
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     counts = collections.defaultdict(collections.Counter)
     set_aside = collections.Counter()

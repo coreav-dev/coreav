@@ -135,7 +135,6 @@ pub fn probe<'a, S: Source + 'a>(
         }
     }
     let mut report = Report::default();
-    let order = ts.listing_order();
     let facts: Vec<Facts> = ts
         .streams
         .iter()
@@ -169,14 +168,14 @@ pub fn probe<'a, S: Source + 'a>(
             lead: Vec::new(),
         })
         .collect();
-    for (rank, &i) in order.iter().enumerate() {
+    for i in 0..ts.streams.len() {
         let (Some(st), Some(h), Some(facts)) =
             (ts.streams.get(i), head.streams.get(i), facts.get(i))
         else {
             continue;
         };
         if let Some(slot) = listed.get_mut(i) {
-            slot.index = rank;
+            slot.index = i;
             slot.ticks = facts.frame_ticks;
             slot.lpcm = facts.lpcm;
             slot.lead.clone_from(&h.lead);
@@ -225,7 +224,7 @@ pub fn probe<'a, S: Source + 'a>(
         {
             times.1 = file.span;
         }
-        report.streams.push(stream(&ts, st, rank, h, facts, times));
+        report.streams.push(stream(&ts, st, i, h, facts, times));
         report.time_bases.push((1, TIMESCALE));
     }
     let services = if ts.services.is_empty() {
@@ -233,7 +232,7 @@ pub fn probe<'a, S: Source + 'a>(
     } else {
         ts.services.clone()
     };
-    report.programs = programs(&ts, &order, &services);
+    report.programs = programs(&ts, &services);
     report.format = format(&ts, &file, size, name, report.programs.len());
     Ok(Probed {
         report,
@@ -2176,7 +2175,7 @@ fn utf8_bytewise(bytes: &[u8]) -> String {
 /// (a capture of the corpus, and files crafted with such a service): the
 /// programs are in the order the two tables first name them, so a file
 /// whose first SDT comes before its first PAT lists its services first.
-fn programs(ts: &TransportStream, order: &[usize], services: &[Service]) -> Vec<Program> {
+fn programs(ts: &TransportStream, services: &[Service]) -> Vec<Program> {
     let tags_of = |number: u16| {
         let mut tags = Vec::new();
         if let Some(service) = services.iter().find(|sv| sv.id == number) {
@@ -2194,9 +2193,8 @@ fn programs(ts: &TransportStream, order: &[usize], services: &[Service]) -> Vec<
         // their indexes (a stream two programs share is in both); a stream
         // of the program its table does not list follows, by index.
         let member = |position: usize| {
-            order
+            ts.streams
                 .get(position)
-                .and_then(|&i| ts.streams.get(i))
                 .filter(|st| st.programs.contains(&p.number))
         };
         let rank = |position: usize| {
@@ -2204,7 +2202,7 @@ fn programs(ts: &TransportStream, order: &[usize], services: &[Service]) -> Vec<
                 .and_then(|st| p.pids.iter().position(|&pid| pid == st.pid))
                 .unwrap_or(usize::MAX)
         };
-        let mut streams: Vec<usize> = (0..order.len())
+        let mut streams: Vec<usize> = (0..ts.streams.len())
             .filter(|&position| member(position).is_some())
             .collect();
         streams.sort_by_key(|&position| (rank(position), position));
