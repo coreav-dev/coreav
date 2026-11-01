@@ -2883,12 +2883,10 @@ bits_per_sample
 bl_present_flag
 block_additional_id
 buffer_size
-byte
 captions
 category
 channel_layout
 channels
-checkerboard
 chroma_location
 clean_effects
 closed_captions

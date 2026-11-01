@@ -110,6 +110,24 @@ class FallbackNames(unittest.TestCase):
         self.assertEqual(self.invoke(check=True)[0], 1)
         self.assertEqual(self.out.read_bytes(), before)
 
+    def test_boolean_match_values_are_not_printed_keys(self):
+        (self.source / 'keys.rs').write_text('''
+            match mode {
+                4 => ("checkerboard", true),
+                5 => (
+                    "checkerboard", false
+                ),
+                Unit::Byte => ("byte", true),
+            }
+            let entries = [("inverted", Value::Int(0)), ("default", false)];
+        ''')
+        self.invoke()
+        generated = self.out.read_text()
+        self.assertIn('inverted', generated)
+        self.assertIn('default', generated)
+        self.assertNotIn('checkerboard', generated)
+        self.assertNotIn('byte', generated)
+
 
 if __name__ == '__main__':
     unittest.main()
