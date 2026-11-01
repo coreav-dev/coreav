@@ -39,11 +39,11 @@ pub struct ItunesGapless {
 }
 
 /// Looks for the item under the movie-level `udta` and `meta` boxes
-/// `roots`.
+/// `roots`: its values, and the offset of its `----` box.
 pub(crate) fn read<S: Source>(
     source: &mut S,
     roots: &[BoxHeader],
-) -> Result<Option<ItunesGapless>, Error> {
+) -> Result<Option<(ItunesGapless, u64)>, Error> {
     let mut budget = MAX_TAG_BOXES;
     for root in roots {
         let found = match &root.kind.0 {
@@ -82,7 +82,7 @@ fn in_meta<S: Source>(
     source: &mut S,
     meta: &BoxHeader,
     budget: &mut u32,
-) -> Result<Option<ItunesGapless>, Error> {
+) -> Result<Option<(ItunesGapless, u64)>, Error> {
     // ISO `meta` is a full box; the QuickTime one starts with its handler.
     let mut probe = [0u8; 8];
     if let Err(error) = source.read_exact_at(meta.payload_offset(), &mut probe) {
@@ -121,7 +121,11 @@ fn in_meta<S: Source>(
         let is_smpb = mean.as_deref().and_then(|m| m.get(4..)) == Some(MEAN)
             && name.as_deref().and_then(|n| n.get(4..)) == Some(NAME);
         if is_smpb {
-            return Ok(data.as_deref().and_then(|d| d.get(8..)).and_then(parse));
+            return Ok(data
+                .as_deref()
+                .and_then(|d| d.get(8..))
+                .and_then(parse)
+                .map(|values| (values, item.offset)));
         }
     }
     Ok(None)
@@ -232,7 +236,9 @@ mod tests {
         let mut source = SliceSource::new(data);
         let root = read_header(&mut source, 0, data.len() as u64).unwrap();
         // Slices fail only past their end, which is malformed data.
-        read(&mut source, &[root]).unwrap()
+        read(&mut source, &[root])
+            .unwrap()
+            .map(|(values, _)| values)
     }
 
     const EXPECTED: ItunesGapless = ItunesGapless {

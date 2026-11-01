@@ -456,6 +456,7 @@ impl Muxer {
                 ),
             };
             boxes.push(TrackBox {
+                handler_name: None,
                 track_id: u32::try_from(index)
                     .ok()
                     .and_then(|i| i.checked_add(1))
@@ -463,7 +464,9 @@ impl Muxer {
                 media,
                 header,
                 created: h.creation_time,
+                modified: None,
                 media_created: h.media_creation_time,
+                media_modified: None,
                 language: h.language,
                 media_timescale: h.timescale,
                 media_duration,
@@ -482,6 +485,7 @@ impl Muxer {
             &MovieBox {
                 timescale: movie_timescale,
                 created: self.movie.creation_time,
+                modified: None,
                 duration: movie_duration,
                 extra: copied(&self.movie.boxes),
             },
@@ -517,7 +521,7 @@ impl Muxer {
     }
 }
 
-fn copied(boxes: &[RawBox]) -> Vec<CopiedBox<'_>> {
+pub(crate) fn copied(boxes: &[RawBox]) -> Vec<CopiedBox<'_>> {
     boxes
         .iter()
         .map(|b| CopiedBox {

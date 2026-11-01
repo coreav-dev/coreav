@@ -222,6 +222,7 @@ pub fn join_mp4<S: Source, W: Write>(
     let video_duration = track_duration(&video_edits);
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
     let mut tracks = vec![TrackBox {
+        handler_name: None,
         track_id: VIDEO_ID,
         header: TrackFlags::DEFAULT,
         media: Media::Video {
@@ -229,7 +230,9 @@ pub fn join_mp4<S: Source, W: Write>(
             size: first.video.presentation_size,
         },
         created: first.video.creation_time,
+        modified: None,
         media_created: first.video.media_creation_time,
+        media_modified: None,
         language: language(first.video.language),
         media_timescale: tv,
         media_duration: video_media,
@@ -273,11 +276,14 @@ pub fn join_mp4<S: Source, W: Write>(
         audio_edit_count = audio_edits.len();
         movie_duration = movie_duration.max(duration);
         tracks.push(TrackBox {
+            handler_name: None,
             track_id: AUDIO_ID,
             header: TrackFlags::DEFAULT,
             media: Media::Audio,
             created: a.track.creation_time,
+            modified: None,
             media_created: a.track.media_creation_time,
+            media_modified: None,
             language: language(a.track.language),
             media_timescale: ta,
             media_duration: media,
@@ -301,6 +307,7 @@ pub fn join_mp4<S: Source, W: Write>(
         &MovieBox {
             timescale: tm,
             created: first_movie.creation_time,
+            modified: None,
             duration: movie_duration,
             extra: Vec::new(),
         },

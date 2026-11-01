@@ -53,5 +53,6 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | R1 uses the registered dist-profile binary and retains its SHA-256 with each fixture result | `test_r1_uses_the_registered_profile_and_records_its_binary_hash` in `scripts/tests/test_compat_workflow.py` executes all three R1 steps |
 | Measurement workflow checkouts do not persist Git credentials | `test_measurement_checkouts_do_not_persist_credentials` in `scripts/tests/test_compat_workflow.py` |
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
+| M4A extraction with copied metadata preserves each header's distinct creation and modification times, widening the header when either requires 64 bits | `source_creation_and_modification_times_stay_distinct` in `coreav-isobmff-write/tests/extract.rs` checks stored values in both header versions and the metadata-clearing modes |
 | Design notes change in the same pull request as the design | Not enforced: judgment |
 | Code is written from specifications, never from other implementations' source | The code-similarity check for `coreav-h264`, `coreav-kernels-h264`, `coreav-opus` and `coreav-kernels-audio` (`docs/design/ci-checks.md`, "Before opening a pull request"); elsewhere review |
