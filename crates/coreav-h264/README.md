@@ -88,7 +88,7 @@ In progress, as the graduation of the native H.264 roadmap track. The
 crate decodes the scope above: parameter sets, slices, CAVLC and CABAC,
 prediction, transforms, deblocking and the decoded picture buffer, with
 the pixel kernels in `coreav-kernels-h264`. It
-decodes the 97 in-scope JVT conformance streams bit-exactly (at one, two
+decodes the 99 in-scope JVT conformance streams bit-exactly (at one, two
 and eight threads), and reaches users only as an opt-in backend
 (`docs/design/h264.md`, "Packaging").
 

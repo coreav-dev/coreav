@@ -1111,6 +1111,141 @@ fn decodes_a_monochrome_picture_of_i_pcm_macroblocks() {
     assert!(cb.rows().chain(cr.rows()).flatten().all(|&s| s == 128));
 }
 
+/// The arithmetic encoder of clause 9.3.4.2, enough to write the bins of
+/// an I_PCM macroblock and end_of_slice_flag.
+struct Arithmetic<'w> {
+    w: &'w mut Writer,
+    low: u32,
+    range: u32,
+    first_bit: bool,
+    outstanding: u32,
+}
+
+impl<'w> Arithmetic<'w> {
+    /// InitEncoder (clause 9.3.4.1).
+    fn new(w: &'w mut Writer) -> Self {
+        Self {
+            w,
+            low: 0,
+            range: 510,
+            first_bit: true,
+            outstanding: 0,
+        }
+    }
+
+    /// PutBit (clause 9.3.4.2).
+    fn put(&mut self, b: u32) {
+        if self.first_bit {
+            self.first_bit = false;
+        } else {
+            self.w.u(1, b);
+        }
+        for _ in 0..self.outstanding {
+            self.w.u(1, 1 - b);
+        }
+        self.outstanding = 0;
+    }
+
+    /// RenormE (clause 9.3.4.2).
+    fn renormalize(&mut self) {
+        while self.range < 256 {
+            if self.low < 256 {
+                self.put(0);
+            } else if self.low >= 512 {
+                self.low -= 512;
+                self.put(1);
+            } else {
+                self.low -= 256;
+                self.outstanding += 1;
+            }
+            self.range <<= 1;
+            self.low <<= 1;
+        }
+    }
+
+    /// EncodeDecision of the least probable symbol, whose range is
+    /// `lps` (Table 9-44).
+    fn lps(&mut self, lps: u32) {
+        self.low += self.range - lps;
+        self.range = lps;
+        self.renormalize();
+    }
+
+    /// EncodeTerminate (clause 9.3.4.5); a 1 ends with EncodeFlush,
+    /// short of its last bit, which is 1: the caller writes it, or the
+    /// RBSP's stop bit is it.
+    fn terminate(&mut self, bin: bool) {
+        self.range -= 2;
+        if !bin {
+            self.renormalize();
+            return;
+        }
+        self.low += self.range;
+        self.range = 2;
+        self.renormalize();
+        self.put((self.low >> 9) & 1);
+        self.w.u(1, (self.low >> 8) & 1);
+    }
+}
+
+#[test]
+fn decodes_a_monochrome_cabac_picture_of_i_pcm_macroblocks() {
+    // As decodes_a_monochrome_picture_of_i_pcm_macroblocks, in CABAC. At
+    // SliceQPY 26, mb_type's first bin uses ctxIdx 3 (no neighbour),
+    // pStateIdx 46 and valMPS 0, then ctxIdx 4 (an I_PCM neighbour on the
+    // left, clause 9.3.3.1.1.3), pStateIdx 6 and valMPS 0 (clause 9.3.1.1,
+    // Table 9-12), so a 1 is the least probable symbol, of range 22 and
+    // 175 (Table 9-44). The second bin is DecodeTerminate's 1.
+    let mut pps = Writer::default();
+    pps.ue(0) // pic_parameter_set_id
+        .ue(0) // seq_parameter_set_id
+        .flag(true) // entropy_coding_mode_flag
+        .flag(false) // bottom_field_pic_order_in_frame_present_flag
+        .ue(0) // num_slice_groups_minus1
+        .ue(0) // num_ref_idx_l0_default_active_minus1
+        .ue(0) // num_ref_idx_l1_default_active_minus1
+        .flag(false) // weighted_pred_flag
+        .u(2, 0) // weighted_bipred_idc
+        .se(0) // pic_init_qp_minus26
+        .se(0) // pic_init_qs_minus26
+        .se(0) // chroma_qp_index_offset
+        .flag(false) // deblocking_filter_control_present_flag
+        .flag(false) // constrained_intra_pred_flag
+        .flag(false); // redundant_pic_cnt_present_flag
+    let slice = idr_i_slice(|w| {
+        w.align_one(); // cabac_alignment_one_bit
+        let mut first = Arithmetic::new(w);
+        first.lps(22);
+        first.terminate(true);
+        w.u(1, 1).align_zero().bytes(&pcm_samples(0)[..256]);
+        let mut second = Arithmetic::new(w);
+        second.terminate(false); // end_of_slice_flag
+        second.lps(175);
+        second.terminate(true);
+        w.u(1, 1).align_zero().bytes(&pcm_samples(1)[..256]);
+        Arithmetic::new(w).terminate(true); // end_of_slice_flag
+    });
+    let mut stream = Vec::new();
+    stream.extend(nal(3, 7, monochrome_sps(2, 1, 0)));
+    stream.extend(nal(3, 8, pps.finish()));
+    stream.extend(nal(3, 5, slice));
+    let picture = decode_one(&stream).expect("the stream decodes");
+    assert_eq!((picture.width(), picture.height()), (32, 16));
+    let luma: Vec<&[u8]> = picture.luma().rows().collect();
+    for addr in 0..2 {
+        let want = pcm_samples(addr);
+        for row in 0..16 {
+            assert_eq!(
+                &luma[row][addr * 16..addr * 16 + 16],
+                &want[row * 16..row * 16 + 16],
+                "macroblock {addr} row {row}"
+            );
+        }
+    }
+    let (cb, cr) = picture.chroma();
+    assert!(cb.rows().chain(cr.rows()).flatten().all(|&s| s == 128));
+}
+
 #[test]
 fn monochrome_macroblocks_code_no_chroma_syntax() {
     // Two intra macroblocks of a CAVLC slice, written as clause 7.3.5 has

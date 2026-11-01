@@ -49,6 +49,13 @@ impl Writer {
         self
     }
 
+    pub fn align_one(&mut self) -> &mut Self {
+        while self.bits.len() % 8 != 0 {
+            self.bits.push(1);
+        }
+        self
+    }
+
     pub fn bytes(&mut self, data: &[u8]) -> &mut Self {
         for &b in data {
             self.u(8, u32::from(b));
