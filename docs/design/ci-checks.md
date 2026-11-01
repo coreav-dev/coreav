@@ -164,6 +164,22 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## JavaScript package changes
+
+Changes confined to `packages/wasm/**` do not select the Rust suite or
+the native npm and Python packaging jobs. The npm and Python filters name
+`packages/cli/**`, whose build tools they consume, rather than every
+JavaScript package. Rust crate changes still select Rust CI, including
+`crates/coreav-wasm/**`; `Cargo.lock`, the CLI and Python crates, policy
+examples and the shared filter still select their existing checks.
+
+These are job-level filters. Required report jobs still run, merge groups
+use their complete base-to-group diff, and unknown or unreadable diffs,
+manual runs and scheduled runs still select validation. A rename that
+touches the CLI package in either direction also selects its checks.
+`.github/actions/changed-paths/tests/test_package_filters.py` exercises the
+actual workflow lists with these inputs. This separation adds no jobs.
+
 ## The platform jobs
 
 `check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.

@@ -66,7 +66,7 @@ jobs:
         uses: ./.github/actions/changed-paths
         with:
           paths: |
-            packages/**
+            packages/cli/**
             crates/coreav-py/**
             crates/coreav-cli/**
             Cargo.lock
