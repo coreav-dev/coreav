@@ -247,6 +247,20 @@ fn ffprobe_limits_bound_every_container() {
 }
 
 #[test]
+fn ffprobe_refuses_a_first_packets_scan_over_the_callers_limit() {
+    let bytes = movie();
+    assert!(document("ffprobe", &bytes, "{}").is_ok());
+    assert_eq!(
+        error_kind(document(
+            "ffprobe",
+            &bytes,
+            r#"{"limits": {"maxPacketBytes": 50}}"#
+        )),
+        "limit"
+    );
+}
+
+#[test]
 fn ffprobe_limits_start_from_the_edge_limits() {
     let bytes = movie();
     let tables = format!(

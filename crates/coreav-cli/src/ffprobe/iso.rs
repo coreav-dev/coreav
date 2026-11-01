@@ -350,6 +350,16 @@ impl Listed {
     }
 }
 
+/// Keeps malformed-input scan termination distinct from a source or limit failure.
+fn quiet(error: coreav_isobmff::Error) -> Result<(), coreav_isobmff::Error> {
+    match error {
+        error @ (coreav_isobmff::Error::Io(_) | coreav_isobmff::Error::LimitExceeded { .. }) => {
+            Err(error)
+        }
+        _ => Ok(()),
+    }
+}
+
 /// How far `ffprobe` moves a track's decode times back: the most negative
 /// composition offset of a `ctts` (ISO/IEC 14496-12 8.6.1.3), read signed
 /// whatever its version (`KD-CTTS`, `KD-CTTS-UNSIGNED`), so that no packet
@@ -375,12 +385,10 @@ fn dts_shift<S: Source>(
             }
             Ok(())
         });
-    match scan {
-        Err(
-            error @ (coreav_isobmff::Error::Io(_) | coreav_isobmff::Error::LimitExceeded { .. }),
-        ) => Err(error),
-        _ => Ok(shift),
+    if let Err(error) = scan {
+        quiet(error)?;
     }
+    Ok(shift)
 }
 
 /// A sample of a version 0 `ctts` read unsigned whose offset, read signed
@@ -402,17 +410,17 @@ pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, Strin
     let limits = Limits::default();
     let movie = coreav_isobmff::probe(&mut *source, &limits, &Allowlist::listing())
         .map_err(Failure::library)?;
-    Ok(movie
+    movie
         .tracks
         .iter()
         .filter(|track| track.kind == TrackKind::Video)
         .map(|track| {
-            let head = head(&movie, track, &mut *source, &limits);
+            let head = head(&movie, track, &mut *source, &limits).map_err(Failure::library)?;
             let info = video_info(track, &head, &mut *source).unwrap_or_default();
             let (real, _) = video_rates(&movie, track, &head, &info);
-            (track.stream_index, real)
+            Ok((track.stream_index, real))
         })
-        .collect())
+        .collect()
 }
 
 /// Probes `source` as ISO base media.
@@ -437,8 +445,7 @@ pub fn probe<S: Source>(
     // 8.6.6 does it for files with one).
     let gapless = movie
         .itunes_gapless(&mut *source)
-        .ok()
-        .flatten()
+        .map_err(Failure::library)?
         .map(|g| i64::from(g.encoder_delay))
         .filter(|d| *d > 0);
     let mut priming = Vec::with_capacity(movie.tracks.len());
@@ -456,7 +463,7 @@ pub fn probe<S: Source>(
             .and_then(Option::as_ref)
             .map(|p| unprotected(original, p));
         let track = unwrapped.as_ref().unwrap_or(original);
-        let mut head = head(movie, track, &mut *source, limits);
+        let mut head = head(movie, track, &mut *source, limits).map_err(Failure::library)?;
         let skip = if track.kind != TrackKind::Audio {
             0
         } else if let Some(first) = head.first_pts.filter(|p| *p < 0) {
@@ -501,7 +508,9 @@ pub fn probe<S: Source>(
         // edit, counted from the first sample listed, not the first stored.
         let initial = match track.edit_list {
             coreav_isobmff::EditList::Simple { .. } if track.kind == TrackKind::Audio => {
-                edit_skip(movie, track, gapless, &mut *source, limits).unwrap_or(0)
+                edit_skip(movie, track, gapless, &mut *source, limits)
+                    .map_err(Failure::library)?
+                    .unwrap_or(0)
             }
             _ => skip,
         };
@@ -933,17 +942,35 @@ struct Head {
     first_duration: Option<u32>,
 }
 
-fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits) -> Head {
+fn head<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<Head, coreav_isobmff::Error> {
     let mut budget = Budget::new(limits);
-    let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
-        return Head::default();
+    let iter = match movie.packets(track.index, &mut *source, limits, &mut budget) {
+        Ok(iter) => iter,
+        Err(error) => {
+            quiet(error)?;
+            return Ok(Head::default());
+        }
     };
     let limit = if track.kind == TrackKind::Video {
         START_PACKETS.max(RATE_TIMES.end)
     } else {
         START_PACKETS
     };
-    let read: Vec<coreav_isobmff::Packet> = iter.take(limit).map_while(Result::ok).collect();
+    let mut read = Vec::new();
+    for packet in iter.take(limit) {
+        match packet {
+            Ok(packet) => read.push(packet),
+            Err(error) => {
+                quiet(error)?;
+                break;
+            }
+        }
+    }
     let decode_times = read.iter().map(|p| p.dts).collect();
     let packets = read.get(..START_PACKETS).unwrap_or(&read);
     let pts: Vec<i64> = packets
@@ -955,7 +982,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
         let later = pts.iter().take(i).filter(|q| *q > p).count();
         reorder = reorder.max(u32::try_from(later).unwrap_or(u32::MAX));
     }
-    Head {
+    Ok(Head {
         start: packets
             .iter()
             .filter(|p| p.presented)
@@ -977,7 +1004,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
             })
             .filter(|d| *d > 0)
             .collect(),
-    }
+    })
 }
 
 /// The picture properties of a video track's configuration.
@@ -2083,10 +2110,46 @@ pub fn packets<'a, S: Source + 'a>(
     probed: IsoProbedPackets,
     mut source: S,
 ) -> Box<dyn PacketSource + 'a> {
-    let limits = probed.limits;
-    let itunes = probed.movie.itunes_gapless(&mut source).ok().flatten();
-    let plans = probed
-        .movie
+    let prepared = probed.shifts.and_then(|shifts| {
+        prepare(
+            &probed.movie,
+            &probed.ends,
+            &probed.steps,
+            shifts,
+            &mut source,
+            &probed.limits,
+        )
+    });
+    Box::new(IsoPackets {
+        source: RefCell::new(source),
+        movie: probed.movie,
+        priming: probed.priming,
+        prepared,
+        steps: probed.steps,
+        covers: probed.covers,
+        pictures: probed.pictures,
+        limits: probed.limits,
+    })
+}
+
+/// The complete sample-derived plans a packet listing needs before it starts.
+struct Prepared {
+    shifts: Vec<i64>,
+    plans: Vec<Plan>,
+    edits: Vec<Option<EditPlan>>,
+    spliced: Vec<Option<Spliced>>,
+}
+
+fn prepare<S: Source>(
+    movie: &Movie,
+    ends: &[Listed],
+    steps: &[Option<i64>],
+    shifts: Vec<i64>,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<Prepared, coreav_isobmff::Error> {
+    let itunes = movie.itunes_gapless(&mut *source)?;
+    let plans = movie
         .tracks
         .iter()
         .enumerate()
@@ -2094,7 +2157,7 @@ pub fn packets<'a, S: Source + 'a>(
             // The decode step most of the first samples take (a first
             // sample can hold the encoder's priming too).
             let (median, frame) = if t.kind == TrackKind::Audio {
-                let head = head(&probed.movie, t, &mut source, &limits);
+                let head = head(movie, t, &mut *source, limits)?;
                 let mut steps = head.steps;
                 steps.sort_unstable();
                 // An E-AC-3 frame's blocks are in its header.
@@ -2112,56 +2175,47 @@ pub fn packets<'a, S: Source + 'a>(
             } else {
                 (None, None)
             };
-            plan(
-                &probed.movie,
+            Ok(plan(
+                movie,
                 t,
-                probed.ends.get(i).copied().unwrap_or_default(),
-                probed.steps.get(i).copied().flatten(),
+                ends.get(i).copied().unwrap_or_default(),
+                steps.get(i).copied().flatten(),
                 median,
                 frame,
                 itunes,
-            )
+            ))
         })
-        .collect();
+        .collect::<Result<_, coreav_isobmff::Error>>()?;
     let gapless = itunes
         .map(|g| i64::from(g.encoder_delay))
         .filter(|d| *d > 0);
-    let edits = probed
-        .movie
+    let edits = movie
         .tracks
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let shift = probed.shifts.as_ref().ok()?.get(i).copied().unwrap_or(0);
-            let step = probed.steps.get(i).copied().flatten();
-            if grouping(&probed.movie, t, step).is_some() {
-                return None;
+            let shift = shifts.get(i).copied().unwrap_or(0);
+            let step = steps.get(i).copied().flatten();
+            if grouping(movie, t, step).is_some() {
+                return Ok(None);
             }
-            edit_plan(&probed.movie, t, shift, gapless, &mut source, &limits)
+            edit_plan(movie, t, shift, gapless, &mut *source, limits)
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     let mut work = Work {
         held: MAX_SPLICED_SAMPLES,
         steps: limits.max_sample_work,
     };
-    let spliced = probed
-        .movie
+    let spliced = movie
         .tracks
         .iter()
-        .map(|t| spliced(&probed.movie, t, &mut source, &limits, &mut work))
-        .collect();
-    Box::new(IsoPackets {
-        source: RefCell::new(source),
-        movie: probed.movie,
-        priming: probed.priming,
+        .map(|t| spliced(movie, t, &mut *source, limits, &mut work))
+        .collect::<Result<_, _>>()?;
+    Ok(Prepared {
+        shifts,
         plans,
         edits,
         spliced,
-        shifts: probed.shifts,
-        steps: probed.steps,
-        covers: probed.covers,
-        pictures: probed.pictures,
-        limits,
     })
 }
 
@@ -2275,6 +2329,18 @@ impl Work {
 /// [`Work`] ran out.
 #[derive(Debug)]
 struct Exhausted;
+
+/// Why a multiple-edit listing could not be prepared.
+enum Unbuilt {
+    Exhausted,
+    Failed(coreav_isobmff::Error),
+}
+
+impl From<Exhausted> for Unbuilt {
+    fn from(_: Exhausted) -> Self {
+        Self::Exhausted
+    }
+}
 
 /// Where composition times can lie from decode times in a held track, for
 /// searching it by decode time, which never decreases.
@@ -2394,17 +2460,21 @@ fn spliced<S: Source>(
     source: &mut S,
     limits: &Limits,
     work: &mut Work,
-) -> Option<Spliced> {
+) -> Result<Option<Spliced>, coreav_isobmff::Error> {
     let mut steps = Work {
         held: work.held,
         steps: work.steps,
     };
-    let listing = spliced_within(movie, track, source, limits, &mut steps).ok()??;
+    let listing = match spliced_within(movie, track, source, limits, &mut steps) {
+        Ok(Some(listing)) => listing,
+        Ok(None) | Err(Unbuilt::Exhausted) => return Ok(None),
+        Err(Unbuilt::Failed(error)) => return Err(error),
+    };
     // Only a listing built in full spends what it held and searched; one
     // that ran out leaves the rest to the other tracks.
     work.held = work.held.saturating_sub(listing.samples.len());
     work.steps = steps.steps;
-    Some(listing)
+    Ok(Some(listing))
 }
 
 fn spliced_within<S: Source>(
@@ -2413,7 +2483,7 @@ fn spliced_within<S: Source>(
     source: &mut S,
     limits: &Limits,
     work: &mut Work,
-) -> Result<Option<Spliced>, Exhausted> {
+) -> Result<Option<Spliced>, Unbuilt> {
     if !matches!(
         track.edit_list,
         coreav_isobmff::EditList::Multiple | coreav_isobmff::EditList::Unsupported
@@ -2427,18 +2497,26 @@ fn spliced_within<S: Source>(
         return Ok(None);
     }
     let mut budget = Budget::new(limits);
-    let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
-        return Ok(None);
+    let iter = match movie.packets(track.index, &mut *source, limits, &mut budget) {
+        Ok(iter) => iter,
+        Err(error) => {
+            quiet(error).map_err(Unbuilt::Failed)?;
+            return Ok(None);
+        }
     };
     let mut samples = Vec::new();
     for p in iter {
+        let p = match p {
+            Ok(p) => p,
+            Err(error) => {
+                quiet(error).map_err(Unbuilt::Failed)?;
+                return Ok(None);
+            }
+        };
         if samples.len() >= work.held {
-            return Err(Exhausted);
+            return Err(Unbuilt::Exhausted);
         }
         work.spend(1)?;
-        let Ok(p) = p else {
-            return Ok(None);
-        };
         samples.push(Held::of(&signed_offsets(track, p)));
     }
     if samples.is_empty() {
@@ -2578,14 +2656,14 @@ fn edit_plan<S: Source>(
     gapless: Option<i64>,
     source: &mut S,
     limits: &Limits,
-) -> Option<EditPlan> {
+) -> Result<Option<EditPlan>, coreav_isobmff::Error> {
     let coreav_isobmff::EditList::Simple {
         media_time,
         segment,
         ..
     } = track.edit_list
     else {
-        return None;
+        return Ok(None);
     };
     let m = media_time.max(0);
     let audio = track.kind == TrackKind::Audio;
@@ -2606,9 +2684,13 @@ fn edit_plan<S: Source>(
             .is_ok_and(|e| e < track.sample_duration || (short && e == track.sample_duration))
     });
     let mut budget = Budget::new(limits);
-    let iter = movie
-        .packets(track.index, &mut *source, limits, &mut budget)
-        .ok()?;
+    let iter = match movie.packets(track.index, &mut *source, limits, &mut budget) {
+        Ok(iter) => iter,
+        Err(error) => {
+            quiet(error)?;
+            return Ok(None);
+        }
+    };
     let ctts = track.ctts_version().is_some();
     let mut plan = EditPlan::default();
     let mut last_sync: u64 = 0;
@@ -2621,7 +2703,13 @@ fn edit_plan<S: Source>(
     let mut last_presented: Option<u64> = None;
     let mut syncs_after: u32 = 0;
     for p in iter {
-        let p = signed_offsets(track, p.ok()?);
+        let p = match p {
+            Ok(p) => signed_offsets(track, p),
+            Err(error) => {
+                quiet(error)?;
+                return Ok(None);
+            }
+        };
         let n = p.sample;
         let end = p.cts.saturating_add(i64::from(p.duration));
         if audio {
@@ -2680,7 +2768,9 @@ fn edit_plan<S: Source>(
         }
     }
     if audio {
-        let c = start_cts?;
+        let Some(c) = start_cts else {
+            return Ok(None);
+        };
         plan.skip = (m > c).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - c)));
     } else {
         // Without a composition time at or after the media time, the
@@ -2695,7 +2785,7 @@ fn edit_plan<S: Source>(
             None => plan.nothing = true,
         }
     }
-    Some(plan)
+    Ok(Some(plan))
 }
 
 /// Whether an audio track presented from media time `m` is listed from
@@ -2715,20 +2805,34 @@ fn edit_skip<S: Source>(
     gapless: Option<i64>,
     source: &mut S,
     limits: &Limits,
-) -> Option<i64> {
+) -> Result<Option<i64>, coreav_isobmff::Error> {
     let coreav_isobmff::EditList::Simple { media_time, .. } = track.edit_list else {
-        return None;
+        return Ok(None);
     };
     let m = media_time.max(0);
     let timescale = i64::from(track.timescale.max(1));
     let mut budget = Budget::new(limits);
-    let start = movie
-        .packets(track.index, &mut *source, limits, &mut budget)
-        .ok()?
-        .map_while(Result::ok)
-        .map(|p| signed_offsets(track, p))
-        .find(|p| audio_lists_from(p, m, timescale))?;
-    (m > start.cts).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - start.cts)))
+    let iter = match movie.packets(track.index, &mut *source, limits, &mut budget) {
+        Ok(iter) => iter,
+        Err(error) => {
+            quiet(error)?;
+            return Ok(None);
+        }
+    };
+    for packet in iter {
+        let packet = match packet {
+            Ok(packet) => signed_offsets(track, packet),
+            Err(error) => {
+                quiet(error)?;
+                return Ok(None);
+            }
+        };
+        if audio_lists_from(&packet, m, timescale) {
+            return Ok((m > packet.cts)
+                .then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - packet.cts))));
+        }
+    }
+    Ok(None)
 }
 
 /// `ticks` of an audio track as the samples its decoder outputs in them, at
@@ -3227,14 +3331,8 @@ struct IsoPackets<S> {
     movie: Movie,
     /// Per track, the samples the first packet skips.
     priming: Vec<i64>,
-    /// Per track, how `ffprobe` times its packets.
-    plans: Vec<Plan>,
-    /// Per track with a simple edit list, which samples are listed.
-    edits: Vec<Option<EditPlan>>,
-    /// Per track with several edits, its listing.
-    spliced: Vec<Option<Spliced>>,
-    /// Per track, how far decode times are moved back.
-    shifts: Result<Vec<i64>, coreav_isobmff::Error>,
+    /// Complete preflight data, or the error returned before the first packet.
+    prepared: Result<Prepared, coreav_isobmff::Error>,
     /// Per track, the decode step of its first samples.
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
@@ -3273,8 +3371,8 @@ impl<S: Source> PacketSource for IsoPackets<S> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
         let limits = self.limits;
-        let shifts = self
-            .shifts
+        let prepared = self
+            .prepared
             .as_ref()
             .map_err(|error| Failure::library(error.clone()))?;
         for &index in &self.pictures {
@@ -3328,7 +3426,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
         let mut iters = Vec::with_capacity(tracks);
         for (track, budget) in movie.tracks.iter().zip(budgets.iter_mut()) {
             // From the first sample `ffprobe` lists.
-            let start = self
+            let start = prepared
                 .edits
                 .get(track.index)
                 .copied()
@@ -3359,7 +3457,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             .map(|t| {
                 chapter_data(movie, t)
                     || (t.sample_count > 0 && t.sample_duration == 0 && !movie.has_fragments())
-                    || self
+                    || prepared
                         .edits
                         .get(t.index)
                         .copied()
@@ -3389,7 +3487,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             };
             while !*finished && queue.len() < LOOKAHEAD {
                 // Several edits: each media edit's samples in turn.
-                if let Some(spliced) = self.spliced.get(i).and_then(Option::as_ref) {
+                if let Some(spliced) = prepared.spliced.get(i).and_then(Option::as_ref) {
                     let Some(cursor) = cursors.get_mut(i) else {
                         return Ok(());
                     };
@@ -3412,7 +3510,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                         Some(p) => queue.push_back(p),
                         None => {
                             *finished = true;
-                            let plan = self.plans.get(i).copied().unwrap_or_default();
+                            let plan = prepared.plans.get(i).copied().unwrap_or_default();
                             let tables =
                                 movie.tracks.get(i).map_or(0, |t| u64::from(t.sample_count));
                             trim_last(queue, plan, tables, false, true);
@@ -3446,7 +3544,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 };
                 // A simple edit list's listing: up to its last sample, every
                 // time moved by the snap of its media time.
-                let edit = self.edits.get(i).copied().flatten();
+                let edit = prepared.edits.get(i).copied().flatten();
                 let next = next
                     .filter(|p| {
                         edit.and_then(|e| e.stop)
@@ -3469,7 +3567,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                     Some(p) => queue.push_back((p, None, description, None)),
                     None => {
                         *finished = true;
-                        let plan = self.plans.get(i).copied().unwrap_or_default();
+                        let plan = prepared.plans.get(i).copied().unwrap_or_default();
                         let tables = movie.tracks.get(i).map_or(0, |t| u64::from(t.sample_count));
                         let raw = grouped.get(i).copied().flatten().is_some();
                         trim_last(queue, plan, tables, raw, false);
@@ -3532,7 +3630,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             let micros = |i: usize, p: &coreav_isobmff::Packet| -> i128 {
                 let ts = i128::from(movie.tracks.get(i).map_or(1, |t| t.timescale.max(1)));
                 let dts = p.presentation_dts.map_or(i128::from(p.dts), |r| r.round());
-                let shift = i128::from(shifts.get(i).copied().unwrap_or(0));
+                let shift = i128::from(prepared.shifts.get(i).copied().unwrap_or(0));
                 let v = dts.saturating_sub(shift).saturating_mul(1_000_000);
                 let half = ts / 2;
                 if v >= 0 {
@@ -3610,7 +3708,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 }
             }
             let pts = pts_of(&p);
-            let plan = self.plans.get(i).copied().unwrap_or_default();
+            let plan = prepared.plans.get(i).copied().unwrap_or_default();
             let listed = listed_count.get(i).copied().unwrap_or(0);
             if let Some(n) = listed_count.get_mut(i) {
                 *n = n.saturating_add(1);
@@ -3666,7 +3764,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 && track.kind == TrackKind::Audio
                 && codec_name_of(track).as_deref() != Some("vorbis")
             {
-                let skip = match self.edits.get(i).copied().flatten() {
+                let skip = match prepared.edits.get(i).copied().flatten() {
                     Some(edit) => edit.skip,
                     None => self.priming.get(i).copied(),
                 };
@@ -3715,7 +3813,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 dts: p
                     .presentation_dts
                     .and_then(|r| i64::try_from(r.round()).ok())
-                    .and_then(|d| d.checked_sub(shifts.get(i).copied().unwrap_or(0))),
+                    .and_then(|d| d.checked_sub(prepared.shifts.get(i).copied().unwrap_or(0))),
                 duration,
                 size: u64::from(p.size),
                 pos: Some(p.offset),
@@ -3748,6 +3846,225 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "transcode")]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn gapless_metadata_movie() -> (Vec<u8>, u64) {
+        use crate::test_isobmff::{aac_entry, av_movie_with, bx, full};
+
+        let mut bytes = av_movie_with(aac_entry(), false);
+        let moov = bytes.windows(4).position(|w| w == b"moov").unwrap() - 4;
+        let at = bytes.len() as u64 + 16;
+        bytes.extend_from_slice(&bx(b"udta", &full(b"meta", 0, 0, &bx(b"free", &[]))));
+        let size = (bytes.len() - moov) as u32;
+        bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+        (bytes, at)
+    }
+
+    #[cfg(feature = "transcode")]
+    struct GaplessReadFailure<'a> {
+        inner: coreav_isobmff::SliceSource<'a>,
+        at: u64,
+        fail_on: usize,
+        reads: usize,
+    }
+
+    #[cfg(feature = "transcode")]
+    impl Source for GaplessReadFailure<'_> {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            self.inner.len()
+        }
+
+        fn read_exact_at(
+            &mut self,
+            offset: u64,
+            buf: &mut [u8],
+        ) -> Result<(), coreav_isobmff::Error> {
+            if offset == self.at && buf.len() == 8 {
+                self.reads += 1;
+                if self.reads == self.fail_on {
+                    return Err(coreav_isobmff::Error::Io(std::io::ErrorKind::Other));
+                }
+            }
+            self.inner.read_exact_at(offset, buf)
+        }
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    fn a_gapless_source_error_fails_the_report() {
+        let (bytes, at) = gapless_metadata_movie();
+        let mut source = GaplessReadFailure {
+            inner: coreav_isobmff::SliceSource::new(&bytes),
+            at,
+            fail_on: 1,
+            reads: 0,
+        };
+        assert!(matches!(
+            probe(
+                &mut source,
+                bytes.len() as u64,
+                "gapless",
+                &Limits::default()
+            ),
+            Err(Failure::Library(coreav_isobmff::Error::Io(
+                std::io::ErrorKind::Other
+            )))
+        ));
+        assert_eq!(source.reads, 1);
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn a_gapless_preflight_source_error_fails_before_the_first_packet() {
+        let (bytes, at) = gapless_metadata_movie();
+        let mut source = GaplessReadFailure {
+            inner: coreav_isobmff::SliceSource::new(&bytes),
+            at,
+            fail_on: 3,
+            reads: 0,
+        };
+        let limits = Limits::default();
+        let probed = probe(&mut source, bytes.len() as u64, "gapless", &limits)
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert_eq!(source.reads, 2);
+        let mut listing = packets(
+            IsoProbedPackets {
+                movie: probed.movie,
+                priming: probed.priming,
+                ends: probed.ends,
+                shifts: probed.shifts,
+                steps: probed.steps,
+                covers: probed.covers,
+                pictures: probed.pictures,
+                limits,
+            },
+            &mut source,
+        );
+        let mut emitted = 0;
+        let result = listing.visit(&[false; 2], &mut |_| {
+            emitted += 1;
+            Ok(true)
+        });
+        assert!(matches!(
+            result,
+            Err(Failure::Library(coreav_isobmff::Error::Io(
+                std::io::ErrorKind::Other
+            )))
+        ));
+        assert_eq!(emitted, 0);
+        drop(listing);
+        assert_eq!(source.reads, 3);
+    }
+
+    #[test]
+    fn optional_scans_distinguish_source_failures_from_malformed_samples() {
+        use coreav_isobmff::{Error, LimitKind};
+
+        for error in [
+            Error::Io(std::io::ErrorKind::Other),
+            Error::LimitExceeded {
+                limit: LimitKind::PacketBytes,
+                offset: 40,
+            },
+        ] {
+            assert_eq!(quiet(error.clone()), Err(error));
+        }
+        for error in [
+            Error::Truncated { offset: 40 },
+            Error::Overflow { offset: 40 },
+        ] {
+            assert_eq!(quiet(error), Ok(()));
+        }
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_source_limit_wins_over_exhausted_splice_work() {
+        use crate::test_isobmff::{Spec, movie};
+        use coreav_isobmff::{Error, LimitKind, SliceSource};
+
+        let bytes = movie(&Spec {
+            sizes: vec![100; 4],
+            composition: Vec::new(),
+            ctts: Some(Vec::new()),
+            elst: Some(vec![(80, 0); 2]),
+            ..Spec::default()
+        });
+        let limits = Limits {
+            max_packet_bytes: 50,
+            ..Limits::default()
+        };
+        let mut source = SliceSource::new(&bytes);
+        let movie = coreav_isobmff::probe(&mut source, &limits, &Allowlist::listing()).unwrap();
+        let mut work = Work { held: 0, steps: 0 };
+        assert!(matches!(
+            spliced(
+                &movie,
+                movie.tracks.first().unwrap(),
+                &mut source,
+                &limits,
+                &mut work
+            ),
+            Err(Error::LimitExceeded {
+                limit: LimitKind::PacketBytes,
+                ..
+            })
+        ));
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn rate_probe_propagates_a_source_error_in_its_header_window() {
+        use crate::test_isobmff::fragments::{Fragmented, Track};
+
+        struct Failing {
+            inner: Fragmented,
+            after: u64,
+        }
+
+        impl Source for Failing {
+            fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+                self.inner.len()
+            }
+
+            fn read_exact_at(
+                &mut self,
+                offset: u64,
+                buf: &mut [u8],
+            ) -> Result<(), coreav_isobmff::Error> {
+                if offset >= self.after {
+                    return Err(coreav_isobmff::Error::Io(std::io::ErrorKind::Other));
+                }
+                self.inner.read_exact_at(offset, buf)
+            }
+        }
+
+        let track = Track {
+            timescale: 1000,
+            duration: 200,
+            samples: 1,
+            size: 16,
+            ..Track::H264
+        };
+        let after = Fragmented::new(&[track], 1).len().unwrap();
+        let mut source = Failing {
+            inner: Fragmented::new(&[track], 2),
+            after,
+        };
+        assert!(
+            coreav_isobmff::probe(&mut source, &Limits::default(), &Allowlist::listing()).is_ok()
+        );
+        assert!(matches!(
+            frame_rates(&mut source),
+            Err(Failure::Library(coreav_isobmff::Error::Io(
+                std::io::ErrorKind::Other
+            )))
+        ));
+    }
 
     #[cfg(feature = "transcode")]
     #[test]
