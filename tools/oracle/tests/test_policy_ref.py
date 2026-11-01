@@ -490,6 +490,24 @@ class Matroska(unittest.TestCase):
             f.flush()
             self.assertIsNone(ref.matroska_headers(f.name))
 
+    def test_a_child_past_its_parent_reads_nothing(self):
+        header = ebml(0x1A45DFA3, ebml(0x4282, b'matroska'))
+        entry = ebml(0xAE, ebml(0xD7, b'\x01') + ebml(0x83, b'\x02') + ebml(0x86, b'A_OPUS'))
+        whole = header + ebml(0x18538067, ebml(0x1654AE6B, entry) + ebml(0x1F43B675, ebml(0xE7, b'\x00')))
+        # The CodecID declares one octet more than its TrackEntry holds.
+        over = entry[:-7] + bytes([entry[-7] + 1]) + entry[-6:]
+        cases = (('control', whole), ('a file cut inside its Tracks', whole[:len(header) + 12]),
+                 ('a child past its TrackEntry', header + ebml(0x18538067, ebml(0x1654AE6B, over))))
+        for name, data in cases:
+            with tempfile.NamedTemporaryFile() as f:
+                f.write(data)
+                f.flush()
+                found = ref.matroska_headers(f.name)
+                if name == 'control':
+                    self.assertEqual([t['codec_id'] for t in found['tracks']], ['A_OPUS'])
+                else:
+                    self.assertIsNone(found, name)
+
     def test_ebml_track_tags(self):
         # Two tracks; Tags after the cluster: a LANGUAGE SimpleTag for track
         # UID 7, statistics for UID 8, and a tag with no track target.

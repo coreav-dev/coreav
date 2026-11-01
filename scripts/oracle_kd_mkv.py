@@ -488,8 +488,9 @@ class _Bits:
 
 def _sequence_header(payload):
     """The fields of an AV1 sequence header OBU (AV1 5.5) that a codec
-    string states. Raises ValueError for a reserved profile or a header that
-    ends early."""
+    string states. Raises ValueError for a reserved profile, a header that
+    ends before its last field (`film_grain_params_present`), or one whose
+    trailing bits (5.3.4) are not a one and then zeros to its end."""
     bits = _Bits(payload)
     profile, _still, reduced = bits.f(3), bits.f(1), bits.f(1)
     if profile > 2:
@@ -556,6 +557,11 @@ def _sequence_header(payload):
             subsampling = (1, 0)
         if subsampling == (1, 1):
             position = bits.f(2)
+    if not mono:
+        bits.f(1)
+    bits.f(1)
+    if not bits.f(1) or bits.f(-bits.at % 8) or any(payload[bits.at >> 3:]):
+        raise ValueError('the sequence header does not end in its trailing bits')
     return Av1Sequence(profile, level, tier, high_bitdepth, twelve_bit, depth, mono, subsampling, position,
                        described, primaries, transfer, matrix, full_range)
 

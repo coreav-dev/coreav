@@ -216,22 +216,28 @@ def av1_private(profile=0, level=5, tier=0, depth=8, mono=0, colour=None, full=0
     return bytes([0x81, profile << 5 | level, flags, 0, 0x0A, len(header)]) + header + more
 
 
-def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b''):
+def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b'', declared=None, entry=0):
     """A Matroska file whose track entries are `before` and then one AV1
     video track, number 2 after `before` and 1 otherwise, with `colour` (by
-    element id) as its `Colour`, and one cluster of one empty key frame."""
+    element id) as its `Colour`, and one cluster of one empty key frame.
+    With `declared`, the `CodecPrivate` comes last in its entry and declares
+    that size; `entry` adds to the size the entry declares."""
     number = 2 if before else 1
     video = ebml(0xB0, b'\x40') + ebml(0xBA, b'\x40')
     if colour is not None:
         video += ebml(0x55B0, b''.join(ebml(eid, bytes([value])) for eid, value in colour.items()))
-    entry = (ebml(0xD7, bytes([number])) + ebml(0x73C5, bytes([number])) + ebml(0x83, b'\x01')
-             + ebml(0x86, codec) + ebml(0x63A2, private) + ebml(0xE0, video))
+    fields = ebml(0xD7, bytes([number])) + ebml(0x73C5, bytes([number])) + ebml(0x83, b'\x01') + ebml(0x86, codec)
+    if declared is None:
+        fields += ebml(0x63A2, private) + ebml(0xE0, video)
+    else:
+        fields += ebml(0xE0, video) + b'\x63\xa2' + (1 << 56 | declared).to_bytes(8, 'big') + private
     if encoded:
-        entry += ebml(0x6D80, ebml(0x6240, ebml(0x5034, ebml(0x4254, b'\x03') + ebml(0x4255, b'\x00'))))
+        fields += ebml(0x6D80, ebml(0x6240, ebml(0x5034, ebml(0x4254, b'\x03') + ebml(0x4255, b'\x00'))))
+    entry = b'\xae' + (1 << 56 | len(fields) + entry).to_bytes(8, 'big') + fields
     block = ebml(0xA3, bytes([0x80 | number, 0, 0, 0x80]))
     return (ebml(0x1A45DFA3, ebml(0x4282, b'matroska') + ebml(0x4287, b'\x04') + ebml(0x4285, b'\x02'))
             + ebml(0x18538067, ebml(0x1549A966, ebml(0x2AD7B1, b'\x0f\x42\x40'))
-                   + ebml(0x1654AE6B, before + ebml(0xAE, entry))
+                   + ebml(0x1654AE6B, before + entry)
                    + ebml(0x1F43B675, ebml(0xE7, b'\x00') + block)))
 
 
@@ -328,6 +334,30 @@ class Av1CodecStrings(unittest.TestCase):
                 ('another marker', av1_matroska(b'\x80' + private[1:])),
         ):
             self.assertEqual(self.evidence(data)[1:], ([], []), name)
+
+    def test_a_child_that_does_not_fit_its_parent_gives_no_evidence(self):
+        # A CodecPrivate last in its TrackEntry that declares 100 octets more
+        # than it holds, every other size unchanged; a TrackEntry that
+        # declares 100 more than its Tracks holds. Each beside its control.
+        for name in ('stated BT.709', 'chroma position 1'):
+            private, colour, record, oracle, coreav = self.SHAPES[name]
+            expected = [kd.Av1CodecString(0, 1, oracle, coreav)]
+            expected = [expected, []] if record is kd.av1_default_suffix else [[], expected]
+            self.assertEqual(list(self.evidence(av1_matroska(private, colour, declared=len(private)))[1:]),
+                             expected, name)
+            self.assertEqual(self.evidence(av1_matroska(private, colour, declared=len(private) + 100))[1:],
+                             ([], []), name)
+            self.assertEqual(self.evidence(av1_matroska(private, colour, entry=100))[1:], ([], []), name)
+
+    def test_a_sequence_header_without_its_mandatory_tail_gives_no_evidence(self):
+        # Headers that end before separate_uv_delta_q, or before
+        # film_grain_params_present, and their trailing bits.
+        for private in ('81050c000a0c0000002ac7e3f00008080808', '81050d000a090000002ac7e3f00001',
+                        '81050c000a0c0000002abfe7e00010101010', '81050d000a090000002abfe7e00002'):
+            self.assertEqual(self.evidence(av1_matroska(bytes.fromhex(private)))[1:], ([], []), private)
+        private = bytearray(av1_private(position=1))
+        private[-1] |= 1
+        self.assertEqual(self.evidence(av1_matroska(bytes(private)))[1:], ([], []), 'a set bit after the trailing one')
 
     @unittest.skipUnless(pinned_ffprobe(), 'needs the pinned ffprobe on the path')
     def test_the_pinned_oracle_still_gives_its_string(self):

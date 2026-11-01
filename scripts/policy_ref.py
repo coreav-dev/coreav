@@ -963,15 +963,19 @@ def _elements(f, start, end):
 
 
 def _children(data):
-    """(id, payload) of each element in a master element held in memory."""
+    """(id, payload) of each element in a master element held in memory,
+    all of them or ValueError: a header cut short, a child of unknown size,
+    or one past its parent."""
     at = 0
     while at < len(data):
         eid, n = _vint(data, at, True)
-        if not n:
-            return
-        size, m = _vint(data, at + n, False)
-        if not m or size is None:
-            return
+        size, m = _vint(data, at + n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('a child header cut short')
+        if size is None:
+            raise ValueError('a child of unknown size')
+        if at + n + m + size > len(data):
+            raise ValueError('a child past its parent')
         yield eid, data[at + n + m:at + n + m + size]
         at += n + m + size
 
@@ -1025,7 +1029,9 @@ def matroska_headers(path, tags=False):
     With `tags`, also each track's `tag_names`: the `TagName` of every
     `SimpleTag` in a `Tag` whose `Targets` name the track's `TrackUID`
     (RFC 9559 5.1.8), read from the `Tags` before any cluster of unknown
-    size. None when the file does not start with an EBML header."""
+    size. None when the file does not start with an EBML header, or when
+    an element read in memory (the EBML header, `Tracks`, `Tags`, each up to
+    its read limit) holds a child that does not fit it."""
     found = {'doc_type': None, 'live': None, 'tracks': []}
     tag_names = {}
     try:
@@ -1095,7 +1101,7 @@ def matroska_headers(path, tags=False):
                             tag_names.setdefault(_uint(uid), set()).update(names)
                 if eid == CLUSTER_ID and stop is None:
                     break
-    except OSError:
+    except (OSError, ValueError):
         return None
     if tags:
         for track in found['tracks']:
