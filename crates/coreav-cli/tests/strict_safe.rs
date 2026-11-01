@@ -81,6 +81,12 @@ fn forget(dir: &Path) {
 /// An H.264 MP4 in `dir`, made by the pinned FFmpeg; `None` (a skip) when
 /// there is none, a failure in CI.
 fn source(dir: &Path) -> Option<PathBuf> {
+    made(dir, "in.mp4", &[])
+}
+
+/// An H.264 MP4 with `audio` (the audio input and codec options) in `dir`,
+/// as [`source`] makes it.
+fn made(dir: &Path, name: &str, audio: &[&str]) -> Option<PathBuf> {
     let ffmpeg = std::env::var_os("COREAV_FFMPEG")
         .map(PathBuf::from)
         .or_else(|| {
@@ -88,10 +94,11 @@ fn source(dir: &Path) -> Option<PathBuf> {
             pinned.is_file().then_some(pinned)
         })
         .unwrap_or_else(|| PathBuf::from("ffmpeg"));
-    let path = dir.join("in.mp4");
+    let path = dir.join(name);
     let made = Command::new(&ffmpeg)
         .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])
         .arg("testsrc=s=64x48:d=0.4:r=25")
+        .args(audio)
         .args(["-c:v", "libx264", "-bf", "0", "-pix_fmt", "yuv420p"])
         .arg(&path)
         .status()
@@ -312,6 +319,94 @@ fn transcode_runs_no_ffmpeg() {
     let run = coreav(&dir, Mode::Off, false, &["transcode", "in.mp4", "out.mp4"]);
     assert_ne!(run.code, 0);
     assert!(ran(&dir, "ffmpeg"), "{}", run.stderr);
+}
+
+/// The Opus encoder of `--audio opus` is the command itself, run through
+/// the sandbox launcher: in the mode it runs, and no `ffmpeg` does.
+#[cfg(feature = "libopus")]
+#[test]
+fn opus_audio_runs_no_ffmpeg() {
+    let dir = dir("opus");
+    let flac = ["-f", "lavfi", "-i", "sine=d=0.4", "-c:a", "flac"];
+    let Some(_) = made(&dir, "in.mp4", &flac) else {
+        return;
+    };
+    let line = ["transcode", "in.mp4", "out.mp4", "--audio", "opus"];
+    for mode in [Mode::Flag, Mode::Variable] {
+        let run = coreav(&dir, mode, true, &line);
+        if NATIVE {
+            // The Opus encode, then CoreAV's decoder and the stand-in
+            // x264, which fails.
+            assert_eq!(run.code, 1, "{}", run.stderr);
+            assert!(run.stderr.contains("x264 failed"), "{}", run.stderr);
+            assert!(ran(&dir, "x264"));
+        } else {
+            refused(&run, &dir, "build coreav with the native-h264 feature");
+            error(&run);
+            assert!(!ran(&dir, "x264"));
+        }
+        assert!(!ran(&dir, "ffmpeg"), "{mode:?}: {}", run.stderr);
+        forget(&dir);
+    }
+    let run = coreav(&dir, Mode::Off, false, &line);
+    assert_ne!(run.code, 0);
+    assert!(ran(&dir, "ffmpeg"), "{}", run.stderr);
+}
+
+/// Without the opt-in libopus feature, `--audio opus` is refused before the
+/// input is opened (a missing file, or a pipe no one writes to, which blocks
+/// an open), in every mode, and nothing runs.
+#[cfg(not(feature = "libopus"))]
+#[test]
+fn opus_audio_without_libopus_is_refused_before_the_input_is_read() {
+    let dir = dir("opus-unbuilt");
+    let made = Command::new("mkfifo")
+        .arg(dir.join("fifo.mp4"))
+        .status()
+        .unwrap();
+    assert!(made.success());
+    for input in ["missing.mp4", "fifo.mp4"] {
+        let line = ["transcode", input, "out.mp4", "--audio", "opus"];
+        for mode in [Mode::Off, Mode::Flag, Mode::Variable] {
+            let run = coreav_promptly(&dir, mode, &line);
+            assert_eq!(run.code, 1, "{input} {mode:?}: {}", run.stderr);
+            let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+            assert_eq!(error["kind"], "unsupported_feature", "{input} {mode:?}");
+            assert!(
+                error["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("opt-in libopus feature"),
+                "{input} {mode:?}: {error}"
+            );
+            assert!(
+                !ran(&dir, "ffmpeg") && !ran(&dir, "x264"),
+                "{input} {mode:?}"
+            );
+            assert!(!dir.join("out.mp4").exists());
+        }
+    }
+}
+
+/// The AAC encoder of `--audio aac` is the `ffmpeg` program: refused
+/// before the input is read, and nothing runs.
+#[test]
+fn aac_audio_is_refused_before_the_input_is_read() {
+    let dir = dir("aac");
+    let line = ["transcode", "missing.mp4", "out.mp4", "--audio", "aac"];
+    for mode in [Mode::Flag, Mode::Variable] {
+        let run = coreav(&dir, mode, true, &line);
+        if no_limit() {
+            refused_without_limit(&run, &dir);
+        } else {
+            refused(&run, &dir, "use --audio copy, none or opus");
+        }
+        error(&run);
+        assert!(!ran(&dir, "ffmpeg") && !ran(&dir, "x264"), "{mode:?}");
+    }
+    // Outside the mode the input is read first.
+    let run = coreav(&dir, Mode::Off, true, &line);
+    assert_eq!(run.code, 3, "{}", run.stderr);
 }
 
 #[test]

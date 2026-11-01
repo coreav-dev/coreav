@@ -14,8 +14,9 @@ use coreav_cli::{check, compat, extract, matroska, names, native, remux, text};
 use coreav_isobmff::{Allowlist, Limits, Rational, SliceSource, Source};
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, MAX_SOURCE_TAG, Resource, build_index};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, ExtractError, MatroskaRemuxOptions, Metadata, OnUnsupported,
-    RemuxOptions, TrackChoice, VideoChoice, clip_mp4, extract_audio, remux_matroska, remux_mp4,
+    AudioChoice, ClipOptions, ExtractError, HeaderMetadata, MatroskaRemuxOptions, Metadata,
+    OnUnsupported, RemuxOptions, TrackChoice, VideoChoice, clip_mp4, extract_audio, remux_matroska,
+    remux_mp4,
 };
 use coreav_policy::Policy;
 use coreav_text::{TextLimits, extract_subtitles, read_chapters};
@@ -600,6 +601,7 @@ fn remux_document<S: Source, W: Write>(
             streams: options.streams.clone(),
             on_unsupported,
             metadata,
+            left_out_covers: Vec::new(),
         };
         let summary = remux_mp4(source, &limits, &allowlist, &remux_options, &mut out)
             .map_err(|error| to_failure(ClipFailure::from(error)))?;
@@ -629,6 +631,7 @@ fn extract_document<S: Source, W: Write>(
         &common!(options).limits(),
         &allowlist,
         choice,
+        HeaderMetadata::Copy,
         &mut out,
     )
     .map_err(write_failure)?;

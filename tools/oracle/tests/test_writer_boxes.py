@@ -205,6 +205,46 @@ class CopyChanges(unittest.TestCase):
                 wb.forget()
                 self.assertNotEqual(wb.check_copy(str(src), str(bad), [1], 'extract'), [], name)
 
+    def test_he_aac_extraction_at_the_decoded_rate(self):
+        """An extracted track whose configuration signals SBR must be
+        written at twice its core rate, every duration doubled; one left at
+        the core's rate, or half-scaled, is a problem. A track that signals
+        none must keep its rate."""
+        # SBR signalled hierarchically and backward-compatibly; LC at 22.05
+        # kHz with no SBR signalled (SBR only in its frames, if at all); LC
+        # at 44.1 kHz; SBR at 96 kHz, beyond the entry's 16.16 rate.
+        for config, core, signalled in ((bytes([0x2b, 0x92, 0x08]), 22050, True),
+                                        (bytes([0x13, 0x90, 0x56, 0xe5, 0xa0]), 22050, True),
+                                        (bytes([0x13, 0x90]), 22050, False), (asc(), 44100, False),
+                                        (bytes([0x29, 0x90, 0x08, 0x00]), 48000, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                src, out = pathlib.Path(tmp) / 'src.mp4', pathlib.Path(tmp) / 'out.m4a'
+                frames = [(bytes([i]) * 9, 1024, 0, True) for i in range(4)]
+                build(src, [track(b'soun', core, mp4a(rate=core, config=config), frames)])
+                doubled = [(b, d * 2, c, s) for b, d, c, s in frames]
+                # Without an edit list, the media duration in movie ticks, rounded.
+                tkhd = round(Fraction(4096 * 1000, core))
+                build(out, [track(b'soun', core, mp4a(rate=core, config=config), frames, tkhd=tkhd)])
+                wb.forget()
+                problems = wb.check_copy(str(src), str(out), [0], 'extract')
+                self.assertEqual(problems == [], not signalled, (config, problems))
+                if core * 2 > 65535:
+                    continue
+                build(out, [track(b'soun', core * 2, mp4a(rate=core * 2, config=config), doubled, tkhd=tkhd)])
+                wb.forget()
+                problems = wb.check_copy(str(src), str(out), [0], 'extract')
+                self.assertEqual(problems == [], signalled, (config, problems))
+                if not signalled:
+                    continue
+                # Durations left at the core rate, or the entry's rate left
+                # at the core's, are problems.
+                build(out, [track(b'soun', core * 2, mp4a(rate=core * 2, config=config), frames, tkhd=tkhd)])
+                wb.forget()
+                self.assertTrue(wb.check_copy(str(src), str(out), [0], 'extract'))
+                build(out, [track(b'soun', core * 2, mp4a(rate=core, config=config), doubled, tkhd=tkhd)])
+                wb.forget()
+                self.assertTrue(wb.check_copy(str(src), str(out), [0], 'extract'))
+
     def test_a_sample_outside_the_edit(self):
         """A sample no edit presents is still compared."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -261,6 +301,23 @@ class Entries(unittest.TestCase):
         self.assertEqual(wb.aac_config(dict(entry, payload=bytes(v1), sound_version=1, stsd_version=1)), asc(2))
         qt = bytes(v1[:28]) + b'\x00' * 16 + bytes(v1[28:])
         self.assertEqual(wb.aac_config(dict(entry, payload=qt, sound_version=1, stsd_version=0)), asc(2))
+
+    def test_ac3_and_eac3_channels(self):
+        # dac3 of acmod 7 with the LFE (5.1), and dec3 of the same, under
+        # stereo entries: either count, and nothing else.
+        dac3 = int('00' + '01000' + '000' + '111' + '1' + '01010' + '00000', 2).to_bytes(3, 'big')
+        dec3 = int('0000110000000' + '000' + '00' + '10000' + '0' + '0' + '000' + '111' + '1' + '000' + '0000'
+                   + '0', 2).to_bytes(5, 'big')
+        for kind, config, name in ((b'ac-3', dac3, b'dac3'), (b'ec-3', dec3, b'dec3')):
+            payload = mp4a(2)[8:36] + box(name, config)
+            src = {'entry': {'type': kind.decode(), 'channels': 2, 'rate': 48000.0, 'payload': payload,
+                             'sound_version': 0}}
+            self.assertEqual(wb.ac3_channels(src['entry']), 6)
+            for count in (2, 6):
+                self.assertEqual(wb.compare_entry('audio', src, {'entry': dict(src['entry'], channels=count)}), [])
+            self.assertTrue(wb.compare_entry('audio', src, {'entry': dict(src['entry'], channels=5)}))
+            short = dict(src['entry'], payload=mp4a(2)[8:36] + box(name, config[:1]))
+            self.assertIsNone(wb.ac3_channels(short))
 
     def test_program_config_element(self):
         # channelConfiguration 0, then a GASpecificConfig and a program

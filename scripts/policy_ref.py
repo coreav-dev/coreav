@@ -413,7 +413,8 @@ def evaluate(policy, doc):
 
 CODECS = {
     'h264': 'h264', 'hevc': 'hevc', 'av1': 'av1', 'vp9': 'vp9', 'prores': 'prores',
-    'aac': 'aac', 'mp3': 'mp3', 'opus': 'opus', 'mov_text': 'timed_text',
+    'aac': 'aac', 'mp3': 'mp3', 'opus': 'opus', 'flac': 'flac', 'alac': 'alac', 'ac3': 'ac3',
+    'eac3': 'eac3', 'mov_text': 'timed_text',
 }
 # The sample entry types behind each CoreAV codec name: ffprobe's codec counts only with one of these tags, so that, for
 # example, mu-law (`ulaw`, pcm_mulaw) is not linear PCM and QuickTime text
@@ -422,7 +423,8 @@ CODECS = {
 TAGS = {
     'h264': {'avc1', 'avc3'}, 'hevc': {'hvc1', 'hev1'}, 'av1': {'av01'}, 'vp9': {'vp09'},
     'prores': {'apco', 'apcs', 'apcn', 'apch', 'ap4h', 'ap4x'}, 'aac': {'mp4a'},
-    'mp3': {'mp4a', '.mp3'}, 'opus': {'Opus'}, 'timed_text': {'tx3g'}, 'timecode': {'tmcd'},
+    'mp3': {'mp4a', '.mp3'}, 'opus': {'Opus'}, 'flac': {'fLaC'}, 'alac': {'alac'},
+    'ac3': {'ac-3'}, 'eac3': {'ec-3'}, 'timed_text': {'tx3g'}, 'timecode': {'tmcd'},
     'pcm': {'sowt', 'twos', 'in24', 'in32', 'fl32', 'fl64', 'lpcm', 'ipcm', 'fpcm', 'raw '},
 }
 
@@ -913,6 +915,9 @@ def outcome(reasons, excluded):
 MAX_ELEMENTS = 100_000
 EBML_ID, SEGMENT_ID, CLUSTER_ID, TRACKS_ID = 0x1A45DFA3, 0x18538067, 0x1F43B675, 0x1654AE6B
 TAGS_ID = 0x1254C367
+# The integer elements of a video track's `Colour` (RFC 9559 5.1.4.1.28.16).
+COLOUR = {0x55B1: 'MatrixCoefficients', 0x55B2: 'BitsPerChannel', 0x55B7: 'ChromaSitingHorz',
+          0x55B8: 'ChromaSitingVert', 0x55B9: 'Range', 0x55BA: 'TransferCharacteristics', 0x55BB: 'Primaries'}
 # ffprobe `codec_name` to the name `coreav probe` prints for Matroska.
 MATROSKA_FFPROBE = {name: name for name in MATROSKA_CODECS}
 MATROSKA_FFPROBE.update({'hdmv_pgs_subtitle': 'pgs', 'dvd_subtitle': 'vobsub',
@@ -957,16 +962,37 @@ def _elements(f, start, end):
         at, count = stop, count + 1
 
 
+def _fits(data, size, end):
+    return data + size <= end
+
+
+def _payload(f, body, stop, end, limit):
+    """The payload of an element from `body` to `stop`, read whole into
+    memory when it ends within its parent's `end` (itself within the file)
+    and holds at most `limit` octets; ValueError otherwise, so that a
+    `_children` walk sees the whole of it."""
+    if not _fits(body, stop - body, end):
+        raise ValueError('an element past its parent')
+    if stop - body > limit:
+        raise ValueError('an element larger than the read takes')
+    f.seek(body)
+    return f.read(stop - body)
+
+
 def _children(data):
-    """(id, payload) of each element in a master element held in memory."""
+    """(id, payload) of each element in a master element held in memory,
+    all of them or ValueError: a header cut short, a child of unknown size,
+    or one past its parent."""
     at = 0
     while at < len(data):
         eid, n = _vint(data, at, True)
-        if not n:
-            return
-        size, m = _vint(data, at + n, False)
-        if not m or size is None:
-            return
+        size, m = _vint(data, at + n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('a child header cut short')
+        if size is None:
+            raise ValueError('a child of unknown size')
+        if not _fits(at + n + m, size, len(data)):
+            raise ValueError('a child past its parent')
         yield eid, data[at + n + m:at + n + m + size]
         at += n + m + size
 
@@ -1013,12 +1039,17 @@ def matroska_headers(path, tags=False):
     `DocType`, whether the Segment's size is unknown (live), and for each
     `TrackEntry` in order its `TrackNumber`, `TrackUID`, `TrackType`,
     `CodecID`, `DefaultDuration`, encoding, `PixelWidth` and `PixelHeight`
-    (`pixels`), and its stored `Language` and `LanguageBCP47` (`language`,
-    `language_bcp47`, None when absent).
+    (`pixels`), its stored `Language` and `LanguageBCP47` (`language`,
+    `language_bcp47`), its `CodecPrivate` bytes (`codec_private`) and the
+    integer elements of its `Colour` by name (`colour`, RFC 9559
+    5.1.4.1.28.16), each None when absent.
     With `tags`, also each track's `tag_names`: the `TagName` of every
     `SimpleTag` in a `Tag` whose `Targets` name the track's `TrackUID`
     (RFC 9559 5.1.8), read from the `Tags` before any cluster of unknown
-    size. None when the file does not start with an EBML header."""
+    size. None when the file does not start with an EBML header, or when
+    an element read in memory (the EBML header, `Tracks`, `Tags`) ends past
+    its parent or the file, is over its read limit, or holds a child that
+    does not fit it."""
     found = {'doc_type': None, 'live': None, 'tracks': []}
     tag_names = {}
     try:
@@ -1028,8 +1059,7 @@ def matroska_headers(path, tags=False):
             if not top or top[0][0] != EBML_ID:
                 return None
             _, data, stop = top[0]
-            f.seek(data)
-            for i, p in _children(f.read(min((stop or data) - data, 1 << 16))):
+            for i, p in _children(_payload(f, data, stop or data, end, 1 << 16)):
                 if i == 0x4282:
                     found['doc_type'] = _string(p)
             segment = next((e for e in top if e[0] == SEGMENT_ID), None)
@@ -1039,14 +1069,13 @@ def matroska_headers(path, tags=False):
             seg_end = min(segment[2] or end, end)
             for eid, body, stop in _elements(f, segment[1], seg_end):
                 if eid == TRACKS_ID and stop is not None and not found['tracks']:
-                    f.seek(body)
-                    tracks = f.read(min(stop - body, 16 << 20))
-                    for i, entry in _children(tracks):
+                    for i, entry in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0xAE:
                             continue
                         track = {'number': None, 'uid': None, 'type': None, 'codec_id': None,
                                  'default_duration': None, 'pixels': None, 'language': None,
-                                 'language_bcp47': None, 'encoding': _encoding(entry)}
+                                 'language_bcp47': None, 'codec_private': None, 'colour': None,
+                                 'encoding': _encoding(entry)}
                         for j, q in _children(entry):
                             if j == 0xD7:
                                 track['number'] = _uint(q)
@@ -1062,16 +1091,20 @@ def matroska_headers(path, tags=False):
                                 track['codec_id'] = _string(q)
                             elif j == 0x23E383:
                                 track['default_duration'] = _uint(q)
+                            elif j == 0x63A2:
+                                track['codec_private'] = bytes(q)
                             elif j == 0xE0:
                                 video = dict(_children(q))
                                 if 0xB0 in video and 0xBA in video:
                                     track['pixels'] = (_uint(video[0xB0]), _uint(video[0xBA]))
+                                if 0x55B0 in video:
+                                    track['colour'] = {COLOUR[k]: _uint(v) for k, v in _children(video[0x55B0])
+                                                       if k in COLOUR}
                         found['tracks'].append(track)
                     if not tags:
                         break
                 elif eid == TAGS_ID and tags and stop is not None:
-                    f.seek(body)
-                    for i, tag in _children(f.read(min(stop - body, 16 << 20))):
+                    for i, tag in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0x7373:
                             continue
                         targets = [u for j, q in _children(tag) if j == 0x63C0
@@ -1082,7 +1115,7 @@ def matroska_headers(path, tags=False):
                             tag_names.setdefault(_uint(uid), set()).update(names)
                 if eid == CLUSTER_ID and stop is None:
                     break
-    except OSError:
+    except (OSError, ValueError):
         return None
     if tags:
         for track in found['tracks']:
@@ -1347,6 +1380,126 @@ def laced_tracks(path):
         pass
     return found
 
+
+
+# The largest block of the track asked for that matroska_frames reads.
+MAX_BLOCK = 1 << 24
+
+
+def _complete(f, start, end, unknown=False):
+    """(id, data start, data end) of each element between start and end, the
+    whole range or ValueError: a header cut short, an element past its
+    parent, more than MAX_ELEMENTS, or one of unknown size, which only with
+    `unknown` ends the range."""
+    at, count = start, 0
+    while at < end:
+        count += 1
+        if count > MAX_ELEMENTS:
+            raise ValueError('more elements than the walk reads')
+        f.seek(at)
+        head = f.read(min(12, end - at))
+        eid, n = _vint(head, 0, True)
+        size, m = _vint(head, n, False) if n else (None, 0)
+        if not n or not m:
+            raise ValueError('an element header cut short')
+        data = at + n + m
+        if size is None:
+            if not unknown:
+                raise ValueError('an element of unknown size')
+            yield eid, data, end
+            return
+        if not _fits(data, size, end):
+            raise ValueError('an element past its parent')
+        yield eid, data, data + size
+        at = data + size
+
+
+def matroska_block_frames(path, number):
+    """(block data offset, frames) for each block of the track numbered
+    `number`, in file order. The offset is the file position of the
+    TrackNumber vint in the SimpleBlock or Block; frames are its data,
+    a lace split into its frames (RFC 9559 10.3 to 10.6). Every element of
+    the Segment is walked, each within its parent and the file, so that no
+    frame is left unread;
+    only the Segment may be of unknown size. Raises ValueError for a walk
+    that cannot reach every block, a block or lace that does not fit its
+    element, or a block of the track over MAX_BLOCK, OSError for an
+    unreadable file."""
+    with open(path, 'rb') as f:
+        end = f.seek(0, 2)
+        segment = next((e for e in _complete(f, 0, end, unknown=True) if e[0] == SEGMENT_ID), None)
+        if segment is None:
+            return
+        for eid, body, stop in _complete(f, segment[1], segment[2]):
+            if eid != CLUSTER_ID:
+                continue
+            for cid, cbody, cstop in _complete(f, body, stop):
+                blocks = [(cid, cbody, cstop)]
+                if cid == 0xA0:
+                    blocks = [b for b in _complete(f, cbody, cstop) if b[0] == 0xA1]
+                for bid, bbody, bstop in blocks:
+                    if bid not in (0xA3, 0xA1):
+                        continue
+                    f.seek(bbody)
+                    head = f.read(min(12, bstop - bbody))
+                    track, n = _vint(head, 0, False)
+                    if not n or len(head) < n + 3:
+                        raise ValueError('a block header cut short')
+                    if track != number:
+                        continue
+                    if bstop - bbody > MAX_BLOCK:
+                        raise ValueError('a block larger than the walk reads')
+                    f.seek(bbody)
+                    block = f.read(bstop - bbody)
+                    if len(block) != bstop - bbody:
+                        raise ValueError('a block cut short')
+                    yield bbody, _laced(block[n + 3:], block[n + 2] >> 1 & 3)
+
+
+def matroska_frames(path, number):
+    """The frames of the track numbered `number`, in file order, from the
+    same complete, bounded walk as `matroska_block_frames`."""
+    for _, frames in matroska_block_frames(path, number):
+        yield from frames
+
+
+def _laced(data, lacing):
+    """The frames of a block's data under its lacing bits (RFC 9559 10.3:
+    none, Xiph, fixed-size or EBML)."""
+    if not lacing:
+        return [data]
+    if not data:
+        raise ValueError('a lace without its frame count')
+    count, at, sizes = data[0] + 1, 1, []
+    if lacing == 1:
+        for _ in range(count - 1):
+            size = 0
+            while True:
+                if at >= len(data):
+                    raise ValueError('Xiph lace sizes cut short')
+                size, at = size + data[at], at + 1
+                if data[at - 1] != 255:
+                    break
+            sizes.append(size)
+    elif lacing == 3:
+        for i in range(count - 1):
+            value, n = _vint(data, at, False)
+            if not n or value is None:
+                raise ValueError('an EBML lace size that cannot be read')
+            at += n
+            sizes.append(value if i == 0 else sizes[-1] + value - ((1 << (7 * n - 1)) - 1))
+    elif (len(data) - at) % count:
+        raise ValueError('a fixed-size lace that does not divide its data')
+    else:
+        sizes = [(len(data) - at) // count] * (count - 1)
+    last = len(data) - at - sum(sizes)
+    if any(size < 0 for size in sizes) or last < 0:
+        raise ValueError('lace sizes past the block')
+    frames = []
+    for size in sizes + [last]:
+        frames.append(data[at:at + size])
+        at += size
+    return frames
 
 def packet_spans(rows, time_bases):
     """Per stream index: (span in seconds, bytes, span of the starts) from

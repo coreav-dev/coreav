@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""The Opus bars of docs/design/transcode.md ("Opus bars"): coreav
+transcode --audio opus against FFmpeg's -c:a libopus on a set this script
+makes with the same FFmpeg, judged on O1 to O4 as the note fixes them.
+Speed is recorded for information only.
+
+    opus_encode_check.py --coreav BIN --ffmpeg FFMPEG --ffprobe FFPROBE \
+        --work DIR --out REPORT.json
+    opus_encode_check.py --coreav BIN --ffmpeg FFMPEG --check-libopus
+
+CoreAV's arm must link the libopus the release links, the version that
+packages/cli/scripts/codecs.sh pins; the libopus each binary carries is
+recorded, and --check-libopus checks and prints only that. Exits 1 when a
+bar is missed, 2 when the set cannot be made or CoreAV links another
+libopus. Standard library only; FFmpeg is a black box.
+"""
+
+import argparse
+import array
+import json
+import math
+import os
+import re
+import statistics
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
+DURATION = 10
+
+
+def video(duration):
+    return ['-f', 'lavfi', '-i', f'testsrc2=size=160x120:rate=25:duration={duration}']
+
+
+def sources(duration):
+    """The set, each source `duration` seconds long: name, audio input,
+    audio options, container, and whether O4 judges it."""
+    # The comma inside the expression is escaped: a filter graph splits
+    # filters at a bare one.
+    sweep = f'0.5*sin(2*PI*50*{duration}/log(300)*(pow(300\\,t/{duration})-1))'
+    return [
+        # name, audio input, audio options, container, judged on O4
+        ('S1', f'sine=frequency=440:sample_rate=48000:duration={duration}',
+         ['-ac', '1', '-c:a', 'flac'], 'mp4', True),
+        ('S2', f'aevalsrc=0.5*sin(2*PI*440*t)|0.5*sin(2*PI*660*t):s=48000:c=stereo:d={duration}',
+         ['-c:a', 'flac'], 'mp4', True),
+        ('S3', f'aevalsrc={sweep}|{sweep}:s=48000:c=stereo:d={duration}',
+         ['-c:a', 'flac'], 'mkv', True),
+        ('S4', f'anoisesrc=color=pink:sample_rate=48000:amplitude=0.3:seed=1:duration={duration}',
+         ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
+        ('S5', f'aevalsrc=(random(0)*2-1)*0.5*(0.5+0.5*sin(2*PI*4*t)):s=48000:c=mono:d={duration}',
+         ['-c:a', 'libmp3lame', '-b:a', '192k'], 'mkv', False),
+        ('S6', f'sine=frequency=1000:sample_rate=44100:duration={duration}',
+         ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
+    ]
+
+
+SOURCES = sources(DURATION)
+RATES = [None, 32, 128]
+RUNS = 3
+CODECS = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'packages', 'cli', 'scripts',
+                      'codecs.sh')
+# libopus's version string, as opus_get_version_string gives it: "libopus
+# 1.6.1", or "libopus unknown" for a build that was given no version.
+LIBOPUS = re.compile(rb'libopus (unknown|v?\d[\w.+~-]*)\x00')
+
+
+def run(args, **kwargs):
+    return subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, **kwargs)
+
+
+def timed(args):
+    start = time.perf_counter()
+    done = run(args)
+    return done, time.perf_counter() - start
+
+
+def arms(coreav, ffmpeg, source, ours, theirs, rate):
+    """The two command lines of one input, as the note fixes them: CoreAV
+    with `--audio opus` and FFmpeg with `-c:a libopus`, each with the
+    rate (kbit/s) when one is given."""
+    ours_args = [coreav, 'transcode', source, ours, '--force', '--audio', 'opus',
+                 '--encoder', 'ffmpeg', '--ffmpeg', ffmpeg]
+    theirs_args = [ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', source,
+                   '-c:v', 'libx264', '-c:a', 'libopus']
+    if rate:
+        ours_args += ['--audio-bitrate', str(rate)]
+        theirs_args += ['-b:a', f'{rate}k']
+    return ours_args, theirs_args + [theirs]
+
+
+def make_sources(ffmpeg, work, duration=DURATION):
+    paths = {}
+    for name, audio, options, container, _ in sources(duration):
+        path = os.path.join(work, f'{name}.{container}')
+        done = run([ffmpeg, '-nostdin', '-v', 'error', '-y', *video(duration), '-f', 'lavfi', '-i', audio,
+                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', *options, path])
+        if done.returncode != 0:
+            sys.stderr.write(f'cannot make {name}: {done.stderr.decode(errors="replace")}\n')
+            sys.exit(2)
+        paths[name] = path
+    return paths
+
+
+def probe_audio(ffprobe, path, select='a'):
+    done = run([ffprobe, '-v', 'error', '-select_streams', select, '-show_entries',
+                'stream=codec_name,profile,sample_rate,start_pts,duration_ts,initial_padding,bit_rate,channels',
+                '-of', 'json', path])
+    streams = json.loads(done.stdout or b'{}').get('streams') or [{}]
+    return streams[0]
+
+
+def pcm(ffmpeg, path, select='a', before=(), after=()):
+    """The PCM O4 compares: the audio of `path` (the streams `select` names)
+    decoded by FFmpeg to 48 kHz float, or None when FFmpeg fails or gives no
+    samples. `before` and `after` are input and output options."""
+    done = run([ffmpeg, '-nostdin', '-v', 'error', *before, *AUDIO_DECODE_INPUT, '-i', path, *after,
+                '-map', f'0:{select}', '-ar', '48000', '-f', 'f32le', '-'])
+    return samples(done.returncode, done.stdout)
+
+
+def samples(returncode, stdout):
+    """The float samples of a decode that exited with `returncode`, or None
+    when it failed or gave none."""
+    if returncode != 0 or len(stdout) < 4:
+        return None
+    decoded = array.array('f')
+    decoded.frombytes(stdout[:len(stdout) // 4 * 4])
+    if sys.byteorder != 'little':
+        decoded.byteswap()
+    return decoded
+
+
+def snr(reference, decoded):
+    n = min(len(reference), len(decoded))
+    signal = sum(x * x for x in reference[:n])
+    noise = sum((x - y) * (x - y) for x, y in zip(reference[:n], decoded[:n]))
+    if noise == 0:
+        return math.inf
+    return 10 * math.log10(signal / noise)
+
+
+def quality(reference, decoded):
+    """The SNR of `decoded` against `reference`, or None when either has
+    no samples: snr would score that as infinite."""
+    if not reference or not decoded:
+        return None
+    return snr(reference, decoded)
+
+
+def o4(ours, theirs):
+    """O4 on one input; a missing SNR on either arm fails it."""
+    return ours is not None and theirs is not None and ours >= theirs - 1.0
+
+
+def pinned_libopus(path=CODECS):
+    """The libopus version the release links: OPUS_VERSION in codecs.sh,
+    the one pin of the release build and of the libopus these bars judge."""
+    with open(path) as f:
+        for line in f:
+            if line.startswith('OPUS_VERSION='):
+                return line.strip().split('=', 1)[1]
+    return None
+
+
+def libopus_versions(data):
+    """The libopus versions named in a binary's bytes by libopus's version
+    string ("libopus 1.6.1", or "libopus unknown")."""
+    return sorted({m.group(1).decode() for m in LIBOPUS.finditer(data)})
+
+
+def linked_libopus(path):
+    """The libopus version linked into the binary at `path`, or None when
+    it names none (as when libopus is loaded at run time) or several."""
+    try:
+        with open(path, 'rb') as f:
+            versions = libopus_versions(f.read())
+    except OSError:
+        return None
+    return versions[0] if len(versions) == 1 else None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    parser.add_argument('--coreav', required=True)
+    parser.add_argument('--ffmpeg', required=True)
+    parser.add_argument('--ffprobe')
+    parser.add_argument('--work')
+    parser.add_argument('--out')
+    parser.add_argument('--check-libopus', action='store_true',
+                        help='only check and print the libopus each binary links')
+    args = parser.parse_args()
+    if not args.check_libopus and None in (args.ffprobe, args.work, args.out):
+        parser.error('--ffprobe, --work and --out are required to judge the bars')
+    libopus = {'pinned': pinned_libopus(), 'coreav': linked_libopus(args.coreav),
+               'ffmpeg': linked_libopus(args.ffmpeg)}
+    print(json.dumps({'libopus': libopus}))
+    if libopus['pinned'] is None or libopus['coreav'] != libopus['pinned']:
+        print(f"error: coreav links libopus {libopus['coreav']}, not the release's {libopus['pinned']}",
+              file=sys.stderr)
+        sys.exit(2)
+    if args.check_libopus:
+        return
+    os.makedirs(args.work, exist_ok=True)
+    sources = make_sources(args.ffmpeg, args.work)
+    references = {name: pcm(args.ffmpeg, sources[name]) for name, *_, tonal in SOURCES if tonal}
+    rows = []
+    for name, _, _, _, tonal in SOURCES:
+        for rate in RATES:
+            label = f'{name}-{rate or "default"}'
+            ours = os.path.join(args.work, f'{label}.coreav.mp4')
+            theirs = os.path.join(args.work, f'{label}.ffmpeg.mp4')
+            ours_args, theirs_args = arms(args.coreav, args.ffmpeg, sources[name], ours, theirs, rate)
+            times = {'coreav': [], 'ffmpeg': []}
+            summary = None
+            failed = None
+            for _ in range(RUNS):
+                done, took = timed(ours_args)
+                times['coreav'].append(took)
+                if done.returncode != 0:
+                    failed = done.stderr.decode(errors='replace')
+                    break
+                summary = json.loads(done.stdout)
+                done, took = timed(theirs_args)
+                times['ffmpeg'].append(took)
+                if done.returncode != 0:
+                    failed = 'ffmpeg: ' + done.stderr.decode(errors='replace')
+                    break
+            row = {'input': label, 'tonal': tonal, 'failed': failed}
+            rows.append(row)
+            if failed:
+                continue
+            encoded = summary['encoded_audio']
+            decode = run([args.ffmpeg, '-nostdin', '-v', 'error', '-i', ours, '-map', '0:a',
+                          '-f', 'null', '-'])
+            ours_probe = probe_audio(args.ffprobe, ours)
+            theirs_probe = probe_audio(args.ffprobe, theirs)
+            row.update({
+                'summary': encoded,
+                'coreav': ours_probe,
+                'ffmpeg': theirs_probe,
+                'o1': decode.returncode == 0 and not decode.stderr,
+                'o1_messages': decode.stderr.decode(errors='replace'),
+                'bit_rate_ratio': int(ours_probe.get('bit_rate', 0)) / max(1, int(theirs_probe.get('bit_rate', 1))),
+                'seconds': {arm: statistics.median(t) for arm, t in times.items()},
+            })
+            row['o2'] = (
+                ours_probe.get('codec_name') == 'opus'
+                and ours_probe.get('start_pts') == 0
+                and ours_probe.get('initial_padding') == encoded['pre_skip']
+                and ours_probe.get('duration_ts') == encoded['samples']
+                and abs(ours_probe.get('duration_ts', 0) - theirs_probe.get('duration_ts', 0)) <= 48
+            )
+            if tonal:
+                row['snr_coreav'] = quality(references[name], pcm(args.ffmpeg, ours))
+                row['snr_ffmpeg'] = quality(references[name], pcm(args.ffmpeg, theirs))
+                row['o4'] = o4(row['snr_coreav'], row['snr_ffmpeg'])
+    judged = [r for r in rows if not r['failed']]
+    ratios = [r['bit_rate_ratio'] for r in judged]
+    bars = {
+        'O1': len(judged) == len(rows) and all(r['o1'] for r in judged),
+        'O2': len(judged) == len(rows) and all(r['o2'] for r in judged),
+        'O3': (len(judged) == len(rows) and all(0.85 <= x <= 1.15 for x in ratios)
+               and 0.95 <= statistics.median(ratios) <= 1.05),
+        'O4': len(judged) == len(rows) and all(r['o4'] for r in judged if r['tonal']),
+    }
+    report = {
+        'libopus': libopus,
+        'inputs': len(rows),
+        'failed': [r['input'] for r in rows if r['failed']],
+        'o1_met': sum(1 for r in judged if r['o1']),
+        'o2_met': sum(1 for r in judged if r['o2']),
+        'bit_rate_ratio': {'min': min(ratios, default=None), 'median': statistics.median(ratios) if ratios else None,
+                           'max': max(ratios, default=None)},
+        'snr_delta_db': sorted(round(r['snr_coreav'] - r['snr_ffmpeg'], 3) for r in judged
+                               if r['tonal'] and None not in (r['snr_coreav'], r['snr_ffmpeg'])),
+        'o4_missing_pcm': [r['input'] for r in judged
+                           if r['tonal'] and None in (r['snr_coreav'], r['snr_ffmpeg'])],
+        'seconds_ratio_median': statistics.median(
+            [r['seconds']['coreav'] / r['seconds']['ffmpeg'] for r in judged]) if judged else None,
+        'bars': bars,
+        'rows': rows,
+    }
+    with open(args.out, 'w') as f:
+        json.dump(report, f, indent=1, default=str)
+    print(json.dumps({k: v for k, v in report.items() if k != 'rows'}, indent=1, default=str))
+    sys.exit(0 if all(bars.values()) else 1)
+
+
+if __name__ == '__main__':
+    main()

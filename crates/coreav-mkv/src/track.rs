@@ -283,8 +283,10 @@ impl Allowlist {
 }
 
 impl Default for Allowlist {
-    /// The codecs in CoreAV's scope that Matroska carries, plus WebM's own
-    /// (VP8, Vorbis) and the text subtitle formats (`docs/design/mkv.md`).
+    /// The codecs in CoreAV's scope that Matroska carries, the audio CoreAV
+    /// copies into MP4 (FLAC, AC-3, E-AC-3, Apple Lossless), WebM's own
+    /// codecs (VP8, Vorbis) and the text subtitle formats
+    /// (`docs/design/mkv.md`).
     fn default() -> Self {
         Self::new(&[
             Codec::H264,
@@ -297,6 +299,10 @@ impl Default for Allowlist {
             Codec::Mp3,
             Codec::Opus,
             Codec::Vorbis,
+            Codec::Flac,
+            Codec::Ac3,
+            Codec::Eac3,
+            Codec::Alac,
             Codec::Pcm,
             Codec::SubRip,
             Codec::Ass,

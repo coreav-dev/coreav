@@ -30,5 +30,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "opus_packets"
+path = "fuzz_targets/opus_packets.rs"
+test = false
+doc = false
+bench = false
+
 [lints.rust]
 unsafe_code = "forbid"

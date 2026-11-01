@@ -50,6 +50,20 @@ class Sets(unittest.TestCase):
     def families(self, files):
         return [e['family'] for e in files]
 
+    def test_v1_coverage_takes_every_real_v1_file_and_no_other_corpus(self):
+        files = round_files.select('v1-coverage', self.root)
+        self.assertEqual(len(files), 39)
+        self.assertTrue(all(e['key'].startswith('corpus/v1/real/') for e in files))
+        order = [hashlib.sha256(('coreav-codec-v1:' + e['sha256']).encode()).hexdigest() for e in files]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual({e['family'] for e in files if e['ext'] in ('ts', 'mp3')}, {'mpegts', None})
+
+    def test_the_v1_coverage_rehearsal_is_the_first_40_in_its_own_order(self):
+        files = round_files.select('v1-coverage-rehearsal', self.root)
+        every = round_files.v1_coverage(self.root, 'coreav-codec-rehearsal:')
+        self.assertEqual(files, every[:40])
+        self.assertEqual(len(files), 39)
+
     def test_the_draw_is_draw_6_alone_where_the_extension_agrees_with_the_family(self):
         files = round_files.select('draw6', self.root)
         self.assertEqual(self.families(files), ['mp4-mov'] * 4 + ['matroska-webm'] * 2)
@@ -140,6 +154,33 @@ class Job(unittest.TestCase):
             f.flush()
             subprocess.run(['bash', '-n', f.name], check=True)
 
+    def test_an_r4_abort_keeps_its_public_report_and_fails_the_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fake = root / 'step.py'
+            fake.write_text('import json, pathlib, sys\n'
+                            'stage, args = sys.argv[1], sys.argv[2:]\n'
+                            'aborted = "out/r4.json" in args\n'
+                            'if stage == "report":\n'
+                            '    out = pathlib.Path(args[args.index("--out") + 1])\n'
+                            '    out.write_text(json.dumps({"aborted": aborted}))\n'
+                            'sys.exit(int(aborted))\n')
+            job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
+            job = job.replace('python3 -I repo/tools/compat-corpus/speed.py r4-report',
+                              f'{sys.executable} {fake} report')
+            job = job.replace('python3 -I repo/tools/compat-corpus/speed.py r4 ',
+                              f'{sys.executable} {fake} runner ')
+            job = job.replace('python3 -I repo/tools/compat-corpus/round_files.py fetch', 'true')
+            job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
+            job = job.replace('bin/ffmpeg -version', 'echo')
+            (root / 'r2.env').write_text('')
+            done = subprocess.run(['bash', '-c', job.split('python3 -I - > out/host.json')[0]
+                                   + job.split('\nPY\n', 1)[1], 'job', '0'], cwd=root,
+                                  capture_output=True, timeout=30)
+            self.assertEqual(done.returncode, 1, done.stderr)
+            self.assertTrue(json.loads((root / 'out/r4.report.json').read_text())['aborted'])
+            self.assertEqual((root / 'out/gate.verdict').read_text().strip(), 'pass')
+
 
 class Verdict(unittest.TestCase):
     def vm(self, files, run=None):
@@ -172,6 +213,17 @@ class Verdict(unittest.TestCase):
         self.assertEqual(code, 5)
         self.assertIn('gcp_vm_job.py exited 1: the output did not come back whole', reasons)
 
+    def test_oracle_refusal_diagnostics_do_not_hide_void_or_unmeasured_reports(self):
+        report = {**self.REPORT, 'coverage': {'oracle_failed': 1, 'oracle_refusal_pairs': 1,
+                                              'oracle_refusal_reasons': {'unknown reason': 1}}}
+        for extra, expected in (({}, 0), ({'fallback_log': {'void': True}}, 5),
+                                 ({'unmeasured': ['remux matroska-webm']}, 5)):
+            with self.subTest(extra=extra):
+                code, reasons = self.reasons({**self.GOOD, 'r4.report.json': {**report, **extra}})
+                self.assertEqual(code, expected)
+                self.assertEqual(bool(reasons), expected != 0)
+                self.tmp.cleanup()
+
     def test_both_gate_reports_are_required(self):
         for verdict in ('pass', 'fail'):
             files = {k: v for k, v in self.GOOD.items() if k != 'gate-null.report.json'}
@@ -183,6 +235,14 @@ class Verdict(unittest.TestCase):
         code, reasons = self.reasons({**self.GOOD, 'r4.report.json': {**self.REPORT, 'incomplete': ['C04.0 mpegts:3']}})
         self.assertEqual(code, 5)
         self.assertIn('r4 has 1 pairs whose timed run failed (a crashed run)', reasons)
+
+    def test_an_aborted_arm_cannot_pass_from_its_completed_ratios(self):
+        for name in ('gate-aa', 'gate-null', 'r4'):
+            for extra in ({'aborted': True}, {'coverage': {'unprocessed': 1}}):
+                with self.subTest(name=name, extra=extra):
+                    code, reasons = self.reasons({**self.GOOD, f'{name}.report.json': {**self.REPORT, **extra}})
+                    self.assertEqual(code, 5)
+                    self.assertIn(f'{name} aborted before completing its eligible pairs', reasons)
 
     def test_the_vcpu_count_and_the_host_metadata(self):
         code, reasons = self.reasons({**self.GOOD, 'host.json': {'smt_active': '0', 'vcpus': 2}})

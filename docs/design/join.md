@@ -58,7 +58,9 @@ and track header of each output track describe:
 - an audio track in all inputs or in none (or `--audio none`); and for the
   audio, the codec, channel count, sample rate, the AAC decoder
   configuration (object type and decoder-specific information from `esds`)
-  and the media timescale.
+  or the other codecs' configuration box (FLAC's `STREAMINFO` and the
+  Apple Lossless cookie without the fields that describe one whole stream,
+  `remux.md`, "Audio sample entries") and the media timescale.
 
 Anything else fails before anything is written, with `JoinError::Mismatch`
 naming the input and the difference, for example `input 2 cannot be joined
@@ -95,6 +97,8 @@ media edits kept:
   placed so that its earliest presented sample (its video's start, or its
   audio's when that starts earlier, moved back by whole video ticks so that
   the video stays exact) starts where the previous input's video ends.
+  `coreav ffmpeg -f concat` places them otherwise (`Placement::At`; see
+  "Placed as the concat demuxer places them" below).
 - **Video edits.** One media edit per media edit of the input (see
   "Inputs with several edits" below for how they are cut): from the media
   time the input's own edit presents first, for as long as the input
@@ -193,11 +197,43 @@ built on it show:
 - a frame cut short by its edit is shown whole (`KD-J-VIDEO-EDIT-END`);
 - a later audio edit that starts inside a frame starts at the next frame,
   less than a frame (about 21 ms) early (`KD-J-AUDIO-EDIT-START`).
+- for AC-3 and E-AC-3, the frame that holds such an edit's media time is
+  also shown whole, ahead of the edit's start (`KD-J-AUDIO-HELD-FRAME`).
 
 Joins whose inputs meet exactly (the segments of a split) have one edit per
 track and play exactly in `ffmpeg` as well. Clips of one source cut at the
 same closed-GOP boundary meet exactly in their video, but the second clip's
 audio pre-roll still needs an edit of its own.
+
+### Placed as the concat demuxer places them
+
+`ffmpeg`'s concat demuxer starts each file where the previous one ends
+(its documentation), each file as long as its format duration, which is
+its longest track's (ISO/IEC 14496-12 8.2.2.3), less its own start time.
+So where a file's audio runs past its video, the next file starts after
+the audio, not after the video. `coreav ffmpeg` computes these offsets
+from each file's `ffprobe` start time and duration, in microseconds as
+`ffprobe` prints them, and passes them as `Placement::At`:
+
+- Each offset is rounded to the nearest video tick, halves away from zero,
+  which is where the pinned `ffmpeg` 9.0.2's muxer puts the next file's
+  video (black box: after a 4.032 s file, video of timescale 12,800 starts
+  at tick 51,610).
+- The previous input's last frame is held until the next input's video
+  starts, as for any gap (see "Video edits" above). The muxer stretches
+  that sample over the gap in the same way (black box).
+- An input whose video would start before the previous input's video ends
+  fails the join (`an input placed before the previous input's video
+  ends`), and so does a placement with a different number of offsets
+  than inputs or a first offset other than 0 (the offsets count from the
+  first input's own timeline). Since a file lasts at least as long as its video, the
+  concat demuxer's offsets reach the first case only through rounding.
+- Audio follows its own decode times as before. Where a file's audio runs
+  past the next file's offset, `ffmpeg`'s muxer moves the next file's
+  first audio packet to one tick after the overlap and warns about
+  non-monotonic timestamps (black box). The join keeps each input's audio
+  edit instead, so its audio packets are compared by placement, not one
+  for one (`docs/design/compat-cli.md`).
 
 ## Memory and work
 

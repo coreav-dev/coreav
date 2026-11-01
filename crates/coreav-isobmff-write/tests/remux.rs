@@ -44,6 +44,8 @@ enum Kind {
     Aac { quicktime: bool },
     /// Little-endian 16-bit PCM (`sowt`).
     Pcm,
+    /// An audio sample entry of this type holding this configuration box.
+    Sound([u8; 4], Vec<u8>),
     /// QuickTime timecode.
     Timecode,
 }
@@ -253,6 +255,7 @@ fn sample_entry(t: &T) -> Vec<u8> {
             sound(b"mp4a", 1, &[wave, chan])
         }
         Kind::Pcm => sound(b"sowt", 0, &[]),
+        Kind::Sound(kind, config) => sound(kind, 0, std::slice::from_ref(config)),
         Kind::Timecode => bx(b"tmcd", &[0u8; 26]),
     }
 }
@@ -260,7 +263,7 @@ fn sample_entry(t: &T) -> Vec<u8> {
 fn handler(t: &T) -> &'static [u8; 4] {
     match t.kind {
         Kind::Video(_) => b"vide",
-        Kind::Aac { .. } | Kind::Pcm => b"soun",
+        Kind::Aac { .. } | Kind::Pcm | Kind::Sound(..) => b"soun",
         Kind::Timecode => b"tmcd",
     }
 }
@@ -339,7 +342,7 @@ fn trak(t: &T, id: u32, chunk_offset: u32) -> Vec<u8> {
     );
     let media_header = match t.kind {
         Kind::Video(_) => full(b"vmhd", 0, 1, &[0; 8]),
-        Kind::Aac { .. } | Kind::Pcm => full(b"smhd", 0, 0, &[0; 4]),
+        Kind::Aac { .. } | Kind::Pcm | Kind::Sound(..) => full(b"smhd", 0, 0, &[0; 4]),
         Kind::Timecode => full(b"nmhd", 0, 0, &[]),
     };
     let minf = bx(
@@ -1044,6 +1047,116 @@ fn streams_mp4_cannot_carry_are_dropped_and_reported() {
             reason: "PCM audio is not copied to MP4"
         }))
     );
+}
+
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same samples, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = build(&file(vec![video(30, 10), aac(40, false)]));
+    let named = |streams: Vec<usize>| RemuxOptions {
+        streams: Some(streams),
+        ..RemuxOptions::default()
+    };
+    let (summary, output) = remux(&source, &named(vec![1, 0, 0])).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| t.stream_index)
+            .collect::<Vec<_>>(),
+        [1, 0, 0]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    // Each source box is reported once, in file order, however often and
+    // in whatever order its stream is named.
+    let mut tracks = vec![video(30, 10), aac(40, false)];
+    for t in &mut tracks {
+        t.trak_extra = vec![bx(b"zzzz", &[0; 4])];
+    }
+    let marked = build(&file(tracks));
+    let (summary, _) = remux(&marked, &named(vec![1, 0, 0])).unwrap();
+    let reported: Vec<_> = summary
+        .dropped_boxes
+        .iter()
+        .map(|b| (b.stream_index, b.offset))
+        .collect();
+    assert_eq!(reported.len(), 2);
+    assert!(reported.windows(2).all(|w| w[0].1 < w[1].1));
+    assert_eq!(
+        reported.iter().map(|r| r.0).collect::<Vec<_>>(),
+        [Some(0), Some(1)]
+    );
+    // More named streams than an output may hold fail before any is
+    // planned.
+    let most = Limits::default().max_tracks as usize;
+    assert!(matches!(
+        remux(&source, &named(vec![0; most + 1])),
+        Err(ExtractError::Source(Error::LimitExceeded {
+            limit: LimitKind::Tracks,
+            ..
+        }))
+    ));
+    let (summary, _) = remux(&source, &named(vec![1])).unwrap();
+    assert_eq!(
+        summary
+            .dropped_tracks
+            .iter()
+            .map(|d| (d.stream_index, d.reason))
+            .collect::<Vec<_>>(),
+        [(0, TrackDropReason::NotSelected)]
+    );
+}
+
+#[test]
+fn flac_alac_ac3_and_eac3_keep_their_sample_entries() {
+    // FLAC's STREAMINFO (RFC 9639 8.2): 1,152-sample blocks, 48 kHz, two
+    // channels, 16 bits, 6,912 samples, an MD5 signature.
+    let mut streaminfo = vec![0x04, 0x80, 0x04, 0x80, 0, 0, 20, 0, 0, 40];
+    streaminfo.extend([0x0B, 0xB8, 0x02, 0xF0, 0, 0, 0x1B, 0]);
+    streaminfo.extend([0x5A; 16]);
+    // The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
+    // channels at 48 kHz.
+    let cookie = [
+        0, 0, 0x10, 0, 0, 16, 40, 10, 14, 2, 0, 0xFF, 0, 0, 0, 40, 0, 0, 0xFA, 0, 0, 0, 0xBB, 0x80,
+    ];
+    let entries = [
+        (
+            *b"fLaC",
+            full(b"dfLa", 0, 0, &cat(&[vec![0x80, 0, 0, 34], streaminfo])),
+            1152,
+        ),
+        (*b"alac", full(b"alac", 0, 0, &cookie), 4096),
+        // ETSI TS 102 366 F.4 and F.6: 48 kHz stereo.
+        (*b"ac-3", bx(b"dac3", &[0x10, 0x10, 0x00]), 1536),
+        (*b"ec-3", bx(b"dec3", &[0x02, 0x00, 0x20, 0x04, 0x00]), 1536),
+    ];
+    let tracks = entries
+        .into_iter()
+        .map(|(kind, config, frame)| {
+            let mut t = other(Kind::Sound(kind, config), 6);
+            t.timescale = 48_000;
+            for (n, s) in t.samples.iter_mut().enumerate() {
+                s.duration = frame;
+                s.size = 30 + n as u32;
+            }
+            t
+        })
+        .collect();
+    let source = build(&file(tracks));
+    let (summary, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert!(summary.dropped_tracks.is_empty(), "{summary:?}");
+    assert_eq!(summary.tracks.len(), 4);
+    assert_round_trip(&source, &output, &summary);
+    let out = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let codecs: Vec<Codec> = out.tracks.iter().map(|t| t.description.codec).collect();
+    assert_eq!(codecs, [Codec::Flac, Codec::Alac, Codec::Ac3, Codec::Eac3]);
 }
 
 #[test]
@@ -2202,5 +2315,92 @@ fn fixtures(out_var: &str, keep: Option<Keep>) {
             format!("[\n{}\n]\n", manifest.join(",\n")),
         )
         .unwrap();
+    }
+}
+
+/// `left_out_covers` takes cover pictures out of the copied item lists: a
+/// `data` box of an item that keeps another, an item that keeps none (an
+/// `ilst` item, or a QuickTime keyed one), each listed as dropped; every
+/// other box is copied as stored. An offset that starts no `data` value
+/// fails before anything is written.
+#[test]
+fn left_out_covers_leave_the_copied_item_lists() {
+    let data = |kind: u32, value: &[u8]| bx(b"data", &cat(&[u32s(&[kind, 0]), value.to_vec()]));
+    let (jpeg, png, art) = (
+        data(13, &[0xFF, 0xD8, 1]),
+        data(14, &[0x89, b'P', 2]),
+        data(13, &[0xFF, 0xD8, 3]),
+    );
+    let title = bx(b"\xa9nam", &data(1, b"title"));
+    let udta = bx(
+        b"udta",
+        &full(
+            b"meta",
+            0,
+            0,
+            &cat(&[
+                full(b"hdlr", 0, 0, b"\0\0\0\0mdirappl\0\0\0\0\0\0\0\0\0"),
+                bx(
+                    b"ilst",
+                    &cat(&[
+                        title.clone(),
+                        bx(b"covr", &cat(&[jpeg.clone(), png.clone()])),
+                    ]),
+                ),
+            ]),
+        ),
+    );
+    let key = "com.apple.quicktime.artwork";
+    let keys = cat(&[
+        u32s(&[0, 1, key.len() as u32 + 8]),
+        b"mdta".to_vec(),
+        key.as_bytes().to_vec(),
+    ]);
+    let meta = bx(
+        b"meta",
+        &cat(&[
+            full(b"hdlr", 0, 0, b"\0\0\0\0mdta\0\0\0\0\0\0\0\0\0\0\0\0\0"),
+            bx(b"keys", &keys),
+            bx(b"ilst", &bx(&1u32.to_be_bytes(), &art)),
+        ]),
+    );
+    let mut f = file(vec![video(10, 5), aac(10, false)]);
+    f.moov_extra = vec![udta, meta];
+    let source = build(&f);
+    let value =
+        |data: &[u8]| source.windows(data.len()).position(|w| w == data).unwrap() as u64 + 16;
+    let contains = |output: &[u8], needle: &[u8]| output.windows(needle.len()).any(|w| w == needle);
+    let left_out = |offsets: Vec<u64>| {
+        remux(
+            &source,
+            &RemuxOptions {
+                left_out_covers: offsets,
+                ..RemuxOptions::default()
+            },
+        )
+    };
+
+    let (summary, output) = left_out(vec![value(&jpeg)]).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert!(contains(&output, &bx(b"covr", &png)) && contains(&output, &title));
+    assert!(!contains(&output, &jpeg) && contains(&output, &art));
+    assert_eq!(paths(&summary), ["moov/udta/meta/ilst/covr/data"]);
+    assert_eq!(summary.dropped_boxes[0].offset, value(&jpeg) - 16);
+    assert_eq!(summary.dropped_boxes[0].reason, BoxDropReason::NotCarried);
+
+    let (summary, output) = left_out(vec![value(&art), value(&png), value(&jpeg)]).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert!(contains(&output, &bx(b"ilst", &title)) && contains(&output, &bx(b"keys", &keys)));
+    assert!(!contains(&output, &jpeg) && !contains(&output, &png) && !contains(&output, &art));
+    assert_eq!(summary.dropped_boxes.len(), 2);
+    assert_eq!(paths(&summary)[0], "moov/udta/meta/ilst/covr");
+
+    let (_, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert!(contains(&output, &jpeg) && contains(&output, &png) && contains(&output, &art));
+    for offsets in [vec![value(&jpeg) + 1], vec![0]] {
+        assert!(matches!(
+            left_out(offsets),
+            Err(ExtractError::Source(Error::NoSuchTrack))
+        ));
     }
 }

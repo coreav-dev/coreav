@@ -12,10 +12,10 @@ use crate::copy::Shared;
 use crate::m4a::{audio_sample_entry, unsupported};
 use crate::moov::{language, overflow};
 use crate::rational::{round, to_i64, to_u64};
-use crate::{ExtractError, VideoChoice};
+use crate::{AudioChoice, ExtractError, VideoChoice};
 use core::cell::RefCell;
 use coreav_isobmff::{
-    Allowlist, Budget, EditList, Error, LimitKind, Limits, Movie, Rational, Source, Track,
+    Allowlist, Budget, Codec, EditList, Error, LimitKind, Limits, Movie, Rational, Source, Track,
     TrackKind, probe,
 };
 
@@ -70,7 +70,21 @@ pub fn build_index<S: Source>(
         None => None,
     };
     let video_entry = video.map(video_sample_entry).transpose()?;
-    let audio = select_audio(&movie, options.audio)?;
+    // HLS renditions carry AAC audio only: by default the first AAC track.
+    let audio = match options.audio {
+        AudioChoice::First => match movie
+            .tracks
+            .iter()
+            .find(|t| t.kind == TrackKind::Audio && t.description.codec == Codec::Aac)
+        {
+            Some(track) => select_audio(&movie, AudioChoice::Stream(track.stream_index))?,
+            None => select_audio(&movie, AudioChoice::First)?,
+        },
+        choice => select_audio(&movie, choice)?,
+    };
+    if audio.is_some_and(|t| t.description.codec != Codec::Aac) {
+        return Err(unsupported("only AAC audio is packaged for HLS").into());
+    }
     let audio_entry = audio.map(audio_sample_entry).transpose()?;
     let source_len = source.len()?;
     let mut budget = Budget::new(limits);

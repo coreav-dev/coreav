@@ -675,9 +675,9 @@ one; no threshold changed:
   packet starts at the frame's byte offset; in Matroska and MPEG-TS it is
   the chosen stream's last packet that starts at or before it, since a block or
   a PES starts with a header. The timelines differ by known divergence
-  KD-EDIT-SNAP in MP4 and, since the oracle moved to FFmpeg 9.0.2, by
-  KD-FF9-MKV-START in Matroska and WebM: FFmpeg 9.0.2 starts a file whose
-  audio has a `CodecDelay` at its first block, where CoreAV, as FFmpeg
+  KD-EDIT-SNAP in MP4 and, since the oracle moved to FFmpeg 9.0.2, in
+  Matroska and WebM: FFmpeg 9.0.2 starts a file whose audio has a
+  `CodecDelay` at its first block, where CoreAV's timeline, as FFmpeg
   7.0.2 did, starts it that delay earlier (6.5 ms on `browser.webm`). The
   packet, not the two tools' file starts, carries the time across, so the
   tracks each tool counts in its start do not move the reference. No
@@ -689,11 +689,14 @@ one; no threshold changed:
 
 ### Image agreement (all `real` files)
 
-The reference is `ffmpeg -ss P -i FILE -frames:v 1 -vf scale=W:H
--pix_fmt rgb24 ref.png`, where `P` is the presentation time CoreAV reports
-for the frame it chose, rounded down to the microsecond, so FFmpeg's
-accurate seek lands on the same frame. PSNR is over the three 8-bit RGB
-channels of the whole image.
+The reference is `ffmpeg -ss K -i FILE -ss P−K -frames:v 1 -vf scale=W:H
+-pix_fmt rgb24 ref.png`, where `K` and `P` are the times of the keyframe
+CoreAV decoded from and of the frame it chose, on FFmpeg's timeline (the
+packet times above, rounded down to the microsecond), so that both tools
+decode the same packets and the frame is the one CoreAV chose. When the
+frame is its keyframe the command is `-ss P -i FILE`; for a later frame whose
+keyframe is at or before the file's start it is `-i FILE -ss P`. PSNR is over the
+three 8-bit RGB channels of the whole image.
 
 - **I1, PNG, keyframe mode**: CoreAV's PNG against the reference. The
   median per class at least **40 dB**, and at least **98% of files** at

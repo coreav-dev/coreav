@@ -20,8 +20,8 @@ use coreav_isobmff::{
 use coreav_isobmff_write::hls::{HlsOptions, build_index};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack,
-    ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, RemuxOptions, SplitAt,
-    SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
+    ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, Placement, RemuxOptions,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
     sanitize_mp4, split_mp4,
 };
 use std::path::Path;
@@ -131,7 +131,7 @@ fn assert_track(
     assert_eq!(out_track.description.codec, src_track.description.codec);
     assert_eq!(
         out_track.description.codec_config,
-        src_track.description.codec_config
+        movies::excerpt_config(&src_track.description.codec_config)
     );
     let all = packets(source, source_movie, src_track.index);
     let first = kept.first_sample as usize;
@@ -661,6 +661,7 @@ fn an_hevc_window_that_leaves_no_picture_is_refused_by_every_writer() {
         &JoinOptions {
             video: VideoChoice::First,
             audio: JoinAudio::First,
+            placement: Placement::AfterVideo,
         },
         &mut out,
     )
@@ -781,7 +782,7 @@ fn refusals_fail_before_writing() {
         }) if &f == b"encv"
     ));
     // MP3 in QuickTime's `.mp3` entry is audio the default choice
-    // finds, and only AAC can be copied into a clip, as for MP3 in `mp4a`.
+    // finds, and MP3 is not copied into a clip, in `.mp3` as in `mp4a`.
     let mut mp3 = aac_audio(50, vec![]);
     mp3.entry = *b".mp3";
     let with_mp3 = movie(&[ibbp_video(25, 25), mp3]);
@@ -948,11 +949,14 @@ fn fixtures_round_trip() {
             continue;
         };
         let Some(video) = movie.tracks.iter().find(|t| t.kind == TrackKind::Video) else {
-            let aac = movie
-                .tracks
-                .iter()
-                .any(|t| t.kind == TrackKind::Audio && t.description.codec == Codec::Aac);
-            if !aac {
+            let copied = movie.tracks.iter().any(|t| {
+                t.kind == TrackKind::Audio
+                    && matches!(
+                        t.description.codec,
+                        Codec::Aac | Codec::Flac | Codec::Alac | Codec::Ac3 | Codec::Eac3
+                    )
+            });
+            if !copied {
                 continue;
             }
             for (label, start, end) in [

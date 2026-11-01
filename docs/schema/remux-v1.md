@@ -37,7 +37,7 @@ shared shape `time` is that of `probe-v1.md`.
 | `stream_index` | integer | Position of the stream among all tracks of the source (`ffprobe`'s `index`). |
 | `source_track_id` | integer | `track_ID` of the source track; `TrackNumber` for Matroska and WebM sources. |
 | `track_id` | integer | `track_ID` in the output: the kept streams are numbered from 1. |
-| `codec` | string | The codec name of `coreav probe`: `h264`, `hevc`, `av1`, `vp9`, `aac`, `mp3` or `opus`. |
+| `codec` | string | The codec name of `coreav probe`: `h264`, `hevc`, `av1`, `vp9`, `aac`, `mp3`, `opus`, `flac`, `alac`, `ac3` or `eac3`. |
 | `samples` | integer | Samples copied: every sample of the source stream. |
 | `duration` | time | Sum of the decode durations, in media ticks. |
 | `annex_b` | boolean | The samples were rewritten from H.264 Annex B start codes to 4-byte NAL unit lengths (H.264 in Matroska without `CodecPrivate`); always `false` for MP4 sources. |

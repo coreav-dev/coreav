@@ -347,7 +347,7 @@ def codec_of(entry):
 
 # The checks.
 
-def compare_samples(kind, source, src_track, parts, first, count, rewritten_sync=None):
+def compare_samples(kind, source, src_track, parts, first, count, rewritten_sync=None, scale=1):
     """The output's samples, `parts` = [(path, samples)] in order (one file,
     or an HLS rendition's segments), against the source's samples first to
     first + count - 1: bytes, size, decode duration, composition offset and
@@ -356,6 +356,7 @@ def compare_samples(kind, source, src_track, parts, first, count, rewritten_sync
     'track' (split), what that claim is about. Where the source marks
     every sample of it as sync, for H.264, HEVC and AV1, the output must
     mark the samples the coded data starts decoding from and no other.
+    The output's decode durations are `scale` times the source's.
     (field, message) pairs."""
     found = []
     src = src_track["samples"]
@@ -386,7 +387,7 @@ def compare_samples(kind, source, src_track, parts, first, count, rewritten_sync
                 differ["size"].append(i + j)
             elif a != b:
                 differ["bytes"].append(i + j)
-            if out["durations"][j] != src["durations"][k]:
+            if out["durations"][j] != src["durations"][k] * scale:
                 differ["duration"].append(i + j)
             # As stored: the same 32 bits, whatever the table's version
             # (a QuickTime source's version 0 table may hold signed values,
@@ -445,7 +446,8 @@ def _sound_channels(entry):
     for AAC the one its AudioSpecificConfig states (ISO/IEC 14496-3
     1.6.2.1, table 1.19, or its program config element, 4.4.1.1), which
     decoders follow; a mono configuration that signals parametric stereo
-    (object type 29) also as 2 (8.6.4)."""
+    (object type 29) also as 2 (8.6.4); for AC-3 and E-AC-3 the one their
+    `dac3` or `dec3` states."""
     counts = {entry.get("channels")}
     config = aac_config(entry)
     if config is not None:
@@ -454,7 +456,44 @@ def _sound_channels(entry):
             counts.add(stated)
         if stated == 1 and config and config[0] >> 3 == 29:
             counts.add(2)
+    if ac3_channels(entry):
+        counts.add(ac3_channels(entry))
     return counts
+
+
+def ac3_channels(entry):
+    """The channels an `ac-3` entry's `dac3` or an `ec-3` entry's `dec3`
+    states (ETSI TS 102 366 F.4, F.6): those its `acmod` (table 4.3) and
+    `lfeon` code, for E-AC-3 its first independent substream's with the
+    channel locations its dependent substreams add (`chan_loc`, table
+    F.6.1: bits 0, 1, 4, 5 and 6 a pair each, the others one each); None
+    without one."""
+    box, skip = {"ac-3": (b"dac3", 10), "ec-3": (b"dec3", 28)}.get((entry or {}).get("type"), (None, 0))
+    if box is None:
+        return None
+    payload = entry["payload"]
+    try:
+        found = sound_box(entry, box)
+    except tb.Unreadable:
+        return None
+    if found is None:
+        return None
+    body = bytes(payload[found[0]:found[1]])
+    value, width = int.from_bytes(body, "big"), len(body) * 8
+
+    def field(at, bits):
+        return value >> (width - at - bits) & ((1 << bits) - 1) if at + bits <= width else None
+
+    acmod, lfeon = field(skip, 3), field(skip + 3, 1)
+    if acmod is None or lfeon is None:
+        return None
+    coded = {0: 2, 1: 1, 2: 2, 3: 3, 4: 3, 5: 4, 6: 4, 7: 5}[acmod] + lfeon
+    if box == b"dac3" or not field(skip + 7, 4):
+        return coded
+    chan_loc = field(skip + 11, 9)
+    if chan_loc is None:
+        return None
+    return coded + sum(2 if bit in (0, 1, 4, 5, 6) else 1 for bit in range(9) if chan_loc >> bit & 1)
 
 
 def _descriptor(body, at):
@@ -473,6 +512,24 @@ def _descriptor(body, at):
     return tag, at, min(at + size, len(body))
 
 
+def sound_box(entry, kind):
+    """(start, end) of the body of an audio sample entry's `kind` box, or
+    of the one its QuickTime `wave` wrapper holds; None without one.
+    ISO/IEC 14496-12's AudioSampleEntryV1 (12.2.3, only in a version 1
+    `stsd`) keeps its boxes where version 0 does; QuickTime's version 1
+    and 2 layouts add fields before them. Raises `tb.Unreadable`."""
+    payload = entry["payload"]
+    iso_v1 = entry.get("stsd_version") == 1 and entry.get("sound_version") == 1
+    start = 28 + (0 if iso_v1 else {1: 16, 2: 36}.get(entry.get("sound_version"), 0))
+    found = None
+    for k, s, e in tb.boxes(payload, start, len(payload)):
+        if k == kind:
+            found = (s, e)
+        elif k == b"wave":
+            found = found or next(((s2, e2) for k2, s2, e2 in tb.boxes(payload, s, e) if k2 == kind), None)
+    return found
+
+
 def aac_config(entry):
     """The DecoderSpecificInfo bytes of an `mp4a` entry's `esds` (ISO/IEC
     14496-1 7.2.6.5 to 7.2.6.7), empty when its decoder configuration has
@@ -480,19 +537,8 @@ def aac_config(entry):
     if (entry or {}).get("type") != "mp4a":
         return None
     payload = entry["payload"]
-    # ISO/IEC 14496-12's AudioSampleEntryV1 (12.2.3, only in a version 1
-    # `stsd`) keeps its boxes where version 0 does; QuickTime's version 1
-    # and 2 layouts add fields before them.
-    iso_v1 = entry.get("stsd_version") == 1 and entry.get("sound_version") == 1
-    start = 28 + (0 if iso_v1 else {1: 16, 2: 36}.get(entry.get("sound_version"), 0))
     try:
-        esds = None
-        for kind, s, e in tb.boxes(payload, start, len(payload)):
-            if kind == b"esds":
-                esds = (s, e)
-            elif kind == b"wave":
-                # QuickTime's wrapper of the decoder configuration.
-                esds = esds or next(((s2, e2) for k2, s2, e2 in tb.boxes(payload, s, e) if k2 == b"esds"), None)
+        esds = sound_box(entry, b"esds")
         if esds is None:
             return None
         body = payload[esds[0] + 4:esds[1]]
@@ -514,6 +560,64 @@ def aac_config(entry):
         return bytes(body[info[1]:info[2]]) if info and info[0] == 5 else b""
     except (tb.Unreadable, IndexError):
         return None
+
+
+# ISO/IEC 14496-3 1.6.3.4, table 1.18.
+AAC_RATES = (96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350)
+
+
+def sbr_rate(src_track):
+    """The rate an extraction states for an AAC track (`edit-list-writers.md`,
+    "HE-AAC timescale"): the extension frequency its AudioSpecificConfig
+    gives when it signals SBR (ISO/IEC 14496-3 1.6.2.1, 1.6.5.2): object
+    type 5 or 29, or, after a plain GASpecificConfig (object types 1 to 4
+    with a channel configuration), the backward-compatible extension (sync
+    extension 0x2b7, object type 5, `sbrPresentFlag` 1), and only up to
+    65,535 Hz, the most a sample entry's 16.16 rate holds. Else None, and
+    the entry keeps the source's rate. SBR data in the frames alone
+    (implicit signalling) is not read, as the extraction does not."""
+    config = aac_config(src_track.get("entry"))
+    if not config:
+        return None
+    bits = _Bits(config)
+
+    def object_type():
+        value = bits.read(5)
+        return 32 + bits.read(6) if value == 31 else value
+
+    def frequency():
+        index = bits.read(4)
+        return bits.read(24) if index == 15 else (AAC_RATES[index] if index < len(AAC_RATES) else None)
+
+    try:
+        kind = object_type()
+        frequency()
+        channels = bits.read(4)
+        if kind in (5, 29):
+            rate = frequency()
+        elif channels == 0 or kind not in (1, 2, 3, 4):
+            return None
+        else:
+            bits.read(1)
+            if bits.read(1):
+                bits.read(14)
+            bits.read(1)
+            if bits.read(11) != 0x2b7 or object_type() != 5 or bits.read(1) != 1:
+                return None
+            rate = frequency()
+    except IndexError:
+        return None
+    return rate if rate and rate <= 65535 else None
+
+
+def sbr_scale(src_track):
+    """The whole number an extraction multiplies an HE-AAC track's media
+    ticks by: [`sbr_rate`] over the source's media timescale, when that is
+    a whole number above 1; else 1. The output must match it exactly."""
+    rate, src_ts = sbr_rate(src_track), src_track["timescale"]
+    if not rate or not src_ts or rate % src_ts or rate // src_ts < 2:
+        return 1
+    return rate // src_ts
 
 
 class _Bits:
@@ -573,11 +677,12 @@ def config_channels(config):
         return None
 
 
-def compare_entry(kind, src_track, out_track, video_config=True):
+def compare_entry(kind, src_track, out_track, video_config=True, rate=None):
     """The sample entry's type and the fields the black boxes do not read
     from it, against the source's; with `video_config`, also a visual
     entry's codec configuration box, copied as stored by every writer but
-    sanitization (`remux.md` "Sample entries")."""
+    sanitization (`remux.md` "Sample entries"). An audio entry states
+    `rate` when given, else the source's rate."""
     src, out = src_track.get("entry"), out_track.get("entry")
     if not src or not out:
         return [(f"box:{kind}:entry", f"{kind} sample entry: none in the {'source' if not src else 'output'}")]
@@ -594,9 +699,10 @@ def compare_entry(kind, src_track, out_track, video_config=True):
         if out.get("channels") not in _sound_channels(src):
             found.append((f"box:{kind}:entry", f"audio sample entry: {out.get('channels')} channels, source "
                           f"{src.get('channels')} (configuration {sorted(_sound_channels(src) - {None})})"))
-        if out.get("rate") != src.get("rate"):
-            found.append((f"box:{kind}:entry", f"audio sample entry: rate {out.get('rate')}, source "
-                          f"{src.get('rate')}"))
+        expected = src.get("rate") if rate is None else rate
+        if out.get("rate") != expected:
+            found.append((f"box:{kind}:entry", f"audio sample entry: rate {out.get('rate')}, expected "
+                          f"{expected}"))
         # The decoder configuration is copied as stored (`remux.md` "Sample entries").
         if aac_config(src) != aac_config(out):
             found.append((f"box:{kind}:entry", "audio sample entry: the AudioSpecificConfig differs from the "
@@ -607,20 +713,20 @@ def compare_entry(kind, src_track, out_track, video_config=True):
     return found
 
 
-def compare_timescale(kind, src_track, out_track):
-    if src_track["timescale"] != out_track["timescale"]:
+def compare_timescale(kind, src_track, out_track, scale=1):
+    if src_track["timescale"] * scale != out_track["timescale"]:
         return [(f"box:{kind}:timescale", f"{kind} media timescale {out_track['timescale']}, source "
-                 f"{src_track['timescale']}")]
+                 f"{src_track['timescale']}" + (f" times {scale}" if scale != 1 else ""))]
     return []
 
 
-def declared_or_sum(src_movie, src_track, out_track):
+def declared_or_sum(src_movie, src_track, out_track, scale=1):
     """The media duration a stream copy of the whole track writes
     (`docs/design/remux.md`): the source's declared
-    one when it has no fragments and declares one, else the sum of the
-    decode durations."""
+    one when it has no fragments and declares one (times `scale`), else
+    the sum of the decode durations."""
     if not src_movie["fragmented"] and src_track["mdhd_duration"]:
-        return src_track["mdhd_duration"]
+        return src_track["mdhd_duration"] * scale
     return sum(out_track["samples"]["durations"])
 
 
@@ -1005,7 +1111,8 @@ def check_copy(source, output, kept, writer):
     source track index of each output track in order. Every sample, the
     sample entry, the media timescale and the media duration (the source's
     declared one when it has no fragments and declares one, else the sum
-    of the decode durations); for extraction also the movie timescale (the
+    of the decode durations), an extracted HE-AAC track's at its decoded
+    rate ([`sbr_scale`]); for extraction also the movie timescale (the
     source's), the track duration (the sum of the edits, or without an edit
     list the media duration in movie ticks, rounded to the nearest) and the
     movie duration. Remux's track and movie durations are its oracle's own
@@ -1021,13 +1128,17 @@ def check_copy(source, output, kept, writer):
         if src_track is None:
             found.append((f"box:{kind}:samples", f"{kind}: no source track {index}"))
             continue
-        found += compare_samples(kind, source, src_track, [(output, out_track["samples"])], 0, None)
+        # Extraction writes an HE-AAC track at its decoded rate.
+        extract = writer == "extract" and kind == "audio"
+        scale = sbr_scale(src_track) if extract else 1
+        rate = sbr_rate(src_track) if extract else None
+        found += compare_samples(kind, source, src_track, [(output, out_track["samples"])], 0, None, scale=scale)
         if kind in ("video", "audio"):
             # Sanitization rewrites H.264 and HEVC configurations to their
             # parameter sets; its oracle compares them (`sanitize.md`).
-            found += compare_entry(kind, src_track, out_track, video_config=writer != "sanitize")
-        found += compare_timescale(kind, src_track, out_track)
-        found += compare_media_duration(kind, out_track, declared_or_sum(src_movie, src_track, out_track))
+            found += compare_entry(kind, src_track, out_track, video_config=writer != "sanitize", rate=rate)
+        found += compare_timescale(kind, src_track, out_track, scale)
+        found += compare_media_duration(kind, out_track, declared_or_sum(src_movie, src_track, out_track, scale))
         if writer == "extract":
             if out_movie["movie_timescale"] != src_movie["movie_timescale"]:
                 found.append(("box:movie timescale", f"movie timescale {out_movie['movie_timescale']}, source "

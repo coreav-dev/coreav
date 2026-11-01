@@ -7,10 +7,14 @@ MP4", and the stage 3 stream-copy
 primitives. Written from ISO/IEC 14496-12 (boxes, sample tables, edit
 lists, sample groups), ISO/IEC 14496-14 (MP4), ISO/IEC 14496-15 (AVC and
 HEVC sample entries), the AV1 and VP codec ISO media file format bindings,
-the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC) and the QuickTime
+the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC), the FLAC in
+ISOBMFF mapping (RFC 9639 10.3), Apple's ALAC magic cookie description,
+ETSI TS 102 366 Annex F (AC-3 and E-AC-3) and the QuickTime
 File Format (sound sample entry versions, Macintosh language codes). No
-multimedia implementation source is read; `ffmpeg`,
-`ffprobe` and MediaInfo are black-box oracles only.
+multimedia implementation source is read, with one exception: the layout
+of the Apple Lossless packet header ("Apple Lossless packets from
+Matroska", below). `ffmpeg`, `ffprobe` and MediaInfo are black-box
+oracles only.
 
 ## What it does
 
@@ -74,9 +78,11 @@ unchanged byte for byte (checked on every fixture).
 ## Streams
 
 - **Kept:** H.264 (`avc1`, `avc3`), HEVC (`hvc1`, `hev1`), AV1 (`av01`) and
-  VP9 (`vp09`) video; AAC and MP3 (`mp4a` with `esds`) and Opus (`Opus`
-  with `dOps`) audio: the allowlisted codecs whose MP4 sample entries the
-  cited bindings define. Unlike a clip, a whole-file copy keeps every
+  VP9 (`vp09`) video; AAC and MP3 (`mp4a` with `esds`), Opus (`Opus`
+  with `dOps`), FLAC (`fLaC` with `dfLa`), Apple Lossless (`alac` with
+  its `alac` cookie box), AC-3 (`ac-3` with `dac3`) and E-AC-3 (`ec-3`
+  with `dec3`) audio: the allowlisted codecs whose MP4 sample entries the
+  cited bindings define ("Audio sample entries" below). Unlike a clip, a whole-file copy keeps every
   sample, so in-band parameter sets of `avc3`/`hev1` are copied too and
   those entries are kept.
 - **Dropped and reported** (`unsupported`, with a reason): ProRes (its
@@ -96,7 +102,8 @@ unchanged byte for byte (checked on every fixture).
   conforming decoder needs to decode only conforming bitstreams (C.5.1).
   The clip, split, join and HLS writers refuse it alike: `conforming` in
   `clip.rs` is the one check, which their video sample entry and this
-  remux's stream plan call. Dropping it would hand on a file that lost its
+  remux's stream plan call. The Matroska and WebM remux refuses it too,
+  from the `CodecPrivate` record, and `--drop-unsupported` does not drop it. Dropping it would hand on a file that lost its
   picture without saying why it cannot be played.
 - **Choice:** drop and report by default (the issue asks for it, and an
   upload pipeline usually wants the playable streams);
@@ -174,6 +181,81 @@ round (below), so:
   dropped and reported. Boxes with file offsets (`saiz`/`saio`) are dropped
   and reported.
 
+## Audio sample entries
+
+Every command that copies audio into MP4 (`coreav remux` from MP4/MOV and
+from Matroska/WebM, `clip`, `split`, `join`, and `coreav ffmpeg` with
+`-c copy` or `-f concat ... -c copy`) writes the same entries, in
+`src/audio.rs`. None decodes the audio: copying AC-3 and E-AC-3 links no
+AC-3 decoder, so these entries are in the default build.
+
+| Codec | Entry | Configuration | From MP4/MOV | From Matroska |
+|---|---|---|---|---|
+| FLAC | `fLaC` | `dfLa`: version 0, then the metadata blocks | as stored | `CodecPrivate` (`fLaC`, then the blocks, RFC 9639 10.2) |
+| Apple Lossless | `alac` | `alac`: version 0, then the magic cookie | as stored | `CodecPrivate`, the cookie (24 or 48 bytes, with or without a 12-byte atom header) |
+| AC-3 | `ac-3` | `dac3` (F.4) | as stored | the first syncframe's `bsi()` |
+| E-AC-3 | `ec-3` | `dec3` (F.6) | as stored | the first sample's substreams |
+
+- **Sample entry fields.** `samplesize` is FLAC's bits per sample
+  (`STREAMINFO`) or the cookie's `bitDepth`, else 16. The 16.16
+  `samplerate` cannot hold more than 65,535 Hz; FLAC in ISOBMFF 3.3.1 has
+  it hold the rate divided by the smallest power of two that fits (96 kHz
+  is written 48,000), and Apple Lossless gets the same rule. The
+  configuration keeps the real rate, and the media timescale is the real
+  rate, so sample times are exact. Annex F has readers take AC-3's and
+  E-AC-3's channels from `dac3`/`dec3`, whatever the entry says.
+- **Samples.** One FLAC frame (FLAC in ISOBMFF 3.3.3), one Apple Lossless
+  packet, one AC-3 syncframe, or one E-AC-3 sample: the syncframes that
+  together deliver six blocks of every substream (F.2), 1,536 samples.
+  From Matroska, a FLAC frame lasts its header's block size (RFC 9639
+  9.1.1), an Apple Lossless packet the samples its header states, else the
+  cookie's `frameLength` (below), an AC-3 or
+  E-AC-3 frame 1,536 samples. The stream is dropped with a reason when its
+  first frame is not one AC-3 syncframe of the size its header states, is
+  not E-AC-3 syncframes of six audio blocks in all,
+  holds independent substreams out of order (E.1.3.1.2), or is larger than
+  288 KiB.
+- **Apple Lossless packets from Matroska.** Apple's cookie description
+  makes `frameLength` a packet's sample count only when the packet's
+  header states no other, and a shorter packet states its own; Matroska's
+  millisecond times cannot give the count. The header's layout is taken,
+  under a maintainer-approved clean-room exception (2026-10-31) for the
+  ALAC packet header layout only, from Apple's ALAC reference source,
+  `codec/ALACDecoder.cpp` and `codec/ALACBitUtilities.h` of the
+  macosforge/alac release (Apache-2.0): a 3-bit element tag (0 for one
+  channel, 1 for a channel pair), a 4-bit instance tag, 12 bits of zeros,
+  a flag for a stated count, a 2-bit shift other than 3, an escape bit,
+  then, when flagged, the count in 32 bits. Nothing else of that source
+  is used, and CoreAV's reader (`alac_samples` in `src/audio.rs`) is
+  written from this description. Only a packet's first element header is
+  read, so a packet must hold one element: mono is one single channel
+  element and stereo one channel pair, and a stream of more than two
+  channels is dropped with "Apple Lossless from Matroska with more than
+  two channels: a packet's later channel elements are not read". A
+  stated count is the packet's duration whatever the source's times say.
+  A packet that does not start with the element its channels need, or
+  states 0 samples or more than `frameLength`, drops the stream with "an
+  Apple Lossless packet without a valid element header" rather than
+  being given a guessed length.
+- **`dac3` and `dec3` from the bitstream.** `fscod`, `bsid`, `bsmod`,
+  `acmod` and `lfeon` come from the first frame's `bsi()` (4.4.2,
+  E.1.3); `bit_rate_code` from `frmsizecod`; E-AC-3's `data_rate` is the
+  first sample's size times 8 over its 1,536 samples, in kbit/s, and each
+  independent substream lists its dependent substreams' channel locations
+  (`chan_loc`, from `chanmap`).
+- **Parts of a stream.** A clip, a split segment and a join hold part of
+  a stream, or parts of several: `STREAMINFO`'s frame sizes, total samples
+  and MD5 signature, and the cookie's `maxFrameBytes` and `avgBitRate`,
+  describe the whole stream, so they are written as unknown (0, RFC 9639
+  8.2 and the cookie description). A join compares inputs' configurations
+  without these fields.
+- **Sanitize** keeps `dfLa`'s `STREAMINFO` and drops its other blocks
+  (Vorbis comments, pictures and application data carry text and images);
+  no other configuration carries metadata.
+- **Not taken:** HLS packages AAC only, and `extract-audio` copies AAC
+  only; a `coreav ffmpeg` line that encodes video (`-c:v libx264`) still
+  refuses to copy these codecs beside it.
+
 ## Metadata and other boxes
 
 - Copied as stored: the movie's and each kept track's `udta` and `meta`
@@ -187,6 +269,17 @@ round (below), so:
   the remux when it does not fit; the optional boxes (track and movie
   `udta` and `meta`, per-sample boxes) then get what is left, and one that
   does not fit is left out and reported as `too_large`.
+- Cover pictures `RemuxOptions::left_out_covers` names are taken out of
+  the movie's item lists (`moov/udta/meta/ilst`, `moov/meta/ilst`, or an
+  `ilst` directly in `udta`): each is named by where its `data` box's
+  value starts in the file, the offset `coreav_isobmff::metadata` reports.
+  The `data` box is left out, and its item with it when no other `data`
+  box remains; each is reported as `not_carried`, and every other byte of
+  the copied box stays as stored. An offset that starts no `data` value
+  of those lists fails before anything is written, as a stream that does
+  not exist does. `coreav ffmpeg` leaves out the cover pictures a
+  selection does not name (`compat-cli.md`, "Cover pictures");
+  `coreav remux` and the library default leave out none.
 - Copied from the track header: flags (enabled, in movie, in preview),
   layer, alternate group, volume, matrix (rotation) and presentation size;
   the language, as ISO 639-2/T, with QuickTime Macintosh language codes
@@ -228,12 +321,16 @@ of the media. The copy pass of each stream gets exactly the sample work its
 first listing took, and both passes together stay within
 `max_sample_work`, checked before anything is written.
 
-## One video stream replaced
+## Replaced streams
 
-`remux_mp4_replacing(source, limits, allowlist, options, replacement,
-out)` is `remux_mp4` with one video stream's samples taken from the caller
-instead of the source: the operation `coreav transcode` writes its output
-with (`docs/design/transcode.md`, "The MP4 writer"). `remux_matroska_
+`remux_mp4_replacing(source, limits, allowlist, options, replacements,
+out)` is `remux_mp4` with the samples of one video stream, one audio
+stream, or one of each taken from the caller instead of the source
+(`Replacements { video, audio }`): the operation `coreav transcode` writes
+its output with (`docs/design/transcode.md`, "The MP4 writer" and "Opus
+audio"). A stream named by both, or by one twice, fails with `Unsupported`.
+This section is the video replacement; "One audio stream replaced" below
+is the audio one. `remux_matroska_
 replacing` is the same for Matroska and WebM sources
 ([`mkv-remux.md`](mkv-remux.md)). Both run the remux paths above: the
 replaced stream is one more kind of kept stream, so every other stream is
@@ -349,6 +446,68 @@ Rejected:
   drops frames the source's edit list does not present, so the first
   encoded frame can be later than the edit's start.
 
+### One audio stream replaced
+
+The audio replacement (`AudioReplacement`) is an encoded stream on a
+timeline of its own, Opus in ISO BMFF as opus-codec.org's "Encapsulation
+of Opus in ISO Base Media File Format" (version 0.6.8) lays it out, or AAC
+in an `mp4a` sample entry (ISO/IEC 14496-14), laid out the same way:
+
+- **The replacement:** the source `stream_index` (an audio stream the
+  allowlist keeps and `options.streams` selects), one complete `Opus` or
+  `mp4a` sample entry box (an ISO audio sample entry with data reference
+  index 1; `coreav-transcode` builds it with `mux::audio_sample_entry` and
+  a `dOps` box, or an `esds` box from `mux::esds`), the media timescale
+  (48,000 for Opus, the sample rate for AAC), the samples in order
+  (size and duration, every one a sync sample, so no `stss`), `start`
+  (media ticks of silence before the presentation), `priming` (the media
+  ticks at the start that are not presented: Opus's pre-skip, AAC's
+  encoder delay),
+  `presented` (the media ticks presented from there), `roll` (the
+  samples a decoder needs before any one it starts at) and the samples'
+  bytes back to back.
+- **Edit list:** an empty edit of `start` when it is above 0, then a
+  media edit from `priming` lasting `presented` (the spec's 4.4): the
+  encoder's delay and the last packet's padding are not presented, and
+  the first presented sample is at movie time `start`. The edits are in
+  the movie timescale; where they would round there, the movie timescale
+  becomes a common multiple of it and the replacement's media timescale
+  when one fits 32 bits (as for
+  the video replacement, and not when another stream's computed value would
+  move), else each boundary rounds to the nearest movie tick.
+- **Roll group** (the spec's 4.3.6.2, ISO/IEC 14496-12 10.1): one `sgpd`
+  of type `roll` (version 1, one `AudioRollRecoveryEntry` of
+  `roll_distance` `-roll`) and an `sbgp` that leaves the first `roll`
+  samples out of the group (fewer than `roll` samples come before them)
+  and puts every later one in it. The `ftyp` already lists `iso2`, a
+  brand that requires roll groups (4.1).
+- **Kept from the source track:** its place in the track order, language
+  and flags, and its volume and `udta`/`meta` boxes (or what the metadata
+  option keeps of them). Taken from the
+  replacement: the sample entry, timescale, samples and edits. None of the
+  source track's samples or sample entry is read, so it may be a stream MP4
+  does not carry as it is (FLAC, which the caller adds to the allowlist).
+- **Refusals,** before anything is written: a sample entry that is not one
+  `Opus` or `mp4a` audio sample entry box with data reference 1, a timescale of 0,
+  no samples, a duration of 0, nothing presented or more presented than
+  the samples hold after `priming`, a roll distance above 32,767, samples
+  that run past the data or above `max_packet_bytes`, and a stream index
+  that is not an audio stream kept and selected.
+- **Summary:** the stream is `replaced`, its codec `Opus` or `AAC`, as its
+  sample entry names it.
+
+Verification, `tests/replace.rs`: an Opus replacement takes the audio
+stream's place in an MP4 source, in a Matroska source after an empty edit,
+and beside a video replacement; read back by `coreav-isobmff`, the track
+is Opus at 48 kHz with the edit list exact in the movie timescale, every
+sample's bytes and duration as given and a sync sample (no `stss` of its
+own), and the roll group's boxes as above; every refusal comes before a
+byte is written. An AAC replacement takes the audio stream's place in an
+MP4 and a Matroska source: `mp4a` at its rate, the delay left out by the
+edit, every frame as given, and a roll distance of −1.
+`coreav transcode --audio opus` and `--audio aac` check the output with
+the pinned FFmpeg (`transcode.md`, "Opus audio" and "AAC audio").
+
 Verification: `tests/replace.rs` (synthetic movies and Matroska files:
 the identity replacement, decode times shifted back by two frames and by
 other amounts, leading frames left out, no edit list with and without an
@@ -419,6 +578,18 @@ once per output.
   specifications are in
   [`known-divergences-remux.md`](../known-divergences-remux.md). Threshold:
   100% of the fixtures.
+- Audio sample entries, in CI: `scripts/audio_copy_check.py` makes FLAC,
+  Apple Lossless, AC-3 and E-AC-3 sources in MP4, MOV, M4A and Matroska
+  with the pinned FFmpeg 9.0.2 (stereo, 5.1, 44.1 kHz and 96 kHz
+  variants, and files with H.264 video), runs remux, `coreav ffmpeg -c
+  copy`, clip, split, join and `coreav ffmpeg -f concat -c copy` on them,
+  and checks with FFmpeg 9.0.2's `ffprobe` and `ffmpeg` that each output
+  has the source's codec, channels and sample rate and the source's
+  packets (a run of them for a clip, all of them across a split's
+  segments, twice for a join of a file with itself), and that a copy of a
+  whole file decodes to the source's audio, by MD5. Threshold: 100% of the
+  cases. `tests/remux.rs` and `tests/mkv_remux.rs` check the four
+  entries on synthetic files, `dac3` and `dec3` byte for byte.
 
 ### Corpus v1 bars (fixed 2026-10-19, before the corpus run)
 

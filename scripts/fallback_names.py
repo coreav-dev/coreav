@@ -12,7 +12,9 @@ prints, which are the entry keys of its own source
 
 The vocabulary's options come from `tools/compat-corpus/classify.py` and
 override the listing, which shows some flags with an argument name
-(`-hide_banner`) and leaves `-i` out. Python 3.11 standard library only.
+(`-hide_banner`) and leaves `-i` out; `LISTED_WITHOUT_ARGUMENT` names the
+options it shows with none though they take one. Python 3.11 standard
+library only.
 """
 import importlib.util
 import pathlib
@@ -34,6 +36,10 @@ PIN = oracle_pin.load()
 SKIPPED = ('libaom-av1 encoder AVOptions:',)
 # The options whose values the log keeps by name (the design note's table).
 NAMED_VALUES = ('movflags', 'fflags', 'avoid_negative_ts', 'hls_playlist_type')
+# ffprobe's options that take a value though the listing shows no argument
+# name for them (`-data_dump_format   set data dump format (available formats
+# are: xxd, base64)`), which the listing alone reads as a flag.
+LISTED_WITHOUT_ARGUMENT = {'-data_dump_format'}
 
 PROGRAM = re.compile(r'\A(-[^\s\[]+)(?:\[:<\w+>\])?(?: (<[^>]*>))?(?:\s{2,}|\Z)')
 AVOPTION = re.compile(r'\A  (-\S+)\s+<\S+>')
@@ -112,7 +118,8 @@ def main():
         run(ffmpeg, '-h', 'full'),
         vocabulary.FFMPEG_VALUE | set(vocabulary.FFMPEG_CODEC), vocabulary.FFMPEG_FLAG)
     ffprobe_options, _ = options(
-        run(ffprobe, '-h', 'full'), vocabulary.FFPROBE_VALUE, vocabulary.FFPROBE_FLAG)
+        run(ffprobe, '-h', 'full'), vocabulary.FFPROBE_VALUE | LISTED_WITHOUT_ARGUMENT,
+        vocabulary.FFPROBE_FLAG)
     encoders = {m.group(1) for line in run(ffmpeg, '-encoders').splitlines()
                 if (m := ENCODER.match(line))}
     formats = set()

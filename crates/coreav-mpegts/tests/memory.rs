@@ -119,3 +119,41 @@ fn a_listing_that_ends_on_an_error_holds_nothing() {
     assert!(failed);
     holds_nothing("listing-cut", &one, &many);
 }
+
+#[test]
+fn the_room_pes_buffers_start_with_stays_within_the_buffered_bytes_together() {
+    // 64 streams whose first PES packets each state the longest length
+    // and come before the tables, probed with the defaults and listed
+    // with one stream and 1 MiB held at once: the buffers those packets
+    // start must not reserve more, together, than the listing may hold.
+    let pids: Vec<u16> = (0x100..0x140).collect();
+    let mut mux = Mux::default();
+    for &pid in &pids {
+        let mut payload = vec![0, 0, 1, 0xC0, 0xFF, 0xFF, 0x80, 0x00, 0x00];
+        payload.resize(184, 0x55);
+        mux.packet(pid, true, &payload);
+    }
+    mux.pat(&[(1, 0x1000)]);
+    let streams: Vec<(u8, u16)> = pids.iter().map(|&pid| (0x0F, pid)).collect();
+    mux.pmt(0x1000, 1, &streams);
+    let data = mux.out;
+    let ts = probe(
+        SliceSource::new(&data),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    assert_eq!(ts.streams.len(), pids.len());
+    let max_buffered: u64 = 1 << 20;
+    let limits = Limits {
+        max_streams: 1,
+        max_buffered_bytes: max_buffered,
+        ..Limits::default()
+    };
+    let (_, counters) = measure(|| ts.packets(SliceSource::new(&data), &limits).count());
+    assert!(
+        counters.peak_bytes < max_buffered + (512 << 10),
+        "peak {} with {max_buffered} bytes held at most",
+        counters.peak_bytes
+    );
+}

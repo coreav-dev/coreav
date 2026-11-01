@@ -63,13 +63,23 @@ In:
   whole transcode, after encoding, on one the writer cannot carry. For
   Matroska sources another video stream MP4 cannot carry is dropped and
   listed rather than failing the remux.
+- Audio encoded to Opus instead (`--audio opus`, in builds with the
+  `libopus` feature): the first audio stream CoreAV decodes (FLAC or MP3,
+  mono or stereo) through libopus, in a sandboxed process of its own; the
+  other streams are dropped and listed ("Opus audio").
+- Audio encoded to AAC-LC instead (`--audio aac`): the first audio stream
+  CoreAV decodes (FLAC or MP3, mono or stereo, 8 to 64 kHz) through the
+  `ffmpeg` program's built-in `aac` encoder, run as a separate process;
+  the other streams are dropped and listed ("AAC audio").
 - Output: MP4 with the movie box first, written as the other writing
   commands write (a temporary file renamed over `OUT` on success).
 
 Out, each needing its own roadmap item:
-- Audio re-encoding, which needs an encoder backend and a recorded
-  encoder policy, which the roadmap makes a prerequisite of any encoder.
-- Other encoders (NVENC, SVT-AV1, `rav1e`, libopus): the same policy.
+- Other audio encoders and AAC profiles (HE-AAC), Opus or AAC of more
+  than two channels (Opus's channel mapping family 1), resampling to an
+  AAC rate, and audio CoreAV does not decode yet (AAC, Opus).
+- Other video encoders (NVENC, SVT-AV1, `rav1e`): policy record 0042
+  allows them as backends; each is an item of its own.
 - Smart rendering, the copy-when-possible router, ladders, other
   filters, MKV output, MPEG-TS input,
   trimming (`-ss`, `-t`), two-pass rate control.
@@ -345,9 +355,16 @@ same rule (`decode.md`, "The FFmpeg fallback").
 - **Transfer.** Planes are written to the encoder's standard input packed,
   without row padding, by the writer thread (for FFmpeg inside the
   Matroska blocks of "Rate control and timestamps", a few bytes of
-  element headers a frame). A 1080p 8-bit 4:2:0 frame is
-  3.1 MB; through a pipe that is about a millisecond of copying, against
-  tens of milliseconds of encoding a frame at the default preset.
+  element headers a frame). The writer takes each frame as the decoder
+  gave it and writes from there: a plane whose rows are packed in one
+  write, padded rows gathered through a 1 MiB buffer the thread reuses,
+  and a frame lent in the sandboxed worker's shared memory
+  (`docs/design/decode.md`, "Copy, or lend; never views") copied out
+  through the same buffer. So a frame's bytes are copied once on their
+  way into the pipe, and no frame-sized buffer is allocated per frame. A
+  1080p 8-bit 4:2:0 frame is 3.1 MB, an 8K one 54 MB. The buffer is
+  1 MiB because, in a local test of the copy alone, 64 KiB to 256 KiB
+  pieces took longer at 4K and 8K, and 2 to 4 MiB gained nothing.
 - **Colour.** The colour description the decoder applies (H.273 code
   points, as `coreav thumbnail` reads it) goes to the encoder's VUI
   options, as FFmpeg passes the decoded frames' description to libx264.
@@ -520,7 +537,7 @@ shifted by the new decode times. The source track's per-sample boxes
 
 The contract between the transcoder and the writer
 (`remux_mp4_replacing`, `remux_matroska_replacing`; details in
-[`remux.md`](remux.md), "One video stream replaced"): the samples' decode
+[`remux.md`](remux.md), "Replaced streams"): the samples' decode
 and presentation times are the source stream's own timestamps, in its
 units and on its timeline. For MP4 and MOV, media ticks of the track's
 media timescale, presentation being the composition time (decode time plus
@@ -533,24 +550,326 @@ before its first frame (none when the source has no edit list), the empty
 edit growing when leading frames are left out; with `--scale`, a rotation
 matrix's translation follows the new size.
 
+## Opus audio
+
+`coreav transcode --audio opus [--audio-bitrate KBPS]` encodes one audio
+stream to Opus (RFC 6716) with libopus, as policy record 0042 allows an
+encoder backend: a crate of its own, `coreav-backend-libopus`, built only
+with the `libopus` feature, which links the system's libopus (BSD-3-Clause)
+through the `opusic-c` crate and its `opusic-sys` binding (both
+BSD-3-Clause), with their bundled build of libopus turned off: the library
+is found where the loader looks by default, or through a runtime search
+path built into the binary, since the encoder process runs with a cleared
+environment (`LD_LIBRARY_PATH` does not reach it). The default features
+do not link it. The release builds do, with a static libopus 1.6.1 that
+`packages/cli/scripts/codecs.sh` builds from a pinned tarball and
+`opusic-sys` links from `OPUS_LIB_DIR` (`docs/design/release.md`, "Two
+builds"). A build without the feature refuses `--audio opus`
+(`unsupported_feature`, exit status 1) before it opens the input; its help
+says so. The crate has no `unsafe` of its own: the FFI surface is the
+binding's, and the safe API it uses is `Encoder::new` (48 kHz, mono or
+stereo, `Application::Audio`), `set_bitrate`, `set_complexity(10)`,
+`set_vbr(true)`, `set_vbr_constraint(false)`, `get_look_ahead` and
+`encode_float_to_slice`, one 20 ms frame per call. These are libopus's
+defaults for the `audio` application (complexity 10, unconstrained
+variable bit rate), set explicitly, and the
+settings FFmpeg documents for `-c:a libopus`; the default rates are its
+too, 64 kbit/s for mono and 96 kbit/s for stereo.
+
+**Pipeline.** The audio is encoded before the video, so that a stream
+the encode does not take is refused before the video encoder starts:
+
+1. `coreav-audio`'s `decode` reads the stream (`--audio opus` takes the
+   first audio stream it decodes; in a build with the opt-in `aac`
+   feature, AAC is passed over or refused as a build without it does, and
+   Opus, which every build decodes, is too: the encode takes FLAC or MP3,
+   so the stream taken does not depend on the build) through the existing demuxers, applies the container's trimming (an MP4 edit list,
+   Matroska's `CodecDelay` and `DiscardPadding`; leading empty edits are
+   silence) and resamples to 48 kHz 32-bit float
+   (`docs/design/audio-decode.md`, "Resampling and downmixing"). Sample 0
+   is presentation time 0 of an MP4 stream; a Matroska stream's sample 0
+   is its first frame's presentation time on the segment's timeline
+   (`coreav_mkv::Packet::pts_ns`) plus the `CodecDelay` the decoder drops
+   (the first block's timestamp, for a block that is not laced), which the edit
+   list keeps as an empty edit (below), where the remux presents a copied
+   frame of it ([`mkv-remux.md`](mkv-remux.md), "Edit lists"); a Matroska
+   stream that starts before time 0, or whose start is not known, is
+   refused. More than two channels, an edit list the
+   decoder does not apply exactly, or a source the demuxer stops reading
+   early is refused (`unsupported_feature`): the samples would not be the
+   stream's presentation.
+2. The samples go to the Opus encoder process: the `coreav` program run
+   again with the hidden first argument `__coreav_opus_encode`, the
+   channels and the bit rate, through the sandbox launcher with the
+   encoder program's limits ("Sandbox": no file writes, no core files, an
+   address space of 1 GiB, the CPU time to the deadline, its own process
+   group, killed at the deadline or on an error). It gets nothing but
+   interleaved float samples on its standard input, never the file. The
+   last frame is padded with silence, and silent frames follow until the
+   packets cover the pre-skip and every sample.
+3. Its standard output is untrusted (policy record 0042, point 3):
+   `coreav_worker::opus::PacketReader` checks a 6-byte header (`Opus`,
+   then the pre-skip, at most 3,840), every record's length (1 to 4,000
+   bytes) and every packet's structure against RFC 6716 section 3.4
+   (requirements R1 to R7) and its duration (960 samples) before a byte is
+   used. While it runs, the packets may not outnumber those the samples
+   sent so far make with the largest pre-skip; at the end there must be
+   exactly `ceil((pre_skip + samples) / 960)`. The packets go to a spool
+   file next to the output, as the video's do, within `max_spool_bytes`.
+   The reader has a fuzz target, `coreav-worker/fuzz`'s `opus_packets`.
+4. The MP4 writer replaces the source stream with the packets
+   ([`remux.md`](remux.md), "One audio stream replaced"): an `Opus`
+   sample entry (48 kHz, 16-bit sample size) with a `dOps` box (version 0,
+   the output channels, the pre-skip, the source's sample rate as the
+   input rate, gain 0, channel mapping family 0), media timescale 48,000,
+   every packet a 960-tick sync sample, an edit list that presents the
+   decoded samples from movie time 0 (from a Matroska stream's start,
+   after an empty edit) and leaves out the pre-skip and the
+   padding (the edit's media time is the pre-skip), and a `roll` group
+   of distance −4, 80 ms of 20 ms packets. The movie timescale becomes a
+   multiple of 48,000 where the edit would round in it and the multiple
+   fits 32 bits, so that the edit is exact.
+
+The summary's `encoded_audio` (`docs/schema/transcode-v1.md`) names the
+stream, its codec and rate, the channels, the bit rate asked, the samples
+presented, the pre-skip and the packets.
+
+**Tests** (policy record 0042, point 6: decoder conformance and a quality
+bar, never a hash of the encoded output; libopus's version pinned):
+`coreav-worker`'s unit tests of the reader (every requirement, every
+record error), `coreav-transcode`'s stand-in encoders (`/bin/sh` scripts
+that write a wrong header, an empty or wrong-length packet, a cut record,
+nothing, or packets without end: each ends in an error, the last at once),
+and `coreav-cli`'s `tests/transcode.rs` with the pinned FFmpeg, on
+FLAC in MP4 and Matroska and MP3 in Matroska: the summary validated, two
+streams, the Opus stream's `initial_padding` the summary's pre-skip, its
+`start_pts` 0 and `duration_ts` the presented samples, a clean decode;
+AAC, Opus and six channels refused first, and AAC and Opus passed over
+for the FLAC stream after them, both in a build with `aac` too (`ci.yml`, job
+`isobmff-decode`).
+`tests/strict_safe.rs` checks that
+`--audio opus` runs no `ffmpeg` program in strict-safe mode.
+
+### Opus bars
+
+Fixed before the run, judged by `scripts/opus_encode_check.py` in the
+`opus-encode` workflow against the pinned oracle FFmpeg (the build
+`scripts/oracle-ffmpeg.env` names, installed by
+`scripts/install-oracle-ffmpeg.sh` and checked against the pin by
+`scripts/oracle_pin.py --verify-bin`; its libopus is its own, linked
+statically), with CoreAV linking the libopus the release links: the
+static library `packages/cli/scripts/codecs.sh` builds from the tarball
+it pins (`OPUS_VERSION`, `OPUS_SHA256`), the one pin of the release build
+and of this workflow. The script reads the version from there and stops
+before any run when the CoreAV binary carries another libopus or loads one
+at run time, and the report records the libopus version each binary
+carries. The oracle FFmpeg's libopus names itself `libopus unknown`, as
+libopus does when it is built without a release version, so which
+version the FFmpeg arm runs is not known; a version difference can
+explain a difference between the arms but excuses no miss. Only a manual run of the workflow judges the bars; a run for a
+pull request or a push builds CoreAV, checks its libopus and the oracle,
+and judges nothing. Each input runs two arms on the same source:
+
+    coreav transcode SRC OUT.mp4 --audio opus [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG
+    FFMPEG -i SRC -c:v libx264 -c:a libopus [-b:a Kk] OUT.mp4
+
+The set: six sources that the oracle FFmpeg makes from its `lavfi`
+sources, 10 s each with 160x120 H.264 video, each at three rates (the
+default, 32 and 128 kbit/s), 18 inputs:
+
+| Source | Audio | Container |
+|---|---|---|
+| S1 | 440 Hz sine, mono, 48 kHz, FLAC | MP4 |
+| S2 | 440 Hz left and 660 Hz right, 48 kHz, FLAC | MP4 |
+| S3 | logarithmic sweep 50 Hz to 15 kHz, stereo, 48 kHz, FLAC | Matroska |
+| S4 | pink noise (seed 1), stereo, 48 kHz, FLAC | MP4 |
+| S5 | noise bursts at a syllable rate (4 Hz), mono, 48 kHz, MP3 at 192 kbit/s | Matroska |
+| S6 | 1 kHz sine, stereo, 44.1 kHz, FLAC | MP4 |
+
+`ci.yml`'s `check` job makes the six sources with the oracle FFmpeg, a
+second each, on every run (`scripts/tests/test_bar_sources.py`), so a
+source it cannot make fails there and not in a judged run.
+
+1. **O1, decodes.** The oracle FFmpeg decodes the audio of every CoreAV
+   output (`-v error -map 0:a -f null -`) with exit status 0 and no message:
+   18 of 18.
+2. **O2, the timeline.** For every CoreAV output, the oracle `ffprobe`
+   gives the Opus stream `start_pts` 0, `initial_padding` equal to the
+   summary's `pre_skip`, and `duration_ts` equal to the summary's
+   `samples` and to the FFmpeg arm's `duration_ts`, within 48 samples
+   (1 ms; the two resamplers may end a 44.1 kHz source a sample apart):
+   18 of 18.
+3. **O3, the bit rate.** The ratio of the Opus stream's `bit_rate`
+   (`ffprobe`) to the FFmpeg arm's is within 0.85 to 1.15 on every input,
+   and its median over the 18 within 0.95 to 1.05. The two libopus builds
+   may differ in version, so the bar allows the drift of variable bit rate
+   between them, not a different rate control.
+4. **O4, quality.** On the tonal sources at 48 kHz (S1 to S3, 9 inputs),
+   the SNR against the source, every output decoded by the oracle FFmpeg to
+   48 kHz float (the source too) and compared over the presented samples,
+   of CoreAV's output is at least the FFmpeg arm's minus 1.0 dB, per input.
+   A waveform SNR does not measure a perceptual codec on noise (S4, S5),
+   and on S6 the reference would be FFmpeg's own resampler, so those are
+   judged on O1 to O3 only.
+
+Speed is reported for information only, from the same shared runner (the
+wall time of each arm's whole command, median of three): GitHub-hosted
+runners vary in CPU model between jobs, so no claim is made from it.
+
+## AAC audio
+
+`coreav transcode --audio aac [--audio-bitrate KBPS]` encodes one audio
+stream to AAC-LC with FFmpeg's built-in `aac` encoder, run as an
+operator-provided program under policy record 0042, point 5, as
+`ffmpeg -c:v libx264` is: nothing is linked.
+
+The program is the `ffmpeg` that `--ffmpeg` names, else the file
+`COREAV_FFMPEG` names, else `ffmpeg` on `PATH` ("The encoder program"),
+whatever program encodes the video. None found is refused
+(`unsupported_feature`, "no ffmpeg program for AAC audio"), and so is one
+whose answer to `-h encoder=aac`, run as the encoder runs, does not
+begin `Encoder aac [` ("has no aac encoder"), both before the audio is
+decoded. Strict-safe mode refuses `--audio aac` before the input is
+read, since the encoder is the `ffmpeg` program. The bit rate is
+`--audio-bitrate`, 16 to 512 kbit/s, given to the encoder as `-b:a`;
+without it the encoder's own default applies, which the summary gives as
+`null` rather than restating it.
+
+**Pipeline.** As for Opus, the audio is encoded before the video:
+
+1. `coreav-audio`'s `decode` reads the stream as it does for Opus (the
+   first audio stream it decodes, FLAC or MP3, with AAC and Opus passed
+   over or refused in every build, and the container's trimming applied) to
+   32-bit float at the stream's own rate: nothing is resampled. More than
+   two channels, and a rate other than the AAC rates of 8 to 64 kHz
+   (ISO/IEC 14496-3 Table 1.18; an `mp4a` sample entry carries at most
+   65,535 Hz), are refused (`unsupported_feature`), as are the edit lists
+   and early stops that Opus refuses.
+2. The samples go to `ffmpeg -nostdin -hide_banner -loglevel error -f
+   f32le -ar RATE -ac CHANNELS -i pipe:0 -map 0:a:0 -c:a aac [-b:a BITS]
+   -f matroska pipe:1`, through the sandbox launcher with the encoder
+   program's limits ("Sandbox": no file writes, no core files, an address
+   space of 2 GiB, the CPU time to the deadline, its own process group,
+   killed at the deadline or on an error). It gets the samples on its
+   standard input, never the file. Of the containers FFmpeg writes to a
+   pipe, Matroska is the one that keeps the encoder's delay
+   (`CodecDelay`): ADTS has no field for it, and FFmpeg's fragmented MP4
+   leaves the edit list out.
+3. Its standard output is untrusted (policy record 0042, point 3). As it
+   comes, it goes to a spool file next to the output, within
+   `max_spool_bytes` and within what the samples sent so far make (the
+   frames that cover the largest delay and the samples, and one more, each
+   of 8,184 bytes and 64 bytes of Matroska, and 64 KiB of header):
+   an encoder that writes more is stopped at once. Once it has exited,
+   `coreav_transcode::aac::read_output` reads the file with CoreAV's
+   Matroska parser and takes only one audio track of `A_AAC`, stored as it
+   is, at the rate and channels sent, whose `CodecPrivate` is the
+   `AudioSpecificConfig` of AAC-LC at that rate and channels (object type
+   2, 1,024-sample frames), alone or followed by the explicit signalling
+   that the stream has no SBR (ISO/IEC 14496-3 1.6.2.1: `syncExtensionType`
+   0x2B7, `sbrPresentFlag` 0), as FFmpeg writes it; a delay of at most two
+   frames; frames of 1 to 8,184 bytes, the largest that ADTS carries (the
+   decoder's buffer of 6,144 bits a channel bounds the average, and
+   FFmpeg's encoder writes larger mono frames at 192 kbit/s); and as many
+   frames as cover
+   the delay and the samples, or one more. The frames are copied to a
+   second spool file. The reader has a fuzz target,
+   `coreav-transcode/fuzz`'s `aac_output`.
+4. The MP4 writer replaces the source stream with the frames
+   ([`remux.md`](remux.md), "One audio stream replaced"): an `mp4a` sample
+   entry (the stream's rate, 16-bit sample size) with an `esds` box
+   (ISO/IEC 14496-1 7.2.6.5: object type 0x40, an audio stream, the
+   `AudioSpecificConfig` as read), media timescale the sample rate, every
+   frame a 1,024-tick sync sample, an edit list that presents the decoded
+   samples from movie time 0 (from a Matroska stream's start, after an
+   empty edit, as for Opus) and leaves out the delay and the padding (the
+   edit's media time is the delay), and a `roll` group of distance −1,
+   since a frame overlaps the one before it (ISO/IEC 14496-3 4.6.11).
+
+The summary's `encoded_audio` (`docs/schema/transcode-v1.md`) names the
+stream, its codec and rate, the encoder `aac`, the channels, the bit
+rate asked, the samples presented, the delay (`pre_skip`) and the frames
+(`packets`).
+
+**Tests** (policy record 0042, point 6: decoder conformance and a quality
+bar, never a hash of the encoded output): `coreav-transcode`'s unit tests
+of the reader (every refusal) and of stand-in `ffmpeg` programs (`/bin/sh`
+scripts without the `aac` encoder, failing, or writing without end, the
+last stopped at once); `coreav-isobmff-write`'s `tests/replace.rs` with
+an `mp4a` replacement in MP4 and Matroska sources; and `coreav-cli`'s
+`tests/transcode.rs` with the pinned FFmpeg as the encoder, on FLAC in MP4
+and Matroska and MP3 in Matroska at 44.1, 48 and 32 kHz: the summary
+validated, two streams, the AAC stream LC at the source's rate,
+`start_pts` 0 and `duration_ts` the presented samples, a clean decode;
+AAC, Opus, six channels, 96 kHz, no `ffmpeg` and an `ffmpeg` without
+`aac` refused first, and Opus passed over for the FLAC stream after it,
+both also in a build with `aac` (`ci.yml`, job `isobmff-decode`).
+`tests/strict_safe.rs` checks that `--audio aac` is refused before the
+input is read.
+
+### AAC bars
+
+Fixed before the run, judged by `scripts/aac_encode_check.py` in the
+`aac-encode` workflow against the pinned oracle FFmpeg (the build
+`scripts/oracle-ffmpeg.env` names, checked by `scripts/oracle_pin.py
+--verify-bin`), the one the Opus bars use. The same FFmpeg is both arms'
+encoder: CoreAV runs it as its AAC encoder program. Only a manual run of
+the workflow judges the bars; a run for a pull request or a push builds
+CoreAV and checks the oracle, and judges nothing. Each input runs two arms
+on the same source:
+
+    coreav transcode SRC OUT.mp4 --audio aac [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG9
+    FFMPEG9 -i SRC -c:v libx264 -c:a aac [-b:a Kk] OUT.mp4
+
+The set: the six sources of the Opus bars (S1 to S6, made the same way),
+each at three rates (the encoder's default, 64 and 192 kbit/s), 18 inputs.
+
+1. **A1, decodes.** FFmpeg 9.0.2 decodes the audio of every CoreAV output
+   (`-v error -map 0:a -f null -`) with exit status 0 and no message:
+   18 of 18.
+2. **A2, the timeline.** For every CoreAV output, `ffprobe` 9.0.2 gives
+   the audio stream `codec_name` `aac`, `profile` `LC`, the source's
+   `sample_rate`, `start_pts` 0, and `duration_ts` equal to the
+   summary's `samples` and to the FFmpeg arm's `duration_ts`, exactly:
+   neither arm resamples. 18 of 18.
+3. **A3, the bit rate.** The ratio of the AAC stream's `bit_rate`
+   (`ffprobe`) to the FFmpeg arm's is within 0.95 to 1.05 on every input,
+   and its median over the 18 within 0.98 to 1.02. Both arms run the same
+   encoder with the same settings; only the samples' way to it differs
+   (CoreAV's decoder and a pipe, against FFmpeg's decoder).
+4. **A4, quality.** On the tonal sources (S1, S2, S3 and S6, 12 inputs),
+   the SNR against the source, every output decoded by FFmpeg 9.0.2 to
+   48 kHz float (the source too) and compared over the presented samples,
+   of CoreAV's output is at least the FFmpeg arm's minus 0.5 dB, per
+   input. Noise (S4, S5) is judged on A1 to A3 only, as for Opus.
+
+Speed is reported for information only, from the same shared runner (the
+wall time of each arm's whole command, median of three), as for Opus.
+
 ## Through `coreav ffmpeg`
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
 `ffmpeg` command lines of this job through this pipeline: one input, the
-video re-encoded with libx264, the audio copied or dropped, one MP4
-output. The command line is read by the compatibility parser and its
+video re-encoded with libx264, the audio copied, dropped, or one audio
+stream encoded with libopus (in builds with the `libopus` feature, "Opus
+audio") or with FFmpeg's `aac` ("AAC audio"), one MP4 output. The command line is read by the compatibility parser and its
 stream selection, the same as for `-c copy`; a command that selects a
 video stream for `libx264` is routed here before the refusal of encoder
 values, and every option this section does not list is still refused,
 naming it (exit status 4). The encoder is `--encoder auto`'s ("The encoder
 program"); in strict-safe mode that is an `x264` program only, and a
 command without one, or with a video only the FFmpeg decoder would decode,
-is refused (exit status 4) and never handed to FFmpeg.
+is refused (exit status 4) and never handed to FFmpeg, as is every
+`-c:a aac` command, whose encoder is the `ffmpeg` program.
 
 | Option | Taken as |
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
+| `-c:v:N copy`, or `-c copy`, for a selected MP4/MOV cover picture | the cover picture kept in the output's item list, unchanged; a cover picture the selection leaves out (the default selection does) is left out (`TranscodeOptions::left_out_covers`, [`compat-cli.md`](compat-cli.md), "Cover pictures"), and one the command would encode with libx264 is refused (`ffmpeg` fails on it) |
+| `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
+| `-c:a`, `-acodec` `aac` | `--audio aac` for the one selected audio stream ("AAC audio"), beside a video encoded with libx264, by FFmpeg's built-in `aac` encoder: the `ffmpeg` program `--audio aac` finds without `--ffmpeg` (`COREAV_FFMPEG`, else `PATH`), run as a process of its own. Every build has it. Refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround AAC stream), for a sample rate outside 8 to 64 kHz (nothing is resampled; `ffmpeg` encodes 88.2 and 96 kHz as they are), without `-c:v libx264`, when no `ffmpeg` program is found or it has no `aac` encoder (`--audio aac`'s refusals), and always in strict-safe mode. Its other options (`-profile:a`, `-aac_coder`, `-q:a`, `-ar`, `-ac`, `-af`, `-strict`) and other AAC encoders (`libfdk_aac`) are refused as unlisted |
+| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
@@ -611,8 +930,8 @@ output, before the encoder starts:
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
 - **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; audio encoding is not in this pipeline, so a
-  command that selects an audio stream without copying it is refused.
+  selected audio to AAC; a command that selects an audio stream without
+  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer
@@ -629,14 +948,17 @@ status 4, and nothing is written.
 
 | Crate | What it gets | `unsafe` |
 |---|---|---|
-| `coreav-transcode` (new) | Options, the pipeline, the encoder process, the Annex B reader | forbidden |
-| `coreav-isobmff-write` | Remux with one video stream replaced | forbidden |
+| `coreav-transcode` (new) | Options, the pipeline, the encoder process, the Annex B reader, the AAC encoder's output reader | forbidden |
+| `coreav-isobmff-write` | Remux with one video stream, one audio stream, or one of each replaced | forbidden |
+| `coreav-backend-libopus` (new) | The libopus encoder, behind the `libopus` feature | forbidden: the `opusic-c` crate's `unsafe` is a dependency's |
+| `coreav-audio` | Used as it is: the audio decoded to float, at 48 kHz for the Opus encoder and at its own rate for the AAC encoder | forbidden |
 | `coreav-thumbnail` | The video stream's packets as a stream, for a whole file | forbidden |
-| `coreav-worker` | The hidden sandbox entry that sets limits and `exec`s | crate `deny`, this module `forbid` |
+| `coreav-worker` | The hidden sandbox entry that sets limits and `exec`s; the Opus encoder process and its reader (`opus`, the `libopus` feature) | crate `deny`, these modules `forbid` |
 | `coreav-cli` | `coreav transcode`, in builds with a decoder backend (the `transcode` feature, which `ffmpeg-fallback`, `native-h264`, `dav1d` and `libvpx` turn on, and which brings in `coreav-worker` for the sandbox launcher, so a `native-h264`-only build has it too) | forbidden |
 
-No new FFI and no encoder crate: x264 and FFmpeg are programs. Nothing GPL
-is linked or bundled; the operator installs the encoder.
+x264 and FFmpeg are programs: nothing GPL is linked or bundled, and the
+operator installs the video encoder and the AAC encoder. libopus is the one library an
+encoder crate links, opt-in (policy record 0042).
 
 ## Rejected alternatives
 
@@ -645,6 +967,21 @@ is linked or bundled; the operator installs the encoder.
 - **An encoder crate in this item** (OpenH264, NVENC, or an AV1 encoder
   for AV1 output). Each needs a recorded encoder policy
   first; OpenH264 adds a patent question of its own.
+- **libopus in the `coreav` process.** Policy record 0042 runs software
+  encoders sandboxed by default: the samples come from untrusted files,
+  and a crash or a runaway allocation in the encoder would take the
+  transcode with it. The process costs one copy of the samples through a
+  pipe, small beside the video's frames.
+- **The `opus` crate.** Its 0.3 binding, `audiopus_sys`, is unmaintained
+  (RUSTSEC-2026-0150), and 0.4 always builds the libopus that
+  `opusic-sys` bundles. `opusic-c` without its default features links the
+  system's libopus, as the dav1d and libvpx backends link theirs, and its
+  safe API sets the complexity too, which the bars compare at FFmpeg's
+  documented default of 10.
+- **Downmixing more than two channels to stereo.** FFmpeg's `-c:a
+  libopus` writes such a stream as surround Opus (channel mapping family
+  1), so a downmix would be another output than the command's; it is
+  refused instead, and family 1 is a follow-up.
 - **Encoder output in a container** (x264's `--muxer mkv` or `flv`,
   `ffmpeg -f matroska`) for its timestamps. The two programs would need
   different readers, FLV keeps milliseconds only, and the timestamps the

@@ -14,7 +14,7 @@ name: npm
 #   also the Linux arm64, macOS arm64 and x86-64 and Windows x86-64
 #   binaries, each built and run on its platform and smoke-tested there
 #   with Node 20 and 24.
-# The binaries are the release's default build, with dav1d and libvpx
+# The binaries are the release's default build, with dav1d, libvpx and libopus
 # linked statically (docs/design/release.md, "Two builds"). The label is read from the pull
 #   request, so any event of a labelled pull request builds them, not only
 #   the labelling itself.
@@ -38,6 +38,10 @@ on:
     tags: ['v*']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+  # A group of the merge queue, filtered by what the group changes on main
+  # (docs/design/ci-checks.md, "The merge queue").
+  merge_group:
+    types: [checks_requested]
   schedule:
     # Every binary once a week (Monday 04:30 UTC), on main.
     - cron: '30 4 * * 1'
@@ -48,7 +52,8 @@ permissions:
 
 concurrency:
   # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
+  # main, manual runs and merge groups each get their own group, so none is
+  # dropped.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -74,7 +79,7 @@ jobs:
         uses: ./.github/actions/changed-paths
         with:
           paths: |
-            packages/**
+            packages/cli/**
             crates/coreav-py/**
             crates/coreav-cli/**
             Cargo.lock
@@ -126,7 +131,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
-      # dav1d and libvpx, static (scripts/codecs.sh), kept until the
+      # dav1d, libvpx and libopus, static (scripts/codecs.sh), kept until the
       # script that builds them changes.
       - name: Cache the C decoders
         id: codecs-cache
@@ -195,6 +200,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/packages"
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/packages")
           (cd packages/cli/npm/linux-x64 && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
           for tarball in "$RUNNER_TEMP/packages"/*.tgz; do npm publish --dry-run --access public "$tarball"; done
       # The smoke tests and the other platforms compare with these.
       - name: Expected outputs
@@ -289,7 +295,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
-      # dav1d and libvpx (scripts/codecs.sh); Windows links neither.
+      # dav1d, libvpx and libopus (scripts/codecs.sh); Windows links none.
       - name: Cache the C decoders
         id: codecs-cache
         if: runner.os != 'Windows'
@@ -331,6 +337,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/packages"
           (cd packages/cli/npm/${{ matrix.platform }} && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
           npm publish --dry-run --access public "$RUNNER_TEMP/packages"/*.tgz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

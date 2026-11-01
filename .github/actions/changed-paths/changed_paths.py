@@ -28,6 +28,10 @@ The changed files come from git, which needs the two commits present
 - a pull request: the merge commit against its first parent, the base;
 - a push: the event's `before` commit against the event's commit, read from
   the BEFORE environment variable;
+- a merge group: the group's base commit, read from the GROUP_BASE
+  environment variable, against the group's commit. The base is the tip of
+  the branch or the head of the group queued ahead, often more than one
+  parent away, so it is fetched from `origin` first;
 - anything else (a manual or scheduled run), or a commit git cannot reach,
   or a diff that fails: everything runs, which is the safe direction.
 
@@ -108,7 +112,7 @@ def git(*args):
     return subprocess.run(('git',) + args, capture_output=True, text=True, check=True).stdout
 
 
-def changed_files(event, before):
+def changed_files(event, before, group_base):
     """The event's changed files, or None when they cannot be determined."""
     if event == 'pull_request':
         base, head = 'HEAD^1', 'HEAD'
@@ -116,9 +120,15 @@ def changed_files(event, before):
         if not before or ZERO.match(before):
             return None
         base, head = before, 'HEAD'
+    elif event == 'merge_group':
+        if not group_base:
+            return None
+        base, head = group_base, 'HEAD'
     else:
         return None
     try:
+        if event == 'merge_group':
+            git('fetch', '--quiet', '--no-tags', '--depth=1', 'origin', base)
         git('cat-file', '-e', base + '^{commit}')
         out = git('-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', '-z', base, head)
     except (subprocess.CalledProcessError, OSError):
@@ -128,7 +138,7 @@ def changed_files(event, before):
 
 def main():
     event = os.environ.get('GITHUB_EVENT_NAME', '')
-    changed = changed_files(event, os.environ.get('BEFORE', ''))
+    changed = changed_files(event, os.environ.get('BEFORE', ''), os.environ.get('GROUP_BASE', ''))
     run, reason = decide(
         changed,
         patterns_of(os.environ.get('PATHS', '')),

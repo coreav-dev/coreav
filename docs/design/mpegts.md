@@ -61,7 +61,8 @@ other implementation.
 - `packet`: sans-IO transport packet header and adaptation field (PCR,
   discontinuity and random access indicators).
 - `section`: PSI section reassembly per PID (pointer field, sections that
-  span packets, several sections in one packet), CRC-32 check, and the PAT
+  span packets, several sections in one packet), CRC-32 check (eight
+  bytes a step, from a table made at compile time), and the PAT
   and PMT with their descriptor loops.
 - `pes`: PES header (stream id, PTS, DTS, header length) and the
   reassembly of a PES packet's payload from its transport packets. The
@@ -400,7 +401,12 @@ nothing is ignored whole, as a decoder ignores it.
   flag, as `ffprobe` reports both: for H.264 an IDR picture, a
   recovery point SEI message, or only I slices when the SPS keeps at most
   one reference frame; for HEVC an IRAP picture; for MPEG-1 and MPEG-2
-  video an I picture; every audio frame. Rejected: the
+  video an I picture; every audio frame. For H.264 only the NAL units up
+  to the first coded slice, and that slice's first 32 bytes or up to the
+  next unit when it starts sooner, are read unless the SPS keeps at most one reference frame: those units decide an
+  IDR picture (`nal_unit_type` 5, ITU-T H.264 7.4.1) and a recovery point (its SEI message, Annex D), since an access unit's SEI NAL units come before its first coded slice (7.4.1.2.3), and the
+  slices after them, nearly all of an access unit's bytes, matter only to
+  the intra rule. Rejected: the
   `random_access_indicator` (optional, and set inconsistently by muxers);
   it is the fallback when the NAL units cannot be read.
 - **Damaged input.** A packet with `transport_error_indicator` set is read
@@ -780,6 +786,18 @@ Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
 and 64 KiB per stream. Every limit is an error, never a panic or an
 unbounded allocation.
 
+A PES packet being reassembled starts with room for its stated length
+and one more transport packet or, with no stated length, for the longest
+unit read on its PID so far, so that the buffer of a coded picture is not
+copied each time it doubles. Either is capped at `max_buffered_bytes`
+over `max_streams`, and at what `max_buffered_bytes` leaves of the room
+the buffers in progress started with, so the room they reserve together
+stays within `max_buffered_bytes` however many PIDs start a PES packet,
+before the tables name the streams too. When the first transport packet holds the whole PES
+header, the header is parsed there and only the payload is kept, so the
+completed payload is handed on without moving its bytes; the header
+still counts toward `max_packet_bytes` and `max_buffered_bytes`.
+
 `max_probe_bytes` stops the head's read. It bounds every byte the head
 reads: the packet reader is given the budget as the end of the file, so
 a packet only partly inside it is not read, and a resynchronisation does
@@ -798,8 +816,11 @@ limit for the second. Rejected: removing the kind and keeping
 Every map the crate keys by PID is a `PidMap` (`src/pid_map.rs`), which is
 built only from a limit of `Limits` or from the 8,192 PIDs a packet can
 name, and which refuses a PID it does not hold yet once it holds that
-many; its reads are inlined calls on the `BTreeMap` inside it. The
-crate's `clippy.toml` forbids `BTreeMap` and `HashMap` everywhere else in
+many. It keeps its values in PID order beside a table over the PID space
+(a `u16` a PID, 16 KiB, made on the first insertion) that says where each
+PID's value is, so the lookups made for every transport packet are one
+index, not a search; a `BTreeMap` there took 4 to 11% of the listing on
+large captures. The crate's `clippy.toml` forbids `BTreeMap` and `HashMap` everywhere else in
 the crate, with a reason that names `PidMap`, so a new per-PID fact
 cannot be kept without choosing its bound. Each map keeps the bound and
 the refusal it had before the type:
@@ -835,10 +856,11 @@ can leave out, as `pcrs` did; bounding every map by `max_streams`, which
 would stop telling lost packets on a file with more PIDs than streams
 and change which PIDs a listing reads; arrays of 8,192 entries, which
 hold the whole PID space for a file of three PIDs (1.5 MiB for `last`
-alone, again for each pass over the tail); forbidding `BTreeSet` and
-`HashSet` too, since the one set of PIDs (`Demux::always`, the probe's
-streams) holds two bytes a PID and the parameter sets of `video.rs` are
-not kept per PID. Clippy reads only the `clippy.toml` nearest a crate, so
+alone, again for each pass over the tail), where the table of places
+holds two bytes a PID and the values only the PIDs read; forbidding
+`BTreeSet` and `HashSet` too, since the PIDs read whatever the tables
+say (`Demux::always`, the probe's streams) are a `PidMap<()>` and the
+parameter sets of `video.rs` are not kept per PID. Clippy reads only the `clippy.toml` nearest a crate, so
 the crate's repeats the workspace's settings, which
 `tests/clippy_config.rs` checks; putting `disallowed-types` in the
 workspace's file was rejected because it would forbid the maps of every
@@ -852,6 +874,20 @@ decodes the SDT's service names with iconv, which loads the host's gconv
 modules. `scripts/oracle-ffprobe.sh` sets `GCONV_PATH` to an empty path,
 so iconv fails cleanly and the names are left as read; no compared field
 depends on them.
+
+The pinned FFmpeg 9 `ffprobe`, run the same way, converts the text of
+every character table of EN 300 468 annex A but KS X 1001 (`0x12`): the
+ISO/IEC 8859 parts (`0x01` to `0x0B`, and `0x10 0x00` with the part),
+UCS-2 (`0x11`), GB 2312 (`0x13`), the Big5 subset (`0x14`) and UTF-8
+(`0x15`), and prints a converted name without the bytes that name its
+table. A name in a table it does not convert, or with a byte its part
+leaves undefined, is printed as read, those bytes included, up to its
+first NUL (SDTs crafted with each table, and one that names part 3 with
+every byte from `0xA0`). `coreav ffprobe` converts the ISO/IEC 8859 parts
+annex A assigns (1 to 11 and 13 to 15) from the Unicode Consortium's
+mapping tables of each part (its notice is in NOTICE), and UCS-2 and
+UTF-8; a reserved selector, part 16 and above included, and GB 2312
+names are printed as read (`ffprobe/ts.rs`, `dvb_text`).
 
 ### Oracle positions
 

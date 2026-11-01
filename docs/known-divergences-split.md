@@ -36,14 +36,17 @@ file names.
   `split_hevc.mp4` cut every second differs by at most 2.4e-5 from its
   second frame on.
 - Why: ISO/IEC 14496-3 (a decoder's output depends on its state; the noise
-  of perceptual noise substitution is not defined by the bitstream);
+  of perceptual noise substitution is not defined by the bitstream); ATSC
+  A/52 7.3.4 (AC-3 and E-AC-3 dither mantissas coded with no bits
+  from a generator whose state the bitstream does not define);
   `docs/design/split.md` (every packet is copied once, so no segment but
   the first has the frame before its first). The cause is that of
   `KD-C-AUDIO-RESTART`, which needs an edit list; a segment's audio often
   has none.
 - Coverage requires: at most one media edit on the segment's audio, and its
   decoded samples equal to the source's packets of the segment, extracted
-  by `ffmpeg` as ADTS frames (one per sample, edit lists ignored) and
+  by `ffmpeg` in their raw format (one frame per sample, as for
+  `KD-C-AUDIO-RESTART`; edit lists ignored) and
   decoded from the segment's first audio packet, at exactly the media time
   of its edit, or from the first sample without an edit list; and the
   segment's decode durations exactly those the source's `stts` stores for

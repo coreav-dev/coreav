@@ -5,7 +5,8 @@ use crate::names;
 use crate::probe::Probed;
 use crate::time::{rfc3339, scale, to_f64};
 use coreav_isobmff::{
-    DeclaredBitRate, DropReason, DurationSource, EditList, Profile, Rational, Track, TrackKind,
+    Codec, DeclaredBitRate, DropReason, DurationSource, EditList, Profile, Rational, Track,
+    TrackKind,
 };
 use serde_json::{Map, Value};
 
@@ -286,10 +287,14 @@ fn audio(track: &Track) -> Value {
         return Value::Null;
     }
     let d = &track.description;
+    let sample_rate = match d.codec {
+        Codec::Flac | Codec::Alac => d.configured_sample_rate.or(d.sample_rate),
+        _ => d.sample_rate,
+    };
     object!(
         "channels": d.channels,
         "implicit_ps_possible": d.implicit_ps_possible,
-        "sample_rate": d.sample_rate,
+        "sample_rate": sample_rate,
         "pcm": d.pcm.map(|p| object!(
             "float": p.float,
             "bits": p.bits,

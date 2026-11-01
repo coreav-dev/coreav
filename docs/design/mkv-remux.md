@@ -45,6 +45,11 @@ sources. No sample is decoded or re-encoded.
   - AAC → `mp4a` with an `esds` holding the `AudioSpecificConfig` of
     `CodecPrivate`, or one built from a legacy `A_AAC/...` codec ID and the
     track's sample rate and channels; timescale = sample rate.
+  - FLAC → `fLaC` with a `dfLa` holding the metadata blocks of
+    `CodecPrivate`; Apple Lossless (`A_ALAC`) → `alac` with the magic
+    cookie of `CodecPrivate`; AC-3 → `ac-3` with a `dac3` and E-AC-3 →
+    `ec-3` with a `dec3`, both built from the first frame's headers;
+    timescale = sample rate (`remux.md`, "Audio sample entries").
 - **Dropped and reported**, with a precise reason, by default; `--fail-on-
   unsupported` fails instead, as for MP4 sources:
   - every other codec, for example VP8 ("VP8 in MP4 does not play in
@@ -54,18 +59,21 @@ sources. No sample is decoded or re-encoded.
     WebM, and Chrome plays them only from a file URL, with `canPlayType`
     and MSE reporting no support; an earlier change records the test and the decision
     not to write `vp08`), "MP4 has no standard sample entry for Vorbis",
-    MP3 and PCM; FLAC and AC-3 when the allowlist names them (by default
-    they are `codec_not_allowed`);
+    MP3 and PCM;
   - subtitle and data tracks, tracks whose frames are compressed
     (`ContentCompression` other than header stripping), encrypted tracks,
     tracks with `TrackTimestampScale` other than 1.0;
+  - Apple Lossless of more than two channels, whose packets hold more than
+    one channel element (`remux.md`, "Apple Lossless packets from
+    Matroska");
   - a stream without what its sample entry needs (a malformed
     configuration record, no parameter set in the first H.264 keyframe, no
     valid `OpusHead`, no `AudioSpecificConfig`, an unreadable first VP9
     frame header) or without frames;
   - a stream with a problem found while its frames are listed: an H.264
     frame without `CodecPrivate` that is not an Annex B byte stream (or has
-    more than 65,536 NAL units), a video frame without a timestamp, a frame
+    more than 65,536 NAL units), a video frame without a timestamp, an
+    Apple Lossless packet without a valid element header, a frame
     above 4 GiB, a time beyond 2^62 ns (146 years, so that no time
     computation overflows), a sample that lasts too long for a 32-bit
     duration, a composition offset beyond 32 bits, a stream of which
@@ -114,16 +122,26 @@ sources. No sample is decoded or re-encoded.
   `BlockDuration`, else `DefaultDuration`, else the previous sample's.
 - **Audio:** media timescale = sample rate (48,000 for Opus). Each frame
   lasts what it decodes to: the duration its Opus TOC byte gives (RFC 6716
-  3.1, a 1- or 2-byte read per packet), or one AAC frame (1,024 or 960
-  samples, from `frameLengthFlag`). Matroska's millisecond times do not:
+  3.1, a 1- or 2-byte read per packet), one AAC frame (1,024 or 960
+  samples, from `frameLengthFlag`), the block size of its FLAC frame
+  header (RFC 9639 9.1.1), the count an Apple Lossless packet's header
+  states, else the cookie's `frameLength` (the header's layout is taken
+  from Apple's ALAC reference source, `codec/ALACDecoder.cpp` and
+  `codec/ALACBitUtilities.h` of the macosforge/alac release, Apache-2.0,
+  under a maintainer-approved clean-room exception of 2026-10-31 for the
+  ALAC packet header layout only; `remux.md`, "Apple Lossless packets
+  from Matroska"), or
+  1,536 samples for AC-3 and E-AC-3. Matroska's millisecond times do not:
   Chrome's MediaRecorder writes 60 ms Opus frames at times that jitter by up
   to about 8 ms, so their differences would give 52 to 68 ms frames that do
   not match the audio. Times are accumulated from the first frame's, and
   the source's times are followed only when the next frame's time is more
   than half a frame away from where this one ends (a pause in a recording,
-  a lost frame, times that do not follow the frames): then the frame lasts
+  a lost frame, times that do not follow the frames), unless the frame
+  states its own count (an Apple Lossless packet's): then the frame lasts
   up to that time, rounded to the codec's quantum (120 samples, 2.5 ms, for
-  Opus; one frame for AAC), at least one quantum. Each output time
+  Opus; one sample for FLAC; one frame for AAC, Apple Lossless, AC-3 and
+  E-AC-3), at least one quantum. Each output time
   therefore stays within half a frame of the source's, except after the
   source's times go backwards: frames then last one quantum each until the
   source's times catch up. Frames without a timestamp (later frames of a
@@ -144,12 +162,20 @@ sources. No sample is decoded or re-encoded.
 - The movie timescale is the video timescale (Segment Ticks per second, or
   90,000), so empty edits keep the source's precision.
 
-## One video stream replaced
+## Replaced streams
 
-`remux_matroska_replacing` is `remux_matroska` with one video stream's
-samples taken from the caller (`coreav transcode`'s writer;
-[`remux.md`](remux.md), "One video stream replaced", has the replacement,
-its validation and the rejected alternatives). Matroska specifics:
+`remux_matroska_replacing` is `remux_matroska` with the samples of one
+video stream, one audio stream, or one of each taken from the caller
+(`coreav transcode`'s writer; [`remux.md`](remux.md), "Replaced streams",
+has the replacements, their validation and the rejected alternatives).
+Matroska specifics:
+
+- **A replaced audio stream** gets the audio replacement's own timeline
+  and edits (`remux.md`, "One audio stream replaced"). With one, the movie
+  timescale is the least common multiple of the video timescale below and
+  the replacement's media timescale (48,000 for Opus, the sample rate for
+  AAC), when that fits 32 bits, so that its edits are
+  exact.
 
 - **Times** are Segment Ticks on the segment's timeline, the blocks'
   timestamps as `coreav_mkv::Packet::pts` gives them for video (no
