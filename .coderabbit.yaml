@@ -15,13 +15,6 @@ reviews:
   suggested_reviewers: false
   related_prs: false
   related_issues: false
-  path_filters:
-    - "!docs/measurements/**/*.json"
-    - "!docs/measurements/**/*.jsonl"
-    - "!**/evidence/**"
-    - "!tools/mediainfo-oracle/results/**/*.json"
-    - "!docs/measurements/transcode/fixtures/**"
-    - "!**/Cargo.lock"
 knowledge_base:
   code_guidelines:
     filePatterns:
