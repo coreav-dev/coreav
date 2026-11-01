@@ -606,11 +606,19 @@ def accepts(coreav, path, key, rule, ref_values, values):
     got = [(plain(f), plain(c)) for f, c in zip(ref_values, values)]
     if len(ref_values) == len(values):
         return all(f == c or (f, c) in allowed for f, c in got)
-    # The JSON writer leaves an N/A out, so the items no longer pair.
+    # The JSON writer leaves an N/A out, so the items no longer pair. A value
+    # only one output prints pairs with one only the other prints, or with
+    # nothing where the whole file's listing shows N/A on the other side;
+    # a value one output leaves out is never a difference a rule accepts.
     ref_only = collections.Counter(map(plain, ref_values)) - collections.Counter(map(plain, values))
     only_here = collections.Counter(map(plain, values)) - collections.Counter(map(plain, ref_values))
-    return (not ref_only - collections.Counter(f for f, _ in allowed)
-            and not only_here - collections.Counter(c for _, c in allowed))
+    for f in ref_only.elements():
+        c = next((c for c in only_here if only_here[c] and (f, c) in allowed), None)
+        if c is not None:
+            only_here[c] -= 1
+        elif (f, None) not in allowed:
+            return False
+    return all((None, c) in allowed for c in +only_here)
 
 
 def writer_of(args):
