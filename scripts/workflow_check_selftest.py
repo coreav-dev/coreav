@@ -247,6 +247,9 @@ class Repository(unittest.TestCase):
                       ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash -e -- -x scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -O scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: sh -s scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],
@@ -260,6 +263,10 @@ class Repository(unittest.TestCase):
                       ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: bash -e -- scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ['- run: sh -c "./scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -c -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):

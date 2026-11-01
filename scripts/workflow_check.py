@@ -91,15 +91,17 @@ ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
 # A script line that calls the installer, as a command or through a shell
 # with options (`bash -e`, `bash -eo pipefail`, `bash --norc`). The options
 # that stop the shell before it runs the script are no call: `-n`, `-o
-# noexec`, `-D`, `--help`, `--version`, `--dump-strings` and
-# `--dump-po-strings`. `--` ends the options: the word after it is the script, whatever it
-# starts with.
+# noexec`, `-D`, `-s` (the script is then read from standard input),
+# `--help`, `--version`, `--dump-strings` and `--dump-po-strings`. `-o` and
+# `-O` take the next word as their operand, and `-c` takes the command
+# string, which may be quoted. `--` ends the options: the word after it is
+# the script, whatever it starts with.
 
-SHELL_OPTION = (r'(?:-(?![A-Za-z]*[nD])[A-Za-z]*o\s+(?!noexec\b)\w+'
-                r'|-(?![A-Za-z]*[nD])[A-Za-z]+'
+SHELL_OPTION = (r'(?:-(?![A-Za-z]*[nDs])[A-Za-z]*[oO]\s+(?!noexec\b)\w+'
+                r'|-(?![A-Za-z]*[nDsoO])[A-Za-z]+'
                 r'|--(?!(?:help|version|dump-strings|dump-po-strings)\s)[a-z-]+)\s+')
-INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*(?:--\s+)?)?(?:\./)?'''
-                      + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
+INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*(?:--\s+)?)?['"]?(?:\./)?'''
+                      + re.escape(ORACLE_PIN[1]) + r'''(?:\s|['"]|\Z)''')
 
 
 def load_changed_paths(root):
