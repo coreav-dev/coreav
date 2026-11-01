@@ -6,6 +6,16 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { moduleHash } from "../scripts/fingerprint.mjs";
+import { EXNREF_PROBE } from "../src/internal.js";
+
+test("the exception-reference probe is a valid type-only module", () => {
+  const module = new WebAssembly.Module(EXNREF_PROBE);
+  assert.deepEqual(WebAssembly.Module.imports(module), []);
+  assert.deepEqual(WebAssembly.Module.exports(module), []);
+  const invalidType = EXNREF_PROBE.slice();
+  invalidType[13] = 0x50;
+  assert.equal(WebAssembly.validate(invalidType), false);
+});
 
 test("module fingerprints follow the shipped bytes rather than the package version", () => {
   const directory = mkdtempSync(join(tmpdir(), "coreav-build-"));

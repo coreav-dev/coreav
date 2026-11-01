@@ -1,3 +1,4 @@
+/** Load the packaged module from disk. Node needs JSPI and exception references. */
 import { readFileSync } from "node:fs";
 
 import { init } from "./engine.js";

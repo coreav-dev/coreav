@@ -1,3 +1,9 @@
+/**
+ * The input was rejected or could not be read: a `coreav.error/1` object,
+ * as `coreav` prints it, in `document`, with its fields copied for
+ * convenience. `documentText` retains the original JSON number tokens.
+ * When a source failed, `cause` is the source's error.
+ */
 export class CoreAVError extends Error {
   constructor(document, options) {
     const documentText = typeof document === "string" ? document : JSON.stringify(document);
@@ -12,6 +18,7 @@ export class CoreAVError extends Error {
   }
 }
 
+/** The object behind a source changed while it was read. */
 export class SourceChangedError extends Error {
   constructor(message = "the source object changed while it was read") {
     super(message);
@@ -19,6 +26,7 @@ export class SourceChangedError extends Error {
   }
 }
 
+/** The source object does not exist. Adapters do not put a URL or key in the message. */
 export class SourceNotFoundError extends Error {
   constructor(message = "the source object does not exist") {
     super(message);
@@ -26,6 +34,7 @@ export class SourceNotFoundError extends Error {
   }
 }
 
+/** A source exceeded its request cap (`maxRequests`). */
 export class RequestLimitError extends Error {
   constructor(limit) {
     super(`the source needed more than ${limit} requests (maxRequests)`);
@@ -34,6 +43,7 @@ export class RequestLimitError extends Error {
   }
 }
 
+/** Map usage, missing-source and CoreAV errors to 400, 404, 422 or 502. Rethrows unrelated errors. */
 export function errorResponse(error) {
   if (error instanceof TypeError) {
     return Response.json({

@@ -48,7 +48,9 @@ Each operation opens a new session. A memory session has synchronous `readInto`;
 
 Strong HTTP ETags are pinned with `If-Match`; R2 reads use `onlyIf.etagMatches` after the first response. Size changes are also rejected. Without a strong ETag, same-size replacement cannot be detected. HTTP redirects are refused unless explicitly enabled. This does not implement an application's SSRF policy or the native host's DNS-address policy.
 
-`maxRequests` counts retries as requests. Reader statistics describe the latest closed session. The defaults are session settings, not a deployment-wide subrequest quota.
+The HTTP adapter refuses userinfo in URLs, requests `Accept-Encoding: identity`, and rejects compressed responses before reading their bodies. Fetch can decode a response whose length and range headers still describe compressed bytes, so accepting it would silently change the input size. Redirects are followed manually, at most five per range request, with no HTTPS downgrade. Caller headers are preserved on same-origin hops and permanently removed for the remainder of a chain after its first cross-origin hop. The adapter owns `Range`, `If-Match` and `Accept-Encoding` on each hop.
+
+`maxRequests` counts range-reader requests and retries, not redirect hops. With redirects enabled, each reader request can make up to six platform subrequests. Reader statistics describe the latest closed session. The defaults are session settings, not a deployment-wide subrequest quota.
 
 ## Streaming and memory
 
@@ -62,7 +64,7 @@ These are not isolate-wide guarantees. Response bodies, output queues, index cop
 
 `CoreAVError` carries a `coreav.error/1` document, exact `documentText` and an optional source/sink cause. Usage errors are `TypeError`. Missing objects use `SourceNotFoundError`; object changes and request caps use `SourceChangedError` and `RequestLimitError` as causes of I/O errors.
 
-`errorResponse` maps usage errors to 400, missing objects to 404, parser rejections to 422 and I/O errors to 502; unrelated errors are rethrown. HTTP/R2 missing-object errors do not include the URL or key. Other low-level errors can retain their original cause and message. Applications must redact those before responding or logging.
+`errorResponse` maps usage errors to 400, missing objects to 404, parser rejections to 422 and I/O errors to 502; unrelated errors are rethrown. HTTP/R2 missing-object errors do not include the URL or key. For host I/O failures, the original exception stays only in `cause`; it is not copied to the public error message or response document. Applications must not log arbitrary causes.
 
 Upload byte caps, HTTPS/host/userinfo policy, authorization, tenant scoping and HLS cache identity are application responsibilities. Example applications and their security tests are a separate change, not a blanket permission to expose arbitrary remote inputs.
 

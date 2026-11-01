@@ -1,3 +1,4 @@
+/** Load the packaged WASM through the runtime's compiled-module import. */
 import module from "../wasm/coreav_bg.wasm";
 
 import { init } from "./engine.js";

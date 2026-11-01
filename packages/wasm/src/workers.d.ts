@@ -12,5 +12,10 @@ export interface R2ObjectLike {
   body?: ReadableStream<Uint8Array> | null;
 }
 
+/** Six 8 MiB R2 segments in flight, with up to 48 MiB ahead of the reader. */
 export const R2_DEFAULTS: Readonly<RangeOptions>;
+/**
+ * An object in an R2 bucket, through its Workers binding. `options` are
+ * those of `rangeSource`, over `R2_DEFAULTS`.
+ */
 export function r2Source(bucket: R2BucketLike, key: string, options?: RangeOptions): RangeSource;

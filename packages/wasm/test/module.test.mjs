@@ -8,6 +8,8 @@ import { collect, fakeRangeSource } from "./helpers.mjs";
 import { serve } from "./http-server.mjs";
 import { moduleHash } from "../scripts/fingerprint.mjs";
 import { fileURLToPath } from "node:url";
+import { r2Source } from "../src/r2.js";
+import { execFileSync } from "node:child_process";
 
 const fixtures = process.env.COREAV_FIXTURES;
 assert.ok(fixtures, "set COREAV_FIXTURES to the generated fixtures directory");
@@ -31,6 +33,34 @@ test("init accepts a compiled module and later calls do not replace it", () => {
   assert.ok(api.moduleInfo().memoryBytes > 0);
   api.init(new Uint8Array([0]));
   assert.equal(api.moduleInfo().version, version);
+});
+
+test("init names missing exception references rather than exposing a CompileError", () => {
+  const program = `import { init } from ${JSON.stringify(new URL("../src/index.js", import.meta.url).href)};
+import { readFileSync } from "node:fs";
+try { init(readFileSync(new URL(${JSON.stringify(new URL("../wasm/coreav_bg.wasm", import.meta.url).href)}))); process.exitCode = 1; }
+catch (error) { process.stdout.write(JSON.stringify({ name: error.name, message: error.message })); }`;
+  const output = execFileSync(process.execPath, ["--experimental-wasm-jspi", "--no-experimental-wasm-exnref", "--input-type=module", "-e", program], { encoding: "utf8" });
+  const error = JSON.parse(output);
+  assert.equal(error.name, "Error");
+  assert.match(error.message, /exception references/);
+  assert.match(error.message, /--experimental-wasm-exnref/);
+});
+
+test("runtime loaders name missing JSPI and exception tags", () => {
+  const entry = JSON.stringify(new URL("../src/node.js", import.meta.url).href);
+  for (const [flags, setup, expected] of [
+    [["--experimental-wasm-jspi", "--experimental-wasm-exnref"], "delete WebAssembly.Suspending;", /JSPI/],
+    [["--experimental-wasm-jspi", "--experimental-wasm-exnref"], "delete WebAssembly.JSTag;", /exception references/]
+  ]) {
+    const program = `${setup}
+try { await import(${entry}); process.exitCode = 1; }
+catch (error) { process.stdout.write(JSON.stringify({ name: error.name, message: error.message })); }`;
+    const output = execFileSync(process.execPath, [...flags, "--input-type=module", "-e", program], { encoding: "utf8" });
+    const error = JSON.parse(output);
+    assert.equal(error.name, "Error");
+    assert.match(error.message, expected);
+  }
 });
 
 test("ffprobeText preserves the module's exact text and ffprobe parses it", async () => {
@@ -140,6 +170,36 @@ test("module errors retain exact document text through HTTP responses", async ()
   const response = api.errorResponse(error);
   assert.equal(response.status, 422);
   assert.equal(await response.text(), error.documentText);
+});
+
+test("source-open failures keep sensitive messages only in the cause", async () => {
+  api.init(new WebAssembly.Module(readFileSync(new URL("../wasm/coreav_bg.wasm", import.meta.url))));
+  const cause = new Error("https://user:credential-marker@media.invalid/file?signature=query-marker");
+  const sources = [
+    api.httpSource("https://media.invalid/file?signature=query-marker", { fetch: async () => { throw cause; }, retries: 0 }),
+    fakeRangeSource(new Uint8Array(8), {}, { hooks: { validator: () => { throw cause; } } }),
+    r2Source({ get: async () => { throw cause; } }, "key-marker", { retries: 0 }),
+    { open: async () => { throw cause; } }
+  ];
+  for (const source of sources) {
+    const error = await api.probeText(source).then(() => null, (error) => error);
+    assert.ok(error instanceof api.CoreAVError);
+    assert.equal(error.kind, "io");
+    assert.equal(error.cause, cause);
+    assert.doesNotMatch(error.message, /credential-marker|query-marker|key-marker|media\.invalid/);
+    assert.doesNotMatch(await api.errorResponse(error).text(), /credential-marker|query-marker|key-marker|media\.invalid/);
+  }
+});
+
+test("source-read failures keep sensitive messages only in the cause", async () => {
+  api.init(new WebAssembly.Module(readFileSync(new URL("../wasm/coreav_bg.wasm", import.meta.url))));
+  const cause = new Error("https://user:credential-marker@media.invalid/file?signature=query-marker");
+  const source = { open: () => ({ size: basic.byteLength, inMemory: false, read: async () => { throw cause; }, close() {} }) };
+  const error = await api.probeText(source).then(() => null, (error) => error);
+  assert.ok(error instanceof api.CoreAVError);
+  assert.equal(error.cause, cause);
+  assert.doesNotMatch(error.message, /credential-marker|query-marker|media\.invalid/);
+  assert.doesNotMatch(await api.errorResponse(error).text(), /credential-marker|query-marker|media\.invalid/);
 });
 
 test("HTTP and memory sources give the same module result", async () => {

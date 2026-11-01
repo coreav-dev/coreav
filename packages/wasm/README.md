@@ -40,9 +40,11 @@ const response = new Response(text, {
 
 `bytesSource` reads bytes in memory. `rangeSource` adapts a range-fetch function. `httpSource` reads an HTTP object; redirects are refused by default. Range sessions pin a strong ETag and size. Without a strong ETag, size checks cannot detect same-size content changes. `r2Source` uses an R2 bucket binding, not an SDK or credentials.
 
+HTTP source URLs cannot carry userinfo. The adapter requests identity encoding and refuses compressed responses so that range and length headers describe the bytes it reads. With `followRedirects: true`, it follows at most five HTTP redirects, refuses HTTPS downgrades, and drops all caller headers after the first cross-origin hop. Those headers are not restored if the chain returns to the original origin. `maxRequests` counts range-reader requests and retries, not redirect hops; allowing redirects can use up to six platform subrequests per reader request.
+
 `clip`, `extractAudio`, `extractSubtitles`, `remux`, `sanitize` and `hlsGet` return `{ body, summary, contentType }`. Consume or forward `body` before awaiting completion through `summary`; otherwise backpressure can hold the operation. Cancelling the body ends its session. An error before the first byte rejects the call; an error after that errors the body and rejects the summary. `check`, `chapters` and `hlsIndex` return documents or index bytes.
 
-Reader limits apply per session, not to a whole isolate. WASM memory does not shrink, concurrent operations add their allocations, and `hlsIndex` buffers the completed index. The 40 MiB reader bound used by `remux` and `sanitize` does not guarantee a 128 MiB isolate bound. Applications own upload limits, URL policy, authorization, tenant separation, safe error responses and request budgets. Low-level source errors can retain their original cause; do not return arbitrary network errors or log signed URLs.
+Reader limits apply per session, not to a whole isolate. WASM memory does not shrink, concurrent operations add their allocations, and `hlsIndex` buffers the completed index. The 40 MiB reader bound used by `remux` and `sanitize` does not guarantee a 128 MiB isolate bound. Applications own upload limits, URL policy, authorization, tenant separation, safe error responses and request budgets. Host failures keep their original exception only as `cause`; the I/O response document does not copy it. Do not log arbitrary causes or signed URLs.
 
 ## Verification
 

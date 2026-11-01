@@ -4,22 +4,27 @@ import { BUILD } from "../wasm/build.js";
 
 import { CoreAVError, SourceNotFoundError } from "./errors.js";
 
-import { TRUSTED } from "./internal.js";
+import { EXNREF_PROBE, TRUSTED } from "./internal.js";
 
 let exports = null;
 
 let trapped = null;
 
+/** Initialize once with the package module or its bytes. Needs JSPI and exception references; later calls do not replace the instance. */
 export function init(module) {
   if (exports !== null) return;
   if (typeof WebAssembly.Suspending !== "function" || typeof WebAssembly.promising !== "function") {
     throw new Error("CoreAV needs WebAssembly JSPI (Node.js 24: --experimental-wasm-jspi --experimental-wasm-exnref)");
+  }
+  if (!WebAssembly.validate(EXNREF_PROBE) || typeof WebAssembly.Tag !== "function" || !(WebAssembly.JSTag instanceof WebAssembly.Tag)) {
+    throw new Error("CoreAV needs WebAssembly exception references (Node.js 24: --experimental-wasm-jspi --experimental-wasm-exnref)");
   }
   exports = initSync({
     module: module
   });
 }
 
+/** Version, packaged-artifact SHA-256 and current linear memory size. Custom init callers must supply the matching module. */
 export function moduleInfo() {
   ready();
   return {
@@ -40,6 +45,11 @@ function ready() {
   }
 }
 
+/**
+ * Opens `source` and wraps its session so that its last error is kept.
+ * `open` is the session's options (`memoryBytes`, for an operation that
+ * needs much of the isolate itself); a source may ignore them.
+ */
 async function openSession(source, open) {
   if (source === null || typeof source !== "object" || typeof source.open !== "function") {
     throw new TypeError("source must be a CoreAV source, such as bytesSource(), r2Source() or httpSource()");
@@ -49,7 +59,7 @@ async function openSession(source, open) {
     session = await source.open(open);
   } catch (error) {
     if (error instanceof SourceNotFoundError) throw error;
-    throw new CoreAVError(ioDocument(`the source could not be opened (${error.message ?? error})`), {
+    throw new CoreAVError(ioDocument("the source could not be opened"), {
       cause: error
     });
   }
@@ -130,6 +140,7 @@ function ioDocument(message) {
   };
 }
 
+/** The error for a rejection of the module, given what failed around it. */
 function failure(rejection, session, sinkError) {
   if (typeof rejection !== "string") {
     if (rejection instanceof WebAssembly.RuntimeError) trapped = rejection;
@@ -139,15 +150,12 @@ function failure(rejection, session, sinkError) {
   if (typeof value.usage === "string") return new TypeError(value.usage);
   const cause = sinkError ?? session.error;
   if (value.kind === "io" && cause) {
-    const error = new CoreAVError(rejection, {
-      cause: cause
-    });
-    error.message = `${value.message} (${cause.message ?? cause})`;
-    return error;
+    return new CoreAVError(rejection, { cause: cause });
   }
   return new CoreAVError(rejection);
 }
 
+/** Runs an operation that returns a document; resolves to its JSON text. */
 export async function runToText(operation, source, options, open = undefined) {
   ready();
   const json = JSON.stringify(options);
@@ -162,8 +170,19 @@ export async function runToText(operation, source, options, open = undefined) {
   }
 }
 
+/** Output bytes queued (four chunks of the module's) before it waits for the reader. */
 const QUEUED_BYTES = 1024 * 1024;
 
+/**
+ * Runs an operation that writes an output. Resolves once the first bytes
+ * are written, to `{ body, summary }`: `body` streams the output with
+ * backpressure, `summary` resolves to the operation's summary after the last
+ * byte. Rejects, with no output, when the operation fails before writing.
+ * A failure after the first bytes errors `body` and rejects `summary`;
+ * cancelling `body` stops the operation. `index`, for operations that read
+ * an index besides the source (`hlsGet`), is copied into the module.
+ * `open` is passed to the source's `open()`.
+ */
 export async function runToStream(operation, source, options, index = null, open = undefined) {
   ready();
   const json = JSON.stringify(options);

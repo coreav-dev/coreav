@@ -163,9 +163,10 @@ test("a rejection before any output rejects the call", async () => {
 test("a source that fails after the first byte errors the body", async () => {
   const bytes = read("fragmented_many.mp4");
   let failing = false;
+  const cause = new Error("connection reset");
   const inner = fakeFetchRange(bytes);
   const source = rangeSource(async request => {
-    if (failing) throw new Error("connection reset");
+    if (failing) throw cause;
     return inner(request);
   }, {
     firstSpan: 2048,
@@ -179,14 +180,16 @@ test("a source that fails after the first byte errors the body", async () => {
     start: 0
   });
   failing = true;
-  await assert.rejects(collect(result.body), /connection reset/);
-  await assert.rejects(result.summary, error => {
+  const checkError = error => {
     assert.ok(error instanceof CoreAVError);
     assert.equal(error.kind, "io");
-    assert.match(error.message, /connection reset/);
-    assert.match(error.cause.message, /connection reset/);
+    assert.equal(error.cause, cause);
+    assert.doesNotMatch(error.message, /connection reset/);
+    assert.doesNotMatch(error.documentText, /connection reset/);
     return true;
-  });
+  };
+  await assert.rejects(collect(result.body), checkError);
+  await assert.rejects(result.summary, checkError);
 });
 
 test("concurrent operations on one instance give the same results", async () => {

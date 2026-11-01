@@ -2,6 +2,7 @@ import { RequestLimitError, SourceChangedError, SourceNotFoundError } from "./er
 
 import { TRUSTED } from "./internal.js";
 
+/** A response that breaks the range protocol; not retried. */
 class ProtocolError extends Error {
   constructor(message) {
     super(message);
@@ -9,6 +10,7 @@ class ProtocolError extends Error {
   }
 }
 
+/** Errors that a new request would not fix. */
 function fatal(error) {
   return error instanceof SourceChangedError || error instanceof RequestLimitError || error instanceof ProtocolError || error instanceof SourceNotFoundError;
 }
@@ -17,6 +19,41 @@ const KiB = 1024;
 
 const MiB = 1024 * KiB;
 
+/**
+ * Defaults of the range reader (docs/design/wasm.md, "Sources").
+ *
+ * - A read at a new position opens a response of `firstSpan` bytes, read as
+ *   a stream: a span bounds what a request may transfer, not what is held.
+ *   A read up to `maxSkip` bytes ahead of an open response is served by
+ *   reading through the gap rather than by a new request.
+ * - Reading on past the end of a response, or the module's advice that a
+ *   copy pass follows, starts a pipeline: `parallel` range requests of
+ *   `segmentBytes` each, started early so that their round trips are paid
+ *   before their bytes are needed, and handed out in order. Each is read
+ *   into memory at most `bufferBytes / parallel` ahead of the reader; the
+ *   rest waits in its connection. Segments grow for objects that would
+ *   otherwise need more than `maxRequests` requests.
+ * - The last `cacheBytes` received outside the pipeline are kept and serve
+ *   reads that go back, such as the passes over the sample tables.
+ * - `memoryBytes`, when not 0, bounds all the bytes the reader holds: those
+ *   ahead of the reader, the 8 MiB kept behind each pipeline's reader and
+ *   the cache. Where they add up to more, they are lowered to fit (`open`
+ *   takes a lower bound for one session, for operations that need more
+ *   memory of their own). 0 leaves their sum as the bound. Besides it, each
+ *   open response holds the piece it is reading, at most 256 KiB.
+ * - `maxRequests` caps one operation's requests, well below the subrequest
+ *   limit of Workers' paid plan (set it to your plan's).
+ * - A request or a body that fails is requested again from the failed
+ *   read's offset, up to `retries` times per read (and for the first
+ *   request), unless the failure is one a new request cannot fix.
+ * - Advice that the reads touch only some regions (the headers of ProRes
+ *   samples, the audio of an extraction) reads them in a pipeline that
+ *   skips gaps of `sparseGap` bytes or more. Skipping a gap pays above
+ *   round trip × bandwidth / `parallel` (docs/design/range-extraction.md);
+ *   with `sparseGap: "auto"` the round trip is the wait for the session's
+ *   first response and the bandwidth is `bandwidth` (bytes per second, an
+ *   assumed value, not a measurement), the gap kept within 1 to 8 MiB.
+ */
 export const RANGE_DEFAULTS = Object.freeze({
   firstSpan: 4 * MiB,
   maxSkip: 8 * MiB,
@@ -31,8 +68,18 @@ export const RANGE_DEFAULTS = Object.freeze({
   bandwidth: 6e7
 });
 
+/** The least `memoryBytes` other than 0: room for a segment ahead, behind and in the cache. */
 const MIN_MEMORY = 4 * MiB;
 
+/**
+ * `settings` with the bytes it may hold fitted to `memoryBytes` (0: no
+ * bound beyond their sum), and the bytes each pipeline keeps behind its
+ * reader as `keepBehind`. The parts are the buffer ahead (shared by the
+ * pipelines), `keepBehind` for each of up to `MAX_PIPELINES` pipelines and
+ * the cache. Where they add up to more than the bound, behind (both
+ * pipelines together) and the cache each get at most a quarter of it, and
+ * the buffer ahead the rest, never more than it was.
+ */
 function fitMemory(settings, memoryBytes) {
   const fitted = {
     ...settings,
@@ -46,6 +93,7 @@ function fitMemory(settings, memoryBytes) {
   return fitted;
 }
 
+/** The lower of two `memoryBytes` bounds, where 0 is none. */
 function lowerBound(a, b) {
   if (a === 0) return b;
   if (b === 0) return a;
@@ -58,6 +106,7 @@ function checkMemory(value) {
   }
 }
 
+/** An input already in memory: a `Uint8Array`, `ArrayBuffer` or view. */
 export function bytesSource(data) {
   const bytes = toBytes(data);
   return {
@@ -89,6 +138,21 @@ function toBytes(data) {
   throw new TypeError("bytesSource needs a Uint8Array, an ArrayBuffer or a view");
 }
 
+/**
+ * A remote object read by byte ranges. `fetchRange({ offset, length,
+ * validator, signal })` starts one request and resolves to `{ body, offset,
+ * end, size, validator }`: `body` streams the bytes from `offset` (the
+ * first byte the response holds, which must equal the requested offset)
+ * for at most `length` bytes (or, with `whole: true`, the whole object
+ * from byte 0); `end`, if given, is the offset just past the last byte it
+ * holds, `size` is the object's length and `validator` its ETag, if any.
+ * When `validator` is given, the request must fail with
+ * `SourceChangedError` if the object no longer has it. `signal` aborts when
+ * the session closes; a request still waiting should then fail.
+ *
+ * The returned source keeps the read statistics of its latest session in
+ * `lastStats`.
+ */
 export function rangeSource(fetchRange, options = {}) {
   const settings = {
     ...RANGE_DEFAULTS,
@@ -107,6 +171,10 @@ export function rangeSource(fetchRange, options = {}) {
   checkMemory(settings.memoryBytes);
   const source = {
     lastStats: null,
+    /**
+         * Opens a session. `memoryBytes`, when given, lowers the source's own
+         * bound for this session only.
+         */
     async open({memoryBytes: memoryBytes = 0} = {}) {
       checkMemory(memoryBytes);
       const fitted = fitMemory(settings, lowerBound(settings.memoryBytes, memoryBytes));
@@ -120,6 +188,7 @@ export function rangeSource(fetchRange, options = {}) {
   return source;
 }
 
+/** One open response body, read front to back. */
 class Body {
   constructor(stream, start, end, span, whole) {
     this.reader = stream.getReader();
@@ -132,6 +201,7 @@ class Body {
     this.at = 0;
     this.ended = false;
   }
+  /** The next bytes of the body, at most `n`; advances past them. */
   async next(n) {
     if (this.chunk === null || this.at === this.chunk.length) {
       this.chunk = await this.pull(Math.min(n, JOIN_BYTES));
@@ -142,6 +212,12 @@ class Body {
     this.pos += piece.length;
     return piece;
   }
+  /**
+     * The next chunk of the stream, or consecutive chunks joined up to
+     * `wanted` bytes: an R2 binding's body arrives in 4 KiB chunks, and a
+     * piece per chunk costs the reader more than the copy that joins them.
+     * Joining stops at `wanted`, so a small read does not wait for more.
+     */
   async pull(wanted) {
     const first = await this.chunkOf(await this.reader.read());
     if (first.length >= wanted) return first;
@@ -167,6 +243,7 @@ class Body {
     }
     return joined;
   }
+  /** A read's chunk, checked. */
   chunkOf({done: done, value: value}) {
     if (done || this.ended) throw new Error("the response ended before the requested range");
     if (!(value instanceof Uint8Array)) throw new ProtocolError("a response body chunk is not bytes");
@@ -177,8 +254,10 @@ class Body {
   }
 }
 
+/** The most bytes `Body` joins from consecutive small chunks. */
 const JOIN_BYTES = 256 * 1024;
 
+/** Recently received bytes, kept up to a byte bound, oldest dropped first. */
 class Recent {
   constructor(limit) {
     this.limit = limit;
@@ -195,6 +274,10 @@ class Recent {
     this.bytes += bytes.length;
     while (this.bytes > this.limit) this.bytes -= this.pieces.shift().bytes.length;
   }
+  /**
+     * Copies the kept bytes at the start of [offset, end) into `out` (from its
+     * index 0), as far as they reach without a gap; returns the count.
+     */
   copyPrefix(offset, end, out) {
     let pos = offset;
     while (pos < end) {
@@ -214,6 +297,7 @@ class Recent {
     }
     return pos - offset;
   }
+  /** The bytes [offset, offset + length) if every one is kept, else null. */
   get(offset, length) {
     const end = offset + length;
     let out = null;
@@ -239,10 +323,18 @@ class Recent {
   }
 }
 
+/**
+ * Open responses a session keeps besides its pipeline. Workers allow six
+ * simultaneous connections per request and queue the rest until one
+ * closes, so an idle response must never hold one that a pipeline waits
+ * for: with a pipeline running, one other response stays open.
+ */
 const OPEN_BODIES = 3;
 
+/** Connections Workers allow open at once per request (more are queued). */
 const CONNECTIONS = 6;
 
+/** One open response at a position in the object, read front to back. */
 class Cursor {
   constructor(body) {
     this.body = body;
@@ -253,10 +345,22 @@ class Cursor {
   }
 }
 
+/** Bytes behind the reader that a pipeline keeps: copy windows refill from a sample's start, a little back. */
 const KEEP_BEHIND = 8 * MiB;
 
+/**
+ * Pipelines a session runs at once: the tracks of a clip may be stored
+ * tens of megabytes apart, and each is read forward, so each gets its own.
+ */
 const MAX_PIPELINES = 2;
 
+/**
+ * One segment of a pipeline: the bytes [start, end), requested early so
+ * that its round trip is paid before its bytes are needed, and read into
+ * memory at most `cap` bytes ahead of the reader. The rest waits in the
+ * connection until the reader gets there. A response that holds less than
+ * asked is followed by a request for the rest.
+ */
 class Segment {
   constructor(pipeline, start, end) {
     this.pipeline = pipeline;
@@ -271,6 +375,7 @@ class Segment {
     this.waiters = [];
     this.fill(pipeline.session);
   }
+  /** Bytes received and not yet passed by the reader. */
   ahead() {
     return this.start + this.received - Math.max(this.pipeline.position, this.start);
   }
@@ -320,14 +425,17 @@ class Segment {
   wait() {
     return new Promise(resolve => this.waiters.push(resolve));
   }
+  /** The first kept byte. */
   first() {
     return this.pieces.length > 0 ? this.pieces[0].at : this.start + this.received;
   }
+  /** Drops kept pieces that end at or before `before`. */
   trim(before) {
     let drop = 0;
     while (drop < this.pieces.length && this.pieces[drop].at + this.pieces[drop].bytes.length <= before) drop += 1;
     if (drop > 0) this.pieces.splice(0, drop);
   }
+  /** Copies the received bytes of [at, to) into `out` at `at - base`; returns where it stopped. */
   copy(at, to, out, base) {
     const pieces = this.pieces;
     let low = 0;
@@ -364,7 +472,17 @@ class Segment {
   }
 }
 
+/**
+ * A forward region [start, end) read ahead by up to `parallel` segments at
+ * once, handed out in order. Each segment holds at most `cap` bytes ahead
+ * of the reader and `keepBehind` bytes behind it. A read more than
+ * `maxSkip` beyond everything requested restarts the pipeline there.
+ */
 class Pipeline {
+  /**
+     * `spans`, when given, are the only bytes requested: sorted, disjoint
+     * [start, end) pairs within [start, end) (advice of regions).
+     */
   constructor(session, start, end, segment, parallel, cap, budget, spans = null) {
     this.session = session;
     this.end = end;
@@ -381,11 +499,17 @@ class Pipeline {
     this.watchers = [];
     this.fill();
   }
+  /**
+     * Where a read at `at` must stop: the end of the pipeline, or of the span
+     * that holds `at`; the reader serves the rest from elsewhere (a read that
+     * runs on into a skipped gap).
+     */
   limit(at) {
     if (this.spans === null) return this.end;
     const index = this.spanAt(at);
     return index >= 0 ? this.spans[index][1] : at;
   }
+  /** The index of the span that holds `at`, or -1. */
   spanAt(at) {
     const spans = this.spans;
     let low = 0;
@@ -400,13 +524,16 @@ class Pipeline {
   get start() {
     return this.segments.length > 0 ? this.segments[0].first() : this.next;
   }
+  /** Whether a read at `at` belongs to the pipeline. */
   reaches(at) {
     if (this.spans !== null) return at >= this.start && this.spanAt(at) >= 0;
     return at >= this.start && at < this.end && at - Math.max(this.position, this.next) <= this.session.settings.maxSkip;
   }
+  /** Resolves when the reader moves on. */
   progress() {
     return new Promise(resolve => this.watchers.push(resolve));
   }
+  /** Moves the reader's position forward, trims what is too far behind, starts segments. */
   advance(at) {
     if (at <= this.position) return;
     this.position = at;
@@ -419,6 +546,15 @@ class Pipeline {
     for (const resolve of watchers) resolve();
     this.fill();
   }
+  /**
+     * Starts segments: at most `parallel` ahead of the reader, read to their
+     * end or still running, and downloads still running (also one the reader
+     * has passed, which reads on to its end unstalled) at most `parallel`.
+     * Against the pipeline's `budget` of the buffer count the bytes a segment
+     * read to its end holds ahead of the reader, and for one still running
+     * what it may still hold, at most `cap` (the rest waits in its
+     * connection), so that `memoryBytes` holds.
+     */
   fill() {
     const session = this.session;
     const budget = this.budget;
@@ -456,11 +592,13 @@ class Pipeline {
       ahead += 1;
     }
   }
+  /** The bytes `segment` holds or may still hold ahead of the reader. */
   holds(segment) {
     if (segment.end <= this.position) return 0;
     const ahead = segment.end - Math.max(segment.start, this.position);
     return segment.done ? ahead : Math.min(this.cap, ahead);
   }
+  /** Restarts at `at` if it is far past everything requested. */
   seek(at) {
     if (this.spans !== null) {
       if (at >= this.next && this.segmentAt(at) === null) this.restart(at);
@@ -468,6 +606,7 @@ class Pipeline {
     }
     if (at >= this.next + this.session.settings.maxSkip) this.restart(at);
   }
+  /** Drops every segment and starts again at `at`. */
   restart(at) {
     this.cancel();
     this.next = at;
@@ -476,12 +615,23 @@ class Pipeline {
     this.spanFrom(at);
     this.fill();
   }
+  /**
+     * Points `span` at the span that holds `at`, or at the first one after
+     * it. Every move of `next` backwards goes through this: `fill()` reads
+     * `spans[span]` and would otherwise skip the rest of an earlier span.
+     */
   spanFrom(at) {
     if (this.spans === null) return;
     const index = this.spanAt(at);
     this.span = index >= 0 ? index : this.spans.findIndex(([start]) => start > at);
     if (this.span < 0) this.span = this.spans.length;
   }
+  /**
+     * Takes a smaller share of the connections and the memory (a second
+     * pipeline started): segments beyond its share of downloads or of the
+     * buffer that the reader has not reached are cancelled and requested
+     * again when it gets there.
+     */
   shrink(parallel, cap, budget) {
     this.parallel = parallel;
     this.cap = cap;
@@ -504,6 +654,7 @@ class Pipeline {
   segmentAt(at) {
     return this.segments.find(segment => segment.start <= at && at < segment.end) ?? null;
   }
+  /** Copies what has arrived of [at, to); returns where it stopped (no wait). */
   copyNow(at, to, out, base) {
     this.seek(at);
     to = Math.min(to, this.limit(at));
@@ -517,6 +668,7 @@ class Pipeline {
     this.advance(at);
     return at;
   }
+  /** Copies [at, min(to, end)), waiting for the bytes; returns where it stopped. */
   async copy(at, to, out, base) {
     this.seek(at);
     const stop = Math.min(to, this.limit(at));
@@ -574,6 +726,7 @@ class RangeSession {
     this.firstWait = undefined;
     this.aborts = new AbortController;
   }
+  /** The first request, at offset 0, which also gives the size; retried as reads are. */
   async start() {
     let retries = this.settings.retries;
     for (;;) {
@@ -586,6 +739,7 @@ class RangeSession {
       }
     }
   }
+  /** Starts a request for up to `span` bytes from `offset`; resolves to its body. */
   async request(offset, span) {
     if (this.closed) throw new Error("the source session is closed");
     if (this.requests >= this.settings.maxRequests) {
@@ -640,6 +794,11 @@ class RangeSession {
     for (const pipeline of this.forward) pipeline.cancel();
     this.forward = [];
   }
+  /**
+     * The pipeline a read at `at` belongs to, or null: one whose requested
+     * bytes hold `at`, the one whose reader is nearest; else one whose
+     * frontier is within `maxSkip`.
+     */
   pipelineFor(at) {
     let best = null;
     let bestScore = Number.POSITIVE_INFINITY;
@@ -658,6 +817,12 @@ class RangeSession {
     }
     return best;
   }
+  /**
+     * Starts a pipeline over [start, end): `parallel` segments in flight,
+     * sized so that the region fits the remaining requests, each read ahead
+     * by at most `bufferBytes / parallel`. Every response but the one kept
+     * closes, so that the pipeline's connections are free.
+     */
   startPipeline(start, end, keep = this.cursors[0], replace = false, spans = null, spanSegment = null) {
     const {segmentBytes: segmentBytes, bufferBytes: bufferBytes, parallel: parallel, maxRequests: maxRequests} = this.settings;
     if (replace) {
@@ -677,6 +842,17 @@ class RangeSession {
     this.pipelines += 1;
     this.forward.unshift(new Pipeline(this, start, end, segment, share, cap, budget, spans));
   }
+  /**
+     * Advice from the module that the reads that follow touch only these
+     * regions, offset and length pairs in increasing order: a scan of each
+     * sample's header (ProRes), or the reads of an audio extraction's copy
+     * pass. One pipeline reads them, joining regions whose gaps are under
+     * `sparseGap` (cheaper to read through than a round trip) and skipping
+     * the larger gaps, in at most half the requests left; where they would
+     * need more, gaps double until they fit. An open response serves the
+     * spans it reaches (`afterOpen`). An empty list ends the advice: its
+     * pipeline is dropped and reads go anywhere again.
+     */
   planRegions(flat) {
     if (this.closed || this.size === undefined) return;
     if (flat.length === 0) {
@@ -718,6 +894,14 @@ class RangeSession {
       if (spans.length === 1) return;
     }
   }
+  /**
+     * The spans an open response does not already serve, and that response
+     * (as `plan` starts after what an open response holds). A response that
+     * holds the first span's start, read or still to come within `maxSkip`,
+     * serves the spans as far as its reads reach, up to the first gap it
+     * could not read through; the pipeline requests the rest. A small
+     * object's first response may hold much of it.
+     */
   afterOpen(spans) {
     const first = spans[0][0];
     const {maxSkip: maxSkip} = this.settings;
@@ -747,6 +931,11 @@ class RangeSession {
       keep: keep
     };
   }
+  /**
+     * The gap between advised regions under which they are read through:
+     * `sparseGap`, or with `"auto"`, the first response's wait × `bandwidth`
+     * / `parallel`, kept within 1 to 8 MiB (4 MiB before any response).
+     */
   sparseGap() {
     const {sparseGap: sparseGap, bandwidth: bandwidth, parallel: parallel} = this.settings;
     if (sparseGap !== "auto") return sparseGap;
@@ -754,6 +943,12 @@ class RangeSession {
     const gap = Math.floor(this.firstWait / 1e3 * bandwidth / Math.max(1, parallel));
     return Math.min(8 * MiB, Math.max(MiB, gap));
   }
+  /**
+     * Advice from the module that reads of about `length` bytes from `offset`
+     * follow: a writer's copy pass is about to start. A pipeline starts now
+     * over them (a sixteenth more, at least one segment, for samples of other
+     * tracks between them), after the part an open response already holds.
+     */
   plan(offset, length) {
     if (this.closed || this.size === undefined || !(offset >= 0 && offset < this.size)) return;
     if (this.requests + 1 >= this.settings.maxRequests) return;
@@ -786,6 +981,10 @@ class RangeSession {
       }
     }
   }
+  /**
+     * Copies [offset, offset + view.length) into `view` if every byte is
+     * here now (kept, or arrived in the pipeline); returns the count, or 0.
+     */
   readNow(offset, view) {
     if (this.closed) return 0;
     const length = view.length;
@@ -799,6 +998,7 @@ class RangeSession {
     const at = pipeline.copyNow(offset, offset + length, view, offset);
     return at === offset + length ? length : 0;
   }
+  /** The open response that serves a read at `at` with the smallest gap, or null. */
   pick(at) {
     let best = null;
     for (const cursor of this.cursors) {
@@ -846,6 +1046,7 @@ class RangeSession {
     }
     return out;
   }
+  /** Copies [at, end) from a response, reading through any gap; returns where it stopped. */
   async fromCursor(cursor, at, end, out, base) {
     const body = cursor.body;
     while (at < end && body.pos < body.end) {
@@ -879,9 +1080,18 @@ class RangeSession {
       maxHeldBytes: this.maxHeldBytes
     };
   }
+  /** Responses open outside the pipelines (a used-up one holds no connection). */
   openResponses() {
     return this.cursors.filter(cursor => cursor.body instanceof Body).length;
   }
+  /**
+     * Workers allow `CONNECTIONS` open at once and queue the rest. Before a
+     * response opens while pipelines run, they give up a connection if theirs
+     * and the open responses would take every one: a segment stalled at its
+     * cap would otherwise hold a connection the new response waits for. The
+     * farthest segment the reader has not reached is cancelled and requested
+     * again when it gets there.
+     */
   makeRoomForResponse() {
     for (;;) {
       let running = 0;
@@ -894,6 +1104,7 @@ class RangeSession {
       if (after >= running) return;
     }
   }
+  /** Notes the bytes held now (`stats().maxHeldBytes`). */
   noteHeld() {
     let held = this.recent.bytes;
     for (const pipeline of this.forward) {
@@ -912,6 +1123,7 @@ class RangeSession {
   }
 }
 
+/** The place where a used-up response ended: no bytes, no connection. */
 class EndOfBody {
   constructor(end) {
     this.start = end;
@@ -924,22 +1136,58 @@ class EndOfBody {
 
 const CONTENT_RANGE = /^bytes (\d+)-(\d+)\/(\d+)$/;
 
+/**
+ * An object behind an HTTP(S) URL that answers range requests, such as a
+ * presigned object-storage URL. `options.headers` are sent with every
+ * request, `options.fetch` replaces the global `fetch`, and redirects are
+ * refused unless `options.followRedirects` is set. At most five redirects
+ * are followed, with no HTTPS downgrade; caller headers are dropped for
+ * the rest of the chain after its first cross-origin hop. Only identity
+ * encoding is accepted, so headers and body describe the same bytes.
+ * Other options are those of `rangeSource`; maxRequests counts reader
+ * requests, not redirect hops. A strong ETag is pinned with `If-Match`;
+ * without one, only the object's size is checked between requests.
+ */
 export function httpSource(url, options = {}) {
-  const target = new URL(url);
+  let target;
+  try { target = new URL(url); }
+  catch { throw new TypeError("HTTP sources need a valid URL"); }
+  if (target.username || target.password) throw new TypeError("HTTP source URLs must not carry credentials");
+  if (target.protocol !== "http:" && target.protocol !== "https:") throw new TypeError("HTTP sources need an http or https URL");
   const {headers: headers = {}, fetch: fetchImpl = globalThis.fetch, followRedirects: followRedirects = false, ...range} = options;
+  const callerHeaders = new Headers(headers);
+  for (const name of ["range", "if-match", "accept-encoding"]) callerHeaders.delete(name);
   return rangeSource(async ({offset: offset, length: length, validator: validator, signal: signal}) => {
-    const request = new Headers(headers);
-    request.set("range", `bytes=${offset}-${offset + Math.max(length, 1) - 1}`);
-    if (validator !== undefined) request.set("if-match", validator);
-    const response = await fetchImpl(target, {
-      headers: request,
-      redirect: followRedirects ? "follow" : "manual",
-      signal: signal
-    });
+    let current = target;
+    let includeCallerHeaders = true;
+    let response;
+    for (let hop = 0; hop <= 5; hop += 1) {
+      const request = includeCallerHeaders ? new Headers(callerHeaders) : new Headers();
+      request.set("accept-encoding", "identity");
+      request.set("range", `bytes=${offset}-${offset + Math.max(length, 1) - 1}`);
+      if (validator !== undefined) request.set("if-match", validator);
+      response = await fetchImpl(current, { headers: request, redirect: "manual", signal: signal });
+      if (response.type !== "opaqueredirect" && !(response.status >= 300 && response.status < 400)) break;
+      await response.body?.cancel();
+      if (!followRedirects) throw new ProtocolError("the server redirected the request (followRedirects is off)");
+      if (response.type === "opaqueredirect" || ![301, 302, 303, 307, 308].includes(response.status)) throw new ProtocolError("the server returned an unsupported redirect");
+      if (hop === 5) throw new ProtocolError("the server redirected too many times");
+      const location = response.headers.get("location");
+      if (location === null) throw new ProtocolError("the redirect has no Location");
+      let next;
+      try { next = new URL(location, current); }
+      catch { throw new ProtocolError("the redirect target is invalid"); }
+      if (next.username || next.password) throw new ProtocolError("the redirect target must not carry credentials");
+      if (next.protocol !== "http:" && next.protocol !== "https:") throw new ProtocolError("the redirect target must use http or https");
+      if (current.protocol === "https:" && next.protocol === "http:") throw new ProtocolError("the redirect must not downgrade https");
+      if (next.origin !== current.origin) includeCallerHeaders = false;
+      current = next;
+    }
     const drop = () => response.body?.cancel().catch(() => {});
-    if (response.status >= 300 && response.status < 400 || response.type === "opaqueredirect") {
+    const encoding = response.headers.get("content-encoding");
+    if (encoding !== null && encoding.trim().toLowerCase() !== "identity") {
       drop();
-      throw new ProtocolError("the server redirected the request (followRedirects is off)");
+      throw new ProtocolError("compressed HTTP responses do not preserve byte ranges (Content-Encoding must be identity)");
     }
     if (response.status === 412) {
       drop();

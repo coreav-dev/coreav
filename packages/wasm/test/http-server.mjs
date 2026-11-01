@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 export async function serve(bytes, mode = {}) {
   const log = [];
   const server = createServer((request, response) => {
+    mode.onRequest?.(request);
     const etag = mode.etag?.() ?? '"v1"';
     const range = /^bytes=(\d+)-(\d+)$/.exec(request.headers.range ?? "");
     log.push({

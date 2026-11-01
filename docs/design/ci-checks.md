@@ -177,13 +177,13 @@ These are job-level filters. Required report jobs still run, merge groups
 use their complete base-to-group diff, and unknown or unreadable diffs,
 manual runs and scheduled runs still select validation. A rename that
 touches the CLI package in either direction also selects its checks.
+`.github/actions/changed-paths/tests/test_package_filters.py` exercises the
+actual workflow lists with these inputs. This separation adds no jobs.
 
 The non-required `wasm.yml` workflow has its own trigger filter for the
 JSPI package, WASM crate and shared build inputs. Its contract tests need
 no WASM build; its module tests run on generated fixtures for ready pull
 requests, main pushes and manual runs. Required reports are unchanged.
-`.github/actions/changed-paths/tests/test_package_filters.py` exercises the
-actual workflow lists with these inputs. This separation adds no jobs.
 
 ## The platform jobs
 
