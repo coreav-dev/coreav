@@ -64,6 +64,15 @@
 mod compat_cmd;
 mod fallback_cmd;
 
+#[cfg(all(
+    feature = "release-allocator",
+    target_os = "linux",
+    target_env = "musl",
+    target_arch = "x86_64"
+))]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::ffi::OsString;
 use std::io::Write;

@@ -13,6 +13,8 @@ software is based in part on the work of the Independent JPEG Group"
 with binary distributions. That licence is allowed for that crate alone
 (`deny.toml`, `docs/design/thumbnails.md`, "JPEG encoder").
 
+The Linux x86-64 musl release command links the mimalloc Rust wrapper and C allocator. Their MIT copyright and permission notices are included in `NOTICE`, which is copied unchanged into every native package and release archive. Ordinary source builds and other targets do not link mimalloc.
+
 A distribution that ships dav1d, libvpx or libopus, linked into the
 binary or beside it, also ships their licence files. `packages/cli/scripts/codecs.sh`
 copies them from the pinned tarballs into `licenses/`, and the release
