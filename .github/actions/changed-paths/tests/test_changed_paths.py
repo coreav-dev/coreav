@@ -1,6 +1,9 @@
 """.github/actions/changed-paths/changed_paths.py: the filter's decisions."""
 import importlib.util
+import os
 import pathlib
+import subprocess
+import tempfile
 import unittest
 
 SPEC = importlib.util.spec_from_file_location(
@@ -82,6 +85,47 @@ class Decisions(unittest.TestCase):
             cp.decide(['README.md'], [], [])
         with self.assertRaises(SystemExit):
             cp.decide(['README.md'], self.paths, self.ignore)
+
+
+class MergeGroups(unittest.TestCase):
+    """A merge group's changed files, in a checkout shaped as the queue's:
+    `fetch-depth: 2` of a group whose base is more than one parent away."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        work, origin, clone = root / 'work', root / 'origin.git', root / 'clone'
+
+        def git(*args, cwd=work):
+            return subprocess.run(('git', '-c', 'user.name=t', '-c', 'user.email=t@t', *args), cwd=cwd,
+                                  check=True, capture_output=True, text=True).stdout.strip()
+        work.mkdir()
+        git('init', '-q', '-b', 'main')
+        self.commits = {}
+        for name, path in (('first', 'README.md'), ('base', 'Cargo.lock'),
+                           ('ahead', 'crates/coreav-mkv/src/lib.rs'), ('group', 'docs/design/mkv.md')):
+            (work / path).parent.mkdir(parents=True, exist_ok=True)
+            (work / path).write_text(name)
+            git('add', path)
+            git('commit', '-q', '-m', name)
+            self.commits[name] = git('rev-parse', 'HEAD')
+        git('clone', '-q', '--bare', str(work), str(origin), cwd=root)
+        git('clone', '-q', '--depth=2', origin.as_uri(), str(clone), cwd=root)
+        cwd = os.getcwd()
+        os.chdir(clone)
+        self.addCleanup(os.chdir, cwd)
+
+    def test_the_group_is_diffed_against_its_base_which_is_fetched(self):
+        base = self.commits['base']
+        missing = subprocess.run(('git', 'cat-file', '-e', base + '^{commit}'), capture_output=True)
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertEqual(sorted(cp.changed_files('merge_group', '', base)),
+                         ['crates/coreav-mkv/src/lib.rs', 'docs/design/mkv.md'])
+
+    def test_a_group_without_a_reachable_base_runs_everything(self):
+        self.assertIsNone(cp.changed_files('merge_group', '', ''))
+        self.assertIsNone(cp.changed_files('merge_group', '', 'f' * 40))
 
 
 class Patternlists(unittest.TestCase):

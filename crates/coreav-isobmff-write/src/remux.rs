@@ -165,9 +165,10 @@ fn remux<S: Source, R: Source, W: Write>(
         Some(r) => Some(validate(r, limits)?),
         None => None,
     };
-    if let Some(a) = audio.as_mut() {
-        validate_audio(a, limits)?;
-    }
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, limits)?),
+        None => None,
+    };
     let mut source = source;
     let movie = probe(&mut source, limits, allowlist)?;
     // The boxes this copies are read from the file's movie box, which in a
@@ -190,6 +191,13 @@ fn remux<S: Source, R: Source, W: Write>(
         .into());
     }
     if let Some(wanted) = &options.streams {
+        if u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(limits.max_tracks) {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::Tracks,
+                offset: 0,
+            }
+            .into());
+        }
         for index in wanted {
             if *index >= streams {
                 return Err(Error::NoSuchTrack.into());
@@ -219,18 +227,40 @@ fn remux<S: Source, R: Source, W: Write>(
     let mut dropped_tracks = Vec::new();
     let drop_unsupported =
         options.on_unsupported == OnUnsupported::Drop && options.streams.is_none();
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<&Track> = match &options.streams {
+        None => movie.tracks.iter().collect(),
+        Some(wanted) => {
+            for track in &movie.tracks {
+                if !wanted.contains(&track.stream_index) {
+                    dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
+                }
+            }
+            if (replacement.is_some() || audio.is_some())
+                && wanted
+                    .iter()
+                    .enumerate()
+                    .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+            {
+                return Err(unsupported("a stream named twice beside a replaced stream").into());
+            }
+            wanted
+                .iter()
+                .map(|i| {
+                    movie
+                        .tracks
+                        .iter()
+                        .find(|t| t.stream_index == *i)
+                        .ok_or(Error::NoSuchTrack)
+                })
+                .collect::<Result<_, _>>()?
+        }
+    };
     // What every kept stream needs (its sample entry and edit list) is read
     // first; the optional metadata gets what `max_retained_bytes` leaves.
     let mut plans = Vec::new();
-    for track in &movie.tracks {
-        let selected = options
-            .streams
-            .as_ref()
-            .is_none_or(|s| s.contains(&track.stream_index));
-        if !selected {
-            dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
-            continue;
-        }
+    for track in order {
         let trak = file.traks.get(track.stream_index).ok_or_else(overflow)?;
         let before = retained.left;
         let replace = match (&replacement, &audio) {
@@ -327,7 +357,9 @@ fn remux<S: Source, R: Source, W: Write>(
                 cleared.extend(plan.cleared);
                 let codec = match (plan.replaced, replaced_codec) {
                     (Some(Replaced::Video), Some(codec)) => codec.isobmff(),
-                    (Some(Replaced::Audio), _) => Codec::Opus,
+                    (Some(Replaced::Audio), _) => {
+                        audio_codec.map_or(plan.track.description.codec, |c| c.isobmff())
+                    }
                     _ => plan.track.description.codec,
                 };
                 kept.push(Kept {
@@ -2110,9 +2142,10 @@ fn file_type(kept: &[Kept<'_>]) -> FileType {
 }
 
 /// The summary's dropped boxes: those outside the tracks (with the movie's
-/// sanitized metadata), then each kept stream's in output order, then the
-/// metadata boxes too large to copy; each group in file order; at most
-/// [`MAX_REPORTED`].
+/// sanitized metadata), then each kept source stream's once, in source
+/// order (a stream written twice has its boxes listed once), then the
+/// metadata boxes too large to copy, each once; each group in file order;
+/// at most [`MAX_REPORTED`].
 fn report(
     file: &FileScan,
     movie_gone: &[Gone],
@@ -2163,8 +2196,18 @@ fn report(
     for (s, reason, kind, name) in outside {
         add(None, s, reason, kind, name);
     }
-    let mut trak_more = 0u64;
+    let mut sources: Vec<&Kept<'_>> = Vec::new();
     for k in kept {
+        if !sources
+            .iter()
+            .any(|s| s.track.stream_index == k.track.stream_index)
+        {
+            sources.push(k);
+        }
+    }
+    sources.sort_by_key(|k| k.track.stream_index);
+    let mut trak_more = 0u64;
+    for k in sources {
         let stream = Some(k.track.stream_index);
         let mut mine: Vec<(
             &Skipped,
@@ -2191,8 +2234,11 @@ fn report(
             add(stream, s, reason, kind, name);
         }
     }
+    let mut seen = std::collections::BTreeSet::new();
     for (stream, s) in &retained.too_large {
-        if stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream) {
+        if (stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream))
+            && seen.insert((*stream, s.header.offset))
+        {
             add(*stream, s, BoxDropReason::TooLarge, None, None);
         }
     }

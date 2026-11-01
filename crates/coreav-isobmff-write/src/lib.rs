@@ -257,9 +257,10 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied.
     pub on_unsupported: OnUnsupported,
@@ -348,7 +349,7 @@ pub struct RemuxTrack {
     /// `track_ID` of the track in the source.
     pub source_track_id: u32,
     /// `track_ID` in the output: the kept tracks are numbered from 1 in
-    /// source order.
+    /// output order.
     pub track_id: u32,
     /// The track's kind.
     pub kind: TrackKind,
@@ -481,13 +482,15 @@ pub struct Cleared {
 /// What [`remux_mp4`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`RemuxOptions::streams`).
     pub tracks: Vec<RemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
     pub dropped_tracks: Vec<DroppedTrack>,
-    /// Boxes of the source that are not in the output, in file order (those
-    /// of dropped streams are not listed): at most 256.
+    /// Boxes of the source that are not in the output, each once (those
+    /// of dropped streams are not listed): those outside the tracks, then
+    /// each kept stream's in source order, then the boxes too large to
+    /// copy; each group in file order; at most 256.
     pub dropped_boxes: Vec<DroppedBox>,
     /// Dropped boxes beyond those listed.
     pub dropped_boxes_not_listed: u64,

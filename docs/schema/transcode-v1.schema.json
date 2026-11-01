@@ -97,9 +97,9 @@
         "stream_index": {"type": "integer", "minimum": 0},
         "codec": {"enum": ["flac", "mp3"]},
         "sample_rate": {"type": "integer", "minimum": 1},
-        "encoder": {"const": "libopus"},
+        "encoder": {"enum": ["libopus", "aac"]},
         "channels": {"enum": [1, 2]},
-        "bit_rate": {"type": "integer", "minimum": 6000, "maximum": 510000},
+        "bit_rate": {"type": ["integer", "null"], "minimum": 6000, "maximum": 512000},
         "samples": {"type": "integer", "minimum": 1},
         "pre_skip": {"type": "integer", "minimum": 0, "maximum": 3840},
         "packets": {"type": "integer", "minimum": 1}
