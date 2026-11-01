@@ -793,6 +793,32 @@ fn cleared_header_metadata_leaves_the_audio_as_it_was() {
 }
 
 #[test]
+fn the_media_creation_time_can_date_every_header() {
+    let source = aac_movie(100, 10, None, false);
+    let mut out = Vec::new();
+    extract_audio(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::MediaTime,
+        &mut out,
+    )
+    .unwrap();
+    let movie = probe(
+        SliceSource::new(&out),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let track = &movie.tracks[0];
+    assert_eq!(movie.creation_time, 0x7c25_b081);
+    assert_eq!(track.creation_time, 0x7c25_b081);
+    assert_eq!(track.media_creation_time, 0x7c25_b081);
+    assert_eq!(track.language, Some(*b"und"));
+}
+
+#[test]
 fn tracks_that_cannot_be_extracted_write_nothing() {
     let source = common::av_movie_with(common::aac_entry(), false);
     let cases = [

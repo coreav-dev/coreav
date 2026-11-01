@@ -78,6 +78,9 @@ pub enum HeaderMetadata {
     /// None of them: the times are written as 0 ("not set") and the
     /// language as `und`.
     Clear,
+    /// The media header's creation time as the creation and modification
+    /// time of every header, and the language `und`.
+    MediaTime,
 }
 
 /// Which track to extract.

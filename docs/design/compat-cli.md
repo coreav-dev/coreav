@@ -1026,7 +1026,7 @@ implies:
 | The command | The writer |
 |---|---|
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
-| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1`, without the input's header metadata (below) |
+| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1` or `0:s:N`, with the header metadata that option gives (below) |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
@@ -1048,6 +1048,42 @@ no item list and the handler name `SoundHandler` in any case. Its samples,
 sample tables and edit list do not change: they are timing, not metadata.
 `stripped_metadata_agrees_with_the_pinned_ffmpeg` in `tests/ffmpeg.rs`
 checks both outputs' tags in CI.
+
+**`-map_metadata 0:s:N` on an M4A output.** `ffmpeg`'s documentation gives
+this form as its example ("to copy metadata from the first stream of the
+input file to global metadata of the output file: `ffmpeg -i in.ogg
+-map_metadata 0:s:0 out.mp3`"), but it does not decide what happens to the
+stream's own metadata. It says "If metadata specifier is omitted, it
+defaults to global" and "These default mappings are disabled by creating
+any mapping of the relevant type". Two readings follow. In the first, a
+mapping whose source is a stream is of the stream type too, so the default
+copy of each stream's metadata stops and the stream loses its language and
+handler name. In the second, only the omitted output side counts, so the
+mapping is global and the stream keeps them. The pinned `ffmpeg` 9.0.2
+follows the first (black box: an AAC stream tagged `eng` with a handler
+name gets `und` and `SoundHandler`, while `-map_metadata 0` and
+`-map_metadata:g 0:g` keep both). Decision: the first, because `coreav ffmpeg` stands in for
+`ffmpeg` command lines, and where the documentation leaves a meaning open,
+the reference implementation's behaviour is what users rely on; nothing in
+the documentation contradicts it. Both readings agree on the file's side:
+it takes the stream's creation time, which `ffmpeg` reads from the media
+header and writes into the movie, track and media headers, as creation
+and modification time (black box: a media header time differing from the
+movie header's). The extraction writes the same with
+`HeaderMetadata::MediaTime`: the media header's creation time in all six
+fields, and the language `und`. A known divergence: ISO/IEC 14496-12
+8.4.2.3 counts a header's creation time in seconds since midnight, 1 January
+1904, UTC, in 32 bits in a version 0 box and 64 in a version 1 box, and the
+extraction keeps the instant the media header names. The pinned `ffmpeg`
+writes the same value only between 1970 and 2040 (black box: a media header
+time of 1, or one second before 1970, comes out 2,082,844,800 higher; 1970
+itself comes out 0; one above 2^32 wraps to its low 32 bits), so outside
+those years the two outputs differ and `coreav ffmpeg`'s is the one the
+standard defines. N must be the extracted stream, the only
+one whose media header the output has; another stream is refused. N is an
+input stream's index (`0:s:a` and other specifiers are refused).
+`stream_metadata_agrees_with_the_pinned_ffmpeg` checks both outputs' tags
+in CI.
 
 **Stream selection**, as the pinned `ffmpeg` 7.0.2 makes it (black box: its
 `Stream mapping` for the same command). Without `-map`: the video stream
@@ -1276,9 +1312,9 @@ FFmpeg).**
 - Cover pictures mapped twice, before a track or out of their order, and an
   encode whose selection names a stream twice or leaves the input's order.
 - Options with a meaning the writers do not reproduce: `-fflags` other than
-  `+genpts`, `-map_metadata` other than `-1` (C25's `0:s:0`), and
-  `-map_metadata -1` except on an M4A output: the remux and the clip copy
-  the metadata. C26's `+igndts` has `ffmpeg` drop an MP4 or MOV input's
+  `+genpts`, `-map_metadata` other than one `-1` or `0:s:N`, and either
+  of those except on an M4A output (`0:s:N` only when N is the extracted
+  stream): the remux and the clip copy the metadata. C26's `+igndts` has `ffmpeg` drop an MP4 or MOV input's
   decode times and derive new ones from the presentation times, by rules no
   specification states (black box, the pinned `ffmpeg` 9.0.2: on 8 of the
   generated MP4 fixtures the video's decode times, sample durations and edit
