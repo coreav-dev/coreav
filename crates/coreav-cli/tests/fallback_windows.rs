@@ -1,3 +1,5 @@
+//! Windows fallback process completion, exit codes and recursion prevention.
+
 #![cfg(windows)]
 #![allow(clippy::unwrap_used, clippy::panic)]
 
