@@ -7,7 +7,6 @@ cache keys and in a Python constant, the archive's URL in a script).
 """
 import json
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -118,14 +117,17 @@ class OraclePin(unittest.TestCase):
 
     @staticmethod
     def extractor_credential_problems(data):
-        needed = ('R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET')
+        needed = {'R2_ENDPOINT': 'secrets.COREAV_CORPUS_R2_ENDPOINT',
+                  'R2_ACCESS_KEY_ID': 'secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID',
+                  'R2_SECRET_ACCESS_KEY': 'secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY',
+                  'R2_BUCKET': 'vars.COREAV_CORPUS_R2_BUCKET'}
         problems = []
         for name, job in data.get('jobs', {}).items():
             for step in job.get('steps', []):
                 if 'install-extractor.sh' not in step.get('run', ''):
                     continue
                 env = step.get('env', {})
-                missing = [key for key in needed if not re.fullmatch(r'\$\{\{ (secrets|vars)\.\w+ \}\}', str(env.get(key, '')))]
+                missing = [key for key, source in needed.items() if env.get(key) != '${{ ' + source + ' }}']
                 if missing:
                     problems.append(f'{name}: the extractor install does not receive {", ".join(missing)}')
                 if 'pip' in step['run']:
@@ -148,6 +150,12 @@ class OraclePin(unittest.TestCase):
         del install['env']['R2_BUCKET']
         self.assertEqual(self.extractor_credential_problems(data),
                          ['training-identity: the extractor install does not receive R2_BUCKET'])
+        install['env']['R2_BUCKET'] = '${{ secrets.COREAV_CORPUS_R2_BUCKET }}'
+        install['env']['R2_ACCESS_KEY_ID'] = '${{ vars.COREAV_CORPUS_R2_ACCESS_KEY_ID }}'
+        install['env']['R2_ENDPOINT'] = '${{ secrets.R2_ENDPOINT }}'
+        self.assertEqual(self.extractor_credential_problems(data),
+                         ['training-identity: the extractor install does not receive '
+                          'R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_BUCKET'])
         install['env'].clear()
         install['run'] += '\npip install boto3'
         self.assertEqual(len(self.extractor_credential_problems(data)), 2)
