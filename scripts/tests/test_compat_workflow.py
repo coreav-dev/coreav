@@ -99,6 +99,31 @@ class Rehearsal(unittest.TestCase):
 
 
 class Evidence(unittest.TestCase):
+    def test_r3_auxiliary_oracles_resolve_the_pinned_programs_on_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / 'private').mkdir()
+            for directory, label in (('oracle', 'pinned'), ('other', 'other')):
+                (d / directory).mkdir()
+                for name in ('ffmpeg', 'ffprobe'):
+                    program = d / directory / name
+                    program.write_text(f'#!/bin/sh\nprintf "{label}\\n"\n')
+                    program.chmod(0o755)
+            runner = d / 'r3.py'
+            runner.write_text('import os, pathlib, shutil, subprocess, sys\n'
+                              'root = pathlib.Path(os.environ["RUNNER_TEMP"])\n'
+                              'for name in ("ffmpeg", "ffprobe"):\n'
+                              '    assert shutil.which(name) == str(root / "oracle" / name), "R3 did not prepend the pinned oracle directory"\n'
+                              '    assert subprocess.check_output([name], text=True) == "pinned\\n"\n'
+                              'flag = "--records" if sys.argv[1] == "run" else "--summary"\n'
+                              'pathlib.Path(sys.argv[sys.argv.index(flag) + 1]).write_text("{}\\n")\n')
+            script = run_script('R3, the copy outputs').replace('tools/compat-corpus/r3.py', str(runner))
+            done = subprocess.run(['bash', '-e', '-c', script],
+                                  env={**os.environ, 'RUNNER_TEMP': tmp,
+                                       'PATH': str(d / 'other') + ':' + os.environ['PATH']},
+                                  capture_output=True, timeout=10)
+            self.assertEqual(done.returncode, 0, done.stderr.decode())
+
     def test_r1_uses_the_registered_profile_and_records_its_binary_hash(self):
         for index, stem in enumerate(('coreav', 'mkv', 'ts')):
             with self.subTest(stem=stem), tempfile.TemporaryDirectory() as tmp:

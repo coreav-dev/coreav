@@ -205,6 +205,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
           # A shard's own verdict (0 met, 1 missed, 2 void) is not the round's: the report step adds the shards up.
           code=0
           python3 -I tools/compat-corpus/r3.py run --coreav "$RUNNER_TEMP/bin/coreav" \
