@@ -593,6 +593,15 @@ above its spend cap (at most the per-task limit). `--rehearsal` puts spent
 files (`r4-rehearsal`) in the draw's place and times them whatever the
 gate says, so a rehearsal exercises every step.
 
+The driver stages the read-only store credentials in `upload/r2.env` only
+while the local job or VM driver runs. Dry runs and build failures leave
+no credentials. Exceptions and HUP, INT, QUIT and TERM remove the file,
+and each signal keeps its previous effect, including an ignored HUP.
+The host job installs its cleanup trap before setup or loading credentials.
+SIGKILL, an interpreter crash or a machine restart cannot run cleanup;
+`--collect DIR` removes leftover credentials before attempting collection,
+even if collection fails. Reports and recovery state remain available.
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four

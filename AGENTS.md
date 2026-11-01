@@ -54,6 +54,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |
 | R3 reports every command of its set, including commands no input file reached | `test_every_command_is_reported_even_without_a_file_of_its_families` in `tools/compat-corpus/tests/test_r3.py` |
 | A rejected R4 rehearsal retains its public reports for diagnosis | `test_reports_survive_a_rejected_rehearsal` in `scripts/tests/test_compat_workflow.py` |
+| R4 stages store credentials only during child execution, removes them on exceptions and HUP, INT, QUIT and TERM, and removes leftovers before collection | `staged_credentials` owns the write and cleanup; exception, real-child timeout, signal and recovery regressions in `scripts/tests/test_compat_r4_gcp.py` check credential absence and preserve signal behavior |
 | Compatibility shards and R4 scans produce nonempty summaries, and aggregation requires every expected shard | Crash and incomplete-input tests in `scripts/tests/test_compat_workflow.py` run the workflow shell blocks |
 | R1 uses the registered dist-profile binary and retains its SHA-256 with each fixture result | `test_r1_uses_the_registered_profile_and_records_its_binary_hash` in `scripts/tests/test_compat_workflow.py` executes all three R1 steps |
 | Measurement workflow checkouts do not persist Git credentials | `test_measurement_checkouts_do_not_persist_credentials` in `scripts/tests/test_compat_workflow.py` |
