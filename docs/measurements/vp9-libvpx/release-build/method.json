@@ -1,0 +1,142 @@
+{
+  "source_commit": "7304293f1a7ede681147c2311360d1183511d70c",
+  "libvpx_release_version": "1.14.1",
+  "debian_package_version": "1.15.0-2.1+deb13u1",
+  "ffmpeg": "n9.0.2-17-g2a571b6068-20260930",
+  "libvpx_configure_flags": [
+    "--target=x86_64-linux-gcc",
+    "--as=nasm",
+    "--enable-static",
+    "--disable-shared",
+    "--enable-pic",
+    "--enable-vp9-highbitdepth",
+    "--disable-vp8-encoder",
+    "--disable-vp9-encoder",
+    "--disable-libyuv",
+    "--disable-webm-io",
+    "--disable-examples",
+    "--disable-tools",
+    "--disable-docs",
+    "--disable-unit-tests"
+  ],
+  "arms": {
+    "ff": "FFmpeg native vp9, default threads",
+    "ff_aa": "identical to ff",
+    "deb": "release-profile harness; shared Debian libvpx; default 4 threads, row multithreading",
+    "rel": "dist-profile harness; x86_64-unknown-linux-musl; zig cc for Rust C dependencies; static libvpx built with musl-gcc",
+    "gnu": "dist-profile harness; GNU target, gcc and glibc; same libvpx flags as rel",
+    "nohbd": "gnu, without --enable-vp9-highbitdepth",
+    "ff_t1": "ff, with -threads 1 before -i",
+    "deb_t1": "deb, COREAV_HARNESS_VPX_THREADS=1",
+    "rel_t1": "rel, COREAV_HARNESS_VPX_THREADS=1",
+    "gnu_t1": "gnu, COREAV_HARNESS_VPX_THREADS=1"
+  },
+  "commands": {
+    "ff": [
+      "ffmpeg",
+      "-nostdin",
+      "-noautorotate",
+      "-flags",
+      "+unaligned",
+      "-i",
+      "FILE",
+      "-map",
+      "0:VIDEO_STREAM",
+      "-f",
+      "null",
+      "-"
+    ],
+    "harness": [
+      "do-BUILD",
+      "FILE",
+      "--packets",
+      "100000000",
+      "--backend",
+      "libvpx",
+      "--max-memory-gib",
+      "16",
+      "--in-process"
+    ]
+  },
+  "bootstrap": {
+    "resamples": 10000,
+    "seed": 518,
+    "percentile_indices_zero_based": [
+      249,
+      9749
+    ],
+    "unit": "files; per-file median CPU over three rounds, then ratios"
+  },
+  "files": [
+    {
+      "sha256": "f51a56ed57180d981ef841e22cbb62769158a5029c1d4664d2d1ed938ee2fdaa",
+      "ext": "webm",
+      "width": 3840,
+      "height": 2160,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "a084bd45168cdcfc2669340caa638118af76d90400b923c83efe9fe42df1ac0b",
+      "ext": "webm",
+      "width": 400,
+      "height": 250,
+      "pix_fmt": "yuv444p"
+    },
+    {
+      "sha256": "70eec00bc7d29be5a44a93fbd563a72e3b24a2dd32ace474a504799414de3225",
+      "ext": "webm",
+      "width": 640,
+      "height": 352,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "9ffa165e752abaf7bf8e150f103062272832fba591b1102727b62afa390c2d1c",
+      "ext": "webm",
+      "width": 8000,
+      "height": 4500,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff",
+      "ext": "mkv",
+      "width": 1217,
+      "height": 689,
+      "pix_fmt": "yuv444p"
+    },
+    {
+      "sha256": "ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded",
+      "ext": "webm",
+      "width": 3840,
+      "height": 2160,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "bb5d39d47357846042a8c1a1890dc3a9c01c879068dde7f7b1833070984af657",
+      "ext": "webm",
+      "width": 2548,
+      "height": 1354,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "b267a2ddac45b26d329f13b78b293976543bbb29c749c3656c0c0f27e6618445",
+      "ext": "webm",
+      "width": 1920,
+      "height": 1080,
+      "pix_fmt": "yuv420p"
+    },
+    {
+      "sha256": "f944c05afaa135a9151a6c73ba0fbbfd9eff864ab715bfda069b85c7090b73e9",
+      "ext": "webm",
+      "width": 400,
+      "height": 250,
+      "pix_fmt": "yuv444p"
+    },
+    {
+      "sha256": "59ad8ee403b369a1cd0e4602d2a2f084abbf1ebae648ecc397db11b728d12e08",
+      "ext": "webm",
+      "width": 640,
+      "height": 480,
+      "pix_fmt": "yuv420p"
+    }
+  ]
+}

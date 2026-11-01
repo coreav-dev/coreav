@@ -152,3 +152,72 @@ On the files under 0.2 s the split is noisy: their profiles are 20 runs each, an
 The decode stage is 5 to 18% of a CoreAV transcode's CPU (10 to 17% on the 4K and 8K files). A native decoder with the CPU cost of FFmpeg's `vp9`, in the process, would remove the extra decode CPU and the copies through the worker. Turning that CPU into wall time assumes the idle time stays as it is, so these are estimates, not measurements. Per file, the gap less the decode stage's extra time (negative where CoreAV's decode is the cheaper) and less `worker_hop_copies` (`stages.json`), then the median: the median gap would go from 7.4% to about 2.7% with `--encoder x264` and 3.3% with `--encoder ffmpeg` (the pipe, the page faults and start-up stay; the page faults go too only if the new path reuses its frame buffers, which would leave 1.5% and 2.8%). Of those 4 to 5 points, only the decode part, 0.2% in the median file and 2 to 2.6% on the 4K and 8K files, needs a new decoder; the copies through the worker can be removed with libvpx where it is.
 
 Evidence: `vp9-libvpx/attribution/`: `timed.jsonl` (every run: arm, round, wall, user and system time, and the commands), `stages.json` (per file and arm: median wall and CPU, CPU per stage, the gap per stage, the parts of the frames stage, and x264's options; the ratios above with their intervals), `gate.json`, `host.txt` and `instance.json`.
+
+## Release-configured libvpx decoding
+
+The Debian package does not explain the extra CPU of the libvpx path. With the release's static libvpx 1.14.1 and build settings, the median CPU ratio against FFmpeg's native `vp9` on the three 4K and 8K files is 1.226, compared with Debian libvpx 1.15.0's 1.207. No tested build removes that gap. The release's musl build adds further cost on several files, rather than recovering the difference.
+
+This is a decode-path diagnosis on the same 10 B5 files, not a new B5 result or a pure decoder-kernel benchmark. The CoreAV harness still allocates and copies decoded planes into `Picture` buffers and emits frame metadata. FFmpeg decodes to its null output. The comparison includes those integration costs, different threading strategies, and process start-up. It cannot assign all the excess CPU to libvpx's kernels.
+
+### Method and checks
+
+One GCP c4-standard-8, Xeon Platinum 8581C, SMT off, four available cores, Debian 13. CoreAV harness source: `7304293f1a7ede681147c2311360d1183511d70c`. FFmpeg: the pinned 9.0.2 build (`n9.0.2-17-g2a571b6068-20260930`). The harness is `tools/decode-oracle` with its extra packing and MD5 removed, and a local thread-count override. Those harness changes are not product changes.
+
+The builds are:
+
+- **Debian:** harness built with `--release`, linked dynamically to Debian's libvpx `1.15.0-2.1+deb13u1`.
+- **Release musl:** static libvpx 1.14.1 from `packages/cli/scripts/codecs.sh`, built with `musl-gcc` and `nasm`. The harness uses `--profile dist --target x86_64-unknown-linux-musl`, with `zig cc` for its Rust dependencies' C builds, as in the release recipe.
+- **GNU:** the same libvpx 1.14.1 configure flags, using `gcc` and glibc, with a dist-profile harness. This comparison changes the target, libc and toolchain together, not libc alone.
+- **GNU without high bit depth:** GNU with `--enable-vp9-highbitdepth` omitted. This is diagnostic, not a replacement for a release that accepts 10-bit VP9.
+
+Every arm decodes the selected video stream in one process. The default CoreAV arms use four libvpx threads with row multithreading. FFmpeg uses its default native `vp9` threading. A second set forces one input decoder thread on each side. `method.json` records commands and configure flags, and `host.txt` records binary hashes and dynamic linkage.
+
+The page cache is primed before each file. Each file has three rotated rounds. Files whose preliminary FFmpeg wall time is below two seconds use a unit of repeated invocations, with the same unit size for every arm. CPU is each process's user plus system time from `wait4`, summed within a unit. Per-file ratios use the median CPU over rounds. Intervals resample the 10 per-file ratios 10,000 times, seed 518.
+
+All 5,790 measured invocations exit successfully. All 300 retained arm-round frame counts agree within their file; for a repeated unit, the harness retains its last invocation's count. These checks do not compare pixel hashes. The host gate changes from 2.876 to 2.891 seconds, +0.53%, below the predefined 5% drift limit. The identical FFmpeg control has median CPU ratio 1.001, with a 95% bootstrap interval of 0.996 to 1.003. All 10 files and arms complete.
+
+### CPU ratios against FFmpeg
+
+Lower is cheaper. Each default-thread column divides by the same file's default-thread FFmpeg CPU. These are CPU ratios, not wall-time ratios.
+
+| File | Size | Debian | Release musl | GNU | GNU without high bit depth |
+|---|---|---|---|---|---|
+| `f51a56ed5718` | 3840x2160 | 1.162 | 1.213 | 1.157 | 1.139 |
+| `a084bd45168c` | 400x250 | 0.794 | 0.983 | 0.797 | 0.788 |
+| `70eec00bc7d2` | 640x352 | 1.419 | 1.703 | 1.430 | 1.427 |
+| `9ffa165e752a` | 8000x4500 | 1.207 | 1.226 | 1.209 | 1.185 |
+| `584a16b906bb` | 1217x689 | 1.534 | 2.459 | 1.543 | 1.524 |
+| `ea684713a5be` | 3840x2160 | 1.338 | 1.582 | 1.334 | 1.304 |
+| `bb5d39d47357` | 2548x1354 | 1.435 | 2.259 | 1.441 | 1.419 |
+| `b267a2ddac45` | 1920x1080 | 1.391 | 2.029 | 1.381 | 1.367 |
+| `f944c05afaa1` | 400x250 | 0.779 | 0.992 | 0.786 | 0.776 |
+| `59ad8ee403b3` | 640x480 | 1.197 | 1.578 | 1.196 | 1.175 |
+
+| Build | Median over 10 files | 95% bootstrap interval | Files below 1.000 |
+|---|---|---|---|
+| Debian | 1.272 | 0.996 to 1.419 | 2 |
+| Release musl | 1.580 | 1.109 to 2.029 | 2 |
+| GNU | 1.272 | 0.997 to 1.430 | 2 |
+| GNU without high bit depth | 1.244 | 0.981 to 1.419 | 2 |
+
+The rule written before measurement classifies the three large files as "libvpx itself" when the release and Debian median ratios differ by no more than 5%, and the release ratio exceeds 1.10. Here, 1.226 divided by 1.207 is 1.016, so that rule selects this outcome. Its scope is the measured libvpx paths: it rules out a Debian-specific explanation, not the integration costs noted above. The three files remain visible individually because the median hides the release build's much larger cost on `ea684713a5be`.
+
+### What the build probes explain
+
+GNU 1.14.1 divided by Debian 1.15.0 has a median per-file CPU ratio of 1.003 (95% interval 0.997 to 1.006). Changing the version and Debian build settings to the release's flags on GNU does not recover the gap. Release musl divided by GNU is 1.247 (1.140 to 1.469), including 1.049, 1.014 and 1.185 on the three large files in table order. A GNU build avoids that additional target-and-toolchain cost, but still takes 16%, 21% and 33% more CPU than FFmpeg on those files. No allocator, copy routine or syscall has been isolated as the cause of the musl difference.
+
+Disabling high bit depth reduces GNU's CPU by a median 1.4% (`nohbd/gnu` 0.986, interval 0.982 to 0.989). It does not close the large-file gap and would drop required functionality.
+
+One-thread ratios use one-thread FFmpeg as their denominator:
+
+| File | Debian | Release musl | GNU |
+|---|---|---|---|
+| `f51a56ed5718` | 1.067 | 1.126 | 1.055 |
+| `9ffa165e752a` | 1.258 | 1.275 | 1.263 |
+| `ea684713a5be` | 1.175 | 1.407 | 1.161 |
+| Median over 10 files | 1.037 | 1.281 | 1.027 |
+| 95% bootstrap interval | 0.744 to 1.135 | 0.968 to 1.600 | 0.736 to 1.125 |
+
+One thread reduces the relative CPU cost on both 4K files but increases it on 8K, so one thread is not a uniform remedy. This test does not measure a resulting change to transcode wall time. The frame-copy work identified in the attribution remains a separate candidate; these results do not establish a reason to build a native decoder first.
+
+Evidence: `vp9-libvpx/release-build/`: `runs.jsonl` (unit size, arm, round, CPU, wall time, peak resident memory and frame count), `gate.jsonl`, `method.json`, `host.txt` and `analysis.json` (per-file medians, ranges, ratios and bootstrap intervals).
