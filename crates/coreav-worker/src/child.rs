@@ -16,8 +16,8 @@ use std::time::Duration;
 #[cfg(target_os = "linux")]
 use std::time::Instant;
 
-use coreav_decode::{Decoder, Error, ErrorKind, Packet};
-use coreav_frame::Frame;
+use coreav_decode::{Decoder, DecoderInfo, Error, ErrorKind, Packet};
+use coreav_frame::{ColorInfo, Picture, PixelFormat};
 
 #[cfg(target_os = "linux")]
 use crate::protocol::Transfer;
@@ -117,7 +117,7 @@ fn run(
         let command = match received {
             Ok(command) => command,
             Err(RecvTimeoutError::Timeout) => {
-                drain(decoder.as_mut(), &mut output, out)?;
+                decoder.drain(&mut output, out)?;
                 continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
@@ -130,22 +130,23 @@ fn run(
                 discard,
                 data,
             } => {
-                decoder.send_packet(&Packet {
+                let packet = Packet {
                     data: &data,
                     pts,
                     dts,
                     keyframe,
                     discard,
-                })?;
+                };
+                decoder.send_packet(&packet, &mut output, out)?;
                 waiting.fetch_sub(
                     u64::try_from(data.len()).unwrap_or(u64::MAX),
                     Ordering::Relaxed,
                 );
-                drain(decoder.as_mut(), &mut output, out)?;
+                decoder.drain(&mut output, out)?;
             }
             Command::Eof => {
                 decoder.send_eof()?;
-                drain(decoder.as_mut(), &mut output, out)?;
+                decoder.drain(&mut output, out)?;
                 WorkerMessage::Done.write(out).map_err(io_error)?;
                 ended = true;
             }
@@ -255,15 +256,112 @@ fn spawn_reader(
     Ok((command_rx, ack_rx))
 }
 
-fn drain(
-    decoder: &mut dyn Decoder,
-    output: &mut Output,
-    out: &mut impl Write,
-) -> Result<(), Error> {
-    while let Some(frame) = decoder.receive_frame()? {
-        output.emit(&frame, out)?;
+/// The backend the worker hosts. libvpx lends each frame it shows, which
+/// the worker copies straight into its slot; every other backend's frames
+/// come as [`coreav_frame::Frame`]s, copied from there.
+enum Hosted {
+    #[cfg(feature = "libvpx")]
+    Libvpx(Box<coreav_backend_libvpx::LibvpxDecoder>),
+    Frames(Box<dyn Decoder>),
+}
+
+impl Hosted {
+    fn info(&self) -> &DecoderInfo {
+        match self {
+            #[cfg(feature = "libvpx")]
+            Self::Libvpx(decoder) => decoder.info(),
+            Self::Frames(decoder) => decoder.info(),
+        }
     }
-    Ok(())
+
+    #[cfg_attr(not(feature = "libvpx"), allow(unused_variables))]
+    fn send_packet(
+        &mut self,
+        packet: &Packet<'_>,
+        output: &mut Output,
+        out: &mut impl Write,
+    ) -> Result<(), Error> {
+        match self {
+            #[cfg(feature = "libvpx")]
+            Self::Libvpx(decoder) => decoder.send_packet_lending(packet, &mut |frame| {
+                output.emit(frame, Some(frame.pts), frame.color, out)
+            }),
+            Self::Frames(decoder) => decoder.send_packet(packet),
+        }
+    }
+
+    fn send_eof(&mut self) -> Result<(), Error> {
+        match self {
+            #[cfg(feature = "libvpx")]
+            Self::Libvpx(decoder) => decoder.send_eof(),
+            Self::Frames(decoder) => decoder.send_eof(),
+        }
+    }
+
+    /// Sends on the frames the backend has ready.
+    fn drain(&mut self, output: &mut Output, out: &mut impl Write) -> Result<(), Error> {
+        let decoder: &mut dyn Decoder = match self {
+            #[cfg(feature = "libvpx")]
+            Self::Libvpx(decoder) => decoder.as_mut(),
+            Self::Frames(decoder) => decoder.as_mut(),
+        };
+        while let Some(frame) = decoder.receive_frame()? {
+            let picture = frame.to_cpu()?;
+            output.emit(picture.as_ref(), frame.pts, frame.color, out)?;
+        }
+        Ok(())
+    }
+}
+
+/// A frame the worker sends, which it writes with its planes packed.
+trait Outgoing {
+    fn size(&self) -> (u32, u32);
+    fn format(&self) -> PixelFormat;
+    /// Writes the planes in order with their rows packed into `target`,
+    /// exactly as long.
+    fn write_packed(&self, target: &mut [u8]) -> Result<(), Error>;
+}
+
+impl Outgoing for Picture {
+    fn size(&self) -> (u32, u32) {
+        (self.width(), self.height())
+    }
+
+    fn format(&self) -> PixelFormat {
+        Picture::format(self)
+    }
+
+    fn write_packed(&self, target: &mut [u8]) -> Result<(), Error> {
+        let short = || Error::new(ErrorKind::Backend, "frame buffer of the wrong size");
+        let mut rest = target;
+        for plane in 0..self.planes().len() {
+            for row in self.rows(plane) {
+                let (dst, after) = rest.split_at_mut_checked(row.len()).ok_or_else(short)?;
+                dst.copy_from_slice(row);
+                rest = after;
+            }
+        }
+        if rest.is_empty() {
+            Ok(())
+        } else {
+            Err(short())
+        }
+    }
+}
+
+#[cfg(feature = "libvpx")]
+impl Outgoing for coreav_backend_libvpx::LentFrame<'_> {
+    fn size(&self) -> (u32, u32) {
+        (self.width(), self.height())
+    }
+
+    fn format(&self) -> PixelFormat {
+        coreav_backend_libvpx::LentFrame::format(self)
+    }
+
+    fn write_packed(&self, target: &mut [u8]) -> Result<(), Error> {
+        coreav_backend_libvpx::LentFrame::write_packed(self, target)
+    }
 }
 
 /// Where frames go: slots of the shared memory, or inline.
@@ -362,19 +460,33 @@ impl Output {
         }
     }
 
-    fn emit(&mut self, frame: &Frame, out: &mut impl Write) -> Result<(), Error> {
-        let picture = frame.to_cpu()?;
+    /// Sends one frame: written into a free slot, or inline when there is
+    /// no shared memory or the frame does not fit a slot.
+    fn emit(
+        &mut self,
+        picture: &(impl Outgoing + ?Sized),
+        pts: Option<i64>,
+        color: ColorInfo,
+        out: &mut impl Write,
+    ) -> Result<(), Error> {
         let format = picture.format();
+        let (width, height) = picture.size();
         let mut planes = Vec::new();
         let mut offset = 0u64;
         for plane in 0..format.plane_count() {
-            let (rows, row_bytes) = picture
-                .plane_rows(plane)
-                .ok_or_else(|| Error::new(ErrorKind::Backend, "frame without a plane"))?;
-            let len = u64::try_from(rows.saturating_mul(row_bytes)).unwrap_or(u64::MAX);
+            let rows = format
+                .plane_size(plane, width, height)
+                .map(|(_, rows)| u64::from(rows));
+            let row_bytes = format
+                .row_bytes(plane, width, height)
+                .and_then(|r| u64::try_from(r).ok());
+            let (Some(rows), Some(row_bytes)) = (rows, row_bytes) else {
+                return Err(Error::new(ErrorKind::Backend, "frame without a plane"));
+            };
+            let len = rows.saturating_mul(row_bytes);
             planes.push(PlaneDescriptor {
                 offset,
-                stride: u64::try_from(row_bytes).unwrap_or(u64::MAX),
+                stride: row_bytes,
                 len,
             });
             offset = offset.saturating_add(len);
@@ -382,11 +494,11 @@ impl Output {
         let descriptor = FrameDescriptor {
             seq: self.seq,
             slot: INLINE,
-            pts: frame.pts,
-            width: picture.width(),
-            height: picture.height(),
+            pts,
+            width,
+            height,
             format: format_code(format),
-            color: frame.color,
+            color,
             planes,
         };
         self.seq += 1;
@@ -402,24 +514,21 @@ impl Output {
                 .memory
                 .as_mut()
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
-            let target = memory
-                .bytes_mut()
-                .get_mut(start..start + len)
+            let target = start
+                .checked_add(len)
+                .and_then(|end| memory.bytes_mut().get_mut(start..end))
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "slot outside the memory"))?;
-            let mut written = 0;
-            for plane in 0..format.plane_count() {
-                for row in picture.rows(plane) {
-                    if let Some(dst) = target.get_mut(written..written + row.len()) {
-                        dst.copy_from_slice(row);
-                    }
-                    written += row.len();
-                }
-            }
+            picture.write_packed(target)?;
             return WorkerMessage::Frame(FrameDescriptor { slot, ..descriptor }, Vec::new())
                 .write(out)
                 .map_err(io_error);
         }
+        let len = usize::try_from(offset)
+            .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
         let mut data = Vec::new();
+        data.try_reserve_exact(len)
+            .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
+        data.resize(len, 0);
         picture.write_packed(&mut data)?;
         WorkerMessage::Frame(descriptor, data)
             .write(out)
@@ -427,10 +536,10 @@ impl Output {
     }
 }
 
-fn make_decoder(open: &Open) -> Result<Box<dyn Decoder>, Error> {
+fn make_decoder(open: &Open) -> Result<Hosted, Error> {
     match open.backend {
-        WorkerBackend::Ffmpeg => ffmpeg_decoder(open),
-        WorkerBackend::Dav1d => dav1d_decoder(open),
+        WorkerBackend::Ffmpeg => ffmpeg_decoder(open).map(Hosted::Frames),
+        WorkerBackend::Dav1d => dav1d_decoder(open).map(Hosted::Frames),
         WorkerBackend::Libvpx => libvpx_decoder(open),
     }
 }
@@ -483,20 +592,20 @@ fn dav1d_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
 }
 
 #[cfg(feature = "libvpx")]
-fn libvpx_decoder(open: &Open) -> Result<Box<dyn Decoder>, Error> {
+fn libvpx_decoder(open: &Open) -> Result<Hosted, Error> {
     use coreav_backend_libvpx::{LibvpxDecoder, LibvpxOptions};
     let options = LibvpxOptions {
         threads: open.threads,
     };
-    Ok(Box::new(LibvpxDecoder::open(
+    Ok(Hosted::Libvpx(Box::new(LibvpxDecoder::open(
         &options,
         &open.stream,
         &open.limits,
-    )?))
+    )?)))
 }
 
 #[cfg(not(feature = "libvpx"))]
-fn libvpx_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
+fn libvpx_decoder(_: &Open) -> Result<Hosted, Error> {
     Err(Error::new(
         ErrorKind::Unsupported,
         "this worker was built without libvpx",

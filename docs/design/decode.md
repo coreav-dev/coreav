@@ -301,25 +301,39 @@ each plane, the stride covers a row, the length is exactly
 slot, all with checked arithmetic. Only then does it take the plane's
 bytes.
 
-**Copy, not views.** The parent copies each validated plane out of the
-mapping into memory it owns, once, and acknowledges the slot; consumers
-get owned frames. The copy is by raw pointer
+**Copy, or lend; never views.** By default the parent copies each
+validated plane out of the mapping into memory it owns, once, and
+acknowledges the slot; consumers get owned frames. The copy is by raw pointer
 (`ParentMemory::copy_out`, bounds-checked first): the parent never forms
 a Rust reference (`&[u8]`) to memory another process may change, which
 the language's aliasing rules would not allow. A worker that writes while
 the parent copies can only change pixel values, which it controls anyway;
 no value of any byte affects the parent's control flow, since the
-descriptor was read from the pipe, not the mapping. Views into the mapping
-handed to consumers would let a compromised worker change a frame while
-it is being used and would hold slots for as long as a consumer keeps
-a frame. The copy is one `memcpy` per plane, small next to decoding the
-frame.
+descriptor was read from the pipe, not the mapping. The copy is one
+`memcpy` per plane, small next to decoding the frame.
+
+A consumer that passes each frame on and drops it can have frames lent
+in their slots instead (`WorkerOptions::lend_frames`; the transcode,
+which writes each frame to the encoder's pipe). A lent frame's pixels
+are `Pixels::Shared`: a handle holding the byte ranges the descriptor's
+check gave, read only through the same `copy_out`, a piece at a time
+into the consumer's own buffer. The slot stays the parent's until the
+last clone of the frame drops, and the acknowledgement goes to the
+worker then; a frame in that slot before it ends the session, as for any
+slot the parent holds. A worker can change a lent frame's pixel values
+while the consumer reads them, which gives it nothing: it chooses every
+pixel value anyway, and no byte of the mapping steers control flow. The
+cost falls on the consumer: a frame it keeps holds a slot, so one that
+keeps `slots` frames stops the worker until the deadline. Lending saves
+the consumer whose next step is a copy of its own (a pipe write) a copy
+and a frame-sized allocation per frame. Rejected: views as `&[u8]`,
+which the aliasing rules above do not allow.
 
 **Threads and backpressure.** In the parent, one thread reads the
 worker's messages, validates and copies frames, and hands them to
 `receive_frame` through a queue of at most 4 frames (and
 `Limits::max_pending_bytes`); it acknowledges a slot only after the frame
-is handed over. In the worker, one thread reads the parent's messages
+is handed over, or, for a lent frame, when the frame drops. In the worker, one thread reads the parent's messages
 (acknowledgements free slots, packets go to the backend) and the backend
 runs on another. The worker hands on the frames its backend has ready
 after each packet, at the end of input, and whenever no message has come

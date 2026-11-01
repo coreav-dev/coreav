@@ -376,7 +376,7 @@ fn failure(what: &str, error: dav1d::Error) -> Error {
 fn frame_bytes(frame: &Frame) -> u64 {
     match &frame.pixels {
         Pixels::Cpu(picture) => u64::try_from(picture.packed_len()).unwrap_or(u64::MAX),
-        Pixels::Cuda(_) => 0,
+        Pixels::Cuda(_) | Pixels::Shared(_) => 0,
     }
 }
 

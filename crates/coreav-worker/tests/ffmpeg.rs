@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use coreav_decode::{Codec, CodecConfig, ConfigKind, Decoder, Limits, Packet, StreamConfig};
+use coreav_frame::Pixels;
 use coreav_isobmff::{Allowlist, Budget, FileSource, Source, probe};
 use coreav_worker::{
     SandboxedDecoder, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions, find_on_path,
@@ -49,7 +50,7 @@ fn reference(file: &Path) -> Vec<u8> {
     out.stdout
 }
 
-fn decode(file: &Path, transfer: TransferMode) -> Vec<u8> {
+fn decode(file: &Path, transfer: TransferMode, lend_frames: bool) -> Vec<u8> {
     let mut source = FileSource::open(file).expect("open");
     let movie = probe(&mut source, &Default::default(), &Allowlist::default()).expect("probe");
     let track = movie.tracks.first().expect("track");
@@ -68,6 +69,7 @@ fn decode(file: &Path, transfer: TransferMode) -> Vec<u8> {
     };
     let options = WorkerOptions {
         transfer,
+        lend_frames,
         ffmpeg: Some(ffmpeg()),
         ..WorkerOptions::new(WorkerCommand {
             program: env!("CARGO_BIN_EXE_coreav-worker").into(),
@@ -87,6 +89,10 @@ fn decode(file: &Path, transfer: TransferMode) -> Vec<u8> {
     let mut out = Vec::new();
     let take = |d: &mut SandboxedDecoder, out: &mut Vec<u8>| {
         while let Some(frame) = d.receive_frame().expect("receive") {
+            assert_eq!(
+                matches!(frame.pixels, Pixels::Shared(_)),
+                lend_frames && transfer == TransferMode::Shared,
+            );
             frame
                 .to_cpu()
                 .expect("cpu")
@@ -143,10 +149,14 @@ fn fallback_through_the_worker_matches_ffmpeg() {
         .expect("ffmpeg");
     assert!(status.success());
     let expected = reference(&file);
-    for transfer in [TransferMode::Shared, TransferMode::Pipe] {
-        let ours = decode(&file, transfer);
-        assert_eq!(ours.len(), expected.len(), "{transfer:?}");
-        assert!(ours == expected, "{transfer:?}: frames differ");
+    for (transfer, lend) in [
+        (TransferMode::Shared, false),
+        (TransferMode::Shared, true),
+        (TransferMode::Pipe, false),
+    ] {
+        let ours = decode(&file, transfer, lend);
+        assert_eq!(ours.len(), expected.len(), "{transfer:?} {lend}");
+        assert!(ours == expected, "{transfer:?} {lend}: frames differ");
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
