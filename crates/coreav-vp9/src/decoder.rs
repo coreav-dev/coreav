@@ -5,6 +5,7 @@ use crate::header::{self, Carried, Header, Slot};
 use crate::limits::Limits;
 use crate::probs::Contexts;
 use crate::superframe;
+use crate::tile;
 
 /// A VP9 decoder: what one stream's frames leave for the next.
 ///
@@ -48,10 +49,24 @@ impl Decoder {
         let frames = superframe::split(packet)?;
         let mut headers = Vec::with_capacity(frames.len());
         for frame in frames {
-            let parsed = header::parse(frame, &self.slots, &self.carried, &self.contexts)?;
-            if let (Header::Frame { header: h, .. }, Some(probs)) = (&parsed.header, parsed.probs) {
+            let mut parsed = header::parse(frame, &self.slots, &self.carried, &self.contexts)?;
+            if let (
+                Header::Frame {
+                    header: h,
+                    compressed,
+                    tiles_end_cleanly,
+                },
+                Some(probs),
+            ) = (&mut parsed.header, parsed.probs)
+            {
                 self.check_size(h.width, h.height)?;
                 let (mut contexts, probs) = *probs;
+                if h.is_intra() {
+                    let tiles = frame
+                        .get(h.uncompressed_size + usize::from(h.compressed_header_size)..)
+                        .unwrap_or_default();
+                    *tiles_end_cleanly = Some(tile::read(tiles, h, &probs, compressed.tx_mode)?);
+                }
                 if h.refresh_frame_context {
                     contexts.save(h.frame_context_idx, probs);
                 }
