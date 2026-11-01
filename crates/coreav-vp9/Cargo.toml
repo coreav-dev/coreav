@@ -1,0 +1,19 @@
+[package]
+name = "coreav-vp9"
+description = "VP9 decoder written from the VP9 Bitstream & Decoding Process Specification"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+# The test vector manifest (tests/data/vectors.json); tests only.
+serde_json.workspace = true
+
+[lints]
+workspace = true

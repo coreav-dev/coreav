@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/coreav-h264",
+    "crates/coreav-vp9",
     "crates/coreav-isobmff",
     "crates/coreav-isobmff-write",
     "crates/coreav-kernels-h264",

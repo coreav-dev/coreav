@@ -176,13 +176,12 @@ class Repository(unittest.TestCase):
         return check.check(self.root)
 
     def test_a_job_no_report_waits_for_is_reported(self):
-        found = self.ci(', conformance-arm64, bench-guard]\n', ', conformance-arm64]\n')
+        found = self.ci(', conformance-arm64, bench-guard, main-cache]\n', ', conformance-arm64, main-cache]\n')
         self.assertIn('ci.yml: no report job waits for bench-guard', found)
 
     def test_a_job_without_its_concurrency_group_is_reported(self):
-        group = ('    concurrency:\n      group: ${{ github.workflow }}-msrv-'
-                 "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n"
-                 "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n")
+        group = ('    concurrency:\n      group: ' + check.GROUP.replace('JOB_ID', 'msrv') +
+                 '\n      cancel-in-progress: ' + check.CANCEL + '\n')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
 
     def test_a_group_another_job_has_is_reported(self):
@@ -193,7 +192,7 @@ class Repository(unittest.TestCase):
         ci = self.root / '.github' / 'workflows' / 'ci.yml'
         text = ci.read_text()
         bare = re.sub(r'    concurrency:\n      group: .*\n      cancel-in-progress: .*\n', '', text)
-        self.assertNotIn('concurrency:', bare)
+        self.assertNotIn('    concurrency:', bare)
         ci.write_text(bare)
         found = check.check(self.root)
         self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
@@ -206,9 +205,34 @@ class Repository(unittest.TestCase):
         found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
         self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
 
-    def test_a_workflow_group_beside_the_job_groups_is_reported(self):
-        found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
-        self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
+    def test_a_workflow_group_that_joins_pr_or_merge_group_runs_is_reported(self):
+        for key in ('concurrency', '"concurrency"', 'concurrency ', '"concur\\u0072ency"'):
+            with self.subTest(key=key):
+                found = self.edit('ci.yml', '\njobs:\n',
+                                  f'\n{key}:\n  group: main\n  cancel-in-progress: true\n\njobs:\n')
+                self.assertTrue(any('remove workflow-level `concurrency:`' in p for p in found), found)
+
+    def test_the_main_only_cancellation_gate_is_required(self):
+        old = ('    concurrency:\n      group: ' + check.GROUP.replace('JOB_ID', 'msrv') +
+               '\n      cancel-in-progress: ' + check.CANCEL + '\n')
+        found = self.ci(old, old.replace(check.CANCEL, 'true'))
+        self.assertTrue(any('give `msrv` exactly' in p for p in found), found)
+
+    def test_main_jobs_cannot_share_a_pending_group_even_without_cancellation(self):
+        for job in ('bench-guard', 'msrv'):
+            with self.subTest(job=job):
+                group = check.GROUP.replace('JOB_ID', job)
+                shared = check.WORKFLOW_GROUP.replace('${{ github.workflow }}-', f'${{{{ github.workflow }}}}-{job}-', 1)
+                found = self.edit('ci.yml', group, shared)
+                self.assertTrue(any(f'give `{job}` exactly' in p for p in found), found)
+
+    def test_main_changes_gates_do_not_cancel_main_runs(self):
+        for workflow, gate in (('ci.yml', 'ci-changes'), ('python.yml', 'python-changes'),
+                               ('npm.yml', 'npm-changes')):
+            with self.subTest(workflow=workflow):
+                found = self.edit(workflow, f'      cancel-in-progress: {check.CANCEL}',
+                                  f'      cancel-in-progress: {check.WORKFLOW_CANCEL}')
+                self.assertTrue(any(f'give `{gate}` exactly' in p for p in found), found)
 
     def edit(self, workflow, old, new):
         """The problems of the repository with one edit of a workflow, which
@@ -258,14 +282,14 @@ class Repository(unittest.TestCase):
         self.assertEqual(self.edit('deny.yml', 'push:\n    branches: [main]', 'push:\n    branches: [release]'), [])
 
     def test_a_required_workflow_without_its_workflow_group_is_reported(self):
-        path = self.root / '.github' / 'workflows' / 'npm.yml'
+        path = self.root / '.github' / 'workflows' / 'deny.yml'
         text = path.read_text()
         bare = re.sub(r'\nconcurrency:\n(?:  .*\n)+', '\n', text)
         self.assertNotIn('\nconcurrency:', bare)
         path.write_text(bare)
         found = check.check(self.root)
         self.assertEqual(len(found), 1, found)
-        self.assertTrue(found[0].startswith('npm.yml: required `npm-report`, so give the workflow exactly '
+        self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow exactly '
                                             '`concurrency:'), found)
 
     def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
@@ -305,13 +329,13 @@ class Repository(unittest.TestCase):
         self.assertTrue(any('expand YAML merge keys' in p for p in found), found)
 
     def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
-        group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+        group = check.WORKFLOW_GROUP
         for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
-                         ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", 'cancel-in-progress: true')):
+                         (f"cancel-in-progress: {check.WORKFLOW_CANCEL}", 'cancel-in-progress: true')):
             with self.subTest(new=new):
-                found = self.edit('python.yml', old, new)
+                found = self.edit('deny.yml', old, new)
                 self.assertEqual(len(found), 1, found)
-                self.assertTrue(found[0].startswith('python.yml: required `python-report`, so give the workflow '
+                self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow '
                                                     'exactly `concurrency:'), found)
 
     def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
@@ -346,16 +370,70 @@ class Repository(unittest.TestCase):
                    'does not start it: add it to the `paths` of `pull_request`')
         for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
                       ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -e -- -x scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "bash -n scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: |', "    echo done # it's scripts/install-oracle-ffmpeg.sh /opt/bin"],
+                      ["- run: bash -c 'set -e; bash -n scripts/install-oracle-ffmpeg.sh'"],
+                      ['- run: echo "scripts/install-oracle-ffmpeg.sh; x"'],
+                      ['- run: echo "oops scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "echo scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -O scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: sh -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -n +o pipefail scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --rcfile scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --version scripts/install-oracle-ffmpeg.sh'],
                       ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [])
         for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
                       ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e -- scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: "bash -e scripts/install-oracle-ffmpeg.sh /opt/bin"'],
+                      ["- run: 'bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: "bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\'"'],
+                      ['- run: |', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: >', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ['- run: sh -c "./scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -c -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -cs \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ["- run: bash -c 'set -e; scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ["- run: bash -c 'set -e; bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: cd /tmp && scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', "    scripts/install-oracle-ffmpeg.sh /opt/bin # don't skip it"],
+                      ['- run: echo a#b; scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -n +n scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -o noexec +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash --rcfile /dev/null scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [missing])
+
+    def test_trigger_filters_are_read_from_the_yaml_nodes(self):
+        text = ('on:\n  push:\n    paths:\n      # a note\n      - "scripts/install-oracle-ffmpeg.sh"\n'
+                "      - 'scripts/oracle-ffmpeg.env'\n  pull_request:\n    paths-ignore: [ 'docs/**',\n"
+                '      "x" ]\n    paths:\n      - *pins\njobs: {}\n')
+        self.assertEqual(check.trigger_filters(text.replace('      - *pins\n', '      - y\n')), [
+            ('push', 'paths', ['scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env']),
+            ('pull_request', 'paths', ['y']),
+            ('pull_request', 'paths-ignore', ['docs/**', 'x'])])
+        self.assertIsInstance(check.trigger_filters(text), str)
+        self.assertEqual(check.trigger_filters('on:\n  push:\n    paths: scripts/x\njobs: {}\n'), [('push', 'paths', None)])
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

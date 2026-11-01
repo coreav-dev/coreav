@@ -138,32 +138,68 @@ class Accepts(unittest.TestCase):
     packet it names, as the whole file's listing shows it."""
     PATH = pathlib.Path('mkv_h264_aac.mkv')
 
-    def covers(self, ref, out, listing):
+    def covers(self, ref, out, listing, args=('-show_packets',)):
         def canonical(coreav, path):
             return {f'packets.{key}': [(f'{f / scale:.6f}' if scale > 1 else str(f),
                                         f'{c / scale:.6f}' if scale > 1 else str(c), context)
                                        for f, c, context in listing]
                     for key, scale in (('duration', 1), ('duration_time', 1000))}
         with mock.patch.object(run, 'canonical', canonical):
-            return run.ffmpeg9_covers('coreav', ['-show_packets'], self.PATH, ref.encode(), out.encode())[0]
+            return run.ffmpeg9_covers('coreav', list(args), self.PATH, ref.encode(), out.encode())[0]
 
-    def test_only_the_last_aac_packet_is_cut(self):
+    def test_only_the_last_mp3_packet_with_the_named_pair(self):
+        PATH = pathlib.Path('mkv_mp3.mkv')
         video = {'codec_type': 'video', 'codec_name': 'h264', 'last': True}
-        aac = {'codec_type': 'audio', 'codec_name': 'aac', 'last': True}
-        listing = [(40, 40, video), (16, 21, aac)]
-        ref = packets(('video', 0, 40), ('audio', 1, 16))
-        entry = ['KD-FF9-FIXTURE-MKV-LAST-DURATION']
-        self.assertEqual(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)), listing), entry)
-        # An earlier video packet's duration differs too: not the case named.
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 999), ('audio', 1, 21)), listing))
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 999, video), (16, 21, aac)]))
-        # Nor an AAC packet before the last, nor a longer last one.
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 40, video), (16, 21, dict(aac, last=False))]))
-        self.assertIsNone(self.covers(packets(('video', 0, 40), ('audio', 1, 30)),
-                                      packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 40, video), (30, 21, aac)]))
+        mp3 = {'codec_type': 'audio', 'codec_name': 'mp3', 'last': True}
+        listing = [(40, 40, video), (24, 7, mp3)]
+        ref = packets(('video', 0, 40), ('audio', 1, 24))
+        entry = ['KD-FF9-FIXTURE-MKV-MP3-DURATION']
+        with mock.patch.object(self, 'PATH', PATH):
+            self.assertEqual(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)), listing), entry)
+            # An earlier video packet's duration differs too: not the case named.
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 999), ('audio', 1, 7)), listing))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 999, video), (24, 7, mp3)]))
+            # Nor an MP3 packet before the last, nor another pair, nor AAC.
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 40, video), (24, 7, dict(mp3, last=False))]))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 6)),
+                                          [(40, 40, video), (24, 6, mp3)]))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 40, video), (24, 7, dict(mp3, codec_name='aac'))]))
+
+    def test_a_value_left_out_of_one_output_is_not_the_named_pair(self):
+        PATH = pathlib.Path('mkv_mp3.mkv')
+        video = {'codec_type': 'video', 'codec_name': 'h264', 'last': True}
+        mp3 = {'codec_type': 'audio', 'codec_name': 'mp3', 'last': True}
+        listing = [(40, 40, video), (24, 7, mp3)]
+        entry = ['KD-FF9-FIXTURE-MKV-MP3-DURATION']
+
+        def default(ms, *drop):
+            video, audio = packets(('video', 0, 40)), packets(('audio', 1, ms))
+            return video + ''.join(line for line in audio.splitlines(True)
+                                   if line.partition('=')[0] not in drop)
+
+        def as_json(ms, drop=None):
+            items = []
+            for kind, index, d in (('video', 0, 40), ('audio', 1, ms)):
+                packet = {'codec_type': kind, 'stream_index': index, 'duration': d,
+                          'duration_time': f'{d / 1000:.6f}'}
+                if kind == 'audio' and drop:
+                    del packet[drop]
+                items.append(packet)
+            return json.dumps({'packets': items}, indent=4) + '\n'
+
+        with mock.patch.object(self, 'PATH', PATH):
+            self.assertEqual(self.covers(default(24), default(7), listing), entry)
+            for drop in (('duration',), ('duration_time',), ('duration', 'duration_time')):
+                self.assertIsNone(self.covers(default(24), default(7, *drop), listing), drop)
+                self.assertIsNone(self.covers(default(24, *drop), default(7), listing), drop)
+            args = ['-of', 'json', '-show_packets']
+            self.assertEqual(self.covers(as_json(24), as_json(7), listing, args), entry)
+            for key in ('duration', 'duration_time'):
+                self.assertIsNone(self.covers(as_json(24), as_json(7, key), listing, args), key)
+                self.assertIsNone(self.covers(as_json(24, key), as_json(7), listing, args), key)
 
     def test_values_as_the_formatting_options_print_them(self):
         F = run.fractions.Fraction
@@ -306,6 +342,176 @@ class Av1Nclx(unittest.TestCase):
                                       tag='wrong'), b''
             with mock.patch.object(run, 'run', wrong_tag), self.assertRaises(SystemExit):
                 run.av1_nclx_fixture('coreav', path)
+
+
+class EmptyEditPadding(unittest.TestCase):
+    """KD-FF9-EMPTY-EDIT-PADDING covers only the last audio packet's
+    Skip Samples side data, with the padding ISO/IEC 14496-12 8.6.6 and the
+    fixture's bytes give, where ffprobe lists none; any other side data
+    difference stays a failure."""
+    PADDING = 888
+
+    def setUp(self):
+        run.empty_edit_padding_fixture.cache_clear()
+
+    @staticmethod
+    def fixture(empty=2691328, last=136, config=b'\x12\x10\x56\xe5\x00', edits=None, scale=44100, index=1):
+        """`edit_list.mp4`'s audio track as FFmpeg 9.0.2 writes it: an
+        empty edit, then a media edit from 0 over the media's 89,224 ticks at
+        44.1 kHz, the last of its 88 samples lasting 136 ticks, all in one
+        chunk of sample description `index`."""
+        def box(kind, body):
+            return (len(body) + 8).to_bytes(4, 'big') + kind + body
+
+        def full(kind, body):
+            return box(kind, bytes(4) + body)
+
+        def u32(*values):
+            return b''.join(v.to_bytes(4, 'big') for v in values)
+
+        movie = 5644800
+        edits = edits if edits is not None else [(empty, 0xFFFFFFFF), (11420672, 0)]
+        elst = u32(len(edits)) + b''.join(u32(d, t, 0x10000) for d, t in edits)
+        es = bytes([5, len(config)]) + config
+        decoder = bytes([4, 13 + len(es), 0x40, 0x15]) + bytes(11) + es
+        esds = full(b'esds', bytes([3, 3 + len(decoder) + 3, 0, 1, 0]) + decoder + bytes([6, 1, 2]))
+        mp4a = box(b'mp4a', bytes(28) + esds)
+        stbl = box(b'stbl', full(b'stsd', u32(1) + mp4a) + full(b'stts', u32(2, 87, 1024, 1, last))
+                   + full(b'stsc', u32(1, 1, 88, index)))
+        mdia = box(b'mdia', full(b'mdhd', u32(0, 0, scale, 87 * 1024 + last, 0))
+                   + full(b'hdlr', u32(0) + b'soun' + bytes(12)) + box(b'minf', stbl))
+        trak = box(b'trak', full(b'tkhd', bytes(80)) + box(b'edts', full(b'elst', elst)) + mdia)
+        video = box(b'trak', box(b'mdia', full(b'hdlr', u32(0) + b'vide' + bytes(12))))
+        return box(b'ftyp', b'isom') + box(b'moov', full(b'mvhd', u32(0, 0, movie, 0) + bytes(84))
+                                                 + video + trak)
+
+    @staticmethod
+    def side(padding, skip=0):
+        return json.dumps({'discard_padding': padding, 'discard_reason': 0, 'side_data_type': 'Skip Samples',
+                           'skip_reason': 0, 'skip_samples': skip}, sort_keys=True)
+
+    def listing(self, last=None, first=None, video=None, last_ref='N/A'):
+        """The Skip Samples pairs (ffprobe's, CoreAV's) of a video packet and
+        two audio packets, the second its stream's last at position 137."""
+        audio = {'codec_type': 'audio', 'codec_name': 'aac'}
+        return {'packets.side_data_list[Skip Samples]': [
+            ('N/A', video or 'N/A', {'codec_type': 'video', 'codec_name': 'h264', 'last': True, 'position': 0}),
+            ('N/A', first or 'N/A', dict(audio, last=False, position=1)),
+            (last_ref, last or self.side(self.PADDING), dict(audio, last=True, position=137))]}
+
+    def covered(self, listing):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
+            path.write_bytes(self.fixture())
+            run.empty_edit_padding_fixture.cache_clear()
+            with mock.patch.object(run, 'canonical', return_value=listing):
+                return run.empty_edit_padding_fixture('coreav', path)
+
+    def test_the_bytes_give_the_padding_the_clause_explains(self):
+        self.assertEqual(run.empty_edit_padding(self.fixture()), self.PADDING)
+        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x12\x14\x56\xe5\x00')), 960 - 136)
+        whole = [(2691328, 0xFFFFFFFF), (11534336, 0)]
+        # The media's 89,224 ticks at 24 kHz are 20,985,484.8 movie ticks.
+        at_24k = [(2691328, 0xFFFFFFFF), (20985485, 0)]
+        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x13\x10\x56\xe5\x00', scale=24000,
+                                                             edits=at_24k)), self.PADDING)
+        bad = [self.fixture(last=1024, edits=whole),  # no padding
+               self.fixture(empty=44 * 128),  # ffprobe would list padding too
+               self.fixture(edits=[(11420672, 0)]),  # no empty edit
+               self.fixture(edits=[(2691328, 0xFFFFFFFF), (11420672, 0), (100, 0)]),
+               self.fixture(config=b'\x12\x10\x56\xe5\x98'),  # SBR at 48 kHz
+               self.fixture(config=b'\x11\x90\x56\xe5\x00'),  # 48 kHz in a 44.1 kHz track
+               # Without the extension that rules SBR out, implicit SBR is
+               # open at any rate.
+               self.fixture(config=b'\x12\x10'),
+               self.fixture(config=b'\x11\x90', scale=48000),
+               self.fixture(index=2),  # a chunk of another description
+               # A media edit from inside the last sample, or past it, after
+               # an empty edit of 3 s.
+               self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 87 * 1024 + 12)]),
+               self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 100000)]),
+               self.fixture(config=b'\x13\x10', scale=24000, edits=at_24k)]
+        for data in bad:
+            with self.assertRaises(ValueError):
+                run.empty_edit_padding(data)
+
+    def test_only_the_exact_tail_padding_is_covered(self):
+        self.assertTrue(self.covered(self.listing()))
+        # Invented side data on another packet, a moved or a changed padding.
+        for listing in [self.listing(first=self.side(999999, 999999)),
+                        self.listing(video=self.side(0, 1)),
+                        self.listing(last='N/A', first=self.side(self.PADDING)),
+                        self.listing(last=self.side(self.PADDING - 1)),
+                        self.listing(last=self.side(self.PADDING + 1)),
+                        self.listing(last=self.side(self.PADDING, 1)),
+                        self.listing(last_ref=self.side(self.PADDING + 1)),
+                        {}]:
+            self.assertFalse(self.covered(listing), listing)
+        with self.assertRaisesRegex(SystemExit, 'oracle now agrees'):
+            self.covered(self.listing(last_ref=self.side(self.PADDING)))
+        self.assertFalse(run.empty_edit_padding_fixture('coreav', pathlib.Path('another.mp4')))
+
+    def test_ordinary_namesakes_are_compared_in_both_command_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'edit_list.mp4'
+            path.write_bytes(b'not a generated fixture')
+            manifest = path.parent / 'MANIFEST'
+            for content in (None, 'generated another.mp4\n', 'skipped edit_list.mp4 unavailable\n'):
+                if content is not None:
+                    manifest.write_text(content)
+                run.empty_edit_padding_fixture.cache_clear()
+                with self.subTest(manifest=content), mock.patch.object(run, 'canonical') as canonical:
+                    self.assertFalse(run.empty_edit_padding_fixture('coreav', path))
+                    canonical.assert_not_called()
+                opts = argparse.Namespace(media=[str(path)], coreav='coreav', jobs=1, report=None,
+                                          top=0, baseline=None, write_baseline=None)
+                record = {'tool': 'ffprobe', 'label': 'in-scope', 'args': ['-show_packets', 'INPUT']}
+                for mode in (run.cmd_commands, run.cmd_commands_010):
+                    run.empty_edit_padding_fixture.cache_clear()
+                    with self.subTest(mode=mode.__name__, manifest=content), \
+                            contextlib.redirect_stdout(io.StringIO()), \
+                            mock.patch.dict(run.ENV, {'COREAV_FALLBACK_LOG': 'unused'}), \
+                            mock.patch.object(run, 'load_commands', return_value=[record]), \
+                            mock.patch.object(run, 'ffmpeg_refusals', return_value=({}, None)), \
+                            mock.patch.object(run.release_round, 'commands',
+                                              return_value=[({'id': 'probe'}, 0, record)]), \
+                            mock.patch.object(run.release_round, 'containers', return_value={run.release_round.family(path)}), \
+                            mock.patch.object(run.release_round, 'fallback_verdict', return_value={'void': False}), \
+                            mock.patch.object(run, 'run', return_value=(0, b'packet', b'')) as invoke:
+                        self.assertEqual(mode(opts), 0)
+                        self.assertEqual(invoke.call_count, 2)
+                        self.assertEqual(invoke.call_args_list[0].args[0][0], 'ffprobe')
+                        self.assertEqual(invoke.call_args_list[1].args[0][:2], ['coreav', 'ffprobe'])
+
+    def test_changed_bytes_fail_loudly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
+            path.write_bytes(self.fixture(last=1024, edits=[(2691328, 0xFFFFFFFF), (11534336, 0)]))
+            with mock.patch.object(run, 'canonical', return_value=self.listing()), \
+                    self.assertRaisesRegex(SystemExit, 'KD-FF9-EMPTY-EDIT-PADDING: changed sample timing'):
+                run.empty_edit_padding_fixture('coreav', path)
+
+    def test_both_writer_forms_follow_the_evidence(self):
+        rules = run.ffmpeg9_rules()['KD-FF9-EMPTY-EDIT-PADDING']
+        side = 'packets.side_data_list[Skip Samples]'
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'edit_list.mp4'
+            (path.parent / 'MANIFEST').write_text('generated edit_list.mp4\n')
+            path.write_bytes(self.fixture())
+            for listing, expected in [(self.listing(), True),
+                                      (self.listing(first=self.side(999999, 999999)), False),
+                                      (self.listing(last=self.side(self.PADDING + 1)), False)]:
+                run.empty_edit_padding_fixture.cache_clear()
+                with mock.patch.object(run, 'canonical', return_value=listing):
+                    last = listing[side][-1][1]
+                    self.assertEqual(run.accepts('coreav', path, side, rules[side], ['N/A'], [last]),
+                                     expected)
+                    # The writer form that selects none of its keys: an
+                    # empty side data element.
+                    self.assertEqual(run.accepts('coreav', path, 'packets.side_data_list[]',
+                                                 rules['packets.side_data_list[]'], [], ['']), expected)
 
 
 class Table(unittest.TestCase):

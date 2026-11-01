@@ -130,8 +130,8 @@ impl Backend for NativeH264 {
             }
         }
         if let Some(chroma) = traits.chroma {
-            if chroma != Chroma::Cs420 {
-                return Support::No("H.264 that is not 4:2:0 is outside this decoder".into());
+            if !matches!(chroma, Chroma::Cs420 | Chroma::Mono) {
+                return Support::No("4:2:2 or 4:4:4 H.264 is outside this decoder".into());
             }
         }
         match traits.profile {
@@ -747,6 +747,25 @@ mod tests {
         // its parameter sets are checked when they arrive.
         let plain = StreamConfig::new(Codec::H264);
         assert_eq!(backend.supports(&plain, &plain.traits()), Support::Yes);
+    }
+
+    #[test]
+    fn a_monochrome_stream_is_this_backends() {
+        // High profile with chroma_format_idc 0, whose pictures the decoder
+        // gives as 4:2:0 with neutral chroma (docs/design/h264.md,
+        // "Monochrome").
+        let backend = NativeH264::new();
+        let mut stream = StreamConfig::new(Codec::H264);
+        stream.config = Some(coreav_decode::CodecConfig {
+            kind: ConfigKind::Avcc,
+            data: vec![
+                1, 100, 0, 40, 0xff, 0xe1, 0, 7, 0x67, 100, 0, 40, 0xf3, 0x69, 0xe4, 1, 0, 4, 0x68,
+                0xce, 0x38, 0x80,
+            ],
+        });
+        let traits = stream.traits();
+        assert_eq!(traits.chroma, Some(Chroma::Mono));
+        assert_eq!(backend.supports(&stream, &traits), Support::Yes);
     }
 
     #[test]

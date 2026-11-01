@@ -1,7 +1,7 @@
 //! The library behind the `coreav` command: probing with the
 //! library defaults and the JSON documents the command prints, the native
 //! schemas `coreav.probe/1` (ISO base media), `coreav.probe-matroska/1`
-//! (Matroska and WebM) and `coreav.probe-mpegts/1` (MPEG transport
+//! (Matroska and WebM) and `coreav.probe-mpegts/2` (MPEG transport
 //! streams), the `--ffprobe-compat` shape and the
 //! `coreav.error/1` object; clips with their `coreav.clip/1`
 //! summary; splits (`docs/design/split.md`) with their `coreav.split/1`
@@ -45,6 +45,11 @@ pub mod thumbnail;
 pub mod time;
 #[cfg(feature = "transcode")]
 pub mod transcode;
+
+#[cfg(all(test, feature = "transcode"))]
+#[path = "../../coreav-isobmff/tests/common/mod.rs"]
+#[allow(clippy::indexing_slicing)]
+mod test_isobmff;
 
 /// Whether an input names a URL rather than a file (`remote::is_url`);
 /// always false without the `net` feature.

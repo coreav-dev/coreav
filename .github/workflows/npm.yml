@@ -49,13 +49,7 @@ on:
 
 permissions:
   contents: read
-
-concurrency:
-  # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main, manual runs and merge groups each get their own group, so none is
-  # dropped.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  actions: read
 
 env:
   BINARYEN_VERSION: '133'
@@ -63,18 +57,25 @@ env:
 
 jobs:
   npm-changes:
+    concurrency:
+      group: ${{ github.workflow }}-npm-changes-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Whether this event's changed files need the jobs below at all. A
     # manual run, and anything whose changed files cannot be read, runs
     # them (docs/design/ci-checks.md).
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      run: ${{ steps.filter.outputs.run }}
+      run: ${{ steps.result.outputs.reuse != 'true' && steps.filter.outputs.run == 'true' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # A pull request's merge commit and its first parent, the base.
           fetch-depth: 2
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        with:
+          workflow: npm.yml
       - id: filter
         uses: ./.github/actions/changed-paths
         with:
@@ -86,10 +87,16 @@ jobs:
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
             scripts/oracle-ffmpeg.env
+            scripts/install-oracle-ffmpeg.sh
             .github/workflows/npm.yml
             .github/actions/changed-paths/**
+            .github/actions/merge-group-result/**
+            scripts/merge_group_result.py
 
   package:
+    concurrency:
+      group: ${{ github.workflow }}-package-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Draft pull requests skip it. A label event does the same work as any
     # other pull-request event, `binaries` or not: a label must never report
     # a green `npm-report` over the failure an earlier event of the same
@@ -225,6 +232,9 @@ jobs:
           retention-days: 3
 
   smoke:
+    concurrency:
+      group: ${{ github.workflow }}-smoke-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: package
     strategy:
       fail-fast: false
@@ -249,6 +259,9 @@ jobs:
         run: packages/cli/test/smoke.sh linux-x64 "$PWD/packages" "$PWD/expected"
 
   binaries:
+    concurrency:
+      group: ${{ github.workflow }}-binaries-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: package
     # Tags, manual and weekly runs, and pull requests labelled `binaries`.
     if: >-
@@ -346,6 +359,9 @@ jobs:
           retention-days: 3
 
   smoke-platforms:
+    concurrency:
+      group: ${{ github.workflow }}-smoke-platforms-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     needs: [package, binaries]
     strategy:
       fail-fast: false
