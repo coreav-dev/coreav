@@ -20,6 +20,9 @@
 #[allow(dead_code)]
 mod schema;
 
+#[path = "support/bounded.rs"]
+mod bounded;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -121,7 +124,7 @@ fn transcode(tools: Option<&Tools>, args: &[&str]) -> Run {
         // The fallback decoder's FFmpeg.
         command.env("COREAV_FFMPEG", &tools.ffmpeg);
     }
-    let out = command.output().unwrap();
+    let out = bounded::output(&mut command, None, std::time::Duration::from_secs(90)).unwrap();
     Run {
         code: out.status.code().unwrap(),
         stdout: String::from_utf8(out.stdout).unwrap(),
@@ -841,21 +844,21 @@ fn encodes_as_ffmpeg_does(name: &str) {
 /// its exec, and running the script meanwhile fails with ETXTBSY.
 #[cfg(unix)]
 fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
-    use std::io::Write;
     let path = dir.join(format!("{name}.sh"));
-    let mut sh = Command::new("/bin/sh")
-        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
-        .arg(&path)
-        .env("PATH", "/usr/bin:/bin")
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .unwrap();
-    sh.stdin
-        .take()
-        .unwrap()
-        .write_all(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").as_bytes())
-        .unwrap();
-    assert!(sh.wait().unwrap().success());
+    let out = bounded::output(
+        Command::new("/bin/sh")
+            .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+            .arg(&path)
+            .env("PATH", "/usr/bin:/bin"),
+        Some(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").into_bytes()),
+        std::time::Duration::from_secs(30),
+    )
+    .unwrap();
+    assert!(
+        out.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     path
 }
 
@@ -868,27 +871,34 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     std::fs::create_dir_all(&scripts).unwrap();
     // One real picture of the right size: fewer pictures than frames.
     let one = scripts.join("one.h264");
-    let status = Command::new(&tools.ffmpeg)
-        .args([
-            "-nostdin",
-            "-v",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=320x240:rate=25",
-            "-frames:v",
-            "1",
-            "-c:v",
-            "libx264",
-            "-f",
-            "h264",
-        ])
-        .arg(&one)
-        .status()
-        .unwrap();
-    assert!(status.success());
+    let picture = bounded::output(
+        Command::new(&tools.ffmpeg)
+            .args([
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=320x240:rate=25",
+                "-frames:v",
+                "1",
+                "-c:v",
+                "libx264",
+                "-f",
+                "h264",
+            ])
+            .arg(&one),
+        None,
+        std::time::Duration::from_secs(60),
+    )
+    .unwrap();
+    assert!(
+        picture.status.success(),
+        "{}",
+        String::from_utf8_lossy(&picture.stderr)
+    );
     let cases = [
         (
             "garbage",

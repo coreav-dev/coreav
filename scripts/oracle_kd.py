@@ -3035,6 +3035,127 @@ def overlay(report, reference_dir, candidate_dir, media_dir):
     return result
 
 
+# ---------------------------------------------------------------- corpus evidence
+
+# Byte evidence for the round-9 corpus comparator's records
+# (tools/compat-corpus/ffmpeg9.json), from the overlay's own reader.
+
+EmptyEditPadding = collections.namedtuple('EmptyEditPadding', 'track_id offset size oracle coreav')
+# The last sample's decoded frame ends within its media edit, so CoreAV
+# rightly lists no padding on its packet, where ffprobe lists `oracle`: the
+# byte facts that show it, `last_dts` and `edit_end` in media ticks, and the
+# configuration's `frameLengthFlag` and core sample rate beside the media
+# time scale, from which a frame spans 960 or 1,024 ticks whatever SBR does.
+ProvenAbsence = collections.namedtuple('ProvenAbsence', 'oracle track_id offset size last_dts frame_length_flag '
+                                       'core_sample_rate timescale edit_end')
+# The backward-compatible extension that rules SBR out (ISO/IEC 14496-3
+# 1.6.2.1): syncExtensionType 0x2b7, object type 5, sbrPresentFlag 0.
+NO_SBR_EXTENSION = b'\x56\xe5\x00'
+
+
+def aac_lc_core(asc, rate):
+    """(frame, explicit, core rate) of a plain AAC LC configuration at the sampling rate
+    `rate` (ISO/IEC 14496-3 1.6.2.1 and 4.4.1): the core frame, 960 or 1,024
+    samples by `frameLengthFlag`, and whether the extension that rules SBR out
+    follows the configuration. Without it implicit SBR, which would double
+    the decoded frame, is open at any core rate (1.6.5.3), though a frame
+    still spans the same time. Zero bytes after the configuration signal no
+    extension (its syncExtensionType would be 0, not 0x2b7). None for any
+    other configuration."""
+    if asc is None or len(asc) < 2 or (asc[2:] != NO_SBR_EXTENSION and any(asc[2:])):
+        return None
+    object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
+    if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
+        return None
+    return 960 if flags & 4 else 1024, asc[2:] == NO_SBR_EXTENSION, AAC_RATES[rate_index]
+
+def single_description(facts, track_id):
+    """Whether the track has exactly one sample description and every chunk
+    names it (ISO/IEC 14496-12 8.5.2, 8.7.4), so the first description
+    describes the last sample."""
+    tables = facts.tracks[track_id]['tables']
+    if b'stsd' not in tables or b'stsc' not in tables:
+        return False
+    try:
+        with facts._open_movie() as f:
+            facts._f = f
+            stsd, stsc = facts._payload(tables[b'stsd']), _entries(facts._payload(tables[b'stsc']), 12)
+    except (OSError, ValueError):
+        return False
+    finally:
+        facts._f = None
+    return len(stsd) >= 8 and _u32(stsd, 4) == 1 and len(stsc) > 0 and all(_u32(e, 8) == 1 for e in stsc)
+
+
+def empty_edit_padding(facts):
+    """KD-FF9-EMPTY-EDIT-PADDING evidence, from the file's bytes alone: for
+    each AAC LC track (unfragmented, without composition offsets, of one
+    sample description, at its configured rate) whose edit list is an empty
+    edit and then one media edit at rate 1 that starts at or before its last
+    sample and reaches the end of its samples, that sample's track, offset
+    and size and the Skip Samples `discard_padding` each tool lists on its
+    packet (`oracle` for `ffprobe` 9.0.2, `coreav` for CoreAV, None where it
+    lists none; `oracle` None is diagnostic only, never grounds to exclude).
+
+    ISO/IEC 14496-12 8.6.6 ends the presentation at the media edit's end,
+    the end of the samples. `ffprobe` moves the packet later by the empty
+    edit but keeps that end, so where the moved packet straddles it, it
+    lists the frame's part past it: the packet's time less the media time
+    plus the empty edit, plus a frame, less that end. Two shapes are read:
+
+    - the last sample lasts exactly a core frame, so its decoded frame,
+      which spans the same ticks whatever SBR does (the media time scale is
+      the core rate), ends at or before the media edit's end; CoreAV lists
+      nothing: a `ProvenAbsence` with `ffprobe`'s value and those facts;
+    - the last sample is shorter than a frame, the extension that rules SBR
+      out fixes the frame, and the media header agrees with the samples:
+      CoreAV lists the frame's part past the end, and `ffprobe` nothing once
+      the moved packet starts after it.
+
+    A track whose two values agree, or of any other shape, is left out. The
+    empty edit's length is counted in media ticks rounded to the nearest,
+    halves up as `ffprobe` does (found black box); the media edit must reach
+    the end of the samples rounded down."""
+    found = []
+    if facts is None or facts.fragmented or not facts.movie_timescale:
+        return found
+    movie = facts.movie_timescale
+
+    def ticks(duration, timescale):
+        return (2 * duration * timescale + movie) // (2 * movie)
+
+    for track_id, track in sorted(facts.tracks.items()):
+        edits, timescale = track['edits'], track['timescale']
+        if track['handler'] != b'soun' or track['ctts_version'] is not None or len(edits) != 2 or not timescale:
+            continue
+        (empty, empty_time, empty_rate), (segment, media_time, rate) = edits
+        if empty_time != -1 or empty_rate != 1 << 16 or rate != 1 << 16 or media_time < 0:
+            continue
+        if not single_description(facts, track_id):
+            continue
+        core = aac_lc_core(facts.audio_specific_config(track_id), timescale)
+        samples = facts.samples(track_id)
+        if core is None or not samples:
+            continue
+        (frame, explicit, core_rate), last = core, samples[-1]
+        end = last.dts + last.duration
+        shift, edit = ticks(empty, timescale), segment * timescale // movie
+        if not empty or media_time + edit < end or not media_time <= last.dts:
+            continue
+        presented = last.dts - media_time + shift
+        if presented + last.duration <= end:
+            continue
+        oracle = presented + frame - end if presented < end else None
+        if last.duration == frame:
+            if oracle is not None:
+                found.append(ProvenAbsence(oracle=oracle, track_id=track_id, offset=last.pos, size=last.size,
+                                           last_dts=last.dts, frame_length_flag=int(frame == 960),
+                                           core_sample_rate=core_rate, timescale=timescale,
+                                           edit_end=media_time + edit))
+        elif explicit and track['mdhd_duration'] == end and 0 < last.duration < frame:
+            found.append(EmptyEditPadding(track_id, last.pos, last.size, oracle, frame - last.duration))
+    return found
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--report', required=True)
