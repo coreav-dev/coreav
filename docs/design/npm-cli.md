@@ -239,7 +239,7 @@ Native builds use the compiler version and commit in `scripts/rust-dist.env`, wi
   default features on Windows), with dav1d, libvpx and libopus from
   `scripts/codecs.sh` and a check that the binary loads none of them at
   run time, and the package around the binary, with `NOTICE`
-  and target-specific Rust notices and `licenses/` (`docs/release/notices.md`)
+  and target-specific Rust notices, plus `licenses/` when the platform links the C libraries (`docs/release/notices.md`)
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
 - The module, the binaries and the license files are build outputs, not

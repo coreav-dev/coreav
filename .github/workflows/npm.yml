@@ -82,6 +82,8 @@ jobs:
             Cargo.lock
             Cargo.toml
             crates/**/Cargo.toml
+            tools/*/Cargo.toml
+            NOTICE
             deny.toml
             scripts/rust-dist.env
             scripts/notices/**

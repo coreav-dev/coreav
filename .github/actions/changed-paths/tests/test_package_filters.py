@@ -111,6 +111,11 @@ class PackageFilters(unittest.TestCase):
                 self.assertTrue(selected['npm'])
                 self.assertFalse(selected['python'])
 
+    def test_notice_record_inputs_select_npm_validation(self):
+        for path in ('NOTICE', 'tools/compat-corpus/Cargo.toml'):
+            with self.subTest(path=path):
+                self.assertTrue(self.selected([path])['npm'])
+
     def test_pr_push_and_merge_group_apply_the_same_package_filters(self):
         for event in ('pull_request', 'push', 'merge_group'):
             for paths, expected in ((['packages/wasm/src/node.js'], False),
