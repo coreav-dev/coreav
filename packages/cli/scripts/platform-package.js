@@ -18,7 +18,7 @@ const pkg = {
   homepage: main.homepage,
   os: [os],
   cpu: [cpu],
-  files: [`bin/${exe}`, "README.md", "LICENSE-MIT", "LICENSE-APACHE", "NOTICE", "licenses"],
+  files: [`bin/${exe}`, "README.md", "LICENSE-MIT", "LICENSE-APACHE", "NOTICE", "THIRD-PARTY-NOTICES.txt", "licenses"],
   preferUnplugged: true,
 };
 fs.writeFileSync(path.join(dir, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`);

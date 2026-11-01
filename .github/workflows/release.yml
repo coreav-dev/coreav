@@ -37,7 +37,13 @@ on:
       - scripts/install-x264.sh
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
-      - crates/coreav-cli/Cargo.toml
+      - crates/**/Cargo.toml
+      - Cargo.toml
+      - Cargo.lock
+      - deny.toml
+      - scripts/rust-dist.env
+      - scripts/notices/**
+      - .gitattributes
   workflow_dispatch:
 
 permissions: {}
@@ -109,9 +115,21 @@ jobs:
           persist-credentials: false
       # No build cache: a release builds from the lock file alone, with
       # nothing restored that another workflow saved.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Test the shared notice tools
+        run: node --test scripts/notices/test/*.test.mjs
+      - name: Read the distribution compiler pin
+        id: rust
+        run: |
+          . scripts/rust-dist.env
+          echo "version=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.rust.outputs.version }}
+          components: rust-src
           targets: ${{ matrix.target }}
       - name: Install zig (the musl C compiler of the Linux builds)
         if: runner.os == 'Linux'
@@ -198,6 +216,14 @@ jobs:
           "$python" -I packages/cli/test/release-smoke.py default "packages/cli/npm/$PLATFORM/bin/$exe" "$RUNNER_TEMP/clips" || status=1
           "$python" -I packages/cli/test/release-smoke.py full "packages/cli/full/$PLATFORM/bin/$exe" "$RUNNER_TEMP/clips" || status=1
           exit "$status"
+      - name: Verify the default npm package
+        run: |
+          set -euo pipefail
+          from="packages/cli/npm/$PLATFORM"
+          node scripts/notices/main.mjs check "$from"
+          mkdir -p "$RUNNER_TEMP/npm"
+          (cd "$from" && npm pack --pack-destination "$RUNNER_TEMP/npm")
+          python3 -I packages/cli/scripts/notices_check.py --third-party "$RUNNER_TEMP/npm/"*.tgz
       - name: Pack the archives
         run: |
           set -euo pipefail
@@ -205,12 +231,14 @@ jobs:
             dir=npm name="coreav-$VERSION-$TARGET"
             [ "$build" = full ] && dir=full name="coreav-full-$VERSION-$TARGET"
             from="$PWD/packages/cli/$dir/$PLATFORM"
+            node scripts/notices/main.mjs check "$from"
             stage="$RUNNER_TEMP/stage/$name"
             mkdir -p "$stage"
             cp "$from/bin/"coreav* "$stage/"
             # NOTICE in every archive, and the licence files of the C
             # libraries a build links (docs/release/notices.md).
             cp LICENSE-MIT LICENSE-APACHE NOTICE "$stage/"
+            cp "$from/THIRD-PARTY-NOTICES.txt" "$stage/"
             if [ -d "$from/licenses" ]; then cp -R "$from/licenses" "$stage/licenses"; fi
             (
               cd "$RUNNER_TEMP/stage"
@@ -270,7 +298,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           python3 -I packages/cli/scripts/release_assets.py dist
-          python3 -I packages/cli/scripts/notices_check.py dist/*.tar.gz dist/*.zip
+          python3 -I packages/cli/scripts/notices_check.py --third-party dist/*.tar.gz dist/*.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-dist
