@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Tests of the pin check in scripts/workflow_check.py: the step forms
-review found passing or failing wrongly, on fixtures and on a copy of this
-repository's workflows."""
+"""Tests of scripts/workflow_check.py: action pins, required triggers and
+concurrency, on fixtures and on a copy of this repository's workflows."""
 import importlib.util
 import pathlib
 import re
@@ -228,19 +227,22 @@ class Repository(unittest.TestCase):
                    '(`types: [checks_requested]`), so the merge queue waits for the check until it times out '
                    '(docs/design/ci-checks.md, "The merge queue")')
         self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n', ''), [missing])
-        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'), [missing])
+        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'),
+                         ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                          'use `types: [checks_requested]`'])
         self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n',
                                    '  merge_group:\n'), [])
 
     def test_the_activity_type_is_matched_as_a_whole_item(self):
-        missing = 'deny.yml: required `deny`, but the workflow has no `merge_group:` trigger'
+        invalid = 'deny.yml: `merge_group:` types must include `checks_requested`'
         for types in ('[not_checks_requested]', '[checks_requested_later]', '[destroyed] # checks_requested',
-                      'checks_requested'):
+                      '["destroyed, checks_requested"]'):
             with self.subTest(types=types):
                 found = self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}')
                 self.assertEqual(len(found), 1, found)
-                self.assertTrue(found[0].startswith(missing), found)
-        for types in ('[destroyed, checks_requested]', "['checks_requested']", '[checks_requested] # queue'):
+                self.assertTrue(found[0].startswith(invalid), found)
+        for types in ('[destroyed, checks_requested]', "['checks_requested']", '[checks_requested] # queue',
+                      'checks_requested', '\n      - checks_requested'):
             with self.subTest(types=types):
                 self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}'), [])
 
@@ -265,6 +267,42 @@ class Repository(unittest.TestCase):
         self.assertEqual(len(found), 1, found)
         self.assertTrue(found[0].startswith('npm.yml: required `npm-report`, so give the workflow exactly '
                                             '`concurrency:'), found)
+
+    def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
+        for key in ('"types"', "'types'", 'types ', '"typ\\u0065s"'):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'{key}: [destroyed]')
+                self.assertEqual(found, ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                                         'use `types: [checks_requested]`'])
+        for key in ('"branches"', "'branches'", 'branches ', '"branch\\u0065s"',
+                    '"branches-ignore"', 'branches-ignore '):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', '    types: [checks_requested]\n',
+                                  f'    types: [checks_requested]\n    {key}: [release]\n')
+                self.assertTrue(any('branch filter' in p for p in found), found)
+
+    def test_yaml_trigger_mappings_are_read_regardless_of_layout(self):
+        for event in ('"merge_group"', 'merge_group ', '"merge_\\u0067roup"'):
+            for options in ('{types: [destroyed]}', '{types: [checks_requested], "branches" : [release]}'):
+                with self.subTest(event=event, options=options):
+                    found = self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                      f'  {event}: {options}')
+                    self.assertTrue(found, found)
+        self.assertEqual(self.edit('deny.yml', 'on:\n', '"on" :\n'), [])
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                   '  "merge_group" : {"types" : [checks_requested]}'), [])
+
+    def test_unreadable_or_ambiguous_trigger_options_fail_closed(self):
+        for replacement in ('    types: [checks_requested]\n    "types": [destroyed]',
+                            '    <<: {branches: [release]}\n    types: [checks_requested]',
+                            '    types: &types [checks_requested]\n    branches: *types',
+                            '    types: !!str checks_requested',
+                            '    ? [types]\n    : [destroyed]'):
+            with self.subTest(replacement=replacement):
+                found = self.edit('deny.yml', '    types: [checks_requested]', replacement)
+                self.assertTrue(any('not readable as YAML' in p for p in found), found)
+        found = self.edit('deny.yml', 'on:\n', '<<: {on: {merge_group: {branches: [release]}}}\non:\n')
+        self.assertTrue(any('expand YAML merge keys' in p for p in found), found)
 
     def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
         group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"

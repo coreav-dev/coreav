@@ -19,6 +19,8 @@
 - a workflow with a required check has a `merge_group:` trigger with a
   `branches` or `branches-ignore` filter, which leaves the check
   unreported for every group it filters out;
+- a required workflow's trigger mapping has ambiguous or unsupported YAML
+  nodes: duplicate keys, merge keys, aliases, complex keys or explicit tags;
 - the workflow-level `concurrency:` of a workflow with a required check that
   does not cancel job by job is missing or not exactly `WORKFLOW_GROUP` with
   `cancel-in-progress: CANCEL`: a merge group's run needs a group of its own,
@@ -74,7 +76,6 @@ TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
-EVENT = re.compile(r'\A {2}([a-z_]+):\s*\Z')
 # The triggers a workflow with a required check needs, each with the
 # activity type its `types:` list, where it has one, must hold: an ordinary
 # push to a pull request's branch, and a group the merge queue asks checks
@@ -196,43 +197,33 @@ def concurrency_problems(workflow, lines, jobs):
     return out
 
 
-def triggers(lines):
-    """(a `paths` or `paths-ignore` key is in the `on:` block, the events
-    of REQUIRED_TRIGGERS the block has a trigger for whose `types:`, if it
-    lists them, hold the activity type named there as an item, the
-    `merge_group:` trigger carries a `branches` or `branches-ignore` key).
-
-    `types:` is read as a flow sequence on its own line; any other form
-    reads as not holding the type."""
-    filtered, events, inside, event, branches = False, set(), False, None, False
-    for line in lines:
-        if line.rstrip() == 'on:':
-            inside = True
+def triggers(text):
+    """The path-filter flag, present required events, merge-group branch-filter
+    flag and problems of the YAML `on:` mapping."""
+    data = read_yaml(text, PARSE_TRIGGERS)
+    if isinstance(data, str):
+        return False, set(), False, [data]
+    if not isinstance(data, dict):
+        return False, set(), False, ['use an event mapping under `on:`']
+    filtered, events, branches, problems = False, set(), False, []
+    for event, fields in data.items():
+        if event in REQUIRED_TRIGGERS:
+            events.add(event)
+        if fields is None:
             continue
-        if not inside:
-            continue
-        if TOP.match(line):
-            break
-        # Any form: a block sequence, a flow sequence on the same line, or
-        # a block scalar. None of them may gate a required workflow.
-        if re.match(r'\A +(paths|paths-ignore):', line):
-            filtered = True
-        if line.strip().startswith('#'):
-            continue
-        if TRIGGER.match(line):
-            match = EVENT.match(line)
-            event = match.group(1) if match else None
+        if not isinstance(fields, dict):
             if event in REQUIRED_TRIGGERS:
-                events.add(event)
+                problems.append(f'`{event}:` needs a mapping of trigger options or no options')
             continue
-        if event == 'merge_group' and re.match(r'\A {4}(branches|branches-ignore):', line):
-            branches = True
-        if event in REQUIRED_TRIGGERS and re.match(r'\A {4}types:', line):
-            listed = re.match(r'\A {4}types:\s*\[([^\]#]*)\]\s*(?:#.*)?\Z', line)
-            items = [item.strip().strip('\'"') for item in listed.group(1).split(',')] if listed else []
-            if REQUIRED_TRIGGERS[event] not in items:
-                events.discard(event)
-    return filtered, events, branches
+        filtered |= bool({'paths', 'paths-ignore'} & fields.keys())
+        branches |= event == 'merge_group' and bool({'branches', 'branches-ignore'} & fields.keys())
+        if event in REQUIRED_TRIGGERS and 'types' in fields:
+            types = fields['types']
+            items = [types] if isinstance(types, str) else types
+            if not isinstance(items, list) or REQUIRED_TRIGGERS[event] not in items:
+                problems.append(f'`{event}:` types must include `{REQUIRED_TRIGGERS[event]}`: '
+                                f'use `types: [{REQUIRED_TRIGGERS[event]}]`')
+    return filtered, events, branches, problems
 
 
 def workflow_concurrency(lines):
@@ -388,7 +379,7 @@ def workflow_files(root):
 # booleans (`on`, `yes`), merge keys and duplicate keys cannot hide a step.
 # Every `uses` key is read wherever it appears, anchored subtrees included;
 # an alias is resolved through the anchors defined before it.
-PARSE = r'''
+YAML_PARSE = r'''
 require "json"
 require "psych"
 begin
@@ -398,6 +389,8 @@ rescue Psych::SyntaxError => e
 end
 documents = stream.children.size
 abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
+'''
+PARSE = YAML_PARSE + r'''
 anchors, out = {}, []
 resolve = lambda do |node|
   next node unless node.is_a?(Psych::Nodes::Alias)
@@ -430,17 +423,60 @@ puts JSON.generate(out)
 '''
 
 
-def uses_entries(text):
-    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
-    keys of a file, or a str saying why it cannot be read."""
+PARSE_TRIGGERS = YAML_PARSE + r'''
+mapping = lambda do |node|
+  abort "use a mapping for the workflow and its trigger options" unless node.is_a?(Psych::Nodes::Mapping)
+  abort "remove explicit YAML tags from workflow mappings" if node.tag
+  out = {}
+  node.children.each_slice(2) do |key, value|
+    abort "use scalar keys in the workflow and its triggers" unless key.is_a?(Psych::Nodes::Scalar)
+    abort "remove explicit YAML tags from workflow keys" if key.tag
+    abort "expand YAML merge keys in the workflow and its triggers" if key.value == "<<"
+    abort "duplicate YAML key: #{key.value}" if out.key?(key.value)
+    out[key.value] = value
+  end
+  out
+end
+decode = lambda do |node|
+  abort "remove explicit YAML tags from trigger options" if node.respond_to?(:tag) && node.tag
+  case node
+  when Psych::Nodes::Mapping
+    mapping.(node).transform_values { |value| decode.(value) }
+  when Psych::Nodes::Sequence
+    node.children.map { |value| decode.(value) }
+  when Psych::Nodes::Scalar
+    if node.plain && ["", "~", "null", "Null", "NULL"].include?(node.value)
+      nil
+    else
+      node.value
+    end
+  else
+    abort "expand YAML aliases in trigger options"
+  end
+end
+root = stream.children.first&.root
+events = root ? mapping.(root)["on"] : nil
+abort "use an event mapping under on:" if events && !events.is_a?(Psych::Nodes::Mapping)
+puts JSON.generate(events ? decode.(events) : {})
+'''
+
+
+def read_yaml(text, program):
+    """The JSON result of a Psych node reader, or an error string."""
     try:
-        run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
+        run = subprocess.run(['ruby', '--disable-gems', '-e', program], input=text, capture_output=True, text=True,
                              timeout=60)
     except FileNotFoundError:
-        return 'ruby is not installed; the pin check parses YAML with its standard library (Psych)'
+        return 'ruby is not installed; the workflow check parses YAML with its standard library (Psych)'
     if run.returncode != 0:
         return 'not readable as YAML: ' + (run.stderr.strip().splitlines() or ['ruby failed'])[-1]
     return json.loads(run.stdout)
+
+
+def uses_entries(text):
+    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
+    keys of a file, or a str saying why it cannot be read."""
+    return read_yaml(text, PARSE)
 
 
 def pin_problems(root, path, seen):
@@ -535,7 +571,8 @@ def check(root):
             problems.append(f'{note.name} puts `{name}` in {workflow}, but it is in {where[0][0]}')
             continue
         lines = (root / '.github' / 'workflows' / workflow).read_text().splitlines()
-        filtered, events, branches = triggers(lines)
+        filtered, events, branches, bad = triggers('\n'.join(lines))
+        problems.extend(f'{workflow}: {problem}' for problem in bad)
         if filtered:
             problems.append(f'{workflow}: required `{name}`, but the trigger carries a path filter, '
                             'so the check is not reported on every pull request')
