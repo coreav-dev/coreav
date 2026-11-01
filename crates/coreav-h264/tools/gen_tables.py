@@ -203,26 +203,29 @@ def main():
     out.append("];")
     out.append("")
 
-    # ---- Table 9-4 coded_block_pattern (ChromaArrayType 1 or 2) -------------
-    cbp_rows = {}
+    # ---- Table 9-4 coded_block_pattern --------------------------------------
+    # Two tables over three pages, each starting at codeNum 0: (a) 0..47 for
+    # ChromaArrayType 1 or 2, then (b) 0..15 for ChromaArrayType 0 or 3.
+    cbp_tables = []
     cbp_first = spec.find_pages("Table 9-4 – Assignment of codeNum to values of coded_block_pattern")[0]
-    for pg in (cbp_first, cbp_first + 1):
+    for pg in range(cbp_first, cbp_first + 3):
         for t in spec.tables(pg):
             if t and t[0] and t[0][0] == "codeNum":
-                body = t[2:]
-                # The first table (0..47) is for ChromaArrayType 1 or 2; a second
-                # table restarting at 0 is for 0 or 3.
-                for r in body:
+                for r in t[2:]:
                     k = num(r[0])
-                    if k in cbp_rows and len(cbp_rows) == 48:
-                        break
-                    if len(cbp_rows) < 48:
-                        cbp_rows[k] = (num(r[1]), num(r[2]))
-    assert sorted(cbp_rows) == list(range(48)), sorted(cbp_rows)
+                    if k == 0:
+                        cbp_tables.append({})
+                    cbp_tables[-1][k] = (num(r[1]), num(r[2]))
+    assert [sorted(c) for c in cbp_tables] == [list(range(48)), list(range(16))], [sorted(c) for c in cbp_tables]
+    cbp_rows, cbp_mono = cbp_tables
     out.append("/// Table 9-4 (ChromaArrayType 1 or 2): coded_block_pattern by codeNum, Intra_4x4/Intra_8x8.")
     out.append("pub const CBP_INTRA: [u8; 48] = [" + ", ".join(str(cbp_rows[k][0]) for k in range(48)) + "];")
     out.append("/// Table 9-4 (ChromaArrayType 1 or 2): coded_block_pattern by codeNum, Inter.")
     out.append("pub const CBP_INTER: [u8; 48] = [" + ", ".join(str(cbp_rows[k][1]) for k in range(48)) + "];")
+    out.append("/// Table 9-4 (ChromaArrayType 0 or 3): coded_block_pattern by codeNum, Intra_4x4/Intra_8x8.")
+    out.append("pub const CBP_INTRA_MONO: [u8; 16] = [" + ", ".join(str(cbp_mono[k][0]) for k in range(16)) + "];")
+    out.append("/// Table 9-4 (ChromaArrayType 0 or 3): coded_block_pattern by codeNum, Inter.")
+    out.append("pub const CBP_INTER_MONO: [u8; 16] = [" + ", ".join(str(cbp_mono[k][1]) for k in range(16)) + "];")
     out.append("")
 
     # ---- Tables 9-12 .. 9-33 CABAC m, n ------------------------------------

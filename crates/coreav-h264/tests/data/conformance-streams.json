@@ -1,8 +1,8 @@
 {
  "source": "https://www.itu.int/wftp3/av-arch/jvt-site/draft_conformance/ (AVCv1 and FRExt)",
- "rule": "every SPS: (profile_idc in {77, 100} or constraint_set1_flag) and chroma_format_idc == 1 and 8-bit and frame_mbs_only_flag == 1",
- "in_scope": 97,
- "excluded": 107,
+ "rule": "every SPS: (profile_idc in {77, 100} or constraint_set1_flag) and chroma_format_idc in {0, 1} and 8-bit and frame_mbs_only_flag == 1",
+ "in_scope": 99,
+ "excluded": 105,
  "streams": [
   {
    "name": "alphaconformanceG",
@@ -1636,10 +1636,8 @@
    "zip_sha256": "5ca9d2b2b9f444821e97070461aa716e29d1c7090826bb61031b3c733ddd2010",
    "bitstream": "HPCAMOLQ_BRCM_B.264",
    "yuv": "HPCAMOLQ_BRCM_B.YUV",
-   "in_scope": false,
-   "excluded_because": [
-    "chroma_format_idc 0"
-   ]
+   "in_scope": true,
+   "excluded_because": []
   },
   {
    "name": "HPCANL_BRCM_C",
@@ -1696,10 +1694,8 @@
    "zip_sha256": "9dfb888137c79746474672c1284e7a2c3c3a5a5e37223c74ecdce1fb9fc122ce",
    "bitstream": "HPCVMOLQ_BRCM_B.264",
    "yuv": "HPCVMOLQ_BRCM_B.YUV",
-   "in_scope": false,
-   "excluded_because": [
-    "chroma_format_idc 0"
-   ]
+   "in_scope": true,
+   "excluded_because": []
   },
   {
    "name": "HPCVNL_BRCM_A",
