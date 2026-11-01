@@ -39,7 +39,7 @@ fn main() -> ExitCode {
         eprintln!("skipping: the launcher needs Unix");
         return ExitCode::SUCCESS;
     }
-    let cases: [(&str, fn()); 16] = [
+    let cases: [(&str, fn()); 17] = [
         ("real encoders through the launcher", real_encoders),
         ("an encoder that exits early with an error", exits_early),
         (
@@ -53,6 +53,10 @@ fn main() -> ExitCode {
         (
             "an encoder that closes its input gives back its queued frames",
             closed_input_returns_queued_frames,
+        ),
+        (
+            "finishing an encoder with closed input reports a backend error",
+            finish_with_closed_input,
         ),
         ("an encoder that floods its output", floods_output),
         ("an encoder that never reads its input", never_reads),
@@ -282,6 +286,18 @@ fn returns_queued_frames() {
 
 fn closed_input_returns_queued_frames() {
     queued_frames_return("exec 0<&-\nexec sleep 60");
+}
+
+fn finish_with_closed_input() {
+    let p = script("finish-closed-input", "exec 0<&-\nexec sleep 60");
+    let (result, took) = run(&p, 1, 1 << 20);
+    let error = result.unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Backend, "{error:?}");
+    assert!(
+        error.message.contains("stopped reading its input"),
+        "{error:?}"
+    );
+    assert!(took < WELL_BEFORE_THE_DEADLINE, "{took:?}");
 }
 
 fn queued_frames_return(body: &str) {

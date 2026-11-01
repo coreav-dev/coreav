@@ -1284,10 +1284,7 @@ impl<S: Sink> Process<S> {
             };
             loop {
                 if queue.stopped {
-                    break Err(Error::new(
-                        ErrorKind::Backend,
-                        format!("{} stopped reading its input", self.name),
-                    ));
+                    break Err(stopped_reading(self.name));
                 }
                 if queue.frames.len() < QUEUED_FRAMES {
                     queue.frames.push_back(chunk);
@@ -1354,7 +1351,8 @@ impl<S: Sink> Process<S> {
             }
             // Killed: at the deadline, or after the sink's error (which
             // `fail` reports first).
-            Some(_) | None => return Err(self.fail(timeout())),
+            Some(_) => return Err(self.fail(stopped_reading(self.name))),
+            None => return Err(self.fail(timeout())),
         };
         let remaining = self.deadline.saturating_duration_since(Instant::now());
         let _ = self.writer_done.recv_timeout(remaining);
@@ -1459,6 +1457,13 @@ pub(crate) fn is_path(path: &Path) -> bool {
 /// Whether `path` has a separator, `\` being one when `windows`.
 fn has_separator(path: &[u8], windows: bool) -> bool {
     path.iter().any(|&b| b == b'/' || (windows && b == b'\\'))
+}
+
+fn stopped_reading(name: &str) -> Error {
+    Error::new(
+        ErrorKind::Backend,
+        format!("{name} stopped reading its input"),
+    )
 }
 
 fn timeout() -> Error {
