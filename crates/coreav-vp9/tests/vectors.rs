@@ -179,12 +179,16 @@ const SIZE_OVERRIDES: [(&str, (u32, u32), &str); 3] = [
 /// The vector whose packets show several frames each.
 const LAYERED: &str = "vp90-2-22-svc_1280x720_3.ivf";
 
+/// The frames every packet of [`LAYERED`] shows: one per spatial layer.
+const LAYERS: [(u32, u32); 3] = [(320, 180), (640, 360), (1280, 720)];
+
 /// What reading a vector's headers found wrong, or nothing.
 ///
 /// A packet shows at most one frame, the last one it shows: in [`LAYERED`]
 /// each packet is a superframe of three spatial layers, each with
-/// `show_frame` set, and its list has one entry per packet, at the largest
-/// layer's size. Every other vector shows at most one frame per packet.
+/// `show_frame` set, which must be [`LAYERS`] in every packet, and its list
+/// has one entry per packet, at the largest layer's size. Every other vector
+/// shows at most one frame per packet.
 fn check(dir: &Path, name: &str) -> Option<String> {
     let data = std::fs::read(dir.join(name)).unwrap();
     let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
@@ -222,7 +226,11 @@ fn check(dir: &Path, name: &str) -> Option<String> {
                 }
             }
         }
-        if in_packet.len() > 1 && name != LAYERED {
+        if name == LAYERED {
+            if in_packet != LAYERS {
+                return Some(format!("packet {i} shows {in_packet:?}, not {LAYERS:?}"));
+            }
+        } else if in_packet.len() > 1 {
             return Some(format!("packet {i} shows {} frames", in_packet.len()));
         }
         shown.extend(in_packet.last());
