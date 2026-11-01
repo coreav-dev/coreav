@@ -310,8 +310,9 @@ pub struct IsoProbed {
     /// Per track, what the packet listing takes from its stream's entries.
     pub ends: Vec<Listed>,
     /// Per track, how far decode times are moved back so that no
-    /// composition offset is negative.
-    pub shifts: Vec<i64>,
+    /// composition offset is negative. A source I/O or limit error is
+    /// returned by the packet listing, not the report.
+    pub shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// Per track, the decode step of its first samples.
     pub steps: Vec<Option<i64>>,
     /// The cover pictures' streams: index, position and size of the one
@@ -353,22 +354,33 @@ impl Listed {
 /// composition offset of a `ctts` (ISO/IEC 14496-12 8.6.1.3), read signed
 /// whatever its version (`KD-CTTS`, `KD-CTTS-UNSIGNED`), so that no packet
 /// is presented before it is decoded; 0 when no offset is negative.
-fn dts_shift<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits) -> i64 {
+/// Source I/O and limit errors fail the listing instead of using a partial shift.
+fn dts_shift<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+) -> Result<i64, coreav_isobmff::Error> {
     if track.ctts_signed().is_none() {
-        return 0;
+        return Ok(0);
     }
     let mut budget = Budget::new(limits);
-    let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
-        return 0;
-    };
-    iter.map_while(Result::ok)
-        .map(|p| {
-            let p = signed_offsets(track, p);
-            p.dts.saturating_sub(p.cts)
-        })
-        .max()
-        .unwrap_or(0)
-        .max(0)
+    let mut shift = 0;
+    let scan = movie
+        .packets(track.index, &mut *source, limits, &mut budget)
+        .and_then(|packets| {
+            for packet in packets {
+                let packet = signed_offsets(track, packet?);
+                shift = shift.max(packet.dts.saturating_sub(packet.cts));
+            }
+            Ok(())
+        });
+    match scan {
+        Err(
+            error @ (coreav_isobmff::Error::Io(_) | coreav_isobmff::Error::LimitExceeded { .. }),
+        ) => Err(error),
+        _ => Ok(shift),
+    }
 }
 
 /// A sample of a version 0 `ctts` read unsigned whose offset, read signed
@@ -596,7 +608,7 @@ pub fn probe<S: Source>(
         movie: probed.movie,
         priming,
         ends,
-        shifts,
+        shifts: shifts.into_iter().collect(),
         steps,
         covers,
         pictures,
@@ -2120,7 +2132,7 @@ pub fn packets<'a, S: Source + 'a>(
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let shift = probed.shifts.get(i).copied().unwrap_or(0);
+            let shift = probed.shifts.as_ref().ok()?.get(i).copied().unwrap_or(0);
             let step = probed.steps.get(i).copied().flatten();
             if grouping(&probed.movie, t, step).is_some() {
                 return None;
@@ -3190,7 +3202,7 @@ pub struct IsoProbedPackets {
     /// See [`IsoProbed::ends`].
     pub ends: Vec<Listed>,
     /// See [`IsoProbed::shifts`].
-    pub shifts: Vec<i64>,
+    pub shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// See [`IsoProbed::steps`].
     pub steps: Vec<Option<i64>>,
     /// See [`IsoProbed::covers`].
@@ -3222,7 +3234,7 @@ struct IsoPackets<S> {
     /// Per track with several edits, its listing.
     spliced: Vec<Option<Spliced>>,
     /// Per track, how far decode times are moved back.
-    shifts: Vec<i64>,
+    shifts: Result<Vec<i64>, coreav_isobmff::Error>,
     /// Per track, the decode step of its first samples.
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
@@ -3261,6 +3273,10 @@ impl<S: Source> PacketSource for IsoPackets<S> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
         let limits = self.limits;
+        let shifts = self
+            .shifts
+            .as_ref()
+            .map_err(|error| Failure::library(error.clone()))?;
         for &index in &self.pictures {
             let Some(track) = self.movie.tracks.get(index) else {
                 continue;
@@ -3516,7 +3532,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             let micros = |i: usize, p: &coreav_isobmff::Packet| -> i128 {
                 let ts = i128::from(movie.tracks.get(i).map_or(1, |t| t.timescale.max(1)));
                 let dts = p.presentation_dts.map_or(i128::from(p.dts), |r| r.round());
-                let shift = i128::from(self.shifts.get(i).copied().unwrap_or(0));
+                let shift = i128::from(shifts.get(i).copied().unwrap_or(0));
                 let v = dts.saturating_sub(shift).saturating_mul(1_000_000);
                 let half = ts / 2;
                 if v >= 0 {
@@ -3699,7 +3715,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 dts: p
                     .presentation_dts
                     .and_then(|r| i64::try_from(r.round()).ok())
-                    .and_then(|d| d.checked_sub(self.shifts.get(i).copied().unwrap_or(0))),
+                    .and_then(|d| d.checked_sub(shifts.get(i).copied().unwrap_or(0))),
                 duration,
                 size: u64::from(p.size),
                 pos: Some(p.offset),

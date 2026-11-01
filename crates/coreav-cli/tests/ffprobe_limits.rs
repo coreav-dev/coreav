@@ -127,6 +127,70 @@ fn a_chapter_track_over_the_text_limits_is_still_left_out() {
     );
 }
 
+fn late_negative_offsets(sample_40: u32) -> Vec<u8> {
+    let mut sizes = vec![10; 64];
+    sizes[40] = sample_40;
+    common::movie(&common::Spec {
+        sizes,
+        composition: Vec::new(),
+        ctts: Some(vec![(48, 0), (16, -1024)]),
+        sync: Vec::new(),
+        elst: Some(vec![(80, 0)]),
+        ..common::Spec::default()
+    })
+}
+
+fn decode_times(probed: &mut Probed<'_>) -> Result<Vec<Option<i64>>, Failure> {
+    let payloads = vec![false; probed.report.streams.len()];
+    let mut times = Vec::new();
+    probed.packets.visit(&payloads, &mut |packet| {
+        times.push(packet.dts);
+        Ok(true)
+    })?;
+    Ok(times)
+}
+
+#[test]
+fn a_limit_the_decode_time_scan_exceeds_fails_the_listing() {
+    let bytes = fixture(late_negative_offsets(100));
+    let mut probed = probe_limited(bytes, &Limits::default()).ok().unwrap();
+    assert_eq!(
+        decode_times(&mut probed).ok().unwrap(),
+        [Some(-1024), Some(-512), Some(0)]
+    );
+    let limits = Limits {
+        max_packet_bytes: 50,
+        ..Limits::default()
+    };
+    let mut probed = probe_limited(bytes, &limits).ok().unwrap();
+    assert_eq!(probed.report.streams.len(), 1);
+    let mut times = Vec::new();
+    let result = probed.packets.visit(&[false], &mut |packet| {
+        times.push(packet.dts);
+        Ok(true)
+    });
+    match result {
+        Err(Failure::Library(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::PacketBytes,
+            ..
+        })) => {}
+        Ok(()) => panic!("listed {times:?} with only a partial decode-time shift"),
+        Err(error) => panic!("unexpected failure: {}", error.to_json()),
+    }
+    assert!(times.is_empty());
+}
+
+#[test]
+fn a_sample_past_the_end_still_ends_the_decode_time_scan_quietly() {
+    let mut bytes = late_negative_offsets(10);
+    let at = bytes.windows(4).position(|w| w == b"stsz").unwrap() + 16 + 4 * 40;
+    bytes[at..at + 4].copy_from_slice(&1_000_000u32.to_be_bytes());
+    let mut probed = probe_limited(fixture(bytes), &Limits::default())
+        .ok()
+        .unwrap();
+    assert_eq!(decode_times(&mut probed).ok().map(|t| t.len()), Some(3));
+}
+
 #[test]
 fn the_defaults_list_every_packet_of_each_container() {
     let limits = Limits::default();

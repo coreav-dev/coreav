@@ -1040,6 +1040,15 @@ returning partial chapters or substituting the Nero list. A malformed or
 unsupported chapter track, or one over the text reader's own title and
 sample limits, is still left out.
 
+An ISO decode-time shift scan retains source I/O and parser limit errors
+for the packet listing to return before its first packet. It never uses
+a partial shift after those errors, even if an edit ends the listing
+before the sample that caused the error. Report-only probes, including
+WebAssembly ffprobe, do not use the shift and still succeed. Malformed
+samples keep their existing quiet end-of-scan behavior. The native packet
+listing also refuses such errors under its default limits; a stream
+selection does not exempt another track from this scan.
+
 The replacement is not the old document with a different command name.
 `coreav ffprobe` lists streams the old flag dropped and takes some values
 from the stream rather than the container. It also prints more keys.
