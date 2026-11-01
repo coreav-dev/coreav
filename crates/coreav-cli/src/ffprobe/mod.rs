@@ -73,9 +73,6 @@ pub struct SideData {
 /// One stream.
 #[derive(Clone, Debug)]
 pub struct Stream {
-    /// The container's stream index, before unlisted tracks are removed.
-    /// Attached files and pictures have no source track.
-    pub source_index: Option<usize>,
     /// What the stream is.
     pub kind: StreamKind,
     /// An attached picture (`V` leaves it out).
@@ -97,13 +94,29 @@ impl Stream {
             .iter()
             .find(|(k, _)| *k == "r_frame_rate")
             .and_then(|(_, v)| match v {
-                Value::Str(text) => {
-                    let (n, d) = text.split_once('/')?;
-                    Some((n.parse().ok()?, d.parse().ok()?))
-                }
+                Value::Str(text) => parse_rate(text),
                 _ => None,
             })
-            .filter(|(n, d): &(u64, u64)| *n > 0 && *d > 0)
+    }
+}
+
+pub(crate) fn parse_rate(text: &str) -> Option<(u64, u64)> {
+    let (n, d) = text.split_once('/')?;
+    let (n, d) = (n.parse().ok()?, d.parse().ok()?);
+    (n > 0 && d > 0).then_some((n, d))
+}
+
+/// Reads only video rates, indexed by the original container stream index.
+#[cfg(feature = "transcode")]
+pub(crate) fn source_frame_rates<S: Source>(
+    source: &mut S,
+    size: u64,
+) -> Result<Vec<(usize, String)>, Failure> {
+    let mut source = coreav_isobmff::BufferedSource::new(source);
+    if crate::matroska::detect_source(&mut source)? {
+        mkv::frame_rates(&mut source)
+    } else {
+        iso::frame_rates(&mut source, size)
     }
 }
 
