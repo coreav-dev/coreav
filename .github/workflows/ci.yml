@@ -434,7 +434,8 @@ jobs:
         run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
       - if: ${{ !cancelled() }}
         run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
-      - if: ${{ !cancelled() }}
+      - name: Test workspace including Windows fallback
+        if: ${{ !cancelled() }}
         run: env -u CI cargo test --workspace --no-fail-fast
       - if: ${{ !cancelled() }}
         run: |
