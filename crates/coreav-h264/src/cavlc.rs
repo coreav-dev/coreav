@@ -468,12 +468,13 @@ impl<'a> Window<'a> {
         }
     }
 
-    /// pcm_alignment_zero_bit and the 384 samples of an I_PCM macroblock
-    /// (clause 7.3.5), from the window's position: the window comes back
-    /// past them, or where it was if they fail.
+    /// pcm_alignment_zero_bit and the samples of an I_PCM macroblock
+    /// (clause 7.3.5), as many as `samples` holds, from the window's
+    /// position: the window comes back past them, or where it was if they
+    /// fail.
     #[cold]
     #[inline(never)]
-    pub(crate) fn pcm(self, samples: &mut [u8; 384]) -> (Window<'a>, Result<()>) {
+    pub(crate) fn pcm(self, samples: &mut [u8]) -> (Window<'a>, Result<()>) {
         match pcm_samples(self.data, self.pos, samples) {
             Ok(end) => (Window::from(self.data, end), Ok(())),
             Err(e) => (self, Err(e)),
@@ -484,7 +485,7 @@ impl<'a> Window<'a> {
 /// pcm_alignment_zero_bit and the samples of an I_PCM macroblock from bit
 /// `pos` of `data`, failing as [`BitReader`] reads fail: the position past
 /// them. The samples are whole bytes, after the alignment bits.
-fn pcm_samples(data: &[u8], pos: usize, samples: &mut [u8; 384]) -> Result<usize> {
+fn pcm_samples(data: &[u8], pos: usize, samples: &mut [u8]) -> Result<usize> {
     if pos > data.len().saturating_mul(8) {
         return Err(Error::Truncated("a syntax element"));
     }
@@ -495,10 +496,10 @@ fn pcm_samples(data: &[u8], pos: usize, samples: &mut [u8; 384]) -> Result<usize
     }
     let start = pos.div_ceil(8);
     let src = data
-        .get(start..start.saturating_add(384))
+        .get(start..start.saturating_add(samples.len()))
         .ok_or(Error::Truncated("a fixed-length code"))?;
     samples.copy_from_slice(src);
-    Ok((start + 384) * 8)
+    Ok((start + samples.len()) * 8)
 }
 
 /// An Exp-Golomb code of 16 or more leading zeros at bit `pos` of `data`,
@@ -1534,8 +1535,8 @@ mod tests {
         /// failed.
         fn both<const N: usize>(
             v3: V3,
-            a: &mut CavlcSyntax<'_, V3>,
-            b: &mut CavlcSyntax<'_, Base>,
+            a: &mut CavlcSyntax<'_, V3, true>,
+            b: &mut CavlcSyntax<'_, Base, true>,
             nc: i32,
             max: usize,
             at: &str,

@@ -23,6 +23,11 @@ use crate::tier::Tier;
 
 /// One syntax element reader.
 pub(crate) trait Syntax {
+    /// Whether the slice's pictures have chroma arrays: true for
+    /// ChromaArrayType 1, false for a monochrome picture (ChromaArrayType 0),
+    /// whose macroblocks code no chroma element (clause 7.3.5). A slice
+    /// picks its reader once, so no macroblock tests the chroma format.
+    const CHROMA: bool;
     /// Whether this is the CABAC reader, which codes 8x8 blocks as one
     /// block instead of four interleaved 4x4 lists.
     fn is_cabac(&self) -> bool;
@@ -68,7 +73,10 @@ pub(crate) trait Syntax {
         max: usize,
         scale: &CoeffScale<N>,
     ) -> Result<u8>;
-    /// The 384 samples of an I_PCM macroblock.
+    /// The samples of an I_PCM macroblock: 256 luma samples, then 128
+    /// chroma samples, which a monochrome picture does not code and which
+    /// are then 128, the value its chroma planes hold
+    /// (`docs/design/h264.md`, "Monochrome").
     fn pcm(&mut self, samples: &mut [u8; 384]) -> Result<()>;
     /// residual() (clause 7.3.5.3) of the macroblock `d` is decoding
     /// ([`SliceDecoder::parse_residual`]), in the instance `tier`.
@@ -88,14 +96,14 @@ pub(crate) trait Syntax {
 /// takes the window by value and gives it back ([`Syntax::residual`]), and
 /// what runs on a cold path takes it by value or takes its fields, so that
 /// nothing takes the window by reference across a call.
-pub(crate) struct CavlcSyntax<'a, T> {
+pub(crate) struct CavlcSyntax<'a, T, const CHROMA: bool> {
     pub(crate) w: cavlc::Window<'a>,
     /// The instance of the hot paths the slice runs, which the residual's
     /// blocks are inlined into.
     tier: PhantomData<T>,
 }
 
-impl<'a, T> CavlcSyntax<'a, T> {
+impl<'a, T, const CHROMA: bool> CavlcSyntax<'a, T, CHROMA> {
     #[inline(always)]
     pub(crate) fn new(w: cavlc::Window<'a>, _tier: T) -> Self {
         CavlcSyntax {
@@ -122,7 +130,9 @@ fn cached_nc((a, b): (u8, u8)) -> i32 {
     predicted_nc(of(a), of(b))
 }
 
-impl<T: Tier> Syntax for CavlcSyntax<'_, T> {
+impl<T: Tier, const CHROMA: bool> Syntax for CavlcSyntax<'_, T, CHROMA> {
+    const CHROMA: bool = CHROMA;
+
     #[inline(always)]
     fn is_cabac(&self) -> bool {
         false
@@ -183,8 +193,15 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, T> {
 
     #[inline(always)]
     fn cbp<K: Kernels>(&mut self, _d: &SliceDecoder<K>, intra: bool) -> Result<u8> {
-        let code = self.w.ue_max(47, "coded_block_pattern")? as usize;
-        let table = if intra { t::CBP_INTRA } else { t::CBP_INTER };
+        let table: &[u8] = match (CHROMA, intra) {
+            (true, true) => &t::CBP_INTRA,
+            (true, false) => &t::CBP_INTER,
+            (false, true) => &t::CBP_INTRA_MONO,
+            (false, false) => &t::CBP_INTER_MONO,
+        };
+        let code = self
+            .w
+            .ue_max(table.len() as u32 - 1, "coded_block_pattern")? as usize;
         table
             .get(code)
             .copied()
@@ -230,7 +247,11 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, T> {
 
     #[inline(always)]
     fn pcm(&mut self, samples: &mut [u8; 384]) -> Result<()> {
-        let (w, read) = self.w.pcm(samples);
+        let (coded, uncoded) = samples
+            .split_at_mut_checked(if CHROMA { 384 } else { 256 })
+            .unwrap_or_default();
+        uncoded.fill(128);
+        let (w, read) = self.w.pcm(coded);
         self.w = w;
         read
     }
@@ -240,7 +261,7 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, T> {
     #[inline(always)]
     fn residual<K: Kernels, U: Tier>(&mut self, d: &mut SliceDecoder<K>, tier: U) -> Result<()> {
         let mut back = self.w;
-        let read = d.residual_cavlc(tier, self.w, &mut back);
+        let read = d.residual_cavlc::<U, CHROMA>(tier, self.w, &mut back);
         self.w = back;
         read
     }
@@ -252,13 +273,13 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, T> {
 }
 
 /// The CABAC reader.
-pub(crate) struct CabacSyntax<'c, 'a, T> {
+pub(crate) struct CabacSyntax<'c, 'a, T, const CHROMA: bool> {
     pub(crate) c: &'c mut Cabac<'a>,
     /// The instance of the hot paths the slice runs.
     pub(crate) t: T,
 }
 
-impl<T: Tier> CabacSyntax<'_, '_, T> {
+impl<T: Tier, const CHROMA: bool> CabacSyntax<'_, '_, T, CHROMA> {
     /// The intra mb_type bin string of Table 9-36, as a prefix of its own
     /// or as the suffix of a P or B mb_type.
     fn intra_mb_type(&mut self, base: usize, inc0: usize, suffix: bool) -> Result<u32> {
@@ -288,7 +309,9 @@ impl<T: Tier> CabacSyntax<'_, '_, T> {
     }
 }
 
-impl<T: Tier> Syntax for CabacSyntax<'_, '_, T> {
+impl<T: Tier, const CHROMA: bool> Syntax for CabacSyntax<'_, '_, T, CHROMA> {
+    const CHROMA: bool = CHROMA;
+
     fn is_cabac(&self) -> bool {
         true
     }
@@ -461,6 +484,11 @@ impl<T: Tier> Syntax for CabacSyntax<'_, '_, T> {
             let inc = empty(false, luma) + 2 * empty(true, luma);
             luma |= (self.c.decision(self.t, 73 + inc) as u8) << b8;
         }
+        // The suffix, CodedBlockPatternChroma, only where the pictures
+        // have chroma (clause 9.3.2.6).
+        if !CHROMA {
+            return Ok(luma);
+        }
         let chroma_of = |m: Option<usize>, bin: u32| -> usize {
             let Some(m) = m else { return 0 };
             // CodedBlockPatternChroma 2 for an I_PCM macroblock, 0 for a
@@ -546,7 +574,11 @@ impl<T: Tier> Syntax for CabacSyntax<'_, '_, T> {
         while !r.byte_aligned() {
             require(r.u(1)? == 0, "pcm_alignment_zero_bit")?;
         }
-        for s in samples.iter_mut() {
+        let (coded, uncoded) = samples
+            .split_at_mut_checked(if CHROMA { 384 } else { 256 })
+            .unwrap_or_default();
+        uncoded.fill(128);
+        for s in coded.iter_mut() {
             *s = r.u(8)? as u8;
         }
         self.c.resume(&r)

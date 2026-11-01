@@ -1633,3 +1633,69 @@ fn a_block_more_without_its_addition_is_not_listed() {
         ["", "", listed, listed]
     );
 }
+
+#[test]
+fn an_unlaced_audio_block_lasts_its_block_duration() {
+    // RFC 9559 5.1.3.5.3: `BlockDuration` is the duration of the block, so a
+    // nonzero one outranks the frame header and `DefaultDuration`; zero
+    // states none. The pinned ffprobe keeps the 24 ms MP3 frame instead
+    // (docs/known-divergences-ffprobe9.md).
+    use mkv::{BLOCK_GROUP, TRACKS, audio_track, cat, cluster, el, info, uint};
+    let mut opus_head = b"OpusHead\x01\x02\x38\x01".to_vec();
+    opus_head.extend(48_000u32.to_le_bytes());
+    opus_head.extend([0, 0, 0]);
+    let mut mp3 = vec![0xFF, 0xFB, 0x94, 0x00];
+    mp3.resize(384, 0);
+    for (codec, private, frame, default, whole) in [
+        ("A_OPUS", opus_head, vec![0xFC, 1, 2, 3], 20_000_000, "20"),
+        (
+            "A_AAC",
+            vec![0x11, 0x90],
+            vec![0x21, 0x10, 0x04],
+            21_333_333,
+            "21",
+        ),
+        ("A_MPEG/L3", Vec::new(), mp3, 24_000_000, "24"),
+    ] {
+        let group = |timestamp: i16, duration: u64| {
+            let mut block = vec![0x81];
+            block.extend(timestamp.to_be_bytes());
+            block.push(0);
+            block.extend(&frame);
+            el(BLOCK_GROUP, &cat(&[el(0xA1, &block), uint(0x9B, duration)]))
+        };
+        let mut extra = uint(0x23E383, default);
+        if !private.is_empty() {
+            extra.extend(el(0x63A2, &private));
+        }
+        let track = audio_track(1, codec, 48_000.0, 2, &extra);
+        let data = mkv::file(
+            "matroska",
+            &[
+                info(Some(100.0)),
+                el(TRACKS, &track),
+                cluster(
+                    0,
+                    &[
+                        mkv::simple_block(1, 0, true, &frame),
+                        group(30, 0),
+                        group(60, 7),
+                    ],
+                ),
+            ],
+        );
+        let name = format!("ffprobe-block-duration-{}.mkv", whole);
+        let path = file(&name, &data);
+        let r = ffprobe(&[
+            "-v",
+            "error",
+            "-of",
+            "csv=p=0",
+            "-show_entries",
+            "packet=duration",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(r.code, 0, "{codec}: {}", r.stderr);
+        assert_eq!(r.stdout, format!("{whole}\n{whole}\n7\n"), "{codec}");
+    }
+}

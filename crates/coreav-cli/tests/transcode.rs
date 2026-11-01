@@ -838,6 +838,241 @@ fn encodes_as_ffmpeg_does(name: &str) {
     }
 }
 
+/// x264's settings string (`options: ...` of its SEI message) in the H.264
+/// stream of `path`.
+fn x264_options(tools: &Tools, path: &Path) -> String {
+    let out = Command::new(&tools.ffmpeg)
+        .args(["-nostdin", "-v", "error", "-i"])
+        .arg(path)
+        .args(["-map", "0:v", "-c", "copy", "-f", "h264", "-"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", path.display());
+    let start = out
+        .stdout
+        .windows(9)
+        .position(|w| w == b"options: ")
+        .unwrap_or_else(|| panic!("no x264 settings string in {}", path.display()));
+    out.stdout[start..]
+        .iter()
+        .take_while(|b| (b' '..=b'~').contains(*b))
+        .map(|b| char::from(*b))
+        .collect()
+}
+
+/// Sources below 25 frames a second: x264 then takes a minimum GOP length
+/// below its default 25, from the rate FFmpeg finds for the stream
+/// (`r_frame_rate`), and both encoders must be given the baseline's. In
+/// the Matroska file the frames are 50 ms apart and `DefaultDuration`
+/// says 100 ms, which FFmpeg takes; in the MP4 file the rate is the
+/// frames' own.
+#[test]
+fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("min-keyint");
+    let ffmpeg = |args: &[&str]| {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{args:?}");
+    };
+    let made = |rate: u32, path: &Path| {
+        ffmpeg(&[
+            "-f",
+            "lavfi",
+            "-i",
+            &format!("testsrc2=size=64x48:rate={rate}"),
+            "-frames:v",
+            "30",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-bf",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            path.to_str().unwrap(),
+        ]);
+    };
+    let ten = dir.join("ten.mkv");
+    made(10, &ten);
+    let declared = dir.join("declared.mkv");
+    ffmpeg(&[
+        "-i",
+        ten.to_str().unwrap(),
+        "-c",
+        "copy",
+        "-bsf:v",
+        "setts=ts=TS/2",
+        declared.to_str().unwrap(),
+    ]);
+    let five = dir.join("five.mp4");
+    made(5, &five);
+    let fragmented = dir.join("fragmented.mp4");
+    ffmpeg(&[
+        "-i",
+        five.to_str().unwrap(),
+        "-c",
+        "copy",
+        "-movflags",
+        "empty_moov+frag_keyframe",
+        "-frag_duration",
+        "200000",
+        fragmented.to_str().unwrap(),
+    ]);
+    let skipped = dir.join("unlisted-track.mkv");
+    ffmpeg(&[
+        "-i",
+        five.to_str().unwrap(),
+        "-map",
+        "0:v",
+        "-map",
+        "0:v",
+        "-c",
+        "copy",
+        skipped.to_str().unwrap(),
+    ]);
+    let mut bytes = std::fs::read(&skipped).unwrap();
+    let track_type = bytes.windows(3).position(|w| w == [0x83, 0x81, 1]).unwrap();
+    bytes[track_type + 2] = 3;
+    std::fs::write(&skipped, bytes).unwrap();
+    for (source, rate, keyint_min) in [
+        (&declared, "10/1", 10),
+        (&five, "5/1", 5),
+        (&fragmented, "5/1", 5),
+        (&skipped, "5/1", 5),
+    ] {
+        let probed = probe_json(&tools, &["-show_entries", "stream=r_frame_rate"], source);
+        assert_eq!(probed["streams"][0]["r_frame_rate"], rate);
+        let own = Command::new(bin())
+            .args([
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=r_frame_rate",
+                "-of",
+                "json",
+            ])
+            .arg(source)
+            .output()
+            .unwrap();
+        assert!(own.status.success());
+        let own: Value = serde_json::from_slice(&own.stdout).unwrap();
+        assert_eq!(own["streams"][0]["r_frame_rate"], rate);
+        let baseline = dir.join("baseline.mp4");
+        ffmpeg(&[
+            "-noautorotate",
+            "-i",
+            source.to_str().unwrap(),
+            "-map",
+            "0:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-fps_mode",
+            "passthrough",
+            baseline.to_str().unwrap(),
+        ]);
+        let expected = x264_options(&tools, &baseline);
+        assert!(
+            expected.contains(&format!(" keyint_min={keyint_min} ")),
+            "{expected}"
+        );
+        for (encoder, args) in encoders(&tools) {
+            let out = source.with_extension(format!("{encoder}.mp4"));
+            let mut all = vec![
+                source.to_str().unwrap(),
+                out.to_str().unwrap(),
+                "--preset",
+                "veryfast",
+            ];
+            all.extend(args.iter().map(String::as_str));
+            let run = transcode(Some(&tools), &all);
+            assert_eq!(run.code, 0, "{encoder}: {}", run.stderr);
+            if source == &skipped {
+                let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                assert_eq!(summary["video"]["stream_index"], 1);
+            }
+            assert_eq!(
+                x264_options(&tools, &out),
+                expected,
+                "{encoder}: {}",
+                source.display()
+            );
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[test]
+fn unsnapped_h264_times_keep_the_vui_rate() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("vui-rate");
+    let source = dir.join("source.mp4");
+    let irregular = dir.join("irregular.mp4");
+    for args in [
+        vec![
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=5",
+            "-frames:v",
+            "30",
+            "-c:v",
+            "libx264",
+            source.to_str().unwrap(),
+        ],
+        vec![
+            "-i",
+            source.to_str().unwrap(),
+            "-c",
+            "copy",
+            "-bsf:v",
+            "setts=ts=N*N*500+N*17",
+            irregular.to_str().unwrap(),
+        ],
+    ] {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    let own = Command::new(bin())
+        .args([
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=r_frame_rate",
+            "-of",
+            "json",
+        ])
+        .arg(&irregular)
+        .output()
+        .unwrap();
+    assert!(own.status.success());
+    let own: Value = serde_json::from_slice(&own.stdout).unwrap();
+    assert_eq!(own["streams"][0]["r_frame_rate"], "10/1");
+    for (encoder, args) in encoders(&tools) {
+        let out = dir.join(format!("{encoder}.mp4"));
+        let mut all = vec![irregular.to_str().unwrap(), out.to_str().unwrap()];
+        all.extend(args.iter().map(String::as_str));
+        let run = transcode(Some(&tools), &all);
+        assert_eq!(run.code, 0, "{encoder}: {}", run.stderr);
+        assert!(x264_options(&tools, &out).contains(" keyint_min=10 "));
+    }
+    nothing_left(&dir);
+}
+
 /// A stand-in encoder: a `/bin/sh` script given as the x264 program. A
 /// child process writes it, so this process never holds it open for
 /// writing: a child another test forks would inherit that descriptor until
