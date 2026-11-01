@@ -223,7 +223,6 @@ pub fn probe<'a, S: Source + 'a>(
                             width: description.width.map(u32::from),
                             height: description.height.map(u32::from),
                             unreadable: None,
-                            skip: 0,
                         };
                     }
                 }
@@ -756,11 +755,9 @@ fn print_packet(
 pub const USAGE: &str = "\
 usage: coreav ffprobe [OPTIONS] INPUT
 
-Experimental: values can differ from ffprobe's for MP4/MOV and MPEG-TS
-(measured on 1,315 files: of the keys outside the tags, 9 of 101
-MP4/MOV and 35 of 157 MPEG-TS agree on fewer than 98% of files);
-Matroska/WebM agree on 98% or more of files for all 101 keys.
-See docs/measurements/compat-ffprobe.md.
+Experimental: values can differ from ffprobe's for MP4/MOV, Matroska/WebM
+and MPEG-TS. docs/measurements/compat-ffprobe.md has the agreement of
+every key.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets

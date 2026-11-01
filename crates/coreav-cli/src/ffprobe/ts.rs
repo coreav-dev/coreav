@@ -513,10 +513,12 @@ struct Head {
     /// a longer file would be the last section of its tail, which the
     /// probe does not read; the corpus files have none there.
     splices: Option<(i64, i64)>,
-    /// For an AAC stream: of the first [`SBR_FRAMES`] frames, how many
-    /// were read and how many end with SBR data
-    /// ([`params::aac_ends_with_sbr`]).
+    /// For an AAC stream, in ADTS or LOAS: of the first [`SBR_FRAMES`]
+    /// frames whose raw data block could be read, how many were read and
+    /// how many end with SBR data ([`params::aac_ends_with_sbr`]).
     sbr: (u32, u32),
+    /// For a LOAS stream: the raw data blocks of its frames.
+    latm: coreav_mpegts::LatmBlocks,
     /// For an ADTS stream: the bit rate `ffprobe` reports and how many
     /// frames it averages ([`Analysis`]).
     aac_rate: (i64, i64),
@@ -934,9 +936,19 @@ fn head<S: Source>(
                 h.sets.1 =
                     params::sets_before_slice(&packet.data, st.codec == Codec::Hevc, &mut h.sets.0);
             }
-            if st.codec == Codec::Aac && h.sbr.0 < SBR_FRAMES {
-                h.sbr.0 += 1;
-                h.sbr.1 += u32::from(params::aac_ends_with_sbr(&packet.data));
+            if h.sbr.0 < SBR_FRAMES {
+                let found = match st.codec {
+                    Codec::Aac => Some(params::aac_ends_with_sbr(&packet.data)),
+                    Codec::AacLatm => h
+                        .latm
+                        .block(&packet.data)
+                        .map(|block| params::aac_ends_with_sbr(&block)),
+                    _ => None,
+                };
+                if let Some(found) = found {
+                    h.sbr.0 += 1;
+                    h.sbr.1 += u32::from(found);
+                }
             }
             if h.times.len() < HEAD_UNITS {
                 h.ticks.extend(ticks);
@@ -1046,8 +1058,11 @@ impl Facts {
         // looks like SBR data now and then (one frame in twenty of a
         // capture of the corpus): a stream counts as one or the other
         // when at most two frames of what was read disagree.
+        // A LATM stream none of whose frames could be read shows nothing.
         let (read, with_sbr) = head.sbr;
-        facts.sbr = if with_sbr == 0 || (read >= 8 && with_sbr <= 2) {
+        facts.sbr = if read == 0 && st.codec == Codec::AacLatm {
+            None
+        } else if with_sbr == 0 || (read >= 8 && with_sbr <= 2) {
             Some(false)
         } else if read >= 8 && with_sbr + 2 >= read {
             Some(true)
@@ -1711,7 +1726,7 @@ fn opus_channels(st: &coreav_mpegts::Stream) -> Option<u8> {
 /// Whether a LATM stream's configuration leaves SBR unstated where it is
 /// commonly implicit: AAC-LC at 24 kHz or less, which `ffprobe` decodes
 /// as HE-AAC at twice the rate when the frames carry SBR data (a DVB
-/// capture of the corpus). The frames of LATM are not read for it.
+/// capture of the corpus), read as for ADTS ([`Head::sbr`]).
 fn latm_may_hide_sbr(st: &coreav_mpegts::Stream) -> bool {
     st.codec == Codec::AacLatm
         && st
@@ -1777,6 +1792,10 @@ fn stream(
     let profile = match (st.codec, facts.sbr) {
         (Codec::Aac, Some(true)) if aac_channels == Some(2) => Some("HE-AAC".to_owned()),
         (Codec::Aac, Some(true) | None) => None,
+        (Codec::AacLatm, Some(true)) if latm_may_hide_sbr(st) && aac_channels == Some(2) => {
+            Some("HE-AAC".to_owned())
+        }
+        (Codec::AacLatm, Some(false)) if latm_may_hide_sbr(st) => profile(st),
         (Codec::Eac3, _)
             if head
                 .unit
@@ -1823,6 +1842,9 @@ fn stream(
         let rate = match (st.codec, facts.sbr) {
             (Codec::Aac, Some(true)) => Some(rate.saturating_mul(2)),
             (Codec::Aac, None) => None,
+            (Codec::AacLatm, Some(sbr)) if latm_may_hide_sbr(st) => {
+                Some(if sbr { rate.saturating_mul(2) } else { rate })
+            }
             _ if latm_may_hide_sbr(st) => None,
             // Explicitly signalled SBR states the rate it decodes to.
             (Codec::AacLatm, _) => Some(

@@ -22,7 +22,7 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
-use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
+use args::{Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions,
@@ -308,10 +308,20 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if command.strip_metadata && command.muxer != Muxer::Ipod {
-        return Err(Refusal::not_native(
-            "-map_metadata -1 on another output than an M4A file",
-        ));
+    if command.muxer != Muxer::Ipod {
+        match command.map_metadata {
+            MapMetadata::Default => {}
+            MapMetadata::Strip => {
+                return Err(Refusal::not_native(
+                    "-map_metadata -1 on another output than an M4A file",
+                ));
+            }
+            MapMetadata::Stream(_) => {
+                return Err(Refusal::not_native(
+                    "-map_metadata from a stream on another output than an M4A file",
+                ));
+            }
+        }
     }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
@@ -455,10 +465,15 @@ pub fn plan(
         }
         return Ok(Job::ExtractAudio {
             stream: *stream,
-            metadata: if command.strip_metadata {
-                HeaderMetadata::Clear
-            } else {
-                HeaderMetadata::Copy
+            metadata: match command.map_metadata {
+                MapMetadata::Default => HeaderMetadata::Copy,
+                MapMetadata::Strip => HeaderMetadata::Clear,
+                MapMetadata::Stream(index) if index == *stream => HeaderMetadata::MediaTime,
+                MapMetadata::Stream(_) => {
+                    return Err(Refusal::not_native(
+                        "metadata from another stream than the one extracted",
+                    ));
+                }
             },
         });
     }

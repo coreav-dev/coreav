@@ -1,6 +1,6 @@
 [package]
 name = "coreav-kernels-audio"
-description = "Audio kernels of CoreAV: the resampler's filter, in SIMD with a bit-identical portable twin"
+description = "Audio kernels of CoreAV: the resampler's filter and the Opus inverse MDCT's FFT, in SIMD with bit-identical portable twins"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

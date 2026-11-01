@@ -39,9 +39,6 @@ pub struct Setup {
     /// Why the stream's packets cannot be given to a decoder as stored,
     /// if they cannot (Matroska frames compressed or encrypted).
     pub unreadable: Option<&'static str>,
-    /// Samples the decoder's output starts with that are not presented
-    /// and that no packet's side data names (Matroska's `CodecDelay`).
-    pub skip: i64,
 }
 
 /// One frame, as printed.
@@ -283,7 +280,7 @@ impl Frames {
                 due: 0,
                 decoded_count: 0,
                 decoded: VecDeque::new(),
-                carry: setup.skip.max(0),
+                carry: 0,
                 listed: 0,
                 last: [None; 2],
                 faults: [0; 2],
