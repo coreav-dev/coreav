@@ -64,15 +64,6 @@
 mod compat_cmd;
 mod fallback_cmd;
 
-#[cfg(all(
-    feature = "release-allocator",
-    target_os = "linux",
-    target_env = "musl",
-    target_arch = "x86_64"
-))]
-#[global_allocator]
-static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::ffi::OsString;
 use std::io::Write;
@@ -775,7 +766,7 @@ const EXIT_IO: u8 = 3;
 /// Exit code for a standard output closed by its reader: 128 + `SIGPIPE`.
 const EXIT_BROKEN_PIPE: u8 = 141;
 
-fn main() -> ExitCode {
+pub(crate) fn main() -> ExitCode {
     // `coreav thumbnail` runs this program again as its sandboxed decode
     // worker (docs/design/decode.md), and `coreav transcode` as the
     // launcher of its encoder (docs/design/transcode.md), before any

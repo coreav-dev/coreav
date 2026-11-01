@@ -12,6 +12,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | Dependencies keep to the license policy | `cargo deny check` and the fuzz projects' license check (`deny.yml`) |
 | Default builds link no still-patented codec | `deny.yml` |
 | The release allocator leaves room for a decoder worker within its address-space budget | `release_allocator_opens_a_worker_with_a_small_budget` runs with the release allocator in `release.yml`; types cannot constrain a C allocator's virtual-address reservations |
+| The release allocator is selected only by the CLI binary, not the command source shared with Python | `coreav-cli/src/entry.rs` owns the binary entry point; workspace clippy compiles `main.rs` in `coreav-py` and rejects features that crate does not have |
 | A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`) |
 | No Korean text, run identifiers or spend details in a pull request's text | `scripts/pr_text_check.py` (`pr-text.yml`; the private list only on the agent's machine before opening) |
 | Every action is pinned to a full commit sha | `scripts/workflow_check.py` (`deny.yml`) |

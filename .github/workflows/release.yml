@@ -43,6 +43,7 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
       - crates/coreav-cli/Cargo.toml
+      - crates/coreav-cli/src/entry.rs
       - tools/decode-oracle/tests/allocator.rs
       - crates/coreav-cli/tests/allocator.rs
   workflow_dispatch:
