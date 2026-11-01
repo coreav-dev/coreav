@@ -3,6 +3,7 @@
 use crate::error::{Error, LimitKind, Result};
 use crate::header::{self, Carried, Header, Slot};
 use crate::limits::Limits;
+use crate::picture::Planes;
 use crate::probs::Contexts;
 use crate::superframe;
 use crate::tile;
@@ -55,6 +56,7 @@ impl Decoder {
                     header: h,
                     compressed,
                     tiles_end_cleanly,
+                    picture,
                 },
                 Some(probs),
             ) = (&mut parsed.header, parsed.probs)
@@ -65,7 +67,26 @@ impl Decoder {
                     let tiles = frame
                         .get(h.uncompressed_size + usize::from(h.compressed_header_size)..)
                         .unwrap_or_default();
-                    *tiles_end_cleanly = Some(tile::read(tiles, h, &probs, compressed.tx_mode)?);
+                    let c = h.color;
+                    let (mi_cols, mi_rows) = (h.mi_cols(), h.mi_rows());
+                    let (ss_x, ss_y) = (c.subsampling_x, c.subsampling_y);
+                    let (clean, decoded) = if c.bit_depth == 8 {
+                        let mut frame = Planes::<u8>::new(mi_cols, mi_rows, ss_x, ss_y);
+                        let clean = tile::read(tiles, h, &probs, compressed.tx_mode, &mut frame)?;
+                        (
+                            clean,
+                            frame.picture(h.width, h.height, c.bit_depth, ss_x, ss_y),
+                        )
+                    } else {
+                        let mut frame = Planes::<u16>::new(mi_cols, mi_rows, ss_x, ss_y);
+                        let clean = tile::read(tiles, h, &probs, compressed.tx_mode, &mut frame)?;
+                        (
+                            clean,
+                            frame.picture(h.width, h.height, c.bit_depth, ss_x, ss_y),
+                        )
+                    };
+                    *tiles_end_cleanly = Some(clean);
+                    *picture = Some(Box::new(decoded));
                 }
                 if h.refresh_frame_context {
                     contexts.save(h.frame_context_idx, probs);

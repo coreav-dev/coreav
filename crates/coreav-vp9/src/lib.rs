@@ -39,6 +39,7 @@ mod decoder;
 mod error;
 mod header;
 mod limits;
+mod picture;
 mod probs;
 mod superframe;
 mod tables;
@@ -52,4 +53,5 @@ pub use header::{
     Quantization, SEG_LVL_MAX, Segmentation, TileInfo,
 };
 pub use limits::Limits;
+pub use picture::{Picture, Samples};
 pub use superframe::split as split_superframe;

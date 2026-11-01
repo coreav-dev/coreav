@@ -392,6 +392,10 @@ name = "coreav-kernels-h264"
 version = "0.0.1"
 
 [[package]]
+name = "coreav-kernels-vp9"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-mkv"
 version = "0.0.1"
 dependencies = [
@@ -512,6 +516,8 @@ dependencies = [
 name = "coreav-vp9"
 version = "0.0.1"
 dependencies = [
+ "coreav-kernels-vp9",
+ "md-5",
  "serde_json",
 ]
 
