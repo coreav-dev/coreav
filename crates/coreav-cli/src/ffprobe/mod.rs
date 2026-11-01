@@ -88,6 +88,38 @@ pub struct Stream {
     pub side_data: Vec<SideData>,
 }
 
+impl Stream {
+    /// `r_frame_rate` as numerator and denominator, when both are nonzero.
+    pub fn r_frame_rate(&self) -> Option<(u64, u64)> {
+        self.entries
+            .iter()
+            .find(|(k, _)| *k == "r_frame_rate")
+            .and_then(|(_, v)| match v {
+                Value::Str(text) => parse_rate(text),
+                _ => None,
+            })
+    }
+}
+
+pub(crate) fn parse_rate(text: &str) -> Option<(u64, u64)> {
+    let (n, d) = text.split_once('/')?;
+    let (n, d) = (n.parse().ok()?, d.parse().ok()?);
+    (n > 0 && d > 0).then_some((n, d))
+}
+
+/// Reads only video rates, indexed by the original container stream index.
+#[cfg(feature = "transcode")]
+pub(crate) fn source_frame_rates<S: Source>(
+    source: &mut S,
+) -> Result<Vec<(usize, String)>, Failure> {
+    let mut source = coreav_isobmff::BufferedSource::new(source);
+    if crate::matroska::detect_source(&mut source)? {
+        mkv::frame_rates(&mut source)
+    } else {
+        iso::frame_rates(&mut source)
+    }
+}
+
 /// One chapter.
 #[derive(Clone, Debug)]
 pub struct Chapter {

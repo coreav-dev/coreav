@@ -508,16 +508,11 @@ pub fn write(
 }
 
 #[cfg(test)]
-#[path = "../../../coreav-isobmff/tests/common/mod.rs"]
-#[allow(clippy::indexing_slicing)]
-mod common;
-
-#[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::panic)]
 
-    use super::common::{aac_entry, audio_entry, av_movie_with};
     use super::*;
+    use crate::test_isobmff::{aac_entry, audio_entry, av_movie_with};
 
     /// Copied MP4 audio other than AAC, MP3 or Opus is refused before the
     /// encode.

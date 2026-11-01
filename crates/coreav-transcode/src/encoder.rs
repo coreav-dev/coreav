@@ -254,6 +254,24 @@ pub struct EncoderSettings {
     pub rate: RateControl,
     /// Encoder threads; `None` for the encoder's own choice.
     pub threads: Option<u32>,
+    /// x264's minimum GOP length (`--min-keyint`, `-keyint_min`), 1 to
+    /// [`MAX_MIN_KEYINT`]; `None` for x264's own, which follows the rate
+    /// it is told ([`min_keyint`]).
+    pub min_keyint: Option<u32>,
+}
+
+/// The longest minimum GOP length x264 chooses itself: a tenth of its
+/// maximum (`--keyint`, 250, which CoreAV does not change).
+pub const MAX_MIN_KEYINT: u32 = 25;
+
+/// The minimum GOP length x264 chooses for frames at `rate`: a second of
+/// frames, rounded down, from 1 to [`MAX_MIN_KEYINT`] (checked as a black
+/// box: 1 at 1.5 frames a second, 9 at 9.99, 23 at 24000/1001, 25 from 25
+/// up). Given explicitly, it keeps the choice FFmpeg's libx264 makes at the
+/// source's rate where x264 is told no rate: with `--tcfile-in` x264
+/// takes 25 frames a second whatever the times, and refuses `--fps`.
+pub fn min_keyint(rate: FrameRate) -> u32 {
+    (rate.num / rate.den.max(1)).clamp(1, MAX_MIN_KEYINT)
 }
 
 impl EncoderSettings {
@@ -273,6 +291,7 @@ impl EncoderSettings {
             preset: "medium".into(),
             rate: RateControl::Crf(23.0),
             threads: None,
+            min_keyint: None,
         }
     }
 
@@ -329,6 +348,12 @@ impl EncoderSettings {
         }
         if self.threads.is_some_and(|t| t == 0 || t > MAX_THREADS) {
             return invalid("encoder threads outside 1 to 128");
+        }
+        if self
+            .min_keyint
+            .is_some_and(|k| k == 0 || k > MAX_MIN_KEYINT)
+        {
+            return invalid("minimum GOP length outside 1 to 25");
         }
         if let Some(sar) = self.sample_aspect {
             sample_aspect(sar)?;
@@ -548,6 +573,9 @@ pub fn x264_args(settings: &EncoderSettings) -> Result<Vec<String>, Error> {
     if let Some(t) = settings.threads {
         args.extend([s("--threads"), t.to_string()]);
     }
+    if let Some(k) = settings.min_keyint {
+        args.extend([s("--min-keyint"), k.to_string()]);
+    }
     // `--quiet` would also hide the errors of x264's filters (an
     // unsupported conversion says why only at `--log-level error`).
     args.extend(
@@ -633,6 +661,9 @@ pub fn ffmpeg_args(settings: &EncoderSettings) -> Result<Vec<String>, Error> {
     }
     if let Some(t) = settings.threads {
         args.extend([s("-threads"), t.to_string()]);
+    }
+    if let Some(k) = settings.min_keyint {
+        args.extend([s("-keyint_min"), k.to_string()]);
     }
     args.extend(["-f", "h264", "pipe:1"].into_iter().map(s));
     Ok(args)
@@ -1814,6 +1845,7 @@ mod tests {
             preset: "veryfast".into(),
             rate: RateControl::Bitrate(1000),
             threads: Some(4),
+            min_keyint: Some(5),
             ..settings()
         };
         assert_eq!(
@@ -1823,8 +1855,8 @@ mod tests {
                  --output-depth 10 --input-res 1920x1080 --fps 30000/1001 \
                  --colorprim bt2020 --transfer smpte2084 --colormatrix bt2020nc \
                  --input-range pc --range pc --sar 10:11 --preset veryfast \
-                 --bitrate 1000 --threads 4 --log-level error --no-progress --muxer raw \
-                 --output - -"
+                 --bitrate 1000 --threads 4 --min-keyint 5 --log-level error --no-progress \
+                 --muxer raw --output - -"
             )
         );
     }
@@ -1855,6 +1887,7 @@ mod tests {
             sample_aspect: Some((4095, 4096)),
             rate: RateControl::Crf(18.5),
             threads: Some(2),
+            min_keyint: Some(23),
             ..settings()
         };
         assert_eq!(
@@ -1865,7 +1898,7 @@ mod tests {
                  -color_trc gamma22 -colorspace ictcp \
                  -color_range tv -i pipe:0 -map 0:v:0 -fps_mode passthrough -c:v libx264 \
                  -preset medium -crf 18.5 -x264-params sar=4095/4096 -threads 2 \
-                 -f h264 pipe:1"
+                 -keyint_min 23 -f h264 pipe:1"
             )
         );
         // Primaries 22 are signalled by neither program.

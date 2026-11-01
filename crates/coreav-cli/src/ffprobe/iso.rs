@@ -337,25 +337,13 @@ pub struct Listed {
 
 impl Listed {
     fn of(stream: &Stream, duration: Option<i64>) -> Self {
-        let rate = stream
-            .entries
-            .iter()
-            .find(|(k, _)| *k == "r_frame_rate")
-            .and_then(|(_, v)| match v {
-                Value::Str(text) => {
-                    let (n, d) = text.split_once('/')?;
-                    Some((n.parse().ok()?, d.parse().ok()?))
-                }
-                _ => None,
-            })
-            .filter(|(n, d): &(u64, u64)| *n > 0 && *d > 0);
         let sample_rate = stream.entries.iter().find_map(|(k, v)| match (k, v) {
             (&"sample_rate", Value::Unit(r, Unit::Hertz)) if *r > 0 => Some(*r),
             _ => None,
         });
         Self {
             duration,
-            rate,
+            rate: stream.r_frame_rate(),
             sample_rate,
         }
     }
@@ -394,6 +382,25 @@ fn signed_offsets(track: &Track, mut p: coreav_isobmff::Packet) -> coreav_isobmf
         p.pts = p.pts.and_then(|t| t.checked_add(by));
     }
     p
+}
+
+/// Reads video rates without building reports or scanning all samples for DTS shifts.
+#[cfg(feature = "transcode")]
+pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, String)>, Failure> {
+    let limits = Limits::default();
+    let movie = coreav_isobmff::probe(&mut *source, &limits, &Allowlist::listing())
+        .map_err(Failure::library)?;
+    Ok(movie
+        .tracks
+        .iter()
+        .filter(|track| track.kind == TrackKind::Video)
+        .map(|track| {
+            let head = head(&movie, track, &mut *source, &limits);
+            let info = video_info(track, &head, &mut *source).unwrap_or_default();
+            let (real, _) = video_rates(&movie, track, &head, &info);
+            (track.stream_index, real)
+        })
+        .collect())
 }
 
 /// Probes `source` as ISO base media.
@@ -911,6 +918,7 @@ struct Head {
     first_pts: Option<i64>,
     /// The decode times of the first packets, in ticks.
     decode_times: Vec<i64>,
+    first_duration: Option<u32>,
 }
 
 fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits) -> Head {
@@ -943,6 +951,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
             .min(),
         reorder,
         first: packets.first().map(|p| (p.offset, p.size)),
+        first_duration: packets.first().map(|p| p.duration),
         decode_times,
         first_pts: packets
             .first()
@@ -1425,37 +1434,10 @@ fn stream(
         e.push(("height", Value::Na));
     }
     e.push(("id", s(format!("0x{:x}", track.track_id))));
-    let frames = u64::from(track.sample_count).saturating_add(track.fragment_samples);
     let duration_ts = stream_duration(movie, track);
     let timescale = i64::from(track.timescale.max(1));
     if video {
-        // Frames over the decode durations of every sample, edits aside.
-        let avg = Some(track.sample_duration)
-            .filter(|d| *d > 0)
-            .or_else(|| duration_ts.and_then(|d| u64::try_from(d).ok()))
-            .filter(|d| *d > 0)
-            .and_then(|d| {
-                let n = u64::try_from(timescale).ok()?.checked_mul(frames)?;
-                rate(n, d)
-            })
-            .unwrap_or_else(|| "0/0".to_owned());
-        // A single frame's base rate is its own: one over its duration, as
-        // listed (`1/0` when it has none, or is not presented), on single
-        // picture tracks of the development set.
-        let real = if frames == 1 {
-            if head.start.is_some() && avg != "0/0" {
-                avg.clone()
-            } else {
-                "1/0".to_owned()
-            }
-        } else {
-            // An H.264 picture lasts two ticks of its clock (E.2.1).
-            let tick = info
-                .frame_rate
-                .filter(|_| codec_name.as_deref() == Some("h264"))
-                .map(|(n, d)| (n, d / 2));
-            real_rate(&head.decode_times, track.timescale, tick).unwrap_or_else(|| "0/0".to_owned())
-        };
+        let (real, avg) = video_rates(movie, track, head, &info);
         e.push(("r_frame_rate", s(real)));
         e.push(("avg_frame_rate", s(avg)));
     } else {
@@ -1762,6 +1744,44 @@ const RATE_SKIP_FROM: usize = 17;
 /// report that rate, and those whose step is 180 ticks (500 a second) the
 /// standard rate their times fit.
 const STEP_RATES: u64 = 500;
+
+/// The real and average rates shared by full reports and rate-only probing.
+fn video_rates(movie: &Movie, track: &Track, head: &Head, info: &VideoInfo) -> (String, String) {
+    let frames = u64::from(track.sample_count).saturating_add(track.fragment_samples);
+    let avg = Some(track.sample_duration)
+        .filter(|d| *d > 0)
+        .or_else(|| stream_duration(movie, track).and_then(|d| u64::try_from(d).ok()))
+        .filter(|d| *d > 0)
+        .and_then(|d| rate(u64::from(track.timescale.max(1)).checked_mul(frames)?, d))
+        .unwrap_or_else(|| "0/0".to_owned());
+    let unscanned_fragments = movie.has_fragments() && track.fragment_samples == 0;
+    let single_frame = if unscanned_fragments {
+        head.decode_times.len() == 1
+    } else {
+        frames == 1
+    };
+    let real = if single_frame {
+        let single_rate = if unscanned_fragments {
+            head.first_duration
+                .and_then(|duration| rate(u64::from(track.timescale.max(1)), u64::from(duration)))
+                .unwrap_or_else(|| "0/0".to_owned())
+        } else {
+            avg.clone()
+        };
+        if head.start.is_some() && single_rate != "0/0" {
+            single_rate
+        } else {
+            "1/0".to_owned()
+        }
+    } else {
+        let tick = info
+            .frame_rate
+            .filter(|_| codec_name(movie, track).as_deref() == Some("h264"))
+            .map(|(n, d)| (n, d / 2));
+        real_rate(&head.decode_times, track.timescale, tick).unwrap_or_else(|| "0/0".to_owned())
+    };
+    (real, avg)
+}
 
 /// `r_frame_rate`, `ffprobe`'s guess at the base frame rate, from the
 /// decode times of [`RATE_TIMES`]: the rate of the step every interval
@@ -3712,6 +3732,43 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn rate_probe_reads_only_the_fragment_header_window() {
+        use crate::test_isobmff::fragments::{Fragmented, Track};
+
+        for (fragments, samples) in [(1, 1), (1, 2), (2, 1), (10_000, 1)] {
+            let track = Track {
+                timescale: 1000,
+                duration: 200,
+                samples,
+                size: 16,
+                ..Track::H264
+            };
+            let mut source = Fragmented::new(&[track], fragments);
+            let rates =
+                frame_rates(&mut source).unwrap_or_else(|error| panic!("{}", error.to_json()));
+            assert_eq!(rates, [(0, "5/1".to_owned())]);
+            assert!(
+                source.read_bytes() < 100_000,
+                "{} bytes for {fragments} fragments",
+                source.read_bytes()
+            );
+            let mut full = Fragmented::new(&[track], fragments);
+            let size = full.len().unwrap();
+            let full = probe(&mut full, size, "fragmented.mp4", &Limits::default())
+                .unwrap_or_else(|error| panic!("{}", error.to_json()));
+            let reported = full.report.streams.first().and_then(|stream| {
+                stream.entries.iter().find_map(|(name, value)| match value {
+                    Value::Str(text) if *name == "r_frame_rate" => Some(text.as_str()),
+                    _ => None,
+                })
+            });
+            assert_eq!(reported, Some("5/1"));
+        }
+    }
 
     /// Decode times from a first time of 0 and these intervals.
     fn times(steps: &[i64]) -> Vec<i64> {

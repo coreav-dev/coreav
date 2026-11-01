@@ -138,32 +138,68 @@ class Accepts(unittest.TestCase):
     packet it names, as the whole file's listing shows it."""
     PATH = pathlib.Path('mkv_h264_aac.mkv')
 
-    def covers(self, ref, out, listing):
+    def covers(self, ref, out, listing, args=('-show_packets',)):
         def canonical(coreav, path):
             return {f'packets.{key}': [(f'{f / scale:.6f}' if scale > 1 else str(f),
                                         f'{c / scale:.6f}' if scale > 1 else str(c), context)
                                        for f, c, context in listing]
                     for key, scale in (('duration', 1), ('duration_time', 1000))}
         with mock.patch.object(run, 'canonical', canonical):
-            return run.ffmpeg9_covers('coreav', ['-show_packets'], self.PATH, ref.encode(), out.encode())[0]
+            return run.ffmpeg9_covers('coreav', list(args), self.PATH, ref.encode(), out.encode())[0]
 
-    def test_only_the_last_aac_packet_is_cut(self):
+    def test_only_the_last_mp3_packet_with_the_named_pair(self):
+        PATH = pathlib.Path('mkv_mp3.mkv')
         video = {'codec_type': 'video', 'codec_name': 'h264', 'last': True}
-        aac = {'codec_type': 'audio', 'codec_name': 'aac', 'last': True}
-        listing = [(40, 40, video), (16, 21, aac)]
-        ref = packets(('video', 0, 40), ('audio', 1, 16))
-        entry = ['KD-FF9-FIXTURE-MKV-LAST-DURATION']
-        self.assertEqual(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)), listing), entry)
-        # An earlier video packet's duration differs too: not the case named.
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 999), ('audio', 1, 21)), listing))
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 999, video), (16, 21, aac)]))
-        # Nor an AAC packet before the last, nor a longer last one.
-        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 40, video), (16, 21, dict(aac, last=False))]))
-        self.assertIsNone(self.covers(packets(('video', 0, 40), ('audio', 1, 30)),
-                                      packets(('video', 0, 40), ('audio', 1, 21)),
-                                      [(40, 40, video), (30, 21, aac)]))
+        mp3 = {'codec_type': 'audio', 'codec_name': 'mp3', 'last': True}
+        listing = [(40, 40, video), (24, 7, mp3)]
+        ref = packets(('video', 0, 40), ('audio', 1, 24))
+        entry = ['KD-FF9-FIXTURE-MKV-MP3-DURATION']
+        with mock.patch.object(self, 'PATH', PATH):
+            self.assertEqual(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)), listing), entry)
+            # An earlier video packet's duration differs too: not the case named.
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 999), ('audio', 1, 7)), listing))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 999, video), (24, 7, mp3)]))
+            # Nor an MP3 packet before the last, nor another pair, nor AAC.
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 40, video), (24, 7, dict(mp3, last=False))]))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 6)),
+                                          [(40, 40, video), (24, 6, mp3)]))
+            self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 7)),
+                                          [(40, 40, video), (24, 7, dict(mp3, codec_name='aac'))]))
+
+    def test_a_value_left_out_of_one_output_is_not_the_named_pair(self):
+        PATH = pathlib.Path('mkv_mp3.mkv')
+        video = {'codec_type': 'video', 'codec_name': 'h264', 'last': True}
+        mp3 = {'codec_type': 'audio', 'codec_name': 'mp3', 'last': True}
+        listing = [(40, 40, video), (24, 7, mp3)]
+        entry = ['KD-FF9-FIXTURE-MKV-MP3-DURATION']
+
+        def default(ms, *drop):
+            video, audio = packets(('video', 0, 40)), packets(('audio', 1, ms))
+            return video + ''.join(line for line in audio.splitlines(True)
+                                   if line.partition('=')[0] not in drop)
+
+        def as_json(ms, drop=None):
+            items = []
+            for kind, index, d in (('video', 0, 40), ('audio', 1, ms)):
+                packet = {'codec_type': kind, 'stream_index': index, 'duration': d,
+                          'duration_time': f'{d / 1000:.6f}'}
+                if kind == 'audio' and drop:
+                    del packet[drop]
+                items.append(packet)
+            return json.dumps({'packets': items}, indent=4) + '\n'
+
+        with mock.patch.object(self, 'PATH', PATH):
+            self.assertEqual(self.covers(default(24), default(7), listing), entry)
+            for drop in (('duration',), ('duration_time',), ('duration', 'duration_time')):
+                self.assertIsNone(self.covers(default(24), default(7, *drop), listing), drop)
+                self.assertIsNone(self.covers(default(24, *drop), default(7), listing), drop)
+            args = ['-of', 'json', '-show_packets']
+            self.assertEqual(self.covers(as_json(24), as_json(7), listing, args), entry)
+            for key in ('duration', 'duration_time'):
+                self.assertIsNone(self.covers(as_json(24), as_json(7, key), listing, args), key)
+                self.assertIsNone(self.covers(as_json(24, key), as_json(7), listing, args), key)
 
     def test_values_as_the_formatting_options_print_them(self):
         F = run.fractions.Fraction

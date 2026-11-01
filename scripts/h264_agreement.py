@@ -59,7 +59,7 @@ def our_frames(decoder, stream, frames, sizes):
             out.append(hashlib.md5(data).hexdigest())
         rest = p.stdout.read()
         p.wait()
-        return out, len(rest), p.stderr.read().decode(errors="replace")
+        return out, len(rest), p.stderr.read().decode(errors="replace"), p.returncode
 
 
 def main():
@@ -83,9 +83,11 @@ def main():
             print(f"FAIL {name}: {e}")
             continue
         sizes = [s for s, _ in reference]
-        hashes, extra, errors = our_frames(args.decoder, stream, args.frames, sizes)
+        hashes, extra, errors, status = our_frames(args.decoder, stream, args.frames, sizes)
         why = None
-        if len(hashes) != len(reference):
+        if status:
+            why = f"the decoder exited with status {status}"
+        elif len(hashes) != len(reference):
             why = f"{len(hashes)} frames, FFmpeg made {len(reference)}"
         elif extra:
             why = f"{extra} bytes past the last frame FFmpeg made"

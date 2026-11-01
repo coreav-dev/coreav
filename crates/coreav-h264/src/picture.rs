@@ -135,6 +135,11 @@ impl Geometry {
         }
     }
 
+    /// Macroblock rows per band.
+    pub(crate) const fn band_mbs(&self) -> usize {
+        self.band_mbs
+    }
+
     /// The number of bands.
     pub(crate) const fn bands(&self) -> usize {
         self.mb_height.div_ceil(self.band_mbs)
@@ -283,6 +288,21 @@ impl Geometry {
         let bottom = (self.mb_height * 16).saturating_sub(1) as isize;
         let last = yi.saturating_add(h as isize + 2).min(bottom).max(0);
         self.band_reading_luma_row(last as usize)
+    }
+
+    /// [`Geometry::band_reading_luma_window`] of a picture `mb_height`
+    /// macroblock rows high cut into bands of `1 << shift` rows, fewer than
+    /// `mb_height`: the same rule, with no test of how the picture is cut.
+    #[inline(always)]
+    pub(crate) fn band_reading_luma_window_shift(
+        mb_height: usize,
+        shift: u8,
+        yi: isize,
+        h: usize,
+    ) -> usize {
+        let bottom = (mb_height * 16).saturating_sub(1) as isize;
+        let last = yi.saturating_add(h as isize + 2).clamp(0, bottom) as usize;
+        ((last + FILTERED_LUMA) / 16).min(mb_height.saturating_sub(1)) >> shift
     }
 
     /// The band a reader takes chroma row `row` from (as
@@ -645,7 +665,9 @@ impl BandData {
     }
 }
 
-/// A decoded picture: 8-bit 4:2:0 luma and chroma planes.
+/// A decoded picture: 8-bit 4:2:0 luma and chroma planes. A monochrome
+/// picture has them too, its chroma 128 throughout (`docs/design/h264.md`,
+/// "Monochrome").
 ///
 /// The planes hold whole macroblocks, with slack rows before and after
 /// them at the picture's edges (`Geometry::luma_slack`); `width` and
@@ -1323,6 +1345,24 @@ mod tests {
         // Consecutive runs come from different bands.
         let found: Vec<_> = runs(2..40, |row| (row + 3) / 16).collect();
         assert_eq!(found, [(0, 2..13), (1, 13..29), (2, 29..40)]);
+    }
+
+    /// The band a window is read from by the band height's logarithm is
+    /// the one the reading rule gives.
+    #[test]
+    fn band_reading_by_shift_follows_the_reading_rule() {
+        for (mb_h, shift) in [(23, 0), (30, 1), (45, 2), (68, 2), (135, 3), (12, 3)] {
+            let g = Geometry::new(4, mb_h, 1 << shift);
+            for h in [4, 8, 16] {
+                for yi in -80..(mb_h as isize + 8) * 16 {
+                    assert_eq!(
+                        Geometry::band_reading_luma_window_shift(mb_h, shift, yi, h),
+                        g.band_reading_luma_window(yi, h),
+                        "{mb_h} {shift} {yi} {h}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

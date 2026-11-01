@@ -240,7 +240,7 @@ fn a_picture_larger_than_the_limits_is_refused() {
 #[test]
 fn streams_outside_the_scope_are_refused_rather_than_decoded() {
     // A High 4:2:2 sequence parameter set: profile_idc 122, so the chroma
-    // format is coded, and it is not 4:2:0.
+    // format is coded, and it is 4:2:2, which this decoder does not decode.
     let mut w = Writer::default();
     w.u(8, 122).u(8, 0).u(8, 40);
     w.ue(0) // seq_parameter_set_id
@@ -1013,5 +1013,301 @@ fn a_frame_num_gap_picture_is_reached_by_direct_prediction() {
         luma.get(..16).map(<[u8]>::to_vec),
         expected.get(..16).map(<[u8]>::to_vec),
         "the B picture is the invented frame, concealed from the IDR"
+    );
+}
+
+/// A High profile sequence parameter set of `mb_w` by `mb_h` macroblocks
+/// whose pictures are monochrome: chroma_format_idc 0.
+fn monochrome_sps(mb_w: u32, mb_h: u32, bit_depth_chroma_minus8: u32) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.u(8, 100).u(8, 0).u(8, 40);
+    w.ue(0) // seq_parameter_set_id
+        .ue(0) // chroma_format_idc: 4:0:0
+        .ue(0) // bit_depth_luma_minus8
+        .ue(bit_depth_chroma_minus8)
+        .flag(false) // qpprime_y_zero_transform_bypass_flag
+        .flag(false) // seq_scaling_matrix_present_flag
+        .ue(0) // log2_max_frame_num_minus4
+        .ue(0) // pic_order_cnt_type
+        .ue(2) // log2_max_pic_order_cnt_lsb_minus4
+        .ue(1) // max_num_ref_frames
+        .flag(false) // gaps_in_frame_num_value_allowed_flag
+        .ue(mb_w - 1)
+        .ue(mb_h - 1)
+        .flag(true) // frame_mbs_only_flag
+        .flag(true) // direct_8x8_inference_flag
+        .flag(false) // frame_cropping_flag
+        .flag(false); // vui_parameters_present_flag
+    w.finish()
+}
+
+/// An IDR slice of a picture whose slices are all I, `data` writing its
+/// slice_data().
+fn idr_i_slice(data: impl FnOnce(&mut Writer)) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.ue(0) // first_mb_in_slice
+        .ue(7) // slice_type: I, and every slice of the picture is I
+        .ue(0) // pic_parameter_set_id
+        .u(4, 0) // frame_num
+        .ue(0) // idr_pic_id
+        .u(6, 0) // pic_order_cnt_lsb
+        .flag(false) // no_output_of_prior_pics_flag
+        .flag(false) // long_term_reference_flag
+        .se(0); // slice_qp_delta
+    data(&mut w);
+    w.finish()
+}
+
+/// Decodes `stream` whole: its one picture, or the first error.
+fn decode_one(stream: &[u8]) -> Result<std::sync::Arc<coreav_h264::Picture>, Error> {
+    let mut decoder = Decoder::new(Limits::default());
+    for unit in annex_b(stream) {
+        decoder.decode_nal(unit)?;
+    }
+    decoder.flush()?;
+    assert!(decoder.warnings().is_empty());
+    let mut pictures = decoder.take_pictures();
+    assert_eq!(pictures.len(), 1);
+    Ok(pictures.remove(0))
+}
+
+#[test]
+fn decodes_a_monochrome_picture_of_i_pcm_macroblocks() {
+    // A monochrome I_PCM macroblock carries 256 luma samples and no chroma
+    // (clause 7.3.5), so each macroblock here starts 256 bytes after the
+    // one before. Read as 4:2:0, the second would start 128 bytes late.
+    // The chroma bit depth is not used either (the NOTE in clause
+    // 7.4.2.1.1), so 10 bits there is no reason to refuse the stream.
+    let mut stream = Vec::new();
+    stream.extend(nal(3, 7, monochrome_sps(2, 2, 2)));
+    stream.extend(nal(3, 8, pps()));
+    stream.extend(nal(
+        3,
+        5,
+        idr_i_slice(|w| {
+            for addr in 0..4 {
+                w.ue(25).align_zero().bytes(&pcm_samples(addr)[..256]);
+            }
+        }),
+    ));
+    let picture = decode_one(&stream).expect("the stream decodes");
+    assert_eq!((picture.width(), picture.height()), (32, 32));
+    let luma: Vec<&[u8]> = picture.luma().rows().collect();
+    for addr in 0..4 {
+        let want = pcm_samples(addr);
+        let (x, y) = ((addr % 2) * 16, (addr / 2) * 16);
+        for row in 0..16 {
+            assert_eq!(
+                &luma[y + row][x..x + 16],
+                &want[row * 16..row * 16 + 16],
+                "macroblock {addr} row {row}"
+            );
+        }
+    }
+    // The chroma planes are neutral, 128, which a caller that needs 4:2:0
+    // shows as grey (docs/design/h264.md, "Monochrome").
+    let (cb, cr) = picture.chroma();
+    assert_eq!((cb.width(), cb.height()), (16, 16));
+    assert!(cb.rows().chain(cr.rows()).flatten().all(|&s| s == 128));
+}
+
+/// The arithmetic encoder of clause 9.3.4.2, enough to write the bins of
+/// an I_PCM macroblock and end_of_slice_flag.
+struct Arithmetic<'w> {
+    w: &'w mut Writer,
+    low: u32,
+    range: u32,
+    first_bit: bool,
+    outstanding: u32,
+}
+
+impl<'w> Arithmetic<'w> {
+    /// InitEncoder (clause 9.3.4.1).
+    fn new(w: &'w mut Writer) -> Self {
+        Self {
+            w,
+            low: 0,
+            range: 510,
+            first_bit: true,
+            outstanding: 0,
+        }
+    }
+
+    /// PutBit (clause 9.3.4.2).
+    fn put(&mut self, b: u32) {
+        if self.first_bit {
+            self.first_bit = false;
+        } else {
+            self.w.u(1, b);
+        }
+        for _ in 0..self.outstanding {
+            self.w.u(1, 1 - b);
+        }
+        self.outstanding = 0;
+    }
+
+    /// RenormE (clause 9.3.4.2).
+    fn renormalize(&mut self) {
+        while self.range < 256 {
+            if self.low < 256 {
+                self.put(0);
+            } else if self.low >= 512 {
+                self.low -= 512;
+                self.put(1);
+            } else {
+                self.low -= 256;
+                self.outstanding += 1;
+            }
+            self.range <<= 1;
+            self.low <<= 1;
+        }
+    }
+
+    /// EncodeDecision of the least probable symbol, whose range is
+    /// `lps` (Table 9-44).
+    fn lps(&mut self, lps: u32) {
+        self.low += self.range - lps;
+        self.range = lps;
+        self.renormalize();
+    }
+
+    /// EncodeTerminate (clause 9.3.4.5); a 1 ends with EncodeFlush,
+    /// short of its last bit, which is 1: the caller writes it, or the
+    /// RBSP's stop bit is it.
+    fn terminate(&mut self, bin: bool) {
+        self.range -= 2;
+        if !bin {
+            self.renormalize();
+            return;
+        }
+        self.low += self.range;
+        self.range = 2;
+        self.renormalize();
+        self.put((self.low >> 9) & 1);
+        self.w.u(1, (self.low >> 8) & 1);
+    }
+}
+
+#[test]
+fn decodes_a_monochrome_cabac_picture_of_i_pcm_macroblocks() {
+    // As decodes_a_monochrome_picture_of_i_pcm_macroblocks, in CABAC. At
+    // SliceQPY 26, mb_type's first bin uses ctxIdx 3 (no neighbour),
+    // pStateIdx 46 and valMPS 0, then ctxIdx 4 (an I_PCM neighbour on the
+    // left, clause 9.3.3.1.1.3), pStateIdx 6 and valMPS 0 (clause 9.3.1.1,
+    // Table 9-12), so a 1 is the least probable symbol, of range 22 and
+    // 175 (Table 9-44). The second bin is DecodeTerminate's 1.
+    let mut pps = Writer::default();
+    pps.ue(0) // pic_parameter_set_id
+        .ue(0) // seq_parameter_set_id
+        .flag(true) // entropy_coding_mode_flag
+        .flag(false) // bottom_field_pic_order_in_frame_present_flag
+        .ue(0) // num_slice_groups_minus1
+        .ue(0) // num_ref_idx_l0_default_active_minus1
+        .ue(0) // num_ref_idx_l1_default_active_minus1
+        .flag(false) // weighted_pred_flag
+        .u(2, 0) // weighted_bipred_idc
+        .se(0) // pic_init_qp_minus26
+        .se(0) // pic_init_qs_minus26
+        .se(0) // chroma_qp_index_offset
+        .flag(false) // deblocking_filter_control_present_flag
+        .flag(false) // constrained_intra_pred_flag
+        .flag(false); // redundant_pic_cnt_present_flag
+    let slice = idr_i_slice(|w| {
+        w.align_one(); // cabac_alignment_one_bit
+        let mut first = Arithmetic::new(w);
+        first.lps(22);
+        first.terminate(true);
+        w.u(1, 1).align_zero().bytes(&pcm_samples(0)[..256]);
+        let mut second = Arithmetic::new(w);
+        second.terminate(false); // end_of_slice_flag
+        second.lps(175);
+        second.terminate(true);
+        w.u(1, 1).align_zero().bytes(&pcm_samples(1)[..256]);
+        Arithmetic::new(w).terminate(true); // end_of_slice_flag
+    });
+    let mut stream = Vec::new();
+    stream.extend(nal(3, 7, monochrome_sps(2, 1, 0)));
+    stream.extend(nal(3, 8, pps.finish()));
+    stream.extend(nal(3, 5, slice));
+    let picture = decode_one(&stream).expect("the stream decodes");
+    assert_eq!((picture.width(), picture.height()), (32, 16));
+    let luma: Vec<&[u8]> = picture.luma().rows().collect();
+    for addr in 0..2 {
+        let want = pcm_samples(addr);
+        for row in 0..16 {
+            assert_eq!(
+                &luma[row][addr * 16..addr * 16 + 16],
+                &want[row * 16..row * 16 + 16],
+                "macroblock {addr} row {row}"
+            );
+        }
+    }
+    let (cb, cr) = picture.chroma();
+    assert!(cb.rows().chain(cr.rows()).flatten().all(|&s| s == 128));
+}
+
+#[test]
+fn monochrome_macroblocks_code_no_chroma_syntax() {
+    // Two intra macroblocks of a CAVLC slice, written as clause 7.3.5 has
+    // them for ChromaArrayType 0: no intra_chroma_pred_mode, the
+    // coded_block_pattern of Table 9-4 (b), and no chroma residual. A
+    // reader that expects chroma reads the wrong bits from the first
+    // element it adds.
+    let mut stream = Vec::new();
+    stream.extend(nal(3, 7, monochrome_sps(2, 1, 0)));
+    stream.extend(nal(3, 8, pps()));
+    stream.extend(nal(
+        3,
+        5,
+        idr_i_slice(|w| {
+            // I_NxN, every Intra4x4PredMode predicted: DC throughout.
+            w.ue(0);
+            for _ in 0..16 {
+                w.flag(true); // prev_intra4x4_pred_mode_flag
+            }
+            w.ue(0) // coded_block_pattern: codeNum 0, 15 for intra in (b)
+                .se(0); // mb_qp_delta
+            for _ in 0..16 {
+                w.u(1, 1); // coeff_token: no coefficients, nC 0
+            }
+            // I_16x16_2_0_0: DC prediction, no AC and no chroma.
+            w.ue(3)
+                .se(0) // mb_qp_delta
+                .u(2, 0b01) // Intra16x16DCLevel coeff_token: one trailing one
+                .u(1, 0) // trailing_ones_sign_flag: +1
+                .u(1, 1); // total_zeros: 0
+        }),
+    ));
+    let picture = decode_one(&stream).expect("the stream decodes");
+    // The first macroblock predicts 128 and adds nothing. The second adds
+    // a DC level of 1 at QP 26, which is 1 in every sample (clause
+    // 8.5.10). The columns near the edge between them are deblocked.
+    for row in picture.luma().rows() {
+        assert!(row[..12].iter().all(|&s| s == 128), "{row:?}");
+        assert!(row[20..].iter().all(|&s| s == 129), "{row:?}");
+    }
+    let (cb, cr) = picture.chroma();
+    assert!(cb.rows().chain(cr.rows()).flatten().all(|&s| s == 128));
+}
+
+#[test]
+fn a_monochrome_macroblock_with_coded_chroma_is_refused() {
+    // I_16x16_2_1_0 gives CodedBlockPatternChroma 1, which a monochrome
+    // stream may not (clause 7.4.5).
+    let mut stream = Vec::new();
+    stream.extend(nal(3, 7, monochrome_sps(1, 1, 0)));
+    stream.extend(nal(3, 8, pps()));
+    stream.extend(nal(
+        3,
+        5,
+        idr_i_slice(|w| {
+            w.ue(7).se(0).u(1, 1);
+        }),
+    ));
+    let mut decoder = Decoder::new(Limits::default());
+    let results: Vec<_> = annex_b(&stream).map(|u| decoder.decode_nal(u)).collect();
+    assert!(
+        matches!(results.last(), Some(Err(Error::Invalid("mb_type")))),
+        "{results:?}"
     );
 }
