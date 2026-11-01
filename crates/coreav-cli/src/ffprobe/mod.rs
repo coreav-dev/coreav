@@ -87,6 +87,23 @@ pub struct Stream {
     pub side_data: Vec<SideData>,
 }
 
+impl Stream {
+    /// `r_frame_rate` as numerator and denominator, when both are nonzero.
+    pub fn r_frame_rate(&self) -> Option<(u64, u64)> {
+        self.entries
+            .iter()
+            .find(|(k, _)| *k == "r_frame_rate")
+            .and_then(|(_, v)| match v {
+                Value::Str(text) => {
+                    let (n, d) = text.split_once('/')?;
+                    Some((n.parse().ok()?, d.parse().ok()?))
+                }
+                _ => None,
+            })
+            .filter(|(n, d): &(u64, u64)| *n > 0 && *d > 0)
+    }
+}
+
 /// One chapter.
 #[derive(Clone, Debug)]
 pub struct Chapter {

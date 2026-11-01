@@ -297,6 +297,20 @@ same rule (`decode.md`, "The FFmpeg fallback").
     (`ffmpeg -noautorotate -i vfr.mp4 -map 0:0 -c:v libx264 -preset
     veryfast -crf 23 -fps_mode passthrough`), and x264's decodes to the
     same frames.
+  - **Minimum GOP length.** x264 chooses its shortest GOP from the rate
+    it is told: a second of frames, rounded down, from 1 to 25 (a tenth
+    of `--keyint`, 250). FFmpeg tells libx264 the rate it finds for the
+    source stream, its `r_frame_rate`: Matroska's `DefaultDuration`
+    where the track has one, whatever the frames' times, else a guess
+    from the timestamps. x264 with `--tcfile-in` takes 25 frames a second
+    and refuses `--fps`, and FFmpeg finds a rate of its own in the raw
+    Matroska stream. So CoreAV finds `r_frame_rate` as `coreav ffprobe`
+    does and gives either encoder the length it implies (`--min-keyint`,
+    `-keyint_min`; `coreav-transcode`'s `encoder::min_keyint`), and
+    x264's settings string is the baseline's (checked as a black box on a
+    Matroska file whose `DefaultDuration` says 100 ms with frames 50 ms
+    apart, and on 5 frames a second in MP4). Where the probe finds no
+    rate, the encoders choose.
   - **VUI timing** is what each encoder derives from those times, as for
     FFmpeg's own output: no constant rate is told, so the earlier problem
     of a told rate below the closest two frames' (`ffmpeg -i OUT -f null

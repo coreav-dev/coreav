@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use coreav_isobmff::Source;
-use coreav_transcode::encoder::RateControl;
+use coreav_transcode::encoder::{FrameRate, RateControl};
 use coreav_transcode::{
     AacAudio, AudioMode, OpusAudio, PixelFormat, Remuxed, Scale, SourceKind, Summary,
     TranscodeOptions, parse_scale,
@@ -114,6 +114,27 @@ pub fn make<S: Source>(
     } else {
         SourceKind::Mp4
     };
+    // The streams' rates as `ffprobe` finds them; a source the probe does
+    // not read leaves the encoder its own minimum GOP length.
+    let frame_rates = match source.len() {
+        Ok(size) => crate::ffprobe::probe(&mut source, size, "", None)
+            .map(|probed| {
+                probed
+                    .report
+                    .streams
+                    .iter()
+                    .map(|stream| {
+                        let (num, den) = stream.r_frame_rate()?;
+                        Some(FrameRate {
+                            num: u32::try_from(num).ok()?,
+                            den: u32::try_from(den).ok()?,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
     let options = TranscodeOptions {
         rate: match (request.bitrate, request.crf) {
             (Some(kbps), _) => RateControl::Bitrate(kbps),
@@ -148,6 +169,7 @@ pub fn make<S: Source>(
         x264: request.x264.clone(),
         ffmpeg: request.ffmpeg.clone(),
         threads: request.threads,
+        frame_rates,
         timeout: Duration::from_secs(request.timeout),
         ..TranscodeOptions::default()
     };

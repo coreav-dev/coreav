@@ -320,19 +320,10 @@ pub struct Listed {
 
 impl Listed {
     fn of(stream: &Stream, duration: Option<i64>) -> Self {
-        let rate = stream
-            .entries
-            .iter()
-            .find(|(k, _)| *k == "r_frame_rate")
-            .and_then(|(_, v)| match v {
-                Value::Str(text) => {
-                    let (n, d) = text.split_once('/')?;
-                    Some((n.parse().ok()?, d.parse().ok()?))
-                }
-                _ => None,
-            })
-            .filter(|(n, d): &(u64, u64)| *n > 0 && *d > 0);
-        Self { duration, rate }
+        Self {
+            duration,
+            rate: stream.r_frame_rate(),
+        }
     }
 }
 

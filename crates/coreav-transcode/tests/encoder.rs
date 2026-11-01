@@ -13,7 +13,7 @@
 mod common;
 
 use coreav_frame::{Chroma, ColorInfo, PixelFormat};
-use coreav_transcode::encoder::EncoderSettings;
+use coreav_transcode::encoder::{EncoderSettings, FrameRate, min_keyint};
 
 use common::*;
 
@@ -257,4 +257,51 @@ fn a_frame_that_differs_from_the_settings_is_refused() {
         coreav_decode::ErrorKind::InvalidData,
         "{error:?}"
     );
+}
+
+/// x264's settings string's `keyint_min` in an encoded stream.
+fn keyint_min(stream: &[u8]) -> u32 {
+    let key = b" keyint_min=";
+    let start = stream
+        .windows(key.len())
+        .position(|w| w == key)
+        .expect("x264's settings string")
+        + key.len();
+    let digits: String = stream[start..]
+        .iter()
+        .take_while(|b| b.is_ascii_digit())
+        .map(|b| char::from(*b))
+        .collect();
+    digits.parse().unwrap()
+}
+
+/// The minimum GOP length CoreAV gives the encoder is the one x264 chooses
+/// itself when told the rate (`min_keyint`), with either program, and the
+/// encoder keeps the length given.
+#[test]
+fn the_minimum_gop_length_is_the_one_x264_chooses() {
+    let format = PixelFormat::YUV420P;
+    let frames: Vec<_> = (0..4).map(|n| moving(64, 64, format, n)).collect();
+    let rates = [(3, 2), (5, 1), (999, 100), (24_000, 1001), (25, 1), (60, 1)];
+    for program in programs() {
+        for (num, den) in rates {
+            let rate = FrameRate { num, den };
+            let own = EncoderSettings {
+                frame_rate: rate,
+                ..settings(64, 64, format)
+            };
+            let stream = encode(&program, &own, None, &frames).unwrap();
+            assert_eq!(
+                keyint_min(&stream),
+                min_keyint(rate),
+                "{program:?} {rate:?}"
+            );
+            let given = EncoderSettings {
+                min_keyint: Some(7),
+                ..own
+            };
+            let stream = encode(&program, &given, None, &frames).unwrap();
+            assert_eq!(keyint_min(&stream), 7, "{program:?} {rate:?}");
+        }
+    }
 }

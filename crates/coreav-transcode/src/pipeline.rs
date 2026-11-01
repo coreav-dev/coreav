@@ -47,7 +47,7 @@ use crate::annexb::{self, AnnexBReader};
 use crate::audio::{AudioSummary, Encode, OpusAudio};
 use crate::encoder::{
     Encoder, EncoderChoice, EncoderLimits, EncoderProgram, EncoderSettings, FrameRate, RateControl,
-    Sink, Timing, find_encoder,
+    Sink, Timing, find_encoder, min_keyint,
 };
 use crate::scale::Scale;
 use crate::timing;
@@ -142,6 +142,12 @@ pub struct TranscodeOptions {
     pub ffmpeg: Option<PathBuf>,
     /// Encoder threads; `None` for the encoder's own choice.
     pub threads: Option<u32>,
+    /// The frame rate FFmpeg finds for each source stream (`ffprobe`'s
+    /// `r_frame_rate`), by stream index. FFmpeg tells libx264 the video
+    /// stream's, which sets x264's minimum GOP length; the encoder is given
+    /// that length ([`crate::encoder::min_keyint`]). Empty, or `None` for
+    /// the stream: the encoder's own.
+    pub frame_rates: Vec<Option<FrameRate>>,
     /// Wall clock for the whole transcode.
     pub timeout: Duration,
     /// Which codecs may be decoded, by which backends.
@@ -174,6 +180,7 @@ impl Default for TranscodeOptions {
             x264: None,
             ffmpeg: None,
             threads: None,
+            frame_rates: Vec::new(),
             timeout: DEFAULT_TIMEOUT,
             policy: Policy::default(),
             isobmff_limits: coreav_isobmff::Limits::default(),
@@ -1296,6 +1303,13 @@ impl Run<'_> {
             preset: self.options.preset.clone(),
             rate: self.options.rate,
             threads: self.options.threads,
+            min_keyint: self
+                .options
+                .frame_rates
+                .get(self.video.stream_index)
+                .copied()
+                .flatten()
+                .map(min_keyint),
             ..EncoderSettings::new(out_w, out_h, picture.format(), self.frame_rate)
         };
         settings.validate().map_err(|e| match e.kind {
