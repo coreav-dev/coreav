@@ -36,10 +36,10 @@ name: ci
 # job but `ci-report` has its own concurrency group. A group on the whole
 # workflow would keep the new run waiting until the old run's `ci-report`,
 # which `always()` runs in a cancelled run too, had found a runner and
-# ended. `ci-changes` has a group as well, so an old run's jobs enter their
-# groups before the new run's and never cancel them. Main jobs share a
-# group only with the same selected job, so a docs-only run cannot cancel
-# unfinished source checks (docs/design/ci-checks.md, "Concurrency").
+# ended. `ci-changes` has a group as well, so a superseded PR gate can be
+# cancelled before dispatching old jobs. Main pushes, manual runs and merge
+# groups each get independent run-id groups, so none is dropped
+# (docs/design/ci-checks.md, "Concurrency").
 on:
   push:
     branches: [main]

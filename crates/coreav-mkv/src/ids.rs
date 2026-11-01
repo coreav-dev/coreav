@@ -61,6 +61,7 @@ pub(crate) const DISCARD_PADDING: u32 = 0x75A2;
 pub(crate) const BLOCK_ADDITIONS: u32 = 0x75A1;
 pub(crate) const BLOCK_MORE: u32 = 0xA6;
 pub(crate) const BLOCK_ADD_ID: u32 = 0xEE;
+pub(crate) const BLOCK_ADDITIONAL: u32 = 0xA5;
 
 // Tracks (5.1.4).
 pub(crate) const TRACK_ENTRY: u32 = 0xAE;

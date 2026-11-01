@@ -48,13 +48,15 @@ entry by its type (`packets.side_data_list[Skip Samples]`, with `[]` for
 an entry the command prints empty because it selects none of its keys);
 a stream group as `stream_groups`.
 
-The first eleven entries are changes in what FFmpeg 9.0.2 prints: CoreAV
+The first ten entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
+eleventh is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another. The final entry validates an AV1 fixture's
+there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
+The last is a corpus record for Matroska and WebM AC-3 tracks; it names
+no fixture keys and sets nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -84,7 +86,9 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   decoder skips at the start of an audio stream (the encoder delay an edit
   list or a Matroska `CodecDelay` states) and those it discards at its
   end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
-  end of a Matroska one), and CoreAV lists what 7.0.2 did. A packet that
+  end of a Matroska one). In MP4 CoreAV lists what 7.0.2 did; in Matroska
+  and WebM it lists both, as 9.0.2 does, so the entry lists no Matroska or
+  WebM fixture for the side data keys. A packet that
   carries the side data gets another duration than 7.0.2 gave it (the
   whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
   gave the part the list keeps); CoreAV gives 7.0.2's.
@@ -127,17 +131,6 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   1,105 for MP3 and 50 for AMR-NB in these fixtures), where 7.0.2 and
   CoreAV print 0.
 - Accepts: on an audio stream, 0 from CoreAV and more from `ffprobe`.
-
-## KD-FF9-MKV-START
-
-- Keys: `format.start_time`, `streams.start_time` and `streams.start_pts`.
-- Cause: FFmpeg 9.0.2 starts a Matroska or WebM file whose audio has a
-  `CodecDelay` at its first block, and that audio stream at 0. FFmpeg 7.0.2
-  and CoreAV start them that delay earlier (−0.021 s for AAC, −0.005 s for
-  AC-3, −0.007 s for Opus in `browser.webm`), and an attachment stream with
-  the file (`mkv_attachment.mkv`).
-- Accepts: 0 from `ffprobe` and less from CoreAV, for the file and for an
-  audio or attachment stream.
 
 ## KD-FF9-ANNEXB-EXTRADATA
 
@@ -269,6 +262,34 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   and require removal of the obsolete exception. Other files, including
   corpus files, do not use it.
 
+## KD-FF9-ANNEX-D-DOWNMIX
+
+- Keys: `streams.dmix_mode`, `streams.ltrt_cmixlev`,
+  `streams.ltrt_surmixlev`, `streams.loro_cmixlev` and
+  `streams.loro_surmixlev`, on Matroska and WebM corpus files; no fixture.
+- Cause: the same as KD-TS-ANNEX-D-DOWNMIX in MPEG-TS
+  (coreav-dev/coreav#146). An AC-3 frame with `bsid` 6 uses the alternate
+  syntax of ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give the preferred
+  downmix and the Lt/Rt and Lo/Ro mix levels their meaning. Annex D 3.2
+  lets a legacy decoder ignore them; it does not make the stream state no
+  downmix. On a track whose frames state these values on more than two
+  channels (`xbsi1e` set, `acmod` above 2), CoreAV prints them, each only
+  for the channel modes Annex D defines it for. The pinned oracle prints
+  `0` and `0.000000`, as for a stream that states no downmix: an oracle
+  error.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone. Every frame of the
+  track must be one whole AC-3 syncframe that passes `crc1`, and all must
+  state the same values, so that the stream, not only its first frame,
+  states them. A file whose blocks cannot all be reached gives no
+  evidence: an element of unknown size other than the Segment, a header
+  cut short, or an element past its parent or the file. The conditions
+  also give the exact pair of values.
+  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
+  its tests fail when the pinned oracle stops printing `0` and
+  `0.000000`. Not excludable yet: no corpus row is excluded until the
+  corpus comparator gates rows on that evidence.
+
 ## Corpus differences not set aside
 
 These notes explain remaining differences in `run.py keys`. They do not
@@ -281,6 +302,25 @@ mask them, and the measured agreement rates still count them as failures.
   not discard a complete section or invent a repeat to match this. Once
   the packet counts differ, positional comparison also differs on the
   packets after that section.
+- **Padding of a first Matroska block.** `CodecDelay` and a block's
+  `DiscardPadding` each name samples a decoder discards (RFC 9559
+  5.1.4.1.25 and 5.1.3.5.7). When the first block of a track with a codec
+  delay also has padding, CoreAV's Skip Samples side data on that packet
+  counts both; the pinned ffprobe keeps the delay and drops the padding.
+- **Padding of a laced Matroska block.** RFC 9559 5.1.3.5.7 places a
+  block's `DiscardPadding` at the end of the block when positive and at
+  its start when negative. CoreAV takes it from the last frames of a lace,
+  or from the first, each frame at most its own samples, so the samples
+  trimmed are the padding, capped at the lace's. The pinned ffprobe lists
+  the whole padding on every frame of the lace and trims each decoded
+  frame by it.
+- **Opus that states another input rate.** Opus decodes at 48 kHz
+  whatever input rate its track and `OpusHead` state (RFC 7845 5.1), and
+  both CoreAV and the pinned ffprobe count `CodecDelay` and
+  `DiscardPadding` at 48 kHz. With a stated 24 kHz, a first block at 0
+  and 6.5 ms of delay, the pinned ffprobe starts the stream at 0.006 s;
+  CoreAV starts it at 0, its first block's timestamp and the first sample
+  played.
 - **Implicit AAC extensions.** ADTS and LATM configurations can state
   AAC LC while raw data blocks carry SBR or parametric stereo (ISO/IEC
   14496-3 1.5.1.1, 4.6.18 and 8.6.4). The bounded header reader detects

@@ -8,7 +8,7 @@ use coreav_mkv::{Allowlist, Encoding, Packet, Segment, Source, TrackKind, probe}
 
 use crate::mp4::color_info;
 use crate::select::{self, Sample};
-use crate::{Container, CutRule, Error, PacketRef, Plan, Presentation, ThumbnailOptions};
+use crate::{Container, CutRule, Error, InBand, PacketRef, Plan, Presentation, ThumbnailOptions};
 
 /// Packets read from the start to find where the file starts.
 const START_PACKETS: usize = 64;
@@ -142,6 +142,7 @@ pub(crate) fn plan<S: Source>(
         samples,
         packets,
         prefix,
+        in_band: InBand::default(),
         rule,
         stated,
         window: None,

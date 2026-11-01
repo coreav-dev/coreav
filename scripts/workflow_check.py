@@ -16,10 +16,17 @@
   required check that has no `pull_request:` trigger an ordinary push
   reaches, or no `merge_group:` trigger (`checks_requested`), never reports
   it on a pull request, or leaves the merge queue waiting for it;
+- a workflow with a required check has a `merge_group:` trigger with a
+  `branches` or `branches-ignore` filter, which leaves the check
+  unreported for every group it filters out;
+- a required workflow's trigger mapping or workflow-level `concurrency:`
+  has ambiguous or unsupported YAML nodes: duplicate keys, merge keys,
+  aliases, complex keys or explicit tags;
 - the workflow-level `concurrency:` of a workflow with a required check is
-  present in a workflow with filtered jobs, or does not use the prescribed
-  group for the unfiltered deny workflow: a replacement must not cancel
-  obligations its own filters skip;
+  present in a workflow that cancels job by job, or is missing or not
+  exactly `WORKFLOW_GROUP` with `WORKFLOW_CANCEL` in the unfiltered deny
+  workflow: a replacement must not cancel obligations its own filters skip,
+  and without a group a superseded run is not cancelled at all;
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
@@ -56,6 +63,7 @@ than a silent pass. Python 3.11 standard library, and `ruby` (on the
 runners) for the pin check's YAML.
 """
 import argparse
+import functools
 import importlib.util
 import json
 import pathlib
@@ -70,7 +78,6 @@ TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
-EVENT = re.compile(r'\A {2}([a-z_]+):\s*\Z')
 # The triggers a workflow with a required check needs, each with the
 # activity type its `types:` list, where it has one, must hold: an ordinary
 # push to a pull request's branch, and a group the merge queue asks checks
@@ -197,40 +204,41 @@ def concurrency_problems(workflow, lines, jobs):
     return out
 
 
-def triggers(lines):
-    """(a `paths` or `paths-ignore` key is in the `on:` block, the events
-    of REQUIRED_TRIGGERS the block has a trigger for whose `types:`, if it
-    lists them, hold the activity type named there)."""
-    filtered, events, inside, event = False, set(), False, None
-    for line in lines:
-        if line.rstrip() == 'on:':
-            inside = True
+def triggers(text):
+    """The path-filter flag, present required events, merge-group branch-filter
+    flag and problems of the YAML `on:` mapping."""
+    data = workflow_yaml(text)
+    if isinstance(data, str):
+        return False, set(), False, [data]
+    data = data['on']
+    if not isinstance(data, dict):
+        return False, set(), False, ['use an event mapping under `on:`']
+    filtered, events, branches, problems = False, set(), False, []
+    for event, fields in data.items():
+        if event in REQUIRED_TRIGGERS:
+            events.add(event)
+        if fields is None:
             continue
-        if not inside:
-            continue
-        if TOP.match(line):
-            break
-        # Any form: a block sequence, a flow sequence on the same line, or
-        # a block scalar. None of them may gate a required workflow.
-        if re.match(r'\A +(paths|paths-ignore):', line):
-            filtered = True
-        if line.strip().startswith('#'):
-            continue
-        if TRIGGER.match(line):
-            match = EVENT.match(line)
-            event = match.group(1) if match else None
+        if not isinstance(fields, dict):
             if event in REQUIRED_TRIGGERS:
-                events.add(event)
+                problems.append(f'`{event}:` needs a mapping of trigger options or no options')
             continue
-        if event in REQUIRED_TRIGGERS and re.match(r'\A {4}types:', line) and REQUIRED_TRIGGERS[event] not in line:
-            events.discard(event)
-    return filtered, events
+        filtered |= bool({'paths', 'paths-ignore'} & fields.keys())
+        branches |= event == 'merge_group' and bool({'branches', 'branches-ignore'} & fields.keys())
+        if event in REQUIRED_TRIGGERS and 'types' in fields:
+            types = fields['types']
+            items = [types] if isinstance(types, str) else types
+            if not isinstance(items, list) or REQUIRED_TRIGGERS[event] not in items:
+                problems.append(f'`{event}:` types must include `{REQUIRED_TRIGGERS[event]}`: '
+                                f'use `types: [{REQUIRED_TRIGGERS[event]}]`')
+    return filtered, events, branches, problems
 
 
 def workflow_concurrency(lines):
     """The YAML workflow-level concurrency settings, None when absent, or an
     error string which cannot match a permitted setting."""
-    return read_yaml('\n'.join(lines), PARSE_CONCURRENCY)
+    data = workflow_yaml('\n'.join(lines))
+    return data if isinstance(data, str) else data['concurrency']
 
 
 def run_lines(lines):
@@ -412,29 +420,52 @@ puts JSON.generate(out)
 '''
 
 
-PARSE_CONCURRENCY = YAML_PARSE + r'''
+PARSE_WORKFLOW = YAML_PARSE + r'''
 mapping = lambda do |node|
-  abort "use plain YAML mappings for workflow concurrency" unless node.is_a?(Psych::Nodes::Mapping) && !node.tag
+  abort "use a mapping for the workflow, its triggers and its concurrency" unless node.is_a?(Psych::Nodes::Mapping)
+  abort "remove explicit YAML tags from workflow mappings" if node.tag
   out = {}
   node.children.each_slice(2) do |key, value|
-    abort "use scalar workflow keys without tags or aliases" unless key.is_a?(Psych::Nodes::Scalar) && !key.tag
-    abort "expand YAML merge keys in workflow concurrency" if key.value == "<<"
-    abort "duplicate workflow key: #{key.value}" if out.key?(key.value)
+    abort "use scalar keys in the workflow, its triggers and its concurrency" unless key.is_a?(Psych::Nodes::Scalar)
+    abort "remove explicit YAML tags from workflow keys" if key.tag
+    abort "expand YAML merge keys in the workflow, its triggers and its concurrency" if key.value == "<<"
+    abort "duplicate YAML key: #{key.value}" if out.key?(key.value)
     out[key.value] = value
   end
   out
 end
-root = stream.children.first&.root
-setting = root ? mapping.(root)["concurrency"] : nil
-out = nil
-if setting
-  out = mapping.(setting).transform_values do |value|
-    abort "use scalar concurrency values without tags or aliases" unless value.is_a?(Psych::Nodes::Scalar) && !value.tag
-    value.value
+decode = lambda do |node|
+  abort "remove explicit YAML tags from trigger and concurrency options" if node.respond_to?(:tag) && node.tag
+  case node
+  when Psych::Nodes::Mapping
+    mapping.(node).transform_values { |value| decode.(value) }
+  when Psych::Nodes::Sequence
+    node.children.map { |value| decode.(value) }
+  when Psych::Nodes::Scalar
+    if node.plain && ["", "~", "null", "Null", "NULL"].include?(node.value)
+      nil
+    else
+      node.value
+    end
+  else
+    abort "expand YAML aliases in trigger and concurrency options"
   end
 end
-puts JSON.generate(out)
+root = stream.children.first&.root
+top = root ? mapping.(root) : {}
+events = top["on"]
+abort "use an event mapping under on:" if events && !events.is_a?(Psych::Nodes::Mapping)
+setting = top["concurrency"]
+abort "use a mapping for workflow concurrency" if setting && !setting.is_a?(Psych::Nodes::Mapping)
+puts JSON.generate({ "on" => events ? decode.(events) : {}, "concurrency" => setting ? decode.(setting) : nil })
 '''
+
+
+@functools.cache
+def workflow_yaml(text):
+    """{'on': the decoded trigger mapping, 'concurrency': the decoded
+    workflow-level setting or None}, or an error string."""
+    return read_yaml(text, PARSE_WORKFLOW)
 
 
 def read_yaml(text, program):
@@ -547,7 +578,8 @@ def check(root):
             problems.append(f'{note.name} puts `{name}` in {workflow}, but it is in {where[0][0]}')
             continue
         lines = (root / '.github' / 'workflows' / workflow).read_text().splitlines()
-        filtered, events = triggers(lines)
+        filtered, events, branches, bad = triggers('\n'.join(lines))
+        problems.extend(f'{workflow}: {problem}' for problem in bad)
         if filtered:
             problems.append(f'{workflow}: required `{name}`, but the trigger carries a path filter, '
                             'so the check is not reported on every pull request')
@@ -558,6 +590,10 @@ def check(root):
             problems.append(f'{workflow}: required `{name}`, but the workflow has no `merge_group:` trigger '
                             '(`types: [checks_requested]`), so the merge queue waits for the check until it '
                             'times out (docs/design/ci-checks.md, "The merge queue")')
+        if branches:
+            problems.append(f'{workflow}: required `{name}`, but the `merge_group:` trigger carries a branch '
+                            'filter, so a group the filter leaves out never reports the check: remove it '
+                            '(docs/design/ci-checks.md, "The merge queue")')
         setting = workflow_concurrency(lines)
         by_job = workflow in JOB_GROUPS or any(fields['concurrency'] is not None for fields in jobs[workflow].values())
         if not by_job and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': WORKFLOW_CANCEL}:

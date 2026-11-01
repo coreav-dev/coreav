@@ -73,6 +73,13 @@ if it is one, so YAML 1.1's boolean keys (`on`, `yes`), merge keys and
 duplicate keys hide no step. A file that is not one readable YAML
 document, an alias that names no anchor and a `uses` value that is not a
 string fail.
+The same `deny.yml` job runs actionlint (a pinned release, shellcheck and
+pyflakes off) over the workflows, so an expression that names a context
+GitHub does not offer where it stands, such as `runner` in a job's `env:`,
+fails the pull request rather than the first run. That table of contexts is
+GitHub's and actionlint keeps it; `workflow_check.py` reads workflows as
+lines and would have to copy it. The step also runs a workflow with that
+mistake, which has to fail.
 A workflow that carries the line `# workflow-check: not required` is
 outside the table: its report job need not be listed, and the table may
 not list it.
@@ -272,14 +279,14 @@ Merge groups, schedules, tags and manual runs always get independent run-id grou
 
 The `main` ruleset can require a merge queue. The queue applies each pull request, squashed, to `main` and to the pull requests queued ahead of it, on a temporary branch (`gh-readonly-queue/main/...`), and merges it only when the required checks pass on that commit. Two pull requests that are each green but break `main` together then fail in the queue rather than on `main`. GitHub starts the workflows for such a commit, a merge group, with the `merge_group` event (type `checks_requested`), which is neither `pull_request` nor `push`.
 
-- **Every workflow with a required check runs on `merge_group`**: `deny.yml`, `ci.yml`, `python.yml` and `npm.yml`. A required check that never reports holds the queue until its timeout and then ejects the pull request. `workflow_check.py` fails on a workflow in the table without the trigger, or whose `types:` leave out `checks_requested`.
+- **Every workflow with a required check runs on `merge_group`**: `deny.yml`, `ci.yml`, `python.yml` and `npm.yml`. A required check that never reports holds the queue until its timeout and then ejects the pull request. `workflow_check.py` fails on a workflow in the table without the trigger, whose `types:` do not include `checks_requested` as a whole item, or whose `merge_group:` trigger carries a `branches` or `branches-ignore` filter. Ruby's standard YAML library (Psych), already used for action pins, parses the trigger mapping: quoted, escaped and spaced keys and flow mappings mean the same thing as their plain block forms. `types:` may be a scalar or a flow or block sequence. Duplicate keys, merge keys, aliases, complex keys and explicit tags in the trigger mapping are refused rather than ignored; the error names the form to expand or remove. No YAML loader constructs objects, so YAML 1.1's boolean reading of `on` cannot hide the trigger. A branch filter is refused even when it names `main`: a required check has to report for every group, and the checker would otherwise have to read branch patterns as GitHub does.
 - **The changes jobs diff the group's base against the group's commit** (`github.event.merge_group.base_sha` to the checked-out `head_sha`), so a group runs the jobs a pull request with the same changes would, the platform jobs included when it touches their list. The base is the tip of `main` or the commit of the group queued ahead; either can be more than the one parent `fetch-depth: 2` brings, so the changed-paths action fetches it (`--depth=1`) before the diff. When it cannot be fetched, everything runs.
 - **`bench-guard` counts the group's base**, fetched the same way, as a pull request's run counts the first parent of its merge commit, and compares the group's counts with it.
 - **No fuzzing in the queue.** `fuzz-plan` stays empty for a merge group, so `fuzz` is skipped and `ci-report` covers it. The pull request already fuzzed every target its change reaches, on its own merge commit, and `fuzz-nightly.yml` runs every target on `main` each day. A fuzz run is a search, not a property of the commit: a finding in the queue would most likely be an old bug found by chance, and it would eject whichever pull request happened to be queued. The fuzz job, among the longest of a pull request's run, would also lengthen every entry.
 - **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
 - **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
 - **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
-- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Main jobs in the filtered workflows are independent too; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency").
+- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Main jobs in the filtered workflows are independent too; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency"). `workflow_check.py` refuses a required workflow with neither a workflow-level group nor job groups: its superseded PR runs would never be cancelled. When the queue drops a group, GitHub deletes its branch and starts a new group; the old run is not cancelled and ends on its own.
 
 ## Main pushes after the queue
 
@@ -521,7 +528,7 @@ Two checks run on the agent's machine, not in CI: this repository holds no
 cross-repository token and no private secret.
 
 - **The pull request's text.** `scripts/pr_text_check.py --title TITLE --body-file BODY.md` fails on Korean text, a session or run identifier and spend details, and, given the private list of names and message forms in `PR_TEXT_TERMS` (one case-insensitive regular expression per line), on those too. Run it with that list before opening the pull request and after editing its text; `pr-text.yml` runs it without the list. `scripts/pr_shape_check.py --title TITLE --commits FILE` (FILE from `git log --format='%H%x00%P%x00%B%x00' origin/main..HEAD`) is the shape check `pr-text.yml` runs.
-- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264` or `crates/coreav-opus` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
+- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264`, `crates/coreav-opus` or `crates/coreav-kernels-audio` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
 
 ## Cost
 
