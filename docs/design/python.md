@@ -128,7 +128,7 @@ install:
   handler only sets a flag the command never checks), so Ctrl-C stops it as
   it stops the binary; `--help` and `--version` read the same, as both
   crates have the same description and version.
-- The module compiles the shared command source, `crates/coreav-cli/src/main.rs`,
+- The module compiles the binary's source, `crates/coreav-cli/src/main.rs`,
   as a module (`#[path]`). Every subcommand, option, help text, output and
   exit code is therefore the binary's: `main` and the module both call its
   `main_with(args)`. Python ignores `SIGPIPE` as Rust does, so a closed
@@ -138,10 +138,6 @@ install:
   wheel (the first argument), since the executable is Python. The tests
   compare the installed command's stdout, stderr and exit code with the
   binary's on every fixture.
-- The binary starts in `coreav-cli/src/entry.rs`, which selects its optional
-  release allocator before calling the shared command. Python does not compile
-  that entry point, so it neither selects the binary's allocator nor needs its
-  allocator feature.
 - Rejected:
   - Shipping the compiled binary in the wheel's scripts directory, which
     would put a second native artifact, built separately per target, in each

@@ -285,15 +285,13 @@ compromised.
 with a check of the backends it hosts (`coreav`'s is strict-safe mode's):
 the `coreav` binary itself, run again with a hidden argument, or the
 `coreav-worker` binary of the crate for library users. The parent starts
-it with `std::process` (no shell), an environment cleared except for the fixed allocator setting below, and pipes for
+it with `std::process` (no shell), a cleared environment, and pipes for
 standard input, output and error. The worker applies resource limits to
 itself before it starts any decoder, inherited by any process it starts:
 address space, CPU seconds, no core files, no regular-file writes
 (`RLIMIT_FSIZE` 0: decoders write only to pipes), and a small file
 descriptor count. It sets them through `rustix`'s safe `setrlimit`, a
 vetted crate, not through CoreAV-authored `unsafe`.
-
-The decoder worker and the exec launcher receive `MIMALLOC_ARENA_RESERVE` before startup. Its committed value in `coreav-worker/src/mimalloc-arena-reserve-kib.txt` is 128 MiB in KiB, rather than mimalloc's default 1 GiB virtual reservation, which would already exhaust a small worker's cap before it is applied. The option is harmless to programs using another allocator. The launcher still clears its environment when it replaces itself with the operator's encoder, so that program inherits no environment variables. The address-space cap is not raised.
 
 **Exec.** The same limits serve a program that is not a decoder: the
 encoder of `coreav transcode` (`docs/design/transcode.md`, "Sandbox").

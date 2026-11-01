@@ -259,7 +259,6 @@ impl ExecLauncher {
             .args(&self.command.args)
             .args(launch_args(limits, huge_pages, program, args));
         isolate(&mut command);
-        crate::sandbox::configure_allocator(&mut command);
         command
     }
 }

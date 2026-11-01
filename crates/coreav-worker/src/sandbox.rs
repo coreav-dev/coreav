@@ -6,13 +6,6 @@
 
 use crate::protocol::SandboxLimits;
 
-pub(crate) fn configure_allocator(command: &mut std::process::Command) {
-    command.env(
-        "MIMALLOC_ARENA_RESERVE",
-        include_str!("mimalloc-arena-reserve-kib.txt").trim(),
-    );
-}
-
 /// Applies `limits`, plus no core files and no regular-file writes
 /// (`RLIMIT_FSIZE` 0: decoders write only to pipes). Each limit is set as
 /// both the soft and the hard value, so the worker cannot raise it again;

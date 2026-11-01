@@ -30,21 +30,11 @@ use coreav_decode::{Backend, Decoder, Limits, Packet, Policy};
 use coreav_isobmff::{BufferedSource, FileSource, Rational};
 use coreav_thumbnail::{ThumbnailOptions, first_packets};
 use coreav_worker::{SandboxedBackend, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions};
-#[cfg(not(feature = "no-frame-hash"))]
 use md5::{Digest, Md5};
 use serde_json::{Value, json};
 
 /// Packets after the decoded ones read to find the cutoff.
 const LOOKAHEAD: usize = 64;
-
-#[cfg(all(
-    feature = "release-allocator",
-    target_os = "linux",
-    target_env = "musl",
-    target_arch = "x86_64"
-))]
-#[global_allocator]
-static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -243,19 +233,12 @@ fn run(args: &[String]) -> Result<Value, String> {
 fn drain(decoder: &mut dyn Decoder, frames: &mut Vec<Value>) -> Result<(), String> {
     while let Some(frame) = decoder.receive_frame().map_err(|e| e.to_string())? {
         let picture = frame.to_cpu().map_err(|e| e.to_string())?;
-        #[cfg(not(feature = "no-frame-hash"))]
-        let hex: String = {
-            let mut packed = Vec::new();
-            picture
-                .write_packed(&mut packed)
-                .map_err(|e| e.to_string())?;
-            Md5::digest(&packed)
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect()
-        };
-        #[cfg(feature = "no-frame-hash")]
-        let hex = String::new();
+        let mut packed = Vec::new();
+        picture
+            .write_packed(&mut packed)
+            .map_err(|e| e.to_string())?;
+        let digest = Md5::digest(&packed);
+        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
         frames.push(json!({
             "pts": frame.pts,
             "width": picture.width(),

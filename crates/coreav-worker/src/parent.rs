@@ -453,7 +453,6 @@ impl SandboxedDecoder {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        crate::sandbox::configure_allocator(&mut command);
         // Its own process group, so that killing the group ends the
         // backend's children too.
         #[cfg(unix)]

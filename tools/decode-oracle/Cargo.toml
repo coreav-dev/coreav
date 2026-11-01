@@ -14,8 +14,6 @@ path = "src/main.rs"
 
 [features]
 default = []
-no-frame-hash = []
-release-allocator = ["dep:mimalloc"]
 # dav1d, in the worker and in-process (links the system's libdav1d).
 dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d", "coreav-worker/dav1d"]
 # CoreAV's native H.264 decoder, in-process (`--backend native`).
@@ -37,9 +35,6 @@ coreav-transcode = { path = "../../crates/coreav-transcode" }
 coreav-worker = { path = "../../crates/coreav-worker", features = ["ffmpeg"] }
 md-5 = "0.10"
 serde_json = { workspace = true }
-
-[target.'cfg(all(target_os = "linux", target_env = "musl", target_arch = "x86_64"))'.dependencies]
-mimalloc = { version = "0.1.52", optional = true }
 
 [lints]
 workspace = true

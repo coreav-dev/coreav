@@ -29,11 +29,6 @@ on:
       - packages/cli/scripts/platform-package.js
       - packages/cli/scripts/zig.sh
       - packages/cli/scripts/zig-requirements.txt
-      - crates/coreav-worker/src/parent.rs
-      - crates/coreav-worker/src/sandbox.rs
-      - crates/coreav-worker/src/exec.rs
-      - crates/coreav-worker/src/mimalloc-arena-reserve-kib.txt
-      - crates/coreav-backend-libvpx/src/decoder.rs
       - packages/cli/scripts/codecs.sh
       - packages/cli/scripts/release_assets.py
       - packages/cli/scripts/notices_check.py
@@ -43,9 +38,6 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
       - crates/coreav-cli/Cargo.toml
-      - crates/coreav-cli/src/entry.rs
-      - tools/decode-oracle/tests/allocator.rs
-      - crates/coreav-cli/tests/allocator.rs
   workflow_dispatch:
 
 permissions: {}
@@ -151,20 +143,6 @@ jobs:
         with:
           name: smoke-clips
           path: ${{ runner.temp }}/clips
-      - name: Check the release allocator in a limited worker
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH="$COREAV_CODECS/lib/pkgconfig" PKG_CONFIG_ALLOW_CROSS=1
-          export ZIG_TARGET=x86_64-linux-musl
-          export CC_x86_64_unknown_linux_musl="$PWD/packages/cli/scripts/zig.sh cc"
-          export AR_x86_64_unknown_linux_musl="$PWD/packages/cli/scripts/zig.sh ar"
-          cargo test --locked -p coreav-backend-libvpx --features libvpx \
-            --target "$TARGET" --lib exported_rows_keep_unaligned_bytes_and_short_tails
-          cargo test --locked -p coreav-decode-oracle --features libvpx,release-allocator \
-            --target "$TARGET" --test allocator
-          cargo test --locked -p coreav-cli --features libvpx,release-allocator \
-            --target "$TARGET" --test allocator
       - name: Check the command on its platform
         env:
           COREAV_STRICT_SAFE: '1'
