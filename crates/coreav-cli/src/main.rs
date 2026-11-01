@@ -1034,7 +1034,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         }
     };
     if args.audio == "aac" {
-        if let Err(message) = strict_safe.aac() {
+        if let Err(message) = strict_safe.aac("use --audio copy, none or opus") {
             let _ = writeln!(
                 std::io::stderr(),
                 "{}",

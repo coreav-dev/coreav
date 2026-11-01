@@ -76,9 +76,9 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
 One encode is taken since: in a build with a decoder backend, a command
-line that encodes the video with `libx264`, and in a build with the
-`libopus` feature also its audio with `libopus` (`-c:a libopus`, `-b:a`),
-with the few options
+line that encodes the video with `libx264`, and also its audio with
+FFmpeg's `aac` (`-c:a aac`, `-b:a`), or in a build with the `libopus`
+feature with `libopus` (`-c:a libopus`, `-b:a`), with the few options
 [`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
 through `coreav transcode`'s pipeline, and its bar is B9 there. The
 vocabulary above and the labels of the command-coverage set stay step 1's,
@@ -88,7 +88,11 @@ build with a decoder backend needs those lines relabelled first, a change
 to `classify.py` this step does not make. A build with the `libopus`
 feature encodes a `-c:a libopus` line natively; in any other build such a
 line is not native, so it runs FFmpeg outside strict-safe mode ("Fallback
-to FFmpeg") and is refused in strict-safe mode, where nothing runs.
+to FFmpeg") and is refused in strict-safe mode, where nothing runs. A
+`-c:a aac` line is encoded natively in every build with a decoder
+backend, its `aac` encoder the `ffmpeg` program run as a process of its
+own (`coreav transcode --audio aac`), so strict-safe mode refuses every
+such line before the input is read.
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
@@ -1167,7 +1171,7 @@ unchanged). An encode (`-c:v libx264`, [`transcode.md`](transcode.md),
 cover pictures not selected to the pipeline's remux
 (`TranscodeOptions::left_out_covers`), so the default selection leaves the
 cover picture out and `-map 0 -c:v libx264 -c:v:1 copy -c:a copy` keeps it
-unchanged, as `ffmpeg` does (black box, also with `-c:a libopus`). A
+unchanged, as `ffmpeg` does (black box, also with `-c:a libopus` or `aac`). A
 command that would encode a cover picture (`-map 0 -c:v libx264`) is
 refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
 234, and writes nothing. The clip, segment and M4A jobs carry no cover
