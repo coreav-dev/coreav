@@ -255,7 +255,6 @@ pub fn probe<'a, S: Source + 'a>(
                             width: description.width.map(u32::from),
                             height: description.height.map(u32::from),
                             unreadable: None,
-                            skip: 0,
                         };
                     }
                 }

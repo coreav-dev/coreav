@@ -56,7 +56,8 @@ impl JoinFailure {
             JoinError::Input {
                 error: ExtractError::Source(Error::Unsupported { reason }),
                 ..
-            } => Some(*reason),
+            }
+            | JoinError::Output(Error::Unsupported { reason }) => Some(*reason),
             JoinError::Input {
                 error: ExtractError::Source(Error::CodecNotAllowed { .. }),
                 ..

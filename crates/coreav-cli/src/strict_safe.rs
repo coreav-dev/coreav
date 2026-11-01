@@ -175,15 +175,15 @@ impl StrictSafe {
 }
 
 impl StrictSafe {
-    /// `--audio aac`, whose encoder is the `ffmpeg` program: refused in
-    /// strict-safe mode, before the input is read. Err is the refusal's
-    /// message.
+    /// `--audio aac` (or `coreav ffmpeg`'s `-c:a aac`), whose encoder is
+    /// the `ffmpeg` program: refused in strict-safe mode, before the input
+    /// is read. Err is the refusal's message, which suggests `instead`.
     #[cfg(feature = "transcode")]
-    pub fn aac(self) -> Result<(), String> {
+    pub fn aac(self, instead: &str) -> Result<(), String> {
         if self.on {
             return Err(format!(
                 "strict-safe mode never runs the ffmpeg program, so it cannot encode AAC \
-                 audio: use --audio copy, none or opus, {OFF}"
+                 audio: {instead}, {OFF}"
             ));
         }
         Ok(())

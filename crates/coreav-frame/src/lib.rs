@@ -38,7 +38,9 @@ mod resample;
 pub use color::{ChromaLocation, ColorInfo};
 pub use error::FrameError;
 pub use format::{Chroma, PixelFormat};
-pub use frame::{CudaPicture, DeviceMemory, DevicePlane, Frame, Pixels};
+pub use frame::{
+    CudaPicture, DeviceMemory, DevicePlane, Frame, Pixels, SharedMemory, SharedPicture,
+};
 pub use ops::{ChromaSiting, ChromaUpsampling, Rect};
 pub use picture::{Picture, Plane};
 pub use resample::Filter;

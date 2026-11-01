@@ -187,7 +187,7 @@ pub fn encode(
         Collect::new(),
     )?;
     for frame in frames {
-        encoder.send_frame(frame)?;
+        encoder.send_frame(frame.clone())?;
     }
     encoder.finish().map(|sink| sink.bytes)
 }

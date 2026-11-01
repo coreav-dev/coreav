@@ -100,6 +100,56 @@ profile (the `hvcC`, `av1C` and `vpcC` fields; for `avcC`, the profile and,
 for the High profiles, the first sequence parameter set up to
 `bit_depth_chroma_minus8`, ITU-T H.264 7.3.2.1.1).
 
+### Several sample descriptions
+
+An MP4 or MOV track may have several sample entries in its `stsd`, and the
+sample to chunk box says which one describes each chunk's samples (ISO/IEC
+14496-12 8.5.2 and 8.7.4). For H.264 each entry's `avcC` carries its own
+parameter sets (ISO/IEC 14496-15 5.3.3.1), and a recorder that changes the
+resolution at an IDR picture may write a new entry there with a new
+sequence parameter set under the same id, which takes effect at that IDR
+(ITU-T H.264 7.4.1.2.1). `StreamConfig` holds one record, the first
+entry's, so the video reader of `coreav-thumbnail` puts the parameter sets
+in the packets that need them:
+
+- `coreav-isobmff` gives each sample's description index
+  (`Packets::description`) and parses every entry
+  (`Track::later_descriptions`); each entry's record and size count
+  against `max_retained_bytes` as it is parsed, and a track dropped for
+  a codec outside the allowlist gives that charge back. A track is
+  external (`Track::external_data`, no packets) when any of its entries
+  names a data reference outside the file.
+- Before a packet whose description's record differs from the previous
+  packet's (the first packet's previous being the first entry), the reader
+  puts that description's sequence and picture parameter sets, each after
+  a length of the track's NAL unit length size. It does the same before
+  every sync sample whose record differs from the first entry's, because
+  a thumbnail may start decoding there.
+- Refused by name, with `Error::Unsupported`: a later entry of another
+  codec at a sample that uses it; a change of record in another codec
+  than H.264; a record with another NAL unit length size or one that
+  cannot be read; and a change at a sample with no IDR picture, where the
+  new sequence parameter set could not take effect.
+- A track with several descriptions is listed from its first packet: a
+  thumbnail does not plan from a window of its packets (`seek.md`).
+- A sync sample that is a non-IDR intra reference picture starts decoding
+  only when `max_num_ref_frames` is at most 1 (`cut-points.md`); the
+  reader takes the largest of every description's, unknown when one cannot
+  be read, so such a picture under a later description that keeps more
+  reference frames than the first is not taken for a start.
+
+Entries whose records are equal change nothing. `coreav thumbnail`,
+`coreav transcode` and `coreav ffmpeg` encodes read their video through
+this reader, so they now decode such a track or refuse it by name, where
+they decoded its later samples with the first entry's parameter sets
+before. `coreav remux`, the clip and split writers and `policy-check`
+still refuse a track with several descriptions, and `coreav ffprobe
+-show_frames` still decodes it with the first entry's record. The test is
+`crates/coreav-backend-h264/tests/sample_entries.rs`: a fixture made by
+`scripts/stsd_craft.py --fixture` with the pinned FFmpeg, a 128x96 part,
+an 80x48 part and the first again, whose 30 frames equal the pinned
+FFmpeg's `framemd5` under V1's flags (`compat-cli.md`).
+
 ## Frame model
 
 `coreav-frame` holds the frame model. A `Frame` is a presentation
@@ -301,25 +351,39 @@ each plane, the stride covers a row, the length is exactly
 slot, all with checked arithmetic. Only then does it take the plane's
 bytes.
 
-**Copy, not views.** The parent copies each validated plane out of the
-mapping into memory it owns, once, and acknowledges the slot; consumers
-get owned frames. The copy is by raw pointer
+**Copy, or lend; never views.** By default the parent copies each
+validated plane out of the mapping into memory it owns, once, and
+acknowledges the slot; consumers get owned frames. The copy is by raw pointer
 (`ParentMemory::copy_out`, bounds-checked first): the parent never forms
 a Rust reference (`&[u8]`) to memory another process may change, which
 the language's aliasing rules would not allow. A worker that writes while
 the parent copies can only change pixel values, which it controls anyway;
 no value of any byte affects the parent's control flow, since the
-descriptor was read from the pipe, not the mapping. Views into the mapping
-handed to consumers would let a compromised worker change a frame while
-it is being used and would hold slots for as long as a consumer keeps
-a frame. The copy is one `memcpy` per plane, small next to decoding the
-frame.
+descriptor was read from the pipe, not the mapping. The copy is one
+`memcpy` per plane, small next to decoding the frame.
+
+A consumer that passes each frame on and drops it can have frames lent
+in their slots instead (`WorkerOptions::lend_frames`; the transcode,
+which writes each frame to the encoder's pipe). A lent frame's pixels
+are `Pixels::Shared`: a handle holding the byte ranges the descriptor's
+check gave, read only through the same `copy_out`, a piece at a time
+into the consumer's own buffer. The slot stays the parent's until the
+last clone of the frame drops, and the acknowledgement goes to the
+worker then; a frame in that slot before it ends the session, as for any
+slot the parent holds. A worker can change a lent frame's pixel values
+while the consumer reads them, which gives it nothing: it chooses every
+pixel value anyway, and no byte of the mapping steers control flow. The
+cost falls on the consumer: a frame it keeps holds a slot, so one that
+keeps `slots` frames stops the worker until the deadline. Lending saves
+the consumer whose next step is a copy of its own (a pipe write) a copy
+and a frame-sized allocation per frame. Rejected: views as `&[u8]`,
+which the aliasing rules above do not allow.
 
 **Threads and backpressure.** In the parent, one thread reads the
 worker's messages, validates and copies frames, and hands them to
 `receive_frame` through a queue of at most 4 frames (and
 `Limits::max_pending_bytes`); it acknowledges a slot only after the frame
-is handed over. In the worker, one thread reads the parent's messages
+is handed over, or, for a lent frame, when the frame drops. In the worker, one thread reads the parent's messages
 (acknowledgements free slots, packets go to the backend) and the backend
 runs on another. The worker hands on the frames its backend has ready
 after each packet, at the end of input, and whenever no message has come

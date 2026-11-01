@@ -1,4 +1,5 @@
-//! Decoded frames: CPU and CUDA pixels as first-class variants.
+//! Decoded frames: CPU, CUDA and shared-memory pixels as first-class
+//! variants.
 
 use std::borrow::Cow;
 use std::fmt;
@@ -26,6 +27,8 @@ pub enum Pixels {
     Cpu(Picture),
     /// In CUDA device memory.
     Cuda(CudaPicture),
+    /// In memory the process that decoded it shares, and may still write.
+    Shared(SharedPicture),
 }
 
 impl Frame {
@@ -34,6 +37,7 @@ impl Frame {
         match &self.pixels {
             Pixels::Cpu(p) => p.width(),
             Pixels::Cuda(p) => p.width,
+            Pixels::Shared(p) => p.width,
         }
     }
 
@@ -42,6 +46,7 @@ impl Frame {
         match &self.pixels {
             Pixels::Cpu(p) => p.height(),
             Pixels::Cuda(p) => p.height,
+            Pixels::Shared(p) => p.height,
         }
     }
 
@@ -50,16 +55,42 @@ impl Frame {
         match &self.pixels {
             Pixels::Cpu(p) => p.format(),
             Pixels::Cuda(p) => p.format,
+            Pixels::Shared(p) => p.format,
         }
     }
 
     /// The pixels in CPU memory: borrowed when they are there, copied from
-    /// the device otherwise.
+    /// the device or the shared memory otherwise.
     pub fn to_cpu(&self) -> Result<Cow<'_, Picture>, FrameError> {
         match &self.pixels {
             Pixels::Cpu(p) => Ok(Cow::Borrowed(p)),
             Pixels::Cuda(p) => p.memory.download().map(Cow::Owned),
+            Pixels::Shared(p) => p.download().map(Cow::Owned),
         }
+    }
+}
+
+impl Pixels {
+    /// The pixels in CPU memory: taken when they are there, copied from the
+    /// device or the shared memory otherwise.
+    pub fn into_cpu(self) -> Result<Picture, FrameError> {
+        match self {
+            Self::Cpu(p) => Ok(p),
+            Self::Cuda(p) => p.memory.download(),
+            Self::Shared(p) => p.download(),
+        }
+    }
+}
+
+impl From<Picture> for Pixels {
+    fn from(picture: Picture) -> Self {
+        Self::Cpu(picture)
+    }
+}
+
+impl From<SharedPicture> for Pixels {
+    fn from(picture: SharedPicture) -> Self {
+        Self::Shared(picture)
     }
 }
 
@@ -109,4 +140,86 @@ pub struct DevicePlane {
 pub trait DeviceMemory: Send + Sync {
     /// Copies the picture to CPU memory.
     fn download(&self) -> Result<Picture, FrameError>;
+}
+
+/// A picture in memory shared with the process that decoded it, which may
+/// write it at any time: a slot of the sandboxed worker's shared memory.
+/// CoreAV reads it only by copying bytes out
+/// ([`SharedMemory::read_packed`]), never through a reference; the owner
+/// gets the memory back when the last clone drops.
+#[derive(Clone)]
+pub struct SharedPicture {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// Pixel format.
+    pub format: PixelFormat,
+    /// The owner of the memory.
+    pub memory: Arc<dyn SharedMemory>,
+}
+
+impl fmt::Debug for SharedPicture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SharedPicture")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("format", &self.format)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SharedPicture {
+    /// Rows and bytes per row (without padding) of each plane.
+    fn plane_rows(&self) -> impl Iterator<Item = Option<(usize, usize)>> {
+        (0..self.format.plane_count()).map(|plane| {
+            let (_, rows) = self.format.plane_size(plane, self.width, self.height)?;
+            let row_bytes = self.format.row_bytes(plane, self.width, self.height)?;
+            Some((usize::try_from(rows).ok()?, row_bytes))
+        })
+    }
+
+    /// Bytes of the planes in order with their rows packed
+    /// ([`Picture::packed_len`]); `None` when the count overflows.
+    pub fn packed_len(&self) -> Option<usize> {
+        self.plane_rows().try_fold(0usize, |sum, plane| {
+            let (rows, row_bytes) = plane?;
+            sum.checked_add(rows.checked_mul(row_bytes)?)
+        })
+    }
+
+    /// Copies the picture to memory this process owns, its rows packed.
+    pub fn download(&self) -> Result<Picture, FrameError> {
+        let mut planes = Vec::with_capacity(self.format.plane_count());
+        let mut at = 0usize;
+        for (index, plane) in self.plane_rows().enumerate() {
+            let (rows, row_bytes) =
+                plane.ok_or(FrameError::InvalidGeometry("plane size overflows"))?;
+            let len = rows
+                .checked_mul(row_bytes)
+                .ok_or(FrameError::InvalidGeometry("plane size overflows"))?;
+            let mut data = crate::picture::zeros(len)?;
+            if self.memory.read_packed(at, &mut data) != Some(len) {
+                return Err(FrameError::InvalidPlane {
+                    plane: index,
+                    reason: "outside its shared memory",
+                });
+            }
+            at = at
+                .checked_add(len)
+                .ok_or(FrameError::InvalidGeometry("plane size overflows"))?;
+            planes.push(crate::Plane::new(data, row_bytes));
+        }
+        Picture::new(self.width, self.height, self.format, planes)
+    }
+}
+
+/// The owner of a [`SharedPicture`]'s memory, implemented by the process
+/// that receives it.
+pub trait SharedMemory: Send + Sync {
+    /// Copies bytes from `at` of the picture's planes, packed in order as
+    /// [`Picture::write_packed`] lays them out, into `out`: as many as fit
+    /// and remain, which is 0 from the end on; `None` when they are not
+    /// inside the memory.
+    fn read_packed(&self, at: usize, out: &mut [u8]) -> Option<usize>;
 }

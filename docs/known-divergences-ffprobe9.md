@@ -48,15 +48,15 @@ entry by its type (`packets.side_data_list[Skip Samples]`, with `[]` for
 an entry the command prints empty because it selects none of its keys);
 a stream group as `stream_groups`.
 
-The first eleven entries are changes in what FFmpeg 9.0.2 prints: CoreAV
+The first ten entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
+eleventh is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
 there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
-The last is a corpus record for Matroska and WebM AC-3 tracks; it names
-no fixture keys and sets nothing aside on the fixtures.
+The last three are corpus records for Matroska and WebM AC-3 and AV1
+tracks; they name no fixture keys and set nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -86,7 +86,9 @@ no fixture keys and sets nothing aside on the fixtures.
   decoder skips at the start of an audio stream (the encoder delay an edit
   list or a Matroska `CodecDelay` states) and those it discards at its
   end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
-  end of a Matroska one), and CoreAV lists what 7.0.2 did. A packet that
+  end of a Matroska one). In MP4 CoreAV lists what 7.0.2 did; in Matroska
+  and WebM it lists both, as 9.0.2 does, so the entry lists no Matroska or
+  WebM fixture for the side data keys. A packet that
   carries the side data gets another duration than 7.0.2 gave it (the
   whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
   gave the part the list keeps); CoreAV gives 7.0.2's.
@@ -129,17 +131,6 @@ no fixture keys and sets nothing aside on the fixtures.
   1,105 for MP3 and 50 for AMR-NB in these fixtures), where 7.0.2 and
   CoreAV print 0.
 - Accepts: on an audio stream, 0 from CoreAV and more from `ffprobe`.
-
-## KD-FF9-MKV-START
-
-- Keys: `format.start_time`, `streams.start_time` and `streams.start_pts`.
-- Cause: FFmpeg 9.0.2 starts a Matroska or WebM file whose audio has a
-  `CodecDelay` at its first block, and that audio stream at 0. FFmpeg 7.0.2
-  and CoreAV start them that delay earlier (−0.021 s for AAC, −0.005 s for
-  AC-3, −0.007 s for Opus in `browser.webm`), and an attachment stream with
-  the file (`mkv_attachment.mkv`).
-- Accepts: 0 from `ffprobe` and less from CoreAV, for the file and for an
-  audio or attachment stream.
 
 ## KD-FF9-ANNEXB-EXTRADATA
 
@@ -294,10 +285,56 @@ no fixture keys and sets nothing aside on the fixtures.
   evidence: an element of unknown size other than the Segment, a header
   cut short, or an element past its parent or the file. The conditions
   also give the exact pair of values.
-  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
-  its tests fail when the pinned oracle stops printing `0` and
-  `0.000000`. Not excludable yet: no corpus row is excluded until the
+  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence and
+  retains a `spans` tuple of (block data offset, frame size) pairs in file
+  order. The offset points to the block's TrackNumber vint; every frame
+  of a lace shares it. `policy_ref.matroska_block_frames` exposes each
+  block's offset and frames from the same complete walk that supplies
+  `matroska_frames`. These pairs let a consumer bind packets by their
+  bytes rather than treating TrackEntry order as stream order. Its tests
+  fail when the pinned oracle stops printing `0` and `0.000000`. Not excludable yet: no corpus row is excluded until the
   corpus comparator gates rows on that evidence.
+
+## KD-FF9-AV1-DEFAULT-SUFFIX
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  says that a codec string ending with `.0.110.01.01.01.0` (not
+  monochrome, 4:2:0 with chroma sample position 0, BT.709 colour, studio
+  range) SHOULD omit that suffix, and that omitted optional fields take
+  those values. For an AV1 track whose sequence header states exactly
+  these values, CoreAV omits the suffix, as the section recommends. The
+  pinned oracle keeps it, which the section permits. Both strings state
+  the same values.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone: its `CodecPrivate`,
+  laid out as the AV1 codec mapping in Matroska requires, the sequence
+  header in it, and any stored `Colour` elements, which must agree with
+  that header. They also give the exact pair of strings.
+  `av1_default_suffix` in `scripts/oracle_kd_mkv.py` reads that evidence,
+  and its tests fail when the pinned oracle stops printing its string.
+  Not excludable yet: no corpus row is excluded until the corpus
+  comparator gates rows on that evidence.
+
+## KD-FF9-AV1-CHROMA-POSITION
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  requires the third digit of the chroma subsampling field to equal the
+  sequence header's `chroma_sample_position`, and without a colour
+  description in the sequence header the colour fields SHOULD take the
+  default values. A 4:2:0 track with chroma sample position 1 (vertical)
+  and no colour description therefore gets the full string ending in
+  `.0.111.01.01.01.0`, which CoreAV prints. The pinned oracle omits the
+  optional fields, and omitted fields mean chroma subsampling `110`, so its
+  string states position 0: an oracle error. The oracle gives position 2
+  (co-located) without a colour description the same short string; no
+  record covers that case, which still fails.
+- Corpus scope: as for KD-FF9-AV1-DEFAULT-SUFFIX, with its own conditions
+  in the twin and its own evidence, `av1_chroma_position` in
+  `scripts/oracle_kd_mkv.py`.
 
 ## Corpus differences not set aside
 
@@ -311,6 +348,25 @@ mask them, and the measured agreement rates still count them as failures.
   not discard a complete section or invent a repeat to match this. Once
   the packet counts differ, positional comparison also differs on the
   packets after that section.
+- **Padding of a first Matroska block.** `CodecDelay` and a block's
+  `DiscardPadding` each name samples a decoder discards (RFC 9559
+  5.1.4.1.25 and 5.1.3.5.7). When the first block of a track with a codec
+  delay also has padding, CoreAV's Skip Samples side data on that packet
+  counts both; the pinned ffprobe keeps the delay and drops the padding.
+- **Padding of a laced Matroska block.** RFC 9559 5.1.3.5.7 places a
+  block's `DiscardPadding` at the end of the block when positive and at
+  its start when negative. CoreAV takes it from the last frames of a lace,
+  or from the first, each frame at most its own samples, so the samples
+  trimmed are the padding, capped at the lace's. The pinned ffprobe lists
+  the whole padding on every frame of the lace and trims each decoded
+  frame by it.
+- **Opus that states another input rate.** Opus decodes at 48 kHz
+  whatever input rate its track and `OpusHead` state (RFC 7845 5.1), and
+  both CoreAV and the pinned ffprobe count `CodecDelay` and
+  `DiscardPadding` at 48 kHz. With a stated 24 kHz, a first block at 0
+  and 6.5 ms of delay, the pinned ffprobe starts the stream at 0.006 s;
+  CoreAV starts it at 0, its first block's timestamp and the first sample
+  played.
 - **Implicit AAC extensions.** ADTS and LATM configurations can state
   AAC LC while raw data blocks carry SBR or parametric stereo (ISO/IEC
   14496-3 1.5.1.1, 4.6.18 and 8.6.4). The bounded header reader detects

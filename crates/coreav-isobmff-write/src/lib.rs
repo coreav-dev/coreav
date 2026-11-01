@@ -78,6 +78,9 @@ pub enum HeaderMetadata {
     /// None of them: the times are written as 0 ("not set") and the
     /// language as `und`.
     Clear,
+    /// The media header's creation time as the creation and modification
+    /// time of every header, and the language `und`.
+    MediaTime,
 }
 
 /// Which track to extract.
@@ -101,9 +104,10 @@ pub struct Summary {
     pub samples: u32,
     /// Bytes written to the output.
     pub bytes_written: u64,
-    /// Media timescale of the output track (that of the source track).
+    /// Media timescale of the source track; the output's is a multiple of it
+    /// for HE-AAC ([`extract_audio`]).
     pub timescale: u32,
-    /// Sum of the decode durations, in media ticks.
+    /// Sum of the decode durations, in media ticks of `timescale`.
     pub duration: u64,
 }
 
@@ -573,8 +577,25 @@ pub enum JoinAudio {
     None,
 }
 
+/// Where [`join_mp4`] places each input on the output's timeline.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Placement {
+    /// Each input after the previous input's video (`docs/design/join.md`,
+    /// "Timing").
+    #[default]
+    AfterVideo,
+    /// The output time of each input's time 0, in seconds, from the first
+    /// input's (0 for the first), rounded to the video's timescale, halves
+    /// away from zero: the concat demuxer of `ffmpeg` places each file
+    /// after the previous ones' durations (`docs/design/join.md`, "Placed
+    /// as the concat demuxer places them"). A first offset other than 0, or
+    /// an input whose video would start before the previous input's video
+    /// ends, fails the join.
+    At(Vec<Rational>),
+}
+
 /// What [`join_mp4`] keeps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JoinOptions {
     /// The video: the first video track of every input the allowlist keeps
     /// (`VideoChoice::First`), or the stream at this index of every input
@@ -584,6 +605,8 @@ pub struct JoinOptions {
     pub video: VideoChoice,
     /// The audio.
     pub audio: JoinAudio,
+    /// Where each input goes.
+    pub placement: Placement,
 }
 
 /// One input of a join. Times are exact, in seconds.

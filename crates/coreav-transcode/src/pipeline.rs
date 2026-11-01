@@ -31,7 +31,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Backend, Codec, DecoderInfo, ErrorKind, Packet, Policy, Skipped};
-use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, Picture, PixelFormat};
+use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, PixelFormat, Pixels};
 use coreav_isobmff::{BufferedSource, FileSource, Rational, Source};
 use coreav_isobmff_write::mux::{Nclx, avc1_sample_entry};
 use coreav_isobmff_write::{
@@ -483,7 +483,7 @@ pub fn transcode<S: Source, W: Write>(
                 || decoder.receive_frame().map_err(Error::Decode),
                 |frame| {
                     let counts = presented_frame(&run, &frame);
-                    run.take(&frame)?;
+                    run.take(frame)?;
                     Ok(counts)
                 },
             )?;
@@ -511,12 +511,12 @@ pub fn transcode<S: Source, W: Write>(
             if presented_frame(&run, &frame) {
                 pace.received();
             }
-            run.take(&frame)?;
+            run.take(frame)?;
         }
     }
     decoder.send_eof().map_err(Error::Decode)?;
     while let Some(frame) = decoder.receive_frame().map_err(Error::Decode)? {
-        run.take(&frame)?;
+        run.take(frame)?;
     }
     let decoder_info = decoder.info().clone();
     drop(decoder);
@@ -570,7 +570,7 @@ pub fn transcode<S: Source, W: Write>(
             sample_entry: &encoded.entry,
             timescale: encoded.timescale,
             samples: &encoded.samples,
-            start: 0,
+            start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
             roll: encoded.roll,
@@ -1031,7 +1031,8 @@ const CAP_BYTES_PER_PIXEL: u64 = 6;
 /// it), or of `max_frame_bytes` where the size is not declared. The
 /// configured default (4 GiB) suits one thumbnail, and is about 55 s of
 /// 1080p.
-fn decoded_bytes_cap(
+#[doc(hidden)]
+pub fn decoded_bytes_cap(
     limits: &coreav_decode::Limits,
     packets: usize,
     size: Option<(u32, u32)>,
@@ -1159,8 +1160,10 @@ struct Run<'a> {
 
 impl Run<'_> {
     /// One frame from the decoder: encoded when the source presents it
-    /// and its time is not below the last one's ([`frame_time`]).
-    fn take(&mut self, frame: &Frame) -> Result<(), Error> {
+    /// and its time is not below the last one's ([`frame_time`]). Its
+    /// pixels go to the encoder where they are, in CPU memory or in the
+    /// decoder's shared memory, unless they are converted or resized.
+    fn take(&mut self, frame: Frame) -> Result<(), Error> {
         let Some(pts) = frame.pts else {
             self.dropped += 1;
             return Ok(());
@@ -1188,18 +1191,24 @@ impl Run<'_> {
             self.dropped += 1;
             return Ok(());
         };
-        let decoded = frame
-            .to_cpu()
-            .map_err(|e| unsupported(format!("frame: {e}")))?;
+        let frame_error = |e: coreav_frame::FrameError| unsupported(format!("frame: {e}"));
         // NVDEC's NV12 (and P010) to planar, without loss.
-        let picture = match decoded.format() {
-            PixelFormat::SemiPlanar { .. } => decoded
-                .to_planar()
-                .map_err(|e| unsupported(format!("frame: {e}")))?,
-            _ => decoded.into_owned(),
+        let pixels = match frame.format() {
+            PixelFormat::SemiPlanar { .. } => Pixels::Cpu(
+                frame
+                    .pixels
+                    .into_cpu()
+                    .and_then(|p| p.to_planar())
+                    .map_err(frame_error)?,
+            ),
+            _ => match frame.pixels {
+                Pixels::Cuda(_) => Pixels::Cpu(frame.pixels.into_cpu().map_err(frame_error)?),
+                pixels => pixels,
+            },
         };
+        let decoded = Frame { pixels, ..frame };
         if self.encoder.is_none() {
-            let settings = self.settings(&picture, frame)?;
+            let settings = self.settings(&decoded)?;
             let sink = SpoolSink::new(self.spool, Arc::clone(&self.sent), self.options)?;
             let limits = EncoderLimits::new(encoder_memory(
                 &settings,
@@ -1225,14 +1234,14 @@ impl Run<'_> {
         let Some((encoder, settings)) = self.encoder.as_mut() else {
             return Err(encode_error("the encoder is gone".into()));
         };
-        if picture.format() != settings.format {
+        if decoded.format() != settings.format {
             return Err(unsupported(format!(
                 "the pixel format changed within the stream, from {:?} to {:?}",
                 settings.format,
-                picture.format()
+                decoded.format()
             )));
         }
-        let size = (picture.width(), picture.height());
+        let size = (decoded.width(), decoded.height());
         if self.options.one_size && *self.first_size.get_or_insert(size) != size {
             return Err(unsupported(
                 "the frame size changes within the stream, and the frames are not resized",
@@ -1241,19 +1250,22 @@ impl Run<'_> {
         if Instant::now() >= self.deadline {
             return Err(timed_out());
         }
-        let picture = if (picture.width(), picture.height()) == (settings.width, settings.height) {
-            picture
+        let pixels = if size == (settings.width, settings.height) {
+            decoded.pixels
         } else {
             // FFmpeg's default scale at the same pixel format
             // (docs/design/transcode.md, "Size").
-            picture
-                .resize_with(
-                    settings.width,
-                    settings.height,
-                    Filter::Bicubic,
-                    ChromaSiting::FfmpegCompatible,
-                )
-                .map_err(|e| unsupported(format!("resizing: {e}")))?
+            let picture = decoded.pixels.into_cpu().map_err(frame_error)?;
+            Pixels::Cpu(
+                picture
+                    .resize_with(
+                        settings.width,
+                        settings.height,
+                        Filter::Bicubic,
+                        ChromaSiting::FfmpegCompatible,
+                    )
+                    .map_err(|e| unsupported(format!("resizing: {e}")))?,
+            )
         };
         // A resize of a large frame takes time of its own.
         if Instant::now() >= self.deadline {
@@ -1262,9 +1274,7 @@ impl Run<'_> {
         // Before the frame is queued: the encoder may write its picture as
         // soon as the writer thread has written the frame.
         self.sent.fetch_add(1, Ordering::SeqCst);
-        encoder
-            .send_frame_at(&picture, time)
-            .map_err(Error::Encode)?;
+        encoder.send_frame_at(pixels, time).map_err(Error::Encode)?;
         self.sent_pts.push(time);
         self.last = Some((pts, time));
         Ok(())
@@ -1274,15 +1284,15 @@ impl Run<'_> {
     /// (refused unless the encoder takes it), the output size, the sample
     /// aspect ratio that keeps the display aspect ratio, the colour
     /// description and the frame rate.
-    fn settings(&self, picture: &Picture, frame: &Frame) -> Result<EncoderSettings, Error> {
+    fn settings(&self, frame: &Frame) -> Result<EncoderSettings, Error> {
         if let Some(wanted) = self.options.pixel_format
-            && picture.format() != wanted
+            && frame.format() != wanted
         {
             return Err(unsupported(
                 "the frames decode to another pixel format than the one asked for, and are not converted",
             ));
         }
-        let (width, height) = (picture.width(), picture.height());
+        let (width, height) = (frame.width(), frame.height());
         let (out_w, out_h) = match self.options.scale {
             Some(scale) => scale.resolve(width, height).ok_or_else(|| {
                 unsupported(format!("--scale gives no valid size for {width}x{height}"))
@@ -1309,7 +1319,7 @@ impl Run<'_> {
                 .iter()
                 .find_map(|(index, rate)| (*index == self.video.stream_index).then_some(*rate))
                 .map(min_keyint),
-            ..EncoderSettings::new(out_w, out_h, picture.format(), self.frame_rate)
+            ..EncoderSettings::new(out_w, out_h, frame.format(), self.frame_rate)
         };
         settings.validate().map_err(|e| match e.kind {
             ErrorKind::Unsupported | ErrorKind::Limit => Error::Unsupported(e.message),
