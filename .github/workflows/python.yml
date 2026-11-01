@@ -73,6 +73,7 @@ jobs:
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
             scripts/oracle-ffmpeg.env
+            scripts/install-oracle-ffmpeg.sh
             .github/workflows/python.yml
             .github/actions/changed-paths/**
 

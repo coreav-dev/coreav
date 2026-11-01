@@ -1,8 +1,8 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
- "$id": "https://github.com/coreav-dev/coreav/docs/schema/probe-mpegts-v1.schema.json",
- "title": "coreav.probe-mpegts/1",
- "description": "Output of `coreav probe` for MPEG transport streams. Every key is always present; unknown values are null. Documented in probe-mpegts-v1.md.",
+ "$id": "https://github.com/coreav-dev/coreav/docs/schema/probe-mpegts-v2.schema.json",
+ "title": "coreav.probe-mpegts/2",
+ "description": "Output of `coreav probe` for MPEG transport streams. Every key is always present; unknown values are null. Documented in probe-mpegts-v2.md.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -17,7 +17,7 @@
  ],
  "properties": {
   "schema": {
-   "const": "coreav.probe-mpegts/1"
+   "const": "coreav.probe-mpegts/2"
   },
   "file": {
    "type": "object",

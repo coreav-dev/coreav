@@ -1041,7 +1041,7 @@ implies:
 | The command | The writer |
 |---|---|
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
-| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1` or `0:s:N`, with the header metadata that option gives (below) |
+| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`, with the source's metadata (below); with `-map_metadata -1` or `0:s:N`, with the metadata that option gives (below) |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
@@ -1049,6 +1049,79 @@ implies:
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
+
+**M4A metadata.** `ffmpeg`'s documentation says "by default, global
+metadata is copied from the first input file, per-stream and per-chapter
+metadata is copied along with streams/chapters". The extraction
+(`HeaderMetadata::Copy`) carries over the movie's and the extracted
+track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
+8.11.1: user data describes the presentation or the track that contains
+it, and both are the output's), the track's handler name (8.4.3.3), its
+language, and the separate creation and modification times of the movie,
+track and media headers,
+as the remux does (`remux.md`, "Metadata and other boxes"). Two things
+are left out: every cover picture item (`covr`, or an entry keyed
+`com.apple.quicktime.artwork` through its `meta` box's `keys`; whole,
+whatever number of pictures it holds, in the movie's and the track's
+item lists), since a
+cover picture is a stream of its own (below) and the output carries one
+audio stream, as the pinned `ffmpeg` leaves it out of `-map 0:a` and
+`-vn` (black box); and, when the extraction turns an `iTunSMPB` item
+into an edit list, that item, located where the timing read it, so that
+the delay and padding are not given twice. The boxes are walked as
+copied, not through a separate reader with its own limits: a list whose
+children do not parse to its end is cut where they stop, so that no such
+item is copied unseen, a `meta` box whose `keys` box does not hold every
+key it counts is left out (its keyed artwork could not be told apart),
+and a box that holds the `iTunSMPB` item where the walk does not reach
+it is left out. An empty handler
+name is written as `SoundHandler`. Black box, the pinned `ffmpeg` 9.0.2
+on a file with an item list, a track `udta`, a named handler and nonzero
+header times (`plain_extraction_metadata_agrees_with_the_pinned_ffmpeg`
+in `tests/ffmpeg.rs` checks the tags in CI): the same title, artist,
+album, date, comment, genre, track and disc items and the same handler
+name and language. Known divergences; where a cited text decides one it
+is named, and where none does both readings are given:
+
+- Creation times. `ffmpeg` writes 0 in all six fields of the movie,
+  track and media headers. ISO/IEC 14496-12 defines each as a creation or
+  modification time in seconds since midnight, 1 January 1904, in UTC
+  (8.2.2.3, 8.3.2.3, 8.4.2.3). It has no value for a time not given; 0 is
+  the one writers use for that by convention (`HeaderMetadata::Clear`
+  too, for `-map_metadata -1`). For the media header the text decides:
+  its `creation_time` declares the creation time of the media in the
+  track, and the output's media is the source's, sample for sample, so
+  the source's time is a true value and 0 gives none. For the movie and
+  track headers it does not: the clauses define the creation time of the
+  presentation and of the track, and do not say whether a stream copy
+  into a new file is the same presentation and track (the source's times)
+  or a new one (the time of the copy). Neither reading gives no time. The
+  extraction keeps each source header's creation and modification times
+  separately, including distinct values and 64-bit modification times.
+  Copying these stored values keeps its output the same on every run.
+  `ffprobe` then lists a
+  `creation_time` for the file and the stream on `coreav ffmpeg`'s
+  output and none on `ffmpeg`'s.
+- Items stored in another form. The item list (`ilst`) and its entries
+  are an iTunes convention that ISO/IEC 14496-12 does not define (8.11.1
+  defines the metadata box and its handler, not the list), so no cited
+  text decides between copying the entries as stored and rewriting them.
+  The two readings: the entries as stored, in the source's order, locales
+  and forms, with the source's `©too` (the extraction; the audio is not
+  re-encoded); or the list rewritten as `ffmpeg` writes it, with its own
+  encoder name in `©too`, its own item order, locale 0 and an 8-byte
+  `disk`, without free-form (`----`) items or the track's `udta`, and a
+  `moov/meta` list gathered into `moov/udta/meta`. An `ffprobe` tag
+  `ffmpeg` drops or renames (`encoder`, a free-form item) then differs.
+- Handler names that are not a plain null-terminated string. ISO/IEC
+  14496-12 8.4.3.3 defines the name as a null-terminated UTF-8 string, so
+  the extraction always writes one. A QuickTime source states the name as
+  a counted string (QuickTime File Format, handler reference atom,
+  "component name"); the extraction writes that string's text, and
+  `ffmpeg` writes `SoundHandler` instead. An ISO source whose name has no
+  terminating NUL is malformed, and no cited text says how to read it:
+  as the bytes to the end of the box (the extraction) or as no name
+  (`ffmpeg`, which writes `SoundHandler`).
 
 **`-map_metadata -1` on an M4A output.** `ffmpeg`'s documentation says "a
 negative file index can be used to create a dummy mapping that just
@@ -1058,8 +1131,8 @@ a creation time): the media header's language is `und`, the handler name
 its own `SoundHandler`, the creation and modification times of the movie,
 track and media headers 0, and no item of the input's list is written. The
 extraction writes the same with `HeaderMetadata::Clear`: the language
-`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2). It writes
-no item list and the handler name `SoundHandler` in any case. Its samples,
+`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2), the
+handler name `SoundHandler`, and no `udta` or `meta` box. Its samples,
 sample tables and edit list do not change: they are timing, not metadata.
 `stripped_metadata_agrees_with_the_pinned_ffmpeg` in `tests/ffmpeg.rs`
 checks both outputs' tags in CI.
@@ -1086,7 +1159,8 @@ header and writes into the movie, track and media headers, as creation
 and modification time (black box: a media header time differing from the
 movie header's). The extraction writes the same with
 `HeaderMetadata::MediaTime`: the media header's creation time in all six
-fields, and the language `und`. A known divergence: ISO/IEC 14496-12
+fields, the language `und`, the handler name `SoundHandler`, and no `udta`
+or `meta` box. A known divergence: ISO/IEC 14496-12
 8.4.2.3 counts a header's creation time in seconds since midnight, 1 January
 1904, UTC, in 32 bits in a version 0 box and 64 in a version 1 box, and the
 extraction keeps the instant the media header names. The pinned `ffmpeg`
@@ -1552,9 +1626,26 @@ prints keep its derivations, which the stream oracle checks. The others:
 - `start_pts`: with one edit, the leading empty edit in the track's ticks;
   without an edit list, the first packets' earliest time; for audio, after
   the samples the first packet skips.
-- Audio priming: the samples the edit list cuts from the first packet, or
-  without an edit list the iTunes `iTunSMPB` delay, are a "Skip Samples"
-  side data element on the first packet.
+- Audio priming and padding: the samples the edit list cuts from the
+  first packet (counted from the first sample listed), or without an edit
+  list the iTunes `iTunSMPB` delay, are a "Skip Samples" side data
+  element on the first packet and the stream's `initial_padding`. The
+  last packet's element names the samples its frame decodes past the end
+  of the presentation (ISO/IEC 14496-12 8.6.6): the media edit's end,
+  without an edit list the `iTunSMPB` delay plus its samples, else the
+  media header's duration, and never past the samples' end. A frame is
+  what the codec decodes one packet to, from its configuration or its
+  first frame's header (AAC's `AudioSpecificConfig`: 960 or 1,024
+  samples, MPEG audio, AC-3, E-AC-3), never from the samples' timing, or
+  the sample's duration when that is longer; the sample keeps its stored
+  duration. Skip and padding are counted at the decoder's output rate,
+  twice the core's with SBR (ISO/IEC 14496-3 4.6.18). On crafted files
+  whose output rate is not the track's time scale `ffprobe` counts the
+  skip in the track's ticks instead, and with SBR it lists no padding;
+  the development files list the same values either way. After a leading
+  empty edit `ffprobe` moves the packet later by the empty edit's length
+  but not that end
+  ([KD-FF9-EMPTY-EDIT-PADDING](../known-divergences-ffprobe9.md#kd-ff9-empty-edit-padding)).
 - Stream durations: without an edit list, the shorter of the media
   header's and the samples' (the samples' when fragments follow, and
   when every sample is in fragments the first of which is decoded from a

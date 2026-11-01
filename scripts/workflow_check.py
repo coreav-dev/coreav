@@ -66,6 +66,7 @@ import importlib.util
 import json
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -109,9 +110,102 @@ UNLISTED = '# workflow-check: not required'
 # The oracle FFmpeg's pin and its installer: a workflow that runs the
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
-# A script line that calls the installer, as a command or through a shell;
-# `bash -n` and other options before the path only read it.
-INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+)?(?:\./)?''' + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
+STOPS_SHELL = ('help', 'version', 'dump-strings', 'dump-po-strings')
+TAKES_OPERAND = ('rcfile', 'init-file')
+
+
+def commands(line):
+    """The commands of a script line, each a list of words: split at the
+    shell's separators (`;`, `&`, `|`, `&&`, `||`, parentheses) and without a
+    comment, which starts at a `#` outside quotes at the start of a word.
+    A line with an unclosed quote has none."""
+    kept, quote, previous, escaped = [], '', ' ', False
+    for char in line:
+        if escaped:
+            escaped = False
+        elif char == '\\' and quote != "'":
+            escaped = True
+        elif quote:
+            quote = '' if char == quote else quote
+        elif char in '\'"':
+            quote = char
+        elif char == '#' and previous in ' \t;&|()':
+            break
+        kept.append(char)
+        previous = char
+    lexer = shlex.shlex(''.join(kept), posix=True, punctuation_chars=';&|()')
+    lexer.whitespace_split = True
+    lexer.commenters = ''
+    try:
+        words = list(lexer)
+    except ValueError:
+        return []
+    out = [[]]
+    for word in words:
+        if set(word) <= set(';&|()'):
+            out.append([])
+        else:
+            out[-1].append(word)
+    return [command for command in out if command]
+
+
+def calls_installer(line):
+    """True when a command of a script line runs the installer: as a command,
+    or through `bash` or `sh` (after `sudo`) as its script or in the string of
+    `-c`. The options are read the way bash reads them, so the ones that stop the
+    shell before it runs anything are no call: `-n` (until a `+n` or
+    `+o noexec` undoes it), `-D`, `-s` without `-c` (the script then
+    comes from standard input), `--help`, `--version`, `--dump-strings` and
+    `--dump-po-strings`. `-o` and `-O` take the next word as their operand,
+    `--` ends the options, and the word after them is the script (or, with
+    `-c`, the command string).
+    """
+    return any(runs_installer(words) for words in commands(line))
+
+
+def runs_installer(words):
+    if words[:1] == ['sudo']:
+        words = words[1:]
+    if not words:
+        return False
+    if words[0] not in ('bash', 'sh'):
+        return words[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
+    noexec = command_string = stdin = False
+    i = 1
+    while i < len(words):
+        word = words[i]
+        i += 1
+        if word == '--':
+            break
+        if word.startswith('--'):
+            if word[2:] in STOPS_SHELL:
+                return False
+            i += word[2:] in TAKES_OPERAND
+            continue
+        if word[:1] not in '-+' or len(word) == 1:
+            i -= 1
+            break
+        enable = word[0] == '-'
+        for letter in word[1:]:
+            if letter == 'D' and enable:
+                return False
+            if letter == 'n':
+                noexec = enable
+            elif letter == 'c':
+                command_string = enable
+            elif letter == 's':
+                stdin = enable
+            elif letter in 'oO':
+                operand = words[i] if i < len(words) else ''
+                i += 1
+                if letter == 'o' and operand == 'noexec':
+                    noexec = enable
+    rest = words[i:]
+    if noexec or not rest or (stdin and not command_string):
+        return False
+    if command_string:
+        return calls_installer(rest[0])
+    return rest[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
 
 
 def load_changed_paths(root):
@@ -244,53 +338,21 @@ def workflow_concurrency(lines):
     return setting
 
 
-def run_lines(lines):
-    """Each line of every step's `run:` script, a block scalar's to where its
-    indentation ends."""
-    for i, line in enumerate(lines):
-        match = re.match(r'\A(\s*(?:-\s+)?)run:\s*(.*?)\s*\Z', line)
-        if not match:
-            continue
-        if not match.group(2).startswith(('|', '>')):
-            yield match.group(2)
-            continue
-        for item in lines[i + 1:]:
-            if item.strip() and len(item) - len(item.lstrip()) <= len(match.group(1)):
-                break
-            yield item
-
-
-def trigger_filters(lines):
+def trigger_filters(text):
     """[(event, key, [pattern] or None)]: each `paths` and `paths-ignore`
-    list of the `on:` block, None where it is not a flow sequence on its
-    own line or a block sequence of plain items."""
-    out, inside, event = [], False, None
-    for i, line in enumerate(lines):
-        if line.rstrip() == 'on:':
-            inside = True
-            continue
-        if not inside:
-            continue
-        if TOP.match(line):
-            break
-        if TRIGGER.match(line):
-            event = line.strip().rstrip(':')
-            continue
-        match = re.match(r'\A {4}(paths|paths-ignore):\s*(.*?)\s*\Z', line)
-        if not match:
-            continue
-        value, patterns = match.group(2), []
-        if value.startswith('[') and value.endswith(']'):
-            patterns = [p.strip().strip('\'"') for p in value[1:-1].split(',') if p.strip()]
-        elif not value:
-            for item in lines[i + 1:]:
-                if item.strip().startswith('#'):
-                    continue
-                entry = re.match(r'\A {4,}- (.+?)\s*\Z', item)
-                if not entry:
-                    break
-                patterns.append(entry.group(1).strip('\'"'))
-        out.append((event, match.group(1), patterns or None))
+    list under `on:`, read from the YAML nodes; None where it is not a
+    list of plain strings. A str says why the file cannot be read."""
+    data = read_yaml(text, PARSE_TRIGGERS)
+    if isinstance(data, str):
+        return data
+    out = []
+    for event, fields in data.items() if isinstance(data, dict) else ():
+        for key in ('paths', 'paths-ignore'):
+            if not isinstance(fields, dict) or key not in fields:
+                continue
+            listed = fields[key]
+            ok = isinstance(listed, list) and listed and all(isinstance(pattern, str) for pattern in listed)
+            out.append((event, key, listed if ok else None))
     return out
 
 
@@ -404,6 +466,10 @@ walk = lambda do |node|
     node.children.each_slice(2) do |key, value|
       walk.(key)
       name = key.is_a?(Psych::Nodes::Alias) ? anchors[key.anchor] : key
+      if name.is_a?(Psych::Nodes::Scalar) && name.value == "run"
+        script = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
+        out << { line: value.start_line + 1, run: script.value } if script.is_a?(Psych::Nodes::Scalar)
+      end
       if name.is_a?(Psych::Nodes::Scalar) && name.value == "uses"
         ref = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
         out << if ref.is_a?(Psych::Nodes::Scalar)
@@ -473,9 +539,11 @@ def read_yaml(text, program):
     return json.loads(run.stdout)
 
 
-def uses_entries(text):
+def yaml_entries(text):
     """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
-    keys of a file, or a str saying why it cannot be read."""
+    keys of a file and [{'line': n, 'run': str}] for its `run` keys with a
+    string value, decoded from whatever quoting or block form it is written
+    in, or a str saying why the file cannot be read."""
     return read_yaml(text, PARSE)
 
 
@@ -486,11 +554,13 @@ def pin_problems(root, path, seen):
         return []
     seen.add(path)
     name = path.relative_to(root)
-    entries = uses_entries(path.read_text(encoding='utf-8'))
+    entries = yaml_entries(path.read_text(encoding='utf-8'))
     if isinstance(entries, str):
         return [f'{name}: {entries}']
     out = []
     for entry in entries:
+        if 'run' in entry:
+            continue
         where, ref = f'{name}: line {entry["line"]}: ', entry.get('ref')
         if ref is None:
             out.append(where + entry['error'])
@@ -532,8 +602,14 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
-        if any(INSTALLS.match(line) for line in run_lines(lines)):
-            for event, key, listed in trigger_filters(lines):
+        entries = yaml_entries(path.read_text(encoding='utf-8'))
+        if not isinstance(entries, str) and any(
+                calls_installer(script) for entry in entries if 'run' in entry for script in entry['run'].splitlines()):
+            filters = trigger_filters(path.read_text(encoding='utf-8'))
+            if isinstance(filters, str):
+                problems.append(f'{path.name}: {filters}')
+                filters = []
+            for event, key, listed in filters:
                 if listed is None:
                     problems.append(f'{path.name}: the `{key}` filter of `{event}` is not a list this check reads')
                     continue
