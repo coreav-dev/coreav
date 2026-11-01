@@ -2229,7 +2229,7 @@ documentation, committed with the implementation, never from the command
 being logged: `scripts/fallback_names.py` generates
 `crates/coreav-cli/src/fallback/names.rs` from FFmpeg 9.0.2's `-h full`,
 `-encoders`, `-formats` and `ffprobe -sections`, and the keys from
-`coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
+`coreav ffprobe`'s source. CI checks the generated file with `python3 -I scripts/fallback_names.py --check DIR`, using the pinned oracle already installed in its `check` job. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of
 `-show_entries format_tags=private_label` logs `format_tags=KEY` there too.
 

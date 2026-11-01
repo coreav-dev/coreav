@@ -9,6 +9,7 @@ prints, which are the entry keys of its own source
 
     scripts/install-oracle-ffmpeg.sh DIR
     python3 -I scripts/fallback_names.py DIR
+    python3 -I scripts/fallback_names.py --check DIR
 
 The vocabulary's options come from `tools/compat-corpus/classify.py` and
 override the listing, which shows some flags with an argument name
@@ -16,9 +17,12 @@ override the listing, which shows some flags with an argument name
 options it shows with none though they take one. Python 3.11 standard
 library only.
 """
+import argparse
+import difflib
 import importlib.util
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -106,13 +110,11 @@ def rust_options(tool, name, found):
         + rust_names(f'{name}_FLAGS', [o for o, v in found.items() if not v]))
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.exit('usage: fallback_names.py DIR (the pinned ffmpeg and ffprobe)')
-    bin_dir = pathlib.Path(sys.argv[1])
+def generate(bin_dir):
+    problems = list(oracle_pin.verify_bin(bin_dir))
+    if problems:
+        sys.exit('\n'.join(problems))
     ffmpeg, ffprobe = bin_dir / 'ffmpeg', bin_dir / 'ffprobe'
-    if not re.search(rf'\Affmpeg version {re.escape(PIN["BUILD"])}\b', run(ffmpeg, '-version')):
-        sys.exit(f'fallback_names.py: {ffmpeg} is not the pinned FFmpeg {PIN["BUILD"]}')
     vocabulary = classify()
     ffmpeg_options, constants = options(
         run(ffmpeg, '-h', 'full'),
@@ -156,10 +158,33 @@ def main():
     out.append(rust_names('SECTIONS', sections))
     out.append('\n/// The keys `coreav ffprobe` prints outside the tags.\n')
     out.append(rust_names('KEYS', keys))
+    return subprocess.run(['rustfmt', '--edition', '2024'], input=''.join(out),
+                          capture_output=True, text=True, check=True, cwd=ROOT).stdout
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument('--check', action='store_true')
+    parser.add_argument('directory', type=pathlib.Path, help='the pinned ffmpeg and ffprobe')
+    args = parser.parse_args()
+    generated = generate(args.directory)
+    if args.check:
+        current = OUT.read_text() if OUT.exists() else ''
+        if current == generated:
+            return 0
+        diff = difflib.unified_diff(current.splitlines(), generated.splitlines(),
+                                    fromfile=str(OUT.relative_to(ROOT)), tofile='generated',
+                                    lineterm='')
+        print('\n'.join(diff), file=sys.stderr)
+        directory = shlex.quote(str(args.directory))
+        print(f'fallback_names.py: {OUT.relative_to(ROOT)} is not the generator\'s output; '
+              f'regenerate it on Linux x86-64: scripts/install-oracle-ffmpeg.sh {directory} '
+              f'&& python3 -I scripts/fallback_names.py {directory}', file=sys.stderr)
+        return 1
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(''.join(out))
-    subprocess.run(['rustfmt', '--edition', '2024', str(OUT)], check=True)
+    OUT.write_text(generated)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

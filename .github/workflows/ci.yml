@@ -271,6 +271,8 @@ jobs:
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
       - name: Verify the pinned encoder oracle
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
+      - name: Check fallback names against the pinned oracle
+        run: python3 -I scripts/fallback_names.py --check "$RUNNER_TEMP/coreav-encoders"
       # The Opus and AAC bars' source set, made by the pinned FFmpeg at a
       # second each, so a source its filter parser refuses fails here and
       # not in a judged run (docs/design/transcode.md, "Opus bars").
