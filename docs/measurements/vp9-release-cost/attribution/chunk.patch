@@ -1,0 +1,311 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 98dd9b1..932b70a 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -296,6 +296,7 @@ dependencies = [
+  "coreav-thumbnail",
+  "coreav-transcode",
+  "coreav-worker",
++ "mimalloc",
+  "miniz_oxide",
+  "rustix",
+  "rustls",
+@@ -330,6 +331,7 @@ dependencies = [
+  "coreav-thumbnail",
+  "coreav-worker",
+  "md-5",
++ "mimalloc",
+  "serde_json",
+ ]
+
+@@ -810,6 +812,15 @@ version = "0.2.191"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+
++[[package]]
++name = "libmimalloc-sys"
++version = "0.1.49"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9"
++dependencies = [
++ "cc",
++]
++
+ [[package]]
+ name = "linux-raw-sys"
+ version = "0.12.1"
+@@ -853,6 +864,15 @@ dependencies = [
+  "libc",
+ ]
+
++[[package]]
++name = "mimalloc"
++version = "0.1.52"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2d4139bb28d14ad1facf21d5eb8825051b326e172d216b39f6d31df53cc97862"
++dependencies = [
++ "libmimalloc-sys",
++]
++
+ [[package]]
+ name = "miniz_oxide"
+ version = "0.8.9"
+diff --git a/crates/coreav-cli/Cargo.toml b/crates/coreav-cli/Cargo.toml
+index 3160dbe..e148058 100644
+--- a/crates/coreav-cli/Cargo.toml
++++ b/crates/coreav-cli/Cargo.toml
+@@ -70,8 +70,9 @@ aac = ["coreav-audio/aac", "coreav-transcode?/aac"]
+ # (scripts/patent_free_check.py checks it) and encodes Opus with libopus;
+ # the full build adds CoreAV's H.264 and AAC decoders. Windows builds take
+ # neither: see platform.sh.
+-release-default = ["cli", "net", "dav1d", "libvpx", "libopus"]
++release-default = ["cli", "net", "dav1d", "libvpx", "libopus", "release-allocator"]
+ release-full = ["release-default", "native-h264", "aac"]
++release-allocator = ["dep:mimalloc"]
+
+ [dependencies]
+ coreav-audio = { path = "../coreav-audio" }
+@@ -97,6 +98,9 @@ serde_json = { workspace = true }
+ [target.'cfg(unix)'.dependencies]
+ rustix = { version = "1", default-features = false, features = ["std", "fs"] }
+
++[target.'cfg(all(target_os = "linux", target_env = "musl", target_arch = "x86_64"))'.dependencies]
++mimalloc = { version = "0.1.52", optional = true }
++
+ [dev-dependencies]
+ # Compresses movie boxes for the compressed-movie (`cmov`) regressions.
+ miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+diff --git a/crates/coreav-cli/src/main.rs b/crates/coreav-cli/src/main.rs
+index 452d11e..bcf89fd 100644
+--- a/crates/coreav-cli/src/main.rs
++++ b/crates/coreav-cli/src/main.rs
+@@ -64,6 +64,15 @@
+ mod compat_cmd;
+ mod fallback_cmd;
+
++#[cfg(all(
++    feature = "release-allocator",
++    target_os = "linux",
++    target_env = "musl",
++    target_arch = "x86_64"
++))]
++#[global_allocator]
++static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
++
+ use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
+ use std::ffi::OsString;
+ use std::io::Write;
+diff --git a/crates/coreav-worker/src/exec.rs b/crates/coreav-worker/src/exec.rs
+index 9bb0e93..8816cca 100644
+--- a/crates/coreav-worker/src/exec.rs
++++ b/crates/coreav-worker/src/exec.rs
+@@ -259,6 +259,7 @@ impl ExecLauncher {
+             .args(&self.command.args)
+             .args(launch_args(limits, huge_pages, program, args));
+         isolate(&mut command);
++        crate::sandbox::configure_allocator(&mut command);
+         command
+     }
+ }
+diff --git a/crates/coreav-worker/src/parent.rs b/crates/coreav-worker/src/parent.rs
+index 27befc6..8a5eaea 100644
+--- a/crates/coreav-worker/src/parent.rs
++++ b/crates/coreav-worker/src/parent.rs
+@@ -453,6 +453,7 @@ impl SandboxedDecoder {
+             .stdin(Stdio::piped())
+             .stdout(Stdio::piped())
+             .stderr(Stdio::piped());
++        crate::sandbox::configure_allocator(&mut command);
+         // Its own process group, so that killing the group ends the
+         // backend's children too.
+         #[cfg(unix)]
+diff --git a/crates/coreav-worker/src/sandbox.rs b/crates/coreav-worker/src/sandbox.rs
+index 5176982..3e86c76 100644
+--- a/crates/coreav-worker/src/sandbox.rs
++++ b/crates/coreav-worker/src/sandbox.rs
+@@ -6,6 +6,13 @@
+
+ use crate::protocol::SandboxLimits;
+
++pub(crate) fn configure_allocator(command: &mut std::process::Command) {
++    command.env(
++        "MIMALLOC_ARENA_RESERVE",
++        include_str!("mimalloc-arena-reserve-kib.txt").trim(),
++    );
++}
++
+ /// Applies `limits`, plus no core files and no regular-file writes
+ /// (`RLIMIT_FSIZE` 0: decoders write only to pipes). Each limit is set as
+ /// both the soft and the hard value, so the worker cannot raise it again;
+diff --git a/tools/decode-oracle/Cargo.toml b/tools/decode-oracle/Cargo.toml
+index a5f7709..009de5b 100644
+--- a/tools/decode-oracle/Cargo.toml
++++ b/tools/decode-oracle/Cargo.toml
+@@ -14,6 +14,8 @@ path = "src/main.rs"
+
+ [features]
+ default = []
++no-frame-hash = []
++release-allocator = ["dep:mimalloc"]
+ # dav1d, in the worker and in-process (links the system's libdav1d).
+ dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d", "coreav-worker/dav1d"]
+ # CoreAV's native H.264 decoder, in-process (`--backend native`).
+@@ -34,5 +36,8 @@ coreav-worker = { path = "../../crates/coreav-worker", features = ["ffmpeg"] }
+ md-5 = "0.10"
+ serde_json = { workspace = true }
+
++[target.'cfg(all(target_os = "linux", target_env = "musl", target_arch = "x86_64"))'.dependencies]
++mimalloc = { version = "0.1.52", optional = true }
++
+ [lints]
+ workspace = true
+--- a/crates/coreav-backend-libvpx/src/decoder.rs
++++ b/crates/coreav-backend-libvpx/src/decoder.rs
+@@ -465,7 +465,7 @@
+             let line = view
+                 .row(index, r)
+                 .ok_or_else(|| bad("plane shorter than its rows"))?;
+-            data.extend_from_slice(line);
++            append_row(&mut data, line);
+         }
+         to_little_endian(layout.high, &mut data);
+         planes.push(Plane::new(data, row));
+@@ -478,6 +478,22 @@
+         pixels: Pixels::Cpu(picture),
+     };
+     Ok((frame, layout.bytes))
++}
++
++fn append_row(data: &mut Vec<u8>, row: &[u8]) {
++    if cfg!(all(
++        target_os = "linux",
++        target_env = "musl",
++        target_arch = "x86_64"
++    )) {
++        let mut chunks = row.chunks_exact(64);
++        for chunk in &mut chunks {
++            data.extend_from_slice(chunk);
++        }
++        data.extend_from_slice(chunks.remainder());
++    } else {
++        data.extend_from_slice(row);
++    }
+ }
+
+ /// A frame shown by the packet [`LibvpxDecoder::send_packet_lending`] is
+@@ -544,6 +560,17 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn exported_rows_keep_unaligned_bytes_and_short_tails() {
++        for width in [0, 1, 63, 64, 65, 127, 128, 129, 321, 7680] {
++            let source: Vec<u8> = (0u8..=250).cycle().take(width).collect();
++            let mut data = vec![9, 8, 7];
++            data.reserve_exact(source.len());
++            append_row(&mut data, &source);
++            assert_eq!(data, [vec![9, 8, 7], source].concat());
++        }
++    }
+
+     #[test]
+     fn the_memory_estimate_refuses_what_does_not_fit() {
+--- a/crates/coreav-backend-libvpx/src/ffi.rs
++++ b/crates/coreav-backend-libvpx/src/ffi.rs
+@@ -199,15 +199,21 @@
+             context,
+             _config: config,
+         };
+-        if interface == Interface::Vp9 && threads > 1 {
++        let row_mt = match std::env::var("COREAV_DIAG_ROW_MT").as_deref() {
++            Ok("0") => false,
++            Ok("1") => true,
++            _ => threads > 1,
++        };
++        if interface == Interface::Vp9 {
+             // SAFETY: an initialised VP9 decoder; `VP9D_SET_ROW_MT` takes one
+             // `int`.
+-            let on: c_int = 1;
++            let on: c_int = i32::from(row_mt);
+             let err = unsafe { vpx_codec_control_(&mut *vpx.context, SET_ROW_MT, on) };
+             if err != 0 {
+                 return Err(vpx.failure(err));
+             }
+         }
++        eprintln!("DIAG_CONFIG threads={} row_mt={}", threads.max(1), u8::from(row_mt));
+         Ok(vpx)
+     }
+
+--- a/tools/decode-oracle/src/main.rs
++++ b/tools/decode-oracle/src/main.rs
+@@ -24,11 +24,21 @@
+ use coreav_isobmff::{BufferedSource, FileSource, Rational};
+ use coreav_thumbnail::{ThumbnailOptions, first_packets};
+ use coreav_worker::{SandboxedBackend, TransferMode, WorkerBackend, WorkerCommand, WorkerOptions};
++#[cfg(not(feature = "no-frame-hash"))]
+ use md5::{Digest, Md5};
+ use serde_json::{Value, json};
+
+ /// Packets after the decoded ones read to find the cutoff.
+ const LOOKAHEAD: usize = 64;
++
++#[cfg(all(
++    feature = "release-allocator",
++    target_os = "linux",
++    target_env = "musl",
++    target_arch = "x86_64"
++))]
++#[global_allocator]
++static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+ fn main() -> ExitCode {
+     let args: Vec<String> = std::env::args().skip(1).collect();
+@@ -210,12 +220,19 @@
+ fn drain(decoder: &mut dyn Decoder, frames: &mut Vec<Value>) -> Result<(), String> {
+     while let Some(frame) = decoder.receive_frame().map_err(|e| e.to_string())? {
+         let picture = frame.to_cpu().map_err(|e| e.to_string())?;
+-        let mut packed = Vec::new();
+-        picture
+-            .write_packed(&mut packed)
+-            .map_err(|e| e.to_string())?;
+-        let digest = Md5::digest(&packed);
+-        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
++        #[cfg(not(feature = "no-frame-hash"))]
++        let hex: String = {
++            let mut packed = Vec::new();
++            picture
++                .write_packed(&mut packed)
++                .map_err(|e| e.to_string())?;
++            Md5::digest(&packed)
++                .iter()
++                .map(|b| format!("{b:02x}"))
++                .collect()
++        };
++        #[cfg(feature = "no-frame-hash")]
++        let hex = String::new();
+         frames.push(json!({
+             "pts": frame.pts,
+             "width": picture.width(),
+@@ -408,7 +425,16 @@
+     stream: &coreav_decode::StreamConfig,
+     limits: &Limits,
+ ) -> Result<Box<dyn Decoder>, String> {
+-    let options = coreav_backend_libvpx::LibvpxOptions::default();
++    let requested: u32 = std::env::var("COREAV_DIAG_THREADS")
++        .unwrap_or_else(|_| "0".into())
++        .parse()
++        .map_err(|_| "invalid diagnostic thread count")?;
++    let threads = match requested {
++        0 => std::thread::available_parallelism()
++            .map_or(1, |n| u32::try_from(n.get()).unwrap_or(u32::MAX)),
++        n => n,
++    };
++    let options = coreav_backend_libvpx::LibvpxOptions { threads };
+     coreav_backend_libvpx::LibvpxDecoder::open(&options, stream, limits)
+         .map(|d| Box::new(d) as Box<dyn Decoder>)
+         .map_err(|e| e.to_string())
+--- /dev/null
++++ b/crates/coreav-worker/src/mimalloc-arena-reserve-kib.txt
+@@ -0,0 +1 @@
++131072
