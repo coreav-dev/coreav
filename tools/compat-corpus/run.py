@@ -559,6 +559,10 @@ def empty_edit_padding_fixture(coreav, path):
     retire this exception."""
     if path.name not in EMPTY_EDIT_FIXTURES:
         return False
+    manifest = path.parent / 'MANIFEST'
+    if not manifest.is_file() or ['generated', path.name] not in [
+            line.split() for line in manifest.read_text().splitlines()]:
+        return False
     prefix = 'KD-FF9-EMPTY-EDIT-PADDING: '
     try:
         if path.stat().st_size > 64 * 1024 * 1024:

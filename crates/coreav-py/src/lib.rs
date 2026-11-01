@@ -26,8 +26,8 @@ use coreav_cli::output::{self, WriteFailure};
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_isobmff::{BufferedSource, SliceSource};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, MatroskaRemuxOptions, Metadata, OnUnsupported, RemuxOptions,
-    TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, HeaderMetadata, MatroskaRemuxOptions, Metadata, OnUnsupported,
+    RemuxOptions, TrackChoice, VideoChoice,
 };
 use coreav_policy::Policy;
 use pyo3::create_exception;
@@ -792,7 +792,9 @@ fn extract_audio(
                         )
                         .map_err(|f| explain_write(&remote, f))?
                     }
-                    Input::Path(path) => extract::run(path, choice, &allowlist, out)?,
+                    Input::Path(path) => {
+                        extract::run(path, choice, &allowlist, HeaderMetadata::Copy, out)?
+                    }
                     Input::Bytes(data) => extract::run_slice(data, choice, &allowlist, out)?,
                 };
                 Ok(extract::document(&summary))

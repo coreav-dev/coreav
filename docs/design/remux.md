@@ -102,7 +102,8 @@ unchanged byte for byte (checked on every fixture).
   conforming decoder needs to decode only conforming bitstreams (C.5.1).
   The clip, split, join and HLS writers refuse it alike: `conforming` in
   `clip.rs` is the one check, which their video sample entry and this
-  remux's stream plan call. Dropping it would hand on a file that lost its
+  remux's stream plan call. The Matroska and WebM remux refuses it too,
+  from the `CodecPrivate` record, and `--drop-unsupported` does not drop it. Dropping it would hand on a file that lost its
   picture without saying why it cannot be played.
 - **Choice:** drop and report by default (the issue asks for it, and an
   upload pipeline usually wants the playable streams);

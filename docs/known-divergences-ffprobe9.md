@@ -226,7 +226,8 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   predicate `oracle_kd.empty_edit_padding` (coreav-dev/coreav#160) gates it
   in the corpus comparator; any other absent value is never excluded. Only
   the fixture scope below applies now.
-- Accepts: on these two files only, while their bytes still have this
+- Accepts: on these two files only, registered as `generated NAME` in
+  their directory's `MANIFEST`, while their bytes still have this
   shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
   them), CoreAV's Skip Samples side data on the last audio packet with
   exactly the padding the bytes give, and ffprobe's none; every other
