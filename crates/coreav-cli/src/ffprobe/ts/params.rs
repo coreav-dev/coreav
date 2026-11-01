@@ -1832,12 +1832,17 @@ pub fn aac_explicit_sbr_rate(config: &[u8]) -> Option<u32> {
 /// or EXT_SBR_DATA_CRC, 4.4.2.7 and table 4.121) just before its
 /// `ID_END`. The block is read from its end, the only end a reader that
 /// does not decode the spectral data before it can find: `ID_END` (`111`)
-/// then up to seven zero bits of byte alignment, and before it a fill
+/// then up to seven bits to the end of the block, and before it a fill
 /// element (`110`) whose `count` (with `esc_count`) is exactly the bytes
 /// between its header and `ID_END`, starting with the SBR extension type.
-/// A frame of plain AAC shows no such element (none in 140 frames of
-/// seven AAC-LC captures of the corpus), and an HE-AAC frame shows it
-/// whenever it carries SBR data.
+/// Empty fill elements, and one fill element of EXT_FILL_DATA (its
+/// `fill_nibble` `0000` and `fill_byte`s `10100101`, table 4.57), may
+/// come between the two. The bits after `ID_END` are not read: a decoder
+/// stops at `ID_END`, and a LATM payload, whose length is in bytes, was
+/// seen to end with ones there (a DVB capture of the corpus). A frame of
+/// plain AAC shows such an element about once in a hundred frames (AAC-LC
+/// captures of the corpus), and an HE-AAC frame shows it whenever it
+/// carries SBR data.
 pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
     let bit = |at: usize| -> Option<u8> {
         let byte = *block.get(at / 8)?;
@@ -1850,62 +1855,79 @@ pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
         }
         Some(v)
     };
-    let total = block.len().saturating_mul(8);
-    for pad in 0..8usize {
-        let Some(end) = total.checked_sub(pad) else {
-            break;
-        };
-        if (end..total).any(|at| bit(at) != Some(0)) {
-            // Alignment bits are zero; a one ends the search.
-            break;
-        }
-        let Some(body_end) = end.checked_sub(3) else {
-            continue;
-        };
-        if read(body_end, 3) != Some(0b111) {
-            continue;
-        }
-        // Empty fill elements (`110` and a `count` of 0) may follow the
-        // one that carries SBR data.
-        let mut fill_end = body_end;
-        while let Some(before) = fill_end.checked_sub(7) {
+    let empty_fills_before = |end: usize| -> usize {
+        let mut at = end;
+        while let Some(before) = at.checked_sub(7) {
             if read(before, 7) != Some(0b110_0000) {
                 break;
             }
-            fill_end = before;
+            at = before;
         }
+        at
+    };
+    let fill_data_before = |end: usize| -> Option<usize> {
+        let mut at = end;
+        for count in 1..=MAX_FILL_BYTES as u32 {
+            let payload = at.checked_sub(8)?;
+            let byte = read(payload, 8)?;
+            if byte == 0b0001_0000 {
+                let short = payload
+                    .checked_sub(7)
+                    .filter(|&s| count < 15 && read(s, 7) == Some((0b110 << 4) | count));
+                let long = payload.checked_sub(15).filter(|&s| {
+                    count >= 14 && read(s, 15) == Some((0b110_1111 << 8) | (count - 14))
+                });
+                if let Some(start) = short.or(long) {
+                    return Some(start);
+                }
+            }
+            if byte != 0b1010_0101 {
+                return None;
+            }
+            at = payload;
+        }
+        None
+    };
+    let sbr_before = |body_end: usize| -> bool {
+        // Empty fill elements (`110` and a `count` of 0) may follow the
+        // one that carries SBR data.
+        let fill_end = empty_fills_before(body_end);
         let mut start = fill_end.saturating_sub(MAX_FILL_BYTES * 8 + 15);
         let stride = if fill_end == body_end { 8 } else { 1 };
         if stride == 8 {
             let Some(last) = body_end.checked_sub(7) else {
-                continue;
+                return false;
             };
             start += last.saturating_sub(start) % 8;
         }
-        for start in (start..body_end).step_by(stride) {
+        (start..body_end).step_by(stride).any(|start| {
             if read(start, 3) != Some(0b110) {
-                continue;
+                return false;
             }
             let (count, header) = match read(start + 3, 4) {
-                Some(0) | None => continue,
+                Some(0) | None => return false,
                 Some(15) => match read(start + 7, 8) {
                     Some(escape) => (14 + escape as usize, 15),
-                    None => continue,
+                    None => return false,
                 },
                 Some(count) => (count as usize, 7),
             };
-            let Some(end) = start.checked_add(header + count * 8) else {
-                continue;
-            };
-            if (fill_end..=body_end).contains(&end)
-                && (body_end - end) % 7 == 0
-                && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
-            {
-                return true;
-            }
-        }
-    }
-    false
+            start.checked_add(header + count * 8).is_some_and(|end| {
+                (fill_end..=body_end).contains(&end)
+                    && (body_end - end) % 7 == 0
+                    && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
+            })
+        })
+    };
+    let total = block.len().saturating_mul(8);
+    (3..11).any(|tail| {
+        let Some(body_end) = total.checked_sub(tail) else {
+            return false;
+        };
+        read(body_end, 3) == Some(0b111)
+            && (sbr_before(body_end)
+                || fill_data_before(empty_fills_before(body_end)).is_some_and(sbr_before))
+    })
 }
 
 /// The most bytes of a fill element: `count` 15 plus `esc_count` 255,
@@ -2208,6 +2230,50 @@ mod tests {
         let mut fields = vec![(0b110, 3), (2, 4), (0b0001, 4), (0, 12)];
         fields.extend(std::iter::repeat_n((0b1100000, 7), 300));
         fields.push((0b111, 3));
+        assert!(!aac_ends_with_sbr(&pack(&fields)));
+    }
+
+    #[test]
+    fn sbr_is_found_past_fill_data_and_whatever_follows_id_end() {
+        let fill_data = |bytes: u32| {
+            let count = bytes + 1;
+            let mut fields = if count < 15 {
+                vec![(0b110, 3), (count, 4)]
+            } else {
+                vec![(0b110, 3), (15, 4), (count - 14, 8)]
+            };
+            fields.extend([(0b0001, 4), (0, 4)]);
+            fields.extend(std::iter::repeat_n((0b1010_0101, 8), bytes as usize));
+            fields
+        };
+        let block = |prefix: u32, sbr: bool, data: Option<u32>, empty: usize| {
+            let mut fields = vec![(0, prefix)];
+            if sbr {
+                fields.extend([(0b110, 3), (2, 4), (0b1101, 4), (0, 12)]);
+            }
+            fields.extend(data.map(fill_data).unwrap_or_default());
+            fields.extend(std::iter::repeat_n((0b1100000, 7), empty));
+            fields.push((0b111, 3));
+            let bits: u32 = fields.iter().map(|f| f.1).sum();
+            let mut block = pack(&fields);
+            *block.last_mut().unwrap() |= (1u8 << ((8 - bits % 8) % 8)) - 1;
+            block
+        };
+        for prefix in 0..8 {
+            for data in [None, Some(0), Some(1), Some(13), Some(14), Some(40)] {
+                for empty in [0, 1, 2] {
+                    assert!(
+                        aac_ends_with_sbr(&block(prefix, true, data, empty)),
+                        "{prefix} {data:?} {empty}"
+                    );
+                    assert!(!aac_ends_with_sbr(&block(prefix, false, data, empty)));
+                }
+            }
+        }
+        // A fill byte other than `10100101` is not fill data.
+        let mut fields = vec![(0b110, 3), (2, 4), (0b1101, 4), (0, 12)];
+        fields.extend([(0b110, 3), (3, 4), (0b0001, 4), (0, 4), (0b1010_0101, 8)]);
+        fields.extend([(0b1010_0100, 8), (0b111, 3)]);
         assert!(!aac_ends_with_sbr(&pack(&fields)));
     }
 

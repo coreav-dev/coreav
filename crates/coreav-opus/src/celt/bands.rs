@@ -26,6 +26,25 @@ use crate::tables::celt as t;
 /// The coefficients of a 20 ms frame up to the top of the last band.
 const NORM: usize = 800;
 
+/// The folding buffers of [`decode`], kept between frames so that they are
+/// not cleared for each: a frame reads only the values it wrote.
+#[derive(Clone, Debug)]
+pub(super) struct Folding {
+    /// The decoded bands, scaled for folding, per channel.
+    norm: [[f32; NORM]; 2],
+    /// A band's folding source, copied out of `norm`.
+    lowband: [f32; MAX_BAND],
+}
+
+impl Default for Folding {
+    fn default() -> Self {
+        Self {
+            norm: [[0.0; NORM]; 2],
+            lowband: [0.0; MAX_BAND],
+        }
+    }
+}
+
 /// Aggressive spreading, which disables folding's collapse estimate.
 const SPREAD_AGGRESSIVE: usize = 3;
 
@@ -685,6 +704,7 @@ pub(super) fn decode(
     frame: &Frame<'_>,
     seed: &mut u32,
     x: &mut [&mut [f32]],
+    buffers: &mut Folding,
 ) -> [[u8; 2]; BANDS] {
     let channels = x.len().clamp(1, 2);
     let lm = frame.lm;
@@ -692,9 +712,7 @@ pub(super) fn decode(
     let blocks = if frame.transient { m } else { 1 };
     let alloc = frame.allocation;
     let bands = frame.bands;
-    // The decoded bands, scaled for folding, per channel.
-    let mut norm = [[0f32; NORM]; 2];
-    let mut lowband = [0f32; MAX_BAND];
+    let Folding { norm, lowband } = buffers;
     let mut masks = [[0u8; 2]; BANDS];
     let mut shape = Shape {
         rd,
@@ -778,7 +796,7 @@ pub(super) fn decode(
         if dual && band == alloc.intensity {
             // Intensity stereo from here on: fold from the mean.
             dual = false;
-            let [left, right] = &mut norm;
+            let [left, right] = norm;
             for (l, &r) in left.iter_mut().zip(right.iter()).take(lo).skip(first) {
                 *l = 0.5 * (*l + r);
             }
@@ -790,19 +808,19 @@ pub(super) fn decode(
             .and_then(|c| c.get_mut(lo..lo + n))
             .unwrap_or(&mut []);
         let yb = rest.first_mut().and_then(|c| c.get_mut(lo..lo + n));
-        let [norm_x, norm_y] = &mut norm;
+        let [norm_x, norm_y] = &mut *norm;
         let lm_i = lm as i32;
         if dual {
-            let low = folding(norm_x, fold, n, &mut lowband);
+            let low = folding(norm_x, fold, n, lowband);
             let out = norm_x.get_mut(lo..lo + n);
             x_mask = shape.mono(xb, b / 2, blocks, low, lm_i, out, 1.0, x_mask);
             if let Some(yb) = yb {
-                let low = folding(norm_y, fold, n, &mut lowband);
+                let low = folding(norm_y, fold, n, lowband);
                 let out = norm_y.get_mut(lo..lo + n);
                 y_mask = shape.mono(yb, b / 2, blocks, low, lm_i, out, 1.0, y_mask);
             }
         } else {
-            let low = folding(norm_x, fold, n, &mut lowband);
+            let low = folding(norm_x, fold, n, lowband);
             let out = norm_x.get_mut(lo..lo + n);
             x_mask = match yb {
                 Some(yb) => shape.stereo(xb, yb, b, blocks, low, lm_i, out, x_mask | y_mask),

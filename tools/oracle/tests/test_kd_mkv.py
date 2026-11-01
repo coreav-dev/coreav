@@ -2,11 +2,15 @@
 scripts/oracle_kd_mkv.py in sync, and checks that each predicate rejects
 near misses."""
 import importlib.util
+import io
 import json
 import pathlib
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('oracle_kd_mkv', ROOT / 'scripts' / 'oracle_kd_mkv.py')
@@ -172,3 +176,224 @@ class DeclaredSize(unittest.TestCase):
                 self.assertFalse(kd.declared_size(media, 'f.mkv', 0, ours, {'width': 1, 'height': 1}))
             with mock.patch.object(kd, '_first_frame_size', return_value=(640, 480)):
                 self.assertFalse(kd.declared_size(media, 'f.mkv', 0, theirs, ours))
+
+
+
+def ebml(eid, payload=b''):
+    return eid.to_bytes((eid.bit_length() + 7) // 8, 'big') + (1 << 56 | len(payload)).to_bytes(8, 'big') + payload
+
+
+def pinned(tool):
+    """Whether the `tool` (`ffmpeg` or `ffprobe`) on the path is the pinned
+    oracle build."""
+    spec = importlib.util.spec_from_file_location('oracle_pin', ROOT / 'scripts' / 'oracle_pin.py')
+    pin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pin)
+    try:
+        version = subprocess.run([tool, '-version'], capture_output=True, timeout=60, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return version.startswith(f"{tool} version {pin.load()['BUILD']}-".encode())
+
+
+def ac3_frame(bsid=6, acmod=7, xbsi1e=1, mode=1, levels=(4, 4, 4, 4), crc=True):
+    """A 48 kHz AC-3 syncframe of 64 words (frame size code 0) with an LFE
+    channel, whose alternate syntax states the preferred downmix `mode` and
+    the Lt/Rt and Lo/Ro centre and surround level codes `levels`; its
+    `crc1` holds when `crc`."""
+    bits = []
+
+    def put(value, n):
+        bits.extend(value >> (n - 1 - i) & 1 for i in range(n))
+
+    put(0, 2), put(0, 6), put(bsid, 5), put(0, 3), put(acmod, 3)
+    if acmod & 1 and acmod != 1:
+        put(0, 2)
+    if acmod & 4:
+        put(0, 2)
+    if acmod == 2:
+        put(0, 2)
+    put(1, 1), put(31, 5), put(0, 3)
+    if acmod == 0:
+        put(31, 5), put(0, 3)
+    put(0, 2)
+    if bsid == 6:
+        put(xbsi1e, 1)
+        if xbsi1e:
+            put(mode, 2)
+            for level in (levels[0], levels[1], levels[2], levels[3]):
+                put(level, 3)
+        put(0, 1)
+    else:
+        put(0, 2)
+    put(0, 1)
+    bits += [0] * (-len(bits) % 8)
+    head = bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+    frame = bytearray(b'\x0b\x77\0\0' + head + bytes(128 - 4 - len(head)))
+    covered = 2 * ((64 >> 1) + (64 >> 3))
+    # crc1 leads the bytes it covers: find, by the CRC's linearity, the two
+    # bytes that leave the register at zero.
+    target = kd.ac3_crc(frame[2:covered])
+    basis = [kd.ac3_crc((1 << bit).to_bytes(2, 'big') + bytes(covered - 4)) for bit in range(16)]
+    for value in range(1 << 16):
+        acc = 0
+        for bit in range(16):
+            if value >> bit & 1:
+                acc ^= basis[bit]
+        if acc == target:
+            break
+    frame[2:4] = value.to_bytes(2, 'big')
+    if not crc:
+        frame[covered - 1] ^= 1
+    return bytes(frame)
+
+
+def ac3_matroska(blocks, codec=b'A_AC3', encoded=False, before=b'', clusters=None):
+    """A Matroska file whose track entries are `before` and then one AC-3
+    track, number 2 after `before` and 1 otherwise, with one cluster of
+    `blocks` (each the bytes after a SimpleBlock's flags, and its lacing
+    bits), or the elements `clusters` instead."""
+    number = 2 if before else 1
+    entry = (ebml(0xD7, bytes([number])) + ebml(0x73C5, bytes([number])) + ebml(0x83, b'\x02') + ebml(0x86, codec)
+             + ebml(0xE1, ebml(0xB5, b'\x46\xbb\x80\x00') + ebml(0x9F, b'\x06')))
+    if encoded:
+        entry += ebml(0x6D80, ebml(0x6240, ebml(0x5034, ebml(0x4254, b'\x03') + ebml(0x4255, b'\x0b\x77'))))
+    cluster = b''.join(ebml(0xA3, bytes([0x80 | number, 0, 32 * i, 0x80 | lacing << 1]) + data)
+                       for i, (data, lacing) in enumerate(blocks))
+    return (ebml(0x1A45DFA3, ebml(0x4282, b'matroska') + ebml(0x4287, b'\x04') + ebml(0x4285, b'\x02'))
+            + ebml(0x18538067, ebml(0x1549A966, ebml(0x2AD7B1, b'\x0f\x42\x40'))
+                   + ebml(0x1654AE6B, before + ebml(0xAE, entry))
+                   + (ebml(0x1F43B675, ebml(0xE7, b'\x00') + cluster) if clusters is None else clusters)))
+
+
+def ac3_cluster(*frames, tail=b'', known=True):
+    """A cluster of track 1 with a SimpleBlock per frame and then `tail`, of
+    unknown size unless `known`."""
+    payload = ebml(0xE7, b'\x00') + b''.join(ebml(0xA3, bytes([0x81, 0, 32 * i, 0x80]) + frame)
+                                             for i, frame in enumerate(frames)) + tail
+    return ebml(0x1F43B675, payload) if known else b'\x1f\x43\xb6\x75\x01' + b'\xff' * 7 + payload
+
+
+def single(*frames):
+    return [(frame, 0) for frame in frames]
+
+
+class AnnexDDownmix(unittest.TestCase):
+    def evidence(self, data):
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory)
+        path = pathlib.Path(directory) / 'f.mkv'
+        path.write_bytes(data)
+        return kd.annex_d_downmix(path)
+
+    def test_every_frame_states_the_same_values(self):
+        frame = ac3_frame()
+        stated = ('1', '0.707107', '0.707107', '0.707107', '0.707107')
+        self.assertEqual(self.evidence(ac3_matroska(single(frame, frame, frame))),
+                         [kd.Ac3Downmix(0, 1, 3, kd.NO_DOWNMIX, stated)])
+        # Each lacing: Xiph (sizes as 255s and a remainder), fixed, EBML.
+        laces = [(bytes([2, 128, 128]) + frame * 3, 1), (bytes([2]) + frame * 3, 2),
+                 (bytes([2, 0x40, 128, 0xBF]) + frame * 3, 3)]
+        self.assertEqual(self.evidence(ac3_matroska(laces)), [kd.Ac3Downmix(0, 1, 9, kd.NO_DOWNMIX, stated)])
+
+    def test_values_only_where_annex_d_defines_them(self):
+        # No surround channels (3/0) keeps no surround level; no centre
+        # (2/2) no centre level; a muting code is 0.
+        self.assertEqual(self.evidence(ac3_matroska(single(ac3_frame(acmod=3, mode=2, levels=(0, 5, 6, 3)))))[0].coreav,
+                         ('2', '1.414214', '0.000000', '0.500000', '0.000000'))
+        self.assertEqual(self.evidence(ac3_matroska(single(ac3_frame(acmod=6, levels=(0, 7, 6, 3)))))[0].coreav,
+                         ('1', '0.000000', '0.000000', '0.000000', '0.840896'))
+
+    def test_track_position_and_number(self):
+        video = ebml(0xAE, ebml(0xD7, b'\x01') + ebml(0x83, b'\x01') + ebml(0x86, b'V_VP9'))
+        found = self.evidence(ac3_matroska(single(ac3_frame()), before=video))
+        self.assertEqual([(e.position, e.number) for e in found], [(1, 2)])
+
+    def test_other_shapes_give_no_evidence(self):
+        frame = ac3_frame()
+        for name, blocks, options in (
+                ('frames that disagree', single(frame, ac3_frame(mode=2)), {}),
+                ('a later frame that disagrees', single(frame, frame, ac3_frame(levels=(4, 4, 5, 4))), {}),
+                ('bsid 8', single(ac3_frame(bsid=8)), {}),
+                ('a later frame of bsid 8', single(frame, ac3_frame(bsid=8)), {}),
+                ('two channels', single(ac3_frame(acmod=2)), {}),
+                ('xbsi1e 0', single(ac3_frame(xbsi1e=0)), {}),
+                ('a reserved surround level', single(ac3_frame(levels=(4, 2, 4, 4))), {}),
+                ('crc1 failing', single(ac3_frame(crc=False)), {}),
+                ('a frame of two syncframes', single(frame + frame), {}),
+                ('a trailing byte', single(frame + b'\0'), {}),
+                ('a cut frame', single(frame[:-1]), {}),
+                ('no downmix stated', single(ac3_frame(mode=0, levels=(7, 7, 7, 7))), {}),
+                ('E-AC-3', single(frame), {'codec': b'A_EAC3'}),
+                ('header stripping', single(frame), {'encoded': True}),
+                ('lace sizes past the block', [(bytes([2, 200]) + frame * 2, 1)], {}),
+                ('no frames', [], {}),
+        ):
+            self.assertEqual(self.evidence(ac3_matroska(blocks, **options)), [], name)
+
+    def test_a_walk_that_cannot_reach_every_block_gives_no_evidence(self):
+        frame, other = ac3_frame(), ac3_frame(mode=2)
+        stated = ('1', '0.707107', '0.707107', '0.707107', '0.707107')
+        twice = ac3_matroska([], clusters=ac3_cluster(frame) + ac3_cluster(frame))
+        self.assertEqual(self.evidence(twice), [kd.Ac3Downmix(0, 1, 2, kd.NO_DOWNMIX, stated)])
+        for name, data in (
+                # A cluster of unknown size, whatever follows it.
+                ('unknown size, then the same', ac3_matroska([], clusters=ac3_cluster(frame, known=False)
+                                                             + ac3_cluster(frame))),
+                ('unknown size, then another', ac3_matroska([], clusters=ac3_cluster(frame, known=False)
+                                                            + ac3_cluster(other))),
+                # A child header cut short at the end of its cluster.
+                ('a cut header', ac3_matroska([], clusters=ac3_cluster(frame, tail=b'\xa3')
+                                              + ac3_cluster(frame))),
+                # The file ends before its Segment does.
+                ('a cut file', twice[:-1]),
+        ):
+            self.assertEqual(self.evidence(data), [], name)
+        # The element cap refuses a walk it would end early: the Segment has
+        # Info, Tracks and four clusters.
+        four = ac3_matroska([], clusters=ac3_cluster(frame) * 4)
+        with mock.patch.object(kd.policy_ref, 'MAX_ELEMENTS', 6):
+            self.assertEqual(len(self.evidence(four)), 1)
+        with mock.patch.object(kd.policy_ref, 'MAX_ELEMENTS', 5):
+            self.assertEqual(self.evidence(four), [])
+
+    def test_a_block_is_read_only_within_its_element_and_the_size_bound(self):
+        frame = ac3_frame()
+        whole = ac3_matroska(single(frame))
+        # A SimpleBlock that declares 1 TiB in a file of a few hundred bytes.
+        huge = b'\xa3' + (1 << 56 | 1 << 40).to_bytes(8, 'big') + bytes([0x81, 0, 0, 0x80]) + frame
+        reads = []
+
+        class Recorded(io.BytesIO):
+            def read(self, n=-1):
+                reads.append(n)
+                return super().read(n)
+
+        def recorded(path, mode='r'):
+            return Recorded(pathlib.Path(path).read_bytes())
+        with mock.patch.object(kd.policy_ref, 'open', recorded, create=True):
+            self.assertEqual(self.evidence(ac3_matroska([], clusters=ac3_cluster(frame, tail=huge))), [])
+        self.assertLess(max(reads), len(whole) + 64)
+        with mock.patch.object(kd.policy_ref, 'MAX_BLOCK', 4 + len(frame)):
+            self.assertEqual(len(self.evidence(whole)), 1)
+        with mock.patch.object(kd.policy_ref, 'MAX_BLOCK', 3 + len(frame)):
+            self.assertEqual(self.evidence(whole), [])
+
+    @unittest.skipUnless(pinned('ffmpeg') and pinned('ffprobe'), 'needs the pinned ffmpeg and ffprobe on the path')
+    def test_the_pinned_oracle_still_prints_no_downmix(self):
+        directory = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory)
+        path = directory / 'f.mkv'
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=0.2', '-af',
+                        'pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0', '-c:a', 'ac3', '-dmix_mode', 'ltrt',
+                        '-ltrt_cmixlev', '0.707', '-ltrt_surmixlev', '0.5', '-loro_cmixlev', '0.595',
+                        '-loro_surmixlev', '0.707', str(path)], check=True, timeout=120)
+        (found,) = kd.annex_d_downmix(path)
+        self.assertEqual(found.coreav, ('1', '0.707107', '0.500000', '0.594604', '0.707107'))
+        listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_entries',
+                                 'stream=' + ','.join(kd.DOWNMIX_KEYS), str(path)],
+                                capture_output=True, timeout=60, check=True).stdout
+        (stream,) = json.loads(listed)['streams']
+        printed = tuple(stream.get(key) for key in kd.DOWNMIX_KEYS)
+        self.assertNotEqual(printed, found.coreav, 'KD-FF9-ANNEX-D-DOWNMIX: the oracle now agrees; retire the record')
+        self.assertEqual(printed, found.oracle, 'KD-FF9-ANNEX-D-DOWNMIX: the oracle values changed')

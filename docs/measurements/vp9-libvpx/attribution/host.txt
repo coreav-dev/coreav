@@ -1,0 +1,76 @@
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           52 bits physical, 57 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  4
+On-line CPU(s) list:                     0-3
+Vendor ID:                               GenuineIntel
+Model name:                              INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+CPU family:                              6
+Model:                                   207
+Thread(s) per core:                      1
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                2
+BogoMIPS:                                4600.00
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology nonstop_tsc cpuid tsc_known_freq pni pclmulqdq monitor ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves avx_vnni avx512_bf16 wbnoinvd arat avx512vbmi umip avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid cldemote movdiri movdir64b fsrm md_clear serialize tsxldtrk amx_bf16 avx512_fp16 amx_tile amx_int8 arch_capabilities
+Hypervisor vendor:                       KVM
+Virtualization type:                     full
+L1d cache:                               192 KiB (4 instances)
+L1i cache:                               128 KiB (4 instances)
+L2 cache:                                8 MiB (4 instances)
+L3 cache:                                260 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-3
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Indirect target selection: Not affected
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Not affected
+4
+               total        used        free      shared  buff/cache   available
+Mem:              29           0          27           0           1          28
+Swap:              0           0           0
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            15G  4.0K   15G   1% /dev/shm
+smt active: 0
+thp: [always] madvise never defrag: always defer defer+madvise [madvise] never
+Python 3.13.5
+perf version 6.12.113
+Version: 1.15.0-2.1+deb13u1
+	linux-vdso.so.1 (0x00007f51242ec000)
+	libvpx.so.9 => /lib/x86_64-linux-gnu/libvpx.so.9 (0x00007f5123200000)
+	libdav1d.so.7 => /lib/x86_64-linux-gnu/libdav1d.so.7 (0x00007f512301b000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f51242b5000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f5122e27000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f51242ee000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f5122d37000)
+	linux-vdso.so.1 (0x00007f71b8b76000)
+	libvpx.so.9 => /lib/x86_64-linux-gnu/libvpx.so.9 (0x00007f71b8400000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f71b8b3f000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f71b820c000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f71b8b78000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f71b8a4f000)
+5fde2d46728d466c250949469b762e193fd63d3cc86ee151d3e9ddbb71946d13  bin/coreav
+a9baa01a54d1d1cd97ec7b650b0b737c464905c6b92fd7de2136ae1e68c4f98d  bin/decode-oracle
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  bin/ffmpeg
+a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb  bin/ffprobe
+25e7a193c0f75c820b3113b89f6d8b03022e883af73960ec9cbf2b24ccab2176  bin/x264
+eece45fb893f81298bed7143e58073d00ea1cbcc8de2affb8e4d40f74c13eebe  attrib.py
+06c7e44129ad26e36461cf162ffb071d30f7e42b6980e6cfee677fe833a05f1d  maps.json
+2b811dc59ae7a0b5d15f0818876b2de5b064b4a85c9b647ae84109afa2e523e3  gate.mp4
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+x264 0.165.3223 0480cb0
+Linux VM 6.12.113+deb13-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.113-1 (2026-10-15) x86_64 GNU/Linux

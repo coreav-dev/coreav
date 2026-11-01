@@ -32,6 +32,7 @@ mod video;
 pub use codec::{Allowlist, Codec, StreamKind, arib_caption_profile};
 pub use coreav_isobmff::{BufferedSource, FileSource, SliceSource, Source};
 pub use error::{Error, LimitKind, Warning};
+pub use frames::LatmBlocks;
 pub use limits::Limits;
 pub use packet::PacketSize;
 pub use packets::{Packet, Packets};

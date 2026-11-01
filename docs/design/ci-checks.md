@@ -73,6 +73,13 @@ if it is one, so YAML 1.1's boolean keys (`on`, `yes`), merge keys and
 duplicate keys hide no step. A file that is not one readable YAML
 document, an alias that names no anchor and a `uses` value that is not a
 string fail.
+The same `deny.yml` job runs actionlint (a pinned release, shellcheck and
+pyflakes off) over the workflows, so an expression that names a context
+GitHub does not offer where it stands, such as `runner` in a job's `env:`,
+fails the pull request rather than the first run. That table of contexts is
+GitHub's and actionlint keeps it; `workflow_check.py` reads workflows as
+lines and would have to copy it. The step also runs a workflow with that
+mistake, which has to fail.
 A workflow that carries the line `# workflow-check: not required` is
 outside the table: its report job need not be listed, and the table may
 not list it.
@@ -527,7 +534,7 @@ Two checks run on the agent's machine, not in CI: this repository holds no
 cross-repository token and no private secret.
 
 - **The pull request's text.** `scripts/pr_text_check.py --title TITLE --body-file BODY.md` fails on Korean text, a session or run identifier and spend details, and, given the private list of names and message forms in `PR_TEXT_TERMS` (one case-insensitive regular expression per line), on those too. Run it with that list before opening the pull request and after editing its text; `pr-text.yml` runs it without the list. `scripts/pr_shape_check.py --title TITLE --commits FILE` (FILE from `git log --format='%H%x00%P%x00%B%x00' origin/main..HEAD`) is the shape check `pr-text.yml` runs.
-- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264` or `crates/coreav-opus` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
+- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264`, `crates/coreav-opus` or `crates/coreav-kernels-audio` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
 
 ## Cost
 

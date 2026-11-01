@@ -172,7 +172,7 @@ def ffmpeg_time(ffprobe, path, summary):
     Matroska block or an MPEG-TS PES starts with a header. So FFmpeg's
     timeline may differ from CoreAV's: by known divergence KD-EDIT-SNAP in
     MP4, and by the later start FFmpeg 9.0.2 gives a Matroska file whose
-    audio has a `CodecDelay` (KD-FF9-MKV-START)."""
+    audio has a `CodecDelay`."""
     from fractions import Fraction
     mp4 = path.suffix.lstrip('.').lower() in MP4_EXTS
     r = run([ffprobe, '-v', 'error', '-select_streams', str(summary.get('stream_index')), '-show_entries',

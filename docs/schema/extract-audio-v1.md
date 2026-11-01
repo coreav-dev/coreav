@@ -27,4 +27,4 @@ shared shapes `rational` and `time` are those of `probe-v1.md`.
 | `track_id` | integer | `track_ID` of the source track. |
 | `codec` | string | The codec name of `coreav probe`; always `aac`. |
 | `samples` | integer | Samples copied: every sample of the source track, in order. |
-| `duration` | time | Sum of the copied decode durations, in media ticks of the source track's timescale (which the output keeps). |
+| `duration` | time | Sum of the copied decode durations, in media ticks of the source track's timescale. |
