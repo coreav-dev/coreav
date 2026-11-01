@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Explicit round-9 corpus comparison, cutoff inventory and mutation audit.
 
-The production registry is empty until eligible records land. Synthetic
-rules are exercised by tests, never loaded from a run's input files.
+The production registry uses landed records and independent byte readers.
+Rules are committed, never loaded from a run's input files.
 See docs/design/corpus-key-exclusions.md for the capture and reporting contract.
 """
 import argparse
@@ -24,6 +24,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 import run
+sys.path.insert(0, str(ROOT / 'scripts'))
+import oracle_kd_ts
 
 SCHEMA = 'coreav.corpus-kd/1'
 PLAN = 'docs/measurements/compat-ffprobe/round9-plan.md'
@@ -193,7 +195,45 @@ class Registry:
 
 
 def production_registry():
-    return Registry((), lambda path: None)
+    document = 'docs/known-divergences-ts.json'
+    entries = json.loads((ROOT / document).read_text())['entries']
+    scopes = (
+        ('KD-TS-VBI-AS-AUDIO', ('codec_name',)),
+        ('KD-TS-PROGRAM-WRAP', ('start_pts', 'start_time')),
+        ('KD-TS-ANNEX-D-DOWNMIX', oracle_kd_ts.DOWNMIX_KEYS),
+    )
+    rules = []
+    for identifier, fields in scopes:
+        matches = [entry for entry in entries if entry['id'] == identifier]
+        if len(matches) != 1:
+            raise ValueError(f'{identifier}: expected one landed record')
+        rules.append(Rule(identifier, document, matches[0],
+                          tuple('streams.' + field for field in fields), ts_expected))
+    return Registry(rules, oracle_kd_ts.Facts)
+
+
+def ts_expected(facts, occurrence):
+    match = re.fullmatch(r'streams\[(\d+)\]\.([a-z_]+)', occurrence.path)
+    if match is None:
+        return None
+    index, field = int(match[1]), match[2]
+    reference = occurrence.context.reference['streams'][index]
+    candidate = occurrence.context.candidate['streams'][index]
+    pid = oracle_kd_ts.stream_pid(candidate)
+    if field == 'codec_name':
+        if oracle_kd_ts.vbi_as_audio(reference, candidate, facts):
+            return Pair(reference['codec_name'], 'bin_data')
+    elif field in ('start_pts', 'start_time'):
+        if oracle_kd_ts.program_wrap(reference, candidate, facts):
+            start = facts.first_pes[pid][1]
+            if field == 'start_pts':
+                return Pair(start + oracle_kd_ts.WRAP, start)
+            return Pair(oracle_kd_ts.seconds(start + oracle_kd_ts.WRAP), oracle_kd_ts.seconds(start))
+    elif field in oracle_kd_ts.DOWNMIX_KEYS:
+        if oracle_kd_ts.annex_d_ignored(reference, candidate, facts):
+            stated = oracle_kd_ts.annex_d_downmix(facts.head[pid])
+            return Pair('0' if field == 'dmix_mode' else '0.000000', stated[field])
+    return None
 
 
 def valid_absence(proof, occurrence):

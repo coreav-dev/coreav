@@ -211,7 +211,11 @@ class Corpus(unittest.TestCase):
         self.assertFalse(kd.report([])['passed'])
 
     def test_production_registry_has_no_unlanded_cases(self):
-        self.assertEqual(kd.production_registry().rules, ())
+        for rule in kd.production_registry().rules:
+            records = json.loads((kd.ROOT / rule.document).read_text())['entries']
+            self.assertEqual([entry for entry in records if entry['id'] == rule.identifier], [rule.record])
+            self.assertTrue(rule.record['basis'])
+            self.assertLessEqual(set(rule.keys), kd.authorized_keys(rule.record))
 
     def test_ts_streams_keep_index_pairing_and_require_the_same_pid(self):
         ts_rule = dataclasses.replace(rule('KD-TS-SYNTHETIC', document='docs/known-divergences-ts.json'),
@@ -438,7 +442,8 @@ class Driver(unittest.TestCase):
                               'path': str(path), 'sha256': kd.file_hash(path)})
         self.files = self.root / 'files.json'
         self.files.write_text(json.dumps(self.rows))
-        self.frozen = {'schema': kd.SCHEMA, 'plan_commit': 'a' * 40, 'records': [],
+        self.frozen = {'schema': kd.SCHEMA, 'plan_commit': 'a' * 40,
+                       'records': kd.production_registry().records(),
                        'selection_sha256': kd.file_hash(self.files)}
         self.inventory = self.root / 'inventory.json'
         self.inventory.write_text(json.dumps(self.frozen))
