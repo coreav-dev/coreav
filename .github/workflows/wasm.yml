@@ -1,0 +1,131 @@
+name: wasm
+
+# workflow-check: not required
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/wasm/**
+      - crates/coreav-wasm/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - scripts/gen-fixtures.sh
+      - scripts/chap_craft.py
+      - scripts/colr_craft.py
+      - scripts/elst_craft.py
+      - scripts/iso_patch.py
+      - scripts/stss_craft.py
+      - docs/schema/policy-examples/**
+      - scripts/install-oracle-ffmpeg.sh
+      - scripts/oracle-ffmpeg.env
+      - .github/workflows/wasm.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - packages/wasm/**
+      - crates/coreav-wasm/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - scripts/gen-fixtures.sh
+      - scripts/chap_craft.py
+      - scripts/colr_craft.py
+      - scripts/elst_craft.py
+      - scripts/iso_patch.py
+      - scripts/stss_craft.py
+      - docs/schema/policy-examples/**
+      - scripts/install-oracle-ffmpeg.sh
+      - scripts/oracle-ffmpeg.env
+      - .github/workflows/wasm.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  wasm-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.22.1'
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm
+      - run: npm test --prefix packages/wasm && npm run test:types --prefix packages/wasm
+
+  wasm-module:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.22.1'
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: wasm-jspi
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Read the bindings CLI pin
+        id: bindings
+        run: |
+          pin=$(sed -n 's/^wasm-bindgen = "=\(.*\)"$/\1/p' crates/coreav-wasm/Cargo.toml)
+          test -n "$pin"
+          echo "version=$pin" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: bindings-cache
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: linux-x64-wasm-bindgen-${{ steps.bindings.outputs.version }}
+      - name: Install the bindings CLI
+        if: steps.bindings-cache.outputs.cache-hit != 'true'
+        env:
+          BINDGEN_VERSION: ${{ steps.bindings.outputs.version }}
+        run: cargo install wasm-bindgen-cli --version "$BINDGEN_VERSION" --locked
+      - name: Key the shared fixture cache
+        id: fixtures-key
+        run: |
+          set -euo pipefail
+          helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
+          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        id: fixtures
+        with:
+          path: ${{ runner.temp }}/coreav-fixtures
+          key: ${{ steps.fixtures-key.outputs.key }}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: oracle-cache
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned fixture generator
+        if: steps.fixtures.outputs.cache-hit != 'true' && steps.oracle-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Generate required fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        env:
+          COREAV_REQUIRE_ALL_FIXTURES: '1'
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - name: Build the module
+        run: npm run build --prefix packages/wasm
+      - name: Test the real module
+        run: COREAV_FIXTURES="$RUNNER_TEMP/coreav-fixtures" npm run test:module --prefix packages/wasm
