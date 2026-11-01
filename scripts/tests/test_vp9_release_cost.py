@@ -80,6 +80,22 @@ class ReleaseCostTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             runner.analyse()
 
+    def test_the_hash_oracle_selects_only_the_registered_video_stream(self):
+        commands = []
+        file = dict(self.files[0], maps=dict(video=7))
+
+        def measured(cmd, label):
+            commands.append(cmd)
+            text = '0, 0, 0, 1, 1, abc\n' if label['arm'] == 'ff' else json.dumps(dict(frames=[dict(md5='abc')]))
+            (self.root / 'last.stdout').write_text(text)
+
+        with mock.patch.object(runner, 'measured', side_effect=measured):
+            self.assertEqual(runner.hashes(file), 1)
+        oracle = commands[-1]
+        self.assertEqual(oracle[oracle.index('-map') + 1], '0:7')
+        self.assertEqual(oracle.count('-map'), 1)
+        self.assertEqual(oracle[oracle.index('-f') + 1], 'framemd5')
+
     def test_transcode_roster_and_bytes_are_required(self):
         for mutate in ['missing', 'changed']:
             rows = copy.deepcopy(self.rows)
