@@ -53,8 +53,10 @@ prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
 twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another. The final entry validates an AV1 fixture's
+there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
+The last is a corpus record for Matroska and WebM AC-3 tracks; it names
+no fixture keys and sets nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -268,6 +270,34 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   the oracle starts agreeing on the codec string, they fail explicitly
   and require removal of the obsolete exception. Other files, including
   corpus files, do not use it.
+
+## KD-FF9-ANNEX-D-DOWNMIX
+
+- Keys: `streams.dmix_mode`, `streams.ltrt_cmixlev`,
+  `streams.ltrt_surmixlev`, `streams.loro_cmixlev` and
+  `streams.loro_surmixlev`, on Matroska and WebM corpus files; no fixture.
+- Cause: the same as KD-TS-ANNEX-D-DOWNMIX in MPEG-TS
+  (coreav-dev/coreav#146). An AC-3 frame with `bsid` 6 uses the alternate
+  syntax of ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give the preferred
+  downmix and the Lt/Rt and Lo/Ro mix levels their meaning. Annex D 3.2
+  lets a legacy decoder ignore them; it does not make the stream state no
+  downmix. On a track whose frames state these values on more than two
+  channels (`xbsi1e` set, `acmod` above 2), CoreAV prints them, each only
+  for the channel modes Annex D defines it for. The pinned oracle prints
+  `0` and `0.000000`, as for a stream that states no downmix: an oracle
+  error.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone. Every frame of the
+  track must be one whole AC-3 syncframe that passes `crc1`, and all must
+  state the same values, so that the stream, not only its first frame,
+  states them. A file whose blocks cannot all be reached gives no
+  evidence: an element of unknown size other than the Segment, a header
+  cut short, or an element past its parent or the file. The conditions
+  also give the exact pair of values.
+  `annex_d_downmix` in `scripts/oracle_kd_mkv.py` reads that evidence, and
+  its tests fail when the pinned oracle stops printing `0` and
+  `0.000000`. Not excludable yet: no corpus row is excluded until the
+  corpus comparator gates rows on that evidence.
 
 ## Differences and limitations not set aside
 
