@@ -98,18 +98,18 @@ CASES = {
     "ffprobe-packets-mkv": ("basic.mkv", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     "ffprobe-packets-ts": ("basic.ts", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     "ffmpeg-C01-remux": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy", "{out}/out.mp4"]),
-    "ffmpeg-C02-join": ("basic.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
+    "ffmpeg-C02-join": ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
                                     "-c", "copy", "{out}/out.mp4"]),
     "ffmpeg-C03-remux-map": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy", "-map", "0", "{out}/out.mp4"]),
     "ffmpeg-C05-clip": ("basic.mp4", ["ffmpeg", "-i", "{}", "-ss", "0.5", "-t", "1", "-c", "copy", "{out}/out.mp4"]),
     "ffmpeg-C13-extract-audio": ("basic.mp4", ["ffmpeg", "-i", "{}", "-vn", "-c:a", "copy", "{out}/out.m4a"]),
     "ffmpeg-C15-clip-audio": ("aac.m4a", ["ffmpeg", "-i", "{}", "-ss", "0.5", "-t", "1",
-                                        "-acodec", "copy", "{out}/out.m4a"]),
+                                        "-acodec", "copy", "{out}/out.mp4"]),
     "ffmpeg-C17-remux-video": ("video.mp4", ["ffmpeg", "-y", "-i", "{}", "-vcodec", "copy", "{out}/out.mp4"]),
     "ffmpeg-C18-clip-input": ("basic.mp4", ["ffmpeg", "-ss", "0.5", "-i", "{}", "-to", "1.5",
                                           "-c", "copy", "{out}/out.mp4"]),
     "ffmpeg-C19-clip-audio-input": ("aac.m4a", ["ffmpeg", "-ss", "0.5", "-i", "{}", "-t", "1",
-                                              "-c:a", "copy", "{out}/out.m4a"]),
+                                              "-c:a", "copy", "{out}/out.mp4"]),
     "ffmpeg-C20-extract-audio-map": ("basic.mp4", ["ffmpeg", "-i", "{}", "-map", "0:a",
                                                "-c", "copy", "{out}/out.m4a"]),
     "ffmpeg-C23-remux-faststart": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy",
@@ -199,6 +199,7 @@ INPUTS = {
     "clips": [["clip", "--start", "0.3", "--end", "1.1", "{}", "{dir}/clip-1.mp4"],
               ["clip", "--start", "1.1", "--end", "1.9", "{}", "{dir}/clip-2.mp4"]],
 }
+INPUTS["concat"] = INPUTS["segments"]
 
 # Fixtures written here: name: (fixture it is written from, format, how):
 # by stream copy, or with its audio encoded to FLAC, MP3 or Opus (the encoders
@@ -581,7 +582,7 @@ def inputs_of(coreav, fixture, name, work):
     directory under `work` (not counted), or None if one cannot be
     written. The `concat` set returns a concat list of the segments."""
     directory = tempfile.mkdtemp(prefix=f"{name}-", dir=work)
-    for command in INPUTS["segments" if name == "concat" else name]:
+    for command in INPUTS[name]:
         args = [str(fixture) if a == "{}" else a.replace("{dir}", directory) for a in command]
         done = subprocess.run([coreav, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120,
                               check=False)

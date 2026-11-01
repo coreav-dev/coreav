@@ -47,21 +47,23 @@ class FfmpegGuard(unittest.TestCase):
                 before = baseline["cases"].get(name, {"instructions": 100_000})["instructions"]
                 expected = {name: {"instructions": before, "sha256": bench_guard.hashlib.sha256(fixture.read_bytes()).hexdigest()}}
                 args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work, report_only=False, write=None)
-                for increase, exit_code in ((0, 0), (0.10, 1)):
-                    count = before + math.ceil(before * increase)
+                for count, exit_code in ((before + math.floor(before * baseline["tolerance"]) - 1, 0),
+                                         (before + math.ceil(before * 0.10), 1)):
                     output, errors = io.StringIO(), io.StringIO()
                     with patch.multiple(bench_guard, CASES={name: case}, URL_CASES={}), \
                          patch.object(bench_guard, "derive"), patch.object(bench_guard, "generate", return_value={}), \
                          patch.object(bench_guard, "craft", return_value={}), \
                          patch.object(bench_guard, "inputs_of", return_value=[str(work / "inputs.ffconcat")]), \
-                         patch.object(bench_guard, "instructions", side_effect=[(startup, None), (startup + count, None)]), \
+                         patch.object(bench_guard, "instructions", side_effect=[(startup, None), (startup + count, None)]) as measured, \
                          contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
                         result = bench_guard.run_cases(args, baseline, baseline["tolerance"], expected, {}, work)
                     self.assertEqual(result, exit_code, output.getvalue() + errors.getvalue())
-                    if increase:
+                    self.assertTrue(all("{" not in arg for arg in measured.call_args.args[1]))
+                    if exit_code:
                         row = next(line for line in output.getvalue().splitlines() if line.startswith(f"| {name} |"))
                         self.assertIn("SLOWER", row)
-                        self.assertIn(name, errors.getvalue())
+                        self.assertIn(f"beyond the baseline's tolerance: {name}", errors.getvalue())
+                        self.assertNotIn("did not run", errors.getvalue())
                         print(row)
 
     def test_concat_list_names_the_prepared_segments_in_numeric_order(self):
