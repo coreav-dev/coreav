@@ -68,6 +68,14 @@ These are not isolate-wide guarantees. Response bodies, output queues, index cop
 
 Upload byte caps, HTTPS/host/userinfo policy, authorization, tenant scoping and HLS cache identity are application responsibilities. Example applications and their security tests are a separate change, not a blanket permission to expose arbitrary remote inputs.
 
+## Package validation gates
+
+The compressed size of the exact shipped WASM must be at most 1,048,576 bytes under `gzip -9 -n`. Validation requires the pinned Binaryen optimizer, a matching artifact fingerprint and current build provenance. Raw WASM, JavaScript and tarball sizes are recorded without introducing a growth tolerance.
+
+On generated fixtures, fresh-isolate WebAssembly linear memory after probe, check, chapters, subtitle extraction, audio extraction or clip must be at most 32 MiB; remux and sanitize must be at most 64 MiB. Warm mixed sequences, ffprobe, HLS, concurrent operations, JavaScript heap and process resident memory are diagnostic records, not new acceptance bars. The existing module tests retain their own concurrent-read assertion. No local measurement establishes a production isolate-memory guarantee.
+
+The installed tarball is the package boundary. Its file set, exports, declarations, licences, notices and build fingerprint must agree with the built package. Generated third-party notices must contain the upstream licence and notice files of the locked registry dependency graph linked into the WASM, using the same target and selected features as the build. This adds distribution notices without changing any licence.
+
 ## Application examples
 
 The [Worker examples](../../packages/wasm/examples/README.md) show these application boundaries without adding them to the library. One media Worker owns the input policy for every document and stream-copy route. A separate HLS Worker serves only R2 objects. Each refuses requests until its authentication hook is replaced; anonymous access is enabled only by the local test harness.
