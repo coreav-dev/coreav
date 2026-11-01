@@ -10,7 +10,7 @@ For the media Worker, set `ALLOWED_HOSTS` to the exact HTTPS hosts, including no
 
 For HLS, use separate `MEDIA` and `INDEXES` buckets. Review `CORS_ORIGIN` and add a lifecycle rule for `coreav-hls-index/` objects: each media version, WASM build and option set creates its own record. `INDEXES` is optional; without it indexes stay in the isolate cache only. The index prefix prevents accidental collisions, not unauthorized access.
 
-Set `MAX_SOURCE_REQUESTS` below your platform's subrequest budget. Media operations use the budget for reader requests; HLS also needs a metadata head and, when configured, a stored-index get and put. Retries consume reader requests. The examples do not follow HTTP redirects.
+`MAX_SOURCE_REQUESTS` limits each reader, not an entire HTTP request. Set it below your platform's subrequest budget. An HLS request can open multiple readers while building an index, serving a resource or rebuilding and retrying an invalid index, in addition to a metadata head and stored-index get and put. Shared index work uses the owning request's I/O context, so joining requests do not remove that cost from the owner. Retries consume reader requests. The examples do not follow HTTP redirects.
 
 ## Media routes
 
