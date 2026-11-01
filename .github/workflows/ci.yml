@@ -36,9 +36,9 @@ name: ci
 # job but `ci-report` has its own concurrency group. A group on the whole
 # workflow would keep the new run waiting until the old run's `ci-report`,
 # which `always()` runs in a cancelled run too, had found a runner and
-# ended. `ci-changes` has a group as well, so an old run's jobs enter their
-# groups before the new run's and never cancel them. Pushes to main, manual
-# runs and merge groups each get their own groups, so none is dropped
+# ended. `ci-changes` has a group as well, so a superseded PR gate can be
+# cancelled before dispatching old jobs. Main pushes, manual runs and merge
+# groups each get independent run-id groups, so none is dropped
 # (docs/design/ci-checks.md, "Concurrency").
 on:
   push:
@@ -56,6 +56,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   ci-changes:
@@ -68,9 +69,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      run: ${{ steps.filter.outputs.run }}
-      h264-conformance: ${{ steps.h264-conformance.outputs.run }}
-      oracle-installer: ${{ steps.oracle-installer.outputs.run }}
+      run: ${{ steps.result.outputs.reuse != 'true' && steps.filter.outputs.run == 'true' }}
+      h264-conformance: ${{ steps.result.outputs.reuse != 'true' && steps.h264-conformance.outputs.run == 'true' }}
+      h264-main: ${{ steps.h264-conformance.outputs.run }}
+      fixtures: ${{ steps.filter.outputs.run }}
+      main-cache: ${{ steps.result.outputs.reuse == 'true' && steps.filter.outputs.run == 'true' }}
+      oracle-installer: ${{ steps.result.outputs.reuse != 'true' && steps.oracle-installer.outputs.run == 'true' }}
       bench-guard: ${{ steps.bench-guard.outputs.run }}
       fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
       # Whether `check-macos` and `check-windows` run: always on a push or
@@ -82,6 +86,10 @@ jobs:
         with:
           # A pull request's merge commit and its first parent, the base.
           fetch-depth: 2
+      - id: result
+        uses: ./.github/actions/merge-group-result
+        with:
+          workflow: ci.yml
       - id: filter
         uses: ./.github/actions/changed-paths
         with:
@@ -849,7 +857,7 @@ jobs:
   isobmff-fixture-set:
     needs: ci-changes
     if: >-
-      needs.ci-changes.outputs.run == 'true' &&
+      needs.ci-changes.outputs.fixtures == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
       group: ${{ github.workflow }}-isobmff-fixture-set-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
@@ -2117,7 +2125,7 @@ jobs:
     # The whole suite on arm64, on a push to main.
     needs: ci-changes
     if: >-
-      needs.ci-changes.outputs.h264-conformance == 'true' &&
+      needs.ci-changes.outputs.h264-main == 'true' &&
       github.event_name == 'push'
     concurrency:
       group: ${{ github.workflow }}-conformance-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
@@ -2322,6 +2330,36 @@ jobs:
           path: ${{ runner.temp }}/counts.json
           retention-days: 14
 
+  main-cache:
+    needs: ci-changes
+    if: needs.ci-changes.outputs.main-cache == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-main-cache-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: isobmff-fixtures
+      - name: Install the native libraries for the shared build cache
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
+      - name: Warm the shared Rust cache without rerunning the tests
+        run: |
+          cargo build --locked -p coreav-oracle
+          cargo build --locked --release -p coreav-cli -p coreav-oracle -p coreav-isobmff-adapter -p coreav-mkv-adapter
+          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --target-dir target/fallback
+          cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx \
+            --test thumbnail --target-dir target/fallback
+          cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
+            --test transcode --target-dir target/fallback
+
   ci-report:
     # Always runs, including when the filter above skipped every job, so
     # that the branch ruleset has one check name this workflow reports on
@@ -2329,7 +2367,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-fixture-set, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-fixture-set, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
