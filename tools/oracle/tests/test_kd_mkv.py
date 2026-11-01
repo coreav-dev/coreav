@@ -216,12 +216,14 @@ def av1_private(profile=0, level=5, tier=0, depth=8, mono=0, colour=None, full=0
     return bytes([0x81, profile << 5 | level, flags, 0, 0x0A, len(header)]) + header + more
 
 
-def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b'', declared=None, entry=0):
+def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b'', declared=None, entry=0,
+                 tracks=0):
     """A Matroska file whose track entries are `before` and then one AV1
     video track, number 2 after `before` and 1 otherwise, with `colour` (by
     element id) as its `Colour`, and one cluster of one empty key frame.
     With `declared`, the `CodecPrivate` comes last in its entry and declares
-    that size; `entry` adds to the size the entry declares."""
+    that size; `entry` and `tracks` add to the sizes the entry and `Tracks`
+    declare."""
     number = 2 if before else 1
     video = ebml(0xB0, b'\x40') + ebml(0xBA, b'\x40')
     if colour is not None:
@@ -237,7 +239,7 @@ def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b''
     block = ebml(0xA3, bytes([0x80 | number, 0, 0, 0x80]))
     return (ebml(0x1A45DFA3, ebml(0x4282, b'matroska') + ebml(0x4287, b'\x04') + ebml(0x4285, b'\x02'))
             + ebml(0x18538067, ebml(0x1549A966, ebml(0x2AD7B1, b'\x0f\x42\x40'))
-                   + ebml(0x1654AE6B, before + entry)
+                   + b'\x16\x54\xae\x6b' + (1 << 56 | len(before + entry) + tracks).to_bytes(8, 'big') + before + entry
                    + ebml(0x1F43B675, ebml(0xE7, b'\x00') + block)))
 
 
@@ -338,7 +340,8 @@ class Av1CodecStrings(unittest.TestCase):
     def test_a_child_that_does_not_fit_its_parent_gives_no_evidence(self):
         # A CodecPrivate last in its TrackEntry that declares 100 octets more
         # than it holds, every other size unchanged; a TrackEntry that
-        # declares 100 more than its Tracks holds. Each beside its control.
+        # declares 100 more than its Tracks holds; Tracks that declare 100
+        # more than their Segment and the file hold. Each beside its control.
         for name in ('stated BT.709', 'chroma position 1'):
             private, colour, record, oracle, coreav = self.SHAPES[name]
             expected = [kd.Av1CodecString(0, 1, oracle, coreav)]
@@ -348,6 +351,8 @@ class Av1CodecStrings(unittest.TestCase):
             self.assertEqual(self.evidence(av1_matroska(private, colour, declared=len(private) + 100))[1:],
                              ([], []), name)
             self.assertEqual(self.evidence(av1_matroska(private, colour, entry=100))[1:], ([], []), name)
+            # Tracks declaring 100 octets past its Segment and the file.
+            self.assertEqual(self.evidence(av1_matroska(private, colour, tracks=100))[1:], ([], []), name)
 
     def test_a_sequence_header_without_its_mandatory_tail_gives_no_evidence(self):
         # Headers that end before separate_uv_delta_q, or before

@@ -962,6 +962,19 @@ def _elements(f, start, end):
         at, count = stop, count + 1
 
 
+def _payload(f, body, stop, end, limit):
+    """The payload of an element from `body` to `stop`, read whole into
+    memory when it ends within its parent's `end` (itself within the file)
+    and holds at most `limit` octets; ValueError otherwise, so that a
+    `_children` walk sees the whole of it."""
+    if stop > end:
+        raise ValueError('an element past its parent')
+    if stop - body > limit:
+        raise ValueError('an element larger than the read takes')
+    f.seek(body)
+    return f.read(stop - body)
+
+
 def _children(data):
     """(id, payload) of each element in a master element held in memory,
     all of them or ValueError: a header cut short, a child of unknown size,
@@ -1030,8 +1043,9 @@ def matroska_headers(path, tags=False):
     `SimpleTag` in a `Tag` whose `Targets` name the track's `TrackUID`
     (RFC 9559 5.1.8), read from the `Tags` before any cluster of unknown
     size. None when the file does not start with an EBML header, or when
-    an element read in memory (the EBML header, `Tracks`, `Tags`, each up to
-    its read limit) holds a child that does not fit it."""
+    an element read in memory (the EBML header, `Tracks`, `Tags`) ends past
+    its parent or the file, is over its read limit, or holds a child that
+    does not fit it."""
     found = {'doc_type': None, 'live': None, 'tracks': []}
     tag_names = {}
     try:
@@ -1041,8 +1055,7 @@ def matroska_headers(path, tags=False):
             if not top or top[0][0] != EBML_ID:
                 return None
             _, data, stop = top[0]
-            f.seek(data)
-            for i, p in _children(f.read(min((stop or data) - data, 1 << 16))):
+            for i, p in _children(_payload(f, data, stop or data, end, 1 << 16)):
                 if i == 0x4282:
                     found['doc_type'] = _string(p)
             segment = next((e for e in top if e[0] == SEGMENT_ID), None)
@@ -1052,9 +1065,7 @@ def matroska_headers(path, tags=False):
             seg_end = min(segment[2] or end, end)
             for eid, body, stop in _elements(f, segment[1], seg_end):
                 if eid == TRACKS_ID and stop is not None and not found['tracks']:
-                    f.seek(body)
-                    tracks = f.read(min(stop - body, 16 << 20))
-                    for i, entry in _children(tracks):
+                    for i, entry in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0xAE:
                             continue
                         track = {'number': None, 'uid': None, 'type': None, 'codec_id': None,
@@ -1089,8 +1100,7 @@ def matroska_headers(path, tags=False):
                     if not tags:
                         break
                 elif eid == TAGS_ID and tags and stop is not None:
-                    f.seek(body)
-                    for i, tag in _children(f.read(min(stop - body, 16 << 20))):
+                    for i, tag in _children(_payload(f, body, stop, seg_end, 16 << 20)):
                         if i != 0x7373:
                             continue
                         targets = [u for j, q in _children(tag) if j == 0x63C0

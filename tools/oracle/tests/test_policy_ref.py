@@ -497,7 +497,9 @@ class Matroska(unittest.TestCase):
         # The CodecID declares one octet more than its TrackEntry holds.
         over = entry[:-7] + bytes([entry[-7] + 1]) + entry[-6:]
         cases = (('control', whole), ('a file cut inside its Tracks', whole[:len(header) + 12]),
-                 ('a child past its TrackEntry', header + ebml(0x18538067, ebml(0x1654AE6B, over))))
+                 ('a child past its TrackEntry', header + ebml(0x18538067, ebml(0x1654AE6B, over))),
+                 ('Tracks past their Segment', header + ebml(0x18538067, b'\x16\x54\xae\x6b'
+                                                            + bytes([0x80 | len(entry) + 1]) + entry)))
         for name, data in cases:
             with tempfile.NamedTemporaryFile() as f:
                 f.write(data)
