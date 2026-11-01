@@ -20,6 +20,8 @@ on:
       - docs/schema/policy-examples/**
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
+      - scripts/binaryen.env
+      - scripts/install-binaryen.sh
       - .github/workflows/wasm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -38,6 +40,8 @@ on:
       - docs/schema/policy-examples/**
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
+      - scripts/binaryen.env
+      - scripts/install-binaryen.sh
       - .github/workflows/wasm.yml
   workflow_dispatch:
 
@@ -125,7 +129,24 @@ jobs:
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - name: Install package verification tools
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm
+          npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples
+      - name: Install the pinned optimizer
+        run: |
+          set -euo pipefail
+          opt="$(scripts/install-binaryen.sh "$RUNNER_TEMP/binaryen")"
+          echo "WASM_OPT=$opt" >> "$GITHUB_ENV"
       - name: Build the module
         run: npm run build --prefix packages/wasm
       - name: Test the real module
         run: COREAV_FIXTURES="$RUNNER_TEMP/coreav-fixtures" npm run test:module --prefix packages/wasm
+      - name: Verify the installed package
+        run: |
+          set -euo pipefail
+          (cd packages/wasm && npm pack --json --pack-destination "$RUNNER_TEMP") > "$RUNNER_TEMP/wasm-pack.json"
+          tarball="$RUNNER_TEMP/$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1]))[0].filename' "$RUNNER_TEMP/wasm-pack.json")"
+          npm run check:package --prefix packages/wasm -- --tarball "$tarball"
+          cargo build --locked -p coreav-edge-native --profile edge
+          npm run check --prefix packages/wasm/examples -- --edge-native "$PWD/target/edge/edge-native" --tarball "$tarball"

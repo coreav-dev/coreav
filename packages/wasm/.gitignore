@@ -3,4 +3,5 @@ node_modules/
 /LICENSE-MIT
 /LICENSE-APACHE
 /NOTICE
+/THIRD-PARTY-NOTICES.txt
 *.tgz
