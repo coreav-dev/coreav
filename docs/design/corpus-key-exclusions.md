@@ -89,7 +89,8 @@ are inferred from those scopes.
 
 These adapters add an independent transport-stream byte scan during
 comparison and audit replay, outside timed commands. They do not change
-the registered performance work or bars.
+the registered performance work or bars. The retained run identities
+include the independent reader's SHA-256 beside the tooling commit.
 
 The accumulator visits every reference-listed leaf, including differences
 after the first saved example. A file/key row is excluded only when it

@@ -1,10 +1,12 @@
 """Exact TS exclusions using the landed records and generated media bytes."""
 import copy
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
@@ -83,6 +85,19 @@ class TransportStreams(unittest.TestCase):
             self.assertFalse(record['permits_absence'])
             self.assertLessEqual(set(record['keys']), kd.authorized_keys(record['record']))
         self.assertEqual(records[0]['keys'], ['streams.codec_name'])
+
+    def test_run_identities_include_the_independent_reader_bytes(self):
+        from test_corpus_kd import Driver
+        driver = Driver()
+        driver.setUp()
+        self.addCleanup(driver.doCleanups)
+        driver.complete_population()
+        with mock.patch.object(kd, 'ROUND_FILES', 6):
+            self.assertEqual(driver.execute(), 0)
+        for name in ('identities.json', 'report.json'):
+            identities = json.loads((driver.output / name).read_text())
+            self.assertEqual(identities['ts_reader_sha256'],
+                             kd.file_hash(kd.ROOT / 'scripts/oracle_kd_ts.py'))
 
     def test_vbi_does_not_hide_type_packets_or_missing_audio_values(self):
         capture = self.vbi()

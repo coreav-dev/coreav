@@ -709,7 +709,8 @@ def main():
                   'oracle_sha256': file_hash(args.oracle_dir / 'ffprobe'),
                   'selection_sha256': selection,
                   'tooling_commit': git(ROOT, 'rev-parse', 'HEAD').decode().strip(),
-                  'tool_sha256': file_hash(__file__), 'comparator_sha256': file_hash(HERE / 'run.py')}
+                  'tool_sha256': file_hash(__file__), 'comparator_sha256': file_hash(HERE / 'run.py'),
+                  'ts_reader_sha256': file_hash(ROOT / 'scripts/oracle_kd_ts.py')}
     args.out.mkdir(parents=True, exist_ok=False)
     (args.out / 'private').mkdir(mode=0o700)
     (args.out / 'private/files.json').write_bytes(selection_bytes)
