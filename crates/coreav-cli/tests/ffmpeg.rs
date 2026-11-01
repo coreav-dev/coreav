@@ -1020,6 +1020,19 @@ fn the_0_1_0_commands_on_the_fixtures() {
     .unwrap();
 }
 
+/// The job a writer's summary says CoreAV chose, by its schema.
+fn chosen(summary: &Value) -> Option<&'static str> {
+    match summary["schema"].as_str()? {
+        "coreav.remux/1" => Some("remux"),
+        "coreav.clip/1" => Some("clip"),
+        "coreav.split/1" => Some("split"),
+        "coreav.join/1" => Some("join"),
+        "coreav.extract-audio/1" => Some("extract-audio"),
+        "coreav.transcode/1" => Some("transcode"),
+        _ => None,
+    }
+}
+
 /// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
 /// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
 /// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
@@ -1029,7 +1042,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
 /// with its `status` (`written`, `refused`, `not taken`, `usage`,
 /// `rejected` or `io`), its `detail` (the writer's summary, which the
 /// binary does not print, or the reason) and the number of files left in
-/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. A written pair
+/// also gets `chosen`, the job CoreAV chose (`remux`, `clip`, `split`,
+/// `join`, `extract-audio` or `transcode`), read from the schema of the
+/// summary the writer returned and never from the command, so a pair needs
+/// no `job` (`tools/compat-corpus/encode_breadth.py` gives none). Unlike
 /// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
 /// asserted: the files are not the fixtures, and the runner judges.
 #[test]
@@ -1064,6 +1081,7 @@ fn the_0_1_0_commands_on_listed_pairs() {
                 failure.to_json(),
             ),
         };
+        pair["chosen"] = json!((status == "written").then(|| chosen(&detail)).flatten());
         pair["status"] = json!(status);
         pair["detail"] = detail;
         pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());
