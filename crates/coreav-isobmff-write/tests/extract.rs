@@ -23,17 +23,39 @@ use common::{bx, cat, full, u32s};
 
 /// An AAC LC, 48 kHz stereo `esds` (ISO/IEC 14496-1 7.2.6.5, 14496-3 1.6.2.1).
 fn esds() -> Vec<u8> {
+    esds_with(&[0x11, 0x90])
+}
+
+/// An `esds` holding the `AudioSpecificConfig` `config`.
+fn esds_with(config: &[u8]) -> Vec<u8> {
+    let len = config.len() as u8;
     full(
         b"esds",
         0,
         0,
-        &[
-            3, 25, 0, 1, 0, // ES_Descriptor
-            4, 17, 0x40, 0x15, 0, 0, 0, 0, 0, 0xfa, 0, 0, 0, 0xfa,
-            0, // DecoderConfigDescriptor
-            5, 2, 0x11, 0x90, // AudioSpecificConfig
-            6, 1, 2, // SLConfigDescriptor
-        ],
+        &cat(&[
+            vec![3, 23 + len, 0, 1, 0], // ES_Descriptor
+            vec![
+                4,
+                15 + len,
+                0x40,
+                0x15,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0xfa,
+                0,
+                0,
+                0,
+                0xfa,
+                0,
+            ], // DecoderConfigDescriptor
+            vec![5, len],               // DecoderSpecificInfo
+            config.to_vec(),
+            vec![6, 1, 2], // SLConfigDescriptor
+        ]),
     )
 }
 
@@ -69,10 +91,33 @@ fn aac_moov_chunks(
     per_chunk: u32,
     chunk_offsets: &[u32],
 ) -> Vec<u8> {
+    audio_moov(
+        (&[0x11, 0x90], 48_000),
+        n,
+        size,
+        edit,
+        version_1_entry,
+        per_chunk,
+        chunk_offsets,
+    )
+}
+
+/// [`aac_moov_chunks`] for the `AudioSpecificConfig` and the rate of
+/// `audio`, which is the media timescale and the sample entry's rate.
+fn audio_moov(
+    (config, rate): (&[u8], u32),
+    n: u32,
+    size: u32,
+    edit: Option<(u32, i32, u32)>,
+    version_1_entry: bool,
+    per_chunk: u32,
+    chunk_offsets: &[u32],
+) -> Vec<u8> {
     let media = n * 1024;
-    let mut mvhd = u32s(&[0x7c25_b080, 0x7c25_b080, 1000, media / 48]);
+    let ms = (u64::from(media) * 1000 / u64::from(rate)) as u32;
+    let mut mvhd = u32s(&[0x7c25_b080, 0x7c25_b080, 1000, ms]);
     mvhd.extend_from_slice(&[0u8; 80]);
-    let mut tkhd = u32s(&[0, 0, 7, 0, media / 48]);
+    let mut tkhd = u32s(&[0, 0, 7, 0, ms]);
     tkhd.extend_from_slice(&[0u8; 16]);
     tkhd.extend_from_slice(&u32s(&[
         0x10000,
@@ -87,7 +132,7 @@ fn aac_moov_chunks(
         0,
         0,
     ]));
-    let mut mdhd = u32s(&[0x7c25_b081, 0x7c25_b081, 48_000, media]);
+    let mut mdhd = u32s(&[0x7c25_b081, 0x7c25_b081, rate, media]);
     // "fra"
     mdhd.extend_from_slice(&[0x1a, 0x41, 0, 0]);
     let mut hdlr = u32s(&[0]);
@@ -100,12 +145,12 @@ fn aac_moov_chunks(
     entry.extend_from_slice(&2u16.to_be_bytes());
     entry.extend_from_slice(&16u16.to_be_bytes());
     entry.extend_from_slice(&[0u8; 4]);
-    entry.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
+    entry.extend_from_slice(&(rate << 16).to_be_bytes());
     if version_1_entry {
         // QuickTime version 1: four more 32-bit fields.
         entry.extend_from_slice(&u32s(&[1024, 0, 0, 2]));
     }
-    entry.extend_from_slice(&esds());
+    entry.extend_from_slice(&esds_with(config));
     let mut stsd = u32s(&[1]);
     stsd.extend_from_slice(&bx(b"mp4a", &entry));
     let stbl = bx(
@@ -750,6 +795,169 @@ fn a_matching_gapless_item_becomes_an_edit_list() {
         }
     );
     assert_round_trip(&source, 0, &output, &summary);
+}
+
+/// A raw AAC frame of `size` bytes that ends with SBR data: a fill element
+/// of two bytes with `EXT_SBR_DATA`, then `ID_END` and byte alignment
+/// (ISO/IEC 14496-3 4.4.2.1, 4.4.2.7).
+fn sbr_frame(size: usize) -> Vec<u8> {
+    // 110 0010 1101 0000 00000000 111 000000
+    let tail = [0b1100_0101, 0b1010_0000, 0b0000_0001, 0b1100_0000];
+    cat(&[vec![0xaa; size - tail.len()], tail.to_vec()])
+}
+
+/// A one-track AAC movie of `frames`, all of one size, with the
+/// `AudioSpecificConfig` `config` at 22,050 Hz, and `edit` as in
+/// [`aac_movie`].
+fn aac_22k_movie(config: &[u8], frames: &[Vec<u8>], edit: Option<(u32, i32, u32)>) -> Vec<u8> {
+    let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
+    let mdat = bx(b"mdat", &frames.concat());
+    let n = frames.len() as u32;
+    let moov = audio_moov(
+        (config, 22_050),
+        n,
+        frames[0].len() as u32,
+        edit,
+        false,
+        n,
+        &[(ftyp.len() + 8) as u32],
+    );
+    cat(&[ftyp, mdat, moov])
+}
+
+/// The output's one track.
+fn extracted(source: &[u8]) -> Track {
+    let (_, output) = extract(source, TrackChoice::FirstAudio).unwrap();
+    probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap()
+    .tracks
+    .remove(0)
+}
+
+#[test]
+fn he_aac_is_timed_at_its_decoded_rate() {
+    // SBR at 44.1 kHz in the configuration: object type 5 (hierarchical),
+    // and AAC LC with a backward-compatible extension (sync extension
+    // 0x2b7, object type 5, sbrPresentFlag 1, extension index 4).
+    let hierarchical = [0x2b, 0x92, 0x08];
+    let compatible = [0x13, 0x90, 0x56, 0xe5, 0xa0];
+    let plain = vec![0u8; 10];
+    for config in [hierarchical.as_slice(), &compatible] {
+        let source = aac_22k_movie(config, &vec![plain.clone(); 100], Some((0, 2048, 4000)));
+        let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+        assert_eq!((summary.timescale, summary.duration), (22_050, 102_400));
+        let movie = probe(
+            SliceSource::new(&output),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap();
+        let track = &movie.tracks[0];
+        assert_eq!(track.timescale, 44_100, "{config:x?}");
+        assert_eq!(track.description.sample_rate, Some(44_100), "{config:x?}");
+        assert_eq!(
+            track.description.codec_config,
+            probe(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default()
+            )
+            .unwrap()
+            .tracks[0]
+                .description
+                .codec_config
+        );
+        assert_eq!(track.mdhd_duration, 204_800);
+        assert_eq!(
+            track.edit_list,
+            EditList::Simple {
+                empty: 0,
+                media_time: 4096,
+                segment: 4000
+            }
+        );
+        let all = packets(&movie, track, &output);
+        assert_eq!(all.len(), 100);
+        assert!(all.iter().all(|p| p.duration == 2048));
+        assert!(all.iter().all(|p| bytes_of(&output, p) == plain));
+    }
+    // SBR at 96 kHz from a 48 kHz core does not fit the sample entry's
+    // 16.16 rate: the track keeps its own.
+    let wide = cat(&[
+        bx(b"ftyp", b"isom\0\0\x02\0isom"),
+        bx(b"mdat", &plain.repeat(10)),
+    ]);
+    let moov = audio_moov(
+        (&[0x29, 0x90, 0x08, 0x00], 48_000),
+        10,
+        10,
+        None,
+        false,
+        10,
+        &[(wide.len() - 100) as u32],
+    );
+    let track = extracted(&cat(&[wide, moov]));
+    assert_eq!(
+        (track.timescale, track.description.sample_rate),
+        (48_000, Some(48_000))
+    );
+    // A signalled stream of fewer frames than any count is scaled too: the
+    // configuration, not the frames, decides.
+    assert_eq!(
+        extracted(&aac_22k_movie(
+            &hierarchical,
+            std::slice::from_ref(&plain),
+            None
+        ))
+        .timescale,
+        44_100
+    );
+    // An `iTunSMPB` item that adds up in the source's ticks (2,112 +
+    // 100,000 + 288 = 102,400) gives the same edit, in the output's ticks;
+    // 100,000 samples at 22.05 kHz in movie ticks of 1 ms, rounded: 4,535.
+    let source = with_moov_children(
+        &aac_22k_movie(&hierarchical, &vec![plain.clone(); 100], None),
+        &smpb_udta(" 00000000 00000840 00000120 00000000000186A0 00000000"),
+    );
+    assert_eq!(
+        extracted(&source).edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 2 * 2112,
+            segment: 4535
+        }
+    );
+}
+
+#[test]
+fn sbr_data_in_the_frames_alone_keeps_the_core_rate() {
+    // AAC LC at 22.05 kHz whose configuration signals no SBR keeps its
+    // rate, whatever its frames end with: every frame ending with an SBR
+    // fill element, none, or a data stream element whose payload ends with
+    // the bits of one (a silent single channel element, a three-byte data
+    // stream element, then ID_END), in every frame or only a few.
+    let stereo = [0x13, 0x90];
+    let mono = [0x13, 0x88];
+    let dse = vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x1b, 0x16, 0x80, 0x07];
+    for (config, frame, n) in [
+        (mono.as_slice(), dse.clone(), 100),
+        (&mono, dse.clone(), 16),
+        (&mono, dse.clone(), 3),
+        (&stereo, sbr_frame(10), 100),
+        (&stereo, vec![0u8; 10], 100),
+    ] {
+        let track = extracted(&aac_22k_movie(config, &vec![frame.clone(); n], None));
+        assert_eq!(track.timescale, 22_050, "{frame:x?} {n}");
+        assert_eq!(
+            track.description.sample_rate,
+            Some(22_050),
+            "{frame:x?} {n}"
+        );
+    }
 }
 
 #[test]

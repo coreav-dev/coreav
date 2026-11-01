@@ -39,8 +39,10 @@
 //!   Stereo 3D names each packing a `StereoMode` states (none for the
 //!   anaglyph modes), with both views packed and the camera values
 //!   unknown. A block's BlockAdditional side data is listed only for a
-//!   `BlockMore` of `BlockAddID` 1, data its codec defines; another ID
-//!   is not read without the track's mapping.
+//!   `BlockMore` of `BlockAddID` 1 that holds its `BlockAdditional`,
+//!   data its codec defines; another ID is not read without the track's
+//!   mapping, and a `BlockMore` without that mandatory element carries no
+//!   data.
 //! - Timing: the stream time base is `TimestampScale`. A stream none of
 //!   whose packets come before `ffprobe`'s analysis stops (one packet per
 //!   audio stream; for video one, the reorder depth plus two for H.264
@@ -150,11 +152,6 @@ pub fn probe<'a, S: Source + 'a>(
                     Encoding::None | Encoding::HeaderStripping(_) => None,
                     _ => Some("its frames are stored compressed or encrypted"),
                 },
-                skip: info.rate.map_or(0, |rate| {
-                    let samples = (i128::from(track.codec_delay) * i128::from(rate) + 500_000_000)
-                        .div_euclid(1_000_000_000);
-                    i64::try_from(samples).unwrap_or(0)
-                }),
             };
         }
     }
@@ -368,8 +365,17 @@ struct Info {
     /// The frame rates and packet durations of a video track.
     rates: Rates,
     parser: Parser,
-    /// The sample rate packet lengths count in.
+    /// The sample rate packet lengths count in: 48 kHz for Opus, whatever
+    /// input rate its track states (RFC 7845 5.1), else the track's.
     rate: Option<u32>,
+    /// The rate of the samples the decoder outputs, which `CodecDelay`
+    /// and `DiscardPadding` count: 48 kHz for Opus (RFC 7845 5.1), else
+    /// the track's output sampling frequency, twice its rate with SBR
+    /// (RFC 9559 5.1.4.1.29.2).
+    output_rate: Option<u32>,
+    /// The samples `CodecDelay` has the decoder discard before the first
+    /// one it plays (RFC 9559 5.1.4.1.25), at [`Info::output_rate`].
+    skip: u64,
     /// Parameter sets of the codec private data or the first frame.
     params: Option<video::Params>,
     /// The parameter sets came from the first frame (no `CodecPrivate`).
@@ -435,7 +441,14 @@ impl Info {
             Codec::Mpeg4 => mpeg4.and_then(|m| m.low_delay).map(|l| u32::from(!l)),
             _ => Some(0),
         };
-        let rate = track.audio.and_then(|a| a.sample_rate());
+        let rate = match track.codec {
+            Codec::Opus => Some(48_000),
+            _ => track.audio.and_then(|a| a.sample_rate()),
+        };
+        let output_rate = match track.codec {
+            Codec::Opus => Some(48_000),
+            _ => track.audio.and_then(|a| a.output_sample_rate()),
+        };
         let parser = match track.codec {
             Codec::Opus => Parser::Opus,
             Codec::Vorbis => audio::vorbis(private).map_or(Parser::None, Parser::Vorbis),
@@ -482,6 +495,8 @@ impl Info {
             rates,
             parser,
             rate,
+            output_rate,
+            skip: output_rate.map_or(0, |r| samples_in(track.codec_delay, r)),
             params,
             in_band,
             frame_bit_rate,
@@ -501,6 +516,14 @@ impl Info {
     }
 
     /// Samples in a packet, from its first bytes.
+    /// `n` samples at [`Info::rate`] as decoded samples, at
+    /// [`Info::output_rate`].
+    fn output_samples(&self, n: u64) -> Option<u64> {
+        let (rate, output) = (self.rate?, self.output_rate?);
+        let n = u128::from(n) * u128::from(output) / u128::from(rate).max(1);
+        u64::try_from(n).ok()
+    }
+
     fn samples(&self, head: &[u8], size: u64) -> Option<u64> {
         match &self.parser {
             Parser::None => None,
@@ -857,7 +880,7 @@ fn report(
             if window.is_some_and(|w| first.2 > w) {
                 return None;
             }
-            start_pts(e, Some(info))
+            start_pts(e, info)
         })
         .collect();
     let format_start = starts
@@ -924,6 +947,12 @@ struct Timing {
     duration: Option<i64>,
 }
 
+/// Samples at `rate` in `ns` nanoseconds, rounded to the nearest.
+fn samples_in(ns: u64, rate: u32) -> u64 {
+    let n = (u128::from(ns) * u128::from(rate) + 500_000_000) / 1_000_000_000;
+    u64::try_from(n).unwrap_or(u64::MAX)
+}
+
 /// Microseconds in ticks of `(num, den)`, rounded to the nearest.
 fn from_micros(us: i64, (num, den): (i64, i64)) -> i64 {
     let n = i128::from(us) * i128::from(den);
@@ -940,9 +969,16 @@ fn to_micros(ticks: i64, (num, den): (i64, i64)) -> Option<i64> {
 }
 
 /// The start of a stream: the smallest presentation time among its first
-/// packets, as many as its decoder may reorder.
-fn start_pts(early: &Early, info: Option<&Info>) -> Option<i64> {
-    let n = info.and_then(|i| i.delay).map_or(1, |d| d as usize + 1);
+/// packets, as many as its decoder may reorder. An audio stream whose
+/// `CodecDelay` its decoder discards starts with the first sample played:
+/// at its first block's own timestamp, which the presentation time is
+/// that delay before (RFC 9559 5.1.4.1.25).
+fn start_pts(early: &Early, info: &Info) -> Option<i64> {
+    if info.skip > 0 {
+        let (first, _, _) = early.packets.first()?;
+        return first.pts.map(|_| first.block_timestamp);
+    }
+    let n = info.delay.map_or(1, |d| d as usize + 1);
     early
         .packets
         .iter()
@@ -2387,11 +2423,7 @@ fn audio_entries(e: &mut Entries, track: &Track, info: &Info, name: Option<&str>
         _ => 0,
     };
     e.push(("bits_per_sample", int(bits_per_sample)));
-    let padding = info
-        .rate
-        .map(|r| (u128::from(track.codec_delay) * u128::from(r) + 500_000_000) / 1_000_000_000)
-        .unwrap_or(0);
-    e.push(("initial_padding", int(padding)));
+    e.push(("initial_padding", int(info.skip)));
 }
 
 /// The channel layout a decoder reports, by codec, found black box: what
@@ -2804,6 +2836,9 @@ struct State {
     /// the samples of the block's frames so far.
     lace_start: Option<i64>,
     lace_samples: Option<u64>,
+    /// Samples of the block's negative `DiscardPadding` that its frames
+    /// so far have not skipped.
+    front: u64,
     /// Packets listed so far.
     count: usize,
 }
@@ -2827,19 +2862,21 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 previous_samples: None,
                 lace_start: None,
                 lace_samples: None,
+                front: 0,
                 count: 0,
             })
             .collect();
         let mut iter = segment
             .packets(&mut self.source, &limits)
             .with_inflated_sizes();
+        let mut held = Held::default();
         while let Some(item) = iter.next() {
             let p = match item {
                 Ok(p) => p,
                 Err(coreav_mkv::Error::Io(kind)) => {
                     return Err(Failure::Matroska(coreav_mkv::Error::Io(kind)));
                 }
-                Err(_) => return Ok(()),
+                Err(_) => break,
             };
             let (Some(track), Some(info), Some(state)) = (
                 segment.tracks.get(p.track),
@@ -2981,21 +3018,29 @@ impl<S: Source> PacketSource for MkvPackets<S> {
             } else {
                 (pts, None)
             };
-            let mut side_data = Vec::new();
-            if let (Some(padding), Some(rate)) = (p.discard_padding, info.rate) {
-                let samples = (i128::from(padding) * i128::from(rate) + 500_000_000)
-                    .div_euclid(1_000_000_000);
-                side_data.push(SideData {
-                    typ: "skip_samples",
-                    entries: vec![
-                        ("side_data_type", s("Skip Samples")),
-                        ("skip_samples", Value::Int(0)),
-                        ("discard_padding", int(samples)),
-                        ("skip_reason", Value::Int(0)),
-                        ("discard_reason", Value::Int(0)),
-                    ],
-                });
+            // The samples a decoder discards (RFC 9559): `CodecDelay`'s
+            // before the first frame, and a block's `DiscardPadding`, from
+            // the start of its first frames when negative, else from the end
+            // of its last ones, each frame at most its own samples.
+            let (front, end) = match (p.discard_padding, info.output_rate) {
+                (Some(padding), Some(rate)) => {
+                    let samples = samples_in(padding.unsigned_abs(), rate);
+                    if padding < 0 {
+                        (samples, 0)
+                    } else {
+                        (0, samples)
+                    }
+                }
+                _ => (0, 0),
+            };
+            if p.lace == 0 {
+                state.front = front;
             }
+            let decoded = samples.and_then(|n| info.output_samples(n));
+            let skipped = decoded.map_or(state.front, |n| n.min(state.front));
+            state.front -= skipped;
+            let skip = if state.count == 1 { info.skip } else { 0 }.saturating_add(skipped);
+            let mut side_data = Vec::new();
             if p.codec_addition {
                 side_data.push(SideData {
                     typ: "matroska_blockadditional",
@@ -3024,27 +3069,125 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 discard: false,
                 corrupt: false,
                 side_data,
-                data: if payloads.get(stream).copied().unwrap_or(false) {
-                    let mut data = match &track.encoding {
-                        Encoding::HeaderStripping(prefix) => prefix.clone(),
-                        _ => Vec::new(),
-                    };
-                    data.extend(super::frames::read(
-                        iter.source_mut(),
-                        p.offset,
-                        p.stored_size,
-                    )?);
-                    data
-                } else {
-                    Vec::new()
-                },
+                data: Vec::new(),
             };
-            if !f(packet)? {
+            let payload = payloads
+                .get(stream)
+                .copied()
+                .unwrap_or(false)
+                .then_some((p.offset, p.stored_size));
+            if end == 0 {
+                let mut packet = with_skip_samples(packet, skip, 0);
+                if let Some(range) = payload {
+                    packet.data = frame_payload(track, iter.source_mut(), range)?;
+                }
+                if !f(packet)? {
+                    return Ok(());
+                }
+                continue;
+            }
+            held.track = p.track;
+            held.padding = end;
+            held.frames.push(HeldFrame {
+                packet,
+                payload,
+                decoded,
+                skip,
+            });
+            if p.lace.saturating_add(1) >= p.frames_in_block
+                && !held.release(segment, iter.source_mut(), f)?
+            {
                 return Ok(());
             }
         }
+        held.release(segment, iter.source_mut(), f)?;
         Ok(())
     }
+}
+
+/// A frame's stored bytes, with the header that header stripping removed.
+fn frame_payload<R: Source>(
+    track: &Track,
+    source: &mut R,
+    (offset, size): (u64, u64),
+) -> Result<Vec<u8>, Failure> {
+    let mut data = match &track.encoding {
+        Encoding::HeaderStripping(prefix) => prefix.clone(),
+        _ => Vec::new(),
+    };
+    data.extend(super::frames::read(source, offset, size)?);
+    Ok(data)
+}
+
+/// The frames of one block whose `DiscardPadding` pads its end, held
+/// until its last frame is read: the padding comes off the last frames.
+/// At most the 256 frames a lace has, each without its payload, which is
+/// read when the frame is listed.
+#[derive(Default)]
+struct Held {
+    track: usize,
+    frames: Vec<HeldFrame>,
+    padding: u64,
+}
+
+struct HeldFrame {
+    /// The frame as listed, without its payload.
+    packet: Packet,
+    /// Where its payload is stored, when the listing needs it.
+    payload: Option<(u64, u64)>,
+    /// Its decoded samples, when known, and those it skips.
+    decoded: Option<u64>,
+    skip: u64,
+}
+
+impl Held {
+    /// Lists the held frames, the padding taken from the last frame
+    /// first, each at most its own samples (all of what is left when they
+    /// are unknown). Returns whether the listing goes on.
+    fn release<R: Source>(
+        &mut self,
+        segment: &Segment,
+        source: &mut R,
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<bool, Failure> {
+        let mut left = self.padding;
+        let mut discards = vec![0; self.frames.len()];
+        for (frame, discard) in self.frames.iter().zip(&mut discards).rev() {
+            *discard = frame.decoded.map_or(left, |n| n.min(left));
+            left -= *discard;
+        }
+        for (frame, discard) in self.frames.drain(..).zip(discards) {
+            let mut packet = with_skip_samples(frame.packet, frame.skip, discard);
+            if let (Some(range), Some(track)) = (frame.payload, segment.tracks.get(self.track)) {
+                packet.data = frame_payload(track, source, range)?;
+            }
+            if !f(packet)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// `packet` with Skip Samples side data first when it skips or discards
+/// samples.
+fn with_skip_samples(mut packet: Packet, skip: u64, discard: u64) -> Packet {
+    if skip > 0 || discard > 0 {
+        packet.side_data.insert(
+            0,
+            SideData {
+                typ: "skip_samples",
+                entries: vec![
+                    ("side_data_type", s("Skip Samples")),
+                    ("skip_samples", int(skip)),
+                    ("discard_padding", int(discard)),
+                    ("skip_reason", Value::Int(0)),
+                    ("discard_reason", Value::Int(0)),
+                ],
+            },
+        );
+    }
+    packet
 }
 
 /// `samples` at `rate` in ticks of `tb`, rounded to the nearest.
@@ -3133,6 +3276,116 @@ fn reorder(buffer: &mut [Option<i64>], pts: Option<i64>) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A source over `data` that counts the bytes read.
+    struct Reads<'a> {
+        data: &'a [u8],
+        read: &'a Cell<u64>,
+    }
+
+    impl Source for Reads<'_> {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            Ok(self.data.len() as u64)
+        }
+
+        fn read_exact_at(
+            &mut self,
+            offset: u64,
+            buf: &mut [u8],
+        ) -> Result<(), coreav_isobmff::Error> {
+            let start = usize::try_from(offset).unwrap_or(usize::MAX);
+            let bytes = start
+                .checked_add(buf.len())
+                .and_then(|end| self.data.get(start..end))
+                .ok_or(coreav_isobmff::Error::Truncated { offset })?;
+            buf.copy_from_slice(bytes);
+            self.read.set(self.read.get() + buf.len() as u64);
+            Ok(())
+        }
+    }
+
+    /// An element with an eight-byte size.
+    fn el(id: &[u8], payload: &[u8]) -> Vec<u8> {
+        let mut out = id.to_vec();
+        out.push(0x01);
+        out.extend(&(payload.len() as u64).to_be_bytes()[1..]);
+        out.extend(payload);
+        out
+    }
+
+    #[test]
+    fn a_padded_lace_holds_its_frames_without_their_payloads() {
+        // One block of 256 PCM frames of 4,096 bytes with end padding: the
+        // frames wait for the last one, but a frame's payload is read only
+        // when it is listed, so less than two frames' bytes are read before
+        // the first is listed, not the block's megabyte.
+        const FRAME: usize = 4096;
+        let audio = el(
+            &[0xE1],
+            &[
+                el(&[0xB5], &48_000f64.to_be_bytes()),
+                el(&[0x9F], &[1]),
+                el(&[0x62, 0x64], &[16]),
+            ]
+            .concat(),
+        );
+        let track = el(
+            &[0xAE],
+            &[
+                el(&[0xD7], &[1]),
+                el(&[0x73, 0xC5], &[1]),
+                el(&[0x83], &[2]),
+                el(&[0x86], b"A_PCM/INT/LIT"),
+                audio,
+            ]
+            .concat(),
+        );
+        let mut block = vec![0x81, 0, 0, 0x04, 255];
+        block.resize(block.len() + 256 * FRAME, 0);
+        let group = el(
+            &[0xA0],
+            &[el(&[0xA1], &block), el(&[0x75, 0xA2], &[0x0F, 0x42, 0x40])].concat(),
+        );
+        let cluster = el(
+            &[0x1F, 0x43, 0xB6, 0x75],
+            &[el(&[0xE7], &[0]), group].concat(),
+        );
+        let segment = el(
+            &[0x18, 0x53, 0x80, 0x67],
+            &[
+                el(
+                    &[0x15, 0x49, 0xA9, 0x66],
+                    &el(&[0x2A, 0xD7, 0xB1], &[0x0F, 0x42, 0x40]),
+                ),
+                el(&[0x16, 0x54, 0xAE, 0x6B], &track),
+                cluster,
+            ]
+            .concat(),
+        );
+        let data = [
+            el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"matroska")),
+            segment,
+        ]
+        .concat();
+        let read = Cell::new(0);
+        let mut source = Reads {
+            data: &data,
+            read: &read,
+        };
+        let Ok(mut probed) = probe(&mut source, data.len() as u64, "lace.mkv") else {
+            panic!("the file does not probe");
+        };
+        read.set(0);
+        let mut listed = Vec::new();
+        let visited = probed.packets.visit(&[true], &mut |packet| {
+            listed.push((packet.data.len(), read.get()));
+            Ok(true)
+        });
+        assert!(visited.is_ok());
+        assert_eq!(listed.len(), 256);
+        assert!(listed.iter().all(|(len, _)| *len == FRAME));
+        assert!(listed[0].1 < 2 * FRAME as u64, "{:?}", listed[0]);
+    }
 
     #[test]
     fn decode_times_from_presentation_times() {
