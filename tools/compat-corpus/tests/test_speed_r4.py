@@ -107,7 +107,8 @@ class Runner(unittest.TestCase):
         self.assertTrue(refused)
         self.assertTrue(all('ratio' not in r for r in refused))
         self.assertEqual(data['fallback_log'], {'lines': len(refused), 'refusal_lines': len(refused),
-                                                'excluded_lines': len(refused), 'void': False})
+                                                'excluded_lines': len(refused), 'diagnostic_lines': 0,
+                                                'void': False})
         self.assertFalse(self.arm('aa')[0]['fallback_log']['void'])
 
     def test_no_pair_is_unmeasured(self):
@@ -346,7 +347,8 @@ class Outcomes(unittest.TestCase):
                 code, records = next(invocations)
                 if records:
                     pathlib.Path(env['COREAV_FALLBACK_LOG']).write_text(
-                        ''.join(json.dumps(record) + '\n' for record in records))
+                        records if isinstance(records, str)
+                        else ''.join(json.dumps(record) + '\n' for record in records))
                 return 1.0, code
 
             with mock.patch.object(speed.os, 'sched_setaffinity'), \
@@ -374,6 +376,78 @@ class Outcomes(unittest.TestCase):
                 self.assertEqual(coverage['refusal_groups']['layout'], 1)
                 self.assertEqual(coverage['timed_share'], 0.5)
 
+    def test_oracle_failed_refusals_are_diagnostic_not_refused(self):
+        reasons = [REFUSAL['reason'], 'an unknown diagnostic reason']
+        records = [REFUSAL, REFUSAL, {**REFUSAL, 'reason': reasons[1]}]
+        for reverse in (False, True):
+            with self.subTest(reverse=reverse), mock.patch.dict(
+                    speed.ARMS, {'r4': ('ffmpeg', 'coreav') if reverse else ('coreav', 'ffmpeg')}):
+                calls = [(4, records), (1, [])]
+                data = self.run_pair('r4', list(reversed(calls)) if reverse else calls)
+                row = data['results'][1]
+                self.assertEqual(row['outcome'], 'oracle_failed')
+                self.assertFalse(row['refused'])
+                self.assertNotIn('ratio', row)
+                self.assertNotIn('a', row)
+                self.assertFalse(data['fallback_log']['void'])
+                self.assertEqual(row['oracle_refusal_reasons'], sorted(reasons))
+                self.assertEqual(data['fallback_log'], {'lines': 3, 'refusal_lines': 3,
+                                 'excluded_lines': 0, 'diagnostic_lines': 3, 'void': False})
+                summary = speed.r4_summary(data, gate=False)
+                coverage = summary['coverage']
+                self.assertEqual([coverage[k] for k in ('eligible', 'refused', 'timed', 'failed',
+                                                       'oracle_failed', 'unprocessed')], [2, 0, 1, 0, 1, 0])
+                self.assertEqual(coverage['oracle_refusal_pairs'], 1)
+                self.assertEqual(coverage['oracle_refusal_reasons'], dict.fromkeys(reasons, 1))
+                self.assertEqual(sum(coverage['refusal_groups'].values()), 0)
+
+    def test_oracle_failure_does_not_hide_an_invalid_coreav_result(self):
+        valid = json.dumps(REFUSAL) + '\n'
+        invalid = [(4, []), (1, []), (-11, []), (None, []),
+                   (4, valid.rstrip()), (4, '{broken}\n'), (4, '[]\n'),
+                   (4, json.dumps({**REFUSAL, 'tool': 'ffprobe'}) + '\n'),
+                   (4, json.dumps({**REFUSAL, 'ran': 'ffmpeg'}) + '\n'),
+                   (4, json.dumps({**REFUSAL, 'reason': ' '}) + '\n'),
+                   (4, json.dumps({k: v for k, v in REFUSAL.items() if k != 'ran'}) + '\n'),
+                   (4, valid + '{broken}\n'),
+                   (4, valid + json.dumps({**REFUSAL, 'ran': 'ffmpeg'}) + '\n'),
+                   (0, valid)]
+        for call in invalid:
+            with self.subTest(call=call):
+                data = self.run_pair('r4', [call, (1, [])])
+                self.assertTrue(data['fallback_log']['void'])
+                self.assertEqual(data['results'][1]['outcome'], 'oracle_failed')
+                self.assertNotIn('ratio', data['results'][1])
+                self.assertFalse(data['results'][1]['refused'])
+                coverage = speed.r4_summary(data, gate=False)['coverage']
+                self.assertEqual((coverage['refused'], coverage['oracle_failed'],
+                                  coverage['oracle_refusal_pairs']), (0, 1, 0))
+                self.assertEqual(coverage['oracle_refusal_reasons'], {})
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = pathlib.Path(tmp) / 'invalid.json'
+                    path.write_text(json.dumps(data))
+                    with mock.patch('builtins.print'):
+                        status = speed.r4_report(SimpleNamespace(results=str(path), gate=False, out=None))
+                self.assertEqual(status, 2)
+
+    def test_oracle_side_logs_do_not_qualify_as_diagnostics(self):
+        for left in ((4, [REFUSAL]), (0, [])):
+            with self.subTest(left=left):
+                data = self.run_pair('r4', [left, (1, [REFUSAL])])
+                self.assertTrue(data['fallback_log']['void'])
+                self.assertEqual(speed.r4_summary(data, gate=False)['coverage']['oracle_refusal_pairs'], 0)
+        data = self.run_pair('aa', [(1, [REFUSAL]), (1, [])])
+        self.assertTrue(data['fallback_log']['void'])
+        self.assertEqual(speed.r4_summary(data, gate=True)['coverage']['oracle_refusal_pairs'], 0)
+
+    def test_late_oracle_failure_with_refusal_stays_incomplete(self):
+        data = self.run_pair('r4', [(0, []), (0, []), (4, [REFUSAL]), (1, [])])
+        summary = speed.r4_summary(data, gate=False)
+        self.assertTrue(data['fallback_log']['void'])
+        self.assertEqual(summary['incomplete'], ['C01.1 mp4-mov:0'])
+        self.assertEqual((summary['coverage']['failed'], summary['coverage']['oracle_failed'],
+                          summary['coverage']['oracle_refusal_pairs']), (1, 0, 0))
+
     def test_mixed_null_outcomes_fail_without_refusal_double_counting(self):
         for other in (0, 1, 4, -11, None):
             for refused_side in (0, 1):
@@ -398,7 +472,7 @@ class Outcomes(unittest.TestCase):
     def test_failures_and_oracle_failures_do_not_become_refusals(self):
         for left, right, failed, oracle, void in ((1, 0, 1, 0, False), (-11, 0, 1, 0, False),
                                                  (None, 0, 1, 0, False), (4, 0, 1, 0, False),
-                                                 (0, 1, 0, 1, False), (4, 1, 0, 1, True)):
+                                                 (0, 1, 0, 1, False), (4, 1, 0, 1, False)):
             with self.subTest(left=left, right=right):
                 records = [REFUSAL] if left == 4 and right == 1 else []
                 data = self.run_pair('r4', [(left, records), (right, [])])
@@ -428,6 +502,59 @@ class Outcomes(unittest.TestCase):
 
 
 class Report(unittest.TestCase):
+    def test_a_diagnostic_only_group_remains_unmeasured(self):
+        data = results('r4', [])
+        data['results'] = [{'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 0,
+                            'file': 'mp4-mov:0', 'outcome': 'oracle_failed', 'exit': [4, 1],
+                            'oracle_refusal_reasons': ['unknown reason']}]
+        summary = speed.r4_summary(data, gate=False)
+        self.assertEqual(summary['unmeasured'], ['remux all', 'remux mp4-mov'])
+        self.assertEqual((summary['coverage']['oracle_failed'], summary['coverage']['oracle_refusal_pairs']), (1, 1))
+        self.assertEqual(summary['coverage']['refused'], 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'unmeasured.json'
+            path.write_text(json.dumps(data))
+            with mock.patch('builtins.print'):
+                status = speed.r4_report(SimpleNamespace(results=str(path), gate=False, out=None))
+        self.assertEqual(status, release_round.UNMEASURED)
+
+    def test_historical_oracle_failure_logs_are_not_reclassified(self):
+        data = results('r4', [('remux', 'mp4-mov', 0.8)])
+        data['results'].append({'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 0,
+                                'exit': [4, 1], 'refused': False})
+        data['fallback_log'] = {'lines': 1, 'void': True}
+        summary = speed.r4_summary(data, gate=False)
+        self.assertTrue(summary['fallback_log']['void'])
+        self.assertEqual((summary['coverage']['oracle_failed'], summary['coverage']['oracle_refusal_pairs']), (1, 0))
+        self.assertEqual(summary['coverage']['oracle_refusal_reasons'], {})
+
+    def test_oracle_refusal_diagnostics_accompany_each_reporting_level(self):
+        data = results('r4', [('remux', 'mp4-mov', 0.8), ('remux', 'matroska-webm', 0.8)])
+        data['results'].append({'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 2,
+                                'file': 'mp4-mov:0', 'outcome': 'oracle_failed', 'exit': [4, 1],
+                                'oracle_refusal_reasons': ['unknown reason', 'unknown reason']})
+        summary = speed.r4_summary(data, gate=False)
+        self.assertEqual(summary['coverage']['oracle_refusal_pairs'], 1)
+        for row in summary['classes']:
+            expected = int(row['family'] != 'matroska-webm')
+            self.assertEqual(row['coverage']['oracle_refusal_pairs'], expected)
+        for row in summary['coverage_groups']:
+            self.assertEqual(row['oracle_refusal_pairs'], int(row['family'] != 'matroska-webm'))
+        for row in summary['commands']:
+            self.assertEqual(row['coverage']['oracle_refusal_pairs'], int(row['command'] == 'C01.2'))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'report.json'
+            path.write_text(json.dumps(data))
+            done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report', '--results', str(path)],
+                                  capture_output=True, text=True, timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        lines = [line for line in done.stdout.splitlines() if 'median=' in line]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertIn('oracle_failed=', line)
+            self.assertIn('oracle_refusal_pairs=', line)
+            self.assertIn('oracle_refusal_reasons=', line)
+
     def test_unprocessed_pairs_fail_even_without_an_abort_marker(self):
         data = results('r4', [('remux', 'mp4-mov', 0.8)])
         data['results'].append({'class': 'remux', 'family': 'mp4-mov', 'id': 'C01', 'command': 1,

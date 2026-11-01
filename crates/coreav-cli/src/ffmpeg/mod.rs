@@ -22,12 +22,12 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
-use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
+use args::{Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary,
-    MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
-    VideoChoice,
+    AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions,
+    JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions, SplitAt,
+    SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -95,6 +95,8 @@ pub enum Job {
     ExtractAudio {
         /// The stream.
         stream: usize,
+        /// The header metadata: none with `-map_metadata -1`.
+        metadata: HeaderMetadata,
     },
     /// A keyframe-aligned clip.
     Clip(ClipOptions),
@@ -306,10 +308,20 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if command.strip_metadata && command.muxer != Muxer::Ipod {
-        return Err(Refusal::not_native(
-            "-map_metadata -1 on another output than an M4A file",
-        ));
+    if command.muxer != Muxer::Ipod {
+        match command.map_metadata {
+            MapMetadata::Default => {}
+            MapMetadata::Strip => {
+                return Err(Refusal::not_native(
+                    "-map_metadata -1 on another output than an M4A file",
+                ));
+            }
+            MapMetadata::Stream(_) => {
+                return Err(Refusal::not_native(
+                    "-map_metadata from a stream on another output than an M4A file",
+                ));
+            }
+        }
     }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
@@ -443,19 +455,27 @@ pub fn plan(
                 "an M4A output of other than one audio stream",
             ));
         };
-        let Some(chosen) = streams.get(*stream).filter(|s| s.kind == StreamKind::Audio) else {
+        if streams
+            .get(*stream)
+            .is_none_or(|s| s.kind != StreamKind::Audio)
+        {
             return Err(Refusal::not_native(
                 "an M4A output of other than one audio stream",
             ));
-        };
-        if command.strip_metadata
-            && tag(chosen, "language").is_some_and(|language| language != "und")
-        {
-            return Err(Refusal::not_native(
-                "-map_metadata -1 on a stream with a language",
-            ));
         }
-        return Ok(Job::ExtractAudio { stream: *stream });
+        return Ok(Job::ExtractAudio {
+            stream: *stream,
+            metadata: match command.map_metadata {
+                MapMetadata::Default => HeaderMetadata::Copy,
+                MapMetadata::Strip => HeaderMetadata::Clear,
+                MapMetadata::Stream(index) if index == *stream => HeaderMetadata::MediaTime,
+                MapMetadata::Stream(_) => {
+                    return Err(Refusal::not_native(
+                        "metadata from another stream than the one extracted",
+                    ));
+                }
+            },
+        });
     }
     let tracks: Vec<usize> = selected.iter().copied().filter(|i| !cover(*i)).collect();
     let pictures: Vec<usize> = selected
@@ -682,12 +702,13 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
     })
 }
 
-/// Where the concat demuxer of `ffmpeg` places each listed file, in whole
-/// microseconds from where it places the first: at the end of the files
-/// before it, each as long as its `duration`, less its own `start_time`
-/// (black box: a file whose audio outlasts its video is followed at the
-/// audio's end).
-fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<i128>, Stop> {
+/// Where the concat demuxer of `ffmpeg` places each listed file: the output
+/// time of its time 0, in seconds from the first file's, which follows the
+/// files before it, each as long as its `duration`, less its own
+/// `start_time`, in whole microseconds as `ffprobe` prints them (the
+/// demuxer's documentation: each file starts where the previous one ends;
+/// ISO/IEC 14496-12 8.2.2.3: a movie lasts as long as its longest track).
+fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
     let mut first = None;
@@ -705,42 +726,24 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<i128>, Stop> {
             return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
         };
         let first = *first.get_or_insert(start);
-        offsets.push(end.saturating_sub(start).saturating_add(first));
+        let offset = end.saturating_sub(start).saturating_add(first);
+        offsets.push(
+            Rational::new(offset, 1_000_000)
+                .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
+        );
         end = end.saturating_add(duration);
     }
     Ok(offsets)
 }
 
-/// Whether the join placed every input where the concat demuxer does
-/// ([`concat_offsets`]), to the microsecond.
-fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
-    let Some(first) = summary.inputs.first() else {
-        return false;
-    };
-    let from_first = |offset: Rational| {
-        Rational::new(first.offset.num.checked_neg()?, first.offset.den)
-            .and_then(|minus| offset.checked_add(minus))
-            .and_then(|r| Rational::new(r.num.checked_mul(1_000_000)?, r.den))
-            .map(Rational::round)
-    };
-    summary.inputs.len() == offsets.len()
-        && summary
-            .inputs
-            .iter()
-            .zip(offsets)
-            .all(|(input, expected)| from_first(input.offset) == Some(*expected))
-}
-
 /// Why a join is not native: a track it copies has more than one edit in
 /// its file (an empty one included), which the demuxer reads by its own
 /// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits, or it places an input elsewhere than the concat demuxer
-/// ([`placed_as_concat`]). The edits are counted in each file, as edits
-/// that meet merge in the output.
-fn concat_timing(
+/// edits. The edits are counted in each file, as edits that meet merge in
+/// the output.
+fn several_edits(
     paths: &[PathBuf],
     summary: &JoinSummary,
-    offsets: &[i128],
 ) -> Result<Option<&'static str>, WriteFailure> {
     for (path, input) in paths.iter().zip(&summary.inputs) {
         let file = FileSource::open(path)?;
@@ -758,8 +761,7 @@ fn concat_timing(
             return Ok(Some("a join of files whose tracks have several edits"));
         }
     }
-    Ok((!placed_as_concat(summary, offsets))
-        .then_some("a join of files whose streams end at different times"))
+    Ok(None)
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -1059,10 +1061,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
                 .map(|summary| crate::remux::matroska_document(&summary))
         }
-        Job::ExtractAudio { stream } => {
-            crate::extract::run(input, TrackChoice::Stream(*stream), &allowlist, out)
-                .map(|summary| crate::extract::document(&summary))
-        }
+        Job::ExtractAudio { stream, metadata } => crate::extract::run(
+            input,
+            TrackChoice::Stream(*stream),
+            &allowlist,
+            *metadata,
+            out,
+        )
+        .map(|summary| crate::extract::document(&summary)),
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
         Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
@@ -1075,13 +1081,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             let options = JoinOptions {
                 video: VideoChoice::Stream(*video),
                 audio: *audio,
+                placement: Placement::At(offsets.clone()),
             };
             let summary =
                 crate::join::run(paths, &options, &allowlist, out).map_err(|failure| {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = concat_timing(paths, &summary, &offsets)? {
+            if let Some(words) = several_edits(paths, &summary)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),

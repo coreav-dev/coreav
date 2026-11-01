@@ -50,6 +50,20 @@ class Sets(unittest.TestCase):
     def families(self, files):
         return [e['family'] for e in files]
 
+    def test_v1_coverage_takes_every_real_v1_file_and_no_other_corpus(self):
+        files = round_files.select('v1-coverage', self.root)
+        self.assertEqual(len(files), 39)
+        self.assertTrue(all(e['key'].startswith('corpus/v1/real/') for e in files))
+        order = [hashlib.sha256(('coreav-codec-v1:' + e['sha256']).encode()).hexdigest() for e in files]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual({e['family'] for e in files if e['ext'] in ('ts', 'mp3')}, {'mpegts', None})
+
+    def test_the_v1_coverage_rehearsal_is_the_first_40_in_its_own_order(self):
+        files = round_files.select('v1-coverage-rehearsal', self.root)
+        every = round_files.v1_coverage(self.root, 'coreav-codec-rehearsal:')
+        self.assertEqual(files, every[:40])
+        self.assertEqual(len(files), 39)
+
     def test_the_draw_is_draw_6_alone_where_the_extension_agrees_with_the_family(self):
         files = round_files.select('draw6', self.root)
         self.assertEqual(self.families(files), ['mp4-mov'] * 4 + ['matroska-webm'] * 2)
@@ -198,6 +212,17 @@ class Verdict(unittest.TestCase):
         code, reasons = self.reasons(self.GOOD, rc=1)
         self.assertEqual(code, 5)
         self.assertIn('gcp_vm_job.py exited 1: the output did not come back whole', reasons)
+
+    def test_oracle_refusal_diagnostics_do_not_hide_void_or_unmeasured_reports(self):
+        report = {**self.REPORT, 'coverage': {'oracle_failed': 1, 'oracle_refusal_pairs': 1,
+                                              'oracle_refusal_reasons': {'unknown reason': 1}}}
+        for extra, expected in (({}, 0), ({'fallback_log': {'void': True}}, 5),
+                                 ({'unmeasured': ['remux matroska-webm']}, 5)):
+            with self.subTest(extra=extra):
+                code, reasons = self.reasons({**self.GOOD, 'r4.report.json': {**report, **extra}})
+                self.assertEqual(code, expected)
+                self.assertEqual(bool(reasons), expected != 0)
+                self.tmp.cleanup()
 
     def test_both_gate_reports_are_required(self):
         for verdict in ('pass', 'fail'):

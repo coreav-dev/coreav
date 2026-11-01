@@ -80,8 +80,9 @@ use coreav_cli::{
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, MatroskaRemuxOptions, Metadata,
-    OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions, MatroskaRemuxOptions,
+    Metadata, OnUnsupported, Placement, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
+    VideoChoice,
 };
 use coreav_policy::Policy;
 #[cfg(not(feature = "net"))]
@@ -251,9 +252,8 @@ enum Command {
     /// untrusted input, anything else is refused with exit status 4;
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
-    /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
-    /// as `ffprobe` does the same.
+    /// MP4/MOV, Matroska/WebM and MPEG-TS (docs/measurements/compat-ffprobe.md).
+    /// `coreav` run as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
     /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
@@ -1224,7 +1224,7 @@ fn run_extract_audio(args: &ExtractAudioArgs) -> ExitCode {
     };
     write_output(&args.input, &args.output, args.force, |out| {
         let summary = match remote.as_mut() {
-            None => extract::run(&args.input, choice, &allowlist, out),
+            None => extract::run(&args.input, choice, &allowlist, HeaderMetadata::Copy, out),
             Some(source) => {
                 extract::run_source(BufferedSource::new(&mut *source), choice, &allowlist, out)
                     .map_err(|f| explain_write(source, f))
@@ -2214,6 +2214,7 @@ fn run_join(args: &JoinArgs) -> ExitCode {
     let options = JoinOptions {
         video: VideoChoice::First,
         audio,
+        placement: Placement::AfterVideo,
     };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.

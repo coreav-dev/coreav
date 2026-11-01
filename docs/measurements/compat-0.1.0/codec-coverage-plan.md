@@ -68,7 +68,8 @@ The pinned `ffmpeg` decodes the whole stream to `framemd5`, prepared as
 bar 1, without `-frames:v`:
 
     ffmpeg -nostdin -v error -noautorotate [-ignore_editlist 1] [-c:v DECODER] -flags unaligned \
-           -i FILE -map 0:N -fps_mode passthrough [-pix_fmt FORMAT] -noautoscale -f framemd5 -
+           [-reinit_filter 0] -i FILE -map 0:N -fps_mode passthrough [-pix_fmt FORMAT [-vf RELABEL]] \
+           -noautoscale -f framemd5 -
 
 - `-ignore_editlist 1` for the extensions that script treats as MP4 and
   MOV (`mp4`, `mov`, `m4v`, `3gp`, `m4a`, `m4b`).
@@ -79,6 +80,39 @@ bar 1, without `-frames:v`:
   the same format without it; otherwise the option is left out and frames
   keep the decoder's format.
 - `N`: the stream's index from `ffprobe`.
+- The no-conversion pin: `-reinit_filter 0` for every stream without
+  `-pix_fmt`, and `RELABEL`,
+  `setparams=colorspace=unknown:color_primaries=unknown:color_trc=unknown:range=unknown`,
+  for every stream with it. CoreAV's side outputs each frame's samples as
+  decoded, so the reference must too. Without the pin, when the stream's
+  colour description, range or pixel format changes mid-stream, the pinned
+  `ffmpeg` rebuilds its filter graph at the change and converts the
+  following frames to the first frame's colour, range and format,
+  `-noautoscale` notwithstanding. `-reinit_filter 0` only stops that rebuild:
+  the graph is configured once from the first frame, as it is for a stream
+  with no change, adds no filter and changes no label, so it cannot alter a
+  sample of a stream without a change. With `-pix_fmt` the graph holds a
+  format filter configured for the first frame, which `-reinit_filter 0`
+  would keep and so rescale frames after a size change; there the graph is
+  rebuilt as before, and `RELABEL` gives every frame the same colour
+  description and range, so the rebuilt graph has none to convert. It
+  changes labels only, which `framemd5` does not hash. The choice depends
+  on the same property as `-pix_fmt` itself, never on the file. With
+  `-pix_fmt` a change of pixel format is still converted to `FORMAT` (a
+  ProRes stream whose 4444 run is followed by a 422 run comes out at
+  4:4:4 throughout). That path is taken only where `ffprobe` lists an alpha
+  format, which never happens for `h264`, `av1`, `vp9` or `vp8` with the
+  decoders above (VP9 and VP8 with alpha are listed as `yuv420p`), so it
+  reaches only the group `other`, whose files miss as `codec_not_in_build`
+  before any MD5 is compared, and cannot change a count. The tools' tests
+  check all of this with the pinned `ffmpeg` on streams they encode:
+  H.264 with a mid-stream change of colour description, of range, of
+  pixel format, and of colour description and size together, VP9 with a
+  change of colour description and size, and VP9 with alpha and the same
+  change, each decoded whole equal to its segments decoded one at a time;
+  H.264, 10-bit H.264, VP9 and VP9 with alpha without a change, whose MD5s
+  equal those of the command without the pin; VP9 and VP8 with alpha
+  listed without alpha; and the ProRes stream converted.
 
 A file has a reference when this exits 0 within its time limit and lists
 at least one frame. The denominator is the files with a stream and a
@@ -417,6 +451,18 @@ container CoreAV does not read). It reads no corpus file.
 6. **The record.** `docs/measurements/compat-0.1.0.md`, as the note says:
    V1, V2 and V3 with their verdicts, the manifest above and the
    breakdowns, with the public summaries beside it in this directory.
+
+## Amendments
+
+Changes made before any run of the rehearsal, each in the pull request
+that adds the tools.
+
+1. The reference gains the no-conversion pin ("The reference"). A check
+   of CoreAV's decoder on one file found that the registered command
+   converted 30 frames of a run tagged BT.601 inside a BT.709 stream to
+   BT.709 at the change, so that their MD5s were the converted samples'
+   rather than the decoded ones'. Relabelling those frames alone made every
+   frame of the file agree. No bar, code or count rule changes.
 
 ## Deviations
 
