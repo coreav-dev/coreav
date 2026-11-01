@@ -2874,14 +2874,15 @@ artist
 attached_pic
 avg_bitrate
 avg_frame_rate
+baseline
 best_effort_timestamp
 best_effort_timestamp_time
 bit_rate
 bits_per_raw_sample
 bits_per_sample
 bl_present_flag
+block_additional_id
 buffer_size
-byte
 captions
 category
 channel_layout
@@ -2960,6 +2961,8 @@ has_b_frames
 hd_video
 hearing_impaired
 height
+horizontal_disparity_adjustment
+horizontal_field_of_view
 host_computer
 id
 index
@@ -3026,6 +3029,7 @@ playback_requirements
 pmt_pid
 podcast
 pos
+primary_eye
 probe_score
 producer
 profile
@@ -3082,6 +3086,7 @@ ts_packetsize
 type
 vbv_delay
 vendor_id
+view
 view_ids_available
 view_pos_available
 visual_impaired
