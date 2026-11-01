@@ -51,3 +51,9 @@ The targeted gain is on SD, so the unaffected classes are guards, not required g
 Identity covers all 32 training streams at one and eight threads with and without `fast`, plus all 64 validation streams at one and eight threads with `fast`, 256 calls. Use the existing bundle 6 identity job without changing the decoder example. A logged decode or flush error is also a failure, even if its process exits successfully. Conformance and bench-guard run in CI. Similarity evidence names the checked public commit and uses the current main allowlist.
 
 Run the training call first. If SB-1, SB-2 or its SB-3 checks miss, stop without starting validation or the one-thread guard. Otherwise run validation and the guard. A missed bar is final for these arms. Repeat a call only after a recorded host fault, never because a result is close. A failed candidate stays out of production; retain its evidence and exact diff. No faster-than-FFmpeg claim is made without a held-out interval upper bound below 1.000.
+
+## Disclosure after launch, 2026-11-01
+
+The pre-run statements above that the 720p class is unchanged are incorrect. The registered height rule also reaches four 480-line streams in that class: training `36501d448eaa` and `3c593b8f0809`, validation `178de4a3a5a2` and `985a28c5abe5`. The class labels do not imply 720 coded lines. The rule, binaries, bars and calls remain exactly as registered; SB-2 and SB-5 still guard that class. The 720p ceiling probe is not one of these four streams.
+
+The identity job is bundle 6's job with one stricter check. It rejects any decoder stderr line except the exact `decode: FrameNumGap` warning, in addition to checking process status and nonempty output. The decoder example itself is unchanged.
