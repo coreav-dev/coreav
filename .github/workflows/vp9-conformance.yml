@@ -3,8 +3,9 @@ name: vp9-conformance
 # Gate G1 of docs/design/vp9.md: every test vector of
 # crates/coreav-vp9/tests/data/vectors.json, fetched from the WebM project's
 # bucket and checked against the SHA-256 the manifest pins, through the
-# crate's header reader. Runs when the crate or this workflow changes, and
-# weekly.
+# crate's header reader. Also checks that crates/coreav-vp9/src/tables.rs is
+# what crates/coreav-vp9/tools/gen_tables.py reads from the specification.
+# Runs when the crate or this workflow changes, and weekly.
 
 on:
   push:
@@ -37,6 +38,13 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: The tables are the specification's
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends poppler-utils
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/vp9-spec.pdf" https://storage.googleapis.com/downloads.webmproject.org/docs/vp9/vp9-bitstream-specification-v0.7-20170222-draft.pdf
+          python3 -I crates/coreav-vp9/tools/gen_tables.py --pdf "$RUNNER_TEMP/vp9-spec.pdf" --out crates/coreav-vp9/src/tables.rs --check
       - name: List the vectors and their checksums
         run: |
           set -euo pipefail

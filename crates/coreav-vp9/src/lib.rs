@@ -10,9 +10,10 @@
 //! The decoder is sans-IO: it takes packets (a frame, or a superframe) and
 //! reads no files. Every decoder takes [`Limits`]; hostile input produces
 //! an [`Error`], never a panic. Today it reads headers only: each frame's
-//! uncompressed header (clause 6.2), the superframe index (Annex B) and the
-//! reference slots' sizes, so it can say which frames a stream shows and
-//! at what size.
+//! uncompressed header (clause 6.2) and compressed header (clause 6.3),
+//! the superframe index (Annex B), the reference slots' sizes and the saved
+//! probability contexts, so it can say which frames a stream shows and at
+//! what size.
 //!
 //! ```
 //! use coreav_vp9::{Decoder, Header, Limits};
@@ -24,7 +25,7 @@
 //! ];
 //! let mut decoder = Decoder::new(Limits::default());
 //! let headers = decoder.read_headers(&frame)?;
-//! let Some(Header::Frame(header)) = headers.first() else { panic!() };
+//! let Some(Header::Frame { header, .. }) = headers.first() else { panic!() };
 //! assert_eq!((header.width, header.height), (64, 48));
 //! # Ok::<(), coreav_vp9::Error>(())
 //! ```
@@ -32,12 +33,17 @@
 #![forbid(unsafe_code)]
 
 mod bits;
+mod bool;
+mod compressed;
 mod decoder;
 mod error;
 mod header;
 mod limits;
+mod probs;
 mod superframe;
+mod tables;
 
+pub use compressed::{CompressedHeader, ReferenceMode, TxMode};
 pub use decoder::Decoder;
 pub use error::{Error, LimitKind, Result};
 pub use header::{
