@@ -68,6 +68,11 @@ impl Decoder {
         Ok(headers)
     }
 
+    #[cfg(test)]
+    pub(crate) fn contexts(&self) -> &Contexts {
+        &self.contexts
+    }
+
     fn check_size(&self, width: u32, height: u32) -> Result<()> {
         if width > self.limits.max_width {
             return Err(Error::Limit(LimitKind::Width));

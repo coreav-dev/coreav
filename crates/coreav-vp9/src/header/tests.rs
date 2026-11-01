@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use super::*;
+use crate::bool::BoolDecoder;
 
 /// Writes bits the way `f(n)` reads them, most significant first.
 #[derive(Default)]
@@ -40,11 +41,23 @@ impl W {
     /// for the tile rows, and one more where the width allows several tile
     /// columns.
     fn tail(&mut self, tile_bits: u32) -> &mut Self {
+        self.tail_with(tile_bits, &[0])
+    }
+
+    /// As [`W::tail`], with `compressed` as the compressed header.
+    fn tail_with(&mut self, tile_bits: u32, compressed: &[u8]) -> &mut Self {
         self.f(6, 0).f(3, 0).f(1, 0); // loop filter: level, sharpness, no deltas
         self.f(8, 60).f(3, 0); // base_q_idx and no delta
         self.f(1, 0); // no segmentation
         self.f(tile_bits, 0); // one tile column and one tile row
-        self.f(16, 1).compressed_byte()
+        self.f(16, u32::try_from(compressed.len()).unwrap());
+        while self.0.len() % 8 != 0 {
+            self.0.push(false);
+        }
+        for &byte in compressed {
+            self.f(8, u32::from(byte));
+        }
+        self
     }
 
     /// The trailing bits, then a compressed header of one 0 byte.
@@ -386,8 +399,9 @@ fn intra_and_error_resilient_frames_reset_the_contexts_clause_7_2_names() {
 }
 
 /// An inter frame of `profile` (0 or 1) that predicts from slots 0, 1 and
-/// 2 at the size of slot 0, then one byte of compressed header.
-fn inter_frame(profile: u32) -> Vec<u8> {
+/// 2 at the size of slot 0 and uses context `ctx`, which it saves when
+/// `refresh_context` is 1, then `compressed` as its compressed header.
+fn inter_frame(profile: u32, refresh_context: u32, ctx: u32, compressed: &[u8]) -> Vec<u8> {
     let mut w = W::default();
     w.f(2, 2).f(1, profile).f(1, 0).f(1, 0); // marker, profile, not show-existing
     w.f(1, 1).f(1, 1).f(1, 0); // inter, shown, not error resilient
@@ -397,8 +411,8 @@ fn inter_frame(profile: u32) -> Vec<u8> {
     }
     w.f(1, 1).f(1, 0); // the size of slot 0, render size the same
     w.f(1, 0).f(1, 0).f(2, 0); // no hp, filter 0
-    w.f(1, 0).f(1, 0).f(2, 0); // context 0
-    w.plain_tail();
+    w.f(1, refresh_context).f(1, 0).f(2, ctx); // not parallel
+    w.tail_with(1, compressed);
     w.bytes()
 }
 
@@ -411,7 +425,10 @@ fn a_reference_of_the_same_profile_and_colour_space_is_accepted() {
     let mut decoder = crate::Decoder::new(crate::Limits::default());
     decoder.read_headers(&key_frame_bytes()).unwrap();
     assert!(matches!(
-        decoder.read_headers(&inter_frame(0)).unwrap().as_slice(),
+        decoder
+            .read_headers(&inter_frame(0, 0, 0, &[0]))
+            .unwrap()
+            .as_slice(),
         [Header::Frame { .. }]
     ));
 }
@@ -421,7 +438,7 @@ fn a_reference_of_another_profile_is_refused() {
     let mut decoder = crate::Decoder::new(crate::Limits::default());
     decoder.read_headers(&key_frame_bytes()).unwrap();
     assert_eq!(
-        decoder.read_headers(&inter_frame(1)),
+        decoder.read_headers(&inter_frame(1, 0, 0, &[0])),
         Err(Error::Invalid(
             "a reference frame of another profile, bit depth, subsampling or colour space"
         ))
@@ -447,9 +464,73 @@ fn a_reference_of_another_colour_space_is_refused() {
     };
     assert_eq!(h.color.color_space, ColorSpace::Bt601);
     assert_eq!(
-        decoder.read_headers(&inter_frame(0)),
+        decoder.read_headers(&inter_frame(0, 0, 0, &[0])),
         Err(Error::Invalid(
             "a reference frame of another profile, bit depth, subsampling or colour space"
         ))
+    );
+}
+
+/// The `len` bytes from which the boolean decoder reads its marker bit 0
+/// and then `bools`, each a probability and the bool read with it. The
+/// value they decode from is the least that reads `bools`, so every bit
+/// after them is 0, as the padding must be (clause 9.2.3).
+fn bool_bytes(bools: &[(u8, bool)], len: usize) -> Vec<u8> {
+    let wanted: Vec<bool> = bools.iter().map(|&(_, bit)| bit).collect();
+    let reaches = |data: &[u8]| {
+        let mut d = BoolDecoder::new(data);
+        bools.iter().map(|&(p, _)| d.read(p)).collect::<Vec<_>>() >= wanted
+    };
+    let mut bits = vec![false; 8 * len];
+    for i in 0..bits.len() {
+        let mut highest = bits.clone();
+        highest[i + 1..].fill(true);
+        if !reaches(&W(highest).bytes()) {
+            bits[i] = true;
+        }
+    }
+    W(bits).bytes()
+}
+
+/// A compressed header with `tx_mode` `ONLY_4X4`, no coefficient update
+/// and `deltaProb` 0 for `skip_prob[0]`. As [`bool_bytes`] decodes from
+/// the least value that reads these bools, every bool read after them is
+/// 0, so no other probability changes.
+fn skip_update() -> Vec<u8> {
+    let mut bools = vec![(128, false); 3]; // tx_mode 0, update_probs 0
+    bools.push((252, true));
+    bools.extend([(128, false); 5]); // decode_term_subexp: bit 0, literal 0
+    bool_bytes(&bools, 8)
+}
+
+#[test]
+fn a_known_update_is_saved_reloaded_and_left_unsaved_by_refresh_frame_context_0() {
+    let default = Probs::DEFAULT.skip[0];
+    assert_eq!(default, 192);
+    let mut decoder = crate::Decoder::new(crate::Limits::default());
+    let mut read = |bytes: &[u8]| {
+        let headers = decoder.read_headers(bytes).unwrap();
+        let [Header::Frame { compressed, .. }] = headers.as_slice() else {
+            panic!("{headers:?}")
+        };
+        assert!(compressed.ends_cleanly);
+        [0, 1, 2, 3].map(|ctx| decoder.contexts().load(ctx).skip[0])
+    };
+    // inv_map_table[0] is 7, which inv_remap_prob takes to 4 above 192 and
+    // to 4 above 196 (clauses 6.3.5 and 6.3.6). The key frame codes context
+    // 3 and saves into context 0 (clause 7.2).
+    let key = key_frame(64, 48).tail_with(1, &skip_update()).bytes();
+    assert_eq!(read(&key), [196, default, default, default]);
+    assert_eq!(
+        read(&inter_frame(0, 1, 0, &skip_update())),
+        [200, default, default, default]
+    );
+    assert_eq!(
+        read(&inter_frame(0, 0, 0, &skip_update())),
+        [200, default, default, default]
+    );
+    assert_eq!(
+        read(&inter_frame(0, 1, 2, &skip_update())),
+        [200, default, 196, default]
     );
 }
