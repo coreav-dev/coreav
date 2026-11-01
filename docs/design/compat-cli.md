@@ -1069,6 +1069,12 @@ on the same sample as that exhaustion. These changes add error checks to
 existing scan windows and retain a typed preflight result, without adding
 scans or raising any instruction-guard threshold.
 
+An iTunes gapless metadata read keeps the library's distinction between a
+missing or malformed item and a source I/O failure. The first read feeds
+the report, so an I/O failure fails probing. A failed re-read while
+preparing packet timing is retained by the preflight and returned before
+the first packet. Malformed item text still produces no gapless value.
+
 The replacement is not the old document with a different command name.
 `coreav ffprobe` lists streams the old flag dropped and takes some values
 from the stream rather than the container. It also prints more keys.

@@ -445,8 +445,7 @@ pub fn probe<S: Source>(
     // 8.6.6 does it for files with one).
     let gapless = movie
         .itunes_gapless(&mut *source)
-        .ok()
-        .flatten()
+        .map_err(Failure::library)?
         .map(|g| i64::from(g.encoder_delay))
         .filter(|d| *d > 0);
     let mut priming = Vec::with_capacity(movie.tracks.len());
@@ -2149,7 +2148,7 @@ fn prepare<S: Source>(
     source: &mut S,
     limits: &Limits,
 ) -> Result<Prepared, coreav_isobmff::Error> {
-    let itunes = movie.itunes_gapless(&mut *source).ok().flatten();
+    let itunes = movie.itunes_gapless(&mut *source)?;
     let plans = movie
         .tracks
         .iter()
@@ -3847,6 +3846,117 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "transcode")]
+    #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+    fn gapless_metadata_movie() -> (Vec<u8>, u64) {
+        use crate::test_isobmff::{aac_entry, av_movie_with, bx, full};
+
+        let mut bytes = av_movie_with(aac_entry(), false);
+        let moov = bytes.windows(4).position(|w| w == b"moov").unwrap() - 4;
+        let at = bytes.len() as u64 + 16;
+        bytes.extend_from_slice(&bx(b"udta", &full(b"meta", 0, 0, &bx(b"free", &[]))));
+        let size = (bytes.len() - moov) as u32;
+        bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+        (bytes, at)
+    }
+
+    #[cfg(feature = "transcode")]
+    struct GaplessReadFailure<'a> {
+        inner: coreav_isobmff::SliceSource<'a>,
+        at: u64,
+        fail_on: usize,
+        reads: usize,
+    }
+
+    #[cfg(feature = "transcode")]
+    impl Source for GaplessReadFailure<'_> {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            self.inner.len()
+        }
+
+        fn read_exact_at(
+            &mut self,
+            offset: u64,
+            buf: &mut [u8],
+        ) -> Result<(), coreav_isobmff::Error> {
+            if offset == self.at && buf.len() == 8 {
+                self.reads += 1;
+                if self.reads == self.fail_on {
+                    return Err(coreav_isobmff::Error::Io(std::io::ErrorKind::Other));
+                }
+            }
+            self.inner.read_exact_at(offset, buf)
+        }
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    fn a_gapless_source_error_fails_the_report() {
+        let (bytes, at) = gapless_metadata_movie();
+        let mut source = GaplessReadFailure {
+            inner: coreav_isobmff::SliceSource::new(&bytes),
+            at,
+            fail_on: 1,
+            reads: 0,
+        };
+        assert!(matches!(
+            probe(
+                &mut source,
+                bytes.len() as u64,
+                "gapless",
+                &Limits::default()
+            ),
+            Err(Failure::Library(coreav_isobmff::Error::Io(
+                std::io::ErrorKind::Other
+            )))
+        ));
+        assert_eq!(source.reads, 1);
+    }
+
+    #[cfg(feature = "transcode")]
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn a_gapless_preflight_source_error_fails_before_the_first_packet() {
+        let (bytes, at) = gapless_metadata_movie();
+        let mut source = GaplessReadFailure {
+            inner: coreav_isobmff::SliceSource::new(&bytes),
+            at,
+            fail_on: 3,
+            reads: 0,
+        };
+        let limits = Limits::default();
+        let probed = probe(&mut source, bytes.len() as u64, "gapless", &limits)
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert_eq!(source.reads, 2);
+        let mut listing = packets(
+            IsoProbedPackets {
+                movie: probed.movie,
+                priming: probed.priming,
+                ends: probed.ends,
+                shifts: probed.shifts,
+                steps: probed.steps,
+                covers: probed.covers,
+                pictures: probed.pictures,
+                limits,
+            },
+            &mut source,
+        );
+        let mut emitted = 0;
+        let result = listing.visit(&[false; 2], &mut |_| {
+            emitted += 1;
+            Ok(true)
+        });
+        assert!(matches!(
+            result,
+            Err(Failure::Library(coreav_isobmff::Error::Io(
+                std::io::ErrorKind::Other
+            )))
+        ));
+        assert_eq!(emitted, 0);
+        drop(listing);
+        assert_eq!(source.reads, 3);
+    }
 
     #[test]
     fn optional_scans_distinguish_source_failures_from_malformed_samples() {

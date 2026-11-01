@@ -154,3 +154,54 @@ fn splice_work_exhaustion_keeps_the_library_listing() {
     assert!(result.is_ok());
     assert_eq!(times, vec![None; 128]);
 }
+
+fn gapless_movie(text: &[u8]) -> Vec<u8> {
+    let track = text_movie::TrackSpec {
+        handler: *b"soun",
+        entry: common::aac_entry(),
+        timescale: 48_000,
+        ..text_movie::TrackSpec::tx3g(1, vec![(vec![0; 10], 1024); 10])
+    };
+    let mut bytes = text_movie::movie(&[track]);
+    let moov = bytes.windows(4).position(|w| w == b"moov").unwrap() - 4;
+    let data = [common::u32s(&[1, 0]), text.to_vec()].concat();
+    let item = common::bx(
+        b"----",
+        &[
+            common::full(b"mean", 0, 0, b"com.apple.iTunes"),
+            common::full(b"name", 0, 0, b"iTunSMPB"),
+            common::bx(b"data", &data),
+        ]
+        .concat(),
+    );
+    bytes.extend_from_slice(&common::bx(
+        b"udta",
+        &common::full(b"meta", 0, 0, &common::bx(b"ilst", &item)),
+    ));
+    let size = (bytes.len() - moov) as u32;
+    bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+    bytes
+}
+
+#[test]
+fn a_valid_gapless_item_keeps_its_priming() {
+    let bytes = gapless_movie(b" 00000000 00000840 0000012C 0000000000001E94 00000000");
+    let default = probe(bytes.clone(), &Limits::default()).ok().unwrap();
+    assert_eq!(
+        default.report.streams[0]
+            .entries
+            .iter()
+            .find(|(name, _)| *name == "initial_padding")
+            .map(|(_, value)| value),
+        Some(&Value::Int(2112))
+    );
+}
+
+#[test]
+fn a_malformed_gapless_item_is_still_omitted() {
+    let bytes = gapless_movie(b"not hexadecimal samples");
+    let mut probed = probe(bytes, &Limits::default()).ok().unwrap();
+    let (result, total) = count(&mut probed);
+    assert!(result.is_ok());
+    assert_eq!(total, 10);
+}
