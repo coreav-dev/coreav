@@ -1,0 +1,1986 @@
+{
+ "method": "per command on 4 cores: 4*W = C + I (W wall, C user+sys CPU of the process tree, I idle core-seconds); a stage's CPU = C * its share of the command's perf samples; a stage's contribution to the gap = (its CPU in the arm - its CPU in base) / 4, as a share of base's wall time",
+ "ratios": {
+  "base2/base": {
+   "n": 10,
+   "median": 0.9964027270271778,
+   "ci": [
+    0.9823360962993449,
+    1.0037887033986395
+   ],
+   "below_1": 0.6,
+   "per_file": [
+    1.0010646730239656,
+    0.9872890995825742,
+    0.9773830930161157,
+    0.9987487464333794,
+    0.9867399746806352,
+    1.0001498783988725,
+    0.9940567076209762,
+    1.0074275283984067,
+    0.9687515681598904,
+    1.0219583427603696
+   ]
+  },
+  "c_ff/base": {
+   "n": 10,
+   "median": 1.0742206308019568,
+   "ci": [
+    1.0165002251251227,
+    1.1208962363053903
+   ],
+   "below_1": 0.2,
+   "per_file": [
+    1.063506023400592,
+    0.9868920578997527,
+    1.0165002251251227,
+    1.1478069225570176,
+    1.165773869430494,
+    1.093985550053763,
+    1.1191542209023402,
+    1.0585407412126537,
+    0.9784281398852933,
+    1.0849352382033215
+   ]
+  },
+  "c_x264/base": {
+   "n": 10,
+   "median": 1.074236168823622,
+   "ci": [
+    1.0187136907741214,
+    1.109035444712727
+   ],
+   "below_1": 0.2,
+   "per_file": [
+    1.0689771315284142,
+    0.9831718873251998,
+    1.03147905878525,
+    1.1508289260797178,
+    1.13115869741757,
+    1.0869121920078841,
+    1.0871582693117898,
+    1.054255494223043,
+    0.9784552735081404,
+    1.0794952061188297
+   ]
+  },
+  "f_split/base": {
+   "n": 10,
+   "median": 1.0322253826442085,
+   "ci": [
+    1.0122590984270852,
+    1.070258913896781
+   ],
+   "below_1": 0.1,
+   "per_file": [
+    1.0122590984270852,
+    1.0584235673278137,
+    0.9976898405884153,
+    1.0491132985621368,
+    1.0914045292314254,
+    1.0269445423879486,
+    1.0942462834411972,
+    1.0367880551927986,
+    1.0025487257092514,
+    1.0276627100956184
+   ]
+  },
+  "c_ff/f_split": {
+   "n": 10,
+   "median": 1.036694467617158,
+   "ci": [
+    0.9984607881515577,
+    1.0652820136810155
+   ],
+   "below_1": 0.2,
+   "per_file": [
+    1.050626292273527,
+    0.9324169343577111,
+    1.0188539401439767,
+    1.0940733704645107,
+    1.068140948848215,
+    1.0652820136810155,
+    1.0227626429607894,
+    1.0209808416589155,
+    0.9759407346442,
+    1.0557308614441931
+   ]
+  },
+  "c_x264/f_split": {
+   "n": 10,
+   "median": 1.035146117940554,
+   "ci": [
+    0.9935224690851889,
+    1.0560311418187904
+   ],
+   "below_1": 0.3,
+   "per_file": [
+    1.0560311418187904,
+    0.9289021122303608,
+    1.0338674574223454,
+    1.0969539016014642,
+    1.0364247784587624,
+    1.0583942434520301,
+    0.9935224690851889,
+    1.016847646867417,
+    0.9759677992866969,
+    1.0504372645947115
+   ]
+  },
+  "c_x264/c_ff": {
+   "n": 10,
+   "median": 0.9960910795250448,
+   "ci": [
+    0.9831982213832564,
+    1.002632850058064
+   ],
+   "below_1": 0.6,
+   "per_file": [
+    1.0051444072787932,
+    0.9962304179623556,
+    1.0147356914340904,
+    1.002632850058064,
+    0.9703071299497952,
+    0.9935343222353065,
+    0.9714105965085376,
+    0.9959517410877341,
+    1.0000277318504456,
+    0.9949858462579751
+   ]
+  },
+  "f_dec_vpx/f_dec_vp9": {
+   "n": 10,
+   "median": 0.978311086462647,
+   "ci": [
+    0.8184576350956181,
+    1.169959691679538
+   ],
+   "below_1": 0.6,
+   "per_file": [
+    0.6736743147752935,
+    0.9632409554159427,
+    1.2048626752409082,
+    1.293513602030473,
+    0.9933008417297418,
+    0.5712447897063295,
+    1.169959691679538,
+    0.9364004246640009,
+    0.9633213311955521,
+    1.0905732363736158
+   ]
+  },
+  "c_dec_ip/f_dec_vp9": {
+   "n": 10,
+   "median": 0.9076654743254495,
+   "ci": [
+    0.7538057477335827,
+    1.2872645747834275
+   ],
+   "below_1": 0.5,
+   "per_file": [
+    0.7756447101214988,
+    0.7226570743087698,
+    1.1159760889359707,
+    1.4551330345183762,
+    1.2872645747834275,
+    0.7849544211583955,
+    1.3530906479940448,
+    1.0273605343899614,
+    0.7164480065979374,
+    0.7879704142609376
+   ]
+  },
+  "c_dec_w/f_dec_vp9": {
+   "n": 10,
+   "median": 1.1121241312954249,
+   "ci": [
+    0.8573858315504758,
+    1.8344733624191842
+   ],
+   "below_1": 0.4,
+   "per_file": [
+    0.8637106201906021,
+    0.7749185775642747,
+    1.1986414588744894,
+    2.0187975054600127,
+    2.6254092701117013,
+    1.0256068037163606,
+    1.8344733624191842,
+    1.2830953151602726,
+    0.7820851718830073,
+    0.9326864912179442
+   ]
+  },
+  "c_dec_w/c_dec_ip": {
+   "n": 10,
+   "median": 1.2162904120496836,
+   "ci": [
+    1.0916146945495024,
+    1.3557653104311886
+   ],
+   "below_1": 0.0,
+   "per_file": [
+    1.1135389810823417,
+    1.0723185382298979,
+    1.0740744992281477,
+    1.3873628442008394,
+    2.0395257676949643,
+    1.3065813454529278,
+    1.3557653104311886,
+    1.24892408478798,
+    1.0916146945495024,
+    1.183656739311387
+   ]
+  },
+  "c_dec_ip/f_dec_vpx": {
+   "n": 10,
+   "median": 1.1110420558594707,
+   "ci": [
+    0.7502349959743095,
+    1.223655426653108
+   ],
+   "below_1": 0.4,
+   "per_file": [
+    1.1513645289864107,
+    0.7502349959743095,
+    0.9262267907110949,
+    1.1249460633689539,
+    1.2959463243198053,
+    1.3741121762562276,
+    1.156527577502788,
+    1.0971380483499875,
+    0.7437269199767155,
+    0.7225286555546734
+   ]
+  },
+  "x_enc/f_enc": {
+   "n": 7,
+   "median": 0.9656699666024685,
+   "ci": [
+    0.916847223531234,
+    0.9747241762123601
+   ],
+   "below_1": 0.8571428571428571,
+   "per_file": [
+    0.8794862766364896,
+    0.9542186796840911,
+    0.9747241762123601,
+    0.9656699666024685,
+    1.0066575915333291,
+    0.916847223531234,
+    0.9742126809898684
+   ]
+  },
+  "f_enc_pipe/f_enc": {
+   "n": 7,
+   "median": 1.026299428427853,
+   "ci": [
+    1.0105047795898743,
+    1.0565387808152584
+   ],
+   "below_1": 0.14285714285714285,
+   "per_file": [
+    1.0310210635537282,
+    0.9638035440368982,
+    1.0193739683482361,
+    1.026299428427853,
+    1.0105047795898743,
+    1.0624592175474217,
+    1.0565387808152584
+   ]
+  },
+  "x_enc_pipe/x_enc": {
+   "n": 7,
+   "median": 1.015795731793321,
+   "ci": [
+    0.9964215668362572,
+    1.021225493442586
+   ],
+   "below_1": 0.2857142857142857,
+   "per_file": [
+    0.9964215668362572,
+    1.021225493442586,
+    1.0184581706465898,
+    1.045943588067538,
+    1.0073066413003617,
+    0.9787444076491922,
+    1.015795731793321
+   ]
+  },
+  "f_enc/base": {
+   "n": 7,
+   "median": 0.9616286893325284,
+   "ci": [
+    0.7733330130510719,
+    0.9657082047521731
+   ],
+   "below_1": 1.0,
+   "per_file": [
+    0.7733330130510719,
+    0.964718622465401,
+    0.9784834990541122,
+    0.9490330563330378,
+    0.9616286893325284,
+    0.7572130430346142,
+    0.9657082047521731
+   ]
+  },
+  "x_enc_pipe/base": {
+   "n": 7,
+   "median": 0.9556658854860252,
+   "ci": [
+    0.6794920092780597,
+    0.9713560309106336
+   ],
+   "below_1": 1.0,
+   "per_file": [
+    0.6777019518451037,
+    0.9400917118888125,
+    0.9713560309106336,
+    0.9585578460562616,
+    0.975103874324848,
+    0.6794920092780597,
+    0.9556658854860252
+   ]
+  },
+  "base_an/base": {
+   "n": 2,
+   "median": 1.011367331895579,
+   "ci": null,
+   "below_1": 0.0,
+   "per_file": [
+    1.0047961676300847,
+    1.0179384961610731
+   ]
+  },
+  "c_x264_an/c_x264": {
+   "n": 2,
+   "median": 1.0022392935701991,
+   "ci": null,
+   "below_1": 0.0,
+   "per_file": [
+    1.001204926636978,
+    1.0032736605034205
+   ]
+  },
+  "c_ff_an/c_ff": {
+   "n": 2,
+   "median": 0.9992542641627105,
+   "ci": null,
+   "below_1": 0.5,
+   "per_file": [
+    1.0041123232469884,
+    0.9943962050784326
+   ]
+  },
+  "f_split/base_video_only": {
+   "n": 10,
+   "median": 1.0248526822937634,
+   "ci": [
+    1.0105330553506913,
+    1.070258913896781
+   ],
+   "below_1": 0.1,
+   "per_file": [
+    1.0122590984270852,
+    1.0584235673278137,
+    0.9976898405884153,
+    1.0491132985621368,
+    1.0914045292314254,
+    1.0220426544919086,
+    1.0942462834411972,
+    1.0185173849921312,
+    1.0025487257092514,
+    1.0276627100956184
+   ],
+   "note": "base_an in place of base for the 2 files with audio, since f_split carries no audio"
+  }
+ },
+ "stages": {
+  "c_ff": {
+   "decode": {
+    "median": 0.0022713157883632535,
+    "mean": 0.005823033027538785,
+    "pooled_seconds": 7.272865607466911
+   },
+   "transfer": {
+    "median": 0.044365173754548196,
+    "mean": 0.0687773300116574,
+    "pooled_seconds": 23.07881495650397
+   },
+   "encode": {
+    "median": 0.008073331452529383,
+    "mean": 0.008744870396892777,
+    "pooled_seconds": 2.9306544890706916
+   },
+   "mux": {
+    "median": 3.182286793436562e-05,
+    "mean": 0.00015874895804472873,
+    "pooled_seconds": -0.007299454260943232
+   },
+   "demux": {
+    "median": -0.0002984060589779487,
+    "mean": -0.00038241584589153,
+    "pooled_seconds": -0.06797647735580455
+   },
+   "other": {
+    "median": 0.002637894865971065,
+    "mean": 0.005085152025431951,
+    "pooled_seconds": 0.47645837857319107
+   },
+   "idle": {
+    "median": -0.018697664547166863,
+    "mean": -0.016654419706639077,
+    "pooled_seconds": -2.780291112996766
+   },
+   "gap": {
+    "median": 0.07422063080195665,
+    "mean": 0.07155229886703504,
+    "pooled_seconds": 30.903226387001254
+   }
+  },
+  "c_x264": {
+   "decode": {
+    "median": 0.0021570619733237845,
+    "mean": 0.006078480167148075,
+    "pooled_seconds": 7.046784544922026
+   },
+   "transfer": {
+    "median": 0.03911799210807424,
+    "mean": 0.061418291313035465,
+    "pooled_seconds": 21.93983125799244
+   },
+   "encode": {
+    "median": -0.0011207075293943056,
+    "mean": -0.0063302404479356434,
+    "pooled_seconds": 2.2598164118852355
+   },
+   "mux": {
+    "median": -0.0002082595120816494,
+    "mean": -0.0002460170181343475,
+    "pooled_seconds": -0.03860884856616243
+   },
+   "demux": {
+    "median": -0.00027602721743332913,
+    "mean": -0.0003635089456713645,
+    "pooled_seconds": -0.06782483792146908
+   },
+   "other": {
+    "median": 0.00668099159982705,
+    "mean": 0.011758808488002223,
+    "pooled_seconds": 1.0458534716867114
+   },
+   "idle": {
+    "median": -0.008300207234438887,
+    "mean": -0.0071265999258605705,
+    "pooled_seconds": -1.075984631997569
+   },
+   "gap": {
+    "median": 0.07423616882362191,
+    "mean": 0.06518921363058387,
+    "pooled_seconds": 31.10986736800122
+   }
+  },
+  "f_split": {
+   "decode": {
+    "median": -0.0020532913345519687,
+    "mean": -0.002181649462471514,
+    "pooled_seconds": -0.6383965864400113
+   },
+   "transfer": {
+    "median": 0.028065246640359497,
+    "mean": 0.04069352215766197,
+    "pooled_seconds": 10.702473097906841
+   },
+   "encode": {
+    "median": 0.00365214047393966,
+    "mean": 0.005281213400938492,
+    "pooled_seconds": 0.6668758584170257
+   },
+   "mux": {
+    "median": 4.989583516652386e-06,
+    "mean": 2.9388244074488733e-05,
+    "pooled_seconds": -0.007785604045370741
+   },
+   "demux": {
+    "median": -1.943676216425369e-05,
+    "mean": 0.0017000146932381974,
+    "pooled_seconds": -0.010480916622037765
+   },
+   "other": {
+    "median": 0.0015357207544627288,
+    "mean": 0.006946906917294544,
+    "pooled_seconds": 0.03798365078316513
+   },
+   "idle": {
+    "median": -0.013022304870931995,
+    "mean": -0.012761330854367125,
+    "pooled_seconds": -1.4842198109974039
+   },
+   "gap": {
+    "median": 0.03222538264420857,
+    "mean": 0.03970806509636909,
+    "pooled_seconds": 9.266449689002215
+   }
+  }
+ },
+ "files": {
+  "f51a56ed5718": {
+   "size": "3840x2160",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 99.79007602200001,
+     "cpu": 373.699705
+    },
+    "base2": {
+     "wall": 99.8963198240001,
+     "cpu": 373.52676399999984
+    },
+    "c_ff": {
+     "wall": 106.12734692499998,
+     "cpu": 402.001846
+    },
+    "c_x264": {
+     "wall": 106.67330922099995,
+     "cpu": 404.13165199999924
+    },
+    "f_split": {
+     "wall": 101.01341238600003,
+     "cpu": 379.612426
+    },
+    "f_dec_vp9": {
+     "wall": 21.294422705999978,
+     "cpu": 52.85021499999982
+    },
+    "f_dec_vpx": {
+     "wall": 14.345505624999987,
+     "cpu": 52.54971500000001
+    },
+    "c_dec_w": {
+     "wall": 18.39221904200008,
+     "cpu": 65.47776400000004
+    },
+    "c_dec_ip": {
+     "wall": 16.516906327000015,
+     "cpu": 61.13479999999987
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 59.05073618043933,
+     "transfer": 0.03591165792445124,
+     "encode": 314.1771295362755,
+     "mux": 0.10274724350606883,
+     "demux": 0.0997546053456979,
+     "other": 0.2334257765089331
+    },
+    "c_ff": {
+     "decode": 69.12962042853997,
+     "transfer": 14.576697114339526,
+     "encode": 317.96720205975976,
+     "mux": 0.0905384913934132,
+     "demux": 0.0,
+     "other": 0.23778790596731603
+    },
+    "c_x264": {
+     "decode": 69.02996261118118,
+     "transfer": 14.928356489250422,
+     "encode": 319.57014687259834,
+     "mux": 0.04877246752722167,
+     "demux": 0.000995356480147381,
+     "other": 0.5534182029619439
+    },
+    "f_split": {
+     "decode": 57.85280531126531,
+     "transfer": 6.571100844532805,
+     "encode": 314.75283920862904,
+     "mux": 0.09471318164627773,
+     "demux": 0.08972827734910521,
+     "other": 0.2512391765774946
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.06350602340059189,
+     "decode": 0.025250216879979668,
+     "transfer": 0.03642843566230316,
+     "encode": 0.009495113829376858,
+     "mux": -3.058608781389255e-05,
+     "demux": -0.00024991113676400476,
+     "other": 1.0928264693929203e-05,
+     "idle": -0.0073981740111839
+    },
+    "c_x264": {
+     "gap": 0.0689771315284142,
+     "decode": 0.025000548222204474,
+     "transfer": 0.037309433525340586,
+     "encode": 0.013510905972087515,
+     "mux": -0.00013522080083130643,
+     "demux": -0.0002474175108449105,
+     "other": 0.0008016639509886342,
+     "idle": -0.007262781830530752
+    },
+    "f_split": {
+     "gap": 0.012259098427085264,
+     "decode": -0.0030011272586612813,
+     "transfer": 0.01637234243906074,
+     "encode": 0.0014423019184457856,
+     "mux": -2.0127406902716164e-05,
+     "demux": -2.5118549850543886e-05,
+     "other": 4.4627183329919325e-05,
+     "idle": -0.002553799898336639
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.024280199189233593,
+     "page_faults": 0.0017479135338665378,
+     "pipe_write": 0.0057402784490968575
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.023926604055409802,
+     "page_faults": 0.001783022270558261,
+     "pipe_write": 0.004972901775692033
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 53.2963,
+    "f_dec_vpx": 52.7598,
+    "c_dec_w": 66.5025,
+    "c_dec_ip": 61.4955
+   }
+  },
+  "a084bd45168c": {
+   "size": "400x250",
+   "pix_fmt": "yuv444p",
+   "median": {
+    "base": {
+     "wall": 0.11281686999996055,
+     "cpu": 0.1704310000007183
+    },
+    "base2": {
+     "wall": 0.11138286599998537,
+     "cpu": 0.16989200000001858
+    },
+    "c_ff": {
+     "wall": 0.11133807300006993,
+     "cpu": 0.18259099999994532
+    },
+    "c_x264": {
+     "wall": 0.11091837499998292,
+     "cpu": 0.16921899999999823
+    },
+    "f_split": {
+     "wall": 0.11940803400011646,
+     "cpu": 0.19381900000031038
+    },
+    "f_dec_vp9": {
+     "wall": 0.04664408500002537,
+     "cpu": 0.050455999999861945
+    },
+    "f_dec_vpx": {
+     "wall": 0.04492949299992688,
+     "cpu": 0.04652200000055018
+    },
+    "c_dec_w": {
+     "wall": 0.03614536800000678,
+     "cpu": 0.0043239999995421385
+    },
+    "c_dec_ip": {
+     "wall": 0.03370767799992791,
+     "cpu": 0.038808000000557286
+    },
+    "f_enc": {
+     "wall": 0.08724501000006057,
+     "cpu": 0.13514000000034088
+    },
+    "f_enc_pipe": {
+     "wall": 0.08995144300001812,
+     "cpu": 0.14376200000007344
+    },
+    "x_enc": {
+     "wall": 0.07673078900006658,
+     "cpu": 0.12027299999996188
+    },
+    "x_enc_pipe": {
+     "wall": 0.07645621300002858,
+     "cpu": 0.1285110000001879
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.033485562114678576,
+     "transfer": 0.0033035083700579757,
+     "encode": 0.11527242085217454,
+     "mux": 0.0003003189427325433,
+     "demux": 0.0002002126284883622,
+     "other": 0.017868977092586325
+    },
+    "c_ff": {
+     "decode": 0.03130975357238211,
+     "transfer": 0.01895323132919357,
+     "encode": 0.1146547422485502,
+     "mux": 0.0005415208951198162,
+     "demux": 0.0,
+     "other": 0.017131751954699643
+    },
+    "c_x264": {
+     "decode": 0.030967862238978797,
+     "transfer": 0.01702987035962859,
+     "encode": 0.10011796983758596,
+     "mux": 4.9077436194895075e-05,
+     "demux": 0.0,
+     "other": 0.021054220127609987
+    },
+    "f_split": {
+     "decode": 0.033298407832951495,
+     "transfer": 0.011841683028739591,
+     "encode": 0.11689866579653185,
+     "mux": 0.00030363289817281,
+     "demux": 0.0032893563968721088,
+     "other": 0.028187254047042528
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": -0.013107942100247386,
+     "decode": -0.004821549610216156,
+     "transfer": 0.03467948312858943,
+     "encode": -0.0013687638285492176,
+     "mux": 0.0005344988572794062,
+     "demux": -0.00044366730899472794,
+     "other": -0.0016336766342811588,
+     "idle": -0.04005426670407495
+    },
+    "c_x264": {
+     "gap": -0.016828112674800257,
+     "decode": -0.005579174186672301,
+     "transfer": 0.030417352452641645,
+     "encode": -0.03358197008699559,
+     "mux": -0.0005567463149299748,
+     "demux": -0.00044366730899472794,
+     "other": 0.007058436905368798,
+     "idle": -0.014142344135218135
+    },
+    "f_split": {
+     "gap": 0.05842356732781381,
+     "decode": -0.0004147302653564722,
+     "transfer": 0.018920429760825225,
+     "encode": 0.00360372731568843,
+     "mux": 7.343661103760231e-06,
+     "demux": 0.006845482790793671,
+     "other": 0.022865101988868798,
+     "idle": 0.0065962120758903935
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.014751022290945902,
+     "page_faults": 0.04281123762635433,
+     "pipe_write": 0.005989136870008108
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.013531012928536841,
+     "page_faults": 0.01264373339223935,
+     "pipe_write": 0.00554549710185936
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.0498,
+    "f_dec_vpx": 0.045,
+    "c_dec_w": 0.0452,
+    "c_dec_ip": 0.0381
+   }
+  },
+  "70eec00bc7d2": {
+   "size": "640x352",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 2.8489202809998915,
+     "cpu": 9.372222000000107
+    },
+    "base2": {
+     "wall": 2.7844865160000154,
+     "cpu": 9.381994000000404
+    },
+    "c_ff": {
+     "wall": 2.895928106999918,
+     "cpu": 9.855380999999575
+    },
+    "c_x264": {
+     "wall": 2.938601609999978,
+     "cpu": 9.837356000000106
+    },
+    "f_split": {
+     "wall": 2.8423388209998848,
+     "cpu": 9.651779000000658
+    },
+    "f_dec_vp9": {
+     "wall": 0.46352752100006,
+     "cpu": 0.8693039999995875
+    },
+    "f_dec_vpx": {
+     "wall": 0.5584870089999185,
+     "cpu": 0.9837559999999357
+    },
+    "c_dec_w": {
+     "wall": 0.5556033039999875,
+     "cpu": 1.3222740000004691
+    },
+    "c_dec_ip": {
+     "wall": 0.517285629999833,
+     "cpu": 1.2415279999998603
+    },
+    "f_enc": {
+     "wall": 2.7484064489999582,
+     "cpu": 8.659810999999742
+    },
+    "f_enc_pipe": {
+     "wall": 2.648923876000026,
+     "cpu": 8.691732999999864
+    },
+    "x_enc": {
+     "wall": 2.6225807729999815,
+     "cpu": 8.630619000000024
+    },
+    "x_enc_pipe": {
+     "wall": 2.6782463439999447,
+     "cpu": 8.704317000000565
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.8042366337761002,
+     "transfer": 0.008892051233396687,
+     "encode": 8.527477132827423,
+     "mux": 0.005928034155597791,
+     "demux": 0.008892051233396687,
+     "other": 0.01679609677419374
+    },
+    "c_ff": {
+     "decode": 0.8969810645859165,
+     "transfer": 0.3477786096652254,
+     "encode": 8.549598830757246,
+     "mux": 0.006449531990938559,
+     "demux": 0.0,
+     "other": 0.054572963000249344
+    },
+    "c_x264": {
+     "decode": 0.918306277712962,
+     "transfer": 0.2550296238648498,
+     "encode": 8.585664617117438,
+     "mux": 0.001497238496271134,
+     "demux": 0.0004990794987570446,
+     "other": 0.07635916330982782
+    },
+    "f_split": {
+     "decode": 0.8040252225881691,
+     "transfer": 0.23291403915617745,
+     "encode": 8.569647462002129,
+     "mux": 0.007449276305634673,
+     "demux": 0.005959421044507739,
+     "other": 0.03178357890404127
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.01650022512512283,
+     "decode": 0.008138559670162622,
+     "transfer": 0.029738157354905783,
+     "encode": 0.0019412352529971952,
+     "mux": 4.576276131862637e-05,
+     "demux": -0.0007803001098960047,
+     "other": 0.003315016085040907,
+     "idle": -0.025898205889406327
+    },
+    "c_x264": {
+     "gap": 0.03147905878524995,
+     "decode": 0.01000990135610486,
+     "transfer": 0.021599197972737384,
+     "encode": 0.005106099728209343,
+     "mux": -0.00038881358745597927,
+     "demux": -0.0007365046146266635,
+     "other": 0.005226810568627872,
+     "idle": -0.009337632638347021
+    },
+    "f_split": {
+     "gap": -0.0023101594115847958,
+     "decode": -1.85518693995283e-05,
+     "transfer": 0.019658499170443208,
+     "encode": 0.00370055363219089,
+     "mux": 0.00013349286747179256,
+     "demux": -0.0002573457573073681,
+     "other": 0.001315189672891386,
+     "idle": -0.0268419971278752
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.012605095042640919,
+     "page_faults": 0.003601455726468834,
+     "pipe_write": 0.00434809898683433
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.013395658494792618,
+     "page_faults": 0.0021960095893102643,
+     "pipe_write": 0.0070711508775790615
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.8924,
+    "f_dec_vpx": 0.9925,
+    "c_dec_w": 1.3008,
+    "c_dec_ip": 1.2477
+   }
+  },
+  "9ffa165e752a": {
+   "size": "8000x4500",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 107.98743964000005,
+     "cpu": 408.9510720000002
+    },
+    "base2": {
+     "wall": 107.85231997100027,
+     "cpu": 408.8142
+    },
+    "c_ff": {
+     "wall": 123.94873076800013,
+     "cpu": 478.3375930000007
+    },
+    "c_x264": {
+     "wall": 124.2750691909996,
+     "cpu": 475.1401559999993
+    },
+    "f_split": {
+     "wall": 113.29105900400009,
+     "cpu": 434.2495189999993
+    },
+    "f_dec_vp9": {
+     "wall": 16.62333221100016,
+     "cpu": 61.070847000000555
+    },
+    "f_dec_vpx": {
+     "wall": 21.502506326000002,
+     "cpu": 66.23746900000077
+    },
+    "c_dec_w": {
+     "wall": 33.5591416000002,
+     "cpu": 8.3717189999997
+    },
+    "c_dec_ip": {
+     "wall": 24.189159843999732,
+     "cpu": 74.47033100000135
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 63.15981358731894,
+     "transfer": 0.03289054518512743,
+     "encode": 345.1693281037261,
+     "mux": 0.1285721311782254,
+     "demux": 0.09069817005595746,
+     "other": 0.36976946253582654
+    },
+    "c_ff": {
+     "decode": 75.33583395647206,
+     "transfer": 53.126459371000884,
+     "encode": 348.0424631210169,
+     "mux": 0.10717181784687403,
+     "demux": 0.0,
+     "other": 1.725664733664018
+    },
+    "c_x264": {
+     "decode": 74.3113866669173,
+     "transfer": 48.84695438074813,
+     "encode": 348.8088130580457,
+     "mux": 0.07942432776691227,
+     "demux": 0.0009928040970864035,
+     "other": 3.0925847624241465
+    },
+    "f_split": {
+     "decode": 62.68905572039917,
+     "transfer": 24.101817522431855,
+     "encode": 346.85238598083964,
+     "mux": 0.12464222375176788,
+     "demux": 0.08475671215120216,
+     "other": 0.39686084042562897
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.14780692255701747,
+     "decode": 0.0281885106493509,
+     "transfer": 0.12291607478336111,
+     "encode": 0.0066515490756819074,
+     "mux": -4.954352423461017e-05,
+     "demux": -0.0002099738876074843,
+     "other": 0.003139011526822859,
+     "idle": -0.012828706066357172
+    },
+    "c_x264": {
+     "gap": 0.1508289260797178,
+     "decode": 0.025816829060802318,
+     "transfer": 0.1130086610032969,
+     "encode": 0.008425713597925395,
+     "mux": -0.0001137812961747176,
+     "demux": -0.0002076754626693708,
+     "other": 0.006303546294285302,
+     "idle": -0.0024043671177481334
+    },
+    "f_split": {
+     "gap": 0.04911329856213674,
+     "decode": -0.001089844032993909,
+     "transfer": 0.055721589143806455,
+     "encode": 0.003896420460389586,
+     "mux": -9.098066033324675e-06,
+     "demux": -1.3754974477963494e-05,
+     "other": 6.271881706825698e-05,
+     "idle": -0.009454732785622444
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.045256533106345385,
+     "page_faults": 0.047525269135384865,
+     "pipe_write": 0.012303084349510314
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.045525351675669776,
+     "page_faults": 0.04537935538370912,
+     "pipe_write": 0.012541776699858696
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 61.037,
+    "f_dec_vpx": 66.3874,
+    "c_dec_w": 93.7528,
+    "c_dec_ip": 75.0711
+   }
+  },
+  "584a16b906bb": {
+   "size": "1217x689",
+   "pix_fmt": "yuv444p",
+   "median": {
+    "base": {
+     "wall": 0.9866923089998636,
+     "cpu": 3.09941999999927
+    },
+    "base2": {
+     "wall": 0.9736087440001029,
+     "cpu": 3.080563000000325
+    },
+    "c_ff": {
+     "wall": 1.1502601110000796,
+     "cpu": 3.850649999999348
+    },
+    "c_x264": {
+     "wall": 1.1161055870002201,
+     "cpu": 3.7109329999999545
+    },
+    "f_split": {
+     "wall": 1.0768804550002642,
+     "cpu": 3.525649000000783
+    },
+    "f_dec_vp9": {
+     "wall": 0.126998342999741,
+     "cpu": 0.27797200000043176
+    },
+    "f_dec_vpx": {
+     "wall": 0.1261475609999252,
+     "cpu": 0.3414499999988152
+    },
+    "c_dec_w": {
+     "wall": 0.33342262700034553,
+     "cpu": 0.05392500000067457
+    },
+    "c_dec_ip": {
+     "wall": 0.16348046799976146,
+     "cpu": 0.40024200000010524
+    },
+    "f_enc": {
+     "wall": 0.9654621429999679,
+     "cpu": 2.966034999999806
+    },
+    "f_enc_pipe": {
+     "wall": 0.9841669759998695,
+     "cpu": 3.122264999999061
+    },
+    "x_enc": {
+     "wall": 0.9410592919998635,
+     "cpu": 2.8201900000013325
+    },
+    "x_enc_pipe": {
+     "wall": 0.958429525000156,
+     "cpu": 2.989891000000057
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.28014986857357144,
+     "transfer": 0.006589412446848081,
+     "encode": 2.7891185775022427,
+     "mux": 0.0011980749903360147,
+     "demux": 0.002995187475840037,
+     "other": 0.019368879010432237
+    },
+    "c_ff": {
+     "decode": 0.2789803635512088,
+     "transfer": 0.5583612732094545,
+     "encode": 2.8843325167727993,
+     "mux": 0.0030040958027768355,
+     "demux": 0.0,
+     "other": 0.12597175066310864
+    },
+    "c_x264": {
+     "decode": 0.29051087873584447,
+     "transfer": 0.4729015332403225,
+     "encode": 2.7844442277190193,
+     "mux": 0.0005973493051456706,
+     "demux": 0.0,
+     "other": 0.16247901099962242
+    },
+    "f_split": {
+     "decode": 0.26607923506923015,
+     "transfer": 0.3505425391970186,
+     "encode": 2.8713557990108725,
+     "mux": 0.0019827066696663947,
+     "demux": 0.0019827066696663947,
+     "other": 0.03370601338432871
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.165773869430494,
+     "decode": -0.00029631958506600375,
+     "transfer": 0.13980342598441262,
+     "encode": 0.02412452656265962,
+     "mux": 0.00045759473241244,
+     "demux": -0.0007588960227317559,
+     "other": 0.02701016078678362,
+     "idle": -0.024566623027976558
+    },
+    "c_x264": {
+     "gap": 0.1311586974175699,
+     "decode": 0.002625187727665379,
+     "transfer": 0.11815033839326777,
+     "encode": -0.0011843483881924096,
+     "mux": -0.0001522069442801411,
+     "demux": -0.0007588960227317559,
+     "other": 0.036260070815351306,
+     "idle": -0.023781448163510324
+    },
+    "f_split": {
+     "gap": 0.09140452923142534,
+     "decode": -0.003565101647190207,
+     "transfer": 0.08714802061718971,
+     "encode": 0.020836592309102803,
+     "mux": 0.00019880353585752141,
+     "demux": -0.00025653407778153213,
+     "other": 0.003632625450488449,
+     "idle": -0.016589876956241544
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.054072939321310486,
+     "page_faults": 0.05944979820316694,
+     "pipe_write": 0.014963899718373926
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.0564570182594921,
+     "page_faults": 0.0497613071990672,
+     "pipe_write": 0.015826226142822603
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=20 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=20 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.2757,
+    "f_dec_vpx": 0.3413,
+    "c_dec_w": 0.6531,
+    "c_dec_ip": 0.4509
+   }
+  },
+  "ea684713a5be": {
+   "size": "3840x2160",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 82.81492258700018,
+     "cpu": 313.181593
+    },
+    "base2": {
+     "wall": 82.82733475500027,
+     "cpu": 313.2407909999997
+    },
+    "c_ff": {
+     "wall": 90.59832863899919,
+     "cpu": 346.1321630000005
+    },
+    "c_x264": {
+     "wall": 90.01254903999961,
+     "cpu": 341.78100099999915
+    },
+    "f_split": {
+     "wall": 85.0463327790003,
+     "cpu": 322.31690999999887
+    },
+    "f_dec_vp9": {
+     "wall": 8.971399693000421,
+     "cpu": 18.235938000000772
+    },
+    "f_dec_vpx": {
+     "wall": 5.124865330999455,
+     "cpu": 18.711996999997496
+    },
+    "c_dec_w": {
+     "wall": 9.2011285640001,
+     "cpu": 1.7849930000000995
+    },
+    "c_dec_ip": {
+     "wall": 7.042139852999753,
+     "cpu": 23.96029799999826
+    },
+    "base_an": {
+     "wall": 83.21211683799993,
+     "cpu": 313.13995299999897
+    },
+    "c_x264_an": {
+     "wall": 90.1210075580002,
+     "cpu": 342.3416950000006
+    },
+    "c_ff_an": {
+     "wall": 90.97089825199964,
+     "cpu": 348.0268329999986
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 26.075077239670133,
+     "transfer": 0.034834448009025326,
+     "encode": 286.8686462439254,
+     "mux": 0.05673038675755553,
+     "demux": 0.06170673647313059,
+     "other": 0.0845979451647758
+    },
+    "c_ff": {
+     "decode": 32.894499581625254,
+     "transfer": 21.60081421311224,
+     "encode": 291.1744008346784,
+     "mux": 0.06265429536952445,
+     "demux": 0.0009945126249130867,
+     "other": 0.39879956259014776
+    },
+    "c_x264": {
+     "decode": 33.07730558948269,
+     "transfer": 21.436628909046874,
+     "encode": 286.5184826659465,
+     "mux": 0.019803805172568592,
+     "demux": 0.0,
+     "other": 0.7287800303505242
+    },
+    "f_split": {
+     "decode": 25.31461627489441,
+     "transfer": 10.034371855704414,
+     "encode": 286.79590974781496,
+     "mux": 0.03678871964536894,
+     "demux": 0.032811560764788514,
+     "other": 0.10241184117494596
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.09398555005376294,
+     "decode": 0.020586333141805035,
+     "transfer": 0.06510294006025105,
+     "encode": 0.012998124179339902,
+     "mux": 1.7882974550104874e-05,
+     "demux": -0.00018327682364382164,
+     "other": 0.0009485054372154106,
+     "idle": -0.005484958915754817
+    },
+    "c_x264": {
+     "gap": 0.08691219200788425,
+     "decode": 0.021138184191552115,
+     "transfer": 0.06460730081150066,
+     "encode": -0.0010570666705962018,
+     "mux": -0.0001114732116853523,
+     "demux": -0.00018627903808128706,
+     "other": 0.0019446437461467494,
+     "idle": 0.0005768821790476016
+    },
+    "f_split": {
+     "gap": 0.026944542387948647,
+     "decode": -0.0022956640573346897,
+     "transfer": 0.03018639967087604,
+     "encode": -0.00021957545161634028,
+     "mux": -6.019949813766088e-05,
+     "demux": -8.722816735711673e-05,
+     "other": 5.3776226112679146e-05,
+     "idle": -0.0006329663345942519
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.04041055032178375,
+     "page_faults": 0.005251890859138573,
+     "pipe_write": 0.009784592981525161
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.040918212959491045,
+     "page_faults": 0.0043574376403209564,
+     "pipe_write": 0.00962745930794909
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=23 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=23 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 18.6416,
+    "f_dec_vpx": 18.7868,
+    "c_dec_w": 29.2462,
+    "c_dec_ip": 24.8889
+   }
+  },
+  "bb5d39d47357": {
+   "size": "2548x1354",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 1.8531603859992174,
+     "cpu": 5.7031239999989225
+    },
+    "base2": {
+     "wall": 1.8421465119999993,
+     "cpu": 5.727562000001399
+    },
+    "c_ff": {
+     "wall": 2.073972268000034,
+     "cpu": 6.805144999998674
+    },
+    "c_x264": {
+     "wall": 2.0146786380000776,
+     "cpu": 6.571026999999674
+    },
+    "f_split": {
+     "wall": 2.0278138650000983,
+     "cpu": 6.530723000001274
+    },
+    "f_dec_vp9": {
+     "wall": 0.21107502399991063,
+     "cpu": 0.5546670000010181
+    },
+    "f_dec_vpx": {
+     "wall": 0.24694927000018652,
+     "cpu": 0.7365459999990094
+    },
+    "c_dec_w": {
+     "wall": 0.38721150899982604,
+     "cpu": 0.10293800000187048
+    },
+    "c_dec_ip": {
+     "wall": 0.2856036409993976,
+     "cpu": 0.770584000000099
+    },
+    "f_enc": {
+     "wall": 1.7587104650001493,
+     "cpu": 5.199003000000403
+    },
+    "f_enc_pipe": {
+     "wall": 1.8049635449997368,
+     "cpu": 5.5348370000000955
+    },
+    "x_enc": {
+     "wall": 1.698333876000106,
+     "cpu": 4.867079000001013
+    },
+    "x_enc_pipe": {
+     "wall": 1.7763614280002002,
+     "cpu": 5.261270000003037
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.7830249227950218,
+     "transfer": 0.010118287872715997,
+     "encode": 4.882237096776964,
+     "mux": 0.00228477468093587,
+     "demux": 0.0013055855319633542,
+     "other": 0.024153332341322054
+    },
+    "c_ff": {
+     "decode": 0.6623979169707183,
+     "transfer": 1.005188839003065,
+     "encode": 5.086553604418146,
+     "mux": 0.0016559947924267959,
+     "demux": 0.0,
+     "other": 0.04934864481431851
+    },
+    "c_x264": {
+     "decode": 0.6800195879817358,
+     "transfer": 0.8896570291785946,
+     "encode": 4.844447825918713,
+     "mux": 0.00032552397701375574,
+     "demux": 0.0,
+     "other": 0.15657703294361652
+    },
+    "f_split": {
+     "decode": 0.7312646566767155,
+     "transfer": 0.7674495924546905,
+     "encode": 4.98825787397468,
+     "mux": 0.002631631692943645,
+     "demux": 0.003947447539415468,
+     "other": 0.03717179766282899
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.11915422090234015,
+     "decode": -0.01627314704324174,
+     "transfer": 0.13423966951918878,
+     "encode": 0.027563252104999967,
+     "mux": -8.482534664289706e-05,
+     "demux": -0.0001761295921587741,
+     "other": 0.003398965446184416,
+     "idle": -0.02951356418598966
+    },
+    "c_x264": {
+     "gap": 0.08715826931178985,
+     "decode": -0.013895901238702808,
+     "transfer": 0.11865388823747634,
+     "encode": -0.005097949311855652,
+     "mux": -0.0002643120798831577,
+     "demux": -0.0001761295921587741,
+     "other": 0.017864576320911922,
+     "idle": -0.029925903023998196
+    },
+    "f_split": {
+     "gap": 0.09424628344119734,
+     "decode": -0.006982701889884906,
+     "transfer": 0.10216753367701957,
+     "encode": 0.01430269851421278,
+     "mux": 4.6792632551978335e-05,
+     "demux": 0.0003563995360859755,
+     "other": 0.0017562518360340717,
+     "idle": -0.01740069086482216
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.0701306252884785,
+     "page_faults": 0.02871844604239364,
+     "pipe_write": 0.01980582485682318
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.0726063533955814,
+     "page_faults": 0.011478375769295258,
+     "pipe_write": 0.02138128819770684
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=10 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=10 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.5676,
+    "f_dec_vpx": 0.7214,
+    "c_dec_w": 1.0207,
+    "c_dec_ip": 0.8555
+   }
+  },
+  "b267a2ddac45": {
+   "size": "1920x1080",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 6.471851929999502,
+     "cpu": 23.014079000001004
+    },
+    "base2": {
+     "wall": 6.519921793999856,
+     "cpu": 23.048033000002192
+    },
+    "c_ff": {
+     "wall": 6.850718939000217,
+     "cpu": 24.711776000000782
+    },
+    "c_x264": {
+     "wall": 6.82298545499998,
+     "cpu": 24.56793199999987
+    },
+    "f_split": {
+     "wall": 6.7099387759999445,
+     "cpu": 24.063022000000046
+    },
+    "f_dec_vp9": {
+     "wall": 0.4456626769997456,
+     "cpu": 0.9852780000018697
+    },
+    "f_dec_vpx": {
+     "wall": 0.41731871999945724,
+     "cpu": 1.2332390000019586
+    },
+    "c_dec_w": {
+     "wall": 0.5718276930001593,
+     "cpu": 1.5120379999980855
+    },
+    "c_dec_ip": {
+     "wall": 0.4578562460001194,
+     "cpu": 1.3585430000004521
+    },
+    "base_an": {
+     "wall": 6.587947221000832,
+     "cpu": 22.979549999999165
+    },
+    "c_x264_an": {
+     "wall": 6.845321592999426,
+     "cpu": 24.493594999997526
+    },
+    "c_ff_an": {
+     "wall": 6.812328915000762,
+     "cpu": 24.624030999998126
+    },
+    "f_enc": {
+     "wall": 6.223518488999616,
+     "cpu": 21.973724000001766
+    },
+    "f_enc_pipe": {
+     "wall": 6.288895179000065,
+     "cpu": 22.31318099999845
+    },
+    "x_enc": {
+     "wall": 6.264952132999497,
+     "cpu": 21.873850000001823
+    },
+    "x_enc_pipe": {
+     "wall": 6.31072789099926,
+     "cpu": 22.31836799999843
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 1.265744771524085,
+     "transfer": 0.014786737985094452,
+     "encode": 21.68622992893952,
+     "mux": 0.009857825323396302,
+     "demux": 0.007886260258717042,
+     "other": 0.029573475970188903
+    },
+    "c_ff": {
+     "decode": 1.3154632555467296,
+     "transfer": 1.1813530585794467,
+     "encode": 22.1242380820438,
+     "mux": 0.005916626336791887,
+     "demux": 0.0009861043894653144,
+     "other": 0.08381887310455174
+    },
+    "c_x264": {
+     "decode": 1.3031290781965696,
+     "transfer": 1.0178227875914116,
+     "encode": 22.080140123442785,
+     "mux": 0.0029616569959012946,
+     "demux": 0.0,
+     "other": 0.16387835377320498
+    },
+    "f_split": {
+     "decode": 1.209037987089349,
+     "transfer": 0.8607717256691765,
+     "encode": 21.937806291106494,
+     "mux": 0.007915142305003921,
+     "demux": 0.00296817836437647,
+     "other": 0.04452267546564706
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.058540741212653735,
+     "decode": 0.0019205663448579695,
+     "transfer": 0.04506307982676768,
+     "encode": 0.016919737883446577,
+     "mux": -0.00015224386424600716,
+     "demux": -0.00026654487555821823,
+     "other": 0.0020954356543184624,
+     "idle": -0.0070392897569326
+    },
+    "c_x264": {
+     "gap": 0.054255494223042995,
+     "decode": 0.0014441116343837412,
+     "transfer": 0.03874609850686101,
+     "encode": 0.015216285800565802,
+     "mux": -0.0002663908415274705,
+     "demux": -0.00030463692402174784,
+     "other": 0.005188038881902634,
+     "idle": -0.00576801283512089
+    },
+    "f_split": {
+     "gap": 0.03678805519279865,
+     "decode": -0.00219051614005098,
+     "transfer": 0.03267940138442518,
+     "encode": 0.009718097883266595,
+     "mux": -7.504355165278517e-05,
+     "demux": -0.00018997969775634799,
+     "other": 0.0005774699288994435,
+     "idle": -0.003731374614332409
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.023355162136900556,
+     "page_faults": 0.007230820065563584,
+     "pipe_write": 0.007308155039526832
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.022465809936323213,
+     "page_faults": 0.004176088594015331,
+     "pipe_write": 0.00908685944068151
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 1.011,
+    "f_dec_vpx": 1.2122,
+    "c_dec_w": 1.5876,
+    "c_dec_ip": 1.3924
+   }
+  },
+  "f944c05afaa1": {
+   "size": "400x250",
+   "pix_fmt": "yuv444p",
+   "median": {
+    "base": {
+     "wall": 0.11281206099920382,
+     "cpu": 0.16959900000068728
+    },
+    "base2": {
+     "wall": 0.10928686100032792,
+     "cpu": 0.1661210000025335
+    },
+    "c_ff": {
+     "wall": 0.11037849500007724,
+     "cpu": 0.17966899999737507
+    },
+    "c_x264": {
+     "wall": 0.110381555999993,
+     "cpu": 0.17019799999997076
+    },
+    "f_split": {
+     "wall": 0.11309958799938613,
+     "cpu": 0.18897900000030177
+    },
+    "f_dec_vp9": {
+     "wall": 0.04273764699973981,
+     "cpu": 0.04599199999938719
+    },
+    "f_dec_vpx": {
+     "wall": 0.04117008699995495,
+     "cpu": 0.0425610000001484
+    },
+    "c_dec_w": {
+     "wall": 0.0334244799996668,
+     "cpu": 0.0042600000007269045
+    },
+    "c_dec_ip": {
+     "wall": 0.030619301999649906,
+     "cpu": 0.035610999999335036
+    },
+    "f_enc": {
+     "wall": 0.08542276400021365,
+     "cpu": 0.1338139999988357
+    },
+    "f_enc_pipe": {
+     "wall": 0.09075820300040505,
+     "cpu": 0.14439700000156108
+    },
+    "x_enc": {
+     "wall": 0.07831962399995973,
+     "cpu": 0.12241499999970529
+    },
+    "x_enc_pipe": {
+     "wall": 0.07665489399914804,
+     "cpu": 0.1298759999992285
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.030849730228596016,
+     "transfer": 0.002781940246056968,
+     "encode": 0.11813310544863337,
+     "mux": 0.00014903251318162326,
+     "demux": 0.00014903251318162326,
+     "other": 0.017536159051037673
+    },
+    "c_ff": {
+     "decode": 0.027652679106106484,
+     "transfer": 0.019087690002445184,
+     "encode": 0.11408565486076853,
+     "mux": 0.000342599564146452,
+     "demux": 0.0,
+     "other": 0.01850037646390841
+    },
+    "c_x264": {
+     "decode": 0.027481693966768816,
+     "transfer": 0.017312475080148586,
+     "encode": 0.10402366831825668,
+     "mux": 0.0,
+     "demux": 4.960594578839137e-05,
+     "other": 0.02133055668900829
+    },
+    "f_split": {
+     "decode": 0.030695317170160306,
+     "transfer": 0.01096618998411926,
+     "encode": 0.11637180604152127,
+     "mux": 0.00015022178060437343,
+     "demux": 0.0026539181240105973,
+     "other": 0.028141546899885957
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": -0.021571860114706715,
+     "decode": -0.007084905404112986,
+     "transfer": 0.03613476611446558,
+     "encode": -0.008969454489208824,
+     "mux": 0.00042895912292169466,
+     "demux": -0.00033026724239767916,
+     "other": 0.0021367782051192703,
+     "idle": -0.043887736421493746
+    },
+    "c_x264": {
+     "gap": -0.021544726491859578,
+     "decode": -0.007463821314839222,
+     "transfer": 0.03220075651794485,
+     "encode": -0.031267572379686116,
+     "mux": -0.00033026724239767916,
+     "demux": -0.00022033674084266042,
+     "other": 0.00840867014653113,
+     "idle": -0.02287215547856984
+    },
+    "f_split": {
+     "gap": 0.0025487257092514028,
+     "decode": -0.00034219093479020827,
+     "transfer": 0.018136912103130648,
+     "encode": -0.0039031717697377505,
+     "mux": 2.6355059295445408e-06,
+     "demux": 0.005551014644716606,
+     "other": 0.023502335997839654,
+     "idle": -0.040398809837837085
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.014973480443736514,
+     "page_faults": 0.04381129463167357,
+     "pipe_write": 0.006322136187355412
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.013864333744200475,
+     "page_faults": 0.012977016384571646,
+     "pipe_write": 0.005989392177494602
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=4 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=5 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.0472,
+    "f_dec_vpx": 0.0418,
+    "c_dec_w": 0.041,
+    "c_dec_ip": 0.0352
+   }
+  },
+  "59ad8ee403b3": {
+   "size": "640x480",
+   "pix_fmt": "yuv420p",
+   "median": {
+    "base": {
+     "wall": 0.1756178980003824,
+     "cpu": 0.45229500000249345
+    },
+    "base2": {
+     "wall": 0.17947417599953042,
+     "cpu": 0.4590579999991746
+    },
+    "c_ff": {
+     "wall": 0.1905340459998115,
+     "cpu": 0.4907959999985678
+    },
+    "c_x264": {
+     "wall": 0.1895786790000784,
+     "cpu": 0.4774740000012798
+    },
+    "f_split": {
+     "wall": 0.1804759650003689,
+     "cpu": 0.4833920000003218
+    },
+    "f_dec_vp9": {
+     "wall": 0.028944620999936888,
+     "cpu": 0.04357900000201198
+    },
+    "f_dec_vpx": {
+     "wall": 0.031566228999508894,
+     "cpu": 0.0475669999997308
+    },
+    "c_dec_w": {
+     "wall": 0.02699625700006436,
+     "cpu": 0.005380000001196095
+    },
+    "c_dec_ip": {
+     "wall": 0.022807504999946104,
+     "cpu": 0.050530999998386505
+    },
+    "f_enc": {
+     "wall": 0.16959564500029956,
+     "cpu": 0.4279710000010368
+    },
+    "f_enc_pipe": {
+     "wall": 0.17918437600019388,
+     "cpu": 0.44815600000003997
+    },
+    "x_enc": {
+     "wall": 0.1652222279999478,
+     "cpu": 0.41464000000047463
+    },
+    "x_enc_pipe": {
+     "wall": 0.1678320339997299,
+     "cpu": 0.43250899999793546
+    }
+   },
+   "stage_cpu_seconds": {
+    "base": {
+     "decode": 0.03013642330967686,
+     "transfer": 0.002983804288086818,
+     "encode": 0.4044049411787001,
+     "mux": 0.00024865035734056816,
+     "demux": 0.0003481105002767954,
+     "other": 0.014173070368412385
+    },
+    "c_ff": {
+     "decode": 0.03197834964743941,
+     "transfer": 0.03365881933524921,
+     "encode": 0.4030655971790857,
+     "mux": 0.0005436813695855233,
+     "demux": 4.9425579053229386e-05,
+     "other": 0.021500126888154784
+    },
+    "c_x264": {
+     "decode": 0.03132285302421432,
+     "transfer": 0.030724327170248443,
+     "encode": 0.38096170604928187,
+     "mux": 0.0001496314634914697,
+     "demux": 9.975430899431314e-05,
+     "other": 0.034215727985049404
+    },
+    "f_split": {
+     "decode": 0.028790441004632183,
+     "transfer": 0.021208793029229907,
+     "encode": 0.4040076859049332,
+     "mux": 0.00029731952844714817,
+     "demux": 0.003914707124554118,
+     "other": 0.025173053408525214
+    }
+   },
+   "gap_share_of_base": {
+    "c_ff": {
+     "gap": 0.08493523820332143,
+     "decode": 0.002622065231868537,
+     "transfer": 0.0436672676823287,
+     "encode": -0.0019066166018162165,
+     "mux": 0.0004199899549024221,
+     "demux": -0.00042519145916282923,
+     "other": 0.010430395482421792,
+     "idle": 0.030127327912778983
+    },
+    "c_x264": {
+     "gap": 0.07949520611882964,
+     "decode": 0.00168893621898219,
+     "transfer": 0.03948988570928747,
+     "encode": -0.03337250274081853,
+     "mux": -0.0001409578621776962,
+     "demux": -0.00035354624174174646,
+     "other": 0.028531627249907886,
+     "idle": 0.04365176378538999
+    },
+    "f_split": {
+     "gap": 0.02766271009561849,
+     "decode": -0.0019160665290529574,
+     "transfer": 0.02594409360984295,
+     "encode": -0.000565510802557861,
+     "mux": 6.928276055677712e-05,
+     "demux": 0.005077211185316596,
+     "other": 0.015658972071412786,
+     "idle": -0.016605272199899903
+    }
+   },
+   "transfer_parts_share_of_base": {
+    "c_x264": {
+     "worker_hop_copies": 0.019735835614878034,
+     "page_faults": 0.04217911438269969,
+     "pipe_write": 0.006483613866259569
+    },
+    "c_ff": {
+     "worker_hop_copies": 0.019165847582679398,
+     "page_faults": 0.010046039067501093,
+     "pipe_write": 0.006127371346135415
+    }
+   },
+   "x264_options": {
+    "base": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_ff": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "c_x264": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00",
+    "f_split": "cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=6 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00"
+   },
+   "decode_alone_profile_cpu": {
+    "f_dec_vp9": 0.0448,
+    "f_dec_vpx": 0.0473,
+    "c_dec_w": 0.058,
+    "c_dec_ip": 0.0494
+   }
+  }
+ },
+ "decode_alone_cpu_note": "CPU of the decode-alone arms from the profiled pass (perf samples / 999 Hz); the harness does not always reap its worker, so the rusage CPU of c_dec_w in timed.jsonl misses the worker"
+}

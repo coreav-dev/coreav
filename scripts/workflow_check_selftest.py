@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Tests of the pin check in scripts/workflow_check.py: the step forms
-review found passing or failing wrongly, on fixtures and on a copy of this
-repository's workflows."""
+"""Tests of scripts/workflow_check.py: action pins, required triggers and
+concurrency, on fixtures and on a copy of this repository's workflows."""
 import importlib.util
 import pathlib
 import re
@@ -211,6 +210,110 @@ class Repository(unittest.TestCase):
         found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
         self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
 
+    def edit(self, workflow, old, new):
+        """The problems of the repository with one edit of a workflow, which
+        is then undone."""
+        path = self.root / '.github' / 'workflows' / workflow
+        text = path.read_text()
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new, 1))
+        try:
+            return check.check(self.root)
+        finally:
+            path.write_text(text)
+
+    def test_a_required_workflow_without_a_merge_group_trigger_is_reported(self):
+        missing = ('deny.yml: required `deny`, but the workflow has no `merge_group:` trigger '
+                   '(`types: [checks_requested]`), so the merge queue waits for the check until it times out '
+                   '(docs/design/ci-checks.md, "The merge queue")')
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n', ''), [missing])
+        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'),
+                         ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                          'use `types: [checks_requested]`'])
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n',
+                                   '  merge_group:\n'), [])
+
+    def test_the_activity_type_is_matched_as_a_whole_item(self):
+        invalid = 'deny.yml: `merge_group:` types must include `checks_requested`'
+        for types in ('[not_checks_requested]', '[checks_requested_later]', '[destroyed] # checks_requested',
+                      '["destroyed, checks_requested"]'):
+            with self.subTest(types=types):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}')
+                self.assertEqual(len(found), 1, found)
+                self.assertTrue(found[0].startswith(invalid), found)
+        for types in ('[destroyed, checks_requested]', "['checks_requested']", '[checks_requested] # queue',
+                      'checks_requested', '\n      - checks_requested'):
+            with self.subTest(types=types):
+                self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}'), [])
+
+    def test_a_merge_group_branch_filter_is_reported(self):
+        filtered = ('deny.yml: required `deny`, but the `merge_group:` trigger carries a branch filter, so a '
+                    'group the filter leaves out never reports the check: remove it '
+                    '(docs/design/ci-checks.md, "The merge queue")')
+        for key in ('branches: [release]', 'branches: [main]', 'branches-ignore: [main]'):
+            with self.subTest(key=key):
+                self.assertEqual(self.edit('deny.yml', '    types: [checks_requested]\n',
+                                           f'    types: [checks_requested]\n    {key}\n'), [filtered])
+        # A branch filter on another trigger is not the queue's concern.
+        self.assertEqual(self.edit('deny.yml', 'push:\n    branches: [main]', 'push:\n    branches: [release]'), [])
+
+    def test_a_required_workflow_without_its_workflow_group_is_reported(self):
+        path = self.root / '.github' / 'workflows' / 'npm.yml'
+        text = path.read_text()
+        bare = re.sub(r'\nconcurrency:\n(?:  .*\n)+', '\n', text)
+        self.assertNotIn('\nconcurrency:', bare)
+        path.write_text(bare)
+        found = check.check(self.root)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith('npm.yml: required `npm-report`, so give the workflow exactly '
+                                            '`concurrency:'), found)
+
+    def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
+        for key in ('"types"', "'types'", 'types ', '"typ\\u0065s"'):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'{key}: [destroyed]')
+                self.assertEqual(found, ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                                         'use `types: [checks_requested]`'])
+        for key in ('"branches"', "'branches'", 'branches ', '"branch\\u0065s"',
+                    '"branches-ignore"', 'branches-ignore '):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', '    types: [checks_requested]\n',
+                                  f'    types: [checks_requested]\n    {key}: [release]\n')
+                self.assertTrue(any('branch filter' in p for p in found), found)
+
+    def test_yaml_trigger_mappings_are_read_regardless_of_layout(self):
+        for event in ('"merge_group"', 'merge_group ', '"merge_\\u0067roup"'):
+            for options in ('{types: [destroyed]}', '{types: [checks_requested], "branches" : [release]}'):
+                with self.subTest(event=event, options=options):
+                    found = self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                      f'  {event}: {options}')
+                    self.assertTrue(found, found)
+        self.assertEqual(self.edit('deny.yml', 'on:\n', '"on" :\n'), [])
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                   '  "merge_group" : {"types" : [checks_requested]}'), [])
+
+    def test_unreadable_or_ambiguous_trigger_options_fail_closed(self):
+        for replacement in ('    types: [checks_requested]\n    "types": [destroyed]',
+                            '    <<: {branches: [release]}\n    types: [checks_requested]',
+                            '    types: &types [checks_requested]\n    branches: *types',
+                            '    types: !!str checks_requested',
+                            '    ? [types]\n    : [destroyed]'):
+            with self.subTest(replacement=replacement):
+                found = self.edit('deny.yml', '    types: [checks_requested]', replacement)
+                self.assertTrue(any('not readable as YAML' in p for p in found), found)
+        found = self.edit('deny.yml', 'on:\n', '<<: {on: {merge_group: {branches: [release]}}}\non:\n')
+        self.assertTrue(any('expand YAML merge keys' in p for p in found), found)
+
+    def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
+        group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
+        for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
+                         ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", 'cancel-in-progress: true')):
+            with self.subTest(new=new):
+                found = self.edit('python.yml', old, new)
+                self.assertEqual(len(found), 1, found)
+                self.assertTrue(found[0].startswith('python.yml: required `python-report`, so give the workflow '
+                                                    'exactly `concurrency:'), found)
+
     def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
         workflows = self.root / '.github' / 'workflows'
         audio = workflows / 'audio-conformance.yml'
@@ -296,6 +399,17 @@ class Repository(unittest.TestCase):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [missing])
+
+    def test_trigger_filters_are_read_from_the_yaml_nodes(self):
+        text = ('on:\n  push:\n    paths:\n      # a note\n      - "scripts/install-oracle-ffmpeg.sh"\n'
+                "      - 'scripts/oracle-ffmpeg.env'\n  pull_request:\n    paths-ignore: [ 'docs/**',\n"
+                '      "x" ]\n    paths:\n      - *pins\njobs: {}\n')
+        self.assertEqual(check.trigger_filters(text.replace('      - *pins\n', '      - y\n')), [
+            ('push', 'paths', ['scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env']),
+            ('pull_request', 'paths', ['y']),
+            ('pull_request', 'paths-ignore', ['docs/**', 'x'])])
+        self.assertIsInstance(check.trigger_filters(text), str)
+        self.assertEqual(check.trigger_filters('on:\n  push:\n    paths: scripts/x\njobs: {}\n'), [('push', 'paths', None)])
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

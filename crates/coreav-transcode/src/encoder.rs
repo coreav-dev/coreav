@@ -104,10 +104,10 @@ pub enum EncoderChoice {
 /// `ffmpeg` on `PATH`, as for the decode fallback
 /// ([`coreav_worker::find_ffmpeg`]). A variable set to something that is not
 /// a file finds nothing, not the `PATH` program. `Auto` takes `x264` when
-/// there is one and `ffmpeg` otherwise. A named path (with a `/`) is taken
-/// as given, and a wrong one fails when the encoder starts, with its path in
-/// the message; a bare name is looked for on `PATH`, and finds nothing when
-/// it is not there.
+/// there is one and `ffmpeg` otherwise. A named path (with a `/`, or on
+/// Windows a `/` or `\`) is taken as given, and a wrong one fails when
+/// the encoder starts, with its path in the message; a bare name is looked
+/// for on `PATH`, and finds nothing when it is not there.
 pub fn find_encoder(
     choice: EncoderChoice,
     x264: Option<PathBuf>,
@@ -1404,10 +1404,15 @@ impl<S: Sink> Drop for Process<S> {
     }
 }
 
-/// Whether `path` names a file by its path (it has a `/`), not a name to
-/// search for.
-fn is_path(path: &Path) -> bool {
-    path.as_os_str().as_encoded_bytes().contains(&b'/')
+/// Whether `path` names a file by its path (it has a separator: a `/`, or
+/// on Windows a `/` or `\`), not a name to search for.
+pub(crate) fn is_path(path: &Path) -> bool {
+    has_separator(path.as_os_str().as_encoded_bytes(), cfg!(windows))
+}
+
+/// Whether `path` has a separator, `\` being one when `windows`.
+fn has_separator(path: &[u8], windows: bool) -> bool {
+    path.iter().any(|&b| b == b'/' || (windows && b == b'\\'))
 }
 
 fn timeout() -> Error {
@@ -1601,6 +1606,17 @@ fn keep_stderr(mut stderr: ChildStderr, shared: &Shared) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_windows_absolute_path_names_a_file_on_windows() {
+        assert!(has_separator(br"C:\ffmpeg\bin\ffmpeg.exe", true));
+        assert!(has_separator(br"\\server\share\ffmpeg.exe", true));
+        assert!(has_separator(b"C:/ffmpeg/bin/ffmpeg.exe", true));
+        assert!(!has_separator(b"ffmpeg.exe", true));
+        assert!(!has_separator(br"C:\ffmpeg\bin\ffmpeg.exe", false));
+        assert!(has_separator(b"/usr/bin/ffmpeg", false));
+        assert!(!has_separator(b"ffmpeg", false));
+    }
 
     fn settings() -> EncoderSettings {
         EncoderSettings::new(

@@ -126,6 +126,7 @@ pub(crate) struct Frame {
 struct Scratch {
     /// The frame's coefficients, per channel.
     x: [[f32; MAX_FRAME]; 2],
+    folding: bands::Folding,
     mdct: mdct::Scratch,
 }
 
@@ -133,6 +134,7 @@ impl Default for Scratch {
     fn default() -> Self {
         Self {
             x: [[0.0; MAX_FRAME]; 2],
+            folding: bands::Folding::default(),
             mdct: mdct::Scratch::default(),
         }
     }
@@ -318,7 +320,11 @@ impl Celt {
         energy::decode_fine(rd, bands, &allocation.fine, energy);
 
         // The bands' shapes, then what is left for the energy.
-        let Scratch { x, mdct: scratch } = &mut *self.scratch;
+        let Scratch {
+            x,
+            folding: buffers,
+            mdct: scratch,
+        } = &mut *self.scratch;
         let [x0, x1] = x;
         let mut rows: [&mut [f32]; 2] = [&mut x0[..], &mut x1[..]];
         let rows = rows.get_mut(..coded).unwrap_or(&mut []);
@@ -331,7 +337,7 @@ impl Celt {
             tf: &tf,
             total: (total << 3) - anti_collapse_reserve,
         };
-        let masks = bands::decode(rd, &shape, &mut self.seed, rows);
+        let masks = bands::decode(rd, &shape, &mut self.seed, rows, buffers);
         let anti_collapse = anti_collapse_reserve > 0 && rd.bits(1) == 1;
         let left = total - rd.tell() as i32;
         let energy = self.energy.get_mut(..coded).unwrap_or(&mut []);

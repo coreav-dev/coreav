@@ -45,6 +45,7 @@ dependencies = [
  "coreav-isobmff",
  "coreav-kernels-audio",
  "coreav-mkv",
+ "coreav-opus",
 ]
 
 [[package]]
@@ -107,6 +108,10 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
 ]
+
+[[package]]
+name = "coreav-opus"
+version = "0.0.1"
 
 [[package]]
 name = "coreav-policy"

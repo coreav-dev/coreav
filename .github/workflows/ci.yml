@@ -15,7 +15,11 @@ name: ci
 # - `h264-conformance` and `bench-guard`: the decoder's conformance suite
 #   and the instruction-count guard, each on its own, narrower list.
 # - `fuzz-plan`: the fuzz targets a ready pull request can affect, empty on
-#   any other event.
+#   any other event, a merge group included.
+#
+# A merge group (the merge queue's pull requests applied to main) runs as a
+# pull request does, filtered by the diff from the group's base to its
+# commit, without fuzzing (docs/design/ci-checks.md, "The merge queue").
 #
 # One report job, `ci-report`, waits for every job; the branch ruleset
 # requires it.
@@ -33,14 +37,16 @@ name: ci
 # workflow would keep the new run waiting until the old run's `ci-report`,
 # which `always()` runs in a cancelled run too, had found a runner and
 # ended. `ci-changes` has a group as well, so an old run's jobs enter their
-# groups before the new run's and never cancel them. Pushes to main and
-# manual runs each get their own groups, so none is dropped
+# groups before the new run's and never cancel them. Pushes to main, manual
+# runs and merge groups each get their own groups, so none is dropped
 # (docs/design/ci-checks.md, "Concurrency").
 on:
   push:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
     inputs:
       update:
@@ -68,8 +74,9 @@ jobs:
       bench-guard: ${{ steps.bench-guard.outputs.run }}
       fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
       # Whether `check-macos` and `check-windows` run: always on a push or
-      # a manual run, and on a pull request when it changes a path below.
-      platforms: ${{ github.event_name != 'pull_request' || steps.platforms.outputs.run == 'true' }}
+      # a manual run, and on a pull request or a merge group when it changes
+      # a path below.
+      platforms: ${{ (github.event_name != 'pull_request' && github.event_name != 'merge_group') || steps.platforms.outputs.run == 'true' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -93,7 +100,7 @@ jobs:
       # on, and these jobs themselves (docs/design/ci-checks.md, "The
       # platform jobs").
       - id: platforms
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: ./.github/actions/changed-paths
         with:
           paths: |
@@ -152,9 +159,9 @@ jobs:
       # The fuzz targets a ready pull request can affect: every target of
       # each fuzz project whose own directory, or a workspace crate it
       # depends on, the change touches (scripts/fuzz_plan.py). Pushes to
-      # main and manual runs do not fuzz here; fuzz-nightly.yml runs every
-      # target daily (docs/design/ci-checks.md, "The fuzz runs"). Draft PRs
-      # skip it.
+      # main, manual runs and merge groups do not fuzz here; fuzz-nightly.yml
+      # runs every target daily (docs/design/ci-checks.md, "The fuzz runs"
+      # and "The merge queue"). Draft PRs skip it.
       - id: fuzz-plan
         if: >-
           steps.filter.outputs.run == 'true' &&
@@ -1209,9 +1216,9 @@ jobs:
         run: |
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
-          # The Opus encode passes over AAC in a build that decodes it.
+          # The Opus and AAC encodes pass over AAC in a build that decodes it, and Opus.
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
-            --target-dir target/fallback -- opus_encode
+            --target-dir target/fallback -- opus_encode aac_encode
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -2198,15 +2205,22 @@ jobs:
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
-      - name: Count the base commit's instructions (pull requests)
-        if: github.event_name == 'pull_request'
+      - name: Count the base commit's instructions (pull requests and merge groups)
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
+          GROUP_BASE: ${{ github.event.merge_group.base_sha }}
         run: |
           set -o pipefail
           # The merge commit's first parent: what the pull request merges
-          # into, as of this run.
+          # into, as of this run. A merge group's base is main's tip or the
+          # group queued ahead of it, often more than one parent away, so it
+          # is fetched (docs/design/ci-checks.md, "The merge queue").
           BASE=$(git rev-parse HEAD^1)
+          if [ -n "$GROUP_BASE" ]; then
+            git fetch --quiet --no-tags --depth=1 origin "$GROUP_BASE" || exit 1
+            BASE=$GROUP_BASE
+          fi
           git worktree add "$RUNNER_TEMP/base" "$BASE"
           # Its own target directories, seeded with the restored
           # dependencies: a shared one would let cargo take the base's build
@@ -2254,7 +2268,7 @@ jobs:
           # from the head's sources (not `fresh`) and still got the base's
           # bytes. A head binary cargo did not compile is the base's build
           # taken again, which would hide a regression.
-          if [ "${{ github.event_name }}" = pull_request ] \
+          if [ -n "${BASE:-}" ] \
             && ! git diff --quiet "$BASE" HEAD -- crates Cargo.toml Cargo.lock rust-toolchain.toml \
             && cmp -s target/dist/coreav "$RUNNER_TEMP/coreav-base"; then
             if python3 -I -c 'import json, sys; sys.exit(0 if any(m.get("reason") == "compiler-artifact" and m["target"]["name"] == "coreav" and "bin" in m["target"]["kind"] and not m["fresh"] for m in map(json.loads, open(sys.argv[1]))) else 1)' "$RUNNER_TEMP/head-build.json"; then
@@ -2280,12 +2294,12 @@ jobs:
       - name: Count instructions
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-          AGAINST: ${{ github.event_name == 'pull_request' && format('{0}/base.json', runner.temp) || 'bench/guard/baseline.json' }}
+          AGAINST: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && format('{0}/base.json', runner.temp) || 'bench/guard/baseline.json' }}
         run: |
           set -o pipefail
           {
-            if [ "${{ github.event_name }}" = pull_request ]; then
-              echo "### This pull request against its base commit"
+            if [ -n "${BASE:-}" ]; then
+              echo "### This change against its base commit"
             fi
             python3 -I scripts/bench_guard.py --coreav target/dist/coreav $DECODER \
               --fixtures "$RUNNER_TEMP/fixtures" --baseline "$AGAINST" \

@@ -6,8 +6,8 @@
 //! last video sample, which may be extended.
 #![no_main]
 
-use coreav_isobmff::{Allowlist, Budget, Limits, Packet, SliceSource, Source, TrackKind, probe};
-use coreav_isobmff_write::{JoinAudio, JoinOptions, VideoChoice, join_mp4};
+use coreav_isobmff::{Allowlist, Budget, Limits, Packet, Rational, SliceSource, Source, TrackKind, probe};
+use coreav_isobmff_write::{JoinAudio, JoinOptions, Placement, VideoChoice, join_mp4};
 use libfuzzer_sys::fuzz_target;
 
 /// Every packet of the first track of `kind`, `None` when some packet
@@ -40,7 +40,8 @@ fuzz_target!(|data: &[u8]| {
         max_table_bytes: 1 << 20,
         ..Limits::default()
     };
-    // The first byte picks the audio, the next two where the input is cut.
+    // The first byte picks the audio and the placement, the next two where
+    // the input is cut (the low byte also where the second input goes).
     let Some((&[audio, high, low], rest)) = data.split_first_chunk::<3>() else {
         return;
     };
@@ -53,6 +54,10 @@ fuzz_target!(|data: &[u8]| {
             JoinAudio::First
         } else {
             JoinAudio::None
+        },
+        placement: match Rational::new(i128::from(low), 100) {
+            Some(at) if audio & 4 != 0 => Placement::At(vec![Rational::from_int(0), at]),
+            _ => Placement::AfterVideo,
         },
     };
     let mut out = Vec::new();

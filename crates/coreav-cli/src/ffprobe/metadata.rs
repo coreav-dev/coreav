@@ -170,14 +170,12 @@ fn vp9(entries: &Entries, config: Option<&[u8]>) -> Option<String> {
     let width = number("width")?;
     let height = number("height")?;
     let picture = width.checked_mul(height)?;
-    let rate = ["avg_frame_rate", "r_frame_rate"]
-        .into_iter()
-        .find_map(|key| {
-            let (n, d) = text(key)?.split_once('/')?;
-            let n: u64 = n.parse().ok()?;
-            let d: u64 = d.parse().ok()?;
-            (n > 0 && d > 0).then_some((n, d))
-        });
+    let rate = text("avg_frame_rate").and_then(|rate| {
+        let (n, d) = rate.split_once('/')?;
+        let n: u64 = n.parse().ok()?;
+        let d: u64 = d.parse().ok()?;
+        (n > 0 && d > 0).then_some((n, d))
+    });
     let sample_rate = rate
         .and_then(|(n, d)| picture.checked_mul(n).map(|v| v.div_ceil(d)))
         .unwrap_or(0);
@@ -420,5 +418,27 @@ mod tests {
                 Some(&("mime_codec_string", s(format!("vp09.00.{level}.08"))))
             );
         }
+    }
+
+    #[test]
+    fn vp9_mime_level_ignores_a_frame_rate_guessed_from_the_time_base() {
+        // A variable-rate Matroska stream: no average frame rate, and an
+        // r_frame_rate of the millisecond tick. Its picture needs level 4.0,
+        // as the pinned ffprobe gives it; 1,000 frames a second would need
+        // 6.1.
+        let mut entries = vec![
+            ("codec_name", s("vp9")),
+            ("profile", s("Profile 1")),
+            ("pix_fmt", s("yuv444p")),
+            ("width", Value::Int(1918)),
+            ("height", Value::Int(925)),
+            ("r_frame_rate", s("1000/1")),
+            ("avg_frame_rate", s("0/0")),
+        ];
+        stream(&mut entries, None, &[], None);
+        assert_eq!(
+            entries.last(),
+            Some(&("mime_codec_string", s("vp09.01.40.08")))
+        );
     }
 }

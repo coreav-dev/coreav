@@ -92,6 +92,19 @@
       },
       "predicate": "profile_unnamed",
       "basis": "the esds is copied as stored; as KD-AAC-LC-UNNAMED"
+    },
+    {
+      "id": "KD-X-SBR-TIMESCALE",
+      "level": ["streams", "packets"],
+      "fields": ["time_base", "start_pts", "duration_ts", "packets"],
+      "filename_pattern": "*",
+      "conditions": {
+        "rate": "ffprobe's source sample_rate (the decoded rate) = the output's media timescale = the output's sample_rate, a whole multiple above 1 of the source's media timescale",
+        "time_base": "source 1/(its media timescale), output 1/(the decoded rate)",
+        "values": "output start_pts, duration_ts and every packet's pts and dts = the source's times the multiple; packet hashes and sizes equal"
+      },
+      "predicate": "sbr_timescale",
+      "basis": "ISO/IEC 14496-12 12.2.3.3 (an audio timescale matches the sampling rate or is an integer multiple of it); ISO/IEC 14496-3 1.6.5.2 (an HE-AAC decoder outputs SBR's rate); docs/design/edit-list-writers.md, HE-AAC timescale"
     }
   ]
 }

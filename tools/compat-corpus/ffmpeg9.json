@@ -1669,10 +1669,10 @@
      "audio_mp3.mp4",
      "audio_pce_entry_stereo.m4a",
      "av_ac3.mp4",
+     "av_audio_first.mp4",
      "av_eac3.mp4",
      "basic.mov",
      "basic.mp4",
-     "browser.webm",
      "chapter_pictures.mov",
      "chapter_pictures_ref.mov",
      "chapter_pictures_src.mov",
@@ -1706,44 +1706,16 @@
      "hls_hevc.mp4",
      "hls_long_gop.mp4",
      "hls_open_gop.mp4",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
      "multitrack.mp4",
      "remux_metadata.mov",
      "remux_metadata.mp4",
      "rotate_ccw180.mp4",
      "rotate_ccw270.mp4",
      "rotate_ccw90.mp4",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
      "split_av1.mp4",
      "split_hevc.mp4",
      "split_vp9.mp4",
-     "text_styled.mp4",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "text_styled.mp4"
     ],
     "packets.side_data_list[]": [
      "audio_51.m4a",
@@ -1752,10 +1724,10 @@
      "audio_mp3.mp4",
      "audio_pce_entry_stereo.m4a",
      "av_ac3.mp4",
+     "av_audio_first.mp4",
      "av_eac3.mp4",
      "basic.mov",
      "basic.mp4",
-     "browser.webm",
      "chapter_pictures.mov",
      "chapter_pictures_ref.mov",
      "chapter_pictures_src.mov",
@@ -1789,44 +1761,16 @@
      "hls_hevc.mp4",
      "hls_long_gop.mp4",
      "hls_open_gop.mp4",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
      "multitrack.mp4",
      "remux_metadata.mov",
      "remux_metadata.mp4",
      "rotate_ccw180.mp4",
      "rotate_ccw270.mp4",
      "rotate_ccw90.mp4",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
      "split_av1.mp4",
      "split_hevc.mp4",
      "split_vp9.mp4",
-     "text_styled.mp4",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "text_styled.mp4"
     ]
    }
   },
@@ -2807,142 +2751,6 @@
    }
   },
   {
-   "id": "KD-FF9-MKV-START",
-   "accepts": {
-    "format.start_time": {
-     "ffprobe": "0.000000",
-     "relation": "ffprobe greater"
-    },
-    "streams.start_pts": [
-     {
-      "where": {
-       "codec_type": "audio"
-      },
-      "ffprobe": "0",
-      "relation": "ffprobe greater"
-     },
-     {
-      "where": {
-       "codec_type": "attachment"
-      },
-      "ffprobe": "0",
-      "relation": "ffprobe greater"
-     }
-    ],
-    "streams.start_time": [
-     {
-      "where": {
-       "codec_type": "audio"
-      },
-      "ffprobe": "0.000000",
-      "relation": "ffprobe greater"
-     },
-     {
-      "where": {
-       "codec_type": "attachment"
-      },
-      "ffprobe": "0.000000",
-      "relation": "ffprobe greater"
-     }
-    ]
-   },
-   "keys": {
-    "format.start_time": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
-    "streams.start_pts": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
-    "streams.start_time": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ]
-   }
-  },
-  {
    "id": "KD-FF9-ANNEXB-EXTRADATA",
    "accepts": {
     "programs.streams.extradata_size": [
@@ -3267,6 +3075,30 @@
      "color_av1_colr_ignored.mp4"
     ]
    }
+  },
+  {
+   "id": "KD-FF9-ANNEX-D-DOWNMIX",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "dmix_mode",
+    "ltrt_cmixlev",
+    "ltrt_surmixlev",
+    "loro_cmixlev",
+    "loro_surmixlev"
+   ],
+   "conditions": {
+    "track": "a Matroska or WebM audio track with CodecID A_AC3, no ContentEncodings and at least one frame",
+    "frames": "every frame of every SimpleBlock and Block of the track, a lace split into its frames (RFC 9559 10.3), is exactly one AC-3 syncframe: its sample rate and frame size codes are listed (ATSC A/52 tables 5.6 and 5.18), it is that size, and its first 5/8 pass crc1 (7.10.1); each has bsid 6, acmod above 2 and xbsi1e 1, no reserved surround level code (0 to 2) where acmod has surround channels, and every frame states the same five values; every element of the Segment lies within its parent and the file, with a complete header and a known size, so that every block is read",
+    "candidate": "dmix_mode the stated dmixmod; each mix level the gain of its code (tables D2.3 to D2.6: 2^((2 - code) / 4), code 7 muting, to six decimals) where Annex D 2.3.1.2 to 2.3.1.6 define it, the centre levels with a centre channel and the surround levels with surround channels, else 0.000000",
+    "reference": "0 for dmix_mode and 0.000000 for the four levels",
+    "occurrence": "the stream of that track, by its position among the track entries and its TrackNumber; the stated values not all those of the reference; both sides exactly these",
+    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived evidence oracle_kd_mkv.annex_d_downmix gates them in the corpus comparator; the record has no fixture scope"
+   },
+   "basis": "ATSC A/52 Annex D 2.3.1.2 to 2.3.1.6: bsid 6 states the alternate syntax, which gives these fields their meaning, and Annex D 3.2 lets a legacy decoder ignore them without making the stream state no downmix; ffprobe 9.0.2 prints none; the mechanism KD-TS-ANNEX-D-DOWNMIX records for MPEG-TS (coreav-dev/coreav#146)",
+   "accepts": {},
+   "keys": {}
   }
  ]
 }

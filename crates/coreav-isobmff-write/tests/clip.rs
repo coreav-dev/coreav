@@ -20,8 +20,8 @@ use coreav_isobmff::{
 use coreav_isobmff_write::hls::{HlsOptions, build_index};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack,
-    ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, RemuxOptions, SplitAt,
-    SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
+    ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, Placement, RemuxOptions,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
     sanitize_mp4, split_mp4,
 };
 use std::path::Path;
@@ -661,6 +661,7 @@ fn an_hevc_window_that_leaves_no_picture_is_refused_by_every_writer() {
         &JoinOptions {
             video: VideoChoice::First,
             audio: JoinAudio::First,
+            placement: Placement::AfterVideo,
         },
         &mut out,
     )

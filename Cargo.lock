@@ -256,6 +256,8 @@ dependencies = [
  "coreav-frame",
  "coreav-h264",
  "coreav-isobmff",
+ "coreav-thumbnail",
+ "md-5",
 ]
 
 [[package]]
@@ -414,6 +416,9 @@ dependencies = [
 [[package]]
 name = "coreav-opus"
 version = "0.0.1"
+dependencies = [
+ "coreav-kernels-audio",
+]
 
 [[package]]
 name = "coreav-oracle"

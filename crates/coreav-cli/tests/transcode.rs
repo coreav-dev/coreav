@@ -300,6 +300,9 @@ fn usage_and_rejected_files() {
         &["--audio-bitrate", "64"],
         &["--audio", "opus", "--audio-bitrate", "5"],
         &["--audio", "opus", "--audio-bitrate", "511"],
+        &["--audio", "aac", "--audio-bitrate", "15"],
+        &["--audio", "aac", "--audio-bitrate", "513"],
+        &["--audio", "none", "--audio-bitrate", "64"],
     ] {
         let mut args = vec![junk_s, out_s];
         args.extend_from_slice(bad);
@@ -1453,7 +1456,6 @@ fn ffmpeg_libx264_refuses_video_no_decoder_takes() {
 
 /// A source of `name` made by the pinned FFmpeg: two seconds of H.264
 /// (no B-frames) and a 440 Hz sine encoded with `audio`.
-#[cfg(feature = "libopus")]
 fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
     let path = dir.join(name);
     let status = Command::new(&tools.ffmpeg)
@@ -1476,7 +1478,6 @@ fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
 
 /// The audio of `path` as `ffmpeg` decodes it: 16-bit samples at 48 kHz,
 /// with the edit list applied; and what it printed.
-#[cfg(feature = "libopus")]
 fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
     let out = Command::new(&tools.ffmpeg)
         .args(["-nostdin", "-v", "error"])
@@ -1626,6 +1627,45 @@ fn the_opus_encode_passes_over_aac_for_the_flac_after_it() {
     nothing_left(&dir);
 }
 
+fn the_flac_after_an_opus_stream_is_taken(audio: &str) {
+    let Some(tools) = tools() else { return };
+    let dir = dir(&format!("{audio}-after-opus"));
+    let source = made(
+        &tools,
+        &dir,
+        "opus-flac.mp4",
+        &[
+            "-map", "0:v", "-map", "1:a", "-map", "1:a", "-c:a:0", "opus", "-strict", "-2",
+            "-c:a:1", "flac",
+        ],
+    );
+    let out = dir.join("out.mp4");
+    let mut args = vec![
+        source.to_str().unwrap(),
+        out.to_str().unwrap(),
+        "--audio",
+        audio,
+    ];
+    args.extend(["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()]);
+    let run = transcode(Some(&tools), &args);
+    assert_eq!(run.code, 0, "{}", run.stderr);
+    let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+    assert_eq!(summary["encoded_audio"]["stream_index"], 2, "{summary}");
+    assert_eq!(summary["encoded_audio"]["codec"], "flac", "{summary}");
+    nothing_left(&dir);
+}
+
+#[test]
+fn the_aac_encode_takes_the_flac_after_an_opus_stream() {
+    the_flac_after_an_opus_stream_is_taken("aac");
+}
+
+#[cfg(feature = "libopus")]
+#[test]
+fn the_opus_encode_takes_the_flac_after_an_opus_stream() {
+    the_flac_after_an_opus_stream_is_taken("opus");
+}
+
 #[cfg(feature = "libopus")]
 #[test]
 fn audio_the_opus_encode_does_not_take_is_refused_first() {
@@ -1635,6 +1675,12 @@ fn audio_the_opus_encode_does_not_take_is_refused_first() {
     for (name, audio, says) in [
         // The Opus encode takes no AAC, in a build that decodes it too.
         ("aac.mp4", &["-c:a", "aac"][..], "aac is not decoded"),
+        // Nor Opus, which every build decodes.
+        (
+            "opus.mp4",
+            &["-c:a", "opus", "-strict", "-2"][..],
+            "opus is not decoded",
+        ),
         (
             "six.mkv",
             &[
@@ -1658,6 +1704,213 @@ fn audio_the_opus_encode_does_not_take_is_refused_first() {
         let run = transcode(Some(&tools), &args);
         assert_eq!(run.code, 1, "{name}: {}", run.stderr);
         let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+        assert_eq!(error["kind"], "unsupported_feature", "{name}");
+        assert!(
+            error["message"].as_str().unwrap().contains(says),
+            "{name}: {error}"
+        );
+        assert!(!out.exists());
+    }
+    nothing_left(&dir);
+}
+
+#[test]
+fn the_aac_encode_takes_the_place_of_the_source_audio() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("aac");
+    let schema: Value = serde_json::from_str(TRANSCODE_SCHEMA).unwrap();
+    let x264 = ["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()];
+    for (name, audio, codec, channels, rate) in [
+        (
+            "flac-mono.mp4",
+            &["-ac", "1", "-ar", "44100", "-c:a", "flac"][..],
+            "flac",
+            1,
+            44_100,
+        ),
+        (
+            "mp3-stereo.mkv",
+            &["-ac", "2", "-c:a", "libmp3lame"],
+            "mp3",
+            2,
+            48_000,
+        ),
+        (
+            "flac-stereo.mkv",
+            &["-ac", "2", "-ar", "32000", "-c:a", "flac"],
+            "flac",
+            2,
+            32_000,
+        ),
+    ] {
+        let source = made(&tools, &dir, name, audio);
+        let out = dir.join(format!("{name}.mp4"));
+        let mut args = vec![
+            source.to_str().unwrap(),
+            out.to_str().unwrap(),
+            "--audio",
+            "aac",
+        ];
+        args.extend(x264);
+        let run = transcode(Some(&tools), &args);
+        assert_eq!(run.code, 0, "{name}: {}", run.stderr);
+        let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+        schema::validate(&summary, &schema, &schema, "$").unwrap();
+        let encoded = &summary["encoded_audio"];
+        assert_eq!(encoded["stream_index"], 1, "{name}");
+        assert_eq!(encoded["codec"], codec);
+        assert_eq!(encoded["encoder"], "aac");
+        assert_eq!(encoded["channels"], channels);
+        assert_eq!(encoded["sample_rate"], rate);
+        assert_eq!(encoded["bit_rate"], Value::Null);
+        assert_eq!(summary["audio"], serde_json::json!([]));
+        let samples = encoded["samples"].as_u64().unwrap();
+        // Two seconds at the source's rate, to the millisecond (an MP3
+        // decoder's own trimming).
+        assert!(
+            samples.abs_diff(2 * rate) <= rate / 1000,
+            "{name}: {samples}"
+        );
+        let delay = encoded["pre_skip"].as_u64().unwrap();
+        assert_eq!(
+            encoded["packets"].as_u64().unwrap(),
+            (delay + samples).div_ceil(1024),
+            "{name}"
+        );
+        let streams = probe_json(
+            &tools,
+            &[
+                "-show_entries",
+                "stream=codec_name,profile,channels,sample_rate,start_pts,duration_ts",
+            ],
+            &out,
+        );
+        let streams = streams["streams"].as_array().unwrap();
+        assert_eq!(streams.len(), 2, "{name}");
+        assert_eq!(streams[1]["codec_name"], "aac");
+        assert_eq!(streams[1]["profile"], "LC");
+        assert_eq!(streams[1]["channels"], channels);
+        assert_eq!(streams[1]["sample_rate"], rate.to_string());
+        // The edit list presents every sample from time 0, and no more: it
+        // leaves out the encoder's delay and the last frame's padding.
+        assert_eq!(streams[1]["start_pts"], 0, "{name}");
+        assert_eq!(streams[1]["duration_ts"], samples, "{name}");
+        let (pcm, messages) = decoded_audio(&tools, &out);
+        assert!(messages.is_empty(), "{name}: {messages}");
+        assert!(!pcm.is_empty(), "{name}");
+        decodes_cleanly(&tools, &out);
+    }
+    // A bit rate, and the default one's output is larger.
+    let source = dir.join("flac-mono.mp4");
+    let out = dir.join("low.mp4");
+    let mut args = vec![
+        source.to_str().unwrap(),
+        out.to_str().unwrap(),
+        "--audio",
+        "aac",
+        "--audio-bitrate",
+        "24",
+    ];
+    args.extend(x264);
+    let run = transcode(Some(&tools), &args);
+    assert_eq!(run.code, 0, "{}", run.stderr);
+    let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+    assert_eq!(summary["encoded_audio"]["bit_rate"], 24_000);
+    let size = |p: &Path| {
+        probe_json(
+            &tools,
+            &["-select_streams", "a", "-show_entries", "stream=bit_rate"],
+            p,
+        )["streams"][0]["bit_rate"]
+            .as_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+    };
+    assert!(size(&out) < size(&dir.join("flac-mono.mp4.mp4")));
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn audio_the_aac_encode_does_not_take_is_refused_first() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("aac-refused");
+    let x264 = ["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()];
+    let without = script(
+        &dir,
+        "ffmpeg-without-aac",
+        "echo \"Codec 'aac' is not recognized by FFmpeg.\"",
+    );
+    let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    for (name, source, ffmpeg, says) in [
+        // The AAC encode takes no AAC, in a build that decodes it too.
+        (
+            "aac",
+            made(&tools, &dir, "aac.mp4", &["-c:a", "aac"]),
+            None,
+            "aac is not decoded",
+        ),
+        // Nor Opus, which every build decodes.
+        (
+            "opus",
+            made(&tools, &dir, "opus.mp4", &["-c:a", "opus", "-strict", "-2"]),
+            None,
+            "opus is not decoded",
+        ),
+        (
+            "six",
+            made(
+                &tools,
+                &dir,
+                "six.mkv",
+                &[
+                    "-af",
+                    "pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0",
+                    "-c:a",
+                    "flac",
+                ],
+            ),
+            None,
+            "6 channels",
+        ),
+        (
+            "96k",
+            made(&tools, &dir, "96k.mkv", &["-ar", "96000", "-c:a", "flac"]),
+            None,
+            "at 96000 Hz",
+        ),
+        (
+            "no-ffmpeg",
+            flac.clone(),
+            Some(Path::new("/nonexistent/ffmpeg")),
+            "no ffmpeg program for AAC audio",
+        ),
+        (
+            "without-aac",
+            flac.clone(),
+            Some(without.as_path()),
+            "has no aac encoder",
+        ),
+    ] {
+        let out = dir.join("out.mp4");
+        let mut command = Command::new(bin());
+        command
+            .args(["transcode", source.to_str().unwrap(), out.to_str().unwrap()])
+            .args(["--audio", "aac"])
+            .args(x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg);
+        match ffmpeg {
+            // Named by the variable, which finds nothing when it names no
+            // file.
+            Some(path) if !path.exists() => command.env("COREAV_FFMPEG", path),
+            Some(path) => command.arg("--ffmpeg").arg(path),
+            None => &mut command,
+        };
+        let run = command.output().unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(1), "{name}: {stderr}");
+        let error: Value = serde_json::from_str(stderr.trim()).unwrap();
         assert_eq!(error["kind"], "unsupported_feature", "{name}");
         assert!(
             error["message"].as_str().unwrap().contains(says),
