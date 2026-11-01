@@ -88,8 +88,8 @@ export function renderNotices(crates, allowed, list = (dir) => readdirSync(dir, 
     try { files = list(crate.dir).filter((entry) => /^(?:LICEN[CS]E|COPYING|NOTICE|UNLICENSE|COPYRIGHT)(?:[-._].*)?$/i.test(entry.name)).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0); }
     catch { throw new Error(`${label}: cannot read upstream licence directory`); }
     if (!files.some((entry) => /^(?:LICEN[CS]E|COPYING|UNLICENSE)/i.test(entry.name) && entry.isFile())) throw new Error(`${label}: no upstream licence file`);
-    const rules = new Map([["MIT", /^LICENSE-MIT(?:[-._].*)?$/i], ["Apache-2.0", /^LICENSE-APACHE(?:[-._].*)?$/i], ["Zlib", /^LICENSE-ZLIB(?:[-._].*)?$/i], ["0BSD", /^LICENSE-0BSD(?:[-._].*)?$/i], ["Unlicense", /^UNLICENSE(?:[-._].*)?$/i], ["Unicode-3.0", /^LICENSE-UNICODE(?:[-._].*)?$/i]]);
-    const terms = crate.license.replaceAll("/", " OR ").match(/[A-Za-z0-9.+-]+/g).filter((term) => !["AND", "OR"].includes(term));
+    const rules = new Map([["MIT", /^LICENSE-MIT(?:[-._].*)?$/i], ["Apache-2.0", /^LICENSE-APACHE(?:[-._].*)?$/i], ["Zlib", /^LICENSE-ZLIB(?:[-._].*)?$/i], ["0BSD", /^LICENSE-0BSD(?:[-._].*)?$/i], ["Unlicense", /^UNLICENSE(?:[-._].*)?$/i], ["Unicode-3.0", /^LICENSE-UNICODE(?:[-._].*)?$/i], ["Apache-2.0 WITH LLVM-exception", /^LICENSE-Apache-2\.0_WITH_LLVM-exception(?:[-._].*)?$/i]]);
+    const terms = crate.license.replaceAll("/", " OR ").match(/[A-Za-z0-9.+-]+(?:\s+WITH\s+[A-Za-z0-9.+-]+)?/g).filter((term) => !["AND", "OR"].includes(term)).map((term) => term.replace(/\s+/g, " "));
     const covered = new Set();
     for (const term of terms) {
       const rule = rules.get(term);
