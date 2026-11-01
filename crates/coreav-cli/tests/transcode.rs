@@ -931,6 +931,22 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
     ] {
         let probed = probe_json(&tools, &["-show_entries", "stream=r_frame_rate"], source);
         assert_eq!(probed["streams"][0]["r_frame_rate"], rate);
+        let own = Command::new(bin())
+            .args([
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=r_frame_rate",
+                "-of",
+                "json",
+            ])
+            .arg(source)
+            .output()
+            .unwrap();
+        assert!(own.status.success());
+        let own: Value = serde_json::from_slice(&own.stdout).unwrap();
+        assert_eq!(own["streams"][0]["r_frame_rate"], rate);
         let baseline = dir.join("baseline.mp4");
         ffmpeg(&[
             "-noautorotate",
@@ -975,6 +991,68 @@ fn the_minimum_gop_follows_the_rate_ffmpeg_finds() {
                 source.display()
             );
         }
+    }
+    nothing_left(&dir);
+}
+
+#[test]
+fn unsnapped_h264_times_keep_the_vui_rate() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("vui-rate");
+    let source = dir.join("source.mp4");
+    let irregular = dir.join("irregular.mp4");
+    for args in [
+        vec![
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=5",
+            "-frames:v",
+            "30",
+            "-c:v",
+            "libx264",
+            source.to_str().unwrap(),
+        ],
+        vec![
+            "-i",
+            source.to_str().unwrap(),
+            "-c",
+            "copy",
+            "-bsf:v",
+            "setts=ts=N*N*500+N*17",
+            irregular.to_str().unwrap(),
+        ],
+    ] {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    let own = Command::new(bin())
+        .args([
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=r_frame_rate",
+            "-of",
+            "json",
+        ])
+        .arg(&irregular)
+        .output()
+        .unwrap();
+    assert!(own.status.success());
+    let own: Value = serde_json::from_slice(&own.stdout).unwrap();
+    assert_eq!(own["streams"][0]["r_frame_rate"], "10/1");
+    for (encoder, args) in encoders(&tools) {
+        let out = dir.join(format!("{encoder}.mp4"));
+        let mut all = vec![irregular.to_str().unwrap(), out.to_str().unwrap()];
+        all.extend(args.iter().map(String::as_str));
+        let run = transcode(Some(&tools), &all);
+        assert_eq!(run.code, 0, "{encoder}: {}", run.stderr);
+        assert!(x264_options(&tools, &out).contains(" keyint_min=10 "));
     }
     nothing_left(&dir);
 }

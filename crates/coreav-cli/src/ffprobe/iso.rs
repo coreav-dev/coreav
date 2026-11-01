@@ -1715,7 +1715,7 @@ fn video_rates(movie: &Movie, track: &Track, head: &Head, info: &VideoInfo) -> (
     } else {
         let tick = info
             .frame_rate
-            .filter(|_| codec_name_of(track).as_deref() == Some("h264"))
+            .filter(|_| codec_name(movie, track).as_deref() == Some("h264"))
             .map(|(n, d)| (n, d / 2));
         real_rate(&head.decode_times, track.timescale, tick).unwrap_or_else(|| "0/0".to_owned())
     };
