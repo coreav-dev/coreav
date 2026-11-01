@@ -83,8 +83,8 @@
   },
   "hls-segment": {
    "fixture": "hls_h264.mp4",
-   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
-   "instructions": 211964
+   "sha256": "5ef397bd59737d9d512e4a8d8d372ef0eeff735a266fab1886c4c1a88fa9abdc",
+   "instructions": 196407
   },
   "clip-multi-edit": {
    "fixture": "edit_multi_splice.mp4",
@@ -98,8 +98,8 @@
   },
   "probe-compat-mkv": {
    "fixture": "basic.mkv",
-   "sha256": "d5447fa199eb07d74318c1074e77f7daac657724c7d460e83341c0396037ffcd",
-   "instructions": 193123
+   "sha256": "d9b2cecda169ec6e98826878865e624c867ee840294e1371e3cb5101c1bf5b9e",
+   "instructions": 183108
   },
   "probe-frame-sizes-mp4": {
    "fixture": "basic.mp4",
@@ -168,8 +168,8 @@
   },
   "ffprobe-ts": {
    "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 4615568
+   "sha256": "16319b947f0ddce781e8ab863372221229d5e632b9465250f9a14b3af8e17896",
+   "instructions": 3283422
   },
   "ffprobe-packets-mp4": {
    "fixture": "basic.mp4",
@@ -183,8 +183,8 @@
   },
   "ffprobe-packets-ts": {
    "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 7440107
+   "sha256": "16319b947f0ddce781e8ab863372221229d5e632b9465250f9a14b3af8e17896",
+   "instructions": 5990562
   },
   "probe-ts-no-frames": {
    "fixture": "ts_no_frames.ts",
@@ -193,13 +193,13 @@
   },
   "probe-packets-ts-no-period": {
    "fixture": "ts_no_period.ts",
-   "sha256": "6e348962e6ab8d7676880084e05a9a9c8d2bef8d3c679dbbff28cbf8835b572e",
-   "instructions": 34450355
+   "sha256": "6a1d8643250b69b3a3931dbfb9bcf78d68d0371d1c256d21bf4ecbeca62d27b7",
+   "instructions": 31489239
   },
   "probe-packets-ts": {
    "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 2966244
+   "sha256": "16319b947f0ddce781e8ab863372221229d5e632b9465250f9a14b3af8e17896",
+   "instructions": 2655294
   },
   "thumbnail": {
    "fixture": "basic.mp4",

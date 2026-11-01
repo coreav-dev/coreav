@@ -296,6 +296,7 @@ dependencies = [
  "coreav-thumbnail",
  "coreav-transcode",
  "coreav-worker",
+ "miniz_oxide",
  "rustix",
  "rustls",
  "rustls-native-certs",

@@ -241,7 +241,10 @@ bit depth and chroma subsampling select the planar format; full range
 is reported separately as `color_range`, not as a JPEG pixel format.
 Dolby downmix fields come from ATSC A/52's extended bitstream information
 or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
-speaker gains.
+speaker gains. An AC-3 alternate-syntax field that the channel mode
+leaves without a defined meaning (A/52 Annex D 2.3.1.2 to 2.3.1.6: the
+preferred downmix below three channels, a centre level without a centre
+channel, a surround level without surround channels) also prints zero.
 
 AV1 strings keep the sequence's level index (including 31, maximum
 parameters) and append all optional fields together when they differ
@@ -1025,7 +1028,37 @@ type alone (`-c:s`, `-codec:s`, `-scodec`): neither `-c` nor `-c:s:0` selects
 one. With `-map`: the selectors in order, a leading `-` subtracting. `-vn`,
 `-an`, `-sn` and `-dn` remove their type either way. Every selected stream
 must be covered by a `copy` codec option, since `ffmpeg` would encode the
-others, and kept in the input's order, which the writers keep. The concat
+others; a codec option names output streams, so a stream mapped twice is
+decided at each of its places.
+
+**Stream order.** The output's streams are the selection's, in its order,
+as `ffmpeg` writes them (the pinned `ffmpeg` 9.0.2, black box: its `Stream
+mapping` and the output's tracks): the automatic selection's video before
+its audio whatever their order in the file, `-map`s in their order, and a
+stream mapped twice as two tracks with the same samples
+(`-map 0:v -map 0:m:language:eng` on a file whose video is tagged `eng`,
+which a Matroska track without a `Language` element is, RFC 9559). The
+remux writes its tracks in that order (`RemuxOptions::streams`,
+`MatroskaRemuxOptions::streams`), numbered from 1. A duplicated track keeps
+its source's track header, `alternate_group` and enabled flag included, as
+every copied track does. `ffmpeg` writes header fields of its own there
+(black box: alternate groups 0, 1 and 2 for video, video and audio from an
+MP4 source; from a Matroska source the copy disabled), a muxer's choice
+that ISO/IEC 14496-12 8.3.2.3 leaves open (an `alternate_group` of 0 claims
+no relation to other tracks). Cover pictures are item-list metadata, which
+an MP4 file lists after its tracks, so a selection that names one twice,
+before a track or out of its order is refused. The clip, the split and the
+join write their video first: a selection of their audio before their video
+is refused by name. An encode keeps its own rule: its selection keeps the
+input's order and names each stream once. A selection is refused by name
+when it holds more streams than the writer's track limit
+(`Limits::max_tracks`, 1,024) once `-an`, `-vn` and the negative maps have
+removed theirs, before any stream is planned. The maps are read in one pass,
+last to first, keeping at most that many outputs, so a short command line
+of repeated `-map 0` costs no more than that limit; the
+remux checks a longer `streams` list against the same limit first. The
+remux reports each source box it drops once, in file order, however often
+its stream is named. The concat
 demuxer exposes the streams of the list's first file, in its order, with
 every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
 `ffprobe` of a list), so a join's selection goes by picture size and
@@ -1034,8 +1067,12 @@ stereo one without, the stereo one.
 
 **Cover pictures.** An MP4/MOV input's cover pictures (`covr` items of the
 movie's item lists, and the QuickTime `artwork` key) are attached-picture
-video streams after the tracks, as `ffprobe` lists them, and selected like
-any other stream. Without `-map`, a video track comes before a cover
+video streams after the tracks, one per picture (`data` box) of an item,
+as `ffprobe` lists them, and selected like any other stream: of one item's
+pictures, a selection keeps or drops each alone, and the kept ones stay
+in the item in their order (the pinned `ffmpeg` 9.0.2, black box: one
+`covr` with three pictures, the middle one, the first one or two of them
+left out). Without `-map`, a video track comes before a cover
 picture whatever their dispositions and sizes; a cover picture is chosen
 only when no video track is there (the pinned `ffmpeg` 9.0.2, black box:
 a 640x480 cover beside a 160x120 video without the default disposition,
@@ -1203,7 +1240,11 @@ FFmpeg).**
   Lossless, AC-3 or E-AC-3, video other than
   H.264 `avc1`, HEVC `hvc1`, AV1 or VP9 in a clip, an M4A file of other than
   one audio stream (C20's `-map 0:a` on a file with several), a clip or
-  segments of more than one video or audio stream.
+  segments of more than one video or audio stream, and a clip, segments or
+  a join whose selection names its audio before its video (`-map 0:a -map
+  0:v`): their writers write the video first.
+- Cover pictures mapped twice, before a track or out of their order, and an
+  encode whose selection names a stream twice or leaves the input's order.
 - Options with a meaning the writers do not reproduce: `-fflags` other than
   `+genpts` (C26's `+igndts` changes the timestamps `ffmpeg` writes; black
   box: the decode times of the first audio packets), `-map_metadata` other
@@ -1505,8 +1546,13 @@ prints keep its derivations, which the stream oracle checks. The others:
   carries an "Encryption initialization data" side data element; its
   other values come from the format `frma` names.
 - iTunes cover pictures (`covr`, and the QuickTime `artwork` key) are
-  attached-picture video streams after the tracks, each with its one
-  packet; WebVTT tracks are data streams.
+  attached-picture video streams after the tracks, one per JPEG or PNG
+  `data` box in file order (an item may hold several, as `ffmpeg` writes
+  several pictures), each with its one packet at the picture's bytes, or
+  without a position when the movie box is compressed (`cmov`, whose
+  offsets are not the file's; `ffprobe` prints the inflated box's offset,
+  [`known-divergences-ffprobe9.md`](../known-divergences-ffprobe9.md));
+  WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
   first (that agreed with every interleaving on the development set), and

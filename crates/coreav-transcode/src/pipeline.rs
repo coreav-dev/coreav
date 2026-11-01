@@ -42,8 +42,9 @@ use coreav_isobmff_write::{
 use coreav_thumbnail::{Container, ThumbnailOptions, VideoStream};
 use coreav_worker::ExecLauncher;
 
+use crate::aac::AacAudio;
 use crate::annexb::{self, AnnexBReader};
-use crate::audio::{AudioSummary, OpusAudio, ROLL, SAMPLE_RATE};
+use crate::audio::{AudioSummary, Encode, OpusAudio};
 use crate::encoder::{
     Encoder, EncoderChoice, EncoderLimits, EncoderProgram, EncoderSettings, FrameRate, RateControl,
     Sink, Timing, find_encoder,
@@ -91,6 +92,10 @@ pub enum AudioMode {
     /// One audio stream is encoded to Opus (`docs/design/transcode.md`,
     /// "Opus audio"); the others are dropped and listed.
     Opus(OpusAudio),
+    /// One audio stream is encoded to AAC-LC by the `ffmpeg` program's
+    /// `aac` encoder (`docs/design/transcode.md`, "AAC audio"); the
+    /// others are dropped and listed.
+    Aac(AacAudio),
 }
 
 /// The source's container, as the caller detected it.
@@ -132,7 +137,8 @@ pub struct TranscodeOptions {
     /// The `x264` program (`--x264`); else `COREAV_X264`, else `PATH`.
     pub x264: Option<PathBuf>,
     /// The `ffmpeg` program (`--ffmpeg`); else `COREAV_FFMPEG`, else
-    /// `PATH`.
+    /// `PATH`: the video encoder with [`EncoderChoice::Ffmpeg`], and the
+    /// AAC encoder with [`AudioMode::Aac`].
     pub ffmpeg: Option<PathBuf>,
     /// Encoder threads; `None` for the encoder's own choice.
     pub threads: Option<u32>,
@@ -227,7 +233,8 @@ pub enum Remuxed {
 pub struct Summary {
     /// The video stream.
     pub video: VideoSummary,
-    /// The audio stream encoded to Opus, with [`AudioMode::Opus`].
+    /// The audio stream encoded, with [`AudioMode::Opus`] or
+    /// [`AudioMode::Aac`].
     pub audio: Option<AudioSummary>,
     /// The streams written and dropped.
     pub remux: Remuxed,
@@ -365,10 +372,24 @@ pub fn transcode<S: Source, W: Write>(
         })?;
     // Before the video: a stream that cannot be encoded is refused before
     // the video encoder starts.
-    let audio = match &options.audio {
-        AudioMode::Opus(opus) => Some(crate::audio::encode(
+    let encode = match &options.audio {
+        AudioMode::Opus(opus) => Some(Encode::Opus(opus)),
+        AudioMode::Aac(aac) => {
+            let program = find_encoder(EncoderChoice::Ffmpeg, None, options.ffmpeg.clone())
+                .ok_or_else(|| {
+                    unsupported(
+                        "no ffmpeg program for AAC audio: install FFmpeg, whose built-in aac \
+                         encoder encodes it, or name it with --ffmpeg",
+                    )
+                })?;
+            Some(Encode::Aac(aac, program.path().to_path_buf()))
+        }
+        _ => None,
+    };
+    let audio = match encode {
+        Some(encode) => Some(crate::audio::encode(
             &mut source,
-            opus,
+            &encode,
             &coreav_audio::Limits {
                 isobmff: options.isobmff_limits,
                 matroska: options.matroska_limits,
@@ -376,10 +397,10 @@ pub fn transcode<S: Source, W: Write>(
             },
             launcher,
             deadline,
-            Spool::create(output, "opus")?,
+            output,
             options.max_spool_bytes,
         )?),
-        _ => None,
+        None => None,
     };
     let mut limits = options.decode_limits.clone();
     limits.timeout = deadline.saturating_duration_since(Instant::now());
@@ -540,12 +561,12 @@ pub fn transcode<S: Source, W: Write>(
         Some(encoded) => Some(AudioReplacement {
             stream_index: encoded.summary.stream_index,
             sample_entry: &encoded.entry,
-            timescale: SAMPLE_RATE,
+            timescale: encoded.timescale,
             samples: &encoded.samples,
             start: 0,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
-            roll: ROLL,
+            roll: encoded.roll,
             data: BufferedSource::new(
                 FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
             ),
@@ -559,7 +580,7 @@ pub fn transcode<S: Source, W: Write>(
     let streams = match &options.audio {
         AudioMode::Copy => None,
         AudioMode::None => Some(vec![video.stream_index]),
-        AudioMode::Opus(_) => Some(
+        AudioMode::Opus(_) | AudioMode::Aac(_) => Some(
             std::iter::once(video.stream_index)
                 .chain(audio.as_ref().map(|a| a.summary.stream_index))
                 .collect(),
@@ -631,7 +652,7 @@ fn encode_error(message: String) -> Error {
     Error::Encode(coreav_decode::Error::new(ErrorKind::Backend, message))
 }
 
-fn spool_read(error: coreav_isobmff::Error) -> Error {
+pub(crate) fn spool_read(error: coreav_isobmff::Error) -> Error {
     match error {
         coreav_isobmff::Error::Io(kind) => Error::Spool(kind),
         // The spool file is CoreAV's own: never an input's error.
@@ -640,9 +661,8 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
 }
 
 /// The ISOBMFF allowlist of the writer: the default, VP8 when it is the
-/// video stream's codec, and the codec of the audio stream encoded to Opus
-/// (FLAC), which the default leaves out, so that the replaced streams are
-/// kept.
+/// video stream's codec, and the codec of the audio stream encoded (FLAC),
+/// which the default leaves out, so that the replaced streams are kept.
 fn isobmff_allowlist(
     codec: Codec,
     audio: Option<coreav_audio::Codec>,
@@ -667,7 +687,7 @@ fn isobmff_allowlist(
 
 /// The Matroska allowlist of the writer: the default, the video stream's
 /// codec (a long-tail codec the decode policy allows, which the default
-/// leaves out) and the codec of the audio stream encoded to Opus (FLAC),
+/// leaves out) and the codec of the audio stream encoded (FLAC),
 /// so that the replaced streams are kept.
 fn matroska_allowlist(codec: Codec, audio: Option<coreav_audio::Codec>) -> coreav_mkv::Allowlist {
     use coreav_mkv::Codec as M;

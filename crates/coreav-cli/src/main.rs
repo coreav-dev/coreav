@@ -127,6 +127,10 @@ impl<T: FromArgMatches> FromArgMatches for Deferred<T> {
         T::from_arg_matches(matches).map(Self)
     }
 
+    fn from_arg_matches_mut(matches: &mut clap::ArgMatches) -> Result<Self, clap::Error> {
+        T::from_arg_matches_mut(matches).map(Self)
+    }
+
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
         self.0.update_from_arg_matches(matches)
     }
@@ -170,6 +174,10 @@ impl Args for Sanitize {
 impl FromArgMatches for Sanitize {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
         SanitizeArgs::from_arg_matches(matches).map(Self)
+    }
+
+    fn from_arg_matches_mut(matches: &mut clap::ArgMatches) -> Result<Self, clap::Error> {
+        SanitizeArgs::from_arg_matches_mut(matches).map(Self)
     }
 
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
@@ -310,16 +318,19 @@ struct TranscodeArgs {
     #[arg(long, value_name = "W:H", allow_hyphen_values = true)]
     scale: Option<String>,
     /// `copy` every audio stream MP4 can carry (the others are dropped and
-    /// listed), `none`, or `opus`: the first audio stream CoreAV decodes
-    /// (FLAC or MP3, mono or stereo) encoded to Opus by libopus, the others
-    /// dropped and listed. `opus` needs a coreav built with the opt-in
-    /// libopus feature; other builds refuse it.
+    /// listed), `none`, `opus` or `aac`: the first audio stream CoreAV
+    /// decodes (FLAC or MP3, mono or stereo) encoded, the others dropped and
+    /// listed. `opus` is Opus by libopus, and needs a coreav built with the
+    /// opt-in libopus feature; other builds refuse it. `aac` is AAC-LC by
+    /// the ffmpeg program's built-in aac encoder (--ffmpeg), at the stream's
+    /// own rate, 8 to 64 kHz; --strict-safe refuses it.
     #[arg(long, value_name = "MODE", default_value = "copy",
-          value_parser = ["copy", "none", "opus"])]
+          value_parser = ["copy", "none", "opus", "aac"])]
     audio: String,
-    /// With --audio opus (opt-in libopus builds only), the Opus bit rate in
-    /// kbit/s, 6 to 510 (default: 64 for mono, 96 for stereo).
-    #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=510))]
+    /// With --audio opus or aac, the bit rate in kbit/s: Opus 6 to 510
+    /// (default: 64 for mono, 96 for stereo), AAC 16 to 512 (default: the
+    /// aac encoder's own).
+    #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=512))]
     audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
     /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
@@ -978,6 +989,27 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
 #[cfg(feature = "transcode")]
 fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
+    let bitrates = match args.audio.as_str() {
+        "opus" => Some(6..=510),
+        "aac" => Some(16..=512),
+        _ => None,
+    };
+    match (args.audio_bitrate, bitrates) {
+        (Some(_), None) => {
+            return usage(
+                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
+            );
+        }
+        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
+            return usage(&format!(
+                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
+                args.audio,
+                range.start(),
+                range.end()
+            ));
+        }
+        _ => {}
+    }
     if args.audio == "opus" && !cfg!(feature = "libopus") {
         let refusal = Failure::Unsupported(
             "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature"
@@ -1001,6 +1033,16 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
         }
     };
+    if args.audio == "aac" {
+        if let Err(message) = strict_safe.aac() {
+            let _ = writeln!(
+                std::io::stderr(),
+                "{}",
+                Failure::StrictSafe(message).to_json()
+            );
+            return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
+        }
+    }
     let request = transcode::Request {
         crf: args.crf,
         bitrate: args.bitrate,
@@ -1013,6 +1055,10 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        aac: (args.audio == "aac").then_some(transcode::AacRequest {
+            stream: None,
+            bitrate: args.audio_bitrate.map(|k| k * 1000),
+        }),
         pixel_format: None,
         one_size: false,
         encoder,
@@ -1022,9 +1068,6 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         timeout: args.timeout,
         strict_safe,
     };
-    if args.audio_bitrate.is_some() && args.audio != "opus" {
-        return usage("--audio-bitrate is the Opus bit rate: it needs --audio opus");
-    }
     if args.output.as_os_str() == "-" {
         return usage("the output must be a file: the MP4 is written with its movie box first");
     }
