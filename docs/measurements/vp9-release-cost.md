@@ -4,6 +4,8 @@ The release's static musl build has additional decode CPU cost compared with a G
 
 ## Plan and acceptance bars
 
+The measured base is the queued copy-once head `065479c8a6d3a47a965301d4e5eba6ee10c88e68` of coreav-dev/coreav#178. The harness and candidate use that exact base, not the earlier measurement's source. Before this change opens for review, compare its diff again after the copy-once change reaches main.
+
 Profile the release-equivalent decode harness and the GNU/Debian harness at function level on a Compute Engine c4-standard-8 with SMT disabled, using the same ten B5 files as the earlier libvpx comparison. Separate profiling from timing. Retain allocation and frame-export work in both timed harnesses, and describe this integration cost beside any decoder comparison. Before choosing a change, test the ceiling of removing the implicated work in a diagnostic build.
 
 The candidate and its exact build commands will be fixed in a commit before the judged run. The judged host is a c4-standard-8, four physical cores with SMT disabled, Debian 13, and the shared pinned FFmpeg 9.0.2. Run five balanced, alternating rounds per file. Use equal repetition units for short commands. Record CPU time, wall time, exit status and frame count for every invocation. Run pixel hashes outside timing on all ten files, requiring frame-by-frame identity between stock, candidate and FFmpeg.
