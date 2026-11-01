@@ -24,7 +24,11 @@ Any other join is checked against its inputs:
   video, within one tick for the audio; packets `ffprobe` marks discarded
   are not presented and their times are not compared);
 - `ffmpeg -copyts -f framemd5` of the output's video is the inputs'
-  decoded frames, each input's at its times plus its offset;
+  decoded frames, each input's at its times plus its offset; each input's
+  video starts where the previous one's ends and spans no more than it
+  presents on its own, except that an input placed by the concat demuxer
+  (`"placement": "concat"`, `coreav ffmpeg -f concat`) is held until the
+  next one's video starts;
 - the output's presentation ends, read from its own edit lists: the video
   where the last input's video ends and no later than that input's file
   presents it, the audio no later than the last input's file presents its
@@ -726,6 +730,12 @@ def check_inputs(entry, ffprobe, ffmpeg, mediainfo, found, counts, evidence, dec
                 begin = ends[n]
                 if frames and not (start <= frames[0][0] and frames[-1][0] < end):
                     found.append(("video:placement", f"video: input {n}'s frames lie outside its span"))
+                # Placed as the concat demuxer places it (`"placement":
+                # "concat"`: each file after the previous ones' format
+                # durations, which copy_check.py holds to ffmpeg's), an input
+                # is held until the next one's video starts, however long.
+                if entry.get("placement") == "concat" and n + 1 < len(inputs):
+                    continue
                 h = cc.headers(item["path"])
                 trak = h["traks"][item[key]] if h and len(h["traks"]) > item[key] else {}
                 _, own = cc.edit_span(trak, h["mvhd"][0]) if h else (0, None)

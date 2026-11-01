@@ -374,7 +374,7 @@ def entry(record, src_movie, source_streams):
                            "video_stream": kinds["video"], "audio_stream": kinds.get("audio")})
         return {"label": record["id"], "source": None, "source_offset": None, "output": output,
                 "duration": writer_corpus.ratio(summary["duration"]), "video_edits": summary["edits"]["video"],
-                "audio_edits": summary["edits"]["audio"], "inputs": inputs}
+                "audio_edits": summary["edits"]["audio"], "inputs": inputs, "placement": "concat"}
     if job == "split":
         first = summary["segments"][0]["streams"]
         segments = []
