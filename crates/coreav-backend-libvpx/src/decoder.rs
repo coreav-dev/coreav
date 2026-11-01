@@ -465,7 +465,7 @@ fn convert(view: &View<'_>, layout: &Layout, color: ColorInfo) -> Result<(Frame,
             let line = view
                 .row(index, r)
                 .ok_or_else(|| bad("plane shorter than its rows"))?;
-            data.extend_from_slice(line);
+            append_row(&mut data, line);
         }
         to_little_endian(layout.high, &mut data);
         planes.push(Plane::new(data, row));
@@ -478,6 +478,22 @@ fn convert(view: &View<'_>, layout: &Layout, color: ColorInfo) -> Result<(Frame,
         pixels: Pixels::Cpu(picture),
     };
     Ok((frame, layout.bytes))
+}
+
+fn append_row(data: &mut Vec<u8>, row: &[u8]) {
+    if cfg!(all(
+        target_os = "linux",
+        target_env = "musl",
+        target_arch = "x86_64"
+    )) {
+        let mut chunks = row.chunks_exact(64);
+        for chunk in &mut chunks {
+            data.extend_from_slice(chunk);
+        }
+        data.extend_from_slice(chunks.remainder());
+    } else {
+        data.extend_from_slice(row);
+    }
 }
 
 /// A frame shown by the packet [`LibvpxDecoder::send_packet_lending`] is
@@ -544,6 +560,17 @@ impl LentFrame<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exported_rows_keep_unaligned_bytes_and_short_tails() {
+        for width in [0, 1, 63, 64, 65, 127, 128, 129, 321, 7680] {
+            let source: Vec<u8> = (0u8..=250).cycle().take(width).collect();
+            let mut data = vec![9, 8, 7];
+            data.reserve_exact(source.len());
+            append_row(&mut data, &source);
+            assert_eq!(data, [vec![9, 8, 7], source].concat());
+        }
+    }
 
     #[test]
     fn the_memory_estimate_refuses_what_does_not_fit() {

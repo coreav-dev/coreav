@@ -1,6 +1,8 @@
 import copy
+import gzip
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -56,6 +58,15 @@ class ReleaseCostTests(unittest.TestCase):
         result = runner.analyse()
         self.assertFalse(result['passed'])
         self.assertTrue(result['host_valid'])
+
+    def test_published_compressed_calls_can_be_analysed_without_binaries(self):
+        (self.root / 'maps.json').write_text(json.dumps(dict(files=self.files)))
+        with gzip.open(self.root / 'calls.jsonl.gz', 'wt') as stream:
+            stream.write(''.join(json.dumps(row) + '\n' for row in self.rows))
+        result = subprocess.run([sys.executable, '-I', runner.__file__, '--analyse', str(self.root)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads((self.root / 'analysis.json').read_text())['passed'])
 
     def test_missing_duplicate_and_failed_calls_are_refused(self):
         variants = [self.rows[1:], self.rows + [self.rows[0]],

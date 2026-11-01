@@ -293,7 +293,7 @@ address space, CPU seconds, no core files, no regular-file writes
 descriptor count. It sets them through `rustix`'s safe `setrlimit`, a
 vetted crate, not through CoreAV-authored `unsafe`.
 
-The decoder worker and the exec launcher receive `MIMALLOC_ARENA_RESERVE` before startup. Its committed value in `coreav-worker/src/mimalloc-arena-reserve-kib.txt` is 32 MiB in KiB, rather than mimalloc's default 1 GiB virtual reservation, which would already exhaust a small worker's cap before it is applied. The option is harmless to programs using another allocator. The launcher still clears its environment when it replaces itself with the operator's encoder, so that program inherits no environment variables. The address-space cap is not raised.
+The decoder worker and the exec launcher receive `MIMALLOC_ARENA_RESERVE` before startup. Its committed value in `coreav-worker/src/mimalloc-arena-reserve-kib.txt` is 128 MiB in KiB, rather than mimalloc's default 1 GiB virtual reservation, which would already exhaust a small worker's cap before it is applied. The option is harmless to programs using another allocator. The launcher still clears its environment when it replaces itself with the operator's encoder, so that program inherits no environment variables. The address-space cap is not raised.
 
 **Exec.** The same limits serve a program that is not a decoder: the
 encoder of `coreav transcode` (`docs/design/transcode.md`, "Sandbox").

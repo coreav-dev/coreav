@@ -1,3 +1,5 @@
+import argparse
+import gzip
 import hashlib
 import json
 import math
@@ -167,7 +169,9 @@ def analyse():
     completed = json.loads((OUT / 'completed.json').read_text())
     if (OUT / 'aborted.json').exists() or completed != dict(files=10, arms=ARMS, rounds=5):
         raise RuntimeError('an incomplete or aborted run cannot pass')
-    rows = [json.loads(line) for line in (OUT / 'calls.jsonl').read_text().splitlines()]
+    calls = OUT / 'calls.jsonl'
+    text = calls.read_text() if calls.exists() else gzip.decompress((OUT / 'calls.jsonl.gz').read_bytes()).decode()
+    rows = [json.loads(line) for line in text.splitlines()]
     if any(row.get('rc', 0) or 'error' in row for row in rows):
         raise RuntimeError('a failed invocation cannot enter analysis')
     by_file = {}
@@ -230,9 +234,25 @@ def analyse():
     (OUT / 'analysis.json').write_text(json.dumps(result, indent=2) + '\n')
     return result
 
+def report():
+    result = analyse()
+    print(json.dumps(dict(checks=result['checks'], summary=result['summary'])), flush=True)
+    if not result['host_valid']:
+        raise SystemExit(3)
+    if not result['passed']:
+        raise SystemExit(1)
+
 def main():
-    global FILES
+    global ROOT, OUT, FILES
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--analyse', type=pathlib.Path)
+    args = parser.parse_args()
+    if args.analyse:
+        ROOT = OUT = args.analyse.resolve()
     FILES = json.loads((ROOT / 'maps.json').read_text())['files']
+    if args.analyse:
+        report()
+        return
     OUT.mkdir(exist_ok=True)
     try:
         verify_artifacts()
@@ -271,12 +291,7 @@ def main():
                 print(file['sha256'][:12] + ' transcode bytes agree', flush=True)
         profiles()
         (OUT / 'completed.json').write_text(json.dumps(dict(files=len(FILES), arms=ARMS, rounds=5)))
-        result = analyse()
-        print(json.dumps(dict(checks=result['checks'], summary=result['summary'])), flush=True)
-        if not result['host_valid']:
-            raise SystemExit(3)
-        if not result['passed']:
-            raise SystemExit(1)
+        report()
     except SystemExit:
         raise
     except BaseException as error:
