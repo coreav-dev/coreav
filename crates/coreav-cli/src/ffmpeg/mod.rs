@@ -22,7 +22,7 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
-use args::{AudioEncoder, Codec, Command, Demuxer, Muxer, Overwrite, Spec};
+use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary,
@@ -126,7 +126,7 @@ pub struct TranscodeJob {
     pub audio: Vec<usize>,
     /// The encoder of the audio stream, then the only one; `None` when the
     /// audio is copied.
-    pub audio_encoder: Option<AudioEncoder>,
+    pub audio_encoder: Option<args::AudioEncoder>,
     /// Whether the decoder reorders the video's frames (B-frames).
     pub reordered: bool,
     /// The cover pictures that are not selected, as
@@ -326,7 +326,7 @@ pub fn plan(
             .collect()
     };
     let encoded = coded(Codec::Libx264);
-    let audio_encoded: Vec<(usize, AudioEncoder)> = output
+    let audio_encoded: Vec<(usize, args::AudioEncoder)> = output
         .iter()
         .zip(&decided)
         .filter_map(|((index, _), codec)| match codec {
@@ -342,10 +342,12 @@ pub fn plan(
     }
     if let Some((_, encoder)) = audio_encoded.first() {
         return Err(Refusal::not_native(match encoder {
-            AudioEncoder::Libopus => {
+            args::AudioEncoder::Libopus => {
                 "encoding audio with libopus without encoding the video with libx264"
             }
-            AudioEncoder::Aac => "encoding audio with aac without encoding the video with libx264",
+            args::AudioEncoder::Aac => {
+                "encoding audio with aac without encoding the video with libx264"
+            }
         }));
     }
     if (args::Encoding {
@@ -513,7 +515,7 @@ fn transcode_job(
     report: &Report,
     output: &[(usize, &Stream)],
     encoded: &[usize],
-    audio: &[(usize, AudioEncoder)],
+    audio: &[(usize, args::AudioEncoder)],
     trims: bool,
 ) -> Result<Job, Refusal> {
     if output
@@ -589,14 +591,16 @@ fn transcode_job(
         }
         ([(_, encoder)], _) => {
             return Err(Refusal::not_native(match encoder {
-                AudioEncoder::Libopus => "copying audio beside the audio stream libopus encodes",
-                AudioEncoder::Aac => "copying audio beside the audio stream aac encodes",
+                args::AudioEncoder::Libopus => {
+                    "copying audio beside the audio stream libopus encodes"
+                }
+                args::AudioEncoder::Aac => "copying audio beside the audio stream aac encodes",
             }));
         }
         ([(_, encoder), ..], _) => {
             return Err(Refusal::not_native(match encoder {
-                AudioEncoder::Libopus => "encoding more than one audio stream with libopus",
-                AudioEncoder::Aac => "encoding more than one audio stream with aac",
+                args::AudioEncoder::Libopus => "encoding more than one audio stream with libopus",
+                args::AudioEncoder::Aac => "encoding more than one audio stream with aac",
             }));
         }
     };
@@ -618,8 +622,8 @@ fn transcode_job(
 /// writes a surround stream), a build without libopus, or for aac a sample
 /// rate outside 8 to 64 kHz (the pipeline encodes AAC at the source's rate
 /// and does not resample; `ffmpeg` encodes 88.2 and 96 kHz as they are).
-fn audio_source(encoder: AudioEncoder, stream: &Stream) -> Result<(), Refusal> {
-    let opus = encoder == AudioEncoder::Libopus;
+fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refusal> {
+    let opus = encoder == args::AudioEncoder::Libopus;
     if opus && !cfg!(feature = "libopus") {
         return Err(Refusal::not_native(
             "encoding with libopus, in a build without the libopus feature",
@@ -1233,7 +1237,7 @@ mod tests {
             side_data: Vec::new(),
         };
         let refusal = |codec, channels, rate| match audio_source(
-            AudioEncoder::Aac,
+            args::AudioEncoder::Aac,
             &stream(codec, channels, rate),
         ) {
             Ok(()) => None,
