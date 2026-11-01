@@ -42,6 +42,7 @@ mod limits;
 mod probs;
 mod superframe;
 mod tables;
+mod tile;
 
 pub use compressed::{CompressedHeader, ReferenceMode, TxMode};
 pub use decoder::Decoder;

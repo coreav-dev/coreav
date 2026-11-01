@@ -176,6 +176,15 @@ const SIZE_OVERRIDES: [(&str, (u32, u32), &str); 3] = [
     ),
 ];
 
+/// The vector whose key frame's tile does not end as clause 9.2.3 requires,
+/// and the reason it is not counted against the tile reader. The check
+/// fails once that tile ends cleanly, so the exception cannot outlive its
+/// cause.
+const UNCLEAN_TILE: (&str, &str) = (
+    "vp91-2-04-yv444.webm",
+    "no black box decodes it: libvpx 1.17.0, through FFmpeg 9.0.2, refuses its first packet as a bitstream it does not support, and FFmpeg 9.0.2's own decoder fails on the four packets after it and gives the first frame an MD5 the list does not have. Its tile leaves 21,157 nonzero bytes after the last block",
+);
+
 /// The vector whose packets show several frames each.
 const LAYERED: &str = "vp90-2-22-svc_1280x720_3.ivf";
 
@@ -219,7 +228,20 @@ fn check(dir: &Path, name: &str) -> Option<String> {
                 Header::Frame {
                     header: h,
                     compressed,
+                    tiles_end_cleanly,
                 } => {
+                    if h.is_intra() {
+                        let unclean = name == UNCLEAN_TILE.0;
+                        if tiles_end_cleanly != Some(!unclean) {
+                            return Some(if unclean {
+                                format!(
+                                    "packet {i}: every tile ends cleanly, so UNCLEAN_TILE is stale"
+                                )
+                            } else {
+                                format!("packet {i}: a tile does not end cleanly")
+                            });
+                        }
+                    }
                     if !h.trailing_bits_zero {
                         return Some(format!("packet {i}: a trailing bit is not 0"));
                     }

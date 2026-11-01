@@ -50,7 +50,49 @@ TABLES = [
     ("default_mv_fr_probs", "DEFAULT_MV_FR_PROBS", "10.5", "Default `mv_fr_probs`."),
     ("default_mv_hp_prob", "DEFAULT_MV_HP_PROB", "10.5", "Default `mv_hp_prob`."),
     ("default_coef_probs", "DEFAULT_COEF_PROBS", "10.5", "Default `coef_probs`, by transform size, plane type, reference type, band and context; band 0 has 3 contexts, padded with 0."),
+    ("kf_partition_probs", "KF_PARTITION_PROBS", "10.4", "`partition`'s probabilities in intra frames, by context."),
+    ("kf_y_mode_probs", "KF_Y_MODE_PROBS", "10.4", "`default_intra_mode`'s probabilities, by the modes above and to the left."),
+    ("kf_uv_mode_probs", "KF_UV_MODE_PROBS", "10.4", "`default_uv_mode`'s probabilities, by `y_mode`."),
+    ("pareto_table", "PARETO_TABLE", "10.3", "The token probabilities past the second node, by `(prob - 1) / 2`."),
+    ("default_scan_4x4", "DEFAULT_SCAN_4X4", "10.1", "The scan of a 4x4 transform of `DCT_DCT` or `ADST_ADST`."),
+    ("col_scan_4x4", "COL_SCAN_4X4", "10.1", "The scan of a 4x4 transform of `DCT_ADST`."),
+    ("row_scan_4x4", "ROW_SCAN_4X4", "10.1", "The scan of a 4x4 transform of `ADST_DCT`."),
+    ("default_scan_8x8", "DEFAULT_SCAN_8X8", "10.1", "The scan of an 8x8 transform of `DCT_DCT` or `ADST_ADST`."),
+    ("col_scan_8x8", "COL_SCAN_8X8", "10.1", "The scan of an 8x8 transform of `DCT_ADST`."),
+    ("row_scan_8x8", "ROW_SCAN_8X8", "10.1", "The scan of an 8x8 transform of `ADST_DCT`."),
+    ("default_scan_16x16", "DEFAULT_SCAN_16X16", "10.1", "The scan of a 16x16 transform of `DCT_DCT` or `ADST_ADST`."),
+    ("col_scan_16x16", "COL_SCAN_16X16", "10.1", "The scan of a 16x16 transform of `DCT_ADST`."),
+    ("row_scan_16x16", "ROW_SCAN_16X16", "10.1", "The scan of a 16x16 transform of `ADST_DCT`."),
+    ("default_scan_32x32", "DEFAULT_SCAN_32X32", "10.1", "The scan of a 32x32 transform."),
+    ("b_width_log2_lookup", "B_WIDTH_LOG2", "10.2", "A block size's width in 4x4 blocks, as a base 2 logarithm."),
+    ("b_height_log2_lookup", "B_HEIGHT_LOG2", "10.2", "A block size's height in 4x4 blocks, as a base 2 logarithm."),
+    ("num_4x4_blocks_wide_lookup", "NUM_4X4_WIDE", "10.2", "A block size's width in 4x4 blocks."),
+    ("num_4x4_blocks_high_lookup", "NUM_4X4_HIGH", "10.2", "A block size's height in 4x4 blocks."),
+    ("mi_width_log2_lookup", "MI_WIDTH_LOG2", "10.2", "A block size's width in 8x8 blocks, as a base 2 logarithm."),
+    ("num_8x8_blocks_wide_lookup", "NUM_8X8_WIDE", "10.2", "A block size's width in 8x8 blocks."),
+    ("num_8x8_blocks_high_lookup", "NUM_8X8_HIGH", "10.2", "A block size's height in 8x8 blocks."),
+    ("subsize_lookup", "SUBSIZE", "10.2", "The size of a partition's blocks, by partition and block size."),
+    ("max_txsize_lookup", "MAX_TX_SIZE", "6.4.10", "A block size's largest transform size."),
+    ("ss_size_lookup", "SS_SIZE", "6.4.23", "A block size in a plane, by block size and horizontal and vertical subsampling."),
+    ("coefband_4x4", "COEFBAND_4X4", "10.2", "The band of each scan position of a 4x4 transform."),
+    ("coefband_8x8plus", "COEFBAND_8X8PLUS", "10.2", "The band of each scan position of a larger transform."),
+    ("energy_class", "ENERGY_CLASS", "10.2", "The context class of each token."),
+    ("mode2txfm_map", "MODE2TXFM_MAP", "10.2", "The transform type of each prediction mode."),
+    ("extra_bits", "EXTRA_BITS", "6.4.26", "Each token's category, number of extra bits and base value."),
+    ("cat_probs", "CAT_PROBS", "6.4.26", "The probabilities of each category's extra bits, padded with 0."),
+    ("partition_tree", "PARTITION_TREE", "9.3.1", "The tree of `partition` when the block has rows and columns inside the frame."),
+    ("cols_partition_tree", "COLS_PARTITION_TREE", "9.3.1", "The tree of `partition` when only the block's columns are inside the frame."),
+    ("rows_partition_tree", "ROWS_PARTITION_TREE", "9.3.1", "The tree of `partition` when only the block's rows are inside the frame."),
+    ("intra_mode_tree", "INTRA_MODE_TREE", "9.3.1", "The tree of the intra prediction modes."),
+    ("segment_tree", "SEGMENT_TREE", "9.3.1", "The tree of `segment_id`."),
+    ("tx_size_32_tree", "TX_SIZE_32_TREE", "9.3.1", "The tree of `tx_size` up to `TX_32X32`."),
+    ("tx_size_16_tree", "TX_SIZE_16_TREE", "9.3.1", "The tree of `tx_size` up to `TX_16X16`."),
+    ("tx_size_8_tree", "TX_SIZE_8_TREE", "9.3.1", "The tree of `tx_size` up to `TX_8X8`."),
+    ("token_tree", "TOKEN_TREE", "9.3.1", "The tree of `token`."),
 ]
+
+# Tables whose rows the specification writes short, as C does, the rest 0.
+PADDED = {"cat_probs"}
 
 
 def spec_text(pdf):
@@ -68,14 +110,27 @@ def spec_text(pdf):
 
 
 def constants(text):
-    """The constants of clause 3, by name; a name stated twice must agree."""
+    """The constants of clause 3, and the names the semantics of clause 7.4
+    give values (block and transform sizes, partitions, intra modes and
+    tokens), by name; a name stated twice must agree. The trees of clause
+    9.3.1 name the token categories DCT_VAL_CATEGORY1 to 6, which the
+    semantics of token (7.4.8) call DCT_VAL_CAT1 to 6."""
     start = text.index("REFS_PER_FRAME ")
     found = {}
-    for name, value in re.findall(r"^([A-Z][A-Z0-9_]+)\s+(\d+)\s", text[start:], re.M):
+
+    def add(name, value):
         if found.setdefault(name, int(value)) != int(value):
             sys.exit(f"constant {name} is stated as {found[name]} and {value}")
+
+    for name, value in re.findall(r"^([A-Z][A-Z0-9_]+)\s+(\d+)\s", text[start:], re.M):
+        add(name, value)
         if name == "INVALID_CASE":
             break
+    named = r"(?:BLOCK|TX)_\d+X\d+|PARTITION_[A-Z]+|[A-Z0-9]+_PRED|[A-Z]+_TOKEN|DCT_VAL_CAT\d"
+    for value, name in re.findall(rf"^\s*(\d+)\s+({named})\s*$", text, re.M):
+        add(name, value)
+    for n in range(1, 7):
+        add(f"DCT_VAL_CATEGORY{n}", found[f"DCT_VAL_CAT{n}"])
     return found
 
 
@@ -97,9 +152,10 @@ def strip_comments(s):
     return re.sub(r"//[^\n]*", " ", s)
 
 
-def braces(body):
+def braces(body, symbols):
     """The nested lists of numbers of `{ ... }` at the start of body, and
-    where it ends. A comma before a closing brace is allowed."""
+    where it ends. A comma before a closing brace is allowed, a name
+    stands for its value in symbols, and either may be negated."""
     pos = 0
 
     def value():
@@ -122,11 +178,19 @@ def braces(body):
                     pos += 1
                 elif body[pos] != "}":
                     sys.exit(f"unexpected {body[pos:pos + 20]!r}")
-        m = re.compile(r"\d+").match(body, pos)
+        sign = 1
+        if body[pos] == "-":
+            sign = -1
+            pos += 1
+        m = re.compile(r"\d+|[A-Za-z_][A-Za-z0-9_]*").match(body, pos)
         if not m:
             sys.exit(f"not a number: {body[pos:pos + 20]!r}")
         pos = m.end()
-        return int(m.group())
+        if m.group().isdigit():
+            return sign * int(m.group())
+        if m.group() not in symbols:
+            sys.exit(f"unknown name {m.group()!r}")
+        return sign * symbols[m.group()]
 
     return value()
 
@@ -140,25 +204,41 @@ def shape_of(v):
     return [len(v)] + list(inner.pop())
 
 
+def padded(values, dims):
+    """values with each short list filled with zeros to its dimension."""
+    if not dims:
+        return values
+    if not isinstance(values, list) or len(values) > dims[0]:
+        sys.exit("a padded table with too many values")
+    zero = padded([], dims[1:]) if len(dims) > 1 else 0
+    return [padded(v, dims[1:]) for v in values] + [zero] * (dims[0] - len(values))
+
+
 def table(text, consts, name):
     defs = list(re.finditer(rf"\b{name}((?:\s*\[[^\]]*\])+)\s*=\s*\{{", text))
     if len(defs) != 1:
         sys.exit(f"{name}: {len(defs)} definitions")
     d = defs[0]
     dims = [dimension(x, consts) for x in re.findall(r"\[([^\]]*)\]", d.group(1))]
-    values = braces(strip_comments(text[d.end() - 1:]))
+    values = braces(strip_comments(text[d.end() - 1:]), consts)
+    if name in PADDED:
+        values = padded(values, dims)
     if shape_of(values) != dims:
         sys.exit(f"{name}: shape {shape_of(values)}, its dimensions say {dims}")
     flat = values
     while flat and isinstance(flat[0], list):
         flat = [x for row in flat for x in row]
-    if not all(0 <= x <= 255 for x in flat):
-        sys.exit(f"{name}: a value outside 0 to 255")
-    return dims, values
+    if min(flat) < 0:
+        if not all(-128 <= x <= 127 for x in flat):
+            sys.exit(f"{name}: a negative value with one outside -128 to 127")
+        return dims, values, "i8"
+    if max(flat) > 65535:
+        sys.exit(f"{name}: a value above 65535")
+    return dims, values, "u8" if max(flat) <= 255 else "u16"
 
 
-def rust_type(dims):
-    t = "u8"
+def rust_type(dims, element):
+    t = element
     for n in reversed(dims):
         t = f"[{t}; {n}]"
     return t
@@ -185,8 +265,8 @@ def render(text):
         "",
     ]
     for name, rust, clause, doc in TABLES:
-        dims, values = table(text, consts, name)
-        ty = rust_type(dims)
+        dims, values, element = table(text, consts, name)
+        ty = rust_type(dims, element)
         if name in ALIASES:
             out.append(f"/// The type of `{name}`.")
             out.append(f"pub(crate) type {ALIASES[name]} = {ty};")

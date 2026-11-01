@@ -332,6 +332,10 @@ pub enum Header {
         header: Box<FrameHeader>,
         /// Its compressed header.
         compressed: CompressedHeader,
+        /// Whether every tile's boolean decoder ended as clause 9.2.3
+        /// requires; `None` for a frame whose tiles are not read yet (an
+        /// inter frame, until inter prediction lands).
+        tiles_end_cleanly: Option<bool>,
     },
 }
 
@@ -546,6 +550,7 @@ pub(crate) fn parse(
         header: Header::Frame {
             header: Box::new(h),
             compressed,
+            tiles_end_cleanly: None,
         },
         probs: Some(Box::new((contexts, probs))),
     })
