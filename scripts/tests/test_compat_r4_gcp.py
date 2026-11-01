@@ -4,10 +4,13 @@ import hashlib
 import json
 import os
 import pathlib
+import signal
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -119,6 +122,91 @@ class Limits(unittest.TestCase):
     def test_the_store_credentials(self):
         env = {k: '' for k in compat_r4_gcp.CREDENTIALS}
         self.assertIn('must be set', self.refused(env=env))
+
+
+class Credentials(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = pathlib.Path(self.tmp.name)
+        self.out = self.root / 'run'
+        self.credential = self.out / 'upload' / 'r2.env'
+        binary = self.root / 'binary'
+        binary.write_text('unused test binary')
+        self.argv = ['compat_r4_gcp.py', '--out', str(self.out), '--coreav', str(binary),
+                     '--ffmpeg', str(binary), '--ffprobe', str(binary)]
+        self._enter_context(mock.patch.dict(os.environ, {k: 'test-only' for k in compat_r4_gcp.CREDENTIALS}))
+        self._enter_context(mock.patch.object(round_files, 'select', return_value=[]))
+
+    def _enter_context(self, context):
+        result = context.__enter__()
+        self.addCleanup(context.__exit__, None, None, None)
+        return result
+
+    def run_main(self, *extra):
+        with mock.patch.object(sys, 'argv', self.argv + list(extra)):
+            return compat_r4_gcp.main()
+
+    def test_dry_runs_leave_no_credentials(self):
+        for extra in ((), ('--local',)):
+            with self.subTest(extra=extra):
+                shutil.rmtree(self.out, ignore_errors=True)
+                self.assertEqual(self.run_main('--dry-run', *extra), 0)
+                self.assertFalse(self.credential.exists())
+                self.assertTrue((self.out / 'run.json').is_file())
+
+    def test_build_failure_after_credentials_are_written_removes_them(self):
+        def fail(*args):
+            self.assertTrue(self.credential.is_file())
+            raise OSError('job generation failed')
+        with mock.patch.object(compat_r4_gcp, 'job_script', side_effect=fail):
+            with self.assertRaisesRegex(OSError, 'job generation failed'):
+                self.run_main()
+        self.assertFalse(self.credential.exists())
+
+    def test_local_execution_exceptions_remove_credentials(self):
+        for error in (OSError('launch failed'), subprocess.TimeoutExpired('job', 1), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                shutil.rmtree(self.out, ignore_errors=True)
+                with mock.patch.object(subprocess, 'run', side_effect=error):
+                    with self.assertRaises(type(error)):
+                        self.run_main('--local')
+                self.assertFalse(self.credential.exists())
+
+    def test_local_collection_failure_removes_credentials(self):
+        with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
+            with self.assertRaises(FileNotFoundError):
+                self.run_main('--local')
+        self.assertFalse(self.credential.exists())
+
+    def test_collect_removes_credentials_left_by_an_interrupted_driver(self):
+        self.credential.parent.mkdir(parents=True)
+        self.credential.write_text('test-only')
+        (self.out / 'run.json').write_text('{}')
+        for error in (OSError('collection failed'), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                self.credential.write_text('test-only')
+                with mock.patch.object(sys, 'argv', ['driver', '--collect', str(self.out)]):
+                    with mock.patch.object(subprocess, 'run', side_effect=error):
+                        with self.assertRaises(type(error)):
+                            compat_r4_gcp.main()
+                self.assertFalse(self.credential.exists())
+
+    def test_driver_signals_remove_credentials(self):
+        driver = pathlib.Path(compat_r4_gcp.__file__)
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signum=signum):
+                shutil.rmtree(self.out, ignore_errors=True)
+                script = ('import os, sys\n'
+                          f'sys.path.insert(0, {str(driver.parent)!r})\n'
+                          'import compat_r4_gcp as driver\n'
+                          'driver.round_files.select = lambda *a: []\n'
+                          f'driver.job_script = lambda *a: os.kill(os.getpid(), {int(signum)})\n'
+                          f'sys.argv = {self.argv!r}\n'
+                          'sys.exit(driver.main())\n')
+                done = subprocess.run([sys.executable, '-I', '-c', script], capture_output=True, timeout=10)
+                self.assertNotEqual(done.returncode, 0)
+                self.assertFalse(self.credential.exists(), done.stderr)
 
 
 class Job(unittest.TestCase):
