@@ -13,13 +13,18 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # A group of the merge queue: the pull requests queued, applied to main
+  # (docs/design/ci-checks.md, "The merge queue").
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
 
 concurrency:
   # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
+  # main, manual runs and merge groups each get their own group, so none is
+  # dropped.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -123,7 +128,9 @@ jobs:
       - name: Every commit has a Signed-off-by line with its author's email
         # Runs even when a deny step failed, so both results show at once.
         # Commits already on main are skipped (docs/design/ci-checks.md,
-        # "DCO sign-off").
+        # "DCO sign-off"). Not in a merge group: the queue adds no commit of
+        # its own author, only the squash of a pull request whose commits
+        # this step passed (docs/design/ci-checks.md, "The merge queue").
         if: always() && github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
