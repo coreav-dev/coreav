@@ -8,7 +8,14 @@ pub fn output(
     input: Option<Vec<u8>>,
     limit: Duration,
 ) -> io::Result<Output> {
-    run(command, input, limit, Duration::from_secs(5))
+    let diagnostics = std::env::var_os("COREAV_TEST_DIAGNOSTICS").map(std::path::PathBuf::from);
+    run(
+        command,
+        input,
+        limit,
+        Duration::from_secs(5),
+        diagnostics.as_deref(),
+    )
 }
 
 fn read(mut pipe: impl Read + Send + 'static) -> Receiver<io::Result<Vec<u8>>> {
@@ -38,8 +45,10 @@ fn run(
     input: Option<Vec<u8>>,
     limit: Duration,
     grace: Duration,
+    diagnostics: Option<&std::path::Path>,
 ) -> io::Result<Output> {
-    let deadline = Instant::now() + limit;
+    let started = Instant::now();
+    let deadline = started + limit;
     command
         .stdin(if input.is_some() {
             Stdio::piped()
@@ -129,7 +138,7 @@ fn run(
             } else {
                 "command deadline exceeded"
             };
-            let snapshot = snapshot(pid, &pipes);
+            let snapshot = snapshot(pid, &pipes, started, limit, diagnostics);
             if status.is_none() {
                 coreav_worker::exec::kill_group(&child);
                 let _ = child.kill();
@@ -157,18 +166,111 @@ fn run(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn snapshot(pid: u32, _: &[String]) -> String {
+fn snapshot(
+    pid: u32,
+    _: &[String],
+    _: Instant,
+    _: Duration,
+    _: Option<&std::path::Path>,
+) -> String {
     format!("pid={pid}; detailed process, thread and pipe state requires Linux /proc")
 }
 
 #[cfg(target_os = "linux")]
-fn snapshot(root: u32, pipes: &[String]) -> String {
+fn snapshot(
+    root: u32,
+    pipes: &[String],
+    started: Instant,
+    limit: Duration,
+    diagnostics: Option<&std::path::Path>,
+) -> String {
+    let until = Instant::now() + Duration::from_secs(2);
+    let pipes = pipes.to_vec();
+    let diagnostics = diagnostics.map(std::path::Path::to_path_buf);
+    snapshot_until(until, move || {
+        let mut text = collect_snapshot(root, &pipes, started, limit, until);
+        if let Some(directory) = diagnostics
+            && let Err(error) = write_snapshot(&directory, root, &text)
+        {
+            use std::fmt::Write;
+            truncate_snapshot(&mut text, 32 * 1024 - 128);
+            let _ = writeln!(text, "diagnostics not written: {:?}", error.kind());
+        }
+        truncate_snapshot(&mut text, 32 * 1024);
+        text
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn snapshot_until(until: Instant, collect: impl FnOnce() -> String + Send + 'static) -> String {
+    let (send, receive) = mpsc::channel();
+    if let Err(error) = std::thread::Builder::new()
+        .name("coreav-test-snapshot".into())
+        .spawn(move || {
+            let _ = send.send(collect());
+        })
+    {
+        return format!("snapshot unavailable: {:?}", error.kind());
+    }
+    loop {
+        match receive.try_recv() {
+            Ok(text) => return text,
+            Err(mpsc::TryRecvError::Disconnected) => return "snapshot collector ended".into(),
+            Err(mpsc::TryRecvError::Empty) => {}
+        }
+        let remaining = until.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return "snapshot did not finish within its budget".into();
+        }
+        std::thread::sleep(remaining.min(Duration::from_millis(20)));
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn write_snapshot(directory: &std::path::Path, root: u32, text: &str) -> io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::create_dir_all(directory)?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(directory.join(format!("pid-{root}.txt")))?;
+    file.write_all(snapshot_prefix(text, 32 * 1024).as_bytes())
+}
+
+#[cfg(target_os = "linux")]
+fn truncate_snapshot(text: &mut String, limit: usize) {
+    let end = snapshot_prefix(text, limit).len();
+    text.truncate(end);
+}
+
+#[cfg(target_os = "linux")]
+fn snapshot_prefix(text: &str, limit: usize) -> &str {
+    let mut end = text.len().min(limit);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
+#[cfg(target_os = "linux")]
+fn collect_snapshot(
+    root: u32,
+    pipes: &[String],
+    started: Instant,
+    limit: Duration,
+    until: Instant,
+) -> String {
     use std::collections::HashSet;
     use std::fmt::Write;
     use std::path::Path;
 
-    let until = Instant::now() + Duration::from_secs(2);
-    let mut text = format!("process snapshot; root={root}; tracked_pipes={pipes:?}\n");
+    let mut text = format!(
+        "process snapshot; root={root}; elapsed_ms={}; limit_ms={}; tracked_pipes={pipes:?}\n",
+        started.elapsed().as_millis(),
+        limit.as_millis()
+    );
+    let root_exe = std::fs::read_link(format!("/proc/{root}/exe")).ok();
     let mut processes = Vec::new();
     if let Ok(entries) = std::fs::read_dir("/proc") {
         for entry in entries.flatten().take(4096) {
@@ -227,6 +329,9 @@ fn snapshot(root: u32, pipes: &[String]) -> String {
             continue;
         }
         shown += 1;
+        let same_exe = root_exe.as_ref().is_some_and(|root_exe| {
+            std::fs::read_link(path.join("exe")).as_ref().ok() == Some(root_exe)
+        });
         let _ = writeln!(
             text,
             "process pid={pid} stat={stat:?} holds_tracked_pipe={holds_pipe}"
@@ -248,6 +353,9 @@ fn snapshot(root: u32, pipes: &[String]) -> String {
                     "  thread {:?} stat={stat:?} wchan={wchan:?}",
                     entry.file_name()
                 );
+                if family.contains(&pid) {
+                    let _ = writeln!(text, "    {}", thread_wait(pid, &entry.path(), same_exe));
+                }
             }
         }
     }
@@ -255,14 +363,110 @@ fn snapshot(root: u32, pipes: &[String]) -> String {
         text,
         "snapshot limits: 2s, 4096 candidates, 64 processes, 256 scanned/64 listed fds, 32 threads/process, 32KiB"
     );
-    if text.len() > 32 * 1024 {
-        let mut end = 32 * 1024;
-        while !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        text.truncate(end);
-    }
+    truncate_snapshot(&mut text, 32 * 1024);
     text
+}
+
+#[cfg(target_os = "linux")]
+fn proc_text(path: &std::path::Path) -> io::Result<String> {
+    let mut text = String::new();
+    std::fs::File::open(path)?
+        .take(4096)
+        .read_to_string(&mut text)?;
+    Ok(text.trim().to_owned())
+}
+
+#[cfg(target_os = "linux")]
+fn thread_wait(pid: u32, task: &std::path::Path, same_exe: bool) -> String {
+    use std::fmt::Write;
+    let slack = proc_text(&task.join("timerslack_ns"))
+        .unwrap_or_else(|error| format!("unavailable: {:?}", error.kind()));
+    let mut text = format!("timerslack_ns={slack:?}");
+    let raw = match proc_text(&task.join("syscall")) {
+        Ok(raw) => raw,
+        Err(error) => {
+            let _ = write!(text, " syscall=unavailable({:?})", error.kind());
+            return text;
+        }
+    };
+    let mut fields = raw.split_whitespace();
+    let number = fields.next().and_then(|n| n.parse::<i64>().ok());
+    let _ = write!(text, " syscall={number:?}");
+    #[cfg(target_arch = "x86_64")]
+    if number == Some(202)
+        && let Some((operation, pointer)) = fields.next().and_then(|_| {
+            let operation = syscall_word(fields.next()?)?;
+            fields.next()?;
+            Some((operation, syscall_word(fields.next()?)?))
+        })
+    {
+        let _ = write!(
+            text,
+            " futex_op=0x{operation:x} timeout_set={}",
+            pointer != 0
+        );
+        if same_exe && pointer != 0 && matches!(operation & 0x7f, 0 | 9) {
+            match futex_expiry(pid, task, &raw, operation, pointer) {
+                Ok(expiry) => text.push_str(&expiry),
+                Err(error) => {
+                    let _ = write!(text, " futex_error={:?}", error.kind());
+                }
+            }
+        }
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    let _ = (pid, same_exe);
+    text
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn syscall_word(word: &str) -> Option<u64> {
+    match word.strip_prefix("0x") {
+        Some(hex) => u64::from_str_radix(hex, 16).ok(),
+        None => word.parse().ok(),
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn futex_expiry(
+    pid: u32,
+    task: &std::path::Path,
+    raw: &str,
+    operation: u64,
+    pointer: u64,
+) -> io::Result<String> {
+    use rustix::time::{ClockId, clock_gettime};
+    use std::os::unix::fs::FileExt;
+    let mut bytes = [0; 16];
+    std::fs::File::open(format!("/proc/{pid}/mem"))?.read_exact_at(&mut bytes, pointer)?;
+    if proc_text(&task.join("syscall"))? != raw {
+        return Ok(" stable=false".into());
+    }
+    let seconds = i64::from_ne_bytes(bytes[..8].try_into().unwrap());
+    let nanos = i64::from_ne_bytes(bytes[8..].try_into().unwrap());
+    if seconds < 0 || !(0..1_000_000_000).contains(&nanos) {
+        return Err(io::Error::from(io::ErrorKind::InvalidData));
+    }
+    let realtime = operation & 0x100 != 0;
+    let now = clock_gettime(if realtime {
+        ClockId::Realtime
+    } else {
+        ClockId::Monotonic
+    });
+    let value = i128::from(seconds) * 1_000_000_000 + i128::from(nanos);
+    let absolute = operation & 0x7f == 9;
+    let remaining = if absolute {
+        value - (i128::from(now.tv_sec) * 1_000_000_000 + i128::from(now.tv_nsec))
+    } else {
+        value
+    };
+    Ok(format!(
+        " stable=true clock={} absolute={absolute} timespec={seconds}.{nanos:09} now={}.{:09} remaining_ms={}",
+        if realtime { "REALTIME" } else { "MONOTONIC" },
+        now.tv_sec,
+        now.tv_nsec,
+        remaining / 1_000_000
+    ))
 }
 
 #[cfg(all(test, unix))]
@@ -318,6 +522,170 @@ mod tests {
         }
     }
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    #[ignore = "subprocess target for the futex snapshot test"]
+    fn timed_wait_target() {
+        if std::env::var_os("COREAV_TEST_WAIT_TARGET").is_none() {
+            return;
+        }
+        let (send, receive) = mpsc::channel::<()>();
+        let _ = receive.recv_timeout(Duration::from_secs(60));
+        drop(send);
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn a_timed_futex_records_its_expiry() {
+        let err = output(
+            Command::new(std::env::current_exe().unwrap())
+                .args(["--ignored", "--exact", "bounded::tests::timed_wait_target"])
+                .env("COREAV_TEST_WAIT_TARGET", "1"),
+            None,
+            Duration::from_secs(1),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        let text = err.to_string();
+        let line = text
+            .lines()
+            .find(|line| {
+                line.contains("futex_op=0x89")
+                    && line.contains("stable=true")
+                    && line.contains("clock=MONOTONIC")
+                    && line.contains("absolute=true")
+            })
+            .unwrap_or_else(|| panic!("no stable timed futex: {text}"));
+        let remaining = line
+            .split_whitespace()
+            .find_map(|field| field.strip_prefix("remaining_ms="))
+            .unwrap()
+            .parse::<i128>()
+            .unwrap();
+        assert!((1..=60_000).contains(&remaining), "{text}");
+        assert!(line.contains("timerslack_ns="), "{text}");
+        assert!(text.contains("limit_ms=1000"), "{text}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_timeout_writes_a_bounded_artifact() {
+        let dir =
+            std::env::temp_dir().join(format!("coreav-snapshot-artifact-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let err = run(
+            Command::new("/bin/sh")
+                .args(["-c", "sleep 30", "diagnostic-argument-sentinel"])
+                .env(
+                    "COREAV_TEST_CAPTURE_SENTINEL",
+                    "diagnostic-environment-sentinel",
+                ),
+            None,
+            Duration::from_secs(1),
+            Duration::from_secs(5),
+            Some(&dir),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        let files: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        assert_eq!(files.len(), 1);
+        let text = std::fs::read_to_string(files[0].as_ref().unwrap().path()).unwrap();
+        assert!(text.len() <= 32 * 1024);
+        assert!(text.contains("process snapshot"), "{text}");
+        assert!(text.contains("syscall=Some("), "{text}");
+        assert!(!text.contains("futex_op="), "{text}");
+        assert!(!text.contains("COREAV_TEST_DIAGNOSTICS"));
+        assert!(!text.contains("diagnostic-argument-sentinel"));
+        assert!(!text.contains("diagnostic-environment-sentinel"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_artifact_failure_preserves_the_timeout() {
+        let path =
+            std::env::temp_dir().join(format!("coreav-snapshot-file-{}", std::process::id()));
+        std::fs::write(&path, b"not a directory").unwrap();
+        let err = run(
+            Command::new("/bin/sh").args(["-c", "exec sleep 30"]),
+            None,
+            Duration::from_secs(1),
+            Duration::from_secs(5),
+            Some(&path),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        assert!(
+            err.to_string().contains("diagnostics not written:"),
+            "{err}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), b"not a directory");
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn successful_commands_write_no_artifact() {
+        let dir =
+            std::env::temp_dir().join(format!("coreav-snapshot-success-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let out = run(
+            Command::new("/bin/sh").args(["-c", "exit 0"]),
+            None,
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+            Some(&dir),
+        )
+        .unwrap();
+        assert!(out.status.success());
+        assert!(!dir.exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_blocked_snapshot_does_not_delay_cleanup() {
+        let (release, wait) = mpsc::channel();
+        let (done, finished) = mpsc::channel();
+        let start = Instant::now();
+        let text = snapshot_until(start + Duration::from_millis(50), move || {
+            wait.recv().unwrap();
+            done.send(()).unwrap();
+            String::new()
+        });
+        assert!(text.contains("snapshot did not finish within its budget"));
+        assert!(start.elapsed() < Duration::from_secs(5));
+        release.send(()).unwrap();
+        finished.recv_timeout(Duration::from_secs(5)).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn artifact_bytes_are_capped_and_never_overwritten() {
+        let dir = std::env::temp_dir().join(format!("coreav-snapshot-cap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let text = "x".repeat(32 * 1024 - 1) + &"é".repeat(128);
+        write_snapshot(&dir, 7, &text).unwrap();
+        let saved = std::fs::read_to_string(dir.join("pid-7.txt")).unwrap();
+        assert_eq!(saved.len(), 32 * 1024 - 1);
+        let error = write_snapshot(&dir, 7, "replacement").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            std::fs::read_to_string(dir.join("pid-7.txt")).unwrap(),
+            saved
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn syscall_words_reject_invalid_addresses() {
+        assert_eq!(syscall_word("0x89"), Some(137));
+        assert_eq!(syscall_word("202"), Some(202));
+        for word in ["running", "-1", "0x", "0x10000000000000000"] {
+            assert_eq!(syscall_word(word), None);
+        }
+    }
+
     #[cfg(target_os = "linux")]
     #[test]
     fn a_pipe_holder_in_the_group_ends_with_the_child() {
@@ -357,6 +725,7 @@ mod tests {
             None,
             Duration::from_secs(10),
             Duration::from_millis(200),
+            None,
         )
         .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::TimedOut);

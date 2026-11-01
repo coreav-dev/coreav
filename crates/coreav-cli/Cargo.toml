@@ -101,5 +101,8 @@ rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 # Compresses movie boxes for the compressed-movie (`cmov`) regressions.
 miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "time"] }
+
 [lints]
 workspace = true
