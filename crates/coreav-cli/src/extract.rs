@@ -5,17 +5,18 @@
 use crate::native::time;
 use crate::output::WriteFailure;
 use coreav_isobmff::{Allowlist, BufferedSource, FileSource, Limits, Rational, SliceSource};
-use coreav_isobmff_write::{Summary, TrackChoice, extract_audio};
+use coreav_isobmff_write::{HeaderMetadata, Summary, TrackChoice, extract_audio};
 use serde_json::{Value, json};
 use std::io::Write;
 use std::path::Path;
 
 /// Extracts the chosen track of the file at `path` into `out` with the
-/// library defaults.
+/// library defaults, carrying the header metadata `metadata` says.
 pub fn run<W: Write>(
     path: &Path,
     choice: TrackChoice,
     allowlist: &Allowlist,
+    metadata: HeaderMetadata,
     out: W,
 ) -> Result<Summary, WriteFailure> {
     let source = BufferedSource::new(FileSource::open(path)?);
@@ -24,6 +25,7 @@ pub fn run<W: Write>(
         &Limits::default(),
         allowlist,
         choice,
+        metadata,
         out,
     )?)
 }
@@ -51,6 +53,7 @@ pub fn run_source<S: coreav_isobmff::Source, W: Write>(
         &Limits::default(),
         allowlist,
         choice,
+        HeaderMetadata::Copy,
         out,
     )?)
 }
