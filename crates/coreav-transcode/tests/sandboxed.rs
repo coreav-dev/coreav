@@ -110,16 +110,27 @@ fn real_encoders() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
-/// A script that stands in for the encoder.
+/// A script that stands in for the encoder. A child process writes it, so
+/// this process never holds it open for writing: a child forked meanwhile
+/// would inherit that descriptor until its exec, and running the script
+/// then fails with ETXTBSY.
 fn script(name: &str, body: &str) -> PathBuf {
+    use std::io::Write;
     let dir = scratch("hostile");
     let path = dir.join(format!("{name}.sh"));
-    std::fs::write(&path, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    let mut sh = std::process::Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(&path)
+        .env("PATH", "/usr/bin:/bin")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    sh.stdin
+        .take()
+        .unwrap()
+        .write_all(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").as_bytes())
+        .unwrap();
+    assert!(sh.wait().unwrap().success());
     path
 }
 
@@ -150,7 +161,7 @@ fn run(program: &Path, frames: usize, limit: usize) -> (Result<usize, Error>, Du
             Collect::limited(limit),
         )?;
         for _ in 0..frames {
-            encoder.send_frame(&frame)?;
+            encoder.send_frame(frame.clone())?;
         }
         encoder.finish().map(|sink| sink.bytes.len())
     })();
@@ -319,8 +330,8 @@ fn drop_returns_at_once() {
     .unwrap();
     let frame = moving(640, 480, format, 0);
     // Two frames fit the queue; the writer is blocked on the pipe.
-    encoder.send_frame(&frame).unwrap();
-    encoder.send_frame(&frame).unwrap();
+    encoder.send_frame(frame.clone()).unwrap();
+    encoder.send_frame(frame).unwrap();
     let start = Instant::now();
     drop(encoder);
     assert!(

@@ -21,4 +21,4 @@ mod decoder;
 mod ffi;
 
 #[cfg(feature = "libvpx")]
-pub use decoder::{LibvpxBackend, LibvpxDecoder, LibvpxOptions};
+pub use decoder::{LentFrame, LibvpxBackend, LibvpxDecoder, LibvpxOptions};

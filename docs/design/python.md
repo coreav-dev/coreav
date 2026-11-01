@@ -12,7 +12,7 @@ a `dict`.
 
 | Function | Command | Returns |
 |---|---|---|
-| `probe(source, *, allow=None, strict=False, scan_fragments=False, scan_frame_sizes=False)` | `coreav probe` | `coreav.probe/1`, `coreav.probe-matroska/1` or `coreav.probe-mpegts/1` |
+| `probe(source, *, allow=None, strict=False, scan_fragments=False, scan_frame_sizes=False)` | `coreav probe` | `coreav.probe/1`, `coreav.probe-matroska/1` or `coreav.probe-mpegts/2` |
 | `check(source, policy)` | `coreav check --policy` | `coreav.verdict/1`; `policy` is a `coreav.policy/1` `dict` or JSON text |
 | `clip(source, output=None, *, start, end=None, video=None, audio="first", allow=None, strict=False, force=False)` | `coreav clip` | `coreav.clip/1` |
 | `extract_audio(source, output=None, *, stream=None, allow=None, strict=False, force=False)` | `coreav extract-audio` | `coreav.extract-audio/1` |

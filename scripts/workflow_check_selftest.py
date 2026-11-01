@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Tests of the pin check in scripts/workflow_check.py: the step forms
-review found passing or failing wrongly, on fixtures and on a copy of this
-repository's workflows."""
+"""Tests of scripts/workflow_check.py: action pins, required triggers and
+concurrency, on fixtures and on a copy of this repository's workflows."""
 import importlib.util
 import pathlib
 import re
@@ -228,9 +227,82 @@ class Repository(unittest.TestCase):
                    '(`types: [checks_requested]`), so the merge queue waits for the check until it times out '
                    '(docs/design/ci-checks.md, "The merge queue")')
         self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n', ''), [missing])
-        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'), [missing])
+        self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', 'types: [destroyed]'),
+                         ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                          'use `types: [checks_requested]`'])
         self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n',
                                    '  merge_group:\n'), [])
+
+    def test_the_activity_type_is_matched_as_a_whole_item(self):
+        invalid = 'deny.yml: `merge_group:` types must include `checks_requested`'
+        for types in ('[not_checks_requested]', '[checks_requested_later]', '[destroyed] # checks_requested',
+                      '["destroyed, checks_requested"]'):
+            with self.subTest(types=types):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}')
+                self.assertEqual(len(found), 1, found)
+                self.assertTrue(found[0].startswith(invalid), found)
+        for types in ('[destroyed, checks_requested]', "['checks_requested']", '[checks_requested] # queue',
+                      'checks_requested', '\n      - checks_requested'):
+            with self.subTest(types=types):
+                self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}'), [])
+
+    def test_a_merge_group_branch_filter_is_reported(self):
+        filtered = ('deny.yml: required `deny`, but the `merge_group:` trigger carries a branch filter, so a '
+                    'group the filter leaves out never reports the check: remove it '
+                    '(docs/design/ci-checks.md, "The merge queue")')
+        for key in ('branches: [release]', 'branches: [main]', 'branches-ignore: [main]'):
+            with self.subTest(key=key):
+                self.assertEqual(self.edit('deny.yml', '    types: [checks_requested]\n',
+                                           f'    types: [checks_requested]\n    {key}\n'), [filtered])
+        # A branch filter on another trigger is not the queue's concern.
+        self.assertEqual(self.edit('deny.yml', 'push:\n    branches: [main]', 'push:\n    branches: [release]'), [])
+
+    def test_a_required_workflow_without_its_workflow_group_is_reported(self):
+        path = self.root / '.github' / 'workflows' / 'npm.yml'
+        text = path.read_text()
+        bare = re.sub(r'\nconcurrency:\n(?:  .*\n)+', '\n', text)
+        self.assertNotIn('\nconcurrency:', bare)
+        path.write_text(bare)
+        found = check.check(self.root)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith('npm.yml: required `npm-report`, so give the workflow exactly '
+                                            '`concurrency:'), found)
+
+    def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
+        for key in ('"types"', "'types'", 'types ', '"typ\\u0065s"'):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'{key}: [destroyed]')
+                self.assertEqual(found, ['deny.yml: `merge_group:` types must include `checks_requested`: '
+                                         'use `types: [checks_requested]`'])
+        for key in ('"branches"', "'branches'", 'branches ', '"branch\\u0065s"',
+                    '"branches-ignore"', 'branches-ignore '):
+            with self.subTest(key=key):
+                found = self.edit('deny.yml', '    types: [checks_requested]\n',
+                                  f'    types: [checks_requested]\n    {key}: [release]\n')
+                self.assertTrue(any('branch filter' in p for p in found), found)
+
+    def test_yaml_trigger_mappings_are_read_regardless_of_layout(self):
+        for event in ('"merge_group"', 'merge_group ', '"merge_\\u0067roup"'):
+            for options in ('{types: [destroyed]}', '{types: [checks_requested], "branches" : [release]}'):
+                with self.subTest(event=event, options=options):
+                    found = self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                      f'  {event}: {options}')
+                    self.assertTrue(found, found)
+        self.assertEqual(self.edit('deny.yml', 'on:\n', '"on" :\n'), [])
+        self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]',
+                                   '  "merge_group" : {"types" : [checks_requested]}'), [])
+
+    def test_unreadable_or_ambiguous_trigger_options_fail_closed(self):
+        for replacement in ('    types: [checks_requested]\n    "types": [destroyed]',
+                            '    <<: {branches: [release]}\n    types: [checks_requested]',
+                            '    types: &types [checks_requested]\n    branches: *types',
+                            '    types: !!str checks_requested',
+                            '    ? [types]\n    : [destroyed]'):
+            with self.subTest(replacement=replacement):
+                found = self.edit('deny.yml', '    types: [checks_requested]', replacement)
+                self.assertTrue(any('not readable as YAML' in p for p in found), found)
+        found = self.edit('deny.yml', 'on:\n', '<<: {on: {merge_group: {branches: [release]}}}\non:\n')
+        self.assertTrue(any('expand YAML merge keys' in p for p in found), found)
 
     def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
         group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
@@ -274,16 +346,70 @@ class Repository(unittest.TestCase):
                    'does not start it: add it to the `paths` of `pull_request`')
         for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
                       ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -e -- -x scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "bash -n scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: |', "    echo done # it's scripts/install-oracle-ffmpeg.sh /opt/bin"],
+                      ["- run: bash -c 'set -e; bash -n scripts/install-oracle-ffmpeg.sh'"],
+                      ['- run: echo "scripts/install-oracle-ffmpeg.sh; x"'],
+                      ['- run: echo "oops scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: "echo scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -O scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: sh -s scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -n +o pipefail scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --rcfile scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --version scripts/install-oracle-ffmpeg.sh'],
                       ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [])
         for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
                       ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e -- scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: "bash -e scripts/install-oracle-ffmpeg.sh /opt/bin"'],
+                      ["- run: 'bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: "bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\'"'],
+                      ['- run: |', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: >', '    bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -c \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ['- run: sh -c "./scripts/install-oracle-ffmpeg.sh"'],
+                      ['- run: bash -c -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -cs \'scripts/install-oracle-ffmpeg.sh /opt/bin\''],
+                      ["- run: bash -c 'set -e; scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ["- run: bash -c 'set -e; bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'"],
+                      ['- run: cd /tmp && scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', "    scripts/install-oracle-ffmpeg.sh /opt/bin # don't skip it"],
+                      ['- run: echo a#b; scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -n +n scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -o noexec +o noexec scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash +O extglob scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash --rcfile /dev/null scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [missing])
+
+    def test_trigger_filters_are_read_from_the_yaml_nodes(self):
+        text = ('on:\n  push:\n    paths:\n      # a note\n      - "scripts/install-oracle-ffmpeg.sh"\n'
+                "      - 'scripts/oracle-ffmpeg.env'\n  pull_request:\n    paths-ignore: [ 'docs/**',\n"
+                '      "x" ]\n    paths:\n      - *pins\njobs: {}\n')
+        self.assertEqual(check.trigger_filters(text.replace('      - *pins\n', '      - y\n')), [
+            ('push', 'paths', ['scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env']),
+            ('pull_request', 'paths', ['y']),
+            ('pull_request', 'paths-ignore', ['docs/**', 'x'])])
+        self.assertIsInstance(check.trigger_filters(text), str)
+        self.assertEqual(check.trigger_filters('on:\n  push:\n    paths: scripts/x\njobs: {}\n'), [('push', 'paths', None)])
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

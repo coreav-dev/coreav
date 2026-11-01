@@ -106,19 +106,20 @@ def make_sources(ffmpeg, work, duration=DURATION):
     return paths
 
 
-def probe_audio(ffprobe, path):
-    done = run([ffprobe, '-v', 'error', '-select_streams', 'a', '-show_entries',
+def probe_audio(ffprobe, path, select='a'):
+    done = run([ffprobe, '-v', 'error', '-select_streams', select, '-show_entries',
                 'stream=codec_name,profile,sample_rate,start_pts,duration_ts,initial_padding,bit_rate,channels',
                 '-of', 'json', path])
     streams = json.loads(done.stdout or b'{}').get('streams') or [{}]
     return streams[0]
 
 
-def pcm(ffmpeg, path):
-    """The PCM O4 compares: the audio of `path` decoded by FFmpeg to 48 kHz
-    float, or None when FFmpeg fails or gives no samples."""
-    done = run([ffmpeg, '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, '-i', path, '-map', '0:a',
-                '-ar', '48000', '-f', 'f32le', '-'])
+def pcm(ffmpeg, path, select='a', before=(), after=()):
+    """The PCM O4 compares: the audio of `path` (the streams `select` names)
+    decoded by FFmpeg to 48 kHz float, or None when FFmpeg fails or gives no
+    samples. `before` and `after` are input and output options."""
+    done = run([ffmpeg, '-nostdin', '-v', 'error', *before, *AUDIO_DECODE_INPUT, '-i', path, *after,
+                '-map', f'0:{select}', '-ar', '48000', '-f', 'f32le', '-'])
     return samples(done.returncode, done.stdout)
 
 

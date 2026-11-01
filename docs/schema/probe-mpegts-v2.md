@@ -1,11 +1,19 @@
-# `coreav probe` output for MPEG transport streams, schema `coreav.probe-mpegts/1`
+# `coreav probe` output for MPEG transport streams, schema `coreav.probe-mpegts/2`
 
 This is the reference for the output of `coreav probe` on an MPEG transport
 stream (`docs/design/mpegts.md`). The machine-readable twin is
-[`probe-mpegts-v1.schema.json`](probe-mpegts-v1.schema.json) (JSON Schema
+[`probe-mpegts-v2.schema.json`](probe-mpegts-v2.schema.json) (JSON Schema
 2020-12); tests validate every output against it. ISO base media files print
 [`coreav.probe/1`](probe-v1.md) and Matroska and WebM files
 [`coreav.probe-matroska/1`](probe-matroska-v1.md).
+
+`/2` replaces `coreav.probe-mpegts/1`, whose keys and types it keeps. The
+order of `streams` changed meaning: `/1` listed each Program Map Table's
+streams in table order, the tables in the order they were read; `/2` lists
+them in the order `ffprobe` numbers them (below). For a file of several
+programs a reader of `/1` that took a stream by its position would now
+find another PID, so the version changed (`probe-v1.md`, "Adding a key
+keeps `/1`"). A file of one program gives the same document in both.
 
 A transport stream has no header to recognise, so the command offers a file
 to this reader only once the Matroska reader (EBML header `1A 45 DF A3`) and
@@ -30,7 +38,7 @@ may be negative or above 2^33 (`docs/design/mpegts.md`, "Timestamps").
 
 | Key | Type | Meaning |
 |---|---|---|
-| `schema` | string | Always `coreav.probe-mpegts/1`. |
+| `schema` | string | Always `coreav.probe-mpegts/2`. |
 | `file.size` | integer | File size in bytes. |
 | `container.packet_size` | integer | Bytes a stored packet takes: `188`, `192` (a BDAV arrival timestamp before each packet) or `204` (188 plus 16 parity bytes). |
 | `container.first_packet` | integer | Offset of the first stored packet; non-zero when the stream starts after other bytes. |
@@ -39,7 +47,7 @@ may be negative or above 2^33 (`docs/design/mpegts.md`, "Timestamps").
 | `container.programs` | array | Programs in Program Association Table order: `number` (`program_number`), `pmt_pid`, `pcr_pid`, `stream_pids` (the PIDs its Program Map Table lists, in its order). |
 | `start` | time or `null` | The earliest stream start. |
 | `duration` | time or `null` | From the earliest stream start to the latest stream end; for a file with more than one program, the longest such span within one program, because each program keeps a system time base of its own and a span across them means nothing. `null` when no stream's timing is known. |
-| `streams` | array of stream | Streams in the order they are read: the elementary streams of each Program Map Table in the order that table lists them, the tables in the order they are read, the Event Information Table where it is first read, and last the PIDs that carry PES packets no table declares (`epg`, which is not an elementary stream but which `ffprobe` lists as a data stream, so that the two readers agree on what a broadcast capture holds). Dropped streams are left out; a PID that two programs share is listed once; `pmt_index` keeps each stream's place in its own table. |
+| `streams` | array of stream | Streams in the order `ffprobe` numbers them: first every stream a table has named by the time the file completes its first Program Map Table after its first PAT (that table's elementary streams, and an Event Information Table read before it), in the order the file shows them, a table's streams in the order it lists them; then every other stream in the order the file first shows it from its start, a table that names it or a PES packet of it that is not padding, the order the tables list them breaking ties. The others are the elementary streams of the other tables, the Event Information Table, and the PIDs that carry PES packets no table declares (`epg`, which is not an elementary stream but which `ffprobe` lists as a data stream, so that the two readers agree on what a broadcast capture holds). Dropped streams are left out; a PID that two programs share is listed once; `pmt_index` keeps each stream's place in its own table. |
 | `dropped_streams` | array | Streams left out because their codec is not allowed: `stream_index`, `pid`, `stream_type`, `codec`, `reason` (`codec_not_allowed`). By default none: the reader keeps every codec it names, because a transport stream's duration and stream list are derived from its streams. `--allow` narrows the list; `--strict` rejects the file instead. |
 | `warnings` | array of strings | File-level notes: lost sync, a transport error indicator, a continuity gap, a discarded duplicate packet, a skipped section or PES packet, a Program Map Table that changed version, scrambled packets, a file that ends inside a PES packet, and a packet listing that stopped. One copy of each, up to 256. The probe reads the head and the tail of the file, so without `--scan-frame-sizes` it reports only what those hold; with it, the listing reads the whole file and its own notes join these. |
 
@@ -51,7 +59,7 @@ may be negative or above 2^33 (`docs/design/mpegts.md`, "Timestamps").
 | `stream_index` | integer | Position among every stream the tables name, dropped ones included (`ffprobe`'s `index`). |
 | `pid` | integer | The PID its packets carry. |
 | `programs` | array of integers | The `program_number`s whose tables list it. |
-| `pmt_index` | integer or `null` | Its place in the elementary stream loop of the first Program Map Table that declared it, so that the table's own order is in the document whatever order `streams` is in; `null` for a stream no table declares, that is, the Event Information Table. |
+| `pmt_index` | integer or `null` | Its place in the elementary stream loop of the first Program Map Table that declared it, so that the table's own order is in the document, which `streams` follows only for the first table; `null` for a stream no table declares, that is, the Event Information Table. |
 | `stream_type` | integer | `stream_type` from the Program Map Table (ISO/IEC 13818-1 table 2-34). |
 | `codec` | string | CoreAV's codec name, which `--allow` takes: `h264`, `hevc`, `vvc`, `mpeg1video`, `mpeg2video`, `mpeg4`, `aac`, `aac_latm`, `mpeg_audio`, `ac3`, `eac3`, `dts`, `bluray_pcm`, `opus`, `scte35`, `id3`, `dvb_subtitle`, `dvb_teletext`, `pgs`, `arib_caption`, `epg`; and `other` for a stream whose type and descriptors name no codec this reader knows, which `--allow` can neither name nor drop. The stream type, refined by the registration and DVB descriptors and, for a private stream no descriptor names, by its first PES packet. The sequence header tells MPEG-1 from MPEG-2 video, which the stream type gets wrong, so a stream dropped by `--allow` before its header is read is named by its type. |
 | `kind` | string | `video`, `audio`, `subtitle` or `data`. |
@@ -86,24 +94,16 @@ native probe schema.
 
 ### Stream order, and `-map` for a file of several programs
 
-The native probe streams are in the order above: each Program Map
-Table's elementary streams in the order that table lists them, the tables
-in the order they are read, and the Event Information Table where its
-first section is read. For a file with one program that is `ffprobe`'s
-order too, so `index` is `ffprobe`'s index and `ffmpeg -map 0:N` names the
-same stream on both sides.
-
-For a file with **more than one program** it is not. ISO/IEC 13818-1 2.4.4
+The native probe and `coreav ffprobe` streams follow the order above, in which
+`ffprobe` numbers them, so `stream_index` (and `index` when no stream is
+dropped) is `ffprobe`'s index and `ffmpeg -map 0:N` names the same stream
+on both sides, for a file of several programs too. ISO/IEC 13818-1 2.4.4
 makes a transport stream a set of programs, not a list of streams, and
-gives no order for them; `ffprobe` lists the streams of the first Program
-Map Table completed after the PAT in table order and the others where the
-file first shows them, a table or a PES packet that is not padding, so a stream's index
-differs between the two readers. Neither order is wrong, and the
-difference is the documented divergence KD-TS-STREAM-ORDER. **A `-map 0:N`
-written against `ffprobe`'s output therefore names a different stream in
-CoreAV's, and the other way round**; `-map p:<program>:<index>`, or a
-stream's `pid`, names the same stream on both sides. The same holds for
-`nb_streams` ordering in any script that reads `index` positionally.
+gives no order for them, so this order is a reader's choice; it is derived
+from the file's bytes alone: which Program Map Table the file completes
+first after its PAT, and where each other stream first shows itself.
+`pmt_index` keeps each table's own order, and `container.programs` each
+program's streams in it.
 
 ## Errors
 

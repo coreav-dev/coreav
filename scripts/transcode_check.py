@@ -599,7 +599,10 @@ def baseline_layout(audio):
 
 
 class Source:
-    """The source facts every output is compared with, read once per input."""
+    """The source facts every output is compared with, read once per input.
+    `kinds` are the stream kinds of `coreav remux IN` whose packets are read."""
+
+    kinds = ('audio',)
 
     def __init__(self, args, path):
         self.args, self.path = args, path
@@ -650,7 +653,7 @@ class Source:
                     r, summary = jrun([self.args.coreav, 'remux', '--streams', str(a), self.path, out, '--force'])
                     if r.returncode == 0 and summary:
                         for i, s in enumerate(summary.get('streams', [])):
-                            if s.get('kind') == 'audio':
+                            if s.get('kind') in self.kinds:
                                 self._remux[s['stream_index']] = packets(self.args.ffprobe, out, str(i))
                     elif not carried_none(error_of(r)):
                         self._remux = f'coreav remux --streams {a} failed: {json.dumps(error_of(r))[:300]}'
@@ -662,7 +665,7 @@ class Source:
             else:
                 self._remux = {}
                 for i, s in enumerate(summary.get('streams', [])):
-                    if s.get('kind') == 'audio':
+                    if s.get('kind') in self.kinds:
                         self._remux[s['stream_index']] = packets(self.args.ffprobe, out, str(i))
                 self.remux_audio = sorted(self._remux)
             if out.exists():
@@ -765,10 +768,12 @@ def streams_read(ostreams, layout, audio):
                     for a in layout['audio']))
 
 
-def judge_output(args, src, out, layout, video_index, audio_indices, tmp, expected_audio=None):
+def judge_output(args, src, out, layout, video_index, audio_indices, tmp, expected_audio=None, extra_audio=0):
     """B1 to B3 of one output file, and what B4 needs of it. `layout` places the written streams in the output
     (output_layout, baseline_layout); video_index and audio_indices are the source streams they come from.
-    `expected_audio`: the source audio streams B3 expects written, by default those `coreav remux IN` keeps."""
+    `expected_audio`: the source audio streams B3 expects written, by default those `coreav remux IN` keeps.
+    `extra_audio`: the audio streams written beside audio_indices that are not their packets (encoded, say), which B1
+    counts and B3 leaves to the caller."""
     res = {'layout': layout}
     vi = layout['video']
     # B1
@@ -780,7 +785,7 @@ def judge_output(args, src, out, layout, video_index, audio_indices, tmp, expect
     ostreams = (d or {}).get('streams', [])
     kinds = [s.get('codec_type') for s in ostreams]
     ov = next((s for s in ostreams if s.get('index') == vi), {})
-    probed = r2.returncode == 0 and streams_read(ostreams, layout, len(audio_indices))
+    probed = r2.returncode == 0 and streams_read(ostreams, layout, len(audio_indices) + extra_audio)
     res['B1'] = {'ok': clean and probed, 'decode_clean': clean,
                  'decode_messages': r.stderr.decode(errors='replace')[-300:], 'ffprobe_ok': probed, 'streams': kinds}
     res['video'] = {k: ov.get(k) for k in ('codec_name', 'profile', 'width', 'height', 'pix_fmt', 'time_base')}

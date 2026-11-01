@@ -62,7 +62,8 @@ pub struct Audio {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stream {
     /// Its place among every stream the tables name, dropped ones
-    /// included: the index `ffprobe` gives it.
+    /// included, in the order `ffprobe` numbers them
+    /// ([`TransportStream::streams`]): the index `ffprobe` gives it.
     pub stream_index: usize,
     /// The PID.
     pub pid: u16,
@@ -171,7 +172,14 @@ pub struct TransportStream {
     pub services_first: bool,
     /// Programs, in PAT order.
     pub programs: Vec<Program>,
-    /// Kept streams, in the order the PMTs list them.
+    /// Kept streams, in the order `ffprobe` numbers them: first those a
+    /// table has named by the time the file completes its first Program
+    /// Map Table after its first PAT (that table's, and an Event
+    /// Information Table read before it), then the others, each group in
+    /// the order the file shows them from its start
+    /// ([`Stream::found_at`]), table order breaking ties. ISO/IEC 13818-1 2.4.4 gives the streams of a transport stream
+    /// no order of their own; this is the one `ffprobe`'s `index` and
+    /// `ffmpeg`'s `-map 0:N` name them by.
     pub streams: Vec<Stream>,
     /// Streams the allowlist left out. A stream whose codec this crate
     /// cannot name is never one of them: it is listed in `streams` with
@@ -191,23 +199,6 @@ pub struct TransportStream {
 }
 
 impl TransportStream {
-    /// The positions in `streams` in the order `ffprobe` numbers the
-    /// streams: first those of the first Program Map Table it reads, then
-    /// the others in the order the file shows them from its start
-    /// ([`Stream::found_at`]); the order of `streams` breaks ties
-    /// (KD-TS-STREAM-ORDER).
-    pub fn listing_order(&self) -> Vec<usize> {
-        let mut order: Vec<usize> = (0..self.streams.len()).collect();
-        order.sort_by_key(|&i| {
-            self.streams
-                .get(i)
-                .map_or((true, u64::MAX, usize::MAX), |st| {
-                    (!st.with_first_table, st.found_at, st.stream_index)
-                })
-        });
-        order
-    }
-
     /// The earliest start of a stream (90 kHz).
     pub fn start(&self) -> Option<i64> {
         self.streams.iter().filter_map(|s| s.start).min()
@@ -940,10 +931,25 @@ pub fn probe<S: Source>(
         .min()
         .unwrap_or(u64::MAX)
     };
+    // The number `ffprobe` gives each stream the tables name
+    // ([`TransportStream::streams`]).
+    let mut listing: Vec<usize> = (0..tail.streams.len()).collect();
+    listing.sort_by_key(|&i| {
+        tail.streams
+            .get(i)
+            .map_or((true, u64::MAX, i), |e| (!with_first_table(e), found(e), i))
+    });
+    let mut numbers = vec![0; tail.streams.len()];
+    for (number, &i) in listing.iter().enumerate() {
+        if let Some(slot) = numbers.get_mut(i) {
+            *slot = number;
+        }
+    }
     let mut streams = Vec::new();
     let mut dropped = Vec::new();
     // The head's streams, then those the tail's tables added.
-    for (index, entry) in tail.streams.iter().enumerate() {
+    for (table_index, entry) in tail.streams.iter().enumerate() {
+        let index = numbers.get(table_index).copied().unwrap_or(table_index);
         if !entry.kept {
             if allowlist.is_strict() {
                 return Err(Error::CodecNotAllowed {
@@ -960,7 +966,7 @@ pub fn probe<S: Source>(
             });
             continue;
         }
-        let learn = learnt.get(index);
+        let learn = learnt.get(table_index);
         let language = entry
             .descriptors
             .iter()
@@ -1050,12 +1056,14 @@ pub fn probe<S: Source>(
             },
             mpeg2_profile: learn.and_then(|l| l.mpeg2_profile),
             start,
-            end: ends.get(index).copied().flatten(),
-            last_pts: lasts.get(index).copied().flatten(),
+            end: ends.get(table_index).copied().flatten(),
+            last_pts: lasts.get(table_index).copied().flatten(),
             found_at: found(entry),
             with_first_table: with_first_table(entry),
         });
     }
+    streams.sort_by_key(|s| s.stream_index);
+    dropped.sort_by_key(|d| d.stream_index);
     let programs = tail
         .programs
         .iter()

@@ -26,7 +26,7 @@ use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, t
 use crate::tables::Tables;
 use crate::{
     AudioChoice, ClipTrack, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch,
+    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch, Placement,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -160,7 +160,7 @@ pub fn join_mp4<S: Source, W: Write>(
 
     // Where each input goes.
     let tm = ta.map_or(tv, |ta| movie_timescale(tv, ta));
-    let layout = place(&spans, tv, ta).map_err(JoinError::Output)?;
+    let layout = place(&spans, tv, ta, &options.placement).map_err(JoinError::Output)?;
 
     // Listing 2: the output tables.
     let mut video_tables = Tables::new(tv, limits.max_table_bytes);
@@ -222,6 +222,7 @@ pub fn join_mp4<S: Source, W: Write>(
     let video_duration = track_duration(&video_edits);
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
     let mut tracks = vec![TrackBox {
+        handler_name: None,
         track_id: VIDEO_ID,
         header: TrackFlags::DEFAULT,
         media: Media::Video {
@@ -229,7 +230,9 @@ pub fn join_mp4<S: Source, W: Write>(
             size: first.video.presentation_size,
         },
         created: first.video.creation_time,
+        modified: None,
         media_created: first.video.media_creation_time,
+        media_modified: None,
         language: language(first.video.language),
         media_timescale: tv,
         media_duration: video_media,
@@ -273,11 +276,14 @@ pub fn join_mp4<S: Source, W: Write>(
         audio_edit_count = audio_edits.len();
         movie_duration = movie_duration.max(duration);
         tracks.push(TrackBox {
+            handler_name: None,
             track_id: AUDIO_ID,
             header: TrackFlags::DEFAULT,
             media: Media::Audio,
             created: a.track.creation_time,
+            modified: None,
             media_created: a.track.media_creation_time,
+            media_modified: None,
             language: language(a.track.language),
             media_timescale: ta,
             media_duration: media,
@@ -301,6 +307,7 @@ pub fn join_mp4<S: Source, W: Write>(
         &MovieBox {
             timescale: tm,
             created: first_movie.creation_time,
+            modified: None,
             duration: movie_duration,
             extra: Vec::new(),
         },
@@ -1045,8 +1052,23 @@ struct Layout {
 /// video ends. Decode times follow one another; a video sample presented
 /// past the next input's first media time extends the input's last decode
 /// duration.
-fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error> {
+fn place(
+    spans: &[Spans<'_>],
+    tv: u32,
+    ta: Option<u32>,
+    placement: &Placement,
+) -> Result<Layout, Error> {
     let seconds = |ticks: Rational, timescale: u32| scale(ticks, 1, timescale);
+    if let Placement::At(given) = placement {
+        if given.len() != spans.len() {
+            return Err(unsupported(
+                "a placement that does not name every input once",
+            ));
+        }
+        if given.first().is_none_or(|first| first.num != 0) {
+            return Err(unsupported("a placement whose first input is not at 0"));
+        }
+    }
     let mut inputs = Vec::new();
     let mut video = Vec::new();
     let mut audio = Vec::new();
@@ -1055,22 +1077,36 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
     let mut next_start = int(0);
     for (index, span) in spans.iter().enumerate() {
         let video_start = seconds(span.video.start, tv)?;
-        // Where the input starts: its video, or its audio when that starts
-        // earlier, moved back by whole video ticks so that the video stays
-        // exact (the audio, rounded to its own ticks anyway, then starts
-        // less than a video tick after it).
-        let origin = if index == 0 {
-            int(0)
-        } else {
-            match (span.audio.as_ref().and_then(|a| a.presented), ta) {
-                (Some((start, _)), Some(ta)) if lt(seconds(start, ta)?, video_start)? => {
-                    let lead = scale(sub(video_start, seconds(start, ta)?)?, tv, 1)?;
-                    sub(video_start, seconds(Rational::from_int(ceil(lead)?), tv)?)?
+        let offset = match placement {
+            Placement::At(given) => {
+                let at = *given.get(index).ok_or_else(overflow)?;
+                let offset = seconds(Rational::from_int(round(scale(at, tv, 1)?)), tv)?;
+                if index > 0 && lt(add(offset, video_start)?, next_start)? {
+                    return Err(unsupported(
+                        "an input placed before the previous input's video ends",
+                    ));
                 }
-                _ => video_start,
+                offset
+            }
+            Placement::AfterVideo => {
+                // Where the input starts: its video, or its audio when that
+                // starts earlier, moved back by whole video ticks so that
+                // the video stays exact (the audio, rounded to its own ticks
+                // anyway, then starts less than a video tick after it).
+                let origin = if index == 0 {
+                    int(0)
+                } else {
+                    match (span.audio.as_ref().and_then(|a| a.presented), ta) {
+                        (Some((start, _)), Some(ta)) if lt(seconds(start, ta)?, video_start)? => {
+                            let lead = scale(sub(video_start, seconds(start, ta)?)?, tv, 1)?;
+                            sub(video_start, seconds(Rational::from_int(ceil(lead)?), tv)?)?
+                        }
+                        _ => video_start,
+                    }
+                };
+                sub(next_start, origin)?
             }
         };
-        let offset = sub(next_start, origin)?;
         next_start = add(offset, seconds(span.video.end, tv)?)?;
         offsets.push(offset);
     }

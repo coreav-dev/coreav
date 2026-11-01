@@ -1,6 +1,6 @@
 //! MPEG transport streams (`docs/design/mpegts.md`): probing with the
-//! library defaults, the native schema `coreav.probe-mpegts/1`
-//! (`docs/schema/probe-mpegts-v1.md`) and shared ffprobe field derivations.
+//! library defaults, the native schema `coreav.probe-mpegts/2`
+//! (`docs/schema/probe-mpegts-v2.md`) and shared ffprobe field derivations.
 //!
 //! A transport stream has no header to recognise, so the command offers a
 //! file here only once the Matroska and ISO base media readers have
@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use std::path::Path;
 
 /// The schema identifier.
-pub const SCHEMA: &str = "coreav.probe-mpegts/1";
+pub const SCHEMA: &str = "coreav.probe-mpegts/2";
 
 /// Transport stream timestamps are 90 kHz ticks (ISO/IEC 13818-1 2.4.3.7),
 /// and so is `ffprobe`'s time base for them.
@@ -349,7 +349,7 @@ fn stream(s: &Stream, index: usize, result: Option<&StreamScan>) -> Value {
     })
 }
 
-/// The native document, schema `coreav.probe-mpegts/1`.
+/// The native document, schema `coreav.probe-mpegts/2`.
 pub fn document(probed: &Probed) -> Value {
     let ts = &probed.stream;
     let results = probed.scan.results();

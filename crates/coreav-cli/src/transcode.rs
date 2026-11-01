@@ -159,8 +159,9 @@ pub fn make<S: Source>(
     };
     // The decoder's own thread choice; the default policy's order (native,
     // dav1d and libvpx before the fallback), as `coreav thumbnail` without
-    // `--exact`.
-    let decoders = crate::thumbnail::backends(Some(this), 0, request.strict_safe);
+    // `--exact`. Frames in the worker's shared memory are lent, not copied
+    // out: the transcode passes each one on to the encoder and drops it.
+    let decoders = crate::thumbnail::backends(Some(this), 0, true, request.strict_safe);
     let summary = coreav_transcode::transcode(
         &mut source,
         kind,

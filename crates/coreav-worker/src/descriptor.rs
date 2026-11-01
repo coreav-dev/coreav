@@ -2,7 +2,8 @@
 //! and the copy of its planes (`docs/design/decode.md`, "Descriptors").
 //! Nothing here trusts the worker: every field is checked, with checked
 //! arithmetic, before a byte of the frame is read, and a failed check
-//! creates no view.
+//! creates no view. A frame lent in its slot instead of copied
+//! (`parent.rs`) is read only inside the ranges [`check`] returns.
 
 #![forbid(unsafe_code)]
 
@@ -71,15 +72,26 @@ fn violation(what: &str) -> Error {
     )
 }
 
+/// A descriptor that passed [`check`].
+#[derive(Debug)]
+pub struct Checked {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// Pixel format.
+    pub format: PixelFormat,
+    /// The slot, for a frame in shared memory.
+    pub slot: Option<u32>,
+    /// Bytes of the frame's planes.
+    pub bytes: u64,
+    /// Each plane's bytes, in the whole mapping for a frame in a slot, else
+    /// in the inline data, and its stride.
+    pub planes: Vec<(Range<usize>, usize)>,
+}
+
 /// Validates `descriptor` and copies its planes out of the slot it names
 /// (or out of `inline`, the data that followed it), into a [`Frame`].
-///
-/// Checks, in order: the sequence number is `expected_seq`; the slot
-/// exists (or the frame is inline and nothing else is); the pixel format
-/// is one the frame model knows; width and height are within `limits`;
-/// there is one plane per format plane; for each plane, the stride covers a
-/// row, the length is exactly `stride × (rows − 1) + row bytes`, and
-/// `offset + length` lies inside the slot.
 pub fn accept(
     descriptor: &FrameDescriptor,
     inline: &[u8],
@@ -87,15 +99,60 @@ pub fn accept(
     slots: Option<Slots<'_>>,
     limits: &Limits,
 ) -> Result<Accepted, Error> {
+    let checked = check(descriptor, inline.len(), expected_seq, slots, limits)?;
+    let mut planes = Vec::with_capacity(checked.planes.len());
+    for (range, stride) in checked.planes {
+        let mut data = Vec::new();
+        data.try_reserve_exact(range.len())
+            .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
+        data.resize(range.len(), 0);
+        // The one read of the worker's bytes: copied once, then never
+        // read from the slot again.
+        let copied = match (checked.slot, slots) {
+            (Some(_), Some(slots)) => slots.memory.copy_out(range.start, &mut data),
+            _ => inline.get(range).map(|source| data.copy_from_slice(source)),
+        };
+        copied.ok_or_else(|| violation("plane outside the slot"))?;
+        planes.push(Plane::new(data, stride));
+    }
+    let picture = Picture::new(checked.width, checked.height, checked.format, planes)
+        .map_err(|e| violation(&e.to_string()))?;
+    Ok(Accepted {
+        frame: Frame {
+            pts: descriptor.pts,
+            color: descriptor.color,
+            pixels: Pixels::Cpu(picture),
+        },
+        slot: checked.slot,
+        bytes: checked.bytes,
+    })
+}
+
+/// Validates `descriptor` (with `inline_len` bytes of data after it) and
+/// returns where its planes' bytes are.
+///
+/// Checks, in order: the sequence number is `expected_seq`; the slot
+/// exists (or the frame is inline and nothing else is); the pixel format
+/// is one the frame model knows; width and height are within `limits`;
+/// there is one plane per format plane; for each plane, the stride covers a
+/// row, the length is exactly `stride × (rows − 1) + row bytes`, and
+/// `offset + length` lies inside the slot.
+pub fn check(
+    descriptor: &FrameDescriptor,
+    inline_len: usize,
+    expected_seq: u64,
+    slots: Option<Slots<'_>>,
+    limits: &Limits,
+) -> Result<Checked, Error> {
     if descriptor.seq != expected_seq {
         return Err(violation("sequence number out of order"));
     }
-    // Where the frame's bytes are: `inline`, or a slot at `base` of the
+    // Where the frame's bytes are: inline, or a slot at `base` of the
     // shared memory, `region_len` bytes long.
-    let (shared, base, region_len, slot) = if descriptor.slot == INLINE {
-        (None, 0, inline.len(), None)
+    let (base, region_len, slot) = if descriptor.slot == INLINE {
+        (0, inline_len, None)
     } else {
-        if !inline.is_empty() {
+        if inline_len != 0 {
             return Err(violation("data after a shared-memory descriptor"));
         }
         let slots = slots.ok_or_else(|| violation("slot without shared memory"))?;
@@ -112,12 +169,7 @@ pub fn accept(
         if range.end > slots.memory.len() {
             return Err(violation("slot outside the mapping"));
         }
-        (
-            Some(slots.memory),
-            range.start,
-            range.len(),
-            Some(descriptor.slot),
-        )
+        (range.start, range.len(), Some(descriptor.slot))
     };
     let format =
         format_from_code(descriptor.format).ok_or_else(|| violation("unknown pixel format"))?;
@@ -135,34 +187,24 @@ pub fn accept(
         })
         .ok_or_else(|| violation("frame size overflows"))?;
     limits.check_frame(width, height, bytes)?;
-    let mut planes = Vec::with_capacity(ranges.len());
-    for (range, stride) in ranges {
-        let mut data = Vec::new();
-        data.try_reserve_exact(range.len())
-            .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
-        data.resize(range.len(), 0);
-        // The one read of the worker's bytes: copied once, then never
-        // read from the slot again.
-        let copied = match shared {
-            Some(memory) => range
-                .start
-                .checked_add(base)
-                .and_then(|start| memory.copy_out(start, &mut data)),
-            None => inline.get(range).map(|source| data.copy_from_slice(source)),
-        };
-        copied.ok_or_else(|| violation("plane outside the slot"))?;
-        planes.push(Plane::new(data, stride));
-    }
-    let picture =
-        Picture::new(width, height, format, planes).map_err(|e| violation(&e.to_string()))?;
-    Ok(Accepted {
-        frame: Frame {
-            pts: descriptor.pts,
-            color: descriptor.color,
-            pixels: Pixels::Cpu(picture),
-        },
+    let planes = ranges
+        .into_iter()
+        .map(|(range, stride)| {
+            let start = range.start.checked_add(base);
+            let end = range.end.checked_add(base);
+            match (start, end) {
+                (Some(start), Some(end)) => Ok((start..end, stride)),
+                _ => Err(violation("plane outside the slot")),
+            }
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(Checked {
+        width,
+        height,
+        format,
         slot,
         bytes,
+        planes,
     })
 }
 
