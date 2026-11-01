@@ -246,6 +246,7 @@ class Repository(unittest.TestCase):
                       ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -e -- -x scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],

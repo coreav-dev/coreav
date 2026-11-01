@@ -92,12 +92,13 @@ ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
 # with options (`bash -e`, `bash -eo pipefail`, `bash --norc`). The options
 # that stop the shell before it runs the script are no call: `-n`, `-o
 # noexec`, `-D`, `--help`, `--version`, `--dump-strings` and
-# `--dump-po-strings`. `--` ends the options and the script follows.
+# `--dump-po-strings`. `--` ends the options: the word after it is the script, whatever it
+# starts with.
 
 SHELL_OPTION = (r'(?:-(?![A-Za-z]*[nD])[A-Za-z]*o\s+(?!noexec\b)\w+'
                 r'|-(?![A-Za-z]*[nD])[A-Za-z]+'
-                r'|--(?!(?:help|version|dump-strings|dump-po-strings)\s)[a-z-]*)\s+')
-INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*)?(?:\./)?'''
+                r'|--(?!(?:help|version|dump-strings|dump-po-strings)\s)[a-z-]+)\s+')
+INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*(?:--\s+)?)?(?:\./)?'''
                       + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
 
 
