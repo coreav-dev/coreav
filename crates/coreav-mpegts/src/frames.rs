@@ -487,19 +487,21 @@ pub struct LatmBlocks {
 }
 
 impl LatmBlocks {
-    /// The block of one LOAS frame (the sync word, the length and the
-    /// `AudioMuxElement`), copied out to whole bytes; `None` for a frame
-    /// that is not one or whose configuration is not of that shape.
-    pub fn block(&mut self, frame: &[u8]) -> Option<Vec<u8>> {
-        let [0x56, b1, b2, ..] = *frame else {
-            return None;
-        };
-        if b1 & 0xE0 != 0xE0 {
-            return None;
-        }
-        let len = (usize::from(b1 & 0x1F) << 8) | usize::from(b2);
+    /// The block of the LOAS frame (the sync word, the length and the
+    /// `AudioMuxElement`) that ends `packet`, copied out to whole bytes;
+    /// `None` when no frame ends it or its configuration is not of that
+    /// shape. A packet is one frame, or the bytes before a stream's first
+    /// header joined to the first frame.
+    pub fn block(&mut self, packet: &[u8]) -> Option<Vec<u8>> {
+        let element = (0..packet.len()).find_map(|at| {
+            let [0x56, b1, b2, ..] = *packet.get(at..)? else {
+                return None;
+            };
+            let len = (usize::from(b1 & 0x1F) << 8) | usize::from(b2);
+            (b1 & 0xE0 == 0xE0 && at + 3 + len == packet.len()).then(|| packet.get(at + 3..))?
+        })?;
         let mut bits = Bits {
-            data: frame.get(3..3 + len)?,
+            data: element,
             at: 0,
         };
         if bits.read(1)? == 0 {
@@ -1048,6 +1050,17 @@ mod tests {
             Some(vec![0xA1, 0xB2, 0xC3])
         );
         assert_eq!(blocks.block(&frame(None)), Some(vec![0xA1, 0xB2, 0xC3]));
+        // The bytes before a stream's first header, joined to its first
+        // frame: the configuration that frame carries is read.
+        let mut blocks = LatmBlocks::default();
+        let mut joined = vec![0x56, 0xE0, 0x00, 0x12];
+        joined.extend(frame(Some(simple)));
+        assert_eq!(blocks.block(&joined), Some(vec![0xA1, 0xB2, 0xC3]));
+        assert_eq!(blocks.block(&frame(None)), Some(vec![0xA1, 0xB2, 0xC3]));
+        // A frame that does not end the packet is not one.
+        let mut longer = frame(None);
+        longer.push(0);
+        assert_eq!(blocks.block(&longer), None);
         // Two subframes: the lengths of their payloads are not read.
         assert_eq!(blocks.block(&frame(Some(simple | (1 << 7)))), None);
         assert_eq!(blocks.block(&frame(None)), None);
