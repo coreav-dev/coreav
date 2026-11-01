@@ -44,7 +44,7 @@ and from the path filters an earlier change put on the heavy workflows:
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
   with it out of the public tree), the nightly `pr-redirect`, `labels`,
-  `pr-text`, `docs-site`, and `release`, whose pull-request run is the dry
+  `pr-text`, `docs-site`, `wasm`, and `release`, whose pull-request run is the dry
   run of a change to the release build (`docs/design/release.md`).
 
 `scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
@@ -177,6 +177,11 @@ These are job-level filters. Required report jobs still run, merge groups
 use their complete base-to-group diff, and unknown or unreadable diffs,
 manual runs and scheduled runs still select validation. A rename that
 touches the CLI package in either direction also selects its checks.
+
+The non-required `wasm.yml` workflow has its own trigger filter for the
+JSPI package, WASM crate and shared build inputs. Its contract tests need
+no WASM build; its module tests run on generated fixtures for ready pull
+requests, main pushes and manual runs. Required reports are unchanged.
 `.github/actions/changed-paths/tests/test_package_filters.py` exercises the
 actual workflow lists with these inputs. This separation adds no jobs.
 

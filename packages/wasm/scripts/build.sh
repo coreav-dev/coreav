@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$here/../.." && pwd)"
+out="$here/wasm"
+pin="$(sed -n 's/^wasm-bindgen = "=\(.*\)"$/\1/p' "$root/crates/coreav-wasm/Cargo.toml")"
+if [ -z "$pin" ]; then
+  echo "error: no wasm-bindgen pin in crates/coreav-wasm/Cargo.toml" >&2
+  exit 1
+fi
+want="wasm-bindgen $pin"
+have="$(wasm-bindgen --version 2>/dev/null || true)"
+if [ "$have" != "$want" ]; then
+  echo "error: need $want (cargo install wasm-bindgen-cli --version $pin --locked), found '${have:-none}'" >&2
+  exit 1
+fi
+if [ -n "${CARGO_ENCODED_RUSTFLAGS:-}" ]; then
+  echo "error: CARGO_ENCODED_RUSTFLAGS is set and would drop the SIMD flag; unset it" >&2
+  exit 1
+fi
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+simd128"
+cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-wasm \
+  --profile edge --target wasm32-unknown-unknown
+rm -rf "$out"
+wasm-bindgen --target web --remove-name-section --remove-producers-section \
+  --out-dir "$out" --out-name coreav \
+  "$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm"
+opt="${WASM_OPT:-$(command -v wasm-opt || true)}"
+if [ -n "$opt" ]; then
+  "$opt" -O3 --enable-bulk-memory --enable-nontrapping-float-to-int \
+    --enable-sign-ext --enable-mutable-globals --enable-reference-types \
+    --enable-multivalue --enable-exception-handling --enable-simd \
+    "$out/coreav_bg.wasm" -o "$out/coreav_bg.opt.wasm"
+  mv "$out/coreav_bg.opt.wasm" "$out/coreav_bg.wasm"
+  echo "wasm-opt: $("$opt" --version)"
+else
+  echo "wasm-opt: not found; the module is not optimized by binaryen" >&2
+fi
+dis="$(dirname "${opt:-/nonexistent/wasm-opt}")/wasm-dis"
+if [ -n "$opt" ] && [ -x "$dis" ]; then
+  simd=$("$dis" "$out/coreav_bg.wasm" | grep -c 'v128\.' || true)
+  if [ "$simd" -eq 0 ]; then
+    echo "error: the module holds no SIMD instructions" >&2
+    exit 1
+  fi
+  echo "SIMD instructions: $simd"
+elif ! grep -qa 'simd128' "$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm"; then
+  echo "error: the module was not compiled with simd128" >&2
+  exit 1
+else
+  echo "SIMD: simd128 among the compiled module's target features (no wasm-dis to count instructions)"
+fi
+node "$here/scripts/fingerprint.mjs" "$here"
+cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$here/"
+cd "$out"
+shasum -a 256 coreav_bg.wasm coreav.js
+echo "coreav_bg.wasm: $(wc -c < coreav_bg.wasm) bytes, gzip -9 $(gzip -9 -n -c coreav_bg.wasm | wc -c) bytes"
