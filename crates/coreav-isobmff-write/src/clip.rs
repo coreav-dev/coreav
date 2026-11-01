@@ -325,6 +325,7 @@ pub fn clip_audio_mp4<S: Source, W: Write>(
         &MovieBox {
             timescale: ta,
             created: movie.creation_time,
+            modified: None,
             duration: presented,
             extra: Vec::new(),
         },
@@ -557,6 +558,7 @@ pub(crate) fn write_cut_head<W: Write>(
         Rational::from_int(i128::from(segment))
     };
     let mut tracks = vec![TrackBox {
+        handler_name: None,
         track_id: VIDEO_ID,
         header: TrackFlags::DEFAULT,
         media: Media::Video {
@@ -564,7 +566,9 @@ pub(crate) fn write_cut_head<W: Write>(
             size: video.presentation_size,
         },
         created: video.creation_time,
+        modified: None,
         media_created: video.media_creation_time,
+        media_modified: None,
         language: language(video.language),
         media_timescale: tv,
         media_duration: video_media,
@@ -599,6 +603,7 @@ pub(crate) fn write_cut_head<W: Write>(
         &MovieBox {
             timescale: tm,
             created: movie.creation_time,
+            modified: None,
             duration: movie_duration,
             extra: Vec::new(),
         },
@@ -765,11 +770,14 @@ pub(crate) fn audio_track<'t>(
         duration: tables.duration,
     };
     let track_box = TrackBox {
+        handler_name: None,
         track_id,
         media: Media::Audio,
         header: TrackFlags::DEFAULT,
         created: track.creation_time,
+        modified: None,
         media_created: track.media_creation_time,
+        media_modified: None,
         language: language(track.language),
         media_timescale: ta,
         media_duration,

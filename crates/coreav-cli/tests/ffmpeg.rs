@@ -1865,6 +1865,114 @@ fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
     );
 }
 
+/// A plain M4A extraction against the pinned `ffmpeg`, on a file it makes
+/// with an item list, a language, a handler name and a creation time: both
+/// outputs carry the same file and stream tags, the creation times and the
+/// file type box's brands aside.
+/// `coreav ffmpeg` keeps the headers' creation times, which `ffmpeg`
+/// writes as 0 (`docs/design/compat-cli.md`, "M4A metadata").
+#[test]
+fn plain_extraction_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-plain-metadata-oracle");
+    let input = dir.join("in.mp4");
+    let mut make = Command::new(&ffmpeg_bin);
+    make.args([
+        "-nostdin",
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=160x120:rate=10:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=1",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-metadata:s:a:0",
+        "language=eng",
+        "-metadata:s:a:0",
+        "handler_name=A handler",
+    ]);
+    for tag in [
+        "creation_time=2020-01-02T03:04:05Z",
+        "title=A title",
+        "artist=An artist",
+        "album=An album",
+        "date=2020",
+        "comment=A comment",
+        "genre=A genre",
+        "track=3/9",
+        "disc=1/2",
+    ] {
+        make.args(["-metadata", tag]);
+    }
+    assert!(make.arg(&input).status().unwrap().success());
+    let tags = |path: &Path| {
+        let out = Command::new(&ffprobe_bin)
+            .args(["-v", "error", "-select_streams", "a", "-show_entries"])
+            .args(["format_tags:stream_tags", "-of", "json"])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", path.display());
+        let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
+        json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
+    };
+    let created = json!("2020-01-02T03:04:05.000000Z");
+    let source = tags(&input);
+    assert_eq!(source[0]["creation_time"], created);
+    assert_eq!(source[1]["handler_name"], "A handler");
+    for selection in [["-map", "0:a"], ["-vn", "-sn"]] {
+        let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+        let command = |output: &Path| -> Vec<String> {
+            ["-y", "-i", input.to_str().unwrap()]
+                .iter()
+                .chain(&selection)
+                .chain(&["-c:a", "copy"])
+                .map(|a| (*a).to_owned())
+                .chain([output.display().to_string()])
+                .collect()
+        };
+        let status = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(command(&theirs))
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let args = command(&ours);
+        let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        let (mut ours, mut theirs) = (tags(&ours), tags(&theirs));
+        for side in 0..2 {
+            assert_eq!(ours[side]["creation_time"], created, "{selection:?}");
+            assert_eq!(theirs[side].get("creation_time"), None, "{selection:?}");
+            ours[side].as_object_mut().unwrap().remove("creation_time");
+        }
+        // The file type box is each writer's own, not metadata.
+        for tags in [&mut ours, &mut theirs] {
+            assert_eq!(tags[0]["major_brand"], "M4A ");
+            for brand in ["major_brand", "minor_version", "compatible_brands"] {
+                tags[0].as_object_mut().unwrap().remove(brand);
+            }
+        }
+        assert_eq!(ours, theirs, "{selection:?}");
+        assert_eq!(ours[0]["title"], "A title");
+        assert_eq!(ours[1]["handler_name"], "A handler");
+        assert_eq!(ours[1]["language"], "eng");
+        assert_eq!(ours[0]["genre"], "A genre");
+    }
+}
+
 /// The tags `ffprobe` lists for `path` that `-map_metadata` decides: the
 /// file's creation time and title, and the first audio stream's language,
 /// creation time and handler name.

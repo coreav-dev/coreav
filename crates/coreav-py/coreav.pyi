@@ -51,7 +51,7 @@ def probe(
     scan_frame_sizes: bool = False,
     private_network: bool = False,
 ) -> Document:
-    """coreav.probe/1, coreav.probe-matroska/1 or coreav.probe-mpegts/1, as `coreav probe`."""
+    """coreav.probe/1, coreav.probe-matroska/1 or coreav.probe-mpegts/2, as `coreav probe`."""
 
 def check(
     source: Source,
