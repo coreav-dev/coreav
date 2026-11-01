@@ -263,22 +263,6 @@ def trigger(lines):
     return filtered, pull_request
 
 
-def run_lines(lines):
-    """Each line of every step's `run:` script, a block scalar's to where its
-    indentation ends."""
-    for i, line in enumerate(lines):
-        match = re.match(r'\A(\s*(?:-\s+)?)run:\s*(.*?)\s*\Z', line)
-        if not match:
-            continue
-        if not match.group(2).startswith(('|', '>')):
-            yield match.group(2)
-            continue
-        for item in lines[i + 1:]:
-            if item.strip() and len(item) - len(item.lstrip()) <= len(match.group(1)):
-                break
-            yield item
-
-
 def trigger_filters(lines):
     """[(event, key, [pattern] or None)]: each `paths` and `paths-ignore`
     list of the `on:` block, None where it is not a flow sequence on its
@@ -421,6 +405,10 @@ walk = lambda do |node|
     node.children.each_slice(2) do |key, value|
       walk.(key)
       name = key.is_a?(Psych::Nodes::Alias) ? anchors[key.anchor] : key
+      if name.is_a?(Psych::Nodes::Scalar) && name.value == "run"
+        script = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
+        out << { line: value.start_line + 1, run: script.value } if script.is_a?(Psych::Nodes::Scalar)
+      end
       if name.is_a?(Psych::Nodes::Scalar) && name.value == "uses"
         ref = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
         out << if ref.is_a?(Psych::Nodes::Scalar)
@@ -440,9 +428,11 @@ puts JSON.generate(out)
 '''
 
 
-def uses_entries(text):
+def yaml_entries(text):
     """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
-    keys of a file, or a str saying why it cannot be read."""
+    keys of a file and [{'line': n, 'run': str}] for its `run` keys with a
+    string value, decoded from whatever quoting or block form it is written
+    in, or a str saying why the file cannot be read."""
     try:
         run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
                              timeout=60)
@@ -460,11 +450,13 @@ def pin_problems(root, path, seen):
         return []
     seen.add(path)
     name = path.relative_to(root)
-    entries = uses_entries(path.read_text(encoding='utf-8'))
+    entries = yaml_entries(path.read_text(encoding='utf-8'))
     if isinstance(entries, str):
         return [f'{name}: {entries}']
     out = []
     for entry in entries:
+        if 'run' in entry:
+            continue
         where, ref = f'{name}: line {entry["line"]}: ', entry.get('ref')
         if ref is None:
             out.append(where + entry['error'])
@@ -506,7 +498,9 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
-        if any(calls_installer(line) for line in run_lines(lines)):
+        entries = yaml_entries(path.read_text(encoding='utf-8'))
+        if not isinstance(entries, str) and any(
+                calls_installer(script) for entry in entries if 'run' in entry for script in entry['run'].splitlines()):
             for event, key, listed in trigger_filters(lines):
                 if listed is None:
                     problems.append(f'{path.name}: the `{key}` filter of `{event}` is not a list this check reads')
