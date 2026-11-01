@@ -17,9 +17,9 @@
   reaches, or no `merge_group:` trigger (`checks_requested`), never reports
   it on a pull request, or leaves the merge queue waiting for it;
 - the workflow-level `concurrency:` of a workflow with a required check is
-  not the prescribed main-push cancellation group, with PR cancellation in
-  the workflow group or the job groups: superseded main pushes must not
-  accumulate, and merge-group runs must never cancel one another;
+  present in a workflow with filtered jobs, or does not use the prescribed
+  group for the unfiltered deny workflow: a replacement must not cancel
+  obligations its own filters skip;
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
@@ -27,9 +27,9 @@
   `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
   than a report job has no group, or not exactly `GROUP` with its own job
   id (and `MATRIX` after it for a job with a `strategy:`, whose legs would
-  otherwise share one group) and `cancel-in-progress: CANCEL`, or a report job has a group, or the
-  workflow lacks its main-only cancellation group: a shared PR workflow
-  group keeps the next run waiting for the old run's report jobs, a group two jobs share
+  otherwise share one group), or has the wrong cancellation condition, or a
+  report job has a group, or the workflow has a group of its own: a whole-run
+  main cancellation can discard jobs a replacement skips, a group two jobs share
   cancels one of them in every run, a gate job without one can start an
   old run's jobs after the new run's, which then cancel the new ones, and
   a report job in another job's group can cancel that job;
@@ -79,8 +79,8 @@ REQUIRED_TRIGGERS = {'pull_request': 'synchronize', 'merge_group': 'checks_reque
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
-# A job's concurrency group in a workflow that cancels a superseded pull
-# request run job by job (docs/design/ci-checks.md, "Concurrency"). JOB_ID is
+# A changes job's group cancels superseded PR gates, never main gates
+# (docs/design/ci-checks.md, "Concurrency"). JOB_ID is
 # the job's own id: `github.job` is not available where the group is read.
 GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
@@ -93,16 +93,13 @@ WORKFLOW_GROUP = ("${{ github.workflow }}-"
                   "github.ref == 'refs/heads/main')) && github.ref || github.run_id }}")
 WORKFLOW_CANCEL = ("${{ github.event_name == 'pull_request' || "
                    "(github.event_name == 'push' && github.ref == 'refs/heads/main') }}")
-MAIN_GROUP = ("${{ github.workflow }}-main-"
-              "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
-              "github.ref || github.run_id }}")
-MAIN_CANCEL = "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+JOB_GROUP = WORKFLOW_GROUP.replace('${{ github.workflow }}-', '${{ github.workflow }}-JOB_ID-', 1)
 # After JOB_ID in the group of a job with a `strategy:`: each leg of its
 # matrix in a group of its own.
 MATRIX = '-${{ strategy.job-index }}'
 # The workflows that cancel job by job, so that removing every group from
 # one fails rather than leaving nothing to check.
-JOB_GROUPS = {'ci.yml'}
+JOB_GROUPS = {'ci.yml', 'python.yml', 'npm.yml'}
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
@@ -184,20 +181,22 @@ def concurrency_problems(workflow, lines, jobs):
     if workflow not in JOB_GROUPS and all(fields['concurrency'] is None for fields in jobs.values()):
         return []
     out = []
-    if workflow_concurrency(lines) != {'group': MAIN_GROUP, 'cancel-in-progress': MAIN_CANCEL}:
-        out.append(f'{workflow}: give its workflow-level `concurrency:` exactly `group: {MAIN_GROUP}` and '
-                   f'`cancel-in-progress: {MAIN_CANCEL}`: supersede main pushes, but keep PR and '
-                   'merge-group runs independent (docs/design/ci-checks.md, "Concurrency")')
+    if workflow_concurrency(lines) is not None:
+        out.append(f'{workflow}: remove workflow-level `concurrency:`: a replacement may skip jobs '
+                   'the cancelled run still owes; cancel only matching selected jobs '
+                   '(docs/design/ci-checks.md, "Concurrency")')
     for job, fields in sorted(jobs.items()):
         if job.endswith('-report'):
             if fields['concurrency'] is not None:
                 out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
                            'cancelled run too, and in another job\'s group it can cancel that job')
             continue
-        group = GROUP.replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
-        if fields['concurrency'] != {'group': group, 'cancel-in-progress': CANCEL}:
+        gate = job.endswith('-changes')
+        group = (GROUP if gate else JOB_GROUP).replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
+        cancel = CANCEL if gate else WORKFLOW_CANCEL
+        if fields['concurrency'] != {'group': group, 'cancel-in-progress': cancel}:
             out.append(f'{workflow}: give `{job}` exactly `concurrency: {{group: {group}, '
-                       f'cancel-in-progress: {CANCEL}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')
+                       f'cancel-in-progress: {cancel}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')
     return out
 
 
@@ -232,21 +231,9 @@ def triggers(lines):
 
 
 def workflow_concurrency(lines):
-    """The workflow-level `concurrency:` as {'group': str, 'cancel-in-progress':
-    str}, or None when there is none."""
-    setting = None
-    for line in lines:
-        if setting is not None:
-            if TOP.match(line):
-                break
-            match = re.match(r'\A {2}(group|cancel-in-progress):\s*(.*?)\s*\Z', line)
-            if match:
-                setting[match.group(1)] = match.group(2)
-            continue
-        match = re.match(r'\Aconcurrency:\s*(.*?)\s*\Z', line)
-        if match:
-            setting = {'group': match.group(1)} if match.group(1) else {}
-    return setting
+    """The YAML workflow-level concurrency settings, None when absent, or an
+    error string which cannot match a permitted setting."""
+    return read_yaml('\n'.join(lines), PARSE_CONCURRENCY)
 
 
 def run_lines(lines):
@@ -384,7 +371,7 @@ def workflow_files(root):
 # booleans (`on`, `yes`), merge keys and duplicate keys cannot hide a step.
 # Every `uses` key is read wherever it appears, anchored subtrees included;
 # an alias is resolved through the anchors defined before it.
-PARSE = r'''
+YAML_PARSE = r'''
 require "json"
 require "psych"
 begin
@@ -394,6 +381,8 @@ rescue Psych::SyntaxError => e
 end
 documents = stream.children.size
 abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
+'''
+PARSE = YAML_PARSE + r'''
 anchors, out = {}, []
 resolve = lambda do |node|
   next node unless node.is_a?(Psych::Nodes::Alias)
@@ -426,17 +415,47 @@ puts JSON.generate(out)
 '''
 
 
-def uses_entries(text):
-    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
-    keys of a file, or a str saying why it cannot be read."""
+PARSE_CONCURRENCY = YAML_PARSE + r'''
+mapping = lambda do |node|
+  abort "use plain YAML mappings for workflow concurrency" unless node.is_a?(Psych::Nodes::Mapping) && !node.tag
+  out = {}
+  node.children.each_slice(2) do |key, value|
+    abort "use scalar workflow keys without tags or aliases" unless key.is_a?(Psych::Nodes::Scalar) && !key.tag
+    abort "expand YAML merge keys in workflow concurrency" if key.value == "<<"
+    abort "duplicate workflow key: #{key.value}" if out.key?(key.value)
+    out[key.value] = value
+  end
+  out
+end
+root = stream.children.first&.root
+setting = root ? mapping.(root)["concurrency"] : nil
+out = nil
+if setting
+  out = mapping.(setting).transform_values do |value|
+    abort "use scalar concurrency values without tags or aliases" unless value.is_a?(Psych::Nodes::Scalar) && !value.tag
+    value.value
+  end
+end
+puts JSON.generate(out)
+'''
+
+
+def read_yaml(text, program):
+    """The JSON result of a Psych node reader, or an error string."""
     try:
-        run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
+        run = subprocess.run(['ruby', '--disable-gems', '-e', program], input=text, capture_output=True, text=True,
                              timeout=60)
     except FileNotFoundError:
-        return 'ruby is not installed; the pin check parses YAML with its standard library (Psych)'
+        return 'ruby is not installed; the workflow check parses YAML with its standard library (Psych)'
     if run.returncode != 0:
         return 'not readable as YAML: ' + (run.stderr.strip().splitlines() or ['ruby failed'])[-1]
     return json.loads(run.stdout)
+
+
+def uses_entries(text):
+    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
+    keys of a file, or a str saying why it cannot be read."""
+    return read_yaml(text, PARSE)
 
 
 def pin_problems(root, path, seen):

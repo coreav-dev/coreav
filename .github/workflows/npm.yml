@@ -51,18 +51,15 @@ permissions:
   contents: read
   actions: read
 
-concurrency:
-  # Supersede PR runs and main pushes. Merge groups, manual and scheduled
-  # runs have run-id groups of their own (docs/design/ci-checks.md).
-  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
-
 env:
   BINARYEN_VERSION: '133'
   BINARYEN_SHA256: 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
 
 jobs:
   npm-changes:
+    concurrency:
+      group: ${{ github.workflow }}-npm-changes-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # Whether this event's changed files need the jobs below at all. A
     # manual run, and anything whose changed files cannot be read, runs
     # them (docs/design/ci-checks.md).
@@ -96,6 +93,9 @@ jobs:
             scripts/merge_group_result.py
 
   package:
+    concurrency:
+      group: ${{ github.workflow }}-package-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     # Draft pull requests skip it. A label event does the same work as any
     # other pull-request event, `binaries` or not: a label must never report
     # a green `npm-report` over the failure an earlier event of the same
@@ -231,6 +231,9 @@ jobs:
           retention-days: 3
 
   smoke:
+    concurrency:
+      group: ${{ github.workflow }}-smoke-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs: package
     strategy:
       fail-fast: false
@@ -255,6 +258,9 @@ jobs:
         run: packages/cli/test/smoke.sh linux-x64 "$PWD/packages" "$PWD/expected"
 
   binaries:
+    concurrency:
+      group: ${{ github.workflow }}-binaries-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs: package
     # Tags, manual and weekly runs, and pull requests labelled `binaries`.
     if: >-
@@ -352,6 +358,9 @@ jobs:
           retention-days: 3
 
   smoke-platforms:
+    concurrency:
+      group: ${{ github.workflow }}-smoke-platforms-${{ strategy.job-index }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs: [package, binaries]
     strategy:
       fail-fast: false

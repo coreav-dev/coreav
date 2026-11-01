@@ -181,9 +181,8 @@ class Repository(unittest.TestCase):
         self.assertIn('ci.yml: no report job waits for bench-guard', found)
 
     def test_a_job_without_its_concurrency_group_is_reported(self):
-        group = ('    concurrency:\n      group: ${{ github.workflow }}-msrv-'
-                 "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n"
-                 "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n")
+        group = ('    concurrency:\n      group: ' + check.JOB_GROUP.replace('JOB_ID', 'msrv') +
+                 '\n      cancel-in-progress: ' + check.WORKFLOW_CANCEL + '\n')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
 
     def test_a_group_another_job_has_is_reported(self):
@@ -208,12 +207,25 @@ class Repository(unittest.TestCase):
         self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
 
     def test_a_workflow_group_that_joins_pr_or_merge_group_runs_is_reported(self):
-        found = self.ci(check.MAIN_GROUP, '${{ github.workflow }}-${{ github.ref }}')
-        self.assertTrue(any('give its workflow-level `concurrency:` exactly' in p for p in found), found)
+        for key in ('concurrency', '"concurrency"', 'concurrency ', '"concur\\u0072ency"'):
+            with self.subTest(key=key):
+                found = self.edit('ci.yml', '\njobs:\n',
+                                  f'\n{key}:\n  group: main\n  cancel-in-progress: true\n\njobs:\n')
+                self.assertTrue(any('remove workflow-level `concurrency:`' in p for p in found), found)
 
     def test_the_main_only_cancellation_gate_is_required(self):
-        found = self.ci(f'  cancel-in-progress: {check.MAIN_CANCEL}', '  cancel-in-progress: true')
-        self.assertTrue(any('give its workflow-level `concurrency:` exactly' in p for p in found), found)
+        old = ('    concurrency:\n      group: ' + check.JOB_GROUP.replace('JOB_ID', 'msrv') +
+               '\n      cancel-in-progress: ' + check.WORKFLOW_CANCEL + '\n')
+        found = self.ci(old, old.replace(check.WORKFLOW_CANCEL, 'true'))
+        self.assertTrue(any('give `msrv` exactly' in p for p in found), found)
+
+    def test_main_changes_gates_do_not_cancel_main_runs(self):
+        for workflow, gate in (('ci.yml', 'ci-changes'), ('python.yml', 'python-changes'),
+                               ('npm.yml', 'npm-changes')):
+            with self.subTest(workflow=workflow):
+                found = self.edit(workflow, f'      cancel-in-progress: {check.CANCEL}',
+                                  f'      cancel-in-progress: {check.WORKFLOW_CANCEL}')
+                self.assertTrue(any(f'give `{gate}` exactly' in p for p in found), found)
 
     def edit(self, workflow, old, new):
         """The problems of the repository with one edit of a workflow, which
@@ -241,9 +253,9 @@ class Repository(unittest.TestCase):
         for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
                          (f"cancel-in-progress: {check.WORKFLOW_CANCEL}", 'cancel-in-progress: true')):
             with self.subTest(new=new):
-                found = self.edit('python.yml', old, new)
+                found = self.edit('deny.yml', old, new)
                 self.assertEqual(len(found), 1, found)
-                self.assertTrue(found[0].startswith('python.yml: required `python-report`, so give the workflow '
+                self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow '
                                                     'exactly `concurrency:'), found)
 
     def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):

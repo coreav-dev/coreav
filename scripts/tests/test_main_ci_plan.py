@@ -36,6 +36,36 @@ class MainPlan(unittest.TestCase):
                                             str(ROOT / '.github/workflows' / (name + '.yml'))], text=True)
             cls.workflows[name] = json.loads(text)
 
+    def concurrency(self, setting, workflow, run_id, event='push', ref='refs/heads/main', matrix_index=0):
+        context = {'github': {'event_name': event, 'ref': ref, 'run_id': run_id, 'workflow': workflow},
+                   'strategy': {'job-index': matrix_index}}
+        pieces = re.split(r'(\$\{\{.*?\}\})', setting['group'])
+        key = ''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece for piece in pieces)
+        return key, bool(evaluate(setting['cancel-in-progress'], context))
+
+    def test_docs_push_never_drops_an_earlier_source_pushs_main_obligations(self):
+        for old_reused, new_reused in ((True, True), (False, False), (True, False), (False, True)):
+            old = self.plan('push', old_reused)
+            new = self.plan('push', new_reused, code=False, h264=False)
+            for name, workflow in self.workflows.items():
+                with self.subTest(old_reused=old_reused, new_reused=new_reused, workflow=name):
+                    retained = set(old[name])
+                    if 'concurrency' in workflow:
+                        old_key, _ = self.concurrency(workflow['concurrency'], name, '1')
+                        new_key, cancel = self.concurrency(workflow['concurrency'], name, '2')
+                        if cancel and old_key == new_key:
+                            retained.clear()
+                    for job in new[name]:
+                        setting = workflow['jobs'][job].get('concurrency')
+                        if setting:
+                            old_key, _ = self.concurrency(setting, name, '1')
+                            new_key, cancel = self.concurrency(setting, name, '2')
+                            if cancel and old_key == new_key:
+                                retained.discard(job)
+                    covered = retained | set(new[name])
+                    self.assertTrue(set(old[name]) <= covered,
+                                    f'needed work dropped: {set(old[name]) - covered}')
+
     def plan(self, event, reused, code=True, h264=True):
         plans = {}
         for name, workflow in self.workflows.items():
@@ -101,24 +131,24 @@ class MainPlan(unittest.TestCase):
 
     def test_concurrency_never_cancels_or_joins_merge_groups(self):
         for name, workflow in self.workflows.items():
-            concurrency = workflow['concurrency']
-            keys = []
-            for event, ref, run_id in (('merge_group', 'refs/heads/gh-readonly-queue/main/group', '1'),
-                                       ('merge_group', 'refs/heads/gh-readonly-queue/main/group', '2'),
-                                       ('pull_request', 'refs/pull/1/merge', '3'),
-                                       ('push', 'refs/heads/main', '4')):
-                context = {'github': {'event_name': event, 'ref': ref, 'run_id': run_id, 'workflow': name}}
-                pieces = re.split(r'(\$\{\{.*?\}\})', concurrency['group'])
-                key = ''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece for piece in pieces)
-                keys.append(key)
-                self.assertEqual(bool(evaluate(concurrency['cancel-in-progress'], context)),
-                                 event == 'push' or (name != 'ci' and event == 'pull_request'))
-            self.assertEqual(len(set(keys)), len(keys))
-            for event in ('push', 'pull_request'):
-                pair = []
-                for run_id in ('5', '6'):
-                    context = {'github': {'event_name': event, 'ref': 'refs/heads/main',
-                                           'run_id': run_id, 'workflow': name}}
-                    pair.append(''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece
-                                        for piece in re.split(r'(\$\{\{.*?\}\})', concurrency['group'])))
-                self.assertEqual(pair[0] == pair[1], event == 'push' or name != 'ci')
+            settings = [('workflow', workflow['concurrency'])] if 'concurrency' in workflow else [
+                (job, fields['concurrency']) for job, fields in workflow['jobs'].items()
+                if 'concurrency' in fields]
+            for job, setting in settings:
+                with self.subTest(workflow=name, job=job):
+                    gate = job.endswith('-changes')
+                    keys = []
+                    for event, ref, run_id in (('merge_group', 'refs/heads/gh-readonly-queue/main/group', '1'),
+                                               ('merge_group', 'refs/heads/gh-readonly-queue/main/group', '2'),
+                                               ('pull_request', 'refs/pull/1/merge', '3'),
+                                               ('push', 'refs/heads/main', '4')):
+                        key, cancel = self.concurrency(setting, name, run_id, event, ref)
+                        keys.append(key)
+                        self.assertEqual(cancel, event == 'pull_request' or (event == 'push' and not gate))
+                    self.assertEqual(len(set(keys)), len(keys))
+                    for event in ('push', 'pull_request'):
+                        pair = [self.concurrency(setting, name, run_id, event)[0] for run_id in ('5', '6')]
+                        self.assertEqual(pair[0] == pair[1], event == 'pull_request' or not gate)
+                    if 'strategy' in workflow['jobs'].get(job, {}):
+                        pair = [self.concurrency(setting, name, '5', matrix_index=index)[0] for index in (0, 1)]
+                        self.assertNotEqual(*pair)

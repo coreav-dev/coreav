@@ -244,58 +244,27 @@ Main stopped fuzzing on push because the run had outgrown its job. Every target 
 
 ## Concurrency
 
-A new push to a pull request supersedes the run of the previous one.
-`ci.yml` cancels that run job by job: every job but `ci-report` carries
+`ci.yml`, `python.yml` and `npm.yml` cancel superseded work job by job, never as a whole workflow. A newer main push may select fewer jobs than an older one: an H.264 merge followed by a documentation merge still owes the first merge's baseline guard, arm64 conformance and cache maintenance. Cancelling the entire older run would lose those obligations. A skipped job never joins its concurrency group, so only a replacement that actually selects the same job can cancel it.
+
+Every non-report job except the changes job has this form, with its own job id (and `-${{ strategy.job-index }}` after the id for a matrix job):
 
 ```yaml
 concurrency:
-  group: ${{ github.workflow }}-<job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  group: ${{ github.workflow }}-<job id>-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+```
+
+The changes jobs are different. Every main changes job has a group of its own run, so a docs push cannot cancel a queued source changes job before it selects the work it owes. PR changes jobs still cancel a superseded PR gate, preventing its old jobs from entering their groups after the new run's jobs:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-<changes job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
-When the new run's job joins its group, GitHub cancels the old run's job
-of the same id. A manual run and a merge group get groups of their own
-run. A superseded push to main is cancelled as a whole, while a merge-group
-run is never cancelled by another run.
+Reports have no concurrency group and carry `if: always()`. They wait for their own run's jobs and fail on failure or cancellation; they never turn cancellation into a skipped green check. Main may therefore retain an older changes/report pair and still-needed jobs, while overlapping selected jobs are cancelled. This spends a few lightweight jobs to avoid discarding unfinished source checks or an unproven direct push's fallback suite.
 
-- **Not one group for the workflow.** That was the earlier shape. A
-  cancelled run is over only when every job has ended, and `always()`
-  starts `ci-report` in a cancelled run too, so the new run waited, with
-  no job created, until the old report had found a runner and ended. On
-  2026-10-30, 163 of 680 runs in four hours waited more than two minutes
-  for their first job, a median of 6.5 minutes and up to 25. With the
-  groups on the jobs the old report still runs, on the superseded commit,
-  but nothing waits for it.
-- **Not `if: ${{ !cancelled() }}` on the report.** It frees the next run as
-  well, and saves the old report's runner. But a run cancelled by hand on
-  a pull request's head would then report `ci-report` as skipped, which
-  the ruleset counts as passing. With `always()` that run's `ci-report`
-  fails, as before.
-- **`ci-changes` has a group too.** GitHub does not order the jobs of one
-  group by run: whichever joins last cancels the other. Every other job
-  waits for `ci-changes`, so an old run's jobs join their groups when its
-  `ci-changes` ends. If that is before the new run starts, they join before
-  the new run's jobs; if not, the new run's `ci-changes` cancels the old
-  one and the old run's jobs never start. Either way an old job never
-  cancels a new one.
-- **The cost.** An old run's job now runs until the new run's job of the
-  same id joins its group, one changes job after the push (a median of
-  5.5 minutes), and a job the new run skips is not cancelled at all. Over
-  the same four hours that would have been about 106 more runner-minutes,
-  against 1,254 minutes that pull requests waited on a held run.
-- **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-${{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
-- **Re-running an old run's job** cancels the head's job of the same id,
-  whose `ci-report` then fails: re-run the head's run instead.
-- `github.job` is not available where GitHub reads a job's `concurrency`, so each group names its job id. `workflow_check.py` fails on a job without its group, a group other than exactly this one, or a report job with a group. It names `ci.yml` as a workflow that cancels PR jobs individually, so removing every job group fails too.
-- **Superseded main pushes are different.** They are post-merge maintenance of the latest main tree, not admission checks for entries in the queue. Running every old main tree again competes with PR and merge-group jobs. The newest main push cancels the older run as a whole, including heavy jobs the newest change's path filters would skip. A separate workflow-level group handles this; on PRs it uses the run id, so it cannot hold a new PR run behind an old report job:
-
-```yaml
-concurrency:
-  group: ${{ github.workflow }}-main-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-```
-
-`deny.yml`, `python.yml` and `npm.yml`, which cancel whole PR runs already, use one workflow group for PR cancellation and main-push cancellation:
+`deny.yml` is the exception: every run does the full unfiltered check or proves that the same full check passed for the exact tree in the queue. Its replacement always covers the same obligation, so it may cancel whole PR/main runs:
 
 ```yaml
 concurrency:
@@ -303,7 +272,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 ```
 
-`workflow_check.py` requires these exact forms, including a missing workflow-level group. A merge group, tag, schedule or manual run still has a unique run-id group; none can cancel or replace another run.
+Merge groups, schedules, tags and manual runs always get independent run-id groups and cannot cancel one another. `workflow_check.py` requires the exact job forms, refuses workflow-level concurrency on the three filtered workflows, and reads top-level concurrency through Psych's YAML nodes so quoted/spaced keys cannot hide it. Its explicit workflow list also catches removing every job group. The two-push job-plan regression requires all source obligations to survive a following docs push, with successful queue evidence, without it, and in mixed evidence/fallback cases.
 
 ## The merge queue
 
@@ -316,7 +285,7 @@ The `main` ruleset can require a merge queue. The queue applies each pull reques
 - **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
 - **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
 - **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
-- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Superseded PRs and pushes to main may be cancelled, but their groups are separate from merge groups ("Concurrency").
+- **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. On main, only selected matching jobs may cancel one another in the filtered workflows; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency").
 
 ## Main pushes after the queue
 
@@ -330,11 +299,11 @@ On a proven tree, `python-report` and `npm-report` retain their changes and repo
 - `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
 - `isobmff-fixture-set`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
 
-The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only results may be cancelled when a newer main push supersedes them; the newest tree still receives the applicable maintenance checks.
+The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only jobs may be cancelled only when the replacing run selects the same job. A following docs-only push does not select those jobs, so unfinished source maintenance and fallback checks continue in their original run.
 
 ### Load measurements
 
-A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 10 jobs for the ordinary Rust case and 11 for the full case; the documentation case stays at 7 lightweight jobs. These after counts are tested job plans, not production observations.
+A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 10 jobs for the ordinary Rust case and 11 for the full case; the documentation case stays at 7 lightweight jobs. These after counts are tested job plans, not production observations. The sanitized cohorts and a recomputation command are retained in [the load sample](../measurements/ci-main-load/README.md).
 
 For one merge-group cohort, first actual job starts were 9m45s–15m03s after workflow creation, with `ci` at 15m03s. In a later cohort Python started at 12m50s, while the other three workflows were still queued after at least 15m07s at observation. Queued jobs' placeholder `started_at` values are not starts. A post-change production wait has not yet been observed; cancellation of old runs also changes the queue, so these snapshots cannot establish a causal wait-time improvement.
 
