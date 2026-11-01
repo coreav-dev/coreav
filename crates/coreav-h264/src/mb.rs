@@ -14,7 +14,7 @@ use crate::cavlc::Window;
 use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
 use crate::dpb::RefPic;
 use crate::error::{Error, Result, require};
-use crate::inter::{InterTables, MotionCtx, Scratch};
+use crate::inter::{InterTables, MotionCtx, PPred, PShape, Scratch};
 use crate::nb::{self, Edge, NbCache};
 use crate::params::{LevelScale, Pps, Sps};
 use crate::picture::{
@@ -436,6 +436,37 @@ pub(crate) struct BandView<'a> {
     pub(crate) planes: Planes<'a>,
 }
 
+/// [`BandView::band`] of a view kept under no band: one of a reference
+/// cut otherwise than [`SliceDecoder::band_shift`] says, which no block
+/// finds by its band.
+pub(crate) const NO_BAND: usize = usize::MAX;
+
+/// [`SliceDecoder::band_views`]: the views of the bands of banded
+/// references that the slice's blocks have read. Per list, reference
+/// `idx`'s band `k` goes to slot `(4 * idx + k % 4) % BAND_VIEWS`, which
+/// keeps four consecutive bands of each of the first four references.
+pub(crate) struct KeptViews<'a>(pub(crate) [[Option<BandView<'a>>; BAND_VIEWS]; 2]);
+
+/// [`SliceDecoder::band_shift`] of a slice that reads no reference of the
+/// picture's size cut into bands of a power of two rows.
+pub(crate) const NO_BAND_SHIFT: u8 = u8::MAX;
+
+/// The base-2 logarithm of the band height of the references of `refs`
+/// that are pictures `mb_w` by `mb_h` macroblocks cut into more than one
+/// band, for [`SliceDecoder::band_shift`]: every such reference is cut
+/// alike, since a picture's bands follow its height and the thread count
+/// ([`Geometry::band_mbs_for`]). [`NO_BAND_SHIFT`] where there is none, or
+/// where its bands are not a power of two rows high.
+pub(crate) fn band_shift(refs: &[Vec<RefPic>; 2], mb_w: usize, mb_h: usize) -> u8 {
+    refs.iter()
+        .flatten()
+        .map(|r| *r.picture.geometry())
+        .find(|g| g.mb_width == mb_w && g.mb_height == mb_h && g.bands() > 1)
+        .filter(|g| g.band_mbs().is_power_of_two())
+        .and_then(|g| u8::try_from(g.band_mbs().trailing_zeros()).ok())
+        .unwrap_or(NO_BAND_SHIFT)
+}
+
 /// Each reference of `refs` that is one published band of a picture
 /// `mb_w` by `mb_h` macroblocks, as the planes [`Kernels::predict`] reads,
 /// for [`SliceDecoder::whole`], and the band of the first of list 1.
@@ -540,10 +571,8 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
     /// blocks have read, kept for the slice so that a block reading a
     /// band an earlier block read takes the view as it was built rather
     /// than building it again (`docs/design/h264.md`, "Threading round:
-    /// band views kept for the slice"). Per list, reference `idx`'s band
-    /// `k` goes to slot `(4 * idx + k % 4) % BAND_VIEWS`, which keeps
-    /// four consecutive bands of each of the first four references.
-    pub(crate) band_views: [[Option<BandView<'a>>; BAND_VIEWS]; 2],
+    /// band views kept for the slice").
+    pub(crate) band_views: KeptViews<'a>,
     /// The band of the first picture of list 1, where it is whole, whose
     /// motion direct prediction reads.
     pub(crate) colocated_whole: Option<&'a BandData>,
@@ -598,6 +627,12 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
     /// banded picture added no field, so the decoder's layout stays as it
     /// was, and a macroblock that asks for nothing makes one check.
     pub(crate) hints: u8,
+    /// [`band_shift`] of the slice's references: where it is not
+    /// [`NO_BAND_SHIFT`], a block predicted from a banded reference of the
+    /// picture's size finds its band's kept view in [`Self::band_views`]
+    /// without reading the reference. A byte, so that the decoder's other
+    /// fields keep their places (`docs/design/h264.md`, "Bundle 6").
+    pub(crate) band_shift: u8,
 }
 
 /// The lines macroblocks write and read are asked for a cache line ahead
@@ -1401,6 +1436,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             SliceType::B => raw.checked_sub(23),
             SliceType::Si => return Err(Error::Unsupported("SI slices")),
         };
+        // The motion syntax of a coded macroblock of a CAVLC P slice, and
+        // whether `predict_p` derives its motion from it
+        // (`inter/p_cavlc.rs`) rather than the generic path's `inter_pred`.
+        let mut pred = PPred::default();
+        let mut fused = false;
         if let Some(it) = intra_type {
             require(it <= 25, "mb_type")?;
             if it == 25 {
@@ -1418,7 +1458,13 @@ impl<K: Kernels> SliceDecoder<'_, K> {
                 MbKind::P(raw as u8)
             };
             self.cur.kind = self.mb.kind;
-            self.parse_inter_pred::<S, T>(s)?;
+            // A constant for each reader: the CABAC instance keeps the
+            // generic path alone.
+            if !s.is_cabac() && st == SliceType::P {
+                fused = self.parse_p_inter::<S, T>(s, raw, &mut pred)?;
+            } else {
+                self.parse_inter_pred::<S, T>(s)?;
+            }
         }
         let kind = self.mb.kind;
         if kind == MbKind::I16x16 {
@@ -1452,7 +1498,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             self.intra_head();
             self.reconstruct_intra()
         } else {
-            self.inter_pred(tier)?;
+            if fused {
+                self.predict_p(tier, &pred)?;
+            } else {
+                self.inter_pred(tier)?;
+            }
             self.reconstruct_inter()
         }
     }
@@ -1662,6 +1712,97 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             for (list, cache) in self.nb.mvd.iter().enumerate().take(lists) {
                 if let Some(slot) = self.cur_nb.entropy.get_mut(2 * list..2 * list + 2) {
                     slot.copy_from_slice(&[nb::mvd_row(cache), nb::mvd_col(cache)]);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// mb_pred() or sub_mb_pred() of a coded inter macroblock of a CAVLC P
+    /// slice, mb_type `raw` (clauses 7.3.5.1 and 7.3.5.2), read in the generic
+    /// path's order and with its checks but one (below), into `p`, which starts
+    /// as [`PPred::default`], for [`SliceDecoder::predict_p`]: nothing that
+    /// only CABAC reads is kept. False for a P_8x8 or P_8x8ref0 macroblock with
+    /// a sub-macroblock partition smaller than 8x8, whose syntax goes into
+    /// `MbData` for the generic path's `predict_sub_partitions`.
+    ///
+    /// The reference indices read are at most num_ref_idx_l0_active_minus1,
+    /// which `te(v)` bounds them by: the generic path's check of that cannot
+    /// fail.
+    ///
+    /// `T`, unused, gives each instance of the hot paths its own copy
+    /// ([`crate::tier`]).
+    #[inline(always)]
+    fn parse_p_inter<S: Syntax, T: Tier>(
+        &mut self,
+        s: &mut S,
+        raw: u32,
+        p: &mut PPred,
+    ) -> Result<bool> {
+        let n = self.hdr.num_ref_idx_active[0];
+        if raw == 0 {
+            // P_L0_16x16, the most common, without the loops.
+            p.shape = PShape::P16x16;
+            if n > 1 {
+                p.ref_idx[0] = s.ref_idx(self, 0, 0, 0)? as i8;
+            }
+            p.mvd[0] = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+            return Ok(true);
+        }
+        // One loop for the reference indices and one for the vector
+        // differences of the other shapes: each read is a site of its own
+        // in the slice loop, with its cold paths.
+        let (parts, sub) = match raw {
+            1 => {
+                p.shape = PShape::P16x8;
+                (2, false)
+            }
+            2 => {
+                p.shape = PShape::P8x16;
+                (2, false)
+            }
+            _ => {
+                let mut sub = [0u8; 4];
+                for slot in sub.iter_mut() {
+                    let ty = s.sub_mb_type(self)?;
+                    require(ty <= 3, "sub_mb_type")?;
+                    *slot = ty;
+                }
+                self.mb.sub = sub;
+                p.shape = PShape::P8x8;
+                (4, sub != [0; 4])
+            }
+        };
+        // ref_idx_l0, inferred to be 0 where it is not coded: one entry in
+        // the list, or P_8x8ref0.
+        if n > 1 && raw != 4 {
+            for slot in p.ref_idx.iter_mut().take(parts) {
+                *slot = s.ref_idx(self, 0, 0, 0)? as i8;
+            }
+        }
+        if sub {
+            self.parse_p_sub_mvd::<S, T>(s, p.ref_idx)?;
+            return Ok(false);
+        }
+        for slot in p.mvd.iter_mut().take(parts) {
+            *slot = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+        }
+        Ok(true)
+    }
+
+    /// The vector differences of a P_8x8 or P_8x8ref0 macroblock with a
+    /// sub-macroblock partition smaller than 8x8, into `MbData` with its
+    /// reference indices `ref_idx`, as the generic path keeps them.
+    #[inline(always)]
+    fn parse_p_sub_mvd<S: Syntax, T: Tier>(&mut self, s: &mut S, ref_idx: [i8; 4]) -> Result<()> {
+        self.mb.ref_idx[0] = ref_idx;
+        let sub = self.mb.sub;
+        for (p, &ty) in sub.iter().enumerate() {
+            let (parts, ..) = sub_shape(false, ty);
+            for sp in 0..usize::from(parts) {
+                let v = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+                if let Some(slot) = self.mb.mvd[0].get_mut(p * 4 + sp) {
+                    *slot = v;
                 }
             }
         }

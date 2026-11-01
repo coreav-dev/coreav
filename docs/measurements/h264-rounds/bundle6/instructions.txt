@@ -1,0 +1,40 @@
+callgrind (valgrind 3.24, Debian 13) on Compute Engine c4-standard-8 (Xeon Platinum 8581C; valgrind hides AVX-512: AVX2 tiers), --discard, a third of each class's frames (sd 600, 720p 300, 1080p 100, 4k 50); diagnosis/run2/cg.sh.
+Builds: base and k as in binaries.sha256; p14 is bundle 5's P1 and P4 on the same base (README.md, `diagnosis/`).
+Eight threads: the cut of the motion compensation path's own instructions (predict_fast, reference_band, KeptViews, predict_list_any, edge_window), per instruction of deblock_rows (which counts macroblocks decoded, including the pictures in flight past --frames), as a share of base's instructions. One thread: total instructions, k over base.
+From: python3 -I diagnosis/ceiling.py CGDIR
+
+175433794e02.0.1080p   t1 p1z/base 0.9993 p14 t8 cut 1.15% p1z t8 cut 0.82%
+1d4b1775d78a.0.720p    t1 p1z/base 0.9988 p14 t8 cut 2.09% p1z t8 cut 1.50%
+278dbf5a63bb.0.720p    t1 p1z/base 0.9990 p14 t8 cut 1.62% p1z t8 cut 1.16%
+36501d448eaa.0.720p    t1 p1z/base 0.9985 p14 t8 cut 1.71% p1z t8 cut 1.22%
+3b1b441e23ae.0.4k      t1 p1z/base 0.9960 p14 t8 cut 5.83% p1z t8 cut 4.27%
+3c593b8f0809.0.720p    t1 p1z/base 0.9991 p14 t8 cut 1.05% p1z t8 cut 0.75%
+41e324ebb708.0.sd      t1 p1z/base 0.9978 p14 t8 cut 3.08% p1z t8 cut 2.15%
+4b54de28c2b3.0.4k      t1 p1z/base 0.9981 p14 t8 cut 2.97% p1z t8 cut 2.14%
+5185721dda11.0.sd      t1 p1z/base 0.9268 p14 t8 cut 2.48% p1z t8 cut 1.76%
+65ec61f95a00.0.720p    t1 p1z/base 0.9992 p14 t8 cut 1.47% p1z t8 cut 1.04%
+6b18d9f0f88d.0.720p    t1 p1z/base 0.9972 p14 t8 cut 4.04% p1z t8 cut 2.91%
+6da34958296c.0.1080p   t1 p1z/base 0.9980 p14 t8 cut 3.27% p1z t8 cut 2.37%
+6e90422a670a.0.1080p   t1 p1z/base 0.9991 p14 t8 cut 1.42% p1z t8 cut 1.01%
+6f7799768413.0.sd      t1 p1z/base 0.9338 p14 t8 cut 3.63% p1z t8 cut 2.58%
+7650ae466748.0.sd      t1 p1z/base 0.9980 p14 t8 cut 2.34% p1z t8 cut 1.62%
+76e0b1692494.0.720p    t1 p1z/base 0.9982 p14 t8 cut 2.77% p1z t8 cut 2.02%
+81ed4778ece2.0.4k      t1 p1z/base 0.9957 p14 t8 cut 6.28% p1z t8 cut 4.48%
+8ae90cadb5bc.0.sd      t1 p1z/base 0.9983 p14 t8 cut 1.92% p1z t8 cut 1.33%
+9db41aa16b5a.0.720p    t1 p1z/base 0.9944 p14 t8 cut 2.14% p1z t8 cut 1.49%
+a6af290d9053.0.1080p   t1 p1z/base 0.9992 p14 t8 cut 1.28% p1z t8 cut 0.98%
+a81de82106be.0.1080p   t1 p1z/base 0.9978 p14 t8 cut 3.30% p1z t8 cut 2.38%
+ae16bb7c7192.0.4k      t1 p1z/base 0.9953 p14 t8 cut 6.55% p1z t8 cut 4.67%
+af38b0cfd840.0.4k      t1 p1z/base 0.9988 p14 t8 cut 2.06% p1z t8 cut 1.45%
+b41f70a7fa60.0.1080p   t1 p1z/base 0.9989 p14 t8 cut 2.08% p1z t8 cut 1.56%
+b71b6b31e54f.0.1080p   t1 p1z/base 0.9830 p14 t8 cut 7.28% p1z t8 cut 5.24%
+c7ecda16e4a7.0.1080p   t1 p1z/base 0.9994 p14 t8 cut 0.97% p1z t8 cut 0.70%
+dcb262cf0138.0.sd      t1 p1z/base 0.9979 p14 t8 cut 2.45% p1z t8 cut 1.71%
+e624cbe0d2be.0.4k      t1 p1z/base 0.9976 p14 t8 cut 3.66% p1z t8 cut 2.70%
+ec473c99c538.0.sd      t1 p1z/base 0.9768 p14 t8 cut 4.12% p1z t8 cut 2.89%
+ed75c044e944.0.4k      t1 p1z/base 0.9955 p14 t8 cut 6.20% p1z t8 cut 4.48%
+f8d92a911e72.0.4k      t1 p1z/base 0.9991 p14 t8 cut 1.47% p1z t8 cut 1.06%
+f9e973f44570.0.sd      t1 p1z/base 0.9197 p14 t8 cut 1.73% p1z t8 cut 1.21%
+p14 t8 MC-path cut as share of base instructions: median 2.40% sd 2.47% 720p 1.90% 1080p 1.75% 4k 4.74%
+p1z t8 MC-path cut as share of base instructions: median 1.67% sd 1.73% 720p 1.36% 1080p 1.28% 4k 3.49%
+t1 p1z/base median 0.9980 cabac 0.9983 cavlc 0.9553

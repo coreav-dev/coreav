@@ -219,11 +219,11 @@ fn a_pes_packet_that_states_no_decoding_time_gives_the_presentation_one() {
 }
 
 #[test]
-fn a_pid_no_table_declares_is_listed_after_the_streams_of_every_program() {
+fn a_pid_no_table_declares_is_numbered_where_the_file_shows_it() {
     // A broadcast capture carries PES packets on PIDs its tables never
-    // name; they are the file's packets, and both readers list them. This
-    // reader lists them after the streams the tables declare, whatever
-    // order the file delivers them in (KD-TS-STREAM-ORDER).
+    // name; they are the file's packets, and both readers list them,
+    // numbered where the file first shows them, as a stream of a table
+    // read after the first one is.
     let mut mux = Mux::default();
     mux.pat(&[(1, 0x1000), (2, 0x1001)]);
     mux.pmt(0x1000, 1, &[(0x1B, 0x100)]);
@@ -241,9 +241,11 @@ fn a_pid_no_table_declares_is_listed_after_the_streams_of_every_program() {
     .unwrap();
     assert_eq!(
         ts.streams.iter().map(|s| s.pid).collect::<Vec<_>>(),
-        vec![0x100, 0x200, 0x1FF]
+        vec![0x100, 0x1FF, 0x200]
     );
-    assert_eq!(ts.streams[2].pmt_index, None);
+    assert_eq!(ts.streams[1].pmt_index, None);
+    let numbers: Vec<usize> = ts.streams.iter().map(|s| s.stream_index).collect();
+    assert_eq!(numbers, vec![0, 1, 2]);
 }
 
 #[test]
@@ -943,12 +945,10 @@ fn long_pes_packet() -> (Mux, u64) {
     (mux, start)
 }
 
-/// The PIDs of a probe's streams in the order `ffprobe` numbers them
-/// (`Stream::with_first_table`, then `Stream::found_at`).
+/// The PIDs of a probe's streams, in its order: the one `ffprobe`
+/// numbers them in.
 fn numbered(ts: &coreav_mpegts::TransportStream) -> Vec<u16> {
-    let mut streams: Vec<_> = ts.streams.iter().collect();
-    streams.sort_by_key(|s| (!s.with_first_table, s.found_at, s.stream_index));
-    streams.iter().map(|s| s.pid).collect()
+    ts.streams.iter().map(|s| s.pid).collect()
 }
 
 #[test]

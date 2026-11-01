@@ -10,13 +10,17 @@ use coreav_kernels_h264::{
 use crate::dpb::RefPic;
 use crate::error::{Error, Result};
 use crate::mb::{
-    BAND_VIEWS, BandView, MAX_REFS, MbKind, SliceDecoder, part_xy, sub_part_xy, sub_shape,
+    BAND_VIEWS, BandView, KeptViews, MAX_REFS, MbKind, NO_BAND, NO_BAND_SHIFT, SliceDecoder,
+    part_xy, sub_part_xy, sub_shape,
 };
 use crate::params::Pps;
-use crate::picture::{MbHead, MbMotion, Motion, NO_MOTION, NO_SLOT};
+use crate::picture::{Geometry, MbHead, MbMotion, Motion, NO_MOTION, NO_SLOT};
 use crate::slice::SliceType;
 use crate::tables::{self as t, PredMode};
 use crate::tier::{Base, Tier};
+
+mod p_cavlc;
+pub(crate) use p_cavlc::{PPred, PShape};
 
 /// Where [`SliceDecoder::predict_list`] puts a list's prediction.
 ///
@@ -1293,16 +1297,22 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             .get(list)
             .and_then(|l| l.get(idx))
             .and_then(Option::as_ref);
-        let band;
         let src = match whole {
             Some(planes) => planes,
-            None => match self.reference_band(list, idx, py, h, mv) {
-                Some(planes) => {
-                    band = planes;
-                    &band
+            None => {
+                let yi = py as isize + isize::from(mv[1] >> 2);
+                match self.band_views.reference_band(
+                    self.band_shift,
+                    self.refs,
+                    [self.mb_w, self.mb_h],
+                    [list, idx],
+                    yi,
+                    h,
+                ) {
+                    Some(planes) => planes,
+                    None => return self.predict_list_any(list, m, target, px, py, w, h),
                 }
-                None => return self.predict_list_any(list, m, target, px, py, w, h),
-            },
+            }
         };
         // The reference's lines the next four macroblocks read if they move
         // as this block does, one cache line ahead: asked for by the first
@@ -1324,74 +1334,6 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             return Ok(());
         }
         self.predict_list_any(list, m, target, px, py, w, h)
-    }
-
-    /// The band of reference `idx` of list `list` that the luma window of
-    /// a block at luma row `py`, `h` rows high, with vector `mv`, is read
-    /// from, as [`Self::predict_list_any`] reads it: the band a reader
-    /// takes the window's last row from, clamped into the picture, whose
-    /// top apron holds the rest of the window (rule 2), waited for until
-    /// it is published. `None` for an index past its list or a reference
-    /// of another size, which [`Self::predict_list_any`] reports.
-    ///
-    /// The chroma windows are read from the same band, which holds their
-    /// rows final: a chroma window ends at chroma row `(yi + h) / 2` at
-    /// most (`yi` the block's integer row in the reference), and the luma
-    /// window's last row, `yi + h + 2`, is at most the band's end less
-    /// four unless the band is the picture's last, so the chroma window
-    /// ends at least two rows above the band's last chroma row, the only
-    /// one the next band's filter changes (`docs/design/h264.md`, "Round
-    /// 17"); a chroma window above the band's top apron lies outside what
-    /// it holds, which [`Kernels::predict_part`] declines.
-    ///
-    /// A band's view is built at the first block of the slice that reads
-    /// the band and kept in [`SliceDecoder::band_views`] for the blocks
-    /// after it.
-    #[inline(never)]
-    fn reference_band(
-        &mut self,
-        list: usize,
-        idx: usize,
-        py: usize,
-        h: usize,
-        mv: [i16; 2],
-    ) -> Option<Planes<'a>> {
-        let refs: &'a [Vec<RefPic>; 2] = self.refs;
-        let reference = &refs.get(list)?.get(idx)?.picture;
-        let g = reference.geometry();
-        let k = g.band_reading_luma_window(py as isize + isize::from(mv[1] >> 2), h);
-        let slot = self
-            .band_views
-            .get_mut(list)?
-            .get_mut((4 * idx + k % 4) % BAND_VIEWS)?;
-        if let Some(view) = slot
-            && view.idx == idx
-            && view.band == k
-        {
-            return Some(view.planes);
-        }
-        let height = self.mb_h * 16;
-        if reference.coded_width() != self.stride || reference.coded_height() != height {
-            return None;
-        }
-        let data = reference.band(k)?;
-        let first = [g.luma_first(k), g.chroma_first(k)];
-        let origin = [g.luma_origin(k), g.chroma_origin(k)];
-        let planes = Planes::band(
-            &data.y,
-            &data.cb,
-            &data.cr,
-            self.stride,
-            height,
-            first,
-            origin,
-        )?;
-        *slot = Some(BandView {
-            idx,
-            band: k,
-            planes,
-        });
-        Some(planes)
     }
 
     /// [`Self::predict_list`] for any block: one [`Self::predict_fast`]
@@ -1896,6 +1838,97 @@ fn narrow_window<'b>(
 #[inline(always)]
 pub(crate) fn part(x: usize, y: usize, w: usize, h: usize) -> Result<Part> {
     Part::new(x, y, w, h).ok_or(Error::Invalid("a partition's size"))
+}
+
+impl<'a> KeptViews<'a> {
+    /// The band of reference `idx` of list `list` that the luma window of
+    /// a block `h` rows high at integer row `yi` of the reference is read
+    /// from, as [`SliceDecoder::predict_list_any`] reads it: the band a
+    /// reader takes the window's last row from, clamped into the picture,
+    /// whose top apron holds the rest of the window (rule 2), waited for
+    /// until it is published. `None` for an index past its list or a
+    /// reference of another size than the picture, `mb` macroblocks across
+    /// and down, which [`SliceDecoder::predict_list_any`] reports.
+    ///
+    /// The chroma windows are read from the same band, which holds their
+    /// rows final: a chroma window ends at chroma row `(yi + h) / 2` at
+    /// most, and the luma window's last row, `yi + h + 2`, is at most the
+    /// band's end less four unless the band is the picture's last, so the
+    /// chroma window ends at least two rows above the band's last chroma
+    /// row, the only one the next band's filter changes
+    /// (`docs/design/h264.md`, "Round 17"); a chroma window above the
+    /// band's top apron lies outside what it holds, which
+    /// [`Kernels::predict_part`] declines.
+    ///
+    /// A band's view is built at the first block of the slice that reads
+    /// the band ([`Self::make`]) and kept for the blocks after it, which
+    /// find it by its band in bands of `1 << shift` rows
+    /// ([`SliceDecoder::band_shift`]), without reading the reference. The
+    /// view is lent, not copied.
+    #[inline(always)]
+    pub(crate) fn reference_band(
+        &mut self,
+        shift: u8,
+        refs: &'a [Vec<RefPic>; 2],
+        mb: [usize; 2],
+        [list, idx]: [usize; 2],
+        yi: isize,
+        h: usize,
+    ) -> Option<&Planes<'a>> {
+        let kept = (shift != NO_BAND_SHIFT)
+            .then(|| Geometry::band_reading_luma_window_shift(mb[1], shift, yi, h))
+            .and_then(|k| {
+                let slot = (4 * idx + k % 4) % BAND_VIEWS;
+                let view = self.0.get(list)?.get(slot)?.as_ref()?;
+                (view.idx == idx && view.band == k).then_some(slot)
+            });
+        let slot = match kept {
+            Some(slot) => slot,
+            None => self.make(shift, refs, mb, [list, idx], yi, h)?,
+        };
+        Some(&self.0.get(list)?.get(slot)?.as_ref()?.planes)
+    }
+
+    /// [`Self::reference_band`] for a block whose band's view is not kept:
+    /// the band found by the reference's own geometry, its view built and
+    /// kept unless it is kept already, and the slot it is kept in. A view
+    /// of a reference cut otherwise than into bands of `1 << shift` rows is
+    /// kept under [`NO_BAND`], so that the next block builds its own.
+    #[inline(never)]
+    fn make(
+        &mut self,
+        shift: u8,
+        refs: &'a [Vec<RefPic>; 2],
+        [mb_w, mb_h]: [usize; 2],
+        [list, idx]: [usize; 2],
+        yi: isize,
+        h: usize,
+    ) -> Option<usize> {
+        let reference = &refs.get(list)?.get(idx)?.picture;
+        let g = reference.geometry();
+        let k = g.band_reading_luma_window(yi, h);
+        let banded = shift != NO_BAND_SHIFT && *g == Geometry::new(mb_w, mb_h, 1 << shift);
+        let band = if banded { k } else { NO_BAND };
+        let index = (4 * idx + k % 4) % BAND_VIEWS;
+        let slot = self.0.get_mut(list)?.get_mut(index)?;
+        if band == k
+            && let Some(view) = slot
+            && view.idx == idx
+            && view.band == k
+        {
+            return Some(index);
+        }
+        let (stride, height) = (mb_w * 16, mb_h * 16);
+        if reference.coded_width() != stride || reference.coded_height() != height {
+            return None;
+        }
+        let data = reference.band(k)?;
+        let first = [g.luma_first(k), g.chroma_first(k)];
+        let origin = [g.luma_origin(k), g.chroma_origin(k)];
+        let planes = Planes::band(&data.y, &data.cb, &data.cr, stride, height, first, origin)?;
+        *slot = Some(BandView { idx, band, planes });
+        Some(index)
+    }
 }
 
 #[cfg(test)]

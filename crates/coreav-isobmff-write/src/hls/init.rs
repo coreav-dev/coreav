@@ -50,11 +50,14 @@ impl HlsIndex {
         // playlists give their durations (14496-12 8.8.1).
         let empty = Tables::new(track.timescale, 0);
         let track_box = TrackBox {
+            handler_name: None,
             track_id: TRACK_ID,
             media,
             header: TrackFlags::DEFAULT,
             created: track.created,
+            modified: None,
             media_created: track.media_created,
+            media_modified: None,
             language: track.language,
             media_timescale: track.timescale,
             media_duration: 0,
@@ -68,6 +71,7 @@ impl HlsIndex {
         let movie = MovieBox {
             timescale: track.timescale,
             created: track.created,
+            modified: None,
             duration: 0,
             extra: Vec::new(),
         };
