@@ -113,6 +113,26 @@ const EARLY_WORK: u64 = 1 << 16;
 const EARLY_SPAN: u64 = 64 << 20;
 const EARLY_TOTAL: usize = 1 << 14;
 
+/// Reads video rates from the bounded packet window without building a report.
+#[cfg(feature = "transcode")]
+pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, String)>, Failure> {
+    let limits = Limits::default();
+    let segment =
+        coreav_mkv::probe(&mut *source, &limits, &Allowlist::any()).map_err(Failure::Matroska)?;
+    let early = early_packets(&segment, source, &limits);
+    Ok(segment
+        .tracks
+        .iter()
+        .zip(&early)
+        .filter(|(track, _)| track.kind == TrackKind::Video)
+        .filter_map(|(track, first)| {
+            let info = Info::new(&segment, track, first, None);
+            let (real, _) = info.rates.shown?;
+            Some((track.stream_index, real))
+        })
+        .collect())
+}
+
 /// Probes `source` as Matroska.
 pub fn probe<'a, S: Source + 'a>(
     mut source: S,
