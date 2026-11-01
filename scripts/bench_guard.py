@@ -13,10 +13,11 @@ a Matroska, WebM or transport stream copy of one that
 `ffmpeg -fflags +bitexact` writes
 (scripts/gen-fixtures-mkv.sh writes random segment IDs, so its files differ
 from run to run). Outputs go to standard output, which goes to /dev/null;
-`split` and `hls package`, which write files, write into a new directory
+`split`, `hls package` and `ffmpeg`, which write files, write into a new directory
 per run under the guard's work directory, removed at the end.
 `join` joins inputs the guard writes first from the case's fixture with
-the same binary (INPUTS, not counted), into such a directory too.
+the same binary (INPUTS, not counted), into such a directory too. The
+`ffmpeg` concat case reads a list of those segments in numeric order.
 A case fails when its count exceeds the baseline's by more than the
 baseline's tolerance, unless the work moved out of start-up (as when a
 subcommand's options are built only when it runs): start-up fell in the
@@ -96,6 +97,30 @@ CASES = {
     "ffprobe-packets-mp4": ("basic.mp4", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     "ffprobe-packets-mkv": ("basic.mkv", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     "ffprobe-packets-ts": ("basic.ts", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
+    "ffmpeg-C01-remux": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C02-join": ("video.mp4", ["ffmpeg", "-f", "concat", "-i", "{inputs:concat}",
+                                    "-c", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C03-remux-map": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy", "-map", "0", "{out}/out.mp4"]),
+    "ffmpeg-C05-clip": ("basic.mp4", ["ffmpeg", "-i", "{}", "-ss", "0.5", "-t", "1", "-c", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C13-extract-audio": ("basic.mp4", ["ffmpeg", "-i", "{}", "-vn", "-c:a", "copy", "{out}/out.m4a"]),
+    "ffmpeg-C15-clip-audio": ("aac.m4a", ["ffmpeg", "-i", "{}", "-ss", "0.5", "-t", "1",
+                                        "-acodec", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C17-remux-video": ("video.mp4", ["ffmpeg", "-y", "-i", "{}", "-vcodec", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C18-clip-input": ("basic.mp4", ["ffmpeg", "-ss", "0.5", "-i", "{}", "-to", "1.5",
+                                          "-c", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C19-clip-audio-input": ("aac.m4a", ["ffmpeg", "-ss", "0.5", "-i", "{}", "-t", "1",
+                                              "-c:a", "copy", "{out}/out.mp4"]),
+    "ffmpeg-C20-extract-audio-map": ("basic.mp4", ["ffmpeg", "-i", "{}", "-map", "0:a",
+                                               "-c", "copy", "{out}/out.m4a"]),
+    "ffmpeg-C23-remux-faststart": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy",
+                                             "-movflags", "+faststart", "{out}/out.mp4"]),
+    "ffmpeg-C25-extract-audio-metadata": ("aac.m4a", ["ffmpeg", "-i", "{}", "-acodec", "copy", "-map", "0",
+                                                    "-map_metadata", "0:s:0", "{out}/out.m4a"]),
+    "ffmpeg-C26-remux-timestamps": ("basic.mp4", ["ffmpeg", "-fflags", "+genpts", "-i", "{}",
+                                              "-c:v", "copy", "-c:a", "copy", "-c:s", "copy",
+                                              "-map", "0", "{out}/out.mp4"]),
+    "ffmpeg-C32-split": ("basic.mp4", ["ffmpeg", "-i", "{}", "-c", "copy", "-map", "0", "-f", "segment",
+                                     "-segment_time", "1", "-segment_format", "mp4", "{out}/seg-%d.mp4"]),
     # A payload that is no frame of the syntax its table names: the
     # probe searches every one of them whole.
     "probe-ts-no-frames": ("ts_no_frames.ts", ["probe", "{}"]),
@@ -174,6 +199,7 @@ INPUTS = {
     "clips": [["clip", "--start", "0.3", "--end", "1.1", "{}", "{dir}/clip-1.mp4"],
               ["clip", "--start", "1.1", "--end", "1.9", "{}", "{dir}/clip-2.mp4"]],
 }
+INPUTS["concat"] = INPUTS["segments"]
 
 # Fixtures written here: name: (fixture it is written from, format, how):
 # by stream copy, or with its audio encoded to FLAC, MP3 or Opus (the encoders
@@ -184,6 +210,7 @@ MP3 = ("-map", "0:a", "-c:a", "libmp3lame", "-b:a", "128k")
 OPUS = ("-map", "0:a", "-c:a", "libopus", "-b:a", "64k")
 AUDIO_COPY = ("-map", "0:a", "-c", "copy")
 DERIVED = {
+    "video.mp4": ("basic.mp4", "mp4", ("-map", "0:v", "-c", "copy")),
     "basic.mkv": ("basic.mp4", "matroska", COPY),
     "vp9.webm": ("vp9.mp4", "webm", COPY),
     "basic.ts": ("basic.mp4", "mpegts", COPY),
@@ -553,7 +580,7 @@ def index_of(coreav, fixture, work):
 def inputs_of(coreav, fixture, name, work):
     """The files of the INPUTS set `name` written from `fixture` into a new
     directory under `work` (not counted), or None if one cannot be
-    written."""
+    written. The `concat` set returns a concat list of the segments."""
     directory = tempfile.mkdtemp(prefix=f"{name}-", dir=work)
     for command in INPUTS[name]:
         args = [str(fixture) if a == "{}" else a.replace("{dir}", directory) for a in command]
@@ -565,6 +592,10 @@ def inputs_of(coreav, fixture, name, work):
     if not numbered or any(m is None for m, _ in numbered):
         return None
     files = [f for _, f in sorted(numbered, key=lambda x: int(x[0].group(1)))]
+    if name == "concat":
+        listing = pathlib.Path(directory) / "inputs.ffconcat"
+        listing.write_text("ffconcat version 1.0\n" + "".join(f"file '{f.name}'\n" for f in files))
+        return [str(listing)]
     return [str(f) for f in files] or None
 
 
