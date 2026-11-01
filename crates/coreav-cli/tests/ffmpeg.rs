@@ -1512,7 +1512,7 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
         let digest = String::from_utf8(out.stdout).unwrap();
         let hex = digest.trim().strip_prefix("MD5=");
         assert!(
-            hex.is_some_and(|hex| hex.len() == 32),
+            hex.is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_hexdigit())),
             "{} stream {index}: {digest:?}",
             path.display()
         );
