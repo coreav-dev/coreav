@@ -1,11 +1,19 @@
-# `coreav probe` output for MPEG transport streams, schema `coreav.probe-mpegts/1`
+# `coreav probe` output for MPEG transport streams, schema `coreav.probe-mpegts/2`
 
 This is the reference for the output of `coreav probe` on an MPEG transport
 stream (`docs/design/mpegts.md`). The machine-readable twin is
-[`probe-mpegts-v1.schema.json`](probe-mpegts-v1.schema.json) (JSON Schema
+[`probe-mpegts-v2.schema.json`](probe-mpegts-v2.schema.json) (JSON Schema
 2020-12); tests validate every output against it. ISO base media files print
 [`coreav.probe/1`](probe-v1.md) and Matroska and WebM files
 [`coreav.probe-matroska/1`](probe-matroska-v1.md).
+
+`/2` replaces `coreav.probe-mpegts/1`, whose keys and types it keeps. The
+order of `streams` changed meaning: `/1` listed each Program Map Table's
+streams in table order, the tables in the order they were read; `/2` lists
+them in the order `ffprobe` numbers them (below). For a file of several
+programs a reader of `/1` that took a stream by its position would now
+find another PID, so the version changed (`probe-v1.md`, "Adding a key
+keeps `/1`"). A file of one program gives the same document in both.
 
 A transport stream has no header to recognise, so the command offers a file
 to this reader only once the Matroska reader (EBML header `1A 45 DF A3`) and
@@ -30,7 +38,7 @@ may be negative or above 2^33 (`docs/design/mpegts.md`, "Timestamps").
 
 | Key | Type | Meaning |
 |---|---|---|
-| `schema` | string | Always `coreav.probe-mpegts/1`. |
+| `schema` | string | Always `coreav.probe-mpegts/2`. |
 | `file.size` | integer | File size in bytes. |
 | `container.packet_size` | integer | Bytes a stored packet takes: `188`, `192` (a BDAV arrival timestamp before each packet) or `204` (188 plus 16 parity bytes). |
 | `container.first_packet` | integer | Offset of the first stored packet; non-zero when the stream starts after other bytes. |

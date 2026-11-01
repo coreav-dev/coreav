@@ -462,7 +462,7 @@ fn is_matroska(input: &Input) -> Result<bool, Fail> {
 
 /// Describes an MP4, MOV, Matroska, WebM or MPEG transport stream file as
 /// `coreav.probe/1`, `coreav.probe-matroska/1` or
-/// `coreav.probe-mpegts/1`, as `coreav probe` does.
+/// `coreav.probe-mpegts/2`, as `coreav probe` does.
 #[pyfunction]
 #[pyo3(signature = (source, *, allow=None, strict=false, scan_fragments=false, scan_frame_sizes=false, private_network=false))]
 fn probe(

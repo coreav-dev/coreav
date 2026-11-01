@@ -218,7 +218,7 @@ KD-TS-FRAME-TIME.
 - What each reports: CoreAV listed the elementary streams of each Program
   Map Table in the order that table gives them, the tables in the order
   they are read. It now lists them in `ffprobe`'s order
-  (`docs/schema/probe-mpegts-v1.md`), so the predicate finds no
+  (`docs/schema/probe-mpegts-v2.md`), so the predicate finds no
   reordering in its documents; the entry stays until the overlay drops
   it. `ffprobe` lists the streams of the first Program Map Table completed
   after the PAT in table order

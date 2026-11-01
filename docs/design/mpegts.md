@@ -25,8 +25,8 @@ ingest and of broadcast captures, and, by FFmpeg's vulnerability history, a demu
   AAC, MPEG audio, AC-3, E-AC-3, Opus, DTS), with the byte position of the
   transport packet that starts it, timestamps unwrapped past the 33-bit
   wrap, and the keyframe flag.
-- `coreav probe` prints the result as `coreav.probe-mpegts/1`
-  (`docs/schema/probe-mpegts-v1.md`), and as the `ffprobe` shape with
+- `coreav probe` prints the result as `coreav.probe-mpegts/2`
+  (`docs/schema/probe-mpegts-v2.md`), and as the `ffprobe` shape with
   `--ffprobe-compat`. With `--scan-frame-sizes` it also lists every access
   unit and reports what the listing counted per stream (`scan`: packets,
   bytes, the first and last presentation times, their span and the bit rate
