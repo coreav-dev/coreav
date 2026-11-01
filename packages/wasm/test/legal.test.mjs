@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { test } from "node:test";
 import { inTreeStatement, permitted, renderNotices, renderToolchain, toolchainCrates, vendoredCrates } from "../scripts/legal.mjs";
@@ -7,6 +8,20 @@ import { inTreeStatement, permitted, renderNotices, renderToolchain, toolchainCr
 const allowed = new Set(["MIT", "Apache-2.0", "BSD-2-Clause", "Unicode-3.0", "Apache-2.0 WITH LLVM-exception"]);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const registry = "registry+https://github.com/rust-lang/crates.io-index";
+const llvmException = `As an exception, if, as a result of your compiling your source code, portions
+of this Software are embedded into an Object form of such source code, you
+may redistribute such embedded portions in such Object form without complying
+with the conditions of Sections 4(a), 4(b) and 4(d) of the License.
+
+In addition, if you combine or link compiled forms of this Software with
+software that is licensed under the GPLv2 ("Combined Software") and if a
+court of competent jurisdiction determines that the patent provision (Section
+3), the indemnity provision (Section 9) or other Section of the License
+conflicts with the conditions of the GPLv2, you may retroactively and
+prospectively choose to deem waived or otherwise exclude such Section(s) of
+the License, but only in their entirety and only with respect to the Combined
+Software.
+`;
 const record = (name, dependencies = [], source = false) => `[[package]]\nname = "${name}"\nversion = "1.0.0"\n${source ? `source = "${registry}"\nchecksum = "${"a".repeat(64)}"\n` : ""}dependencies = [${dependencies.map((name) => JSON.stringify(name)).join(",")} ]\n`;
 
 test("registry WITH terms retain their exception text and single-term licence coverage", () => {
@@ -14,7 +29,7 @@ test("registry WITH terms retain their exception text and single-term licence co
     () => Object.keys(files).map((name) => ({ name, isFile: () => true, isSymbolicLink: () => false })),
     (_dir, name) => Buffer.from(files[name]));
   const expression = "Apache-2.0 WITH LLVM-exception";
-  const permission = "Apache permission\nLLVM exception permission\n";
+  const permission = "Apache permission\nLLVM exception permission\n" + llvmException;
   assert.match(render(expression, { LICENSE: permission }), /LLVM exception permission/);
   const named = { "LICENSE-Apache-2.0_WITH_LLVM-exception": permission };
   assert.match(render(expression, named), /License: Apache-2.0 WITH LLVM-exception/);
@@ -25,6 +40,31 @@ test("registry WITH terms retain their exception text and single-term licence co
   assert.throws(() => render(expression + " AND MIT", { "LICENSE-APACHE": "Apache permission\n", "LICENSE-MIT": "MIT permission\n" }), /missing upstream licence file.*Apache-2.0 WITH LLVM-exception/);
   assert.throws(() => render(expression + " AND MIT", { LICENSE: permission, "LICENSE-MIT": "MIT permission\n" }), /missing upstream licence file.*Apache-2.0 WITH LLVM-exception/);
   assert.throws(() => render(expression + " AND MIT", named), /missing upstream licence file.*MIT/);
+});
+
+test("generic compound licence files must contain the exception text", () => {
+  const expression = "Apache-2.0 WITH LLVM-exception";
+  const base = readFileSync(new URL("../../../LICENSE-APACHE", import.meta.url), "utf8");
+  for (const name of ["LICENSE", "COPYING", "LICENSE.txt", "COPYING.md", "LICENSE-Apache-2.0_WITH_LLVM-exception"]) {
+    const render = (text) => renderNotices([{ name: "exception", version: "1.0.0", license: expression, dir: "/upstream" }], allowed,
+      () => [{ name, isFile: () => true, isSymbolicLink: () => false }], () => Buffer.from(text));
+    assert.throws(() => render(base), /missing.*LLVM-exception/);
+    assert.throws(() => render(base + "\nLLVM Exceptions to the Apache 2.0 License\n"), /missing.*LLVM-exception/);
+    assert.throws(() => render(base + "\nSPDX-License-Identifier: " + expression), /missing.*LLVM-exception/);
+    for (const partial of llvmException.split("\n\n")) assert.throws(() => render(base + partial), /missing.*LLVM-exception/);
+    assert.throws(() => render(base + llvmException.replace("may redistribute", "must redistribute")), /missing.*LLVM-exception/);
+    assert.ok(render(base + llvmException).includes(llvmException));
+    const wrapped = llvmException.replace(/\s+/g, "\r\n\t ");
+    assert.ok(render(base + wrapped).replace(/\s+/g, " ").includes(llvmException.replace(/\s+/g, " ").trim()));
+  }
+  const render = (license, files) => renderNotices([{ name: "exception", version: "1.0.0", license, dir: "/upstream" }], allowed,
+    () => Object.keys(files).map((name) => ({ name, isFile: () => true, isSymbolicLink: () => false })),
+    (_dir, name) => Buffer.from(files[name]));
+  assert.match(render("Apache-2.0", { LICENSE: base }), /Apache License/);
+  const alternatives = { "LICENSE-Apache-2.0_WITH_LLVM-exception": base, "LICENSE-MIT": "MIT permission\n" };
+  assert.match(render(expression + " OR MIT", alternatives), /MIT permission/);
+  delete alternatives["LICENSE-MIT"];
+  assert.throws(() => render(expression + " OR MIT", alternatives), /missing.*LLVM-exception/);
 });
 
 test("the standard-library closure excludes unrelated and unavailable target libraries", () => {

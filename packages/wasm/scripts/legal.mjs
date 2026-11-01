@@ -77,6 +77,8 @@ export function projectGraph(repo, tc, rustflags) {
   return { crates: selectCrates(metadata, tree, repo), members: new Set(members.flatMap((pkg) => pkg.targets.map((target) => target.name.replaceAll("-", "_")))), memberPaths: new Set(members.map((pkg) => relative(repo, dirname(pkg.manifest_path)))) };
 }
 
+const LLVM_EXCEPTION = "As an exception, if, as a result of your compiling your source code, portions of this Software are embedded into an Object form of such source code, you may redistribute such embedded portions in such Object form without complying with the conditions of Sections 4(a), 4(b) and 4(d) of the License. In addition, if you combine or link compiled forms of this Software with software that is licensed under the GPLv2 (\"Combined Software\") and if a court of competent jurisdiction determines that the patent provision (Section 3), the indemnity provision (Section 9) or other Section of the License conflicts with the conditions of the GPLv2, you may retroactively and prospectively choose to deem waived or otherwise exclude such Section(s) of the License, but only in their entirety and only with respect to the Combined Software.";
+
 /** Copy upstream texts; missing, empty or unreadable data is never synthesised. */
 export function renderNotices(crates, allowed, list = (dir) => readdirSync(dir, { withFileTypes: true }), read = (dir, name) => readFileSync(join(dir, name))) {
   const sections = [];
@@ -88,16 +90,7 @@ export function renderNotices(crates, allowed, list = (dir) => readdirSync(dir, 
     try { files = list(crate.dir).filter((entry) => /^(?:LICEN[CS]E|COPYING|NOTICE|UNLICENSE|COPYRIGHT)(?:[-._].*)?$/i.test(entry.name)).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0); }
     catch { throw new Error(`${label}: cannot read upstream licence directory`); }
     if (!files.some((entry) => /^(?:LICEN[CS]E|COPYING|UNLICENSE)/i.test(entry.name) && entry.isFile())) throw new Error(`${label}: no upstream licence file`);
-    const rules = new Map([["MIT", /^LICENSE-MIT(?:[-._].*)?$/i], ["Apache-2.0", /^LICENSE-APACHE(?:[-._].*)?$/i], ["Zlib", /^LICENSE-ZLIB(?:[-._].*)?$/i], ["0BSD", /^LICENSE-0BSD(?:[-._].*)?$/i], ["Unlicense", /^UNLICENSE(?:[-._].*)?$/i], ["Unicode-3.0", /^LICENSE-UNICODE(?:[-._].*)?$/i], ["Apache-2.0 WITH LLVM-exception", /^LICENSE-Apache-2\.0_WITH_LLVM-exception(?:[-._].*)?$/i]]);
-    const terms = crate.license.replaceAll("/", " OR ").match(/[A-Za-z0-9.+-]+(?:\s+WITH\s+[A-Za-z0-9.+-]+)?/g).filter((term) => !["AND", "OR"].includes(term)).map((term) => term.replace(/\s+/g, " "));
-    const covered = new Set();
-    for (const term of terms) {
-      const rule = rules.get(term);
-      if (!rule) throw new Error(`${label}: add a file rule for ${term}`);
-      if (files.some((entry) => rule.test(entry.name) || terms.length === 1 && /^(?:LICEN[CS]E|COPYING)(?:\.txt|\.md)?$/i.test(entry.name))) covered.add(term);
-    }
-    if (!permitted(crate.license, covered)) throw new Error(`${label}: missing upstream licence file for ${terms.filter((term) => !covered.has(term)).join(", ")}`);
-    sections.push(`=== ${label} (${crate.origin ?? "crates.io"}) ===\nLicense: ${crate.license}\n`);
+    const texts = new Map();
     for (const entry of files) {
       if (!entry.isFile() || entry.isSymbolicLink()) throw new Error(`${label}: licence or notice is not a regular file`);
       let bytes;
@@ -108,8 +101,19 @@ export function renderNotices(crates, allowed, list = (dir) => readdirSync(dir, 
       let text;
       try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes).replace(/\r\n/g, "\n").replace(/\n*$/, "\n"); }
       catch { throw new Error(`${label}: non-UTF-8 licence file ${entry.name}`); }
-      sections.push(`--- ${entry.name} ---\n${text}`);
+      texts.set(entry.name, text);
     }
+    const rules = new Map([["MIT", /^LICENSE-MIT(?:[-._].*)?$/i], ["Apache-2.0", /^LICENSE-APACHE(?:[-._].*)?$/i], ["Zlib", /^LICENSE-ZLIB(?:[-._].*)?$/i], ["0BSD", /^LICENSE-0BSD(?:[-._].*)?$/i], ["Unlicense", /^UNLICENSE(?:[-._].*)?$/i], ["Unicode-3.0", /^LICENSE-UNICODE(?:[-._].*)?$/i], ["Apache-2.0 WITH LLVM-exception", /^LICENSE-Apache-2\.0_WITH_LLVM-exception(?:[-._].*)?$/i]]);
+    const terms = crate.license.replaceAll("/", " OR ").match(/[A-Za-z0-9.+-]+(?:\s+WITH\s+[A-Za-z0-9.+-]+)?/g).filter((term) => !["AND", "OR"].includes(term)).map((term) => term.replace(/\s+/g, " "));
+    const covered = new Set();
+    for (const term of terms) {
+      const rule = rules.get(term);
+      if (!rule) throw new Error(`${label}: add a file rule for ${term}`);
+      if (files.some((entry) => (rule.test(entry.name) || terms.length === 1 && /^(?:LICEN[CS]E|COPYING)(?:\.txt|\.md)?$/i.test(entry.name)) && (term !== "Apache-2.0 WITH LLVM-exception" || texts.get(entry.name).replace(/\s+/g, " ").includes(LLVM_EXCEPTION)))) covered.add(term);
+    }
+    if (!permitted(crate.license, covered)) throw new Error(`${label}: missing upstream licence file for ${terms.filter((term) => !covered.has(term)).join(", ")}`);
+    sections.push(`=== ${label} (${crate.origin ?? "crates.io"}) ===\nLicense: ${crate.license}\n`);
+    for (const entry of files) sections.push(`--- ${entry.name} ---\n${texts.get(entry.name)}`);
   }
   return sections.join("\n");
 }
