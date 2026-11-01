@@ -172,7 +172,10 @@ checked out the repository and diffed the same two commits. Now
 `ci-changes` runs the changed-paths action once per filter list, in one
 job, and the moved jobs read its outputs: `run` for the three fixture
 oracles, whose list was the same as `ci.yml`'s, and `h264-conformance`
-and `bench-guard` for the two that had their own. The fuzz job's list of
+and `bench-guard` for the two that had their own. `oracle-installer` is a
+list of one path, `scripts/install-oracle-ffmpeg.sh`, which only
+`modes-identity` reads beside `h264-conformance`: the group's other jobs do
+not run the installer. The fuzz job's list of
 targets is its `fuzz-plan` output, which a job of its own,
 `fuzz-changes`, used to compute. The job ids did not
 change, so neither did a required check name: the ruleset matches a check

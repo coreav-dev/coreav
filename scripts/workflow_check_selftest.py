@@ -258,6 +258,7 @@ class Repository(unittest.TestCase):
                       ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e -- scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):
