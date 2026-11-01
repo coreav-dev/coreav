@@ -1,0 +1,8 @@
+held t1 fast same 64
+held t8 fast same 64
+train t1 fast same 32
+train t1 nf same 32
+train t8 fast same 32
+train t8 nf same 32
+256 of 256 calls recorded
+complete: every call same

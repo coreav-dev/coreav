@@ -66,13 +66,14 @@ jobs:
         uses: ./.github/actions/changed-paths
         with:
           paths: |
-            packages/**
+            packages/cli/**
             crates/coreav-py/**
             crates/coreav-cli/**
             Cargo.lock
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
             scripts/oracle-ffmpeg.env
+            scripts/install-oracle-ffmpeg.sh
             .github/workflows/python.yml
             .github/actions/changed-paths/**
 

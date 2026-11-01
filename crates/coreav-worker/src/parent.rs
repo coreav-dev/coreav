@@ -1,11 +1,13 @@
-//! The parent side: starts a worker, sends it packets, and validates and
-//! copies every frame it returns (`docs/design/decode.md`, "The sandboxed
-//! worker"). The worker is untrusted and possibly compromised.
+//! The parent side: starts a worker, sends it packets, and validates every
+//! frame it returns, then copies it out or lends it in its slot
+//! (`docs/design/decode.md`, "The sandboxed worker"). The worker is
+//! untrusted and possibly compromised.
 
 #![forbid(unsafe_code)]
 
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
+use std::ops::Range;
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,9 +19,9 @@ use coreav_decode::{
     Backend, BackendKind, Decoder, DecoderInfo, Error, ErrorKind, Isolation, Limits, Packet,
     StreamConfig, StreamTraits, Support,
 };
-use coreav_frame::Frame;
+use coreav_frame::{ColorInfo, Frame, Pixels, SharedMemory, SharedPicture};
 
-use crate::descriptor::{SlotMemory, Slots, accept};
+use crate::descriptor::{Checked, SlotMemory, Slots, accept, check};
 use crate::protocol::{
     INLINE, Incoming, Open, ParentMessage, SandboxLimits, Transfer, WorkerBackend, WorkerMessage,
     read_message,
@@ -96,6 +98,12 @@ pub struct WorkerOptions {
     pub transfer: TransferMode,
     /// Shared memory slots.
     pub slots: u32,
+    /// Hand each frame that comes in a slot to the consumer in place
+    /// ([`Pixels::Shared`]) instead of copying it out: the slot stays the
+    /// consumer's until the frame and its clones drop, so a consumer that
+    /// keeps `slots` frames stops the worker until its deadline. For a
+    /// consumer that passes each frame on and drops it (the transcode).
+    pub lend_frames: bool,
     /// A cap on the worker's address space in bytes: the limit in force is
     /// the smaller of it and the decoder's `Limits::max_memory_bytes`
     /// (`None`: the budget alone).
@@ -109,15 +117,16 @@ pub struct WorkerOptions {
 }
 
 impl WorkerOptions {
-    /// Defaults for `command`: shared memory with 2 slots, address space
-    /// capped at 16 GiB (the decoder's memory budget applies below it), 256
-    /// open files, the backend's threads, and the `ffmpeg` that
-    /// [`find_ffmpeg`] finds.
+    /// Defaults for `command`: shared memory with 2 slots, frames copied
+    /// out, address space capped at 16 GiB (the decoder's memory budget
+    /// applies below it), 256 open files, the backend's threads, and the
+    /// `ffmpeg` that [`find_ffmpeg`] finds.
     pub fn new(command: WorkerCommand) -> Self {
         Self {
             command,
             transfer: TransferMode::Shared,
             slots: 2,
+            lend_frames: false,
             address_space: Some(16 << 30),
             open_files: Some(256),
             threads: 0,
@@ -504,7 +513,12 @@ impl SandboxedDecoder {
             let writer = writer.clone();
             let queue = Arc::clone(&queue);
             let limits = limits.clone();
-            let memory = memory.map(|(m, size)| (m, options.slots, size));
+            let slots = memory.map(|(memory, size)| SharedSlots {
+                memory,
+                count: options.slots,
+                size,
+                lend: options.lend_frames,
+            });
             spawn_thread("coreav-worker-reader", move || {
                 read_worker(
                     stdout,
@@ -513,7 +527,7 @@ impl SandboxedDecoder {
                     &events_tx,
                     &queue,
                     &limits,
-                    memory.as_ref(),
+                    slots.as_ref(),
                 );
             })
         });
@@ -814,8 +828,119 @@ fn keep_stderr(mut stderr: impl Read, kept: &Mutex<Vec<u8>>) {
     }
 }
 
-/// Reads the worker's messages: validates and copies each frame,
-/// acknowledges its slot, and queues it for [`SandboxedDecoder`].
+/// A frame lent in its slot ([`WorkerOptions::lend_frames`]): read only by
+/// copying out of the ranges the descriptor's check gave, and the slot
+/// acknowledged when the last clone of its picture drops.
+struct Lent {
+    memory: Memory,
+    /// The planes' bytes in the mapping in packed order: a range per plane
+    /// whose rows are packed (adjacent ones joined), else a range per row.
+    segments: Vec<Range<usize>>,
+    /// The acknowledgement's way to the worker, and the slot.
+    ack: (Sender<WriteJob>, u32),
+}
+
+impl Lent {
+    fn frame(
+        checked: &Checked,
+        pts: Option<i64>,
+        color: ColorInfo,
+        memory: &Memory,
+        writer: &Sender<WriteJob>,
+    ) -> Option<Frame> {
+        let slot = checked.slot?;
+        let mut segments: Vec<Range<usize>> = Vec::new();
+        for (index, (range, stride)) in checked.planes.iter().enumerate() {
+            let row = checked
+                .format
+                .row_bytes(index, checked.width, checked.height)?;
+            let rows: Vec<Range<usize>> = if *stride == row {
+                vec![range.clone()]
+            } else {
+                range
+                    .clone()
+                    .step_by((*stride).max(1))
+                    .map(|start| start..start.saturating_add(row).min(range.end))
+                    .collect()
+            };
+            for segment in rows {
+                match segments.last_mut() {
+                    Some(last) if last.end == segment.start => last.end = segment.end,
+                    _ => segments.push(segment),
+                }
+            }
+        }
+        let lent = Self {
+            memory: memory.clone(),
+            segments,
+            ack: (writer.clone(), slot),
+        };
+        Some(Frame {
+            pts,
+            color,
+            pixels: Pixels::Shared(SharedPicture {
+                width: checked.width,
+                height: checked.height,
+                format: checked.format,
+                memory: Arc::new(lent),
+            }),
+        })
+    }
+}
+
+impl SharedMemory for Lent {
+    fn read_packed(&self, mut at: usize, out: &mut [u8]) -> Option<usize> {
+        let mut filled = 0;
+        for segment in &self.segments {
+            if filled == out.len() {
+                break;
+            }
+            let len = segment.len();
+            if at >= len {
+                at -= len;
+                continue;
+            }
+            let n = (len - at).min(out.len() - filled);
+            let target = out.get_mut(filled..filled + n)?;
+            self.memory
+                .copy_out(segment.start.checked_add(at)?, target)?;
+            filled += n;
+            at = 0;
+        }
+        Some(filled)
+    }
+}
+
+impl Drop for Lent {
+    /// Gives the slot back: the writer clears its flag before the worker
+    /// can read the acknowledgement. A worker gone or no longer reading
+    /// gets none, which nothing waits for.
+    fn drop(&mut self) {
+        let (writer, slot) = &self.ack;
+        let mut bytes = Vec::new();
+        if ParentMessage::Ack(*slot).write(&mut bytes).is_ok() {
+            let _ = writer.send(WriteJob {
+                bytes,
+                done: None,
+                release: Some(*slot),
+            });
+        }
+    }
+}
+
+/// The shared memory as the reader uses it.
+struct SharedSlots {
+    memory: Memory,
+    count: u32,
+    /// Bytes per slot.
+    size: u64,
+    /// Whether frames in slots are lent ([`WorkerOptions::lend_frames`]).
+    lend: bool,
+}
+
+/// Reads the worker's messages: validates each frame and queues it for
+/// [`SandboxedDecoder`], copied out with its slot acknowledged, or lent in
+/// its slot.
 fn read_worker(
     mut stdout: ChildStdout,
     writer: &Sender<WriteJob>,
@@ -823,7 +948,7 @@ fn read_worker(
     events: &Sender<Event>,
     queue: &Queue,
     limits: &Limits,
-    memory: Option<&(Memory, u32, u64)>,
+    shared: Option<&SharedSlots>,
 ) {
     let violation = |what: &str| {
         Event::Failed(Error::new(
@@ -882,12 +1007,36 @@ fn read_worker(
                 })
             }
             Ok(WorkerMessage::Frame(descriptor, inline)) => {
-                let slots = memory.map(|(m, count, size)| Slots {
-                    memory: m,
-                    count: *count,
-                    size: *size,
+                let slots = shared.map(|s| Slots {
+                    memory: &s.memory,
+                    count: s.count,
+                    size: s.size,
                 });
-                match accept(&descriptor, &inline, seq, slots, limits) {
+                let received = match shared {
+                    Some(SharedSlots { memory, lend, .. })
+                        if *lend && descriptor.slot != INLINE =>
+                    {
+                        check(&descriptor, inline.len(), seq, slots, limits).and_then(|checked| {
+                            let frame = Lent::frame(
+                                &checked,
+                                descriptor.pts,
+                                descriptor.color,
+                                memory,
+                                writer,
+                            )
+                            .ok_or_else(|| {
+                                Error::new(ErrorKind::Backend, "a lent frame without its slot")
+                            })?;
+                            Ok(crate::descriptor::Accepted {
+                                frame,
+                                slot: None,
+                                bytes: checked.bytes,
+                            })
+                        })
+                    }
+                    _ => accept(&descriptor, &inline, seq, slots, limits),
+                };
+                match received {
                     Err(e) => Event::Failed(e),
                     Ok(accepted) => {
                         seq += 1;

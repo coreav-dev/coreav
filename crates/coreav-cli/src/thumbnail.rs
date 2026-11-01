@@ -178,7 +178,7 @@ pub fn make<S: Source>(
         options.policy.allowlist = coreav_decode::DecodeAllowlist::new(&codecs);
     }
     options.policy.order = order(request.exact);
-    let decoders = backends(this, request.threads, request.strict_safe);
+    let decoders = backends(this, request.threads, false, request.strict_safe);
     let made = coreav_thumbnail::thumbnail(source, &options, &decoders.list())
         .map_err(|e| decoders.explain(failure(e)))?;
     let document = document(&made, request.at);
@@ -232,6 +232,7 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
 pub(crate) fn backends(
     this: Option<&std::path::Path>,
     threads: u32,
+    lend_frames: bool,
     strict_safe: crate::strict_safe::StrictSafe,
 ) -> crate::strict_safe::Decoders {
     let mut out = crate::strict_safe::Decoders::default();
@@ -242,6 +243,7 @@ pub(crate) fn backends(
         use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
         let options = WorkerOptions {
             threads,
+            lend_frames,
             ..WorkerOptions::new(WorkerCommand {
                 program: program.to_path_buf(),
                 args: strict_safe.entry(WORKER_ARG),
