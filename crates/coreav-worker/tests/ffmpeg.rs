@@ -91,7 +91,7 @@ fn decode(file: &Path, transfer: TransferMode, lend_frames: bool) -> Vec<u8> {
         while let Some(frame) = d.receive_frame().expect("receive") {
             assert_eq!(
                 matches!(frame.pixels, Pixels::Shared(_)),
-                lend_frames && transfer == TransferMode::Shared,
+                cfg!(target_os = "linux") && lend_frames && transfer == TransferMode::Shared,
             );
             frame
                 .to_cpu()
