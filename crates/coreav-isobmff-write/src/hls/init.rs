@@ -55,7 +55,9 @@ impl HlsIndex {
             media,
             header: TrackFlags::DEFAULT,
             created: track.created,
+            modified: None,
             media_created: track.media_created,
+            media_modified: None,
             language: track.language,
             media_timescale: track.timescale,
             media_duration: 0,
@@ -69,6 +71,7 @@ impl HlsIndex {
         let movie = MovieBox {
             timescale: track.timescale,
             created: track.created,
+            modified: None,
             duration: 0,
             extra: Vec::new(),
         };

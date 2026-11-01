@@ -408,8 +408,11 @@ struct Header {
     /// without one.
     edits: Vec<EditEntry>,
     movie_created: u64,
+    movie_modified: u64,
     track_created: u64,
+    track_modified: u64,
     media_created: u64,
+    media_modified: u64,
     language: [u8; 3],
 }
 
@@ -418,6 +421,7 @@ impl Header {
         MovieBox {
             timescale: self.movie_timescale,
             created: self.movie_created,
+            modified: Some(self.movie_modified),
             duration: self.movie_duration,
             extra: copied(&described.movie),
         }
@@ -436,7 +440,9 @@ impl Header {
             handler_name: described.handler_name,
             header: TrackFlags::DEFAULT,
             created: self.track_created,
+            modified: Some(self.track_modified),
             media_created: self.media_created,
+            media_modified: Some(self.media_modified),
             language: self.language,
             media_timescale: self.media_timescale,
             media_duration: self.media_duration,
@@ -583,6 +589,16 @@ impl Header {
                 *b"und",
             ),
         };
+        let (movie_modified, track_modified, media_modified) = match metadata {
+            HeaderMetadata::Copy => (
+                movie.modification_time,
+                track.modification_time,
+                track.media_modification_time,
+            ),
+            HeaderMetadata::Clear | HeaderMetadata::MediaTime => {
+                (movie_created, track_created, media_created)
+            }
+        };
         Ok(Self {
             movie_timescale,
             media_timescale,
@@ -590,8 +606,11 @@ impl Header {
             movie_duration,
             edits,
             movie_created,
+            movie_modified,
             track_created,
+            track_modified,
             media_created,
+            media_modified,
             language,
         })
     }

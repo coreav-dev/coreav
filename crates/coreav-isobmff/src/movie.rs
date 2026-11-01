@@ -286,8 +286,12 @@ pub struct Track {
     /// Track header creation time, seconds since 1904-01-01 UTC as stored
     /// (see [`unix_time`]).
     pub creation_time: u64,
+    /// Track header modification time, seconds since 1904-01-01 UTC as stored.
+    pub modification_time: u64,
     /// Media header creation time, seconds since 1904-01-01 UTC as stored.
     pub media_creation_time: u64,
+    /// Media header modification time, seconds since 1904-01-01 UTC as stored.
+    pub media_modification_time: u64,
     /// Recoverable problems.
     pub warnings: Vec<Warning>,
     pub(crate) tables: SampleTables,
@@ -597,6 +601,8 @@ pub struct Movie {
     /// Movie header creation time, seconds since 1904-01-01 UTC as stored
     /// (see [`unix_time`]).
     pub creation_time: u64,
+    /// Movie header modification time, seconds since 1904-01-01 UTC as stored.
+    pub modification_time: u64,
     /// Tracks in file order, without dropped streams.
     pub tracks: Vec<Track>,
     /// Streams left out because their codec is not allowed.
@@ -1390,7 +1396,7 @@ fn parse_moov<S: Source>(
     allowlist: &Allowlist,
     inflated: bool,
 ) -> Result<Movie, Error> {
-    let mut mvhd: Option<(u32, u64, u64, [i32; 9])> = None;
+    let mut mvhd: Option<(u32, u64, u64, u64, [i32; 9])> = None;
     let mut cmov: Option<(BoxHeader, u32)> = None;
     let mut tracks: Vec<Track> = Vec::new();
     let mut trex: Vec<Trex> = Vec::new();
@@ -1407,7 +1413,7 @@ fn parse_moov<S: Source>(
             b"mvhd" => {
                 let payload = w.payload(&child)?;
                 let mut b = Bytes::new(&payload, child.payload_offset());
-                let (version, created, timescale, duration) = media_times(&mut b)?;
+                let (version, created, modified, timescale, duration) = media_times(&mut b)?;
                 if timescale == 0 {
                     return Err(invalid(&child, "zero timescale"));
                 }
@@ -1427,6 +1433,7 @@ fn parse_moov<S: Source>(
                     timescale,
                     unknown_duration(version, duration),
                     created,
+                    modified,
                     matrix,
                 ));
             }
@@ -1502,7 +1509,7 @@ fn parse_moov<S: Source>(
         }
         return parse_compressed_moov(w, &cmov, depth, allowlist);
     }
-    let (timescale, mvhd_duration, creation_time, matrix) =
+    let (timescale, mvhd_duration, creation_time, modification_time, matrix) =
         mvhd.ok_or(invalid(moov, "missing movie header"))?;
     // `trex` may come before or after the tracks; resolve it now.
     for defaults in &trex {
@@ -1568,6 +1575,7 @@ fn parse_moov<S: Source>(
         timescale,
         mvhd_duration,
         creation_time,
+        modification_time,
         matrix,
         tracks,
         dropped,
@@ -1825,7 +1833,7 @@ impl Default for DroppedTiming {
 struct TrackParts {
     tkhd: Option<Tkhd>,
     edits: Option<(EditList, Vec<Edit>)>,
-    mdhd: Option<(u32, u64, Option<[u8; 3]>, u64)>,
+    mdhd: Option<MediaHeader>,
     handler: Option<(FourCc, Vec<u8>)>,
     quicktime_handler: bool,
     description: Option<(SampleDescription, u32, u16)>,
@@ -1911,9 +1919,9 @@ fn parse_trak<S: Source>(
         }
     }
     if let Some(error) = not_allowed {
-        if let Some((timescale, duration, ..)) = parts.mdhd {
-            dropped.timescale = timescale;
-            dropped.mdhd_duration = duration;
+        if let Some(header) = parts.mdhd {
+            dropped.timescale = header.timescale;
+            dropped.mdhd_duration = header.duration;
         }
         dropped.edit_list = parts.edits.map_or(EditList::None, |(list, _)| list);
         return Err(error);
@@ -1923,10 +1931,16 @@ fn parse_trak<S: Source>(
         matrix,
         size: presentation_size,
         created: creation_time,
+        modified: modification_time,
         ..
     } = parts.tkhd.ok_or(invalid(trak, "missing track header"))?;
-    let (timescale, mdhd_duration, language, media_creation_time) =
-        parts.mdhd.ok_or(invalid(trak, "missing media header"))?;
+    let MediaHeader {
+        timescale,
+        duration: mdhd_duration,
+        language,
+        created: media_creation_time,
+        modified: media_modification_time,
+    } = parts.mdhd.ok_or(invalid(trak, "missing media header"))?;
     let (handler, handler_name_bytes) = parts.handler.ok_or(invalid(trak, "missing handler"))?;
     let (description, descriptions, data_reference) = parts
         .description
@@ -2019,7 +2033,9 @@ fn parse_trak<S: Source>(
         tables_valid: problem.is_none(),
         sample_bytes: stsz_bytes,
         creation_time,
+        modification_time,
         media_creation_time,
+        media_modification_time,
         warnings,
         tables: parts.tables,
         stsz_bytes,
@@ -2101,7 +2117,7 @@ fn parse_mdia<S: Source>(
             b"mdhd" => {
                 let payload = w.payload(&child)?;
                 let mut b = Bytes::new(&payload, child.payload_offset());
-                let (version, created, timescale, duration) = media_times(&mut b)?;
+                let (version, created, modified, timescale, duration) = media_times(&mut b)?;
                 if timescale == 0 {
                     return Err(invalid(&child, "zero timescale"));
                 }
@@ -2111,7 +2127,13 @@ fn parse_mdia<S: Source>(
                     [10u16, 5, 0]
                         .map(|shift| (((packed >> shift) & 0x1f) as u8).saturating_add(0x60))
                 });
-                parts.mdhd = Some((timescale, duration, language, created));
+                parts.mdhd = Some(MediaHeader {
+                    timescale,
+                    duration,
+                    language,
+                    created,
+                    modified,
+                });
             }
             b"hdlr" => {
                 let payload = w.payload(&child)?;
@@ -2268,6 +2290,15 @@ fn parse_stsd(
 }
 
 #[derive(Clone, Copy)]
+struct MediaHeader {
+    timescale: u32,
+    duration: u64,
+    language: Option<[u8; 3]>,
+    created: u64,
+    modified: u64,
+}
+
+#[derive(Clone, Copy)]
 struct Tkhd {
     track_id: u32,
     /// `track_enabled` (flag 1).
@@ -2275,23 +2306,24 @@ struct Tkhd {
     matrix: [i32; 9],
     size: (u32, u32),
     created: u64,
+    modified: u64,
 }
 
 /// The identity transformation matrix (ISO/IEC 14496-12 8.2.2.3).
 pub const IDENTITY_MATRIX: [i32; 9] = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000];
 
-/// Version, creation time, timescale and duration of `mvhd` or `mdhd`
-/// (ISO/IEC 14496-12 8.2.2 and 8.4.2); the modification time is skipped.
-fn media_times(b: &mut Bytes<'_>) -> Result<(u8, u64, u32, u64), Error> {
+/// Version, creation and modification times, timescale and duration of
+/// `mvhd` or `mdhd` (ISO/IEC 14496-12 8.2.2 and 8.4.2).
+fn media_times(b: &mut Bytes<'_>) -> Result<(u8, u64, u64, u32, u64), Error> {
     let (version, _) = b.version_flags()?;
     if version == 1 {
         let created = b.u64()?;
-        b.skip(8)?;
-        Ok((version, created, b.u32()?, b.u64()?))
+        let modified = b.u64()?;
+        Ok((version, created, modified, b.u32()?, b.u64()?))
     } else {
         let created = u64::from(b.u32()?);
-        b.skip(4)?;
-        Ok((version, created, b.u32()?, u64::from(b.u32()?)))
+        let modified = u64::from(b.u32()?);
+        Ok((version, created, modified, b.u32()?, u64::from(b.u32()?)))
     }
 }
 
@@ -2360,18 +2392,18 @@ fn sum_be_u32(entries: &[u8]) -> u64 {
 fn parse_tkhd(payload: &[u8], offset: u64) -> Result<Tkhd, Error> {
     let mut b = Bytes::new(payload, offset);
     let (version, flags) = b.version_flags()?;
-    let (created, track_id) = if version == 1 {
+    let (created, modified, track_id) = if version == 1 {
         let created = b.u64()?;
-        b.skip(8)?;
+        let modified = b.u64()?;
         let id = b.u32()?;
         b.skip(12)?;
-        (created, id)
+        (created, modified, id)
     } else {
         let created = u64::from(b.u32()?);
-        b.skip(4)?;
+        let modified = u64::from(b.u32()?);
         let id = b.u32()?;
         b.skip(8)?;
-        (created, id)
+        (created, modified, id)
     };
     b.skip(16)?;
     let mut matrix = [0i32; 9];
@@ -2388,6 +2420,7 @@ fn parse_tkhd(payload: &[u8], offset: u64) -> Result<Tkhd, Error> {
         matrix,
         size: (width, height),
         created,
+        modified,
     })
 }
 

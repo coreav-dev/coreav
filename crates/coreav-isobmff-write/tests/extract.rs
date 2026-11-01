@@ -1040,6 +1040,101 @@ fn a_gapless_item_past_the_box_count_limit_is_left_out() {
 }
 
 #[test]
+fn source_creation_and_modification_times_stay_distinct() {
+    let dates = |file: &[u8], kind: &[u8; 4]| {
+        let at = file.windows(4).position(|w| w == kind).unwrap() + 4;
+        if file[at] == 1 {
+            (
+                u64::from_be_bytes(file[at + 4..at + 12].try_into().unwrap()),
+                u64::from_be_bytes(file[at + 12..at + 20].try_into().unwrap()),
+            )
+        } else {
+            (
+                u64::from(u32::from_be_bytes(file[at + 4..at + 8].try_into().unwrap())),
+                u64::from(u32::from_be_bytes(
+                    file[at + 8..at + 12].try_into().unwrap(),
+                )),
+            )
+        }
+    };
+    for (wide, base) in [
+        (false, 100u64),
+        (true, 200),
+        (true, u64::from(u32::MAX) + 1),
+    ] {
+        let mut source = aac_movie(100, 10, None, false);
+        for (i, path) in [
+            vec![b"moov", b"mvhd"],
+            vec![b"moov", b"trak", b"tkhd"],
+            vec![b"moov", b"trak", b"mdia", b"mdhd"],
+        ]
+        .iter()
+        .enumerate()
+        {
+            let kind = path.last().unwrap();
+            let start = source.windows(4).position(|w| w == *kind).unwrap() - 4;
+            let end =
+                start + u32::from_be_bytes(source[start..start + 4].try_into().unwrap()) as usize;
+            let payload = source[start + 8..end].to_vec();
+            let created = dates(&source, kind).0;
+            let modified = base + i as u64;
+            if wide {
+                let duration_at = if *kind == b"tkhd" { 20 } else { 16 };
+                let mut body = vec![1, payload[1], payload[2], payload[3]];
+                body.extend(created.to_be_bytes());
+                body.extend(modified.to_be_bytes());
+                body.extend_from_slice(&payload[12..duration_at]);
+                let duration =
+                    u32::from_be_bytes(payload[duration_at..duration_at + 4].try_into().unwrap());
+                body.extend(u64::from(duration).to_be_bytes());
+                body.extend_from_slice(&payload[duration_at + 4..]);
+                source = inserted(&source, path, end, &[0; 12]);
+                source[start + 8..end + 12].copy_from_slice(&body);
+            } else {
+                source[start + 16..start + 20].copy_from_slice(&(modified as u32).to_be_bytes());
+            }
+        }
+        let (_, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+        let parsed = probe(
+            SliceSource::new(&output),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap();
+        assert_eq!(parsed.modification_time, base);
+        assert_eq!(parsed.tracks[0].modification_time, base + 1);
+        assert_eq!(parsed.tracks[0].media_modification_time, base + 2);
+        for kind in [b"mvhd", b"tkhd", b"mdhd"] {
+            assert_eq!(
+                dates(&output, kind),
+                dates(&source, kind),
+                "{kind:?} {wide} {base}"
+            );
+        }
+        for metadata in [HeaderMetadata::Clear, HeaderMetadata::MediaTime] {
+            let mut output = Vec::new();
+            extract_audio(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default(),
+                TrackChoice::FirstAudio,
+                metadata,
+                &mut output,
+            )
+            .unwrap();
+            let expected = if metadata == HeaderMetadata::Clear {
+                0
+            } else {
+                dates(&source, b"mdhd").0
+            };
+            for kind in [b"mvhd", b"tkhd", b"mdhd"] {
+                assert_eq!(dates(&output, kind), (expected, expected));
+            }
+        }
+    }
+}
+
+#[test]
 fn cleared_header_metadata_leaves_the_audio_as_it_was() {
     let source = aac_movie(100, 10, Some((0, 1024, 2000)), false);
     let (_, copied) = extract(&source, TrackChoice::FirstAudio).unwrap();

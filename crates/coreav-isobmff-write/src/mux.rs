@@ -464,7 +464,9 @@ impl Muxer {
                 media,
                 header,
                 created: h.creation_time,
+                modified: None,
                 media_created: h.media_creation_time,
+                media_modified: None,
                 language: h.language,
                 media_timescale: h.timescale,
                 media_duration,
@@ -483,6 +485,7 @@ impl Muxer {
             &MovieBox {
                 timescale: movie_timescale,
                 created: self.movie.creation_time,
+                modified: None,
                 duration: movie_duration,
                 extra: copied(&self.movie.boxes),
             },

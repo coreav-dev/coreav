@@ -1023,7 +1023,8 @@ metadata is copied along with streams/chapters". The extraction
 track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
 8.11.1: user data describes the presentation or the track that contains
 it, and both are the output's), the track's handler name (8.4.3.3), its
-language, and the creation times of the movie, track and media headers,
+language, and the separate creation and modification times of the movie,
+track and media headers,
 as the remux does (`remux.md`, "Metadata and other boxes"). Two things
 are left out: every cover picture item (`covr`, or an entry keyed
 `com.apple.quicktime.artwork` through its `meta` box's `keys`; whole,
@@ -1061,8 +1062,10 @@ is named, and where none does both readings are given:
   presentation and of the track, and do not say whether a stream copy
   into a new file is the same presentation and track (the source's times)
   or a new one (the time of the copy). Neither reading gives no time. The
-  extraction keeps the source's times, as the remux does, which also
-  keeps its output the same on every run. `ffprobe` then lists a
+  extraction keeps each source header's creation and modification times
+  separately, including distinct values and 64-bit modification times.
+  Copying these stored values keeps its output the same on every run.
+  `ffprobe` then lists a
   `creation_time` for the file and the stream on `coreav ffmpeg`'s
   output and none on `ffmpeg`'s.
 - Items stored in another form. The item list (`ilst`) and its entries
