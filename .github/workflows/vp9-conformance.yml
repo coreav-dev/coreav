@@ -1,0 +1,78 @@
+name: vp9-conformance
+
+# Gate G1 of docs/design/vp9.md: every test vector of
+# crates/coreav-vp9/tests/data/vectors.json, fetched from the WebM project's
+# bucket and checked against the SHA-256 the manifest pins, through the
+# crate's header reader. Also checks that crates/coreav-vp9/src/tables.rs is
+# what crates/coreav-vp9/tools/gen_tables.py reads from the specification.
+# Runs when the crate or this workflow changes, and weekly.
+
+on:
+  push:
+    branches: [main]
+    paths: ["crates/coreav-vp9/**", ".github/workflows/vp9-conformance.yml"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["crates/coreav-vp9/**", ".github/workflows/vp9-conformance.yml"]
+  schedule:
+    - cron: '41 6 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  vectors:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: The tables are the specification's
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends poppler-utils
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/vp9-spec.pdf" https://storage.googleapis.com/downloads.webmproject.org/docs/vp9/vp9-bitstream-specification-v0.7-20170222-draft.pdf
+          python3 -I crates/coreav-vp9/tools/gen_tables.py --pdf "$RUNNER_TEMP/vp9-spec.pdf" --out crates/coreav-vp9/src/tables.rs --check
+      - name: List the vectors and their checksums
+        run: |
+          set -euo pipefail
+          python3 -I -c '
+          import json, sys
+          m = json.load(open(sys.argv[1]))
+          with open(sys.argv[2], "w") as urls, open(sys.argv[3], "w") as sums:
+              for v in m["vectors"]:
+                  for name, sha in ((v["name"], v["sha256"]), (v["name"] + ".md5", v["md5_sha256"])):
+                      urls.write(m["source"] + name + " " + name + "\n")
+                      sums.write(sha + "  " + name + "\n")
+          ' crates/coreav-vp9/tests/data/vectors.json "$RUNNER_TEMP/vp9-urls.txt" "$RUNNER_TEMP/vp9.sha256"
+      - name: Cache the vectors
+        id: vectors
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/vp9-vectors
+          key: vp9-vectors-${{ hashFiles('crates/coreav-vp9/tests/data/vectors.json') }}
+      - name: Fetch the vectors
+        if: steps.vectors.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/vp9-vectors"
+          cd "$RUNNER_TEMP/vp9-vectors"
+          xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"' < "$RUNNER_TEMP/vp9-urls.txt"
+      - name: Check the vectors
+        run: cd "$RUNNER_TEMP/vp9-vectors" && sha256sum --quiet -c "$RUNNER_TEMP/vp9.sha256"
+      - name: Read every vector's headers (gate G1)
+        env:
+          COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
+        run: cargo test --locked --release -p coreav-vp9 --test vectors -- --include-ignored --nocapture

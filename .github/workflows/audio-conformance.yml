@@ -190,6 +190,152 @@ jobs:
             ${{ runner.temp }}/aac-agreement/decoder.jsonl
           if-no-files-found: warn
 
+  # The HE-AAC bars (docs/design/audio-decode.md, "HE-AAC bars" and
+  # "HE-AAC sets"). Run by hand only (workflow_dispatch), so that the
+  # judged run is one run. Until the decoder lands they build the sets and
+  # the oracle's decodes and judge nothing; no CoreAV command runs.
+  he-aac-sources:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: The generated set's sources
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I scripts/he_aac_agreement.py sources --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --out "$RUNNER_TEMP/he-aac-gen"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: he-aac-sources
+          path: ${{ runner.temp }}/he-aac-gen
+          if-no-files-found: error
+
+  he-aac-encode:
+    needs: he-aac-sources
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: he-aac-sources
+          path: ${{ runner.temp }}/he-aac-gen
+      - name: Encode the generated set with Apple's encoder (afconvert)
+        run: python3 -I scripts/he_aac_agreement.py encode --dir "$RUNNER_TEMP/he-aac-gen"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: he-aac-generated
+          path: |
+            ${{ runner.temp }}/he-aac-gen/gen
+            ${{ runner.temp }}/he-aac-gen/encoded.json
+          if-no-files-found: error
+
+  he-aac:
+    needs: he-aac-encode
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      AAC_VECTORS_BASE: https://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_IEC_14496-26_2010_Bitstreams
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Cache the conformance streams
+        id: vectors
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/aac
+          key: aac-conformance-${{ hashFiles('crates/coreav-aac/tests/conformance.sha256') }}
+      - name: Fetch the conformance streams
+        if: steps.vectors.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aac/compressedMp4" "$RUNNER_TEMP/aac/referencesWav/add-opt"
+          cd "$RUNNER_TEMP/aac"
+          awk '{print $2}' "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256" |
+            while read -r f; do
+              case "$f" in
+                compressedMp4/* | referencesWav/add-opt/*) echo "$AAC_VECTORS_BASE/DVD1/mpeg4audio-conformance/$f $f" ;;
+                *) echo "$AAC_VECTORS_BASE/DVD2/mpeg4audio-conformance/$f $f" ;;
+              esac
+            done | xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"'
+      - name: Check the streams
+        run: cd "$RUNNER_TEMP/aac" && sha256sum --quiet -c "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256"
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: he-aac-generated
+          path: ${{ runner.temp }}/he-aac-gen
+      - name: Check for the corpus credentials
+        id: creds
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          if [ -n "$R2_ENDPOINT" ] && [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_BUCKET" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "### HE-AAC corpus set: empty, no corpus credentials" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Select the corpus set (before any CoreAV command)
+        if: steps.creds.outputs.present == 'true'
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/he_aac_agreement.py select \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --work "$RUNNER_TEMP/he-aac"
+      - name: Prepare the sets and the oracle's decodes
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I scripts/he_aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" --work "$RUNNER_TEMP/he-aac" \
+            --conformance "$RUNNER_TEMP/aac" --generated "$RUNNER_TEMP/he-aac-gen"
+      - name: Keep the sets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: he-aac-sets
+          path: |
+            ${{ runner.temp }}/he-aac/set.json
+            ${{ runner.temp }}/he-aac/corpus.json
+            ${{ runner.temp }}/he-aac-gen/encoded.json
+          if-no-files-found: warn
+
   mp3-transforms:
     # The unrolled transforms regenerate from their generators byte for
     # byte. The tables come from two documents (tables/gen_mp3.py pins

@@ -112,6 +112,29 @@ The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
   every runner. It joined the guard without a baseline entry: a case
   without one is reported, not judged, until a guard run on `main` records
   its count.
+- **FFmpeg command shapes:** each of the 14 selected `ffmpeg` shapes in
+  `tools/compat-corpus/commands-0.1.0/commands.json` has a `ffmpeg-Cxx-*`
+  case. They exercise remux, clip, join, split and audio extraction through
+  the compatibility command, including its stream selection and options.
+  The cases use the two-second `basic.mp4` of the committed fixture
+  generator, or a bitexact stream copy of its video or audio alone. C02
+  joins a concat list of video-only segments prepared by the native split
+  command, outside the count. C15 and C19 clip the audio-only input into
+  MP4 because the compatibility command refuses clipping into M4A. Every
+  output goes into a fresh directory. The guard sets a nonexistent
+  fallback program, so any case that stops being native fails. The shape
+  coverage test derives every template's shape and job with the command
+  set's classifier and requires exactly one case for each selected shape.
+  The instruction regression test injects 10% more case instructions,
+  without changing start-up, and requires each case to fail at the
+  baseline's tolerance, with a just-below-tolerance passing control.
+  The 14 initial counts and fixture digests come from
+  [the guard run](https://github.com/coreav-dev/coreav/actions/runs/41320935327)
+  on `481ab06`, with the shipped `dist` profile, Rust 1.99.1, Valgrind
+  3.22.0, Ubuntu 24.04 and the pinned FFmpeg 9.0.2 fixture generator.
+  Each count is the command's Cachegrind instruction total minus that
+  run's 496,437-instruction `coreav --version`. No existing baseline entry,
+  start-up count or tolerance changed.
 - **What it measures:** the number of instructions the `coreav` command
   executes (Valgrind's `cachegrind` tool with the cache simulation off) for
   a fixed list of cases, each user-facing command on one fixture, minus the

@@ -5,6 +5,11 @@ first, its measurement tools merge second, and its results are published
 only after the run. The code fixes remain a separate change. No round 9
 measurement starts before the plan and tools are on `main`.
 
+The corpus known-divergence amendment below must merge before a separate
+comparator-and-audit tools change, and that change must merge before the
+run. The already registered B4 method is unchanged. This amendment does
+not apply retrospectively to round 8 or to another registered arm.
+
 ## Round 8 remains a miss
 
 Round 8 compared main `f278e25` and candidate `f715de8` with the same
@@ -44,9 +49,11 @@ inference. Round 8 is not rerun or re-scored with the method below.
 The [B1–B6 table](../../design/compat-cli.md#the-bars-pre-registered)
 remains normative: B3a requires at least 98% agreement per key after
 documented known divergences, and B4 requires the median ratio to be at
-most 1.00 per command, overall and per class. The fixture requirement,
-B3a denominators and experimental label do not change. A container-level
-breakdown is reported without inventing a new bar.
+most 1.00 per command, overall and per class. The fixture requirement, raw
+corpus population, key-eligibility counts and experimental label do not
+change. Only the validated row exclusions below adjust a gated
+denominator. A container-level breakdown is reported without inventing a
+new bar.
 
 B3a uses the same 1,315 files as round 8. B4 uses the existing frozen
 selector in `tools/compat-corpus/speed.py`: up to 20 held-out files per
@@ -62,6 +69,123 @@ Inputs inspected while developing these fixes are not independent
 validation. No new file or command is chosen because its round 8 values
 were favourable. Known divergences require the file's bytes and the
 specification; a mismatch is not excluded merely because it misses a bar.
+
+## Corpus key-row exclusions
+
+A known divergence may exclude a B3a corpus key row only when all three
+conditions hold:
+
+1. A cited specification clause shows that pinned ffprobe 9.0.2's value
+   is wrong, or that CoreAV's differing value is the specification's
+   defined reading. An implementation preference or an undecidable
+   interpretation is not enough.
+2. A predicate validates that reading from the file's bytes. It binds
+   the exact differing occurrences to their stream or packet and checks
+   both observed values against the byte-derived readings, except for the
+   single proven-absence case below. CoreAV's own
+   output, a file name or a container label alone is not evidence.
+   Missing, unsupported or unreadable byte evidence covers nothing.
+3. The predicate and its tests are committed before the run, through the
+   separate comparator-and-audit tools change. A prose record alone does
+   not activate coverage.
+
+Only `KD-FF9-EMPTY-EDIT-PADDING` may establish a missing CoreAV
+`packets.side_data_list.discard_padding` value as correct. Its registered
+byte predicate must positively prove that the last sample's decoded frame
+ends at or before the media edit's end, not merely that its stored sample
+duration does. The track's timescale must equal the AudioSpecificConfig's
+core sample rate. One core frame then spans 1,024 or 960 media ticks by
+`frameLengthFlag`, whether or not SBR is present: SBR doubles sample count
+and rate together, not time. Require `last.dts + frame_span <= edit_end`,
+with both ends in media time. A shorter stored sample cannot prove absence.
+The predicate must also derive the exact oracle value and bind both
+readings to that same last sample and packet. Every other packet must
+agree. A missing value alone is not proof: an unproven absence,
+a missing oracle value and absence under any other KD remain unexcludable.
+Mutation tests must keep deletions without this byte proof uncovered.
+In particular, deleting the required 324 padding from a 700-tick last
+sample that straddles the edit with a 1,024-tick frame must stay uncovered.
+This case and its predicate must be in scope at the cutoff below.
+
+A row is one file's agreement result for one key, in one container, not
+one occurrence of that key. Exclude it only if every differing occurrence
+is validated by an eligible predicate. An uncovered difference in the
+same key, another stream or another packet must remain a disagreement.
+An agreeing row is never excluded. No entire file is removed merely
+because one of its keys has a known divergence.
+
+### Freeze the records before implementing the hook
+
+The cutoff is the authoritative commit on `main` that introduces this
+plan amendment. Record that commit and the eligible KD identifiers,
+specification clauses and field/case scopes in the run manifest. Only
+records present at that cutoff may be implemented for this round. A new
+KD or a wider scope under an existing identifier after the cutoff is not
+eligible; it needs a separately registered future arm. The tools change
+may implement the frozen records, but may not add cases. Its predicates,
+tests and audit must all be committed before the first comparison.
+
+Initial candidate records are `KD-TS-VBI-AS-AUDIO` (VBI data sniffed as
+MP3), `KD-TS-PROGRAM-WRAP` (cross-program 33-bit timestamp unwrapping)
+and `KD-TS-ANNEX-D-DOWNMIX` (AC-3 Annex D multichannel coded levels),
+documented in [the transport-stream records](../../known-divergences-ts.md).
+Being named here does not grant coverage: each record must be present at
+the cutoff and independently satisfy every condition and audit above.
+The existing `KD-TS-DECODE-TIME` design is not widened by this amendment.
+`KD-FF9-EMPTY-EDIT-PADDING`, documented in
+[the pinned-oracle records](../../known-divergences-ffprobe9.md), is also
+eligible only within its frozen byte-derived scope; its three unproven
+both-present development cases remain disagreements.
+The Matroska/WebM AV1 records `KD-FF9-AV1-DEFAULT-SUFFIX` and
+`KD-FF9-AV1-CHROMA-POSITION` must also land before the cutoff. The first
+follows section 5's SHOULD by omitting the default suffix; the oracle's
+longer form is permitted, not an error. The second concerns an omitted
+suffix that misstates stored `chroma_sample_position` 1 as default 0.
+Each requires its own independent byte predicate and exact string pair.
+`KD-FF9-ANNEX-D-DOWNMIX`, the Matroska AC-3 Annex D record, must also
+land before the cutoff with its byte predicate and tests.
+
+### Attack every exclusion
+
+Use the adversarial method of the
+[known-divergence audit](../kd-audit.md), not a review of predicates alone.
+Committed tests attack every predicate on generated fixtures and permitted
+development data, including matching, directly agreeing and nonmatching
+cases. Every exclusion used by the run must also pass that audit on its
+captured comparison before it can affect the verdict.
+
+Inject bug-shaped changes in the candidate captures: wrong values, lost
+or duplicated streams or packets, changed identities, and values moved
+together with CoreAV's own claimed evidence. Any change that introduces
+or worsens a raw gating difference must remain uncovered; it must not be
+absorbed by an exclusion or activate one on an otherwise agreeing row.
+Byte-evidence mutations and negative fixtures must also show that a
+changed or inapplicable file cannot retain coverage. A covered mutation
+is a loophole and blocks use of that exclusion. Audit failures in the run
+make the result nonpassing, not an opportunity to add a KD or re-score
+the arm. The audit's known comparison blind spots are reported, never
+counted as successful attacks. Do not use round-9 held-out inputs to
+develop or tune predicates or mutations.
+
+### Publish raw and excluded rows separately
+
+Keep each raw per-file/key result and publish the excluded rows separately
+using opaque file aliases, never media hashes or source paths, with
+counts per KD, per key and per container. Keep development and held-out
+breakdowns. A row supported by several KDs counts once in the excluded
+total; publish attribution overlaps rather than double-counting it.
+
+Report the literal raw agreement numerator and denominator beside the
+gated agreement. Preserve the existing byte-validated `KD-STRICT`
+structural-rejection treatment: its covered rows remain in the gated
+denominator and count through that record, separately from direct
+agreement and from the new exclusions. Thus the exclusive row totals are
+direct agreement, existing covered agreement, new exclusions and uncovered
+disagreement. The gated numerator is the first two totals; its denominator
+is the raw row count minus the new exclusions. Key eligibility is decided
+from raw numbers of files containing each key, not recomputed after
+exclusions. A key with no remaining rows is unmeasured, not a pass.
+The 98% bar is unchanged.
 
 ## Method corrections fixed before the tools change
 
@@ -97,17 +221,21 @@ address the failure and refusal cases already reported for round 8.
 The tools change adds tests for forced-format family selection, complete
 file-cluster resampling, deterministic intervals, failure accounting and
 fallback classification. It does not use the per-key results to select a
-new comparison rule. No new known-divergence predicate is introduced by
-the measurement tools.
+new comparison rule. The later corpus comparator-and-audit change
+implements only the records frozen by this amendment, under the rules
+above; it introduces no new KD cases.
 
 ## Run identity and host controls
 
 Before launch, record the candidate commit, its base commit, the merged
 tooling commit, binary checksums, oracle pin and frozen input/command
-selection in a run manifest. The candidate is the final code-PR head
-after merging a fetched `main`; that fetched revision is its baseline.
-Neither revision changes between comparisons. Both sides
-of B3a use the same oracle and comparison tools. The manifest is fixed
+selection in a run manifest. The candidate must be a fixed `main` commit
+with fully green CI, including the instruction guard and the required
+integration, guard and container key fixes. Record its fetched-main
+baseline too. The container key-fix changes must be merged or their
+remaining gaps reported unclosable before launch. Neither revision
+changes between comparisons. Both sides of B3a use the same oracle and
+comparison tools. The manifest is fixed
 before the first comparison, not edited to describe a better result.
 
 Every oracle comparison uses `scripts/oracle-ffmpeg.env`; the installed

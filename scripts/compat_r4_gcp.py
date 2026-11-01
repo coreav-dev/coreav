@@ -37,17 +37,20 @@ position.
 --rehearsal takes round_files.py `r4-rehearsal` (spent files) in place of draw 6 and runs its R4 arm whatever the gate
 says, so that a rehearsal exercises every step; the gate's verdict is still reported. --local runs job.sh in the
 upload directory on this machine instead of a VM (no power-off), for a rehearsal of the job; its verdict does not
-check the host. --dry-run builds the upload directory and prints what would run.
+check the host. --dry-run builds the upload directory without credentials and prints what would run.
+--collect removes staged credentials left by an uncatchable stop, such as SIGKILL or a machine restart.
 Credentials: COREAV_GCP_SA_KEY and COREAV_GCP_PROJECT (gcp_vm_job.py), and the corpus store's R2_ENDPOINT,
 R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, which the VM gets to read the files: pass read-only ones.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import math
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 
@@ -63,6 +66,7 @@ CAP_USD = 10.0                 # the per-task spend limit
 MAX_HOURS = 7.0                # the plan's estimate of four to six hours, and a margin
 DISK_GB = 60
 CREDENTIALS = ('R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET')
+TERMINATION_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
 UPLOADED = ['tools/compat-corpus/speed.py', 'tools/compat-corpus/release_round.py',
             'tools/compat-corpus/round_files.py', 'tools/compat-corpus/commands-0.1.0/commands.json',
             'tools/stage3-report/r2pool.py']
@@ -76,6 +80,8 @@ def job_script(rounds, cpus, rehearsal):
     report = 'python3 -I repo/tools/compat-corpus/speed.py r4-report'
     fetch = 'python3 -I repo/tools/compat-corpus/round_files.py fetch'
     return f'''set -u
+finish() {{ shred -u r2.env 2>/dev/null || rm -f r2.env; rm -rf data scratch; }}
+trap finish EXIT
 mkdir -p out
 if [ "${{1:-0}}" != 0 ]; then sudo shutdown -P "+$1" > out/poweroff.log 2>&1; fi
 chmod 700 bin/coreav bin/ffmpeg bin/ffprobe
@@ -89,8 +95,6 @@ print(json.dumps({{'cpu_model': model, 'vcpus': os.cpu_count(), 'smt_active': sm
 PY
 bin/ffmpeg -version | head -1 > out/ffmpeg-version.txt
 set -a; . ./r2.env; set +a
-finish() {{ rm -rf data scratch; shred -u r2.env 2>/dev/null || rm -f r2.env; }}
-trap finish EXIT
 {fetch} --files gate.json --dest data/gate > out/fetch-gate.log 2>&1 || {{ echo 'fetch failed' > out/gate.verdict; exit 1; }}
 gate=pass
 for arm in aa null; do
@@ -124,12 +128,39 @@ def build(args, up):
     for name, files in (('gate.json', gate), ('draw.json', draw)):
         with open(os.path.join(up, name), 'w') as f:
             json.dump(files, f, indent=1)
-    fd = os.open(os.path.join(up, 'r2.env'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, 'w') as f:
-        f.writelines(f'{k}={shlex.quote(os.environ[k])}\n' for k in CREDENTIALS)
     with open(os.path.join(up, 'job.sh'), 'w') as f:
         f.write(job_script(args.rounds, args.cpus, args.rehearsal))
     return gate, draw
+
+
+def unstage(up):
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(os.path.join(up, 'r2.env'))
+
+
+@contextlib.contextmanager
+def staged_credentials(up):
+    previous = {s: signal.getsignal(s) for s in TERMINATION_SIGNALS}
+
+    def stop(signum, frame):
+        unstage(up)
+        signal.signal(signum, previous[signum])
+        os.kill(os.getpid(), signum)
+
+    try:
+        for s, handler in previous.items():
+            if handler != signal.SIG_IGN:
+                signal.signal(s, stop)
+        fd = os.open(os.path.join(up, 'r2.env'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.writelines(f'{k}={shlex.quote(os.environ[k])}\n' for k in CREDENTIALS)
+        yield
+    finally:
+        try:
+            unstage(up)
+        finally:
+            for s, handler in previous.items():
+                signal.signal(s, handler)
 
 
 def read(path):
@@ -218,6 +249,7 @@ def main():
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
     if args.collect:
+        unstage(os.path.join(args.collect, 'upload'))
         run = read(os.path.join(args.collect, 'run.json'))
         cmd = [sys.executable, os.path.join(HERE, 'gcp_vm_job.py'), '--collect', args.collect.rstrip('/') + '.gcpjob']
         return judge(args.collect, subprocess.run(cmd).returncode, run)
@@ -253,13 +285,12 @@ def main():
         if args.dry_run:
             print('would run in', up, ':', shlex.join(cmd))
             return 0
-        with open(os.path.join(up, 'job.log'), 'w') as log:
+        with open(os.path.join(up, 'job.log'), 'w') as log, staged_credentials(up):
             rc = subprocess.run(cmd, cwd=up, stdout=log, stderr=subprocess.STDOUT,
                                 timeout=int(args.max_hours * 3600)).returncode
         shutil.copytree(os.path.join(up, 'out'), vm)
         with open(os.path.join(vm, 'job.status'), 'w') as f:
             f.write(f'{rc}\n')
-        os.remove(os.path.join(up, 'r2.env')) if os.path.exists(os.path.join(up, 'r2.env')) else None
         return judge(args.out, 0, run)
     poweroff = max(1, int(args.max_hours * 60) - 15)
     cmd = [sys.executable, os.path.join(HERE, 'gcp_vm_job.py'), '--upload', up, '--job', f'job.sh {poweroff}',
@@ -270,10 +301,8 @@ def main():
     if args.dry_run:
         print('would run:', shlex.join(cmd))
         return 0
-    try:
+    with staged_credentials(up):
         rc = subprocess.run(cmd).returncode
-    finally:
-        os.remove(os.path.join(up, 'r2.env'))
     return judge(args.out, rc, run)
 
 

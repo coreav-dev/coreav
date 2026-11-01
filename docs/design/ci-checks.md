@@ -555,7 +555,7 @@ Two checks run on the agent's machine, not in CI: this repository holds no
 cross-repository token and no private secret.
 
 - **The pull request's text.** `scripts/pr_text_check.py --title TITLE --body-file BODY.md` fails on Korean text, a session or run identifier and spend details, and, given the private list of names and message forms in `PR_TEXT_TERMS` (one case-insensitive regular expression per line), on those too. Run it with that list before opening the pull request and after editing its text; `pr-text.yml` runs it without the list. `scripts/pr_shape_check.py --title TITLE --commits FILE` (FILE from `git log --format='%H%x00%P%x00%B%x00' origin/main..HEAD`) is the shape check `pr-text.yml` runs.
-- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264`, `crates/coreav-opus` or `crates/coreav-kernels-audio` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
+- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264`, `crates/coreav-opus`, `crates/coreav-kernels-audio` or `crates/coreav-vp9` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
 
 ## Cost
 

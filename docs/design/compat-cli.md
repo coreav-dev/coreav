@@ -593,6 +593,15 @@ above its spend cap (at most the per-task limit). `--rehearsal` puts spent
 files (`r4-rehearsal`) in the draw's place and times them whatever the
 gate says, so a rehearsal exercises every step.
 
+The driver stages the read-only store credentials in `upload/r2.env` only
+while the local job or VM driver runs. Dry runs and build failures leave
+no credentials. Exceptions and HUP, INT, QUIT and TERM remove the file,
+and each signal keeps its previous effect, including an ignored HUP.
+The host job installs its cleanup trap before setup or loading credentials.
+SIGKILL, an interpreter crash or a machine restart cannot run cleanup;
+`--collect DIR` removes leftover credentials before attempting collection,
+even if collection fails. Reports and recovery state remain available.
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four
@@ -1506,6 +1515,40 @@ every reader; and counting them as disagreement, as
 rounds 2 to 4 did, which counted a documented divergence as a bug,
 contrary to the bar's own "after the documented known divergences".
 Development and fixes use the non-holdout files only.
+
+Round 9 additionally registers
+[corpus key-row exclusions](../measurements/compat-ffprobe/round9-plan.md#corpus-key-row-exclusions).
+An exclusion needs a cited specification clause showing the pinned
+oracle is wrong or CoreAV follows the defined reading, a predicate that
+validates the exact difference on the file's bytes rather than CoreAV's
+output alone, and committed tests before the run. The KD records and
+their scopes freeze at the plan amendment's authoritative commit on
+`main`; the separate tools change cannot add or widen them.
+
+Only `KD-FF9-EMPTY-EDIT-PADDING` may exclude a missing CoreAV padding
+value when its decoded core frame ends within the edit, using the stored
+AAC `frameLengthFlag` and matching track timescale and ASC core rate.
+A frame spans 1,024 or 960 media ticks even with SBR; a shorter stored
+sample is not proof. The plan also requires the exact oracle value,
+packet identity and every other packet agreeing. Missing values are
+otherwise unexcludable, and the unproven both-present cases stay visible.
+
+Every exclusion must withstand the mutation attacks of
+[`kd-audit.md`](../measurements/kd-audit.md): an injected gating bug must
+remain visible, including when it changes CoreAV's own claimed evidence.
+One file/key row is excluded only if all its differing occurrences are
+covered; a matching row or an unrelated difference cannot be removed.
+Results publish raw agreement beside the gated rate and the excluded
+rows separately, counted per KD, key and container without double-counting
+overlaps. The gated denominator removes only those new exclusions;
+existing `KD-STRICT` covered agreements keep their current treatment and
+are reported apart from literal direct agreement. Raw numbers of files
+containing each key still decide key eligibility, and an empty adjusted
+denominator is unmeasured. The 98% bar, sets, draws and held-out inputs
+are unchanged.
+This amendment does not silently alter R1, R2, fixtures or historical
+results. Plan, comparator/audit tools and run remain separate stages.
+
 From round 5, each container's rates are also reported for the
 development and the held-out files apart. In rounds 2 to 4 the
 development files of ISO base media and Matroska were, by a selection
@@ -2261,7 +2304,7 @@ documentation, committed with the implementation, never from the command
 being logged: `scripts/fallback_names.py` generates
 `crates/coreav-cli/src/fallback/names.rs` from FFmpeg 9.0.2's `-h full`,
 `-encoders`, `-formats` and `ffprobe -sections`, and the keys from
-`coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
+`coreav ffprobe`'s source. CI checks the generated file with `python3 -I scripts/fallback_names.py --check DIR`, using the pinned oracle already installed in its `check` job. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of
 `-show_entries format_tags=private_label` logs `format_tags=KEY` there too.
 
