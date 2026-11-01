@@ -232,6 +232,40 @@ class Repository(unittest.TestCase):
         self.assertEqual(self.edit('deny.yml', '  merge_group:\n    types: [checks_requested]\n',
                                    '  merge_group:\n'), [])
 
+    def test_the_activity_type_is_matched_as_a_whole_item(self):
+        missing = 'deny.yml: required `deny`, but the workflow has no `merge_group:` trigger'
+        for types in ('[not_checks_requested]', '[checks_requested_later]', '[destroyed] # checks_requested',
+                      'checks_requested'):
+            with self.subTest(types=types):
+                found = self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}')
+                self.assertEqual(len(found), 1, found)
+                self.assertTrue(found[0].startswith(missing), found)
+        for types in ('[destroyed, checks_requested]', "['checks_requested']", '[checks_requested] # queue'):
+            with self.subTest(types=types):
+                self.assertEqual(self.edit('deny.yml', 'types: [checks_requested]', f'types: {types}'), [])
+
+    def test_a_merge_group_branch_filter_is_reported(self):
+        filtered = ('deny.yml: required `deny`, but the `merge_group:` trigger carries a branch filter, so a '
+                    'group the filter leaves out never reports the check: remove it '
+                    '(docs/design/ci-checks.md, "The merge queue")')
+        for key in ('branches: [release]', 'branches: [main]', 'branches-ignore: [main]'):
+            with self.subTest(key=key):
+                self.assertEqual(self.edit('deny.yml', '    types: [checks_requested]\n',
+                                           f'    types: [checks_requested]\n    {key}\n'), [filtered])
+        # A branch filter on another trigger is not the queue's concern.
+        self.assertEqual(self.edit('deny.yml', 'push:\n    branches: [main]', 'push:\n    branches: [release]'), [])
+
+    def test_a_required_workflow_without_its_workflow_group_is_reported(self):
+        path = self.root / '.github' / 'workflows' / 'npm.yml'
+        text = path.read_text()
+        bare = re.sub(r'\nconcurrency:\n(?:  .*\n)+', '\n', text)
+        self.assertNotIn('\nconcurrency:', bare)
+        path.write_text(bare)
+        found = check.check(self.root)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith('npm.yml: required `npm-report`, so give the workflow exactly '
+                                            '`concurrency:'), found)
+
     def test_a_workflow_group_that_cancels_or_joins_merge_groups_is_reported(self):
         group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
         for old, new in ((group, '${{ github.workflow }}-${{ github.ref }}'),
