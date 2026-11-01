@@ -89,9 +89,13 @@ UNLISTED = '# workflow-check: not required'
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
 # A script line that calls the installer, as a command or through a shell
-# with options (`bash -e`, `bash -eo pipefail`, `bash --norc`); `bash -n`,
-# which only reads the script, is no call.
-SHELL_OPTION = r'(?:-[A-Za-mo-z]*o\s+\w+|-[A-Za-mo-z]+|--[a-z-]+)\s+'
+# with options (`bash -e`, `bash -eo pipefail`, `bash --norc`). The options
+# that stop the shell before it runs the script are no call: `-n`, `-o
+# noexec`, `-D`, `--help`, `--version`, `--dump-strings` and
+# `--dump-po-strings`.
+SHELL_OPTION = (r'(?:-(?![A-Za-z]*[nD])[A-Za-z]*o\s+(?!noexec\b)\w+'
+                r'|-(?![A-Za-z]*[nD])[A-Za-z]+'
+                r'|--(?!(?:help|version|dump-strings|dump-po-strings)\s)[a-z-]+)\s+')
 INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+(?:''' + SHELL_OPTION + r''')*)?(?:\./)?'''
                       + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
 

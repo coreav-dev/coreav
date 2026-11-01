@@ -244,6 +244,12 @@ class Repository(unittest.TestCase):
         for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
                       ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
                       ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -o noexec scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -D scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --dump-po-strings scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --help scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash --version scripts/install-oracle-ffmpeg.sh'],
                       ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))

@@ -31,7 +31,7 @@ and from the path filters an earlier change put on the heavy workflows:
   has to run; every other job carries `needs:` on it and an `if:` on its
   output, next to whatever condition it had. In `ci.yml` that job is
   `ci-changes`, and it gives one output per group of jobs (`run`,
-  `h264-conformance`, `bench-guard`; "One changes job" below);
+  `h264-conformance`, `oracle-installer`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
 - **Each required workflow ends in a report job** (`ci-report`,
   `python-report`, `npm-report`), which carries `if: always()`, waits for
