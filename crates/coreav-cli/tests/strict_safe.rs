@@ -388,6 +388,27 @@ fn opus_audio_without_libopus_is_refused_before_the_input_is_read() {
     }
 }
 
+/// The AAC encoder of `--audio aac` is the `ffmpeg` program: refused
+/// before the input is read, and nothing runs.
+#[test]
+fn aac_audio_is_refused_before_the_input_is_read() {
+    let dir = dir("aac");
+    let line = ["transcode", "missing.mp4", "out.mp4", "--audio", "aac"];
+    for mode in [Mode::Flag, Mode::Variable] {
+        let run = coreav(&dir, mode, true, &line);
+        if no_limit() {
+            refused_without_limit(&run, &dir);
+        } else {
+            refused(&run, &dir, "use --audio copy, none or opus");
+        }
+        error(&run);
+        assert!(!ran(&dir, "ffmpeg") && !ran(&dir, "x264"), "{mode:?}");
+    }
+    // Outside the mode the input is read first.
+    let run = coreav(&dir, Mode::Off, true, &line);
+    assert_eq!(run.code, 3, "{}", run.stderr);
+}
+
 #[test]
 fn thumbnail_runs_no_ffmpeg() {
     let dir = dir("thumbnail");

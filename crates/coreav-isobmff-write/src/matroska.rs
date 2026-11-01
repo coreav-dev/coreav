@@ -9,7 +9,7 @@
 use crate::audio;
 use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
-    audio_sample_entry, visual_sample_entry,
+    audio_sample_entry, esds, visual_sample_entry,
 };
 use crate::replace::{
     Replacement, Replacements, audio_edits, roll_boxes, validate, validate_audio,
@@ -140,7 +140,7 @@ pub struct MatroskaRemuxTrack {
     pub stream_index: usize,
     /// `TrackNumber` in the source.
     pub track_number: u64,
-    /// `track_ID` in the output, numbered from 1 in source order.
+    /// `track_ID` in the output, numbered from 1 in output order.
     pub track_id: u32,
     /// The track's kind (video or audio).
     pub kind: TrackKind,
@@ -190,9 +190,10 @@ pub struct DroppedAdditions {
 /// What [`remux_matroska`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MatroskaRemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux; streams not named are left out.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux; streams not named are left out.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied:
     /// [`OnUnsupported::Drop`] leaves audio, subtitle and data streams out
@@ -211,7 +212,7 @@ pub const MAX_LISTED_ADDITIONS: usize = 256;
 /// What [`remux_matroska`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatroskaRemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`MatroskaRemuxOptions::streams`).
     pub tracks: Vec<MatroskaRemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
@@ -490,13 +491,23 @@ fn remux<S: Source, R: Source, W: Write>(
         video: mut replacement,
         mut audio,
     } = replacements;
+    if options.streams.as_ref().is_some_and(|wanted| {
+        u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(mux.max_tracks)
+    }) {
+        return Err(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::Tracks,
+            offset: 0,
+        }
+        .into());
+    }
     let replaced_codec = match replacement.as_mut() {
         Some(r) => Some(validate(r, mux)?),
         None => None,
     };
-    if let Some(a) = audio.as_mut() {
-        validate_audio(a, mux)?;
-    }
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, mux)?),
+        None => None,
+    };
     let segment = coreav_mkv::probe(&mut source, demux, allowlist)?;
     if let Some(r) = &replacement {
         check_replaced(&segment, r.stream_index, TrackKind::Video, options)?;
@@ -512,6 +523,19 @@ fn remux<S: Source, R: Source, W: Write>(
             }
             .into());
         }
+    }
+    if (replacement.is_some() || audio.is_some())
+        && options.streams.as_ref().is_some_and(|wanted| {
+            wanted
+                .iter()
+                .enumerate()
+                .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+        })
+    {
+        return Err(coreav_mkv::Error::Unsupported {
+            reason: "a stream named twice beside a replaced stream",
+        }
+        .into());
     }
     // A video stream that would be lost fails the remux once every stream
     // is planned, unless the caller named the streams or asked for it to be
@@ -555,11 +579,23 @@ fn remux<S: Source, R: Source, W: Write>(
                 continue;
             }
         }
-        if let Some(a) = &audio {
+        if let (Some(a), Some(codec)) = (&audio, audio_codec) {
             if a.stream_index == track.stream_index {
-                plans.push(audio_plan(track, a.timescale));
+                plans.push(audio_plan(track, codec.matroska(), a.timescale));
                 continue;
             }
+        }
+        if track.codec == Codec::Hevc
+            && track
+                .codec_private
+                .as_deref()
+                .is_some_and(coreav_isobmff::hevc_window_empty)
+        {
+            return Err(coreav_isobmff::Error::InvalidStream {
+                track_id: u32::try_from(track.number).unwrap_or(u32::MAX),
+                reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+            }
+            .into());
         }
         match plan(track) {
             Ok(plan) => plans.push(plan),
@@ -717,8 +753,28 @@ fn remux<S: Source, R: Source, W: Write>(
         },
         mux,
     )?;
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<usize> = match &options.streams {
+        None => (0..kept.len()).collect(),
+        Some(wanted) => wanted
+            .iter()
+            .filter_map(|i| {
+                kept.iter().position(|plan| {
+                    segment
+                        .tracks
+                        .get(plan.track)
+                        .is_some_and(|t| t.stream_index == *i)
+                })
+            })
+            .collect(),
+    };
     let mut tracks = Vec::new();
-    for plan in &kept {
+    let mut written = Vec::new();
+    for k in order {
+        let Some(plan) = kept.get(k) else {
+            continue;
+        };
         let track = segment
             .tracks
             .get(plan.track)
@@ -755,6 +811,7 @@ fn remux<S: Source, R: Source, W: Write>(
             boxes: Vec::new(),
         };
         let id = muxer.add_track(header)?;
+        written.push(k);
         if let Some(r) = replaced {
             for (sample, (duration, offset)) in r.samples.iter().zip(&timing.samples) {
                 muxer.push_sample(
@@ -831,10 +888,11 @@ fn remux<S: Source, R: Source, W: Write>(
         let sizes = a.samples.iter().map(|s| s.size).collect::<Vec<_>>();
         (a.data, sizes, CopyWindow::new(), 0u64)
     });
-    let mut next = vec![0usize; kept.len()];
+    let mut next = vec![0usize; written.len()];
     let mut nals = Vec::new();
     muxer.for_each_chunk(|index, count| -> Result<(), MatroskaRemuxError> {
-        let (Some(plan), Some(position)) = (kept.get(index), next.get_mut(index)) else {
+        let plan = written.get(index).and_then(|k| kept.get(*k));
+        let (Some(plan), Some(position)) = (plan, next.get_mut(index)) else {
             return Err(MatroskaRemuxError::SourceChanged);
         };
         for _ in 0..count {
@@ -1067,10 +1125,10 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
 
 /// The plan of the replaced audio stream: its samples come from the
 /// replacement, at its media timescale.
-fn audio_plan(track: &Track, timescale: u32) -> Plan {
+fn audio_plan(track: &Track, codec: Codec, timescale: u32) -> Plan {
     Plan {
         track: track.index,
-        codec: Codec::Opus,
+        codec,
         media: Media::Audio,
         timescale,
         quantum: 1,
@@ -2452,35 +2510,6 @@ fn aac_frame_length(track: &Track) -> u64 {
     } else {
         1024
     }
-}
-
-/// An `esds` payload (ISO/IEC 14496-1 7.2.6.5): an ES descriptor with a
-/// decoder configuration for AAC (object type 0x40, audio stream) holding
-/// `config`, and the predefined SL configuration 2.
-fn esds(config: &[u8]) -> Vec<u8> {
-    fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
-        let mut out = vec![tag];
-        let mut len = body.len();
-        let mut bytes = [0u8; 4];
-        for slot in bytes.iter_mut().rev() {
-            *slot = u8::try_from(len & 0x7F).unwrap_or(0);
-            len >>= 7;
-        }
-        for (i, b) in bytes.iter().enumerate() {
-            out.push(if i < 3 { b | 0x80 } else { *b });
-        }
-        out.extend_from_slice(body);
-        out
-    }
-    let mut decoder = vec![0x40, 0x15, 0, 0, 0];
-    decoder.extend_from_slice(&[0; 8]);
-    decoder.extend(descriptor(0x05, config));
-    let mut es = vec![0, 0, 0];
-    es.extend(descriptor(0x04, &decoder));
-    es.extend(descriptor(0x06, &[0x02]));
-    let mut out = vec![0, 0, 0, 0];
-    out.extend(descriptor(0x03, &es));
-    out
 }
 
 #[cfg(test)]

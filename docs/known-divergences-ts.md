@@ -301,3 +301,93 @@ KD-TS-FRAME-TIME.
   and is given exactly to the first unit that starts there; and every
   position `ffprobe` gives that CoreAV does not is that PES packet's, for
   a unit starting past 200 KiB of its payload.
+
+## KD-TS-VBI-AS-AUDIO
+
+- Fields: stream `kind` and `codec_name`, the informational
+  `sample_rate` and `channels`, and the packets of the stream. No other
+  key of the stream is covered.
+- When: a private stream (stream type 0x06) that the Program Map Table
+  marks with a VBI_data_descriptor and whose PES packets carry VBI data.
+- What each reports: `ffprobe` probes the payload of some such streams,
+  takes the bytes of their VPS or WSS data units for MPEG audio frames,
+  and lists an `mp3` audio stream with packets of its own cutting. Which
+  streams it does so for depends on the data they carry: on a capture of
+  the corpus, three of five VBI streams with the same descriptor, PES
+  layout and data units are read as `mp3`, the other two as data. CoreAV
+  lists the stream as the data the file declares, one packet per PES
+  packet.
+- Why: ETSI EN 301 775 4.1 and 4.2 identify a VBI stream by stream type
+  0x06 and the VBI_data_descriptor of ETSI EN 300 468 6.2.47, and its 4.4.2
+  (table 2) gives the PES data_identifier of VBI data, 0x10 to 0x1F or 0x99
+  to 0x9B. Nothing in the stream declares or carries MPEG audio.
+- Coverage requires, from the file itself (`Facts`): the stream's type is
+  0x06 and its descriptors include a VBI_data_descriptor (tag 0x45); every
+  PES packet of its PID in the file starts its payload with such a
+  data_identifier, read while scanning whatever PES packets are kept;
+  both sides describe that PID, by the PID the reference names or, where
+  it names none, by its first packet starting at a PES packet of the PID;
+  `ffprobe` lists the stream as `audio` named `mp1`, `mp2` or `mp3`
+  with a sample rate and channels of 0 or none; CoreAV lists it as `data`
+  named `bin_data` with neither; and every other field the comparator
+  gates a stream on is the same on both sides. A stream difference is
+  covered only in `kind` and `codec_name`. Packet differences are
+  covered only when CoreAV lists exactly one packet for each PES packet of
+  the PID, those before a table names it included, in order, at the
+  position of the transport packet that starts it, of its payload's size,
+  with its presentation time as both times, and as a keyframe, in a packet
+  document whose time base, by which the comparator reads those times, is
+  one the comparator reads (an array of two positive signed 64-bit
+  integers) and equals 1/90000.
+
+## KD-TS-PROGRAM-WRAP
+
+- Fields: in the `coreav ffprobe` listing, stream `start_pts` and
+  `start_time`. The `duration_ts` and `duration` that `ffprobe` then
+  leaves out are not covered: nothing here shows CoreAV's duration
+  correct.
+- When: a stream of a file with several programs whose own program's
+  timestamps do not wrap.
+- What each reports: `ffprobe` adds 2^33 to the stream's start, with the
+  timestamps of another program of the file, and then prints no duration
+  for it. CoreAV gives the start as the stream's first PES timestamp.
+- Why: each program has a time base of its own (ITU-T H.222.0 (08/2018),
+  ISO/IEC 13818-1, 2.4.2.3),
+  so another program's timestamps say nothing of where this one's 33-bit
+  counter wraps. On a capture of the corpus the shift appears only when
+  one particular other program is in the file.
+- Coverage requires, from the file itself (`Facts`): CoreAV's start is the
+  first PES timestamp of the stream's PID; it lies within the 60 second
+  window of the first timestamp of the stream's program; that first
+  timestamp is more than the window away from both ends of the 33-bit
+  range; the file's Program Association Table lists more than one
+  program; both sides print the time base `1/90000`; `ffprobe`'s `start_pts`
+  is CoreAV's plus 2^33 and its `start_time` is that in seconds; and
+  CoreAV's `start_time` is its own start in seconds. A side that leaves
+  out any of these fields disqualifies the stream.
+
+## KD-TS-ANNEX-D-DOWNMIX
+
+- Fields: in the `coreav ffprobe` listing, stream `dmix_mode`,
+  `ltrt_cmixlev`, `ltrt_surmixlev`, `loro_cmixlev` and
+  `loro_surmixlev`.
+- When: an AC-3 stream whose first frame uses the alternate bit stream
+  syntax (`bsid` 6) with its first extra information (`xbsi1e`) on more
+  than two channels.
+- What each reports: `ffprobe` prints `0` and `0.000000`, as for a
+  stream that states no downmix. CoreAV prints the preferred downmix and
+  the levels the frame states, each only for the channel modes ATSC A/52
+  Annex D defines it for.
+- Why: `bsid` 6 is the stream's own statement that it uses the syntax of
+  ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give these fields their
+  meaning. Annex D 3.2 lets a legacy decoder ignore them; it does not make
+  the stream state no downmix.
+- Coverage requires, from the file itself (`Facts`): the stream is AC-3
+  by its tables; the first AC-3 syncframe of its first PES packet is one:
+  its sample rate and frame size codes are listed (ATSC A/52 tables 5.6
+  and 5.18) and its first 5/8 pass `crc1` (7.10.1); it has `bsid` 6,
+  more than two channels
+  (`acmod` above 2) and `xbsi1e` set, and no reserved surround level;
+  CoreAV prints exactly what that frame states, read by a reader written
+  apart from CoreAV's; `ffprobe` prints `0` and `0.000000` for all
+  five; and the frame states something other than that.

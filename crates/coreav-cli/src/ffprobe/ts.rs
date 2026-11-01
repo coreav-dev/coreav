@@ -57,6 +57,7 @@
 //!   ([`file_micros`]). A service the SDT names alone is a program
 //!   ([`programs`]); DVB strings print as [`dvb_text`] has it.
 
+mod iso_8859;
 pub(super) mod params;
 
 use super::model::{Unit, Value, s, time};
@@ -511,10 +512,12 @@ struct Head {
     /// a longer file would be the last section of its tail, which the
     /// probe does not read; the corpus files have none there.
     splices: Option<(i64, i64)>,
-    /// For an AAC stream: of the first [`SBR_FRAMES`] frames, how many
-    /// were read and how many end with SBR data
-    /// ([`params::aac_ends_with_sbr`]).
+    /// For an AAC stream, in ADTS or LOAS: of the first [`SBR_FRAMES`]
+    /// frames whose raw data block could be read, how many were read and
+    /// how many end with SBR data ([`params::aac_ends_with_sbr`]).
     sbr: (u32, u32),
+    /// For a LOAS stream: the raw data blocks of its frames.
+    latm: coreav_mpegts::LatmBlocks,
     /// For an ADTS stream: the bit rate `ffprobe` reports and how many
     /// frames it averages ([`Analysis`]).
     aac_rate: (i64, i64),
@@ -932,9 +935,19 @@ fn head<S: Source>(
                 h.sets.1 =
                     params::sets_before_slice(&packet.data, st.codec == Codec::Hevc, &mut h.sets.0);
             }
-            if st.codec == Codec::Aac && h.sbr.0 < SBR_FRAMES {
-                h.sbr.0 += 1;
-                h.sbr.1 += u32::from(params::aac_ends_with_sbr(&packet.data));
+            if h.sbr.0 < SBR_FRAMES {
+                let found = match st.codec {
+                    Codec::Aac => Some(params::aac_ends_with_sbr(&packet.data)),
+                    Codec::AacLatm => h
+                        .latm
+                        .block(&packet.data)
+                        .map(|block| params::aac_ends_with_sbr(&block)),
+                    _ => None,
+                };
+                if let Some(found) = found {
+                    h.sbr.0 += 1;
+                    h.sbr.1 += u32::from(found);
+                }
             }
             if h.times.len() < HEAD_UNITS {
                 h.ticks.extend(ticks);
@@ -1044,8 +1057,11 @@ impl Facts {
         // looks like SBR data now and then (one frame in twenty of a
         // capture of the corpus): a stream counts as one or the other
         // when at most two frames of what was read disagree.
+        // A LATM stream none of whose frames could be read shows nothing.
         let (read, with_sbr) = head.sbr;
-        facts.sbr = if with_sbr == 0 || (read >= 8 && with_sbr <= 2) {
+        facts.sbr = if read == 0 && st.codec == Codec::AacLatm {
+            None
+        } else if with_sbr == 0 || (read >= 8 && with_sbr <= 2) {
             Some(false)
         } else if read >= 8 && with_sbr + 2 >= read {
             Some(true)
@@ -1709,7 +1725,7 @@ fn opus_channels(st: &coreav_mpegts::Stream) -> Option<u8> {
 /// Whether a LATM stream's configuration leaves SBR unstated where it is
 /// commonly implicit: AAC-LC at 24 kHz or less, which `ffprobe` decodes
 /// as HE-AAC at twice the rate when the frames carry SBR data (a DVB
-/// capture of the corpus). The frames of LATM are not read for it.
+/// capture of the corpus), read as for ADTS ([`Head::sbr`]).
 fn latm_may_hide_sbr(st: &coreav_mpegts::Stream) -> bool {
     st.codec == Codec::AacLatm
         && st
@@ -1775,6 +1791,10 @@ fn stream(
     let profile = match (st.codec, facts.sbr) {
         (Codec::Aac, Some(true)) if aac_channels == Some(2) => Some("HE-AAC".to_owned()),
         (Codec::Aac, Some(true) | None) => None,
+        (Codec::AacLatm, Some(true)) if latm_may_hide_sbr(st) && aac_channels == Some(2) => {
+            Some("HE-AAC".to_owned())
+        }
+        (Codec::AacLatm, Some(false)) if latm_may_hide_sbr(st) => profile(st),
         (Codec::Eac3, _)
             if head
                 .unit
@@ -1821,6 +1841,9 @@ fn stream(
         let rate = match (st.codec, facts.sbr) {
             (Codec::Aac, Some(true)) => Some(rate.saturating_mul(2)),
             (Codec::Aac, None) => None,
+            (Codec::AacLatm, Some(sbr)) if latm_may_hide_sbr(st) => {
+                Some(if sbr { rate.saturating_mul(2) } else { rate })
+            }
             _ if latm_may_hide_sbr(st) => None,
             // Explicitly signalled SBR states the rate it decodes to.
             (Codec::AacLatm, _) => Some(
@@ -2072,19 +2095,31 @@ fn int_u64(v: u64) -> i64 {
 /// - a string that names UTF-8 (`0x15`) is the bytes after that byte;
 /// - one that names `0x11` or `0x14` is the bytes after it read as UTF-16
 ///   big-endian;
-/// - one that names a table of annex A that `ffprobe` does not convert
-///   (`0x01` to `0x07`, `0x09` to `0x0B`, `0x12`, `0x13`, and `0x10 0x00`
-///   with the ISO/IEC 8859 part after it) is its bytes as they are, the
-///   byte naming the table included;
+/// - one that names an ISO/IEC 8859 part (`0x01` to `0x07` and `0x09` to
+///   `0x0B` for parts 5 to 15, table A.3, and `0x10 0x00` with the part
+///   after it, table A.4) is the bytes after the naming bytes read in that
+///   part ([`iso_8859`]), when the part defines each of them;
+/// - one that names another table, or a part that leaves one of its bytes
+///   undefined, is its bytes as they are, the bytes naming the table
+///   included: `ffprobe` does not convert KS X 1001 (`0x12`), and
+///   converts GB 2312 (`0x13`), which is not done here;
 /// - one that starts with a byte annex A reserves (`0x08`, `0x0C` to
 ///   `0x0F`, `0x10` not followed by `0x00`, `0x16` to `0x1F`) is the bytes
 ///   after it when they are all ASCII, and all its bytes when not;
 /// - any other, the default table's included, its bytes as they are.
 ///
-/// The result ends at its first NUL byte (`0x10 0x00 0x01` prints as the
+/// The result ends at its first NUL byte (`0x10 0x00 0x0C` prints as the
 /// one byte `0x10`), and each byte that does not belong to a well-formed
 /// UTF-8 sequence is U+FFFD, one for every such byte.
 fn dvb_text(bytes: &[u8]) -> Option<String> {
+    let part = match bytes {
+        [selector @ (0x01..=0x07 | 0x09..=0x0B), rest @ ..] => Some((selector + 4, rest)),
+        [0x10, 0x00, part, rest @ ..] => Some((*part, rest)),
+        _ => None,
+    };
+    if let Some(text) = part.and_then(|(part, rest)| iso_8859::decode(part, rest)) {
+        return Some(text.split('\0').next().unwrap_or_default().to_owned());
+    }
     let raw: Vec<u8> = match bytes {
         [0x11 | 0x14, rest @ ..] => {
             let units = rest
@@ -2706,9 +2741,16 @@ mod tests {
         let text = |b: &[u8]| dvb_text(b).unwrap_or_default();
         assert_eq!(text(b"Service01"), "Service01");
         assert_eq!(text(b"\x15caf\xc3\xa9"), "caf\u{e9}");
-        // The NUL of `0x10 0x00 0x01` ends the string.
-        assert_eq!(text(b"\x10\x00\x01caf\xe9"), "\u{10}");
-        assert_eq!(text(b"\x0bORF 2 N\xf6"), "\u{b}ORF 2 N\u{fffd}");
+        assert_eq!(text(b"\x10\x00\x01caf\xe9"), "caf\u{e9}");
+        assert_eq!(text(b"\x0bORF 2 N\xf6"), "ORF 2 N\u{f6}");
+        assert_eq!(text(b"\x05AB\x85\x86\xe9\x00C"), "AB\u{85}\u{86}\u{e9}");
+        // A byte part 3 leaves undefined, and part 12, which there is
+        // not: the bytes as they are, which the NUL of `0x10 0x00` ends.
+        assert_eq!(text(b"\x10\x00\x03A\xa5"), "\u{10}");
+        assert_eq!(text(b"\x10\x00\x0cA"), "\u{10}");
+        assert_eq!(text(b"\x12AB\xb0\xa1"), "\u{12}AB\u{fffd}\u{fffd}");
+        // Table A.4 reserves `0x10 0x00 0x10` and above: the bytes as read.
+        assert_eq!(text(b"\x10\x00\x10A\xa4"), "\u{10}");
         assert_eq!(text(b"AB\xf6\xe4C"), "AB\u{fffd}\u{fffd}C");
         assert_eq!(text(b"x\xe2\x82"), "x\u{fffd}\u{fffd}");
         assert_eq!(text(b"\x11\x00\xe9\x00A"), "\u{e9}A");
@@ -2716,7 +2758,7 @@ mod tests {
         assert_eq!(text(b"\x1f\x01ab"), "\u{1}ab");
         assert_eq!(text(b"\x0eABC"), "ABC");
         assert_eq!(text(b"\x0eAB\xc6"), "\u{e}AB\u{fffd}");
-        assert_eq!(text(b"\x01ABC"), "\u{1}ABC");
+        assert_eq!(text(b"\x01ABC"), "ABC");
         assert_eq!(text(b"\x10AB"), "AB");
     }
 

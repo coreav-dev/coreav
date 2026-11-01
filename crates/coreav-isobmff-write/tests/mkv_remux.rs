@@ -382,6 +382,42 @@ fn vp9_and_opus_from_webm() {
     assert_eq!(remux(&source).1, output);
 }
 
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same frames, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = mkv::small_webm();
+    let options = MatroskaRemuxOptions {
+        streams: Some(vec![1, 0, 0]),
+        ..MatroskaRemuxOptions::default()
+    };
+    let (summary, output) = remux_with(&source, &Allowlist::default(), &options).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| (t.stream_index, t.track_id))
+            .collect::<Vec<_>>(),
+        [(1, 1), (0, 2), (0, 3)]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    let most = coreav_isobmff::Limits::default().max_tracks as usize;
+    let too_many = MatroskaRemuxOptions {
+        streams: Some(vec![0; most + 1]),
+        ..MatroskaRemuxOptions::default()
+    };
+    assert!(matches!(
+        remux_with(&source, &Allowlist::default(), &too_many),
+        Err(MatroskaRemuxError::Output(
+            coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::Tracks,
+                ..
+            }
+        ))
+    ));
+}
+
 #[test]
 fn h264_b_frames_get_decode_times() {
     let presentation = [0i16, 120, 40, 80, 240, 160, 200, 280];
@@ -515,6 +551,55 @@ fn annex_b_h264_without_parameter_sets_is_dropped() {
             unsupported("the first H.264 keyframe has no parameter sets")
         )]
     );
+}
+
+/// The `hvcC` of `movies::EMPTY_WINDOW_HVCC`: one sequence parameter set,
+/// 1280x720, whose conformance window leaves no picture.
+const EMPTY_WINDOW_HVCC: &[u8] = &[
+    0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x01, 0xa1, 0x00, 0x01, 0x00, 0x2f, 0x42, 0x01, 0x01, 0x01,
+    0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x5d, 0xa0, 0x02,
+    0x80, 0x80, 0x2d, 0x18, 0x02, 0x72, 0x0a, 0xf9, 0x65, 0x66, 0x92, 0x4c, 0xaf, 0x01, 0x68, 0x08,
+    0x00, 0x00, 0x03, 0x00, 0x08, 0x00, 0x00, 0x03, 0x00, 0xc8, 0x40,
+];
+
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1), whatever the container: the remux refuses
+/// it, and `drop_video` does not turn the refusal into a dropped stream.
+#[test]
+fn an_hevc_stream_with_an_empty_conformance_window_is_refused() {
+    let blocks: Vec<Vec<u8>> = (0..3)
+        .map(|n| simple_block(1, n as i16 * 40, n == 0, &frame(n, 25)))
+        .collect();
+    let source = file(
+        "matroska",
+        &[
+            info(None),
+            tracks(&[entry(
+                1,
+                1,
+                "V_MPEGH/ISO/HEVC",
+                &video_el(1280, 720, &[]),
+                &el(CODEC_PRIVATE, EMPTY_WINDOW_HVCC),
+            )]),
+            cluster(0, &blocks),
+        ],
+    );
+    for drop_video in [false, true] {
+        let options = MatroskaRemuxOptions {
+            drop_video,
+            ..MatroskaRemuxOptions::default()
+        };
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &options),
+                Err(MatroskaRemuxError::Output(
+                    coreav_isobmff::Error::InvalidStream { track_id: 1, .. }
+                ))
+            ),
+            "drop_video: {drop_video}"
+        );
+    }
 }
 
 #[test]

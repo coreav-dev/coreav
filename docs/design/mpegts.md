@@ -875,6 +875,20 @@ modules. `scripts/oracle-ffprobe.sh` sets `GCONV_PATH` to an empty path,
 so iconv fails cleanly and the names are left as read; no compared field
 depends on them.
 
+The pinned FFmpeg 9 `ffprobe`, run the same way, converts the text of
+every character table of EN 300 468 annex A but KS X 1001 (`0x12`): the
+ISO/IEC 8859 parts (`0x01` to `0x0B`, and `0x10 0x00` with the part),
+UCS-2 (`0x11`), GB 2312 (`0x13`), the Big5 subset (`0x14`) and UTF-8
+(`0x15`), and prints a converted name without the bytes that name its
+table. A name in a table it does not convert, or with a byte its part
+leaves undefined, is printed as read, those bytes included, up to its
+first NUL (SDTs crafted with each table, and one that names part 3 with
+every byte from `0xA0`). `coreav ffprobe` converts the ISO/IEC 8859 parts
+annex A assigns (1 to 11 and 13 to 15) from the Unicode Consortium's
+mapping tables of each part (its notice is in NOTICE), and UCS-2 and
+UTF-8; a reserved selector, part 16 and above included, and GB 2312
+names are printed as read (`ffprobe/ts.rs`, `dvb_text`).
+
 ### Oracle positions
 
 `ffprobe` reports the position of a packet stored in 204 bytes 16 bytes
