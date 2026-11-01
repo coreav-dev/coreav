@@ -1058,6 +1058,9 @@ fn place(
                 "a placement that does not name every input once",
             ));
         }
+        if given.first().is_none_or(|first| first.num != 0) {
+            return Err(unsupported("a placement whose first input is not at 0"));
+        }
     }
     let mut inputs = Vec::new();
     let mut video = Vec::new();

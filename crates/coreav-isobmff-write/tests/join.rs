@@ -528,6 +528,14 @@ fn inputs_go_where_they_are_placed() {
             reason: "an input placed before the previous input's video ends"
         }))
     ));
+    for first in [q(-1, 1), q(1, 1)] {
+        assert!(matches!(
+            placed(vec![first, sum(later, first)]),
+            Err(JoinError::Output(Error::Unsupported {
+                reason: "a placement whose first input is not at 0"
+            }))
+        ));
+    }
     assert!(matches!(
         placed(vec![q(0, 1)]),
         Err(JoinError::Output(Error::Unsupported {

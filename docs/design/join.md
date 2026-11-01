@@ -225,7 +225,8 @@ from each file's `ffprobe` start time and duration, in microseconds as
 - An input whose video would start before the previous input's video ends
   fails the join (`an input placed before the previous input's video
   ends`), and so does a placement with a different number of offsets
-  than inputs. Since a file lasts at least as long as its video, the
+  than inputs or a first offset other than 0 (the offsets count from the
+  first input's own timeline). Since a file lasts at least as long as its video, the
   concat demuxer's offsets reach the first case only through rounding.
 - Audio follows its own decode times as before. Where a file's audio runs
   past the next file's offset, `ffmpeg`'s muxer moves the next file's

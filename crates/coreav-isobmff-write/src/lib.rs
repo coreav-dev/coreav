@@ -571,8 +571,9 @@ pub enum Placement {
     /// input's (0 for the first), rounded to the video's timescale, halves
     /// away from zero: the concat demuxer of `ffmpeg` places each file
     /// after the previous ones' durations (`docs/design/join.md`, "Placed
-    /// as the concat demuxer places them"). An input whose video would start
-    /// before the previous input's video ends fails the join.
+    /// as the concat demuxer places them"). A first offset other than 0, or
+    /// an input whose video would start before the previous input's video
+    /// ends, fails the join.
     At(Vec<Rational>),
 }
 
