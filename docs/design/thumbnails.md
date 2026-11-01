@@ -694,8 +694,8 @@ The reference is `ffmpeg -ss K -i FILE -ss P−K -frames:v 1 -vf scale=W:H
 CoreAV decoded from and of the frame it chose, on FFmpeg's timeline (the
 packet times above, rounded down to the microsecond), so that both tools
 decode the same packets and the frame is the one CoreAV chose. When the
-frame is its keyframe the command is `-ss P -i FILE`; when the keyframe is
-at or before the file's start it is `-i FILE -ss P`. PSNR is over the
+frame is its keyframe the command is `-ss P -i FILE`; for a later frame whose
+keyframe is at or before the file's start it is `-i FILE -ss P`. PSNR is over the
 three 8-bit RGB channels of the whole image.
 
 - **I1, PNG, keyframe mode**: CoreAV's PNG against the reference. The
