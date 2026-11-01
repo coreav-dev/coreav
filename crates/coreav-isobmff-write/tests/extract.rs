@@ -15,7 +15,7 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, Limits, Movie, Packet, SliceSource, Source, Track,
     probe,
 };
-use coreav_isobmff_write::{ExtractError, Summary, TrackChoice, extract_audio};
+use coreav_isobmff_write::{ExtractError, HeaderMetadata, Summary, TrackChoice, extract_audio};
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -23,17 +23,39 @@ use common::{bx, cat, full, u32s};
 
 /// An AAC LC, 48 kHz stereo `esds` (ISO/IEC 14496-1 7.2.6.5, 14496-3 1.6.2.1).
 fn esds() -> Vec<u8> {
+    esds_with(&[0x11, 0x90])
+}
+
+/// An `esds` holding the `AudioSpecificConfig` `config`.
+fn esds_with(config: &[u8]) -> Vec<u8> {
+    let len = config.len() as u8;
     full(
         b"esds",
         0,
         0,
-        &[
-            3, 25, 0, 1, 0, // ES_Descriptor
-            4, 17, 0x40, 0x15, 0, 0, 0, 0, 0, 0xfa, 0, 0, 0, 0xfa,
-            0, // DecoderConfigDescriptor
-            5, 2, 0x11, 0x90, // AudioSpecificConfig
-            6, 1, 2, // SLConfigDescriptor
-        ],
+        &cat(&[
+            vec![3, 23 + len, 0, 1, 0], // ES_Descriptor
+            vec![
+                4,
+                15 + len,
+                0x40,
+                0x15,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0xfa,
+                0,
+                0,
+                0,
+                0xfa,
+                0,
+            ], // DecoderConfigDescriptor
+            vec![5, len],               // DecoderSpecificInfo
+            config.to_vec(),
+            vec![6, 1, 2], // SLConfigDescriptor
+        ]),
     )
 }
 
@@ -69,10 +91,33 @@ fn aac_moov_chunks(
     per_chunk: u32,
     chunk_offsets: &[u32],
 ) -> Vec<u8> {
+    audio_moov(
+        (&[0x11, 0x90], 48_000),
+        n,
+        size,
+        edit,
+        version_1_entry,
+        per_chunk,
+        chunk_offsets,
+    )
+}
+
+/// [`aac_moov_chunks`] for the `AudioSpecificConfig` and the rate of
+/// `audio`, which is the media timescale and the sample entry's rate.
+fn audio_moov(
+    (config, rate): (&[u8], u32),
+    n: u32,
+    size: u32,
+    edit: Option<(u32, i32, u32)>,
+    version_1_entry: bool,
+    per_chunk: u32,
+    chunk_offsets: &[u32],
+) -> Vec<u8> {
     let media = n * 1024;
-    let mut mvhd = u32s(&[0x7c25_b080, 0x7c25_b080, 1000, media / 48]);
+    let ms = (u64::from(media) * 1000 / u64::from(rate)) as u32;
+    let mut mvhd = u32s(&[0x7c25_b080, 0x7c25_b080, 1000, ms]);
     mvhd.extend_from_slice(&[0u8; 80]);
-    let mut tkhd = u32s(&[0, 0, 7, 0, media / 48]);
+    let mut tkhd = u32s(&[0, 0, 7, 0, ms]);
     tkhd.extend_from_slice(&[0u8; 16]);
     tkhd.extend_from_slice(&u32s(&[
         0x10000,
@@ -87,7 +132,7 @@ fn aac_moov_chunks(
         0,
         0,
     ]));
-    let mut mdhd = u32s(&[0x7c25_b081, 0x7c25_b081, 48_000, media]);
+    let mut mdhd = u32s(&[0x7c25_b081, 0x7c25_b081, rate, media]);
     // "fra"
     mdhd.extend_from_slice(&[0x1a, 0x41, 0, 0]);
     let mut hdlr = u32s(&[0]);
@@ -100,12 +145,12 @@ fn aac_moov_chunks(
     entry.extend_from_slice(&2u16.to_be_bytes());
     entry.extend_from_slice(&16u16.to_be_bytes());
     entry.extend_from_slice(&[0u8; 4]);
-    entry.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
+    entry.extend_from_slice(&(rate << 16).to_be_bytes());
     if version_1_entry {
         // QuickTime version 1: four more 32-bit fields.
         entry.extend_from_slice(&u32s(&[1024, 0, 0, 2]));
     }
-    entry.extend_from_slice(&esds());
+    entry.extend_from_slice(&esds_with(config));
     let mut stsd = u32s(&[1]);
     stsd.extend_from_slice(&bx(b"mp4a", &entry));
     let stbl = bx(
@@ -267,6 +312,7 @@ fn an_edit_that_lasts_to_the_end_of_the_media_is_refused() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert_eq!(
@@ -303,6 +349,7 @@ fn fragmented_sources_need_contiguous_decode_times() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(
@@ -388,6 +435,7 @@ fn outputs_above_4_gib_use_64_bit_offsets() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     )
     .unwrap();
@@ -428,6 +476,7 @@ fn extract(data: &[u8], choice: TrackChoice) -> Result<(Summary, Vec<u8>), Extra
         &Limits::default(),
         &Allowlist::default(),
         choice,
+        HeaderMetadata::Copy,
         &mut out,
     )?;
     Ok((summary, out))
@@ -482,6 +531,13 @@ fn assert_round_trip(source: &[u8], stream_index: usize, output: &[u8], summary:
         .filter(|l| l.iter().all(u8::is_ascii_lowercase))
         .unwrap_or(*b"und");
     assert_eq!(out.language, Some(language));
+    let handler_name = src
+        .handler_name
+        .as_deref()
+        .and_then(|n| n.split('\0').next())
+        .filter(|n| !n.is_empty())
+        .unwrap_or("SoundHandler");
+    assert_eq!(out.handler_name.as_deref(), Some(handler_name));
 
     // The declared media duration is copied.
     if !src_movie.has_fragments() && src.mdhd_duration != 0 {
@@ -595,17 +651,29 @@ fn with_moov_children(movie: &[u8], extra: &[u8]) -> Vec<u8> {
     ])
 }
 
-/// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
-fn smpb_udta(text: &str) -> Vec<u8> {
-    let data = cat(&[u32s(&[1, 0]), text.as_bytes().to_vec()]);
-    let item = bx(
-        b"----",
-        &cat(&[
-            full(b"mean", 0, 0, b"com.apple.iTunes"),
-            full(b"name", 0, 0, b"iTunSMPB"),
-            bx(b"data", &data),
-        ]),
-    );
+/// `file` with `bytes` inserted at `at`, and the boxes of `kinds` (each
+/// the first of its type, and each enclosing `at`) grown by as much.
+fn inserted(file: &[u8], kinds: &[&[u8; 4]], at: usize, bytes: &[u8]) -> Vec<u8> {
+    let mut out = file.to_vec();
+    for kind in kinds {
+        let start = file.windows(4).position(|w| w == *kind).unwrap() - 4;
+        let size = u32::from_be_bytes(out[start..start + 4].try_into().unwrap());
+        out[start..start + 4].copy_from_slice(&(size + bytes.len() as u32).to_be_bytes());
+    }
+    out.splice(at..at, bytes.iter().copied());
+    out
+}
+
+/// An item list entry `kind` with one `data` box of `type_indicator`.
+fn list_item(kind: &[u8; 4], type_indicator: u32, value: &[u8]) -> Vec<u8> {
+    bx(
+        kind,
+        &bx(b"data", &cat(&[u32s(&[type_indicator, 0]), value.to_vec()])),
+    )
+}
+
+/// `udta`/`meta`/`ilst` holding `items`.
+fn items_udta(items: &[Vec<u8>]) -> Vec<u8> {
     let mut hdlr = u32s(&[0]);
     hdlr.extend_from_slice(b"mdirappl");
     hdlr.extend_from_slice(&[0u8; 9]);
@@ -613,9 +681,26 @@ fn smpb_udta(text: &str) -> Vec<u8> {
         b"meta",
         0,
         0,
-        &cat(&[full(b"hdlr", 0, 0, &hdlr), bx(b"ilst", &item)]),
+        &cat(&[full(b"hdlr", 0, 0, &hdlr), bx(b"ilst", &cat(items))]),
     );
     bx(b"udta", &meta)
+}
+
+/// An iTunes `iTunSMPB` item list entry holding `text`.
+fn smpb_item(text: &str) -> Vec<u8> {
+    bx(
+        b"----",
+        &cat(&[
+            full(b"mean", 0, 0, b"com.apple.iTunes"),
+            full(b"name", 0, 0, b"iTunSMPB"),
+            bx(b"data", &cat(&[u32s(&[1, 0]), text.as_bytes().to_vec()])),
+        ]),
+    )
+}
+
+/// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
+fn smpb_udta(text: &str) -> Vec<u8> {
+    items_udta(&[smpb_item(text)])
 }
 
 #[test]
@@ -712,6 +797,169 @@ fn a_matching_gapless_item_becomes_an_edit_list() {
     assert_round_trip(&source, 0, &output, &summary);
 }
 
+/// A raw AAC frame of `size` bytes that ends with SBR data: a fill element
+/// of two bytes with `EXT_SBR_DATA`, then `ID_END` and byte alignment
+/// (ISO/IEC 14496-3 4.4.2.1, 4.4.2.7).
+fn sbr_frame(size: usize) -> Vec<u8> {
+    // 110 0010 1101 0000 00000000 111 000000
+    let tail = [0b1100_0101, 0b1010_0000, 0b0000_0001, 0b1100_0000];
+    cat(&[vec![0xaa; size - tail.len()], tail.to_vec()])
+}
+
+/// A one-track AAC movie of `frames`, all of one size, with the
+/// `AudioSpecificConfig` `config` at 22,050 Hz, and `edit` as in
+/// [`aac_movie`].
+fn aac_22k_movie(config: &[u8], frames: &[Vec<u8>], edit: Option<(u32, i32, u32)>) -> Vec<u8> {
+    let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
+    let mdat = bx(b"mdat", &frames.concat());
+    let n = frames.len() as u32;
+    let moov = audio_moov(
+        (config, 22_050),
+        n,
+        frames[0].len() as u32,
+        edit,
+        false,
+        n,
+        &[(ftyp.len() + 8) as u32],
+    );
+    cat(&[ftyp, mdat, moov])
+}
+
+/// The output's one track.
+fn extracted(source: &[u8]) -> Track {
+    let (_, output) = extract(source, TrackChoice::FirstAudio).unwrap();
+    probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap()
+    .tracks
+    .remove(0)
+}
+
+#[test]
+fn he_aac_is_timed_at_its_decoded_rate() {
+    // SBR at 44.1 kHz in the configuration: object type 5 (hierarchical),
+    // and AAC LC with a backward-compatible extension (sync extension
+    // 0x2b7, object type 5, sbrPresentFlag 1, extension index 4).
+    let hierarchical = [0x2b, 0x92, 0x08];
+    let compatible = [0x13, 0x90, 0x56, 0xe5, 0xa0];
+    let plain = vec![0u8; 10];
+    for config in [hierarchical.as_slice(), &compatible] {
+        let source = aac_22k_movie(config, &vec![plain.clone(); 100], Some((0, 2048, 4000)));
+        let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+        assert_eq!((summary.timescale, summary.duration), (22_050, 102_400));
+        let movie = probe(
+            SliceSource::new(&output),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap();
+        let track = &movie.tracks[0];
+        assert_eq!(track.timescale, 44_100, "{config:x?}");
+        assert_eq!(track.description.sample_rate, Some(44_100), "{config:x?}");
+        assert_eq!(
+            track.description.codec_config,
+            probe(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default()
+            )
+            .unwrap()
+            .tracks[0]
+                .description
+                .codec_config
+        );
+        assert_eq!(track.mdhd_duration, 204_800);
+        assert_eq!(
+            track.edit_list,
+            EditList::Simple {
+                empty: 0,
+                media_time: 4096,
+                segment: 4000
+            }
+        );
+        let all = packets(&movie, track, &output);
+        assert_eq!(all.len(), 100);
+        assert!(all.iter().all(|p| p.duration == 2048));
+        assert!(all.iter().all(|p| bytes_of(&output, p) == plain));
+    }
+    // SBR at 96 kHz from a 48 kHz core does not fit the sample entry's
+    // 16.16 rate: the track keeps its own.
+    let wide = cat(&[
+        bx(b"ftyp", b"isom\0\0\x02\0isom"),
+        bx(b"mdat", &plain.repeat(10)),
+    ]);
+    let moov = audio_moov(
+        (&[0x29, 0x90, 0x08, 0x00], 48_000),
+        10,
+        10,
+        None,
+        false,
+        10,
+        &[(wide.len() - 100) as u32],
+    );
+    let track = extracted(&cat(&[wide, moov]));
+    assert_eq!(
+        (track.timescale, track.description.sample_rate),
+        (48_000, Some(48_000))
+    );
+    // A signalled stream of fewer frames than any count is scaled too: the
+    // configuration, not the frames, decides.
+    assert_eq!(
+        extracted(&aac_22k_movie(
+            &hierarchical,
+            std::slice::from_ref(&plain),
+            None
+        ))
+        .timescale,
+        44_100
+    );
+    // An `iTunSMPB` item that adds up in the source's ticks (2,112 +
+    // 100,000 + 288 = 102,400) gives the same edit, in the output's ticks;
+    // 100,000 samples at 22.05 kHz in movie ticks of 1 ms, rounded: 4,535.
+    let source = with_moov_children(
+        &aac_22k_movie(&hierarchical, &vec![plain.clone(); 100], None),
+        &smpb_udta(" 00000000 00000840 00000120 00000000000186A0 00000000"),
+    );
+    assert_eq!(
+        extracted(&source).edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 2 * 2112,
+            segment: 4535
+        }
+    );
+}
+
+#[test]
+fn sbr_data_in_the_frames_alone_keeps_the_core_rate() {
+    // AAC LC at 22.05 kHz whose configuration signals no SBR keeps its
+    // rate, whatever its frames end with: every frame ending with an SBR
+    // fill element, none, or a data stream element whose payload ends with
+    // the bits of one (a silent single channel element, a three-byte data
+    // stream element, then ID_END), in every frame or only a few.
+    let stereo = [0x13, 0x90];
+    let mono = [0x13, 0x88];
+    let dse = vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x1b, 0x16, 0x80, 0x07];
+    for (config, frame, n) in [
+        (mono.as_slice(), dse.clone(), 100),
+        (&mono, dse.clone(), 16),
+        (&mono, dse.clone(), 3),
+        (&stereo, sbr_frame(10), 100),
+        (&stereo, vec![0u8; 10], 100),
+    ] {
+        let track = extracted(&aac_22k_movie(config, &vec![frame.clone(); n], None));
+        assert_eq!(track.timescale, 22_050, "{frame:x?} {n}");
+        assert_eq!(
+            track.description.sample_rate,
+            Some(22_050),
+            "{frame:x?} {n}"
+        );
+    }
+}
+
 #[test]
 fn aac_track_round_trips() {
     let source = common::av_movie_with(common::aac_entry(), false);
@@ -748,6 +996,420 @@ fn only_user_chosen_metadata_is_copied() {
 }
 
 #[test]
+fn the_source_description_is_copied() {
+    // An `aac_movie` whose handler is named, whose track has user data and
+    // whose movie has an item list with a title and a cover picture.
+    let plain = aac_movie(100, 10, None, false);
+    let hdlr = plain.windows(4).position(|w| w == b"hdlr").unwrap() - 4;
+    let hdlr_end = hdlr + u32::from_be_bytes(plain[hdlr..hdlr + 4].try_into().unwrap()) as usize;
+    let named = inserted(
+        &plain,
+        &[b"moov", b"trak", b"mdia", b"hdlr"],
+        hdlr_end - 1,
+        b"My Audio",
+    );
+    let track_udta = bx(b"udta", &bx(b"name", b"Track one"));
+    let described = inserted(&named, &[b"moov", b"trak"], named.len(), &track_udta);
+    let cover = b"\xff\xd8\xff\xe0 a cover";
+    let source = with_moov_children(
+        &described,
+        &items_udta(&[
+            list_item(b"\xa9nam", 1, b"A title"),
+            list_item(b"covr", 13, cover),
+        ]),
+    );
+    let has = |data: &[u8], what: &[u8]| data.windows(what.len()).any(|w| w == what);
+
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    let movie = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(movie.tracks[0].handler_name.as_deref(), Some("My Audio"));
+    let read =
+        coreav_isobmff::metadata::read(SliceSource::new(&output), &Limits::default()).unwrap();
+    assert_eq!(read.covers().count(), 0);
+    assert!(!has(&output, cover));
+    let title = read.items.iter().find_map(|item| match &item.value {
+        coreav_isobmff::metadata::ItemValue::ListItem { data, .. } if item.track.is_none() => {
+            data.first().map(|value| value.value.clone())
+        }
+        _ => None,
+    });
+    assert_eq!(title.as_deref(), Some(b"A title".as_slice()));
+    assert!(read.items.iter().any(|item| item.track == Some(0)
+        && matches!(&item.value, coreav_isobmff::metadata::ItemValue::UserData { kind, payload }
+            if kind.0 == *b"name" && payload == b"Track one")));
+
+    for metadata in [HeaderMetadata::Clear, HeaderMetadata::MediaTime] {
+        let mut out = Vec::new();
+        extract_audio(
+            SliceSource::new(&source),
+            &Limits::default(),
+            &Allowlist::default(),
+            TrackChoice::FirstAudio,
+            metadata,
+            &mut out,
+        )
+        .unwrap();
+        for what in [
+            b"udta".as_slice(),
+            b"meta",
+            b"A title",
+            b"Track one",
+            b"My Audio",
+        ] {
+            assert!(
+                !has(&out, what),
+                "{metadata:?}: {}",
+                String::from_utf8_lossy(what)
+            );
+        }
+        assert!(has(&out, b"SoundHandler\0"), "{metadata:?}");
+    }
+}
+
+/// `data` extracted with `limits`.
+fn extract_within(data: &[u8], limits: &Limits) -> Vec<u8> {
+    let mut out = Vec::new();
+    extract_audio(
+        SliceSource::new(data),
+        limits,
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
+        &mut out,
+    )
+    .unwrap();
+    out
+}
+
+fn has(data: &[u8], what: &[u8]) -> bool {
+    data.windows(what.len()).any(|w| w == what)
+}
+
+#[test]
+fn every_cover_picture_is_left_out() {
+    // A cover item of two pictures in the movie's item list and in the
+    // track's, and an item list that ends in a box that does not parse.
+    let pictures = [b"\xff\xd8\xff\xe0 one".as_slice(), b"\x89PNG two"];
+    let covers = bx(
+        b"covr",
+        &cat(&pictures.map(|p| bx(b"data", &cat(&[u32s(&[13, 0]), p.to_vec()])))),
+    );
+    let hidden = cat(&[u32s(&[0x100]), b"covr".to_vec(), b"\x89PNG three".to_vec()]);
+    let plain = aac_movie(100, 10, None, false);
+    let track_tags = items_udta(&[list_item(b"\xa9nam", 1, b"Track title"), covers.clone()]);
+    let tracked = inserted(&plain, &[b"moov", b"trak"], plain.len(), &track_tags);
+    let source = with_moov_children(
+        &tracked,
+        &items_udta(&[list_item(b"\xa9nam", 1, b"A title"), covers, hidden]),
+    );
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    for picture in [pictures[0], pictures[1], b"\x89PNG three"] {
+        assert!(!has(&output, picture), "{picture:x?}");
+    }
+    assert!(!has(&output, b"covr"));
+    assert!(has(&output, b"A title") && has(&output, b"Track title"));
+}
+
+/// A QuickTime `meta` box (no version and flags) with handler `mdta`, a
+/// `keys` box counting `count` keys and holding `keys`, and an `ilst`
+/// whose entries are numbered by key (from 1), each with one `data` box of
+/// a type indicator and a value.
+fn keyed_meta(keys: &[&[u8]], count: u32, entries: &[(u32, u32, &[u8])]) -> Vec<u8> {
+    let mut hdlr = u32s(&[0]);
+    hdlr.extend_from_slice(b"mdta");
+    hdlr.extend_from_slice(&[0u8; 13]);
+    let mut list = u32s(&[0, count]);
+    for key in keys {
+        list.extend(u32s(&[8 + key.len() as u32]));
+        list.extend_from_slice(b"mdta");
+        list.extend_from_slice(key);
+    }
+    let items: Vec<Vec<u8>> = entries
+        .iter()
+        .map(|(index, type_indicator, value)| {
+            bx(
+                &index.to_be_bytes(),
+                &bx(
+                    b"data",
+                    &cat(&[u32s(&[*type_indicator, 0]), value.to_vec()]),
+                ),
+            )
+        })
+        .collect();
+    bx(
+        b"meta",
+        &cat(&[
+            full(b"hdlr", 0, 0, &hdlr),
+            bx(b"keys", &list),
+            bx(b"ilst", &cat(&items)),
+        ]),
+    )
+}
+
+#[test]
+fn keyed_artwork_is_left_out() {
+    // QuickTime metadata whose second key is the artwork key, in the movie
+    // and in the track.
+    let keys: [&[u8]; 2] = [b"com.apple.quicktime.title", b"com.apple.quicktime.artwork"];
+    let (movie_picture, track_picture) = (b"\xff\xd8\xff\xe0 keyed movie", b"\x89PNG keyed track");
+    let plain = aac_movie(100, 10, None, false);
+    let tracked = inserted(
+        &plain,
+        &[b"moov", b"trak"],
+        plain.len(),
+        &keyed_meta(&keys, 2, &[(1, 1, b"Track title"), (2, 13, track_picture)]),
+    );
+    let source = with_moov_children(
+        &tracked,
+        &keyed_meta(&keys, 2, &[(1, 1, b"Keyed title"), (2, 13, movie_picture)]),
+    );
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    assert!(!has(&output, movie_picture) && !has(&output, track_picture));
+    assert!(has(&output, b"Keyed title") && has(&output, b"Track title"));
+    let read =
+        coreav_isobmff::metadata::read(SliceSource::new(&output), &Limits::default()).unwrap();
+    assert_eq!(read.covers().count(), 0);
+
+    // A `keys` box that holds fewer keys than it counts: which entry is the
+    // artwork cannot be told, so the whole `meta` box is left out.
+    let source = with_moov_children(
+        &plain,
+        &keyed_meta(&keys, 3, &[(1, 1, b"Keyed title"), (2, 13, movie_picture)]),
+    );
+    let (_, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert!(!has(&output, movie_picture) && !has(&output, b"Keyed title"));
+    assert!(!has(&output, b"mdta"));
+}
+
+#[test]
+fn a_cover_past_the_box_size_limit_is_left_out() {
+    // A cover picture larger than `max_box_bytes`.
+    let picture = vec![0xab; 2048];
+    let source = with_moov_children(
+        &aac_movie(100, 10, None, false),
+        &items_udta(&[
+            list_item(b"\xa9nam", 1, b"A title"),
+            list_item(b"covr", 13, &picture),
+        ]),
+    );
+    let output = extract_within(
+        &source,
+        &Limits {
+            max_box_bytes: 1024,
+            ..Limits::default()
+        },
+    );
+    assert!(has(&output, b"A title"));
+    assert!(!has(&output, b"covr") && !has(&output, &picture[..64]));
+}
+
+#[test]
+fn a_gapless_item_past_the_box_count_limit_is_left_out() {
+    // An `iTunSMPB` item that becomes the edit list after more items than
+    // `max_total_boxes` lets a reader of every item see.
+    let mut items: Vec<Vec<u8>> = (0..40)
+        .map(|i| list_item(b"\xa9nam", 1, format!("Title {i}").as_bytes()))
+        .collect();
+    items.push(smpb_item(
+        " 00000000 00000840 00000120 00000000000186A0 00000000",
+    ));
+    let source = with_moov_children(&aac_movie(100, 10, None, false), &items_udta(&items));
+    let output = extract_within(
+        &source,
+        &Limits {
+            max_total_boxes: 64,
+            ..Limits::default()
+        },
+    );
+    let movie = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        movie.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 2112,
+            segment: 2083
+        }
+    );
+    assert!(!has(&output, b"iTunSMPB"));
+    assert!(has(&output, b"Title 39"));
+}
+
+#[test]
+fn source_creation_and_modification_times_stay_distinct() {
+    let dates = |file: &[u8], kind: &[u8; 4]| {
+        let at = file.windows(4).position(|w| w == kind).unwrap() + 4;
+        if file[at] == 1 {
+            (
+                u64::from_be_bytes(file[at + 4..at + 12].try_into().unwrap()),
+                u64::from_be_bytes(file[at + 12..at + 20].try_into().unwrap()),
+            )
+        } else {
+            (
+                u64::from(u32::from_be_bytes(file[at + 4..at + 8].try_into().unwrap())),
+                u64::from(u32::from_be_bytes(
+                    file[at + 8..at + 12].try_into().unwrap(),
+                )),
+            )
+        }
+    };
+    for (wide, base) in [
+        (false, 100u64),
+        (true, 200),
+        (true, u64::from(u32::MAX) + 1),
+    ] {
+        let mut source = aac_movie(100, 10, None, false);
+        for (i, path) in [
+            vec![b"moov", b"mvhd"],
+            vec![b"moov", b"trak", b"tkhd"],
+            vec![b"moov", b"trak", b"mdia", b"mdhd"],
+        ]
+        .iter()
+        .enumerate()
+        {
+            let kind = path.last().unwrap();
+            let start = source.windows(4).position(|w| w == *kind).unwrap() - 4;
+            let end =
+                start + u32::from_be_bytes(source[start..start + 4].try_into().unwrap()) as usize;
+            let payload = source[start + 8..end].to_vec();
+            let created = dates(&source, kind).0;
+            let modified = base + i as u64;
+            if wide {
+                let duration_at = if *kind == b"tkhd" { 20 } else { 16 };
+                let mut body = vec![1, payload[1], payload[2], payload[3]];
+                body.extend(created.to_be_bytes());
+                body.extend(modified.to_be_bytes());
+                body.extend_from_slice(&payload[12..duration_at]);
+                let duration =
+                    u32::from_be_bytes(payload[duration_at..duration_at + 4].try_into().unwrap());
+                body.extend(u64::from(duration).to_be_bytes());
+                body.extend_from_slice(&payload[duration_at + 4..]);
+                source = inserted(&source, path, end, &[0; 12]);
+                source[start + 8..end + 12].copy_from_slice(&body);
+            } else {
+                source[start + 16..start + 20].copy_from_slice(&(modified as u32).to_be_bytes());
+            }
+        }
+        let (_, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+        let parsed = probe(
+            SliceSource::new(&output),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap();
+        assert_eq!(parsed.modification_time, base);
+        assert_eq!(parsed.tracks[0].modification_time, base + 1);
+        assert_eq!(parsed.tracks[0].media_modification_time, base + 2);
+        for kind in [b"mvhd", b"tkhd", b"mdhd"] {
+            assert_eq!(
+                dates(&output, kind),
+                dates(&source, kind),
+                "{kind:?} {wide} {base}"
+            );
+        }
+        for metadata in [HeaderMetadata::Clear, HeaderMetadata::MediaTime] {
+            let mut output = Vec::new();
+            extract_audio(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default(),
+                TrackChoice::FirstAudio,
+                metadata,
+                &mut output,
+            )
+            .unwrap();
+            let expected = if metadata == HeaderMetadata::Clear {
+                0
+            } else {
+                dates(&source, b"mdhd").0
+            };
+            for kind in [b"mvhd", b"tkhd", b"mdhd"] {
+                assert_eq!(dates(&output, kind), (expected, expected));
+            }
+        }
+    }
+}
+
+#[test]
+fn cleared_header_metadata_leaves_the_audio_as_it_was() {
+    let source = aac_movie(100, 10, Some((0, 1024, 2000)), false);
+    let (_, copied) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    let mut cleared = Vec::new();
+    extract_audio(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::Clear,
+        &mut cleared,
+    )
+    .unwrap();
+    let probed = |data: &[u8]| {
+        probe(
+            SliceSource::new(data),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap()
+    };
+    let (copied_movie, cleared_movie) = (probed(&copied), probed(&cleared));
+    let (copied_track, cleared_track) = (&copied_movie.tracks[0], &cleared_movie.tracks[0]);
+    assert_eq!(copied_movie.creation_time, 0x7c25_b080);
+    assert_eq!(copied_track.media_creation_time, 0x7c25_b081);
+    assert_eq!(copied_track.language, Some(*b"fra"));
+    assert_eq!(cleared_movie.creation_time, 0);
+    assert_eq!(cleared_track.creation_time, 0);
+    assert_eq!(cleared_track.media_creation_time, 0);
+    assert_eq!(cleared_track.language, Some(*b"und"));
+    assert_eq!(cleared.len(), copied.len());
+    assert_eq!(cleared_track.edit_list, copied_track.edit_list);
+    assert_eq!(cleared_movie.mvhd_duration, copied_movie.mvhd_duration);
+    assert_eq!(cleared_track.mdhd_duration, copied_track.mdhd_duration);
+    assert_eq!(
+        packets(&cleared_movie, cleared_track, &cleared),
+        packets(&copied_movie, copied_track, &copied)
+    );
+}
+
+#[test]
+fn the_media_creation_time_can_date_every_header() {
+    let source = aac_movie(100, 10, None, false);
+    let mut out = Vec::new();
+    extract_audio(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::MediaTime,
+        &mut out,
+    )
+    .unwrap();
+    let movie = probe(
+        SliceSource::new(&out),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let track = &movie.tracks[0];
+    assert_eq!(movie.creation_time, 0x7c25_b081);
+    assert_eq!(track.creation_time, 0x7c25_b081);
+    assert_eq!(track.media_creation_time, 0x7c25_b081);
+    assert_eq!(track.language, Some(*b"und"));
+}
+
+#[test]
 fn tracks_that_cannot_be_extracted_write_nothing() {
     let source = common::av_movie_with(common::aac_entry(), false);
     let cases = [
@@ -766,6 +1428,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
             &Limits::default(),
             &Allowlist::default(),
             choice,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(result, Err(ExtractError::Source(expected)), "{choice:?}");
@@ -780,6 +1443,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
         &Limits::default(),
         &video_only,
         TrackChoice::Stream(1),
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert!(matches!(
@@ -794,6 +1458,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
         &Limits::default(),
         &video_only,
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     // The allowlist dropped the only audio track: its codec is not allowed.
@@ -839,6 +1504,7 @@ fn table_limit_applies_to_the_output_tables() {
             &limits,
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         if ok {
@@ -997,6 +1663,7 @@ fn several_edits_outside_the_model_are_refused() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(
@@ -1071,6 +1738,7 @@ fn write_errors_are_reported() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             FailingWriter { left },
         );
         assert_eq!(result, Err(ExtractError::Write(io::ErrorKind::BrokenPipe)));
@@ -1110,6 +1778,7 @@ fn read_errors_while_copying_are_reported() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         io::sink(),
     )
     .is_err()
@@ -1126,6 +1795,7 @@ fn read_errors_while_copying_are_reported() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             io::sink(),
         );
         assert_eq!(
@@ -1149,6 +1819,7 @@ fn truncated_inputs_are_safe() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         )
         .is_ok()
@@ -1191,6 +1862,7 @@ fn assert_mutations_are_safe(source: &[u8], rounds: u32, seed: u64) {
             &limits,
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         ) else {
             continue;
@@ -1338,6 +2010,7 @@ fn samples_are_copied_through_a_read_window() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     )
     .unwrap();
@@ -1406,6 +2079,7 @@ fn a_failed_read_of_the_gapless_item_is_an_error() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert_eq!(
@@ -1458,6 +2132,7 @@ fn the_copy_pass_advises_where_it_starts_and_how_much_it_copies() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         io::sink(),
     )
     .unwrap();
@@ -1548,6 +2223,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut expected,
         )
         .unwrap();
@@ -1563,6 +2239,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
                     &Limits::default(),
                     &Allowlist::default(),
                     TrackChoice::FirstAudio,
+                    HeaderMetadata::Copy,
                     &mut out,
                 )
             } else {
@@ -1571,6 +2248,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
                     &Limits::default(),
                     &Allowlist::default(),
                     TrackChoice::FirstAudio,
+                    HeaderMetadata::Copy,
                     &mut out,
                 )
             }

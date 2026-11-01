@@ -18,7 +18,7 @@
 //!
 //! ```
 //! use coreav_isobmff::{Allowlist, Limits, SliceSource};
-//! use coreav_isobmff_write::{TrackChoice, extract_audio};
+//! use coreav_isobmff_write::{HeaderMetadata, TrackChoice, extract_audio};
 //!
 //! let not_a_movie = b"RIFF\x24\x00\x00\x00AVI LIST";
 //! let mut out = Vec::new();
@@ -27,12 +27,14 @@
 //!     &Limits::default(),
 //!     &Allowlist::default(),
 //!     TrackChoice::FirstAudio,
+//!     HeaderMetadata::Copy,
 //!     &mut out,
 //! );
 //! assert!(result.is_err());
 //! assert!(out.is_empty());
 //! ```
 
+mod audio;
 mod boxes;
 mod clip;
 mod copy;
@@ -60,11 +62,31 @@ pub use matroska::{
     remux_matroska_replacing,
 };
 pub use remux::{remux_mp4, remux_mp4_replacing, sanitize_mp4};
-pub use replace::{Replacement, ReplacementSample};
+pub use replace::{AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements};
 pub use split::split_mp4;
 
 use core::fmt;
 use coreav_isobmff::{Codec, Error, FourCc, Rational, TrackKind};
+
+/// What [`extract_audio`] carries over from the source besides the samples
+/// and their timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderMetadata {
+    /// The creation and modification times of the movie, track and media
+    /// headers, the media header's language, the track's handler name, and the `udta` and
+    /// `meta` boxes of the movie and of the track as stored, without their
+    /// cover pictures (every item list entry `ListKey::is_cover` names) and
+    /// without an `iTunSMPB` item
+    /// that became the output's edit list.
+    Copy,
+    /// None of them: the times are written as 0 ("not set"), the language
+    /// as `und`, the generic handler name, and no `udta` or `meta` box.
+    Clear,
+    /// The media header's creation time as the creation and modification
+    /// time of every header, the language `und`, the generic handler name,
+    /// and no `udta` or `meta` box.
+    MediaTime,
+}
 
 /// Which track to extract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,9 +109,10 @@ pub struct Summary {
     pub samples: u32,
     /// Bytes written to the output.
     pub bytes_written: u64,
-    /// Media timescale of the output track (that of the source track).
+    /// Media timescale of the source track; the output's is a multiple of it
+    /// for HE-AAC ([`extract_audio`]).
     pub timescale: u32,
-    /// Sum of the decode durations, in media ticks.
+    /// Sum of the decode durations, in media ticks of `timescale`.
     pub duration: u64,
 }
 
@@ -240,14 +263,25 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied.
     pub on_unsupported: OnUnsupported,
     /// What happens to metadata.
     pub metadata: Metadata,
+    /// Cover pictures of the movie's item lists to leave out (`covr`, or
+    /// the QuickTime `com.apple.quicktime.artwork` key), each named by
+    /// where its `data` box's value starts in the file (`ItemData::offset`
+    /// of `coreav_isobmff::metadata`). The `data` box is left out of the
+    /// copied `udta` or `meta` box, with its item when no other `data`
+    /// box remains, and listed as dropped (`not_carried`). An offset that
+    /// starts no `data` value of the movie's item lists fails the remux
+    /// with `NoSuchTrack` before anything is written. Sanitization writes
+    /// no item list, so it ignores this.
+    pub left_out_covers: Vec<u64>,
 }
 
 /// What [`remux_mp4`] does with metadata.
@@ -321,7 +355,7 @@ pub struct RemuxTrack {
     /// `track_ID` of the track in the source.
     pub source_track_id: u32,
     /// `track_ID` in the output: the kept tracks are numbered from 1 in
-    /// source order.
+    /// output order.
     pub track_id: u32,
     /// The track's kind.
     pub kind: TrackKind,
@@ -454,13 +488,15 @@ pub struct Cleared {
 /// What [`remux_mp4`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`RemuxOptions::streams`).
     pub tracks: Vec<RemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
     pub dropped_tracks: Vec<DroppedTrack>,
-    /// Boxes of the source that are not in the output, in file order (those
-    /// of dropped streams are not listed): at most 256.
+    /// Boxes of the source that are not in the output, each once (those
+    /// of dropped streams are not listed): those outside the tracks, then
+    /// each kept stream's in source order, then the boxes too large to
+    /// copy; each group in file order; at most 256.
     pub dropped_boxes: Vec<DroppedBox>,
     /// Dropped boxes beyond those listed.
     pub dropped_boxes_not_listed: u64,
@@ -533,11 +569,12 @@ pub struct SplitSummary {
 /// Which audio [`join_mp4`] keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JoinAudio {
-    /// The first audio track of every input, which must be AAC; the inputs
-    /// must all have one or all have none.
+    /// The first audio track of every input, which must be AAC, FLAC, ALAC,
+    /// AC-3 or E-AC-3; the inputs must all have one or all have none.
     First,
     /// The audio stream at this index (`Track::stream_index`) of every
-    /// input, which must be AAC, as the concat demuxer of `ffmpeg` pairs
+    /// input, which must be AAC, FLAC, ALAC, AC-3 or E-AC-3, as the concat
+    /// demuxer of `ffmpeg` pairs
     /// streams by index; a stream the allowlist leaves out fails with
     /// `Error::CodecNotAllowed` instead of being skipped.
     Stream(usize),
@@ -545,8 +582,25 @@ pub enum JoinAudio {
     None,
 }
 
+/// Where [`join_mp4`] places each input on the output's timeline.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Placement {
+    /// Each input after the previous input's video (`docs/design/join.md`,
+    /// "Timing").
+    #[default]
+    AfterVideo,
+    /// The output time of each input's time 0, in seconds, from the first
+    /// input's (0 for the first), rounded to the video's timescale, halves
+    /// away from zero: the concat demuxer of `ffmpeg` places each file
+    /// after the previous ones' durations (`docs/design/join.md`, "Placed
+    /// as the concat demuxer places them"). A first offset other than 0, or
+    /// an input whose video would start before the previous input's video
+    /// ends, fails the join.
+    At(Vec<Rational>),
+}
+
 /// What [`join_mp4`] keeps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JoinOptions {
     /// The video: the first video track of every input the allowlist keeps
     /// (`VideoChoice::First`), or the stream at this index of every input
@@ -556,6 +610,8 @@ pub struct JoinOptions {
     pub video: VideoChoice,
     /// The audio.
     pub audio: JoinAudio,
+    /// Where each input goes.
+    pub placement: Placement,
 }
 
 /// One input of a join. Times are exact, in seconds.
@@ -710,6 +766,10 @@ fn codec_name(codec: Codec) -> &'static str {
         Codec::Aac => "AAC",
         Codec::Mp3 => "MP3",
         Codec::Opus => "Opus",
+        Codec::Flac => "FLAC",
+        Codec::Alac => "ALAC",
+        Codec::Ac3 => "AC-3",
+        Codec::Eac3 => "E-AC-3",
         Codec::Pcm => "PCM",
         Codec::TimedText => "timed text",
         Codec::Timecode => "timecode",

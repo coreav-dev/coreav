@@ -68,6 +68,27 @@ pub struct Metadata {
     pub complete: bool,
 }
 
+impl Metadata {
+    /// The movie's cover pictures, one per nonempty data value of each
+    /// entry whose key [`ListKey::is_cover`], in file order. A metadata
+    /// box without a handler contributes none, as for its tags.
+    pub fn covers(&self) -> impl Iterator<Item = &ItemData> {
+        self.items
+            .iter()
+            .filter(|item| item.track.is_none())
+            .filter_map(|item| match &item.value {
+                ItemValue::ListItem { list, key, data }
+                    if key.is_cover() && *list != (ListPlace::Meta { handler: None }) =>
+                {
+                    Some(data.as_slice())
+                }
+                _ => None,
+            })
+            .flatten()
+            .filter(|data| !data.value.is_empty())
+    }
+}
+
 /// A file type box.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileType {
@@ -201,8 +222,9 @@ pub enum ItemValue {
         list: ListPlace,
         /// The entry's key.
         key: ListKey,
-        /// Its first `data` box, if any.
-        data: Option<ItemData>,
+        /// Its `data` boxes, in order: one for most entries; a cover
+        /// picture entry (`covr`) holds one per picture.
+        data: Vec<ItemData>,
     },
 }
 
@@ -240,6 +262,38 @@ pub enum ListKey {
         /// The `name` box's text.
         name: Option<Vec<u8>>,
     },
+}
+
+impl ListKey {
+    /// Whether the entry holds a cover picture: `covr`, or the QuickTime
+    /// metadata key `com.apple.quicktime.artwork`.
+    pub fn is_cover(&self) -> bool {
+        match self {
+            Self::Atom(kind) => KeyView::Atom(*kind),
+            Self::Key { name, .. } => KeyView::Key(name),
+            Self::Free { .. } => KeyView::Free,
+        }
+        .is_cover()
+    }
+}
+
+/// A list entry's key as borrowed data: the one place [`ListKey::is_cover`]'s
+/// rule is written, so that [`is_cover_entry`] can apply it without
+/// copying a key.
+enum KeyView<'a> {
+    Atom(FourCc),
+    Key(&'a [u8]),
+    Free,
+}
+
+impl KeyView<'_> {
+    fn is_cover(&self) -> bool {
+        match self {
+            Self::Atom(kind) => kind.0 == *b"covr",
+            Self::Key(name) => *name == b"com.apple.quicktime.artwork",
+            Self::Free => false,
+        }
+    }
 }
 
 /// A `data` box of an item list entry.
@@ -657,7 +711,7 @@ impl<S: Source> Reader<'_, S> {
             meta.payload_offset().saturating_add(4)
         };
         let mut handler = None;
-        let mut keys: Vec<(FourCc, Vec<u8>)> = Vec::new();
+        let mut keys_box = None;
         let mut lists = Vec::new();
         for child in self.children(start, meta.end())? {
             match &child.kind.0 {
@@ -666,15 +720,16 @@ impl<S: Source> Reader<'_, S> {
                         handler = fourcc(&head, 8);
                     }
                 }
-                b"keys" if keys.is_empty() => {
-                    if let Some(payload) = self.payload(&child)? {
-                        keys = key_list(&payload);
-                    }
+                b"keys" if keys_box.is_none() => {
+                    keys_box = self
+                        .payload(&child)?
+                        .filter(|payload| !key_list(payload).is_empty());
                 }
                 b"ilst" => lists.push(child),
                 _ => {}
             }
         }
+        let keys = keys_box.as_deref().map(key_list).unwrap_or_default();
         for list in lists {
             self.list(&list, track, ListPlace::Meta { handler }, &keys, items)?;
         }
@@ -687,21 +742,20 @@ impl<S: Source> Reader<'_, S> {
         ilst: &BoxHeader,
         track: Option<usize>,
         place: ListPlace,
-        keys: &[(FourCc, Vec<u8>)],
+        keys: &[(FourCc, &[u8])],
         items: &mut Vec<Item>,
     ) -> Result<(), Error> {
         for entry in self.children(ilst.payload_offset(), ilst.end())? {
-            let index = u32::from_be_bytes(entry.kind.0);
-            let keyed = usize::try_from(index)
-                .ok()
-                .and_then(|i| i.checked_sub(1))
-                .and_then(|i| keys.get(i));
-            let (mut mean, mut name, mut data) = (None, None, None);
+            let keyed = keyed(entry.kind, keys);
+            let (mut mean, mut name, mut data) = (None, None, Vec::new());
             for part in self.children(entry.payload_offset(), entry.end())? {
                 match &part.kind.0 {
-                    b"data" if data.is_none() => {
+                    b"data" => {
                         if let Some(payload) = self.payload(&part)? {
-                            data = item_data(&payload, part.payload_offset().saturating_add(8));
+                            data.extend(item_data(
+                                &payload,
+                                part.payload_offset().saturating_add(8),
+                            ));
                         }
                     }
                     b"mean" if mean.is_none() => {
@@ -725,7 +779,7 @@ impl<S: Source> Reader<'_, S> {
                     }
                     ListKey::Key {
                         namespace: *namespace,
-                        name: key.clone(),
+                        name: key.to_vec(),
                     }
                 }
                 None if entry.kind == FourCc(*b"----") => ListKey::Free { mean, name },
@@ -756,9 +810,39 @@ fn created(head: &[u8]) -> Option<Timestamp> {
     Some(Timestamp { version, seconds })
 }
 
+/// The key an item list entry of box type `kind` names in `keys`: its
+/// type read as a 1-based index into them.
+fn keyed<T>(kind: FourCc, keys: &[T]) -> Option<&T> {
+    usize::try_from(u32::from_be_bytes(kind.0))
+        .ok()
+        .and_then(|i| i.checked_sub(1))
+        .and_then(|i| keys.get(i))
+}
+
+/// Whether an item list entry of box type `kind`, in a `meta` box whose
+/// `keys` box holds `keys` ([`keys`]), holds a cover picture, as
+/// [`ListKey::is_cover`] reads its key. A free-form entry (`----`) never
+/// does. The keys are borrowed and none is copied, so classifying many
+/// entries that name one long key costs no more than reading them.
+pub fn is_cover_entry(kind: FourCc, keys: &[(FourCc, &[u8])]) -> bool {
+    match keyed(kind, keys) {
+        Some((_, name)) => KeyView::Key(name),
+        None => KeyView::Atom(kind),
+    }
+    .is_cover()
+}
+
+/// The keys of a `keys` box's payload, in order, borrowed from it; `None`
+/// when it does not hold every entry its count states.
+pub fn keys(payload: &[u8]) -> Option<Vec<(FourCc, &[u8])>> {
+    let count = usize::try_from(be_u32(payload, 4)?).ok()?;
+    let keys = key_list(payload);
+    (keys.len() == count).then_some(keys)
+}
+
 /// The entries of a `keys` box: version and flags, an entry count, then per
-/// entry its size, namespace and name.
-fn key_list(payload: &[u8]) -> Vec<(FourCc, Vec<u8>)> {
+/// entry its size, namespace and name. A list cut short keeps the keys read.
+fn key_list(payload: &[u8]) -> Vec<(FourCc, &[u8])> {
     let mut out = Vec::new();
     let count = be_u32(payload, 4).unwrap_or(0);
     let mut at = 8usize;
@@ -777,7 +861,7 @@ fn key_list(payload: &[u8]) -> Vec<(FourCc, Vec<u8>)> {
         if size < 8 {
             break;
         }
-        out.push((namespace, name.to_vec()));
+        out.push((namespace, name));
         at = end;
     }
     out
@@ -1094,6 +1178,40 @@ mod tests {
         [ftyp, boxed(b"free", &[]), moov].concat()
     }
 
+    /// Every `data` box of an item list entry is read, in order, with where
+    /// its value starts: a cover picture entry holds one per picture.
+    #[test]
+    fn reads_every_data_box_of_an_entry() {
+        let covr = boxed(
+            b"covr",
+            &[data(13, b"\xff\xd8one"), data(14, b"\x89PNGtwo")].concat(),
+        );
+        let hdlr = boxed(b"hdlr", &[&[0u8; 8][..], b"mdir", &[0; 13]].concat());
+        let meta = boxed(
+            b"meta",
+            &[&[0u8; 4][..], &hdlr, &boxed(b"ilst", &covr)].concat(),
+        );
+        let file = boxed(b"moov", &boxed(b"udta", &meta));
+        let read = read(SliceSource::new(&file), &Limits::default()).unwrap();
+        let [
+            Item {
+                value: ItemValue::ListItem { data, .. },
+                ..
+            },
+        ] = &read.items[..]
+        else {
+            panic!("{:?}", read.items);
+        };
+        let values: Vec<(u32, &[u8], u64)> = data
+            .iter()
+            .map(|d| (d.type_indicator, d.value.as_slice(), d.offset))
+            .collect();
+        assert_eq!(
+            values,
+            [(13, &b"\xff\xd8one"[..], 93), (14, &b"\x89PNGtwo"[..], 114)]
+        );
+    }
+
     #[test]
     fn reads_every_box_it_reports() {
         let file = movie();
@@ -1168,7 +1286,8 @@ mod tests {
                 name: b"com.x.k".to_vec()
             }
         );
-        assert_eq!(data.as_ref().unwrap().type_indicator, 23);
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].type_indicator, 23);
         assert_eq!(
             meta.nero_chapters,
             Some(vec![NeroChapter {
@@ -1201,8 +1320,10 @@ mod tests {
         let unplaced = |items: &[Item]| {
             let mut items = items.to_vec();
             for item in &mut items {
-                if let ItemValue::ListItem { data: Some(d), .. } = &mut item.value {
-                    d.offset = 0;
+                if let ItemValue::ListItem { data, .. } = &mut item.value {
+                    for d in data {
+                        d.offset = 0;
+                    }
                 }
             }
             items
@@ -1306,5 +1427,43 @@ mod tests {
         );
         assert_eq!(entry.declared_len, 26 + 16);
         assert_eq!(entry.children[0].kind, FourCc(*b"name"));
+    }
+
+    /// A long key named by many entries: the keys borrow the `keys`
+    /// payload and the rule reads them in place, so classifying an entry
+    /// copies no key (the reviewer's case: 128 entries of a 128-KiB key).
+    #[test]
+    fn cover_entries_are_classified_on_borrowed_keys() {
+        let long = vec![b'k'; 128 * 1024];
+        let artwork = b"com.apple.quicktime.artwork";
+        let entry = |name: &[u8]| {
+            [
+                &u32::try_from(8 + name.len()).unwrap().to_be_bytes()[..],
+                b"mdta",
+                name,
+            ]
+            .concat()
+        };
+        let payload = [
+            &[0u8; 4][..],
+            &2u32.to_be_bytes(),
+            &entry(&long),
+            &entry(artwork),
+        ]
+        .concat();
+        let keys: Vec<(FourCc, &[u8])> = keys(&payload).unwrap();
+        assert!(core::ptr::eq(
+            keys[0].1.as_ptr(),
+            payload.get(16..).unwrap().as_ptr()
+        ));
+        for _ in 0..128 {
+            assert!(!is_cover_entry(FourCc(1u32.to_be_bytes()), &keys));
+        }
+        assert!(is_cover_entry(FourCc(2u32.to_be_bytes()), &keys));
+        assert!(is_cover_entry(FourCc(*b"covr"), &[]));
+        assert!(!is_cover_entry(FourCc(3u32.to_be_bytes()), &keys));
+        // A count the box does not hold.
+        let short = [&[0u8; 4][..], &3u32.to_be_bytes(), &entry(artwork)].concat();
+        assert_eq!(super::keys(&short), None);
     }
 }

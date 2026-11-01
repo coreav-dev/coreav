@@ -27,14 +27,30 @@
 //!     fragments (measured on crafted files; the cause is not established);
 //!   - data and other text streams: none.
 //! - A sample of duration 0 gets the fallback duration of its codec.
-//! - The last sample of the tables lasts until the stream's duration as
-//!   `ffprobe` reports it (the smallest of the media header's, the `stts`
-//!   sum and the edits' durations added up; for a data or text stream other
-//!   than a timecode without an edit list, at least the longest audio or
-//!   video stream's, else the movie's), counted from its
+//! - The last sample of the tables keeps its stored duration too (an AC-3,
+//!   E-AC-3 or MPEG audio one gets a frame). One of duration 0, or the last
+//!   one a listing of several edits presents, lasts until the stream's
+//!   duration as `ffprobe` reports it (the smallest of the media header's,
+//!   the `stts` sum and the edits' durations added up; for a data or text
+//!   stream other than a timecode without an edit list, at least the
+//!   longest audio or video stream's, else the movie's), counted from its
 //!   presentation time, edits included; one that starts at or after that
 //!   end gets a frame (raw audio grouped into packets keeps its group's
 //!   duration).
+//! - The last packet of an audio track whose presentation ends inside it
+//!   carries Skip Samples side data: the samples its frame decodes past
+//!   that end (ISO/IEC 14496-12 8.6.6) as `discard_padding`. The end is the
+//!   media edit's; without an edit list the iTunes gapless item's (its
+//!   delay and samples), else the media header's duration; never past the
+//!   samples' end. A frame is what the codec decodes one packet to, from
+//!   its configuration or its first frame's header, never from the
+//!   samples' timing (AAC, MPEG audio, AC-3, E-AC-3), or the sample's
+//!   duration when that is longer; the padding and the first packet's
+//!   skip are counted at the decoder's output rate (twice the core's with
+//!   SBR). A listing of several edits counts the rest of the
+//!   frame its last presented packet is cut to. With a leading empty edit,
+//!   `ffprobe` moves the packet later by the empty edit but not the end
+//!   (`KD-FF9-EMPTY-EDIT-PADDING`); CoreAV moves neither.
 //! - A track whose samples all last 0 ticks lists no packet.
 //!
 //! # Edit lists
@@ -50,10 +66,11 @@
 //!   presentation (`KD-EDIT-SNAP`); a sample whose composition time is
 //!   outside the edit's window is marked discarded; a track with no sample
 //!   past the media time lists nothing;
-//! - audio: from the sample shown one second before the media time, or
-//!   the first; the first packet's skip side data counts the samples from
-//!   its start to the media time, or is the iTunes gapless delay when the
-//!   file has one;
+//! - audio: from the first sample that lasts past one second before the
+//!   media time, or starts at or after it; the first packet's skip side
+//!   data, and the stream's `initial_padding`, count the samples from its
+//!   start to the media time, or are the iTunes gapless delay when the file
+//!   has one;
 //! - an edit that ends before the media ends the listing at the first sync
 //!   sample at or after its last presented sample (the second with a `ctts`
 //!   box).
@@ -66,9 +83,7 @@
 //! rules 1 to 9: each media edit in turn, from its preroll sample to the
 //! sync sample after its last presented one, its times anchored on the
 //! first edit's snap and on each later edit's first sample's decode time,
-//! so that a sample can be listed several times. The sync sample an edit's
-//! listing ends on, when not presented, lasts one tick (without a `ctts`
-//! box). Lists with dwells or other rates keep the library's listing (no
+//! so that a sample can be listed several times. Lists with dwells or other rates keep the library's listing (no
 //! presentation times).
 //!
 //! Composition offsets of a version 0 `ctts` are read signed, as `ffprobe`
@@ -83,6 +98,9 @@
 //!   composition offset) the one stored first wins, else the one due
 //!   first. The comparison is pairwise, so the result depends on the
 //!   stream order, as `ffprobe`'s does.
+//! - An AC-3 or E-AC-3 packet is listed when the next one of its track has
+//!   been taken, after any packet of another track taken in between; the
+//!   last ones at the end.
 //! - Audio of constant-size samples is grouped into packets of up to 1,024
 //!   ticks of one chunk, as raw audio; a coded format's frames (AAC, AC-3
 //!   and the like) are listed one by one even when all have one size.
@@ -297,8 +315,10 @@ pub struct IsoProbed {
     /// Per track, the decode step of its first samples.
     pub steps: Vec<Option<i64>>,
     /// The cover pictures' streams: index, position and size of the one
-    /// packet each, which `ffprobe` lists before every other.
-    pub covers: Vec<(usize, u64, u64)>,
+    /// packet each, which `ffprobe` lists before every other. No position
+    /// for a compressed movie box, whose offsets are in the inflated box,
+    /// not in the file.
+    pub covers: Vec<(usize, Option<u64>, u64)>,
     /// The chapter picture tracks ([`super::iso_meta::IsoMeta::chapter_pictures]`), by
     /// index.
     pub pictures: Vec<usize>,
@@ -311,6 +331,8 @@ pub struct Listed {
     pub duration: Option<i64>,
     /// `r_frame_rate`, a nonzero fraction.
     pub rate: Option<(u64, u64)>,
+    /// `sample_rate`, when known.
+    pub sample_rate: Option<i64>,
 }
 
 impl Listed {
@@ -327,7 +349,15 @@ impl Listed {
                 _ => None,
             })
             .filter(|(n, d): &(u64, u64)| *n > 0 && *d > 0);
-        Self { duration, rate }
+        let sample_rate = stream.entries.iter().find_map(|(k, v)| match (k, v) {
+            (&"sample_rate", Value::Unit(r, Unit::Hertz)) if *r > 0 => Some(*r),
+            _ => None,
+        });
+        Self {
+            duration,
+            rate,
+            sample_rate,
+        }
     }
 }
 
@@ -434,15 +464,24 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         report
             .time_bases
             .push((1, i64::from(track.timescale.max(1))));
-        let mut stream = stream(movie, track, &head, info);
+        let frame_bit_rate = eac3_frame_bit_rate(track, &audio_header);
+        let mut stream = stream(movie, track, &head, info, frame_bit_rate);
         super::metadata::downmix(&mut stream.entries, &audio_header);
-        if skip > 0 {
+        // The samples the first packet's side data skips; with one media
+        // edit, counted from the first sample listed, not the first stored.
+        let initial = match track.edit_list {
+            coreav_isobmff::EditList::Simple { .. } if track.kind == TrackKind::Audio => {
+                edit_skip(movie, track, gapless, &mut *source, &limits).unwrap_or(0)
+            }
+            _ => skip,
+        };
+        if initial > 0 {
             if let Some((_, padding)) = stream
                 .entries
                 .iter_mut()
                 .find(|(k, _)| *k == "initial_padding")
             {
-                *padding = Value::Int(skip);
+                *padding = Value::Int(initial);
             }
         }
         if unwrapped.is_some() && meta.protection_headers {
@@ -521,6 +560,12 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         .map(|(st, (_, _, _, duration))| Listed::of(st, *duration))
         .collect();
     let covers = cover_streams(&mut report, &spans, &meta.covers);
+    report.covers = covers.iter().map(|(index, at, _)| (*index, *at)).collect();
+    let in_file = !probed.movie.compressed;
+    let covers = covers
+        .into_iter()
+        .map(|(index, at, size)| (index, in_file.then_some(at), size))
+        .collect();
     let pictures = probed
         .movie
         .tracks
@@ -717,11 +762,10 @@ fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static s
 }
 
 /// What an AC-3 (`dac3`) or E-AC-3 (`dec3`) specific box says (ETSI TS
-/// 102 366 F.4 and F.6): the channels of the (first independent) stream,
-/// `ffprobe`'s name for their layout, the bit rate and `bsmod`, the
-/// service type.
+/// 102 366 F.4 and F.6): `ffprobe`'s name for the layout of the (first
+/// independent) stream's channels, which the sample description counts,
+/// the bit rate and `bsmod`, the service type.
 struct Ac3Config {
-    channels: u32,
     layout: Option<&'static str>,
     bit_rate: Option<i64>,
     service: u32,
@@ -756,19 +800,17 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
         }
         _ => return None,
     };
-    let (front, layouts): (u32, [Option<&'static str>; 2]) = match acmod {
-        1 => (1, [Some("mono"), None]),
-        2 => (2, [Some("stereo"), Some("2.1")]),
-        3 => (3, [Some("3.0"), Some("3.1")]),
-        4 => (3, [Some("3.0(back)"), None]),
-        5 => (4, [Some("4.0"), Some("4.1")]),
-        6 => (4, [Some("quad(side)"), None]),
-        7 => (5, [Some("5.0(side)"), Some("5.1(side)")]),
-        _ => (2, [None, None]),
+    let [plain, with_lfe]: [Option<&'static str>; 2] = match acmod {
+        1 => [Some("mono"), None],
+        2 => [Some("stereo"), Some("2.1")],
+        3 => [Some("3.0"), Some("3.1")],
+        4 => [Some("3.0(back)"), None],
+        5 => [Some("4.0"), Some("4.1")],
+        6 => [Some("quad(side)"), None],
+        7 => [Some("5.0(side)"), Some("5.1(side)")],
+        _ => [None, None],
     };
-    let [plain, with_lfe] = layouts;
     Some(Ac3Config {
-        channels: front + u32::from(lfe),
         layout: if dependent > 0 {
             None
         } else if lfe {
@@ -977,6 +1019,43 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
     }
 }
 
+/// The bit rate of an E-AC-3 track's first syncframe, which `ffprobe`
+/// states over `dec3`'s `data_rate` (found black box: at 44.1 kHz the
+/// frames' sizes differ, and the first one's is taken): its size
+/// (`frmsiz`) over the audio blocks it holds (`numblkscod`), at its rate
+/// (`fscod`, `fscod2`; ETSI TS 102 366 E.1.2.1). `header` is the
+/// first syncframe's first bytes.
+fn eac3_frame_bit_rate(track: &Track, header: &[u8]) -> Option<i64> {
+    if track.description.codec != Codec::Eac3 {
+        return None;
+    }
+    let (bytes, rate, blocks) = eac3_header(header)?;
+    Some(bytes * 8 * rate / (blocks * 256))
+}
+
+/// An E-AC-3 frame header's size in bytes, sample rate and audio blocks
+/// (ETSI TS 102 366 E.1.2.2 and E.1.3.1): `frmsiz`, `fscod` (with
+/// `fscod2`) and `numblkscod`.
+fn eac3_header(header: &[u8]) -> Option<(i64, i64, i64)> {
+    let mut bits = video::Bits::new(header);
+    if bits.bits(16)? != 0x0B77 {
+        return None;
+    }
+    bits.bits(2 + 3)?;
+    let bytes = (i64::from(bits.bits(11)?) + 1) * 2;
+    let (rate, blocks): (i64, i64) = match bits.bits(2)? {
+        3 => (
+            *[24_000, 22_050, 16_000].get(usize::try_from(bits.bits(2)?).ok()?)?,
+            6,
+        ),
+        fscod => (
+            *[48_000, 44_100, 32_000].get(usize::try_from(fscod).ok()?)?,
+            *[1, 2, 3, 6].get(usize::try_from(bits.bits(2)?).ok()?)?,
+        ),
+    };
+    Some((bytes, rate, blocks))
+}
+
 /// Whether a QuickTime chapter track is listed as binary data, as
 /// `ffprobe` lists a track a `chap` reference names
 /// (`KD-CHAPTER-TEXT`).
@@ -1072,7 +1151,13 @@ fn int(v: impl TryInto<i64>) -> Value {
     v.try_into().map_or(Value::Na, Value::Int)
 }
 
-fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) -> Stream {
+fn stream(
+    movie: &Movie,
+    track: &Track,
+    head: &Head,
+    info: Option<VideoInfo>,
+    frame_bit_rate: Option<i64>,
+) -> Stream {
     let start = head.start;
     let info = info.unwrap_or_default();
     let d = &track.description;
@@ -1260,8 +1345,6 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         let rate = amr.or(d.configured_sample_rate).or(d.sample_rate);
         let channels = if d.implicit_ps_possible || amr.is_some() {
             Some(1)
-        } else if let Some(a) = &ac3 {
-            Some(a.channels)
         } else {
             d.channels
         };
@@ -1274,7 +1357,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 .checked_mul(i64::from(r))?
                 .checked_mul(i64::from(c))
         });
-        if let Some(rate) = ac3.as_ref().and_then(|a| a.bit_rate) {
+        if let Some(rate) = frame_bit_rate.or(ac3.as_ref().and_then(|a| a.bit_rate)) {
             coded_rate = Some(rate);
         }
         // QDesign's `QDCA` atom states the bit rate after its version,
@@ -1958,39 +2041,46 @@ pub fn packets<'a, S: Source + 'a>(
     mut source: S,
 ) -> Box<dyn PacketSource + 'a> {
     let limits = Limits::default();
+    let itunes = probed.movie.itunes_gapless(&mut source).ok().flatten();
     let plans = probed
         .movie
         .tracks
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            // An audio frame: the decode step most of the first samples
-            // take (a first sample can hold the encoder's priming too), as
-            // whole audio samples, in the track's ticks rounded down.
-            let frame = if t.kind == TrackKind::Audio {
-                let mut steps = head(&probed.movie, t, &mut source, &limits).steps;
+            // The decode step most of the first samples take (a first
+            // sample can hold the encoder's priming too).
+            let (median, frame) = if t.kind == TrackKind::Audio {
+                let head = head(&probed.movie, t, &mut source, &limits);
+                let mut steps = head.steps;
                 steps.sort_unstable();
-                steps
-                    .get(steps.len() / 2)
-                    .copied()
-                    .map(|step| audio_frame(t, step))
+                // An E-AC-3 frame's blocks are in its header.
+                let mut header = Vec::new();
+                if let (Codec::Eac3, Some((offset, size))) = (t.description.codec, head.first) {
+                    header.resize(usize::try_from(size.min(8)).unwrap_or(0), 0);
+                    if source.read_exact_at(offset, &mut header).is_err() {
+                        header.clear();
+                    }
+                }
+                (
+                    steps.get(steps.len() / 2).copied(),
+                    decoded_frame(t, &header),
+                )
             } else {
-                None
+                (None, None)
             };
             plan(
                 &probed.movie,
                 t,
                 probed.ends.get(i).copied().unwrap_or_default(),
                 probed.steps.get(i).copied().flatten(),
+                median,
                 frame,
+                itunes,
             )
         })
         .collect();
-    let gapless = probed
-        .movie
-        .itunes_gapless(&mut source)
-        .ok()
-        .flatten()
+    let gapless = itunes
         .map(|g| i64::from(g.encoder_delay))
         .filter(|d| *d > 0);
     let edits = probed
@@ -2491,8 +2581,7 @@ fn edit_plan<S: Source>(
         let n = p.sample;
         let end = p.cts.saturating_add(i64::from(p.duration));
         if audio {
-            // One second before the media time, or the first sample.
-            if start_cts.is_none() && (end > m.saturating_sub(timescale) || p.cts >= m) {
+            if start_cts.is_none() && audio_lists_from(&p, m, timescale) {
                 plan.start = n;
                 start_cts = Some(p.cts);
             }
@@ -2548,7 +2637,7 @@ fn edit_plan<S: Source>(
     }
     if audio {
         let c = start_cts?;
-        plan.skip = (m > c).then(|| gapless.unwrap_or(m - c));
+        plan.skip = (m > c).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - c)));
     } else {
         // Without a composition time at or after the media time, the
         // sample lasting past it starts the presentation.
@@ -2563,6 +2652,59 @@ fn edit_plan<S: Source>(
         }
     }
     Some(plan)
+}
+
+/// Whether an audio track presented from media time `m` is listed from
+/// sample `p` on, when no earlier sample is: `p` lasts past one second
+/// before `m`, or starts at or after it.
+fn audio_lists_from(p: &coreav_isobmff::Packet, m: i64, timescale: i64) -> bool {
+    p.cts.saturating_add(i64::from(p.duration)) > m.saturating_sub(timescale) || p.cts >= m
+}
+
+/// The samples the decoder skips at the start of an audio track with one
+/// media edit: from the first sample listed ([`audio_lists_from`]) to the
+/// edit's media time, or the iTunes gapless delay when the file has one, as
+/// the first packet's Skip Samples side data counts them.
+fn edit_skip<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    gapless: Option<i64>,
+    source: &mut S,
+    limits: &Limits,
+) -> Option<i64> {
+    let coreav_isobmff::EditList::Simple { media_time, .. } = track.edit_list else {
+        return None;
+    };
+    let m = media_time.max(0);
+    let timescale = i64::from(track.timescale.max(1));
+    let mut budget = Budget::new(limits);
+    let start = movie
+        .packets(track.index, &mut *source, limits, &mut budget)
+        .ok()?
+        .map_while(Result::ok)
+        .map(|p| signed_offsets(track, p))
+        .find(|p| audio_lists_from(p, m, timescale))?;
+    (m > start.cts).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - start.cts)))
+}
+
+/// `ticks` of an audio track as the samples its decoder outputs in them, at
+/// its configuration's rate, else its sample entry's (Skip Samples side data
+/// and `initial_padding` count those), rounded to the nearest.
+fn decoded_samples(track: &Track, ticks: i64) -> i64 {
+    let rate = track
+        .description
+        .configured_sample_rate
+        .or(track.description.sample_rate)
+        .map(i128::from)
+        .filter(|r| *r > 0);
+    let timescale = i128::from(track.timescale);
+    match rate {
+        Some(rate) if timescale > 0 && rate != timescale => {
+            i64::try_from((2 * i128::from(ticks) * rate + timescale).div_euclid(2 * timescale))
+                .unwrap_or(ticks)
+        }
+        _ => ticks,
+    }
 }
 
 /// How `ffprobe` times one track's packets (module documentation, "Packet
@@ -2587,10 +2729,146 @@ struct Plan {
     /// Whether the first sample description is encrypted (`encv`, `enca`):
     /// the packets of its samples carry encryption side data.
     encrypted: bool,
-    /// AC-3 and E-AC-3: every packet lasts one frame of `fill`, the last
-    /// one too (found black box: a last sample of 384 ticks, or one that
-    /// ends past the edit, is listed at 1,536).
+    /// AC-3, E-AC-3 and MPEG audio: every packet lasts one frame of
+    /// `fill`, the last one too (found black box: a last sample of 384
+    /// ticks, or one that ends past the edit, is listed at 1,536).
     framed: bool,
+    /// An audio track's end of presentation, for the padding its last
+    /// packet decodes past it.
+    tail: Option<Tail>,
+}
+
+/// Where an audio track's presentation ends inside its last packet. The
+/// edit list (ISO/IEC 14496-12 8.6.6), else the media's duration, ends the
+/// presentation; what the last packet covers past that end is discarded,
+/// as `ffprobe` lists it in the packet's Skip Samples side data
+/// (`discard_padding`), counted in samples at the decoder's output rate.
+#[derive(Clone, Copy, Debug)]
+struct Tail {
+    /// The end, in media ticks: the edit's end, or the end of the samples
+    /// when that is earlier; without an edit list the end the iTunes
+    /// gapless item gives, else the shorter of the media header's duration
+    /// and the samples'. `None` with several edits, whose listing
+    /// trims the last packet to the part presented.
+    end: Option<i64>,
+    /// The samples one packet decodes to, for a codec of fixed-size frames
+    /// ([`decoded_frame`]).
+    frame: Option<i64>,
+    /// The decoder's output rate, which the padding is counted in.
+    rate: i64,
+    /// The track's ticks a second.
+    timescale: i64,
+}
+
+impl Tail {
+    /// The samples `p` covers past the end, when it starts before it: a
+    /// packet covers its decoded frame, or its sample's duration when that
+    /// is longer.
+    fn padding(&self, p: &coreav_isobmff::Packet) -> Option<i64> {
+        let end = self.end?;
+        if p.cts >= end {
+            return None;
+        }
+        let covered = self
+            .samples(i64::from(p.duration))?
+            .max(self.frame.unwrap_or(0));
+        Some(covered.checked_sub(self.samples(end.checked_sub(p.cts)?)?)?).filter(|n| *n > 0)
+    }
+
+    /// The samples a packet trimmed to `kept` ticks decodes past them.
+    fn trimmed(&self, kept: i64) -> Option<i64> {
+        Some(self.frame?.checked_sub(self.samples(kept)?)?).filter(|n| *n > 0)
+    }
+
+    /// `ticks` in samples, rounded to the nearest.
+    fn samples(&self, ticks: i64) -> Option<i64> {
+        let n = i128::from(ticks).checked_mul(i128::from(self.rate))?;
+        i64::try_from(
+            (2 * n + i128::from(self.timescale)).div_euclid(2 * i128::from(self.timescale)),
+        )
+        .ok()
+    }
+}
+
+/// The samples one frame of an audio codec of fixed-size frames decodes
+/// to, from its configuration or its first frame's header, never from its
+/// timing: AAC's from its `AudioSpecificConfig` (ISO/IEC 14496-3 4.5.1.1,
+/// 4.6.18.2.2); 384 for MPEG audio layer I, 1,152 for layer II and for
+/// layer III at 32 kHz or more, 576 below (ISO/IEC 11172-3 2.4.2.1, ISO/IEC
+/// 13818-3 2.4.2.1); 1,536 for AC-3 and 256 a block for E-AC-3 (ETSI TS
+/// 102 366 4.1, E.1.3.1.4). `None` without that evidence, and for other
+/// codecs.
+fn decoded_frame(track: &Track, header: &[u8]) -> Option<i64> {
+    let rate = track
+        .description
+        .configured_sample_rate
+        .or(track.description.sample_rate);
+    match codec_name_of(track).as_deref()? {
+        "aac" => track.description.aac_frame_length.map(i64::from),
+        "mp1" => Some(384),
+        "mp2" => Some(1152),
+        "mp3" => rate.map(|r| if r >= 32_000 { 1152 } else { 576 }),
+        "ac3" => Some(1536),
+        "eac3" => eac3_header(header).map(|(_, _, blocks)| blocks * 256),
+        _ => None,
+    }
+}
+
+/// An audio track's [`Tail`], when its presentation ends inside its sample
+/// tables: without an edit list, or with media edits of known durations.
+fn tail(
+    movie: &Movie,
+    track: &Track,
+    rate: Option<i64>,
+    frame: Option<i64>,
+    gapless: Option<coreav_isobmff::ItunesGapless>,
+) -> Option<Tail> {
+    if track.kind != TrackKind::Audio || movie.has_fragments() {
+        return None;
+    }
+    let rate = rate.filter(|r| *r > 0)?;
+    let timescale = i64::from(track.timescale).max(1);
+    let media = i64::try_from(track.sample_duration)
+        .ok()
+        .filter(|d| *d > 0)?;
+    let end = match track.edit_list {
+        coreav_isobmff::EditList::None => {
+            let header = i64::try_from(track.mdhd_duration)
+                .ok()
+                .filter(|d| *d > 0)
+                .map_or(media, |h| h.min(media));
+            let itunes = gapless.filter(|g| g.original_samples > 0).and_then(|g| {
+                let samples =
+                    u128::from(g.encoder_delay).checked_add(u128::from(g.original_samples))?;
+                let ticks = samples.checked_mul(u128::try_from(timescale).ok()?)?;
+                let rate = u128::try_from(rate).ok()?;
+                i64::try_from((ticks + rate / 2) / rate).ok()
+            });
+            Some(itunes.map_or(header, |e| e.min(media)))
+        }
+        coreav_isobmff::EditList::Simple {
+            media_time,
+            segment,
+            ..
+        } if segment > 0 && movie.timescale > 0 => {
+            let den = u128::from(movie.timescale);
+            let ticks = (u128::from(segment) * u128::from(track.timescale) + den / 2) / den;
+            Some(
+                media_time
+                    .max(0)
+                    .checked_add(i64::try_from(ticks).ok()?)?
+                    .min(media),
+            )
+        }
+        coreav_isobmff::EditList::Multiple => None,
+        _ => return None,
+    };
+    Some(Tail {
+        end,
+        frame,
+        rate,
+        timescale,
+    })
 }
 
 impl Default for Plan {
@@ -2603,6 +2881,7 @@ impl Default for Plan {
             end: None,
             encrypted: false,
             framed: false,
+            tail: None,
         }
     }
 }
@@ -2721,8 +3000,11 @@ fn plan(
     track: &Track,
     listed: Listed,
     step: Option<i64>,
-    audio_frame: Option<i64>,
+    median_step: Option<i64>,
+    frame: Option<i64>,
+    gapless: Option<coreav_isobmff::ItunesGapless>,
 ) -> Plan {
+    let audio_frame = median_step.map(|s| audio_frame(track, s));
     let protected = matches!(&track.description.fourcc.0, b"encv" | b"enca");
     // With one sample description, every sample uses it.
     let encrypted = protected && track.descriptions == 1;
@@ -2791,7 +3073,13 @@ fn plan(
         end: listed_duration(movie, track).or(listed.duration),
         encrypted: protected,
         framed: track.kind == TrackKind::Audio
-            && matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3"),
+            && (matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3")
+                || matches!(codec_name_of(track).as_deref(), Some("mp1" | "mp2" | "mp3"))),
+        tail: if grouping(movie, track, step).is_some() {
+            None
+        } else {
+            tail(movie, track, listed.sample_rate, frame, gapless)
+        },
     }
 }
 
@@ -2815,19 +3103,35 @@ fn audio_frame(track: &Track, step: i64) -> i64 {
     }
 }
 
-/// The last packet of a track's sample tables lasts until the stream's end;
-/// one that starts at or after it gets no sample duration (raw audio
-/// grouped into packets keeps its group's).
-fn trim_last(queue: &mut Queue, plan: Plan, tables: u64, raw: bool) {
-    let Some((p, d, _)) = queue.back_mut() else {
+/// The last packet of a track's sample tables keeps its sample's duration
+/// (ISO/IEC 14496-12 8.6.1.2), as every other does; an audio track's also
+/// carries the padding it decodes past the end of the presentation
+/// ([`Tail`]). A sample of no duration, or the last one a listing of several
+/// edits presents, lasts until the stream's end; one that starts at or
+/// after it gets no sample duration (raw audio grouped into packets keeps
+/// its group's).
+fn trim_last(queue: &mut Queue, plan: Plan, tables: u64, raw: bool, spliced: bool) {
+    let Some((p, d, _, discard)) = queue.back_mut() else {
         return;
     };
-    if plan.ctts || p.sample >= tables || d.is_some() {
+    if p.sample >= tables {
         return;
     }
-    if let (true, Fill::Frame(Some(frame))) = (plan.framed, plan.fill) {
-        *d = Some(Some(frame));
+    if let Some(tail) = plan.tail {
+        *discard = tail.padding(p);
+    }
+    if plan.ctts || d.is_some() {
         return;
+    }
+    if !(spliced && p.presented) {
+        if let (true, Fill::Frame(Some(frame))) = (plan.framed, plan.fill) {
+            *d = Some(Some(frame));
+            return;
+        }
+        if p.duration > 0 {
+            *d = Some(Some(i64::from(p.duration)));
+            return;
+        }
     }
     let pts = p.pts.and_then(|r| i64::try_from(r.round()).ok());
     let left = plan
@@ -2835,6 +3139,9 @@ fn trim_last(queue: &mut Queue, plan: Plan, tables: u64, raw: bool) {
         .zip(pts)
         .map(|(end, t)| end.saturating_sub(t))
         .filter(|left| *left > 0);
+    if let (Some(left), Some(tail)) = (left, plan.tail) {
+        *discard = tail.trimmed(left);
+    }
     *d = Some(match (left, plan.fill) {
         (Some(left), _) => Some(left),
         (None, Fill::Frame(frame)) if !raw => frame,
@@ -2855,14 +3162,19 @@ pub struct IsoProbedPackets {
     /// See [`IsoProbed::steps`].
     pub steps: Vec<Option<i64>>,
     /// See [`IsoProbed::covers`].
-    pub covers: Vec<(usize, u64, u64)>,
+    pub covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pub pictures: Vec<usize>,
 }
 
 /// A track's next packets, each with the duration it is listed with when
 /// that is not its sample's, and the sample description of a fragment's.
-type Queue = VecDeque<(coreav_isobmff::Packet, Option<Option<i64>>, Option<u32>)>;
+type Queue = VecDeque<(
+    coreav_isobmff::Packet,
+    Option<Option<i64>>,
+    Option<u32>,
+    Option<i64>,
+)>;
 
 struct IsoPackets<S> {
     source: RefCell<S>,
@@ -2880,7 +3192,7 @@ struct IsoPackets<S> {
     /// Per track, the decode step of its first samples.
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
-    covers: Vec<(usize, u64, u64)>,
+    covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pictures: Vec<usize>,
 }
@@ -2951,7 +3263,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             let packet = Packet {
                 stream,
                 size,
-                pos: Some(pos),
+                pos,
                 keyframe: true,
                 ..Packet::default()
             };
@@ -3043,14 +3355,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                         let Some(p) = spliced.samples.get(at).map(|h| h.packet(segment)) else {
                             break None;
                         };
-                        // The sync sample an edit's listing ends on, when
-                        // not presented, lasts one tick.
-                        let ctts = movie
-                            .tracks
-                            .get(i)
-                            .is_some_and(|t| t.ctts_version().is_some());
-                        let ends = at == segment.last && !p.presented && !ctts;
-                        break Some((p, ends.then_some(Some(1)), None));
+                        break Some((p, None, None, None));
                     };
                     match next {
                         Some(p) => queue.push_back(p),
@@ -3059,7 +3364,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                             let plan = self.plans.get(i).copied().unwrap_or_default();
                             let tables =
                                 movie.tracks.get(i).map_or(0, |t| u64::from(t.sample_count));
-                            trim_last(queue, plan, tables, false);
+                            trim_last(queue, plan, tables, false, true);
                         }
                     }
                     continue;
@@ -3110,13 +3415,13 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                         p
                     });
                 match next {
-                    Some(p) => queue.push_back((p, None, description)),
+                    Some(p) => queue.push_back((p, None, description, None)),
                     None => {
                         *finished = true;
                         let plan = self.plans.get(i).copied().unwrap_or_default();
                         let tables = movie.tracks.get(i).map_or(0, |t| u64::from(t.sample_count));
                         let raw = grouped.get(i).copied().flatten().is_some();
-                        trim_last(queue, plan, tables, raw);
+                        trim_last(queue, plan, tables, raw, false);
                     }
                 }
             }
@@ -3164,6 +3469,9 @@ impl<S: Source> PacketSource for IsoPackets<S> {
         // sample of a movie with fragments (measured, not explained).
         let mut video_listed: u64 = 0;
         let has_video = movie.tracks.iter().any(|t| t.kind == TrackKind::Video);
+        // An AC-3 or E-AC-3 packet is listed when its track's next one is
+        // read, or at the end, as `ffprobe` lists them (found black box).
+        let mut held: Vec<Option<Packet>> = vec![None; tracks];
         loop {
             // The packet stored first, unless one of another track is due
             // more than a second earlier, as `ffprobe` interleaves a file
@@ -3186,7 +3494,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 queues
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, q)| q.front().map(|(p, _, _)| (i, *p)))
+                    .filter_map(|(i, q)| q.front().map(|(p, _, _, _)| (i, *p)))
             };
             // Each track's next packet in turn against the best so far: the
             // one stored first when they are due within a second of each
@@ -3203,9 +3511,15 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 })
                 .map(|(i, _)| i);
             let Some(i) = next else {
+                for packet in held.into_iter().flatten() {
+                    if !f(packet)? {
+                        break;
+                    }
+                }
                 return Ok(());
             };
-            let Some((p, trimmed, description)) = queues.get_mut(i).and_then(VecDeque::pop_front)
+            let Some((p, trimmed, description, discard)) =
+                queues.get_mut(i).and_then(VecDeque::pop_front)
             else {
                 return Ok(());
             };
@@ -3318,6 +3632,29 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                     });
                 }
             }
+            if let Some(padding) = discard {
+                match side_data.iter_mut().find(|d| d.typ == "skip_samples") {
+                    Some(skip) => {
+                        if let Some((_, v)) = skip
+                            .entries
+                            .iter_mut()
+                            .find(|(k, _)| *k == "discard_padding")
+                        {
+                            *v = Value::Int(padding);
+                        }
+                    }
+                    None => side_data.push(SideData {
+                        typ: "skip_samples",
+                        entries: vec![
+                            ("side_data_type", s("Skip Samples")),
+                            ("skip_samples", Value::Int(0)),
+                            ("discard_padding", Value::Int(padding)),
+                            ("skip_reason", Value::Int(0)),
+                            ("discard_reason", Value::Int(0)),
+                        ],
+                    }),
+                }
+            }
             if let Some(f) = first.get_mut(i) {
                 *f = false;
             }
@@ -3341,6 +3678,14 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 } else {
                     Vec::new()
                 },
+            };
+            let packet = if matches!(track.description.codec, Codec::Ac3 | Codec::Eac3) {
+                match held.get_mut(i).and_then(|h| h.replace(packet)) {
+                    Some(previous) => previous,
+                    None => continue,
+                }
+            } else {
+                packet
             };
             if !f(packet)? {
                 return Ok(());

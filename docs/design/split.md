@@ -18,8 +18,8 @@ implementation source was read.
 ## What it does
 
 `split_mp4(source, limits, allowlist, options, open)` probes the source,
-keeps one video track and at most one AAC track (chosen and checked
-exactly as for a clip), cuts the video at
+keeps one video track and at most one audio track (AAC, FLAC, Apple
+Lossless, AC-3 or E-AC-3, chosen and checked exactly as for a clip), cuts the video at
 keyframes, and writes each segment as a `moov`-first MP4 file to the
 writer `open(n)` returns. `coreav split (--every SECONDS | --at TIMES)
 INPUT PATTERN` writes segment `n` to `PATTERN` with `%d` (or `%03d`)

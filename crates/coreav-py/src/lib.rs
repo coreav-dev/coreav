@@ -26,8 +26,8 @@ use coreav_cli::output::{self, WriteFailure};
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_isobmff::{BufferedSource, SliceSource};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, MatroskaRemuxOptions, Metadata, OnUnsupported, RemuxOptions,
-    TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, HeaderMetadata, MatroskaRemuxOptions, Metadata, OnUnsupported,
+    RemuxOptions, TrackChoice, VideoChoice,
 };
 use coreav_policy::Policy;
 use pyo3::create_exception;
@@ -462,7 +462,7 @@ fn is_matroska(input: &Input) -> Result<bool, Fail> {
 
 /// Describes an MP4, MOV, Matroska, WebM or MPEG transport stream file as
 /// `coreav.probe/1`, `coreav.probe-matroska/1` or
-/// `coreav.probe-mpegts/1`, as `coreav probe` does.
+/// `coreav.probe-mpegts/2`, as `coreav probe` does.
 #[pyfunction]
 #[pyo3(signature = (source, *, allow=None, strict=false, scan_fragments=false, scan_frame_sizes=false, private_network=false))]
 fn probe(
@@ -792,7 +792,9 @@ fn extract_audio(
                         )
                         .map_err(|f| explain_write(&remote, f))?
                     }
-                    Input::Path(path) => extract::run(path, choice, &allowlist, out)?,
+                    Input::Path(path) => {
+                        extract::run(path, choice, &allowlist, HeaderMetadata::Copy, out)?
+                    }
                     Input::Bytes(data) => extract::run_slice(data, choice, &allowlist, out)?,
                 };
                 Ok(extract::document(&summary))
@@ -837,6 +839,7 @@ fn run_remux(
         streams: streams.clone(),
         on_unsupported,
         metadata,
+        left_out_covers: Vec::new(),
     };
     let mkv_options = MatroskaRemuxOptions {
         streams,

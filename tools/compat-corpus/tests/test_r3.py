@@ -68,6 +68,17 @@ class Selection(unittest.TestCase):
 
 
 class Report(unittest.TestCase):
+    def test_every_command_is_reported_even_without_a_file_of_its_families(self):
+        summary = r3.summarize(r3.counts([]), 98.0)
+        expected = sorted(f"{e['id']}.{n}" for e, n, _ in release_round.commands('ffmpeg'))
+        self.assertEqual([t['command'] for t in summary['commands']], expected)
+        self.assertEqual(summary['taken_by_no_file'], expected)
+        self.assertEqual(summary['unmeasured'], [])
+        self.assertEqual(summary['missed'], [])
+        self.assertTrue(all(t['counted'] == 0 and t['meets'] is None for t in summary['commands']))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(r3.verdict(summary), release_round.UNMEASURED)
+
     def test_counts_only_what_ffmpeg_ran(self):
         line = lambda f, cmd, outcome, reason=None, fam='mp4-mov': {  # noqa: E731
             'file': f, 'family': fam, 'id': cmd.split('.')[0], 'command': int(cmd.split('.')[1]),
@@ -84,7 +95,8 @@ class Report(unittest.TestCase):
         self.assertFalse(totals['C01.1']['meets'])
         self.assertIsNone(totals['C02.0']['meets'])
         self.assertEqual(s['missed'], ['C01.1'])
-        self.assertEqual(s['taken_by_no_file'], [])
+        expected = {f"{e['id']}.{n}" for e, n, _ in release_round.commands('ffmpeg')}
+        self.assertEqual(s['taken_by_no_file'], sorted(expected - {'C01.0', 'C01.1', 'C02.0'}))
         self.assertEqual(s['unmeasured'], ['C02.0'])
         self.assertEqual(s['files'], {'matroska-webm': 1, 'mp4-mov': 51})
         self.assertNotIn('f1', str(s))
@@ -100,7 +112,8 @@ class Report(unittest.TestCase):
                  {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}}]
         s = r3.summarize(r3.counts(lines), 98.0)
         self.assertEqual(s['unmeasured'], ['C02.0', 'C04.0'])
-        self.assertEqual(s['taken_by_no_file'], ['C03.0'])
+        expected = {f"{e['id']}.{n}" for e, n, _ in release_round.commands('ffmpeg')}
+        self.assertEqual(s['taken_by_no_file'], sorted(expected - {'C01.0', 'C02.0', 'C04.0'}))
         self.assertEqual(s['missed'], [])
         with tempfile.TemporaryDirectory() as tmp:
             records = pathlib.Path(tmp) / 'r.jsonl'

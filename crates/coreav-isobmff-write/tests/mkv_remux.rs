@@ -382,6 +382,42 @@ fn vp9_and_opus_from_webm() {
     assert_eq!(remux(&source).1, output);
 }
 
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same frames, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = mkv::small_webm();
+    let options = MatroskaRemuxOptions {
+        streams: Some(vec![1, 0, 0]),
+        ..MatroskaRemuxOptions::default()
+    };
+    let (summary, output) = remux_with(&source, &Allowlist::default(), &options).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| (t.stream_index, t.track_id))
+            .collect::<Vec<_>>(),
+        [(1, 1), (0, 2), (0, 3)]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    let most = coreav_isobmff::Limits::default().max_tracks as usize;
+    let too_many = MatroskaRemuxOptions {
+        streams: Some(vec![0; most + 1]),
+        ..MatroskaRemuxOptions::default()
+    };
+    assert!(matches!(
+        remux_with(&source, &Allowlist::default(), &too_many),
+        Err(MatroskaRemuxError::Output(
+            coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::Tracks,
+                ..
+            }
+        ))
+    ));
+}
+
 #[test]
 fn h264_b_frames_get_decode_times() {
     let presentation = [0i16, 120, 40, 80, 240, 160, 200, 280];
@@ -515,6 +551,55 @@ fn annex_b_h264_without_parameter_sets_is_dropped() {
             unsupported("the first H.264 keyframe has no parameter sets")
         )]
     );
+}
+
+/// The `hvcC` of `movies::EMPTY_WINDOW_HVCC`: one sequence parameter set,
+/// 1280x720, whose conformance window leaves no picture.
+const EMPTY_WINDOW_HVCC: &[u8] = &[
+    0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x01, 0xa1, 0x00, 0x01, 0x00, 0x2f, 0x42, 0x01, 0x01, 0x01,
+    0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x5d, 0xa0, 0x02,
+    0x80, 0x80, 0x2d, 0x18, 0x02, 0x72, 0x0a, 0xf9, 0x65, 0x66, 0x92, 0x4c, 0xaf, 0x01, 0x68, 0x08,
+    0x00, 0x00, 0x03, 0x00, 0x08, 0x00, 0x00, 0x03, 0x00, 0xc8, 0x40,
+];
+
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1), whatever the container: the remux refuses
+/// it, and `drop_video` does not turn the refusal into a dropped stream.
+#[test]
+fn an_hevc_stream_with_an_empty_conformance_window_is_refused() {
+    let blocks: Vec<Vec<u8>> = (0..3)
+        .map(|n| simple_block(1, n as i16 * 40, n == 0, &frame(n, 25)))
+        .collect();
+    let source = file(
+        "matroska",
+        &[
+            info(None),
+            tracks(&[entry(
+                1,
+                1,
+                "V_MPEGH/ISO/HEVC",
+                &video_el(1280, 720, &[]),
+                &el(CODEC_PRIVATE, EMPTY_WINDOW_HVCC),
+            )]),
+            cluster(0, &blocks),
+        ],
+    );
+    for drop_video in [false, true] {
+        let options = MatroskaRemuxOptions {
+            drop_video,
+            ..MatroskaRemuxOptions::default()
+        };
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &options),
+                Err(MatroskaRemuxError::Output(
+                    coreav_isobmff::Error::InvalidStream { track_id: 1, .. }
+                ))
+            ),
+            "drop_video: {drop_video}"
+        );
+    }
 }
 
 #[test]
@@ -1612,4 +1697,400 @@ fn block_additions_of_dropped_streams_do_not_count() {
             .all(|a| a.stream_index == 1)
     );
     assert_eq!(summary.dropped_additions_not_listed, 0);
+}
+
+/// Bit fields `(value, width)` packed most significant bit first, padded
+/// with zero bits to a whole byte.
+fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut used = 0u32;
+    for &(value, width) in fields {
+        for bit in (0..width).rev() {
+            if used % 8 == 0 {
+                out.push(0);
+            }
+            *out.last_mut().unwrap() |= (((value >> bit) & 1) as u8) << (7 - used % 8);
+            used += 1;
+        }
+    }
+    out
+}
+
+/// A FLAC `STREAMINFO` (RFC 9639 8.2) of 1,152-sample blocks.
+fn streaminfo(rate: u32, channels: u32, bits: u32) -> Vec<u8> {
+    let mut info = pack(&[
+        (1152, 16),
+        (1152, 16),
+        (20, 24),
+        (40, 24),
+        (rate, 20),
+        (channels - 1, 3),
+        (bits - 1, 5),
+        (0, 4),
+        (1152 * 6, 32),
+    ]);
+    info.extend([0x5A; 16]);
+    info
+}
+
+/// The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, `channels`
+/// channels at 44.1 kHz.
+fn alac_cookie(channels: u32) -> Vec<u8> {
+    pack(&[
+        (4096, 32),
+        (0, 8),
+        (16, 8),
+        (40, 8),
+        (10, 8),
+        (14, 8),
+        (channels, 8),
+        (255, 16),
+        (40, 32),
+        (64_000, 32),
+        (44_100, 32),
+    ])
+}
+
+/// A stereo Apple Lossless packet: see [`alac_element_packet`].
+fn alac_packet(stated: Option<u32>, seed: usize) -> Vec<u8> {
+    alac_element_packet(1, stated, seed)
+}
+
+/// An Apple Lossless packet of one channel element: its header (`element`,
+/// 0 for one channel or 1 for a pair, instance 0, 12 zero bits, the flag
+/// for a stated sample count, shift 0, no escape), the count when stated,
+/// then filler.
+fn alac_element_packet(element: u32, stated: Option<u32>, seed: usize) -> Vec<u8> {
+    let mut fields = vec![
+        (element, 3),
+        (0, 4),
+        (0, 12),
+        (u32::from(stated.is_some()), 1),
+        (0, 2),
+        (0, 1),
+    ];
+    fields.extend(stated.map(|n| (n, 32)));
+    cat(&[pack(&fields), frame(seed, 40)])
+}
+
+/// A Matroska file of one stereo Apple Lossless track holding `packets`,
+/// each lasting the samples paired with it, at their times in
+/// milliseconds.
+fn alac_source(packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
+    alac_source_of(2, packets)
+}
+
+/// [`alac_source`] with `channels` channels.
+fn alac_source_of(channels: u32, packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
+    let mut at = 0u32;
+    let blocks: Vec<Vec<u8>> = packets
+        .iter()
+        .map(|(packet, samples)| {
+            let ms = (f64::from(at) / 44.1).round() as i16;
+            at += samples;
+            simple_block(1, ms, true, packet)
+        })
+        .collect();
+    file(
+        "matroska",
+        &[
+            info(None),
+            tracks(&[entry(
+                1,
+                2,
+                "A_ALAC",
+                &audio_el(44_100.0, u64::from(channels)),
+                &el(CODEC_PRIVATE, &alac_cookie(channels)),
+            )]),
+            cluster(0, &blocks),
+        ],
+    )
+}
+
+/// Each Apple Lossless packet lasts the samples its header states, else
+/// the cookie's `frameLength`: a short packet in the middle and a short
+/// last one keep their own lengths.
+#[test]
+fn alac_packets_last_the_samples_their_headers_state() {
+    let source = alac_source(&[
+        (alac_packet(None, 0), 4096),
+        (alac_packet(Some(100), 1), 100),
+        (alac_packet(None, 2), 4096),
+        (alac_packet(Some(2184), 3), 2184),
+    ]);
+    let (summary, output) = remux(&source);
+    assert!(summary.dropped_tracks.is_empty(), "{summary:?}");
+    let out = assert_round_trip(&source, &output, &summary);
+    let times: Vec<(i64, u32)> = mp4_packets(&output, &out, 0)
+        .iter()
+        .map(|p| (p.dts, p.duration))
+        .collect();
+    assert_eq!(times, [(0, 4096), (4096, 100), (4196, 4096), (8292, 2184)]);
+}
+
+/// A stated count wins over the source's millisecond times, which cannot
+/// tell a short packet from none: 16 samples then 4,096 at times 0 and 0,
+/// and 16 samples (0.36 ms) between two packets of 4,096. A mono stream's
+/// packets hold one single channel element.
+#[test]
+fn alac_stated_counts_win_over_millisecond_times() {
+    let cases = [
+        (
+            alac_source(&[(alac_packet(Some(16), 0), 16), (alac_packet(None, 1), 4096)]),
+            vec![(0, 16), (16, 4096)],
+        ),
+        (
+            alac_source(&[
+                (alac_packet(None, 0), 4096),
+                (alac_packet(Some(16), 1), 16),
+                (alac_packet(None, 2), 4096),
+            ]),
+            vec![(0, 4096), (4096, 16), (4112, 4096)],
+        ),
+        (
+            alac_source_of(
+                1,
+                &[
+                    (alac_element_packet(0, None, 0), 4096),
+                    (alac_element_packet(0, Some(16), 1), 16),
+                    (alac_element_packet(0, None, 2), 4096),
+                ],
+            ),
+            vec![(0, 4096), (4096, 16), (4112, 4096)],
+        ),
+    ];
+    for (n, (source, expected)) in cases.into_iter().enumerate() {
+        let (summary, output) = remux(&source);
+        assert!(summary.dropped_tracks.is_empty(), "case {n}: {summary:?}");
+        let out = assert_round_trip(&source, &output, &summary);
+        let times: Vec<(i64, u32)> = mp4_packets(&output, &out, 0)
+            .iter()
+            .map(|p| (p.dts, p.duration))
+            .collect();
+        assert_eq!(times, expected, "case {n}");
+    }
+}
+
+/// More than two channels take more than one channel element a packet, and
+/// only the first element's header is read: the stream is refused.
+#[test]
+fn alac_of_more_than_two_channels_is_refused() {
+    let fail = MatroskaRemuxOptions {
+        on_unsupported: OnUnsupported::Fail,
+        ..MatroskaRemuxOptions::default()
+    };
+    for channels in [3, 6] {
+        let source = alac_source_of(channels, &[(alac_packet(None, 0), 4096)]);
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &fail),
+                Err(MatroskaRemuxError::Source(coreav_mkv::Error::Unsupported {
+                    reason: "Apple Lossless from Matroska with more than two channels: \
+                             a packet's later channel elements are not read"
+                }))
+            ),
+            "{channels} channels"
+        );
+    }
+}
+
+/// A packet whose header is not a channel element's, or states no samples
+/// or more than the cookie's `frameLength`, is refused rather than given
+/// a guessed length.
+#[test]
+fn alac_packets_with_a_malformed_header_are_refused() {
+    let fail = MatroskaRemuxOptions {
+        on_unsupported: OnUnsupported::Fail,
+        ..MatroskaRemuxOptions::default()
+    };
+    let malformed = [
+        // A nonzero bit among the 12 that must be zero.
+        cat(&[pack(&[(1, 3), (0, 4), (1, 12), (0, 4)]), frame(0, 40)]),
+        // Shift 3.
+        cat(&[
+            pack(&[(1, 3), (0, 4), (0, 12), (0, 1), (3, 2), (0, 1)]),
+            frame(0, 40),
+        ]),
+        // A data stream element first (tag 4).
+        cat(&[pack(&[(4, 3), (0, 4), (0, 12), (0, 4)]), frame(0, 40)]),
+        // A single channel element in a stereo stream.
+        alac_element_packet(0, None, 0),
+        alac_packet(Some(0), 0),
+        alac_packet(Some(4097), 0),
+        // A stated count cut short.
+        pack(&[(1, 3), (0, 4), (0, 12), (1, 1), (0, 2), (0, 1), (100, 16)]),
+    ];
+    for (n, packet) in malformed.into_iter().enumerate() {
+        let source = alac_source(&[(alac_packet(None, 0), 4096), (packet, 4096)]);
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &fail),
+                Err(MatroskaRemuxError::Source(coreav_mkv::Error::Unsupported {
+                    reason: "an Apple Lossless packet without a valid element header"
+                }))
+            ),
+            "case {n}"
+        );
+    }
+}
+
+/// Six frames of each codec, one per block, at its frame duration: each
+/// copied unchanged into its MP4 sample entry with the configuration box
+/// its binding names, at the source's times.
+#[test]
+fn flac_alac_ac3_and_eac3_get_their_sample_entries() {
+    // FLAC (RFC 9639 10.1): `fLaC` and the last metadata block,
+    // STREAMINFO; frames of 1,152 samples (block size code 3), stereo,
+    // 16 bits, at 96 kHz.
+    let mut flac_private = b"fLaC".to_vec();
+    flac_private.extend([0x80, 0, 0, 34]);
+    flac_private.extend(streaminfo(96_000, 2, 16));
+    let flac = |n: usize| cat(&[vec![0xFF, 0xF8, 0x30, 0x18, n as u8, 0], frame(n, 20)]);
+    let cookie = alac_cookie(2);
+    // An AC-3 syncframe (ETSI TS 102 366 4.3): 48 kHz, 32 kbit/s (64
+    // words), bsid 8, bsmod 0, stereo without LFE.
+    let ac3 = |n: usize| {
+        let mut f = pack(&[
+            (0x0B77, 16),
+            (0, 16),
+            (0, 2),
+            (0, 6),
+            (8, 5),
+            (0, 3),
+            (2, 3),
+            (0, 2),
+            (0, 1),
+        ]);
+        f.extend(frame(n, 128 - f.len()));
+        f
+    };
+    // An E-AC-3 frame (E.1.2): an independent substream of six blocks at
+    // 48 kHz, stereo, bsid 16, 128 words.
+    let eac3 = |n: usize| {
+        let mut f = pack(&[
+            (0x0B77, 16),
+            (0, 2),
+            (0, 3),
+            (127, 11),
+            (0, 2),
+            (3, 2),
+            (2, 3),
+            (0, 1),
+            (16, 5),
+            (31, 5),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+        ]);
+        f.extend(frame(n, 256 - f.len()));
+        f
+    };
+    // (codec ID, CodecPrivate, Audio rate, frame, frame in ms, sample
+    // entry, configuration box and payload, timescale, frame samples).
+    type Case<'a> = (
+        &'a str,
+        Vec<u8>,
+        f64,
+        &'a dyn Fn(usize) -> Vec<u8>,
+        f64,
+        [u8; 4],
+        [u8; 4],
+        Vec<u8>,
+        u32,
+        u32,
+    );
+    let alac = |n: usize| alac_packet(None, n);
+    let cases: [Case<'_>; 4] = [
+        (
+            "A_FLAC",
+            flac_private.clone(),
+            96_000.0,
+            &flac,
+            12.0,
+            *b"fLaC",
+            *b"dfLa",
+            cat(&[vec![0, 0, 0, 0], flac_private[4..].to_vec()]),
+            96_000,
+            1152,
+        ),
+        (
+            "A_ALAC",
+            cookie.clone(),
+            44_100.0,
+            &alac,
+            4096.0 / 44.1,
+            *b"alac",
+            *b"alac",
+            cat(&[vec![0, 0, 0, 0], cookie.clone()]),
+            44_100,
+            4096,
+        ),
+        (
+            "A_AC3",
+            Vec::new(),
+            48_000.0,
+            &ac3,
+            32.0,
+            *b"ac-3",
+            *b"dac3",
+            // fscod 0, bsid 8, bsmod 0, acmod 2, lfeon 0, bit_rate_code 0
+            // (F.4).
+            vec![0x10, 0x10, 0x00],
+            48_000,
+            1536,
+        ),
+        (
+            "A_EAC3",
+            Vec::new(),
+            48_000.0,
+            &eac3,
+            32.0,
+            *b"ec-3",
+            *b"dec3",
+            // data_rate 64 kbit/s, one independent substream: fscod 0,
+            // bsid 16, bsmod 0, acmod 2, lfeon 0, no dependent substream
+            // (F.6).
+            vec![0x02, 0x00, 0x20, 0x04, 0x00],
+            48_000,
+            1536,
+        ),
+    ];
+    for (codec_id, private, rate, make, ms, fourcc, kind, payload, timescale, samples) in cases {
+        let blocks: Vec<Vec<u8>> = (0..6)
+            .map(|n| simple_block(1, (n as f64 * ms).round() as i16, true, &make(n)))
+            .collect();
+        let extra = if private.is_empty() {
+            Vec::new()
+        } else {
+            el(CODEC_PRIVATE, &private)
+        };
+        let source = file(
+            "matroska",
+            &[
+                info(None),
+                tracks(&[entry(1, 2, codec_id, &audio_el(rate, 2), &extra)]),
+                cluster(0, &blocks),
+            ],
+        );
+        let (summary, output) = remux(&source);
+        assert!(summary.dropped_tracks.is_empty(), "{codec_id}: {summary:?}");
+        let out = assert_round_trip(&source, &output, &summary);
+        let track = &out.tracks[0];
+        assert_eq!(track.timescale, timescale, "{codec_id}");
+        let d = &track.description;
+        assert_eq!(d.fourcc, FourCc(fourcc), "{codec_id}");
+        assert_eq!(d.channels, Some(2), "{codec_id}");
+        let config = d.codec_config.as_ref().unwrap();
+        assert_eq!(
+            (config.kind, &config.data),
+            (FourCc(kind), &payload),
+            "{codec_id}"
+        );
+        let packets = mp4_packets(&output, &out, 0);
+        let times: Vec<i64> = packets.iter().map(|p| p.dts).collect();
+        let expected: Vec<i64> = (0..6).map(|n| n * i64::from(samples)).collect();
+        assert_eq!(times, expected, "{codec_id}");
+        assert!(packets.iter().all(|p| p.keyframe), "{codec_id}");
+    }
 }

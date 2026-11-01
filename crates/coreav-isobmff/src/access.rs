@@ -568,15 +568,51 @@ pub fn annex_b_frame_access(frame: &[u8], complete: bool) -> Option<FrameAccess>
     }
 }
 
+/// The next start code (`00 00 01`) at or after `from`, as the offset of
+/// its first zero byte.
+///
+/// Eight bytes at a time while none of them is zero, since a start code
+/// has two; then three at a time, since a start code ends in a byte of 1,
+/// so a byte above 1 rules out every position a code could begin at within
+/// those three and a byte of 1 leaves only the first. A byte-at-a-time
+/// scan of the elementary stream was the hottest part of the packet
+/// listing (43% of its instructions on a 110 MB capture).
+pub fn next_start_code(data: &[u8], from: usize) -> Option<usize> {
+    // A word has a zero byte when borrowing from every byte leaves a high
+    // bit set that the word itself does not have.
+    const LOW: u64 = 0x0101_0101_0101_0101;
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    let mut i = from;
+    loop {
+        while let Some(eight) = data.get(i..i.checked_add(8)?) {
+            let Ok(bytes) = <[u8; 8]>::try_from(eight) else {
+                break;
+            };
+            let word = u64::from_le_bytes(bytes);
+            if word.wrapping_sub(LOW) & !word & HIGH != 0 {
+                break;
+            }
+            i = i.checked_add(8)?;
+        }
+        let third = *data.get(i.checked_add(2)?)?;
+        if third > 1 {
+            i = i.checked_add(3)?;
+        } else if third == 1 {
+            if data.get(i) == Some(&0) && data.get(i.checked_add(1)?) == Some(&0) {
+                return Some(i);
+            }
+            i = i.checked_add(3)?;
+        } else {
+            i = i.checked_add(1)?;
+        }
+    }
+}
+
 /// The offset just after the next start code at or after `from`, or
 /// `None` when none follows. It is at least `from + 3`, so the unit
 /// before it is never read past.
 fn find_start_code(frame: &[u8], from: usize) -> Option<usize> {
-    let rest = frame.get(from..)?;
-    let at = rest
-        .windows(START_CODE.len())
-        .position(|w| w == START_CODE)?;
-    from.checked_add(at)?.checked_add(START_CODE.len())
+    next_start_code(frame, from)?.checked_add(START_CODE.len())
 }
 
 /// The walk of [`read_frame_access`], reading SEI messages when `sei`.
@@ -694,6 +730,37 @@ fn sei_value(data: &[u8], at: &mut usize) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn start_codes_are_found_whatever_the_stride_skips() {
+        // Against a byte-at-a-time reference, on data with runs of zeros,
+        // of bytes of 1 and of bytes above 1, so that each of the scan's
+        // three cases is taken at every alignment.
+        fn reference(data: &[u8], from: usize) -> Option<usize> {
+            (from..data.len().saturating_sub(2)).find(|&i| data[i..i + 3] == [0, 0, 1])
+        }
+        let mut data = Vec::new();
+        let mut state = 12345u64;
+        for _ in 0..4000 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            data.push(match (state >> 33) % 5 {
+                0 | 1 => 0,
+                2 => 1,
+                other => other as u8 + 40,
+            });
+        }
+        for from in 0..data.len() {
+            assert_eq!(
+                next_start_code(&data, from),
+                reference(&data, from),
+                "from {from}"
+            );
+        }
+        assert_eq!(next_start_code(&[0, 0, 1], 0), Some(0));
+        assert_eq!(next_start_code(&[0, 0], 0), None);
+        assert_eq!(next_start_code(&[], 0), None);
+        assert_eq!(next_start_code(&[0, 0, 1], 1), None);
+    }
     use crate::SliceSource;
 
     /// A length-prefixed NAL unit of 4-byte length.

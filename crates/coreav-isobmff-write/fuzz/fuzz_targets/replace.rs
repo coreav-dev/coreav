@@ -1,5 +1,5 @@
 //! Arbitrary replacements through the replaced-stream remux
-//! (`docs/design/remux.md`, "One video stream replaced"), over small
+//! (`docs/design/remux.md`, "Replaced streams"), over small
 //! fixed sources: an MP4 movie with B-frame video and AAC (with an edit
 //! list, or none), and a Matroska file with H.264 and AAC. The remux
 //! either fails with an error or writes an output that the MP4 parser
@@ -21,7 +21,8 @@ mod movies;
 use coreav_isobmff::{Allowlist, Budget, Limits, Movie, Packet, SliceSource, Source, probe};
 use coreav_isobmff_write::mux::avc1_sample_entry;
 use coreav_isobmff_write::{
-    MatroskaRemuxOptions, RemuxOptions, Replacement, ReplacementSample, remux_matroska,
+    MatroskaRemuxOptions, RemuxOptions, Replacement, ReplacementSample, Replacements,
+    remux_matroska,
     remux_matroska_replacing, remux_mp4, remux_mp4_replacing,
 };
 use libfuzzer_sys::fuzz_target;
@@ -186,14 +187,17 @@ fuzz_target!(|data: &[u8]| {
         spool.pop();
     }
     let entry = avc1_sample_entry(64, 48, &AVCC, None, None).expect("entry");
-    let replacement = Replacement {
-        stream_index,
-        sample_entry: &entry,
-        width: 64 << 16,
-        height: 48 << 16,
-        samples: &samples,
-        last_duration: u32::from(choice & 0x30) * 13,
-        data: SliceSource::new(&spool),
+    let replacement = Replacements {
+        video: Some(Replacement {
+            stream_index,
+            sample_entry: &entry,
+            width: 64 << 16,
+            height: 48 << 16,
+            samples: &samples,
+            last_duration: u32::from(choice & 0x30) * 13,
+            data: SliceSource::new(&spool),
+        }),
+        audio: None,
     };
     let limits = Limits {
         max_table_bytes: 1 << 20,

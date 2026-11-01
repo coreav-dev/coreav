@@ -1,0 +1,25 @@
+[package]
+name = "coreav-backend-libopus"
+description = "CoreAV's Opus encoder backend: encodes 48 kHz float PCM with libopus through its Rust binding; inside a sandboxed process by default"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# Links the system's libopus (opusic-sys without its bundled build), found
+# on the linker's search path. The encoder process runs with a cleared
+# environment, so a libopus outside the loader's default path needs a
+# runtime search path in the binary: OPUS_LIB_DIR=DIR with
+# RUSTFLAGS="-C link-arg=-Wl,-rpath,DIR". Off by default so that
+# the workspace builds without it (docs/design/transcode.md, "Opus audio").
+libopus = ["dep:opusic-c"]
+
+[dependencies]
+opusic-c = { version = "1.6", default-features = false, optional = true }
+
+[lints]
+workspace = true

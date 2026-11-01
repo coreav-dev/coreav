@@ -6,11 +6,14 @@
 //! second copies the samples in the writer's chunk order through one
 //! [`CopyWindow`]. Nothing is decoded.
 
+use crate::audio;
 use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
-    audio_sample_entry, visual_sample_entry,
+    audio_sample_entry, esds, visual_sample_entry,
 };
-use crate::replace::{Replacement, validate};
+use crate::replace::{
+    Replacement, Replacements, audio_edits, roll_boxes, validate, validate_audio,
+};
 use crate::{ExtractError, OnUnsupported, TrackDropReason};
 use core::fmt;
 use coreav_isobmff::{FourCc, Profile};
@@ -36,6 +39,15 @@ const MAX_TIME_NS: u64 = 1 << 62;
 
 /// Movie and video timescale when a Segment Tick does not divide a second.
 const FALLBACK_TIMESCALE: u32 = 90_000;
+
+/// Largest first frame of an AC-3 or E-AC-3 stream read to configure its
+/// sample entry: an E-AC-3 sample of eight independent substreams, each with
+/// eight dependent ones, in syncframes of up to 4,096 bytes.
+const MAX_FIRST_FRAME: u32 = 8 * 9 * 4096;
+
+/// Bytes of a FLAC frame header read to find its block size: the longest
+/// header up to the block size (RFC 9639 9.1).
+const FLAC_HEAD: usize = 13;
 
 /// Why a Matroska remux failed. Nothing about the source's bytes is
 /// included.
@@ -128,7 +140,7 @@ pub struct MatroskaRemuxTrack {
     pub stream_index: usize,
     /// `TrackNumber` in the source.
     pub track_number: u64,
-    /// `track_ID` in the output, numbered from 1 in source order.
+    /// `track_ID` in the output, numbered from 1 in output order.
     pub track_id: u32,
     /// The track's kind (video or audio).
     pub kind: TrackKind,
@@ -178,9 +190,10 @@ pub struct DroppedAdditions {
 /// What [`remux_matroska`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MatroskaRemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux; streams not named are left out.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux; streams not named are left out.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied:
     /// [`OnUnsupported::Drop`] leaves audio, subtitle and data streams out
@@ -199,7 +212,7 @@ pub const MAX_LISTED_ADDITIONS: usize = 256;
 /// What [`remux_matroska`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatroskaRemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`MatroskaRemuxOptions::streams`).
     pub tracks: Vec<MatroskaRemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
@@ -236,6 +249,12 @@ struct Plan {
     samples: Records,
     /// Parameter sets from the first keyframe (Annex B), in order.
     parameter_sets: Vec<Vec<u8>>,
+    /// The `dac3` or `dec3` payload, built from the first frame of an
+    /// AC-3 or E-AC-3 stream.
+    audio_config: Vec<u8>,
+    /// Apple Lossless: the tag of the one channel element every packet
+    /// holds, 0 for mono or 1 for a stereo pair.
+    alac_element: u32,
     /// Why the stream cannot be copied after all, found while listing it.
     failure: Option<&'static str>,
     /// `DiscardPadding` of the last frame, in nanoseconds: not presented.
@@ -246,7 +265,7 @@ struct Plan {
     timing: Option<Timing>,
     /// The stream's samples are a replacement's: none of the source's
     /// frames is listed or copied.
-    replaced: bool,
+    replaced: Option<Replaced>,
 }
 
 impl Plan {
@@ -371,8 +390,12 @@ struct Record {
     block_ns: i64,
     block_duration_ns: Option<i64>,
     /// Audio: the frame's duration in media ticks, from the codec (the Opus
-    /// TOC byte; one AAC frame); 0 when unknown.
+    /// TOC byte, the FLAC frame header, the Apple Lossless element header;
+    /// one AAC frame, 1,536 samples of AC-3 or E-AC-3); 0 when unknown.
     frame: u32,
+    /// `frame` is a count the frame itself states (an Apple Lossless
+    /// packet's), which the source's times do not change.
+    stated: bool,
     keyframe: bool,
 }
 
@@ -393,13 +416,21 @@ pub fn remux_matroska<S: Source, W: Write>(
     options: &MatroskaRemuxOptions,
     out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
-    remux::<S, SliceSource<'static>, W>(source, demux, mux, allowlist, options, None, out)
+    let none = Replacements::<SliceSource<'static>> {
+        video: None,
+        audio: None,
+    };
+    remux(source, demux, mux, allowlist, options, none, out)
 }
 
-/// [`remux_matroska`] with one video stream of the source replaced by the
-/// samples of `replacement` (`docs/design/mkv-remux.md`, "One video
-/// stream replaced"); every other stream is written exactly as
-/// [`remux_matroska`] writes it.
+/// [`remux_matroska`] with one video stream of the source, one audio
+/// stream, or one of each, replaced by the samples of `replacements`
+/// (`docs/design/mkv-remux.md`, "Replaced streams"); every other stream is
+/// written exactly as [`remux_matroska`] writes it. A replaced audio stream
+/// is written as [`AudioReplacement`] describes, with its media timescale
+/// as a factor of the movie timescale (their least common multiple, when it
+/// fits 32 bits), so that its edits are exact; the rest of this description
+/// is the video stream's.
 ///
 /// The replaced stream keeps the source track's place in the track order,
 /// its language, enabled flag and rotation; it takes the replacement's
@@ -420,49 +451,91 @@ pub fn remux_matroska<S: Source, W: Write>(
 /// at segment time `P`, as [`remux_matroska`] presents a copied frame with
 /// that timestamp; decode times only set the composition offsets.
 ///
-/// Fails before writing anything when the replacement is invalid
-/// ([`Replacement`]), when `stream_index` is not a video stream the
-/// segment keeps (or `options.streams` leaves it out), when two decode
-/// times meet after rounding to 90,000, or when nothing of the replacement
-/// would be presented; later failures are those of [`remux_matroska`], and
-/// a read error of `replacement.data` (reported as a source error).
+/// Fails before writing anything when a replacement is invalid
+/// ([`Replacement`], [`AudioReplacement`]), when a `stream_index` is not a
+/// stream of its kind the segment keeps (or `options.streams` leaves it
+/// out), when two decode times meet after rounding to 90,000, or when
+/// nothing of the video replacement would be presented; later failures are
+/// those of [`remux_matroska`], and a read error of a replacement's data
+/// (reported as a source error).
 pub fn remux_matroska_replacing<S: Source, R: Source, W: Write>(
     source: S,
     demux: &coreav_mkv::Limits,
     mux: &coreav_isobmff::Limits,
     allowlist: &Allowlist,
     options: &MatroskaRemuxOptions,
-    replacement: Replacement<'_, R>,
+    replacements: Replacements<'_, R>,
     out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
-    remux(
-        source,
-        demux,
-        mux,
-        allowlist,
-        options,
-        Some(replacement),
-        out,
-    )
+    remux(source, demux, mux, allowlist, options, replacements, out)
 }
 
-/// The Matroska remux, with or without a replaced stream.
+/// Which replacement a stream's samples are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Replaced {
+    Video,
+    Audio,
+}
+
+/// The Matroska remux, with or without replaced streams.
 fn remux<S: Source, R: Source, W: Write>(
     mut source: S,
     demux: &coreav_mkv::Limits,
     mux: &coreav_isobmff::Limits,
     allowlist: &Allowlist,
     options: &MatroskaRemuxOptions,
-    mut replacement: Option<Replacement<'_, R>>,
+    replacements: Replacements<'_, R>,
     mut out: W,
 ) -> Result<MatroskaRemuxSummary, MatroskaRemuxError> {
+    let Replacements {
+        video: mut replacement,
+        mut audio,
+    } = replacements;
+    if options.streams.as_ref().is_some_and(|wanted| {
+        u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(mux.max_tracks)
+    }) {
+        return Err(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::Tracks,
+            offset: 0,
+        }
+        .into());
+    }
     let replaced_codec = match replacement.as_mut() {
         Some(r) => Some(validate(r, mux)?),
         None => None,
     };
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, mux)?),
+        None => None,
+    };
     let segment = coreav_mkv::probe(&mut source, demux, allowlist)?;
     if let Some(r) = &replacement {
-        check_replaced(&segment, r.stream_index, options)?;
+        check_replaced(&segment, r.stream_index, TrackKind::Video, options)?;
+    }
+    if let Some(a) = &audio {
+        check_replaced(&segment, a.stream_index, TrackKind::Audio, options)?;
+        if replacement
+            .as_ref()
+            .is_some_and(|r| r.stream_index == a.stream_index)
+        {
+            return Err(coreav_mkv::Error::Unsupported {
+                reason: "one stream replaced twice",
+            }
+            .into());
+        }
+    }
+    if (replacement.is_some() || audio.is_some())
+        && options.streams.as_ref().is_some_and(|wanted| {
+            wanted
+                .iter()
+                .enumerate()
+                .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+        })
+    {
+        return Err(coreav_mkv::Error::Unsupported {
+            reason: "a stream named twice beside a replaced stream",
+        }
+        .into());
     }
     // A video stream that would be lost fails the remux once every stream
     // is planned, unless the caller named the streams or asked for it to be
@@ -506,6 +579,24 @@ fn remux<S: Source, R: Source, W: Write>(
                 continue;
             }
         }
+        if let (Some(a), Some(codec)) = (&audio, audio_codec) {
+            if a.stream_index == track.stream_index {
+                plans.push(audio_plan(track, codec.matroska(), a.timescale));
+                continue;
+            }
+        }
+        if track.codec == Codec::Hevc
+            && track
+                .codec_private
+                .as_deref()
+                .is_some_and(coreav_isobmff::hevc_window_empty)
+        {
+            return Err(coreav_isobmff::Error::InvalidStream {
+                track_id: u32::try_from(track.number).unwrap_or(u32::MAX),
+                reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+            }
+            .into());
+        }
         match plan(track) {
             Ok(plan) => plans.push(plan),
             Err(reason) => {
@@ -534,10 +625,15 @@ fn remux<S: Source, R: Source, W: Write>(
     let mut additions = Vec::new();
     // Per track index: the BlockAdditions seen.
     let mut additions_seen = vec![0u64; segment.tracks.len()];
-    // The replacement's samples are charged as the source's would be.
+    // The replacements' samples are charged as the source's would be.
     let replaced_samples = replacement
         .as_ref()
-        .map_or(0, |r| u64::try_from(r.samples.len()).unwrap_or(u64::MAX));
+        .map_or(0, |r| u64::try_from(r.samples.len()).unwrap_or(u64::MAX))
+        .saturating_add(
+            audio
+                .as_ref()
+                .map_or(0, |a| u64::try_from(a.samples.len()).unwrap_or(u64::MAX)),
+        );
     let truncated_at = list_samples(
         &segment,
         &mut source,
@@ -555,14 +651,26 @@ fn remux<S: Source, R: Source, W: Write>(
         let Some(track) = segment.tracks.get(plan.track) else {
             continue;
         };
-        if plan.replaced {
-            let Some(r) = &replacement else {
+        match (plan.replaced, &replacement, &audio) {
+            (Some(Replaced::Video), Some(r), _) => {
+                plan.entry = r.sample_entry.to_vec();
+                plan.timing = Some(replaced_timing(&segment, plan.timescale, r)?);
+                kept.push(plan);
                 continue;
-            };
-            plan.entry = r.sample_entry.to_vec();
-            plan.timing = Some(replaced_timing(&segment, plan.timescale, r)?);
-            kept.push(plan);
-            continue;
+            }
+            (Some(Replaced::Audio), _, Some(a)) => {
+                plan.entry = a.sample_entry.to_vec();
+                plan.timing = Some(Timing {
+                    samples: a.samples.iter().map(|s| (s.duration, 0)).collect(),
+                    start_ns: 0,
+                    media_time: i64::from(a.priming),
+                    end: i128::from(a.priming) + i128::from(a.presented),
+                });
+                kept.push(plan);
+                continue;
+            }
+            (Some(_), _, _) => continue,
+            (None, _, _) => {}
         }
         // A stream without frames loses nothing.
         let empty = plan.failure.is_none() && plan.samples.is_empty();
@@ -627,7 +735,11 @@ fn remux<S: Source, R: Source, W: Write>(
         });
     }
 
-    let movie_timescale = video_timescale(&segment);
+    let movie_timescale = match &audio {
+        Some(a) => crate::remux::lcm(video_timescale(&segment), a.timescale)
+            .unwrap_or(video_timescale(&segment)),
+        None => video_timescale(&segment),
+    };
     let mut muxer = Muxer::new(
         FileType {
             major: FourCc(*b"isom"),
@@ -641,8 +753,28 @@ fn remux<S: Source, R: Source, W: Write>(
         },
         mux,
     )?;
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<usize> = match &options.streams {
+        None => (0..kept.len()).collect(),
+        Some(wanted) => wanted
+            .iter()
+            .filter_map(|i| {
+                kept.iter().position(|plan| {
+                    segment
+                        .tracks
+                        .get(plan.track)
+                        .is_some_and(|t| t.stream_index == *i)
+                })
+            })
+            .collect(),
+    };
     let mut tracks = Vec::new();
-    for plan in &kept {
+    let mut written = Vec::new();
+    for k in order {
+        let Some(plan) = kept.get(k) else {
+            continue;
+        };
         let track = segment
             .tracks
             .get(plan.track)
@@ -652,7 +784,12 @@ fn remux<S: Source, R: Source, W: Write>(
         let Some(timing) = plan.timing.as_ref() else {
             continue;
         };
-        let replaced = replacement.as_ref().filter(|_| plan.replaced);
+        let replaced = replacement
+            .as_ref()
+            .filter(|_| plan.replaced == Some(Replaced::Video));
+        let audio = audio
+            .as_ref()
+            .filter(|_| plan.replaced == Some(Replaced::Audio));
         let header = TrackHeader {
             media: match (plan.media, replaced) {
                 (Media::Video, Some(r)) => replaced_video_media(track, r.width, r.height),
@@ -674,6 +811,7 @@ fn remux<S: Source, R: Source, W: Write>(
             boxes: Vec::new(),
         };
         let id = muxer.add_track(header)?;
+        written.push(k);
         if let Some(r) = replaced {
             for (sample, (duration, offset)) in r.samples.iter().zip(&timing.samples) {
                 muxer.push_sample(
@@ -683,6 +821,19 @@ fn remux<S: Source, R: Source, W: Write>(
                         duration: *duration,
                         sync: sample.sync,
                         composition_offset: *offset,
+                    },
+                )?;
+            }
+        }
+        if let Some(a) = audio {
+            for sample in a.samples {
+                muxer.push_sample(
+                    id,
+                    Sample {
+                        size: sample.size,
+                        duration: sample.duration,
+                        sync: true,
+                        composition_offset: 0,
                     },
                 )?;
             }
@@ -700,10 +851,17 @@ fn remux<S: Source, R: Source, W: Write>(
         }
         muxer.finish_track(id);
         let media_duration = muxer.duration(id).unwrap_or(0);
-        muxer.set_edits(
-            id,
-            edits(timing, media_duration, plan.timescale, movie_timescale)?,
-        )?;
+        match audio {
+            Some(a) => {
+                muxer.set_edits(id, audio_edits(a, movie_timescale)?)?;
+                let samples = muxer.samples(id).unwrap_or(0);
+                muxer.set_sample_table_boxes(id, roll_boxes(samples, a.roll))?;
+            }
+            None => muxer.set_edits(
+                id,
+                edits(timing, media_duration, plan.timescale, movie_timescale)?,
+            )?,
+        }
         tracks.push(MatroskaRemuxTrack {
             stream_index: track.stream_index,
             track_number: track.number,
@@ -714,33 +872,45 @@ fn remux<S: Source, R: Source, W: Write>(
             timescale: plan.timescale,
             duration: media_duration,
             annex_b: plan.annex_b,
-            replaced: plan.replaced,
+            replaced: plan.replaced.is_some(),
         });
     }
 
     let head = muxer.write_head(&mut out)?;
     let mut window = CopyWindow::new();
-    // The replacement's samples, read through a window of their own from
-    // the offset after the ones before.
-    let mut replaced = replacement.map(|r| (r.data, r.samples, CopyWindow::new(), 0u64));
-    let mut next = vec![0usize; kept.len()];
+    // The replacements' samples, each read through a window of their own
+    // from the offset after the ones before.
+    let mut replaced = replacement.map(|r| {
+        let sizes = r.samples.iter().map(|s| s.size).collect::<Vec<_>>();
+        (r.data, sizes, CopyWindow::new(), 0u64)
+    });
+    let mut audio = audio.map(|a| {
+        let sizes = a.samples.iter().map(|s| s.size).collect::<Vec<_>>();
+        (a.data, sizes, CopyWindow::new(), 0u64)
+    });
+    let mut next = vec![0usize; written.len()];
     let mut nals = Vec::new();
     muxer.for_each_chunk(|index, count| -> Result<(), MatroskaRemuxError> {
-        let (Some(plan), Some(position)) = (kept.get(index), next.get_mut(index)) else {
+        let plan = written.get(index).and_then(|k| kept.get(*k));
+        let (Some(plan), Some(position)) = (plan, next.get_mut(index)) else {
             return Err(MatroskaRemuxError::SourceChanged);
         };
         for _ in 0..count {
-            if plan.replaced {
-                let Some((data, samples, window, offset)) = replaced.as_mut() else {
+            if let Some(which) = plan.replaced {
+                let feed = match which {
+                    Replaced::Video => replaced.as_mut(),
+                    Replaced::Audio => audio.as_mut(),
+                };
+                let Some((data, sizes, window, offset)) = feed else {
                     return Err(MatroskaRemuxError::SourceChanged);
                 };
-                let sample = samples
+                let size = *sizes
                     .get(*position)
                     .ok_or(MatroskaRemuxError::SourceChanged)?;
                 *position += 1;
-                window.copy(data, *offset, sample.size, &mut out)?;
+                window.copy(data, *offset, size, &mut out)?;
                 *offset = offset
-                    .checked_add(u64::from(sample.size))
+                    .checked_add(u64::from(size))
                     .ok_or(MatroskaRemuxError::SourceChanged)?;
                 continue;
             }
@@ -776,7 +946,7 @@ fn remux<S: Source, R: Source, W: Write>(
         Ok(())
     })?;
     out.flush()?;
-    drop(replaced);
+    drop((replaced, audio));
     // Additions of streams dropped after the listing are not reported; the
     // kept streams' ones are listed in file order up to the limit, and the
     // rest counted.
@@ -827,9 +997,41 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
     if !track.timestamp_scale_one {
         return Err("TrackTimestampScale other than 1.0 is not supported");
     }
+    let mut alac_element = 0;
     let (timescale, quantum) = match (media, track.codec) {
         (Media::Video, Codec::H264 | Codec::Hevc | Codec::Av1 | Codec::Vp9) => (0, 1),
         (Media::Audio, Codec::Opus) => (48_000, 120),
+        (Media::Audio, Codec::Flac) => {
+            let (_, info) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::dfla_from_codec_private)
+                .ok_or("FLAC without its STREAMINFO in CodecPrivate")?;
+            (info.sample_rate, 1)
+        }
+        (Media::Audio, Codec::Alac) => {
+            let (_, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or("ALAC without its magic cookie in CodecPrivate")?;
+            // Only a packet's first element header is read for its sample
+            // count, so a packet must hold that one element.
+            alac_element = match config.channels {
+                1 => 0,
+                2 => 1,
+                _ => {
+                    return Err("Apple Lossless from Matroska with more than two channels: \
+                         a packet's later channel elements are not read");
+                }
+            };
+            (config.sample_rate, u64::from(config.frame_length))
+        }
+        // The first frame's header gives the sample rate (`list_samples`).
+        (Media::Audio, Codec::Ac3 | Codec::Eac3) => (
+            track.audio.and_then(|a| a.sample_rate()).unwrap_or(48_000),
+            u64::from(audio::AC3_FRAME),
+        ),
         (Media::Audio, Codec::Aac) => {
             let rate = track
                 .audio
@@ -887,11 +1089,13 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
         prefix,
         samples: Records::default(),
         parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
+        alac_element,
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
         timing: None,
-        replaced: false,
+        replaced: None,
     })
 }
 
@@ -909,22 +1113,49 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
         prefix: Vec::new(),
         samples: Records::default(),
         parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
+        alac_element: 0,
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
         timing: None,
-        replaced: true,
+        replaced: Some(Replaced::Video),
     }
 }
 
-/// Checks that `stream_index` names a video track of `segment` that a
+/// The plan of the replaced audio stream: its samples come from the
+/// replacement, at its media timescale.
+fn audio_plan(track: &Track, codec: Codec, timescale: u32) -> Plan {
+    Plan {
+        track: track.index,
+        codec,
+        media: Media::Audio,
+        timescale,
+        quantum: 1,
+        annex_b: false,
+        avc3: false,
+        prefix: Vec::new(),
+        samples: Records::default(),
+        parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
+        alac_element: 0,
+        failure: None,
+        end_padding_ns: 0,
+        entry: Vec::new(),
+        timing: None,
+        replaced: Some(Replaced::Audio),
+    }
+}
+
+/// Checks that `stream_index` names a track of `kind` of `segment` that a
 /// replacement can take the place of: one the segment keeps (the
 /// allowlist, else `CodecNotAllowed` as for MP4 sources), among
-/// `options.streams` when they are named, with a `TrackTimestampScale` of
-/// 1.0.
+/// `options.streams` when they are named; a video track with a
+/// `TrackTimestampScale` of 1.0.
 fn check_replaced(
     segment: &Segment,
     stream_index: usize,
+    kind: TrackKind,
     options: &MatroskaRemuxOptions,
 ) -> Result<(), MatroskaRemuxError> {
     let unsupported =
@@ -948,8 +1179,12 @@ fn check_replaced(
             },
         );
     };
-    if track.kind != TrackKind::Video {
-        return Err(unsupported("the replaced stream is not a video stream"));
+    if track.kind != kind {
+        return Err(unsupported(if kind == TrackKind::Video {
+            "the replaced stream is not a video stream"
+        } else {
+            "the replaced stream is not an audio stream"
+        }));
     }
     if options
         .streams
@@ -960,7 +1195,7 @@ fn check_replaced(
             "the replaced stream is not among the selected streams",
         ));
     }
-    if !track.timestamp_scale_one {
+    if kind == TrackKind::Video && !track.timestamp_scale_one {
         return Err(unsupported(
             "TrackTimestampScale other than 1.0 is not supported",
         ));
@@ -1044,9 +1279,7 @@ fn replaced_timing<R>(
 
 fn unsupported_codec(codec: Codec) -> &'static str {
     match codec {
-        Codec::Flac => "FLAC is not copied to MP4 by this remux",
         Codec::Mp3 => "MP3 is not copied to MP4 by this remux",
-        Codec::Ac3 | Codec::Eac3 => "AC-3 and E-AC-3 are not copied to MP4 by this remux",
         Codec::Pcm => "PCM audio is not copied to MP4",
         Codec::ProRes => "ProRes has no MP4 sample entry",
         _ => "MP4 cannot carry this codec by stream copy",
@@ -1084,7 +1317,11 @@ fn list_samples<S: Source>(
     }
     let mut by_track = vec![None; segment.tracks.len()];
     // A replaced stream's frames are skipped like those of a dropped one.
-    for (index, plan) in plans.iter().enumerate().filter(|(_, p)| !p.replaced) {
+    for (index, plan) in plans
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.replaced.is_none())
+    {
         if let Some(slot) = by_track.get_mut(plan.track) {
             *slot = Some(index);
         }
@@ -1187,24 +1424,75 @@ fn list_samples<S: Source>(
             .and_then(|d| scale.checked_mul(i128::from(d)))
             .and_then(in_range);
         plan.end_padding_ns = packet.discard_padding.unwrap_or(0).max(0);
-        // Opus frames: their duration from the TOC byte (RFC 6716 3.1),
-        // read as the listing passes the frame rather than in a pass of its
-        // own, which over a network would read the file a second time.
-        let frame = if plan.codec == Codec::Opus {
-            let mut head = [0u8; 2];
-            let mut filled = 0;
-            for (slot, byte) in head.iter_mut().zip(&plan.prefix) {
-                *slot = *byte;
-                filled += 1;
+        // Frame durations from the frame's own header (the Opus TOC byte,
+        // RFC 6716 3.1; the FLAC frame header, RFC 9639 9.1.1; the Apple
+        // Lossless element header), and the
+        // AC-3 or E-AC-3 configuration from the first frame, read as the
+        // listing passes the frame rather than in a pass of their own,
+        // which over a network would read the file a second time.
+        let source = packets.source_mut();
+        let mut stated = false;
+        let frame = match plan.codec {
+            Codec::Opus => {
+                let mut head = [0u8; 2];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                opus_samples(&head, filled).unwrap_or(0)
             }
-            let wanted = (2 - filled).min(usize::try_from(stored).unwrap_or(0));
-            if let Some(rest) = head.get_mut(filled..filled + wanted) {
-                packets.source_mut().read_exact_at(packet.offset, rest)?;
-                filled += wanted;
+            Codec::Flac => {
+                let mut head = [0u8; FLAC_HEAD];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                head.get(..filled)
+                    .and_then(audio::flac_block_size)
+                    .unwrap_or(0)
             }
-            opus_samples(&head, filled).unwrap_or(0)
-        } else {
-            u32::try_from(plan.quantum).unwrap_or(0)
+            Codec::Alac => {
+                let mut head = [0u8; audio::ALAC_HEAD];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                let frame_length = u32::try_from(plan.quantum).unwrap_or(0);
+                match head
+                    .get(..filled)
+                    .and_then(|h| audio::alac_samples(h, plan.alac_element, frame_length))
+                {
+                    Some((samples, own)) => {
+                        stated = own;
+                        samples
+                    }
+                    None => {
+                        plan.fail("an Apple Lossless packet without a valid element header");
+                        continue;
+                    }
+                }
+            }
+            Codec::Ac3 | Codec::Eac3 => {
+                if plan.audio_config.is_empty() {
+                    if size > MAX_FIRST_FRAME {
+                        plan.fail("an AC-3 or E-AC-3 frame larger than 288 KiB");
+                        continue;
+                    }
+                    let mut first = vec![0u8; usize::try_from(size).unwrap_or(0)];
+                    frame_head(source, &plan.prefix, packet.offset, stored, &mut first)?;
+                    let built = if plan.codec == Codec::Ac3 {
+                        audio::dac3(&first)
+                            .filter(|(_, _, bytes)| bytes.is_none_or(|b| b == first.len()))
+                            .map(|(config, rate, _)| (config, rate))
+                            .ok_or("AC-3 frames that are not one syncframe each")
+                    } else {
+                        audio::dec3(&first)
+                    };
+                    match built {
+                        Ok((config, rate)) => {
+                            plan.audio_config = config;
+                            plan.timescale = rate;
+                        }
+                        Err(reason) => {
+                            plan.fail(reason);
+                            continue;
+                        }
+                    }
+                }
+                audio::AC3_FRAME
+            }
+            _ => u32::try_from(plan.quantum).unwrap_or(0),
         };
         plan.samples.push(Record {
             offset: packet.offset,
@@ -1214,6 +1502,7 @@ fn list_samples<S: Source>(
             block_ns,
             block_duration_ns,
             frame,
+            stated,
             keyframe: packet.keyframe,
         });
     }
@@ -1294,6 +1583,30 @@ fn parameter_sets<S: Source>(
         }
     }
     Ok(sets)
+}
+
+/// Fills `head` with the first bytes of a frame as a decoder sees them:
+/// the track's header-stripping prefix, then the stored bytes at `offset`.
+/// Returns how many bytes it filled, fewer than `head` holds when the
+/// frame is shorter.
+fn frame_head<S: Source>(
+    source: &mut S,
+    prefix: &[u8],
+    offset: u64,
+    stored: u32,
+    head: &mut [u8],
+) -> Result<usize, MatroskaRemuxError> {
+    let mut filled = 0;
+    for (slot, byte) in head.iter_mut().zip(prefix) {
+        *slot = *byte;
+        filled += 1;
+    }
+    let wanted = (head.len() - filled).min(usize::try_from(stored).unwrap_or(0));
+    if let Some(rest) = head.get_mut(filled..filled + wanted) {
+        source.read_exact_at(offset, rest)?;
+        filled += wanted;
+    }
+    Ok(filled)
 }
 
 /// The samples at 48 kHz in an Opus packet whose first `len` bytes (at
@@ -1512,8 +1825,8 @@ fn stream_timing(track: &Track, plan: &Plan) -> Result<Timing, MatroskaRemuxErro
     }
 }
 
-/// Audio times: each frame lasts what it decodes to (the Opus TOC; one AAC
-/// frame), unless the next frame's time is more than half a frame away
+/// Audio times: each frame lasts what it decodes to (see [`Record::frame`]),
+/// unless the next frame's time is more than half a frame away
 /// from where this one ends (a pause, a lost frame, timestamps that do not
 /// follow the frames): then it lasts up to that time, rounded to the
 /// codec's quantum, at least one quantum, as Matroska's times are the
@@ -1580,7 +1893,9 @@ fn audio_timing(track: &Track, plan: &Plan) -> Result<Timing, MatroskaRemuxError
         let to_next = |next: i128| round_div(next - time, q).max(1) * q;
         let duration = match (frame, targets.get(k + 1)) {
             (Some(f), Some(&next))
-                if timed.get(k + 1) == Some(&true) && (next - (time + f)).abs() * 2 > f =>
+                if !record.stated
+                    && timed.get(k + 1) == Some(&true)
+                    && (next - (time + f)).abs() * 2 > f =>
             {
                 to_next(next)
             }
@@ -1807,8 +2122,60 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             return Ok(audio_sample_entry(
                 FourCc(*b"Opus"),
                 channels,
+                16,
                 48_000,
                 &[raw(b"dOps", dops)],
+            )?);
+        }
+        Codec::Flac => {
+            let (dfla, info) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::dfla_from_codec_private)
+                .ok_or(coreav_mkv::Error::Unsupported {
+                    reason: "FLAC without its STREAMINFO in CodecPrivate",
+                })?;
+            return Ok(audio_sample_entry(
+                FourCc(*b"fLaC"),
+                info.channels,
+                info.bits,
+                audio::entry_rate(info.sample_rate),
+                &[raw(b"dfLa", dfla)],
+            )?);
+        }
+        Codec::Alac => {
+            let (cookie, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or(coreav_mkv::Error::Unsupported {
+                    reason: "ALAC without its magic cookie in CodecPrivate",
+                })?;
+            return Ok(audio_sample_entry(
+                FourCc(*b"alac"),
+                config.channels,
+                config.bits,
+                audio::entry_rate(config.sample_rate),
+                &[raw(b"alac", cookie)],
+            )?);
+        }
+        Codec::Ac3 | Codec::Eac3 => {
+            let (fourcc, kind) = if track.codec == Codec::Ac3 {
+                (b"ac-3", b"dac3")
+            } else {
+                (b"ec-3", b"dec3")
+            };
+            // Annex F has readers ignore the entry's channel count and take
+            // the configuration's.
+            let channels = track
+                .audio
+                .map_or(2, |a| u16::try_from(a.channels).unwrap_or(2));
+            return Ok(audio_sample_entry(
+                FourCc(*fourcc),
+                channels,
+                16,
+                plan.timescale,
+                &[raw(kind, plan.audio_config.clone())],
             )?);
         }
         Codec::Aac => {
@@ -1821,6 +2188,7 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             return Ok(audio_sample_entry(
                 FourCc(*b"mp4a"),
                 channels,
+                16,
                 plan.timescale,
                 &[raw(b"esds", esds(&config))],
             )?);
@@ -2142,35 +2510,6 @@ fn aac_frame_length(track: &Track) -> u64 {
     } else {
         1024
     }
-}
-
-/// An `esds` payload (ISO/IEC 14496-1 7.2.6.5): an ES descriptor with a
-/// decoder configuration for AAC (object type 0x40, audio stream) holding
-/// `config`, and the predefined SL configuration 2.
-fn esds(config: &[u8]) -> Vec<u8> {
-    fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
-        let mut out = vec![tag];
-        let mut len = body.len();
-        let mut bytes = [0u8; 4];
-        for slot in bytes.iter_mut().rev() {
-            *slot = u8::try_from(len & 0x7F).unwrap_or(0);
-            len >>= 7;
-        }
-        for (i, b) in bytes.iter().enumerate() {
-            out.push(if i < 3 { b | 0x80 } else { *b });
-        }
-        out.extend_from_slice(body);
-        out
-    }
-    let mut decoder = vec![0x40, 0x15, 0, 0, 0];
-    decoder.extend_from_slice(&[0; 8]);
-    decoder.extend(descriptor(0x05, config));
-    let mut es = vec![0, 0, 0];
-    es.extend(descriptor(0x04, &decoder));
-    es.extend(descriptor(0x06, &[0x02]));
-    let mut out = vec![0, 0, 0, 0];
-    out.extend(descriptor(0x03, &es));
-    out
 }
 
 #[cfg(test)]

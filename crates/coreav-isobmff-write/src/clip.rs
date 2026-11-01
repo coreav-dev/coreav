@@ -36,8 +36,8 @@ const AUDIO_ALONE_ID: u32 = 1;
 /// `out`.
 ///
 /// The source is probed with `limits` and `allowlist`. The clip keeps one
-/// video track (H.264 `avc1`, HEVC `hvc1`, AV1 or VP9) and at most one AAC
-/// track, chosen by `options`. It starts at the latest video sync sample
+/// video track (H.264 `avc1`, HEVC `hvc1`, AV1 or VP9) and at most one
+/// audio track (AAC, FLAC, ALAC, AC-3 or E-AC-3), chosen by `options`. It starts at the latest video sync sample
 /// presented at or before `options.start` that loses no frame of the range,
 /// and ends at `options.end` exactly, through edit lists. The
 /// source is listed three times: once to find the start and the end with
@@ -237,7 +237,8 @@ pub fn clip_mp4<S: Source, W: Write>(
     })
 }
 
-/// Cuts a clip of one AAC track of `source`, a file without video or one
+/// Cuts a clip of one audio track (AAC, FLAC, ALAC, AC-3 or E-AC-3) of
+/// `source`, a file without video or one
 /// whose video is not wanted, into an MP4 file written to `out`.
 ///
 /// The clip presents `options.start` to `options.end` (the end of the
@@ -250,7 +251,7 @@ pub fn clip_mp4<S: Source, W: Write>(
 /// writer.
 ///
 /// Fails before writing anything when the file cannot be probed or clipped
-/// (not AAC, an unsupported sample entry or edit list, no audio presented
+/// (another codec, an unsupported sample entry or edit list, no audio presented
 /// in the range); fails with a partial output when the source cannot be
 /// read later on, changes between the listings, or the writer fails.
 pub fn clip_audio_mp4<S: Source, W: Write>(
@@ -324,6 +325,7 @@ pub fn clip_audio_mp4<S: Source, W: Write>(
         &MovieBox {
             timescale: ta,
             created: movie.creation_time,
+            modified: None,
             duration: presented,
             extra: Vec::new(),
         },
@@ -556,6 +558,7 @@ pub(crate) fn write_cut_head<W: Write>(
         Rational::from_int(i128::from(segment))
     };
     let mut tracks = vec![TrackBox {
+        handler_name: None,
         track_id: VIDEO_ID,
         header: TrackFlags::DEFAULT,
         media: Media::Video {
@@ -563,7 +566,9 @@ pub(crate) fn write_cut_head<W: Write>(
             size: video.presentation_size,
         },
         created: video.creation_time,
+        modified: None,
         media_created: video.media_creation_time,
+        media_modified: None,
         language: language(video.language),
         media_timescale: tv,
         media_duration: video_media,
@@ -598,6 +603,7 @@ pub(crate) fn write_cut_head<W: Write>(
         &MovieBox {
             timescale: tm,
             created: movie.creation_time,
+            modified: None,
             duration: movie_duration,
             extra: Vec::new(),
         },
@@ -764,11 +770,14 @@ pub(crate) fn audio_track<'t>(
         duration: tables.duration,
     };
     let track_box = TrackBox {
+        handler_name: None,
         track_id,
         media: Media::Audio,
         header: TrackFlags::DEFAULT,
         created: track.creation_time,
+        modified: None,
         media_created: track.media_creation_time,
+        media_modified: None,
         language: language(track.language),
         media_timescale: ta,
         media_duration,
@@ -1035,8 +1044,15 @@ pub(crate) fn select_audio(movie: &Movie, choice: AudioChoice) -> Result<Option<
     if track.kind != TrackKind::Audio {
         return Err(unsupported("the stream is not an audio track"));
     }
-    if track.description.codec != Codec::Aac {
-        return Err(unsupported("only AAC audio can be copied into a clip"));
+    // Codecs whose every frame decodes on its own: the one sample of
+    // pre-roll before a clip is enough.
+    if !matches!(
+        track.description.codec,
+        Codec::Aac | Codec::Flac | Codec::Alac | Codec::Ac3 | Codec::Eac3
+    ) {
+        return Err(unsupported(
+            "only AAC, FLAC, ALAC, AC-3 or E-AC-3 audio can be copied into a clip",
+        ));
     }
     usable(track)?;
     Ok(Some(track))

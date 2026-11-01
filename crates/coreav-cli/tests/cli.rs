@@ -33,7 +33,7 @@ const CHAPTERS_SCHEMA: &str = include_str!("../../../docs/schema/chapters-v1.sch
 const JOIN_SCHEMA: &str = include_str!("../../../docs/schema/join-v1.schema.json");
 
 const MATROSKA_SCHEMA: &str = include_str!("../../../docs/schema/probe-matroska-v1.schema.json");
-const MPEGTS_SCHEMA: &str = include_str!("../../../docs/schema/probe-mpegts-v1.schema.json");
+const MPEGTS_SCHEMA: &str = include_str!("../../../docs/schema/probe-mpegts-v2.schema.json");
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_coreav")
@@ -163,7 +163,7 @@ fn validate(value: &Value, schema: &Value, root: &Value, at: &str) -> Result<(),
 fn assert_any_schema(document: &Value) {
     match document["schema"].as_str() {
         Some("coreav.probe-matroska/1") => assert_matroska_schema(document),
-        Some("coreav.probe-mpegts/1") => assert_matches(document, MPEGTS_SCHEMA),
+        Some("coreav.probe-mpegts/2") => assert_matches(document, MPEGTS_SCHEMA),
         _ => assert_schema(document),
     }
 }
@@ -1292,7 +1292,7 @@ fn transport_streams_print_their_own_schema() {
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = json(&run.stdout);
     assert_matches(&doc, MPEGTS_SCHEMA);
-    assert_eq!(doc["schema"], "coreav.probe-mpegts/1");
+    assert_eq!(doc["schema"], "coreav.probe-mpegts/2");
     assert_eq!(doc["container"]["packet_size"], 188);
     assert_eq!(doc["container"]["first_packet"], 0);
     assert_eq!(doc["container"]["scanned"], false);
@@ -1324,7 +1324,7 @@ fn a_transport_stream_after_other_bytes_is_found() {
     let run = run(&[], &path);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = json(&run.stdout);
-    assert_eq!(doc["schema"], "coreav.probe-mpegts/1");
+    assert_eq!(doc["schema"], "coreav.probe-mpegts/2");
     assert_eq!(doc["container"]["first_packet"], 77);
     assert_eq!(doc["streams"].as_array().unwrap().len(), 1);
 }

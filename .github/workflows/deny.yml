@@ -13,13 +13,18 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # A group of the merge queue: the pull requests queued, applied to main
+  # (docs/design/ci-checks.md, "The merge queue").
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
 
 concurrency:
   # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
+  # main, manual runs and merge groups each get their own group, so none is
+  # dropped.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -55,6 +60,36 @@ jobs:
           python3 -I scripts/issue_refs_check_selftest.py
           python3 -I scripts/dco_check_selftest.py
           python3 -I scripts/label_sync.py --check
+      # An expression has to use a context GitHub makes available where it
+      # stands: a `runner` expression in a job's `env:` parses as YAML, passes
+      # the checks above and fails only when the workflow runs. actionlint
+      # holds GitHub's availability table, so it runs here rather than
+      # that rule being rewritten in scripts/workflow_check.py's line parser.
+      # Its shellcheck and pyflakes passes are off: they judge scripts, not
+      # expressions. The fixture it writes is the mistake this step exists
+      # for, which has to fail.
+      - name: Check the expressions of the workflows
+        env:
+          VERSION: 1.7.12
+          SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/actionlint.tar.gz" \
+            "https://github.com/rhysd/actionlint/releases/download/v$VERSION/actionlint_${VERSION}_linux_amd64.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes=
+          # GitHub expands an expression anywhere in this script before it
+          # runs, so the fixture's opening is put together here.
+          open='$''{{'
+          printf '%s\n' 'on: push' 'jobs:' '  probe:' '    runs-on: ubuntu-24.04' '    env:' \
+            "      DIR: $open runner.temp }}/out" '    steps:' '      - run: echo hi' \
+            > "$RUNNER_TEMP/runner-in-job-env.yml"
+          if found=$("$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= "$RUNNER_TEMP/runner-in-job-env.yml" 2>&1); then
+            echo 'actionlint accepted a runner expression in a job env' >&2
+            exit 1
+          fi
+          grep -q 'context "runner" is not allowed here' <<< "$found"
       # tools/compat-corpus/commands-v1 stays what tools/compat-corpus/classify.py says
       # it is, the vocabulary table of docs/design/compat-cli.md stays what
       # that file implements (docs/design/compat-cli.md, bar B5), and
@@ -123,7 +158,9 @@ jobs:
       - name: Every commit has a Signed-off-by line with its author's email
         # Runs even when a deny step failed, so both results show at once.
         # Commits already on main are skipped (docs/design/ci-checks.md,
-        # "DCO sign-off").
+        # "DCO sign-off"). Not in a merge group: the queue adds no commit of
+        # its own author, only the squash of a pull request whose commits
+        # this step passed (docs/design/ci-checks.md, "The merge queue").
         if: always() && github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}

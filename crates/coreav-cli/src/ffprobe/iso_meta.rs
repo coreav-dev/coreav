@@ -134,38 +134,14 @@ pub struct Cover {
     pub offset: u64,
 }
 
-/// Whether an item list entry is a cover picture: `covr`, or the
-/// QuickTime metadata key `com.apple.quicktime.artwork`.
-fn is_cover(key: &metadata::ListKey) -> bool {
-    match key {
-        metadata::ListKey::Atom(kind) => kind.0 == *b"covr",
-        metadata::ListKey::Key { name, .. } => name.as_slice() == b"com.apple.quicktime.artwork",
-        _ => false,
-    }
-}
-
-/// The covers of the movie's item lists, in file order, that `ffprobe`
-/// lists: those typed JPEG (13) or PNG (14) (found black box: the same picture typed 0 or 1 is not listed; one typed
-/// 27, BMP, is listed as BMP, which is not described here).
+/// The movie's cover pictures, one per data value, with a metadata handler,
+/// typed JPEG (13) or PNG (14).
 fn covers(meta: &metadata::Metadata) -> Vec<Cover> {
-    meta.items
-        .iter()
-        .filter(|item| item.track.is_none())
-        .filter_map(|item| match &item.value {
-            metadata::ItemValue::ListItem {
-                key,
-                data: Some(data),
-                ..
-            } if !data.value.is_empty()
-                && is_cover(key)
-                && matches!(data.type_indicator, 13 | 14) =>
-            {
-                Some(Cover {
-                    data: data.value.clone(),
-                    offset: data.offset,
-                })
-            }
-            _ => None,
+    meta.covers()
+        .filter(|data| matches!(data.type_indicator, 13 | 14))
+        .map(|data| Cover {
+            data: data.value.clone(),
+            offset: data.offset,
         })
         .collect()
 }
@@ -680,7 +656,7 @@ fn item_tags(dict: &mut Dict, item: &Item) {
             if *list == (ListPlace::Meta { handler: None }) {
                 return;
             }
-            let Some(data) = data else {
+            let Some(data) = data.first() else {
                 return;
             };
             match key {
@@ -1243,12 +1219,12 @@ mod tests {
                 handler: Some(FourCc(*b"mdir")),
             },
             key: ListKey::Atom(FourCc(*kind)),
-            data: Some(ItemData {
+            data: vec![ItemData {
                 type_indicator,
                 locale: 0,
                 value: value.to_vec(),
                 offset: 0,
-            }),
+            }],
         }
     }
 

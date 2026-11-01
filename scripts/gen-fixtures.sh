@@ -362,6 +362,12 @@ try_gen multitrack.mp4 \
   -metadata:s:a:0 language=eng -metadata:s:a:1 language=kor -metadata:s:s:0 language=eng
 rm -f "$OUT/subs.srt"
 
+# --- Audio before video, both tagged English (docs/design/compat-cli.md,
+# "Stream order"): ffmpeg's automatic selection writes the video first, and
+# -map 0:v -map 0:m:language:eng maps the video twice. ---
+try_gen av_audio_first.mp4 "${ASRC[@]}" "${VSRC[@]}" -map 0:a -map 1:v "${VID[@]}" "${AUD[@]}" \
+  -metadata:s:a:0 language=eng -metadata:s:v:0 language=eng
+
 # --- Text (docs/design/text.md): 3GPP timed text with styling, non-ASCII
 # text, characters WebVTT escapes, line breaks and gaps; a subtitle track
 # shifted by an edit; and QuickTime chapter tracks in MP4, M4A and MOV. The
@@ -603,6 +609,11 @@ try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
 try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
 try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
+try_gen codec_flac.mp4 "${KAUD[@]}" -c:a flac -strict -2
+# Video beside each audio codec the clip, split and join writers copy.
+for codec in flac alac ac3 eac3; do
+  try_gen "av_$codec.mp4" "${SRC[@]}" "${VID[@]}" -c:a "$codec" -strict -2 -shortest
+done
 # The pinned FFmpeg's MP4 muxer refuses libvorbis packets straight from the
 # encoder (Invalid data) and takes the same stream copied from Ogg.
 if "${FF[@]}" "${KAUD[@]}" -c:a libvorbis "$OUT/.codec_vorbis.ogg" 2> "$OUT/codec_vorbis.mp4.log"; then

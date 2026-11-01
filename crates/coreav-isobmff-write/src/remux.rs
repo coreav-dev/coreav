@@ -3,9 +3,12 @@
 //! samples, the movie box first. Written from ISO/IEC 14496-12 (boxes,
 //! sample tables, edit lists), ISO/IEC 14496-14 (MP4), ISO/IEC 14496-15
 //! (AVC and HEVC sample entries), the AV1 and VP codec ISO media file
-//! format bindings, the Opus in ISOBMFF encapsulation and the QuickTime
-//! File Format (its sound sample entry versions and language codes).
+//! format bindings, the Opus in ISOBMFF encapsulation, the FLAC-in-ISOBMFF
+//! mapping, Apple's ALAC magic cookie description, ETSI TS 102 366 Annex F
+//! (AC-3 and E-AC-3) and the QuickTime File Format (its sound sample entry
+//! versions and language codes).
 
+use crate::audio;
 use crate::copy::Shared;
 use crate::moov::UNITY;
 use crate::moov::{TrackFlags, language, overflow, rescale};
@@ -13,7 +16,10 @@ use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
     audio_sample_entry, visual_sample_entry,
 };
-use crate::replace::{Replacement, ReplacementSample, durations, validate};
+use crate::replace::{
+    AudioReplacement, ReplacementSample, Replacements, audio_edits, audio_edits_exact, durations,
+    roll_boxes, validate, validate_audio,
+};
 use crate::sanitize::{AUDIO_KEPT, EntryBox, Removed, VISUAL_KEPT, describe, entry_box, rewrite};
 use crate::scan::{FileScan, MAX_PATH, Path, Skipped, TrakScan, read_elst, scan};
 use crate::{
@@ -23,7 +29,7 @@ use crate::{
 use core::cell::RefCell;
 use coreav_isobmff::{
     Allowlist, BoxHeader, Budget, Codec, EditList, Error, FourCc, LimitKind, Limits, Movie,
-    Packets, SliceSource, Source, Track, TrackKind, probe,
+    Packets, Parsed, SliceSource, Source, Track, TrackKind, metadata, parse_box_header, probe,
 };
 use std::io::Write;
 
@@ -41,14 +47,15 @@ const MAX_REPORTED: usize = 256;
 ///
 /// The source is probed with `limits` and `allowlist`. Every stream that
 /// MP4 can carry is kept, or those `options` names: H.264, HEVC, AV1 and
-/// VP9 video, AAC, MP3 and Opus audio. Other streams (ProRes, PCM, timed
+/// VP9 video, AAC, MP3, Opus, FLAC, ALAC, AC-3 and E-AC-3 audio. Other streams (ProRes, PCM, timed
 /// text, timecode, data) are dropped and listed in the summary, or fail
 /// the remux under [`OnUnsupported::Fail`]. Every sample of a kept stream
 /// is copied unchanged, with its duration, composition offset and sync
 /// flag; the edit list, the media and movie timescales, the declared media
 /// duration, the language, the track header flags and matrix, the sample
 /// entry's child boxes and the movie's and tracks' `udta` and `meta` boxes
-/// are copied as stored. A fragmented source becomes an unfragmented file.
+/// are copied as stored, less the cover pictures `options` leaves out. A
+/// fragmented source becomes an unfragmented file.
 /// Every other box is listed in the summary as dropped.
 ///
 /// The source is listed twice per kept stream, once for the sample tables
@@ -68,13 +75,19 @@ pub fn remux_mp4<S: Source, W: Write>(
     options: &RemuxOptions,
     out: W,
 ) -> Result<RemuxSummary, ExtractError> {
-    remux::<S, SliceSource<'static>, W>(source, limits, allowlist, options, None, out)
+    let none = Replacements::<SliceSource<'static>> {
+        video: None,
+        audio: None,
+    };
+    remux(source, limits, allowlist, options, none, out)
 }
 
-/// [`remux_mp4`] with one video stream of the source replaced by the
-/// samples of `replacement` (`docs/design/remux.md`, "One video stream
-/// replaced"); every other stream is written exactly as [`remux_mp4`]
-/// writes it.
+/// [`remux_mp4`] with one video stream of the source, one audio stream, or
+/// one of each, replaced by the samples of `replacements`
+/// (`docs/design/remux.md`, "Replaced streams"); every other stream is
+/// written exactly as [`remux_mp4`] writes it. A replaced audio stream is
+/// written as [`AudioReplacement`] describes, on a timeline of its own; the
+/// rest of this description is the video stream's.
 ///
 /// The replaced stream keeps the source track's place in the track order,
 /// its language, matrix (rotation), flags, layer, alternate group,
@@ -104,36 +117,56 @@ pub fn remux_mp4<S: Source, W: Write>(
 /// movie timescale. Without an edit list and with a first decode time of
 /// 0, none is written.
 ///
-/// Fails before writing anything when the replacement is invalid
+/// Where an audio replacement's edits would round in the movie timescale,
+/// it becomes a common multiple of it and the replacement's timescale, as
+/// for the video stream's empty edit.
+///
+/// Fails before writing anything when a replacement is invalid
 /// ([`Replacement`]: a sample entry box of a known type, decode times
 /// strictly increasing, presentation at or after decode, every sample
-/// within `replacement.data`), when `stream_index` is not a video stream
-/// of the source (or the allowlist dropped it, or `options.streams` leaves
-/// it out), when nothing of the replacement would be presented, or when
-/// the output tables exceed `limits`; later failures are those of
-/// [`remux_mp4`], and a read error of `replacement.data`.
+/// within `replacement.data`; [`AudioReplacement`]), when a
+/// `stream_index` is not a stream of its kind in the source (or the
+/// allowlist dropped it, or `options.streams` leaves it out), when nothing
+/// of the video replacement would be presented, or when the output tables
+/// exceed `limits`; later failures are those of [`remux_mp4`], and a read
+/// error of a replacement's data.
 pub fn remux_mp4_replacing<S: Source, R: Source, W: Write>(
     source: S,
     limits: &Limits,
     allowlist: &Allowlist,
     options: &RemuxOptions,
-    replacement: Replacement<'_, R>,
+    replacements: Replacements<'_, R>,
     out: W,
 ) -> Result<RemuxSummary, ExtractError> {
-    remux(source, limits, allowlist, options, Some(replacement), out)
+    remux(source, limits, allowlist, options, replacements, out)
 }
 
-/// The full-file remux, with or without a replaced stream.
+/// Which replacement a stream's samples are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Replaced {
+    Video,
+    Audio,
+}
+
+/// The full-file remux, with or without replaced streams.
 fn remux<S: Source, R: Source, W: Write>(
     source: S,
     limits: &Limits,
     allowlist: &Allowlist,
     options: &RemuxOptions,
-    mut replacement: Option<Replacement<'_, R>>,
+    replacements: Replacements<'_, R>,
     mut out: W,
 ) -> Result<RemuxSummary, ExtractError> {
+    let Replacements {
+        video: mut replacement,
+        mut audio,
+    } = replacements;
     let replaced_codec = match replacement.as_mut() {
         Some(r) => Some(validate(r, limits)?),
+        None => None,
+    };
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, limits)?),
         None => None,
     };
     let mut source = source;
@@ -158,6 +191,13 @@ fn remux<S: Source, R: Source, W: Write>(
         .into());
     }
     if let Some(wanted) = &options.streams {
+        if u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(limits.max_tracks) {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::Tracks,
+                offset: 0,
+            }
+            .into());
+        }
         for index in wanted {
             if *index >= streams {
                 return Err(Error::NoSuchTrack.into());
@@ -172,30 +212,69 @@ fn remux<S: Source, R: Source, W: Write>(
         }
     }
     if let Some(r) = &replacement {
-        check_replaced(&movie, r.stream_index, options)?;
+        check_replaced(&movie, r.stream_index, TrackKind::Video, options)?;
+    }
+    if let Some(a) = &audio {
+        check_replaced(&movie, a.stream_index, TrackKind::Audio, options)?;
+        if replacement
+            .as_ref()
+            .is_some_and(|r| r.stream_index == a.stream_index)
+        {
+            return Err(unsupported("one stream replaced twice").into());
+        }
     }
     let mut retained = Retained::new(limits);
     let mut dropped_tracks = Vec::new();
     let drop_unsupported =
         options.on_unsupported == OnUnsupported::Drop && options.streams.is_none();
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<&Track> = match &options.streams {
+        None => movie.tracks.iter().collect(),
+        Some(wanted) => {
+            for track in &movie.tracks {
+                if !wanted.contains(&track.stream_index) {
+                    dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
+                }
+            }
+            if (replacement.is_some() || audio.is_some())
+                && wanted
+                    .iter()
+                    .enumerate()
+                    .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+            {
+                return Err(unsupported("a stream named twice beside a replaced stream").into());
+            }
+            wanted
+                .iter()
+                .map(|i| {
+                    movie
+                        .tracks
+                        .iter()
+                        .find(|t| t.stream_index == *i)
+                        .ok_or(Error::NoSuchTrack)
+                })
+                .collect::<Result<_, _>>()?
+        }
+    };
     // What every kept stream needs (its sample entry and edit list) is read
     // first; the optional metadata gets what `max_retained_bytes` leaves.
     let mut plans = Vec::new();
-    for track in &movie.tracks {
-        let selected = options
-            .streams
-            .as_ref()
-            .is_none_or(|s| s.contains(&track.stream_index));
-        if !selected {
-            dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
-            continue;
-        }
+    for track in order {
         let trak = file.traks.get(track.stream_index).ok_or_else(overflow)?;
         let before = retained.left;
-        let replace = replacement
-            .as_ref()
-            .filter(|r| r.stream_index == track.stream_index)
-            .map(|r| (r.sample_entry, r.width, r.height));
+        let replace = match (&replacement, &audio) {
+            (Some(r), _) if r.stream_index == track.stream_index => Some(Replace::Video {
+                entry: r.sample_entry,
+                width: r.width,
+                height: r.height,
+            }),
+            (_, Some(a)) if a.stream_index == track.stream_index => Some(Replace::Audio {
+                entry: a.sample_entry,
+                timescale: a.timescale,
+            }),
+            _ => None,
+        };
         match plan(
             track,
             trak,
@@ -253,15 +332,15 @@ fn remux<S: Source, R: Source, W: Write>(
     for plan in plans {
         let before = budget.used();
         let index = muxer.add_track(plan.header)?;
-        let replaced = replacement
-            .as_ref()
-            .filter(|_| plan.replaced)
-            .map(|r| (r.samples, r.last_duration));
-        let listed = match replaced {
-            Some((samples, last_duration)) => {
-                list_replaced(&mut muxer, index, samples, last_duration).map(|first| (first, 0))
+        let listed = match (plan.replaced, &replacement, &audio) {
+            (Some(Replaced::Video), Some(r), _) => {
+                list_replaced(&mut muxer, index, r.samples, r.last_duration).map(|first| (first, 0))
             }
-            None => list(
+            (Some(Replaced::Audio), _, Some(a)) => {
+                list_audio(&mut muxer, index, a).map(|()| (0, 0))
+            }
+            (Some(_), _, _) => Err(overflow().into()),
+            (None, _, _) => list(
                 &movie,
                 plan.track,
                 &plan.edits,
@@ -276,9 +355,12 @@ fn remux<S: Source, R: Source, W: Write>(
         match listed {
             Ok((first_dts, composition_end)) => {
                 cleared.extend(plan.cleared);
-                let codec = match replaced_codec.filter(|_| plan.replaced) {
-                    Some(codec) => codec.isobmff(),
-                    None => plan.track.description.codec,
+                let codec = match (plan.replaced, replaced_codec) {
+                    (Some(Replaced::Video), Some(codec)) => codec.isobmff(),
+                    (Some(Replaced::Audio), _) => {
+                        audio_codec.map_or(plan.track.description.codec, |c| c.isobmff())
+                    }
+                    _ => plan.track.description.codec,
                 };
                 kept.push(Kept {
                     track: plan.track,
@@ -291,11 +373,11 @@ fn remux<S: Source, R: Source, W: Write>(
                     composition_end,
                     codec,
                     replaced: plan.replaced,
-                    declared: plan.declared.filter(|_| !plan.replaced),
+                    declared: plan.declared.filter(|_| plan.replaced.is_none()),
                 });
             }
             Err(ExtractError::Source(Error::Unsupported { reason }))
-                if drop_unsupported && !plan.replaced =>
+                if drop_unsupported && plan.replaced.is_none() =>
             {
                 muxer.pop_track();
                 retained.left = retained.left.saturating_add(plan.retained);
@@ -324,7 +406,11 @@ fn remux<S: Source, R: Source, W: Write>(
     // when one fits 32 bits. Most files keep theirs (and 32-bit headers).
     let mut movie_timescale = movie.timescale;
     if movie.has_fragments() {
-        for (index, k) in kept.iter().enumerate().filter(|(_, k)| !k.replaced) {
+        for (index, k) in kept
+            .iter()
+            .enumerate()
+            .filter(|(_, k)| k.replaced.is_none())
+        {
             let sum = muxer.duration(index).ok_or_else(overflow)?;
             let computed = computed_ticks(&k.edits, k.first_dts, sum, k.composition_end);
             let rounds = computed.iter().flatten().any(|ticks| {
@@ -342,7 +428,11 @@ fn remux<S: Source, R: Source, W: Write>(
     // The replaced stream's edits, in media ticks where they are computed;
     // where one would round, the movie timescale grows the same way.
     let mut replaced_edits = None;
-    for (index, k) in kept.iter().enumerate().filter(|(_, k)| k.replaced) {
+    for (index, k) in kept
+        .iter()
+        .enumerate()
+        .filter(|(_, k)| k.replaced == Some(Replaced::Video))
+    {
         let Some(r) = replacement.as_ref() else {
             continue;
         };
@@ -373,23 +463,7 @@ fn remux<S: Source, R: Source, W: Write>(
         // other tracks that round in the movie timescale (the plain remux
         // rounds them there): it is left out then, and the replaced
         // stream's empty edit rounds instead.
-        let others_round = movie.has_fragments()
-            && kept
-                .iter()
-                .enumerate()
-                .filter(|(_, o)| !o.replaced)
-                .any(|(i, o)| {
-                    let sum = muxer.duration(i).unwrap_or(0);
-                    computed_ticks(&o.edits, o.first_dts, sum, o.composition_end)
-                        .iter()
-                        .flatten()
-                        .any(|ticks| {
-                            u128::from(*ticks)
-                                .saturating_mul(u128::from(movie_timescale))
-                                .checked_rem(u128::from(o.track.timescale))
-                                .is_some_and(|r| r != 0)
-                        })
-                });
+        let others_round = others_round(&movie, &kept, &muxer, movie_timescale);
         if !others_round
             && planned
                 .as_ref()
@@ -398,6 +472,14 @@ fn remux<S: Source, R: Source, W: Write>(
             movie_timescale = lcm(movie_timescale, k.track.timescale).unwrap_or(movie_timescale);
         }
         replaced_edits = Some((index, planned));
+    }
+    // The audio replacement's edits, the same way.
+    if let Some(a) = &audio {
+        if !audio_edits_exact(a, movie_timescale)
+            && !others_round(&movie, &kept, &muxer, movie_timescale)
+        {
+            movie_timescale = lcm(movie_timescale, a.timescale).unwrap_or(movie_timescale);
+        }
     }
     let factor = movie_timescale / movie.timescale.max(1);
     muxer.set_movie_timescale(movie_timescale)?;
@@ -415,7 +497,15 @@ fn remux<S: Source, R: Source, W: Write>(
         }
     }
     for (index, k) in kept.iter().enumerate() {
-        if k.replaced {
+        if k.replaced == Some(Replaced::Audio) {
+            let edits = match &audio {
+                Some(a) => audio_edits(a, movie_timescale)?,
+                None => Vec::new(),
+            };
+            muxer.set_edits(index, edits)?;
+            continue;
+        }
+        if k.replaced.is_some() {
             let edits = match &replaced_edits {
                 Some((i, Some(planned))) if *i == index => {
                     planned.edits(factor, movie_timescale, k.track.timescale)?
@@ -485,9 +575,13 @@ fn remux<S: Source, R: Source, W: Write>(
             .with(FourCc(*b"stbl"));
         // A replaced stream's per-sample information describes the old
         // samples.
-        if fragmented || k.replaced {
+        if fragmented || k.replaced.is_some() {
             for header in &k.trak.sample_info {
                 k.gone.push(Gone::not_carried(stbl_path, *header));
+            }
+            if let (Some(Replaced::Audio), Some(a)) = (k.replaced, &audio) {
+                let samples = muxer.samples(index).ok_or_else(overflow)?;
+                muxer.set_sample_table_boxes(index, roll_boxes(samples, a.roll))?;
             }
         } else {
             let info = copy_boxes(
@@ -513,12 +607,14 @@ fn remux<S: Source, R: Source, W: Write>(
         )?;
         muxer.set_movie_boxes(rewrite(&rewritten)?.into_iter().collect())?;
     } else {
-        let movie_tags = copy_boxes(
+        let movie_tags = tags_without(
             None,
             Path::top().with(FourCc(*b"moov")),
             &file.tags,
+            Exclude::Values(&options.left_out_covers),
             &mut source,
             &mut retained,
+            &mut |g| note(&mut movie_gone, &mut movie_more, g),
         )?;
         muxer.set_movie_boxes(movie_tags)?;
     }
@@ -560,7 +656,7 @@ fn remux<S: Source, R: Source, W: Write>(
         };
         budgets.push((copy_limits, Budget::new(&copy_limits)));
     }
-    if let Some(r) = replacement {
+    if replacement.is_some() || audio.is_some() {
         // Its own loop, so that the plain remux's stays as it was.
         copy_replaced(
             &movie,
@@ -568,7 +664,8 @@ fn remux<S: Source, R: Source, W: Write>(
             &muxer,
             &shared,
             &mut budgets,
-            r.data,
+            replacement.map(|r| r.data),
+            audio.map(|a| a.data),
             &mut out,
         )?;
     } else {
@@ -619,9 +716,9 @@ fn remux<S: Source, R: Source, W: Write>(
             kind: k.track.kind,
             codec: k.codec,
             samples: muxer.samples(index).ok_or_else(overflow)?,
-            timescale: k.track.timescale,
+            timescale: muxer.header(index).ok_or_else(overflow)?.timescale,
             duration: muxer.duration(index).ok_or_else(overflow)?,
-            replaced: k.replaced,
+            replaced: k.replaced.is_some(),
         });
     }
     Ok(RemuxSummary {
@@ -670,26 +767,44 @@ struct Cursor<'a, S: Source> {
     copied: u32,
 }
 
-/// Pass 2 with a replaced stream: the source's kept streams are listed
-/// again as in the plain remux; the replacement's samples are read from
-/// `data` in order, through a window of their own.
+/// A replacement's data in the copy pass: its next sample, that sample's
+/// offset, and a window of its own.
+struct Feed<R> {
+    data: R,
+    copied: u32,
+    offset: u64,
+    window: CopyWindow,
+}
+
+/// Pass 2 with replaced streams: the source's kept streams are listed
+/// again as in the plain remux; each replacement's samples are read from
+/// its data (`video`, `audio`) in order, through a window of their own.
 #[inline(never)]
+#[allow(clippy::too_many_arguments)]
 fn copy_replaced<S: Source, R: Source, W: Write>(
     movie: &Movie,
     kept: &[Kept<'_>],
     muxer: &Muxer,
     shared: &RefCell<S>,
     budgets: &mut [(Limits, Budget)],
-    mut data: R,
+    video: Option<R>,
+    audio: Option<R>,
     out: &mut W,
 ) -> Result<(), ExtractError> {
-    // `None` for the replaced stream.
+    let feed = |data| Feed {
+        data,
+        copied: 0,
+        offset: 0,
+        window: CopyWindow::new(),
+    };
+    let (mut video, mut audio) = (video.map(feed), audio.map(feed));
+    // `None` for a replaced stream.
     let mut cursors: Vec<Option<Cursor<'_, S>>> = Vec::new();
     cursors
         .try_reserve_exact(kept.len())
         .map_err(|_| overflow())?;
     for (k, (copy_limits, budget)) in kept.iter().zip(budgets.iter_mut()) {
-        cursors.push(if k.replaced {
+        cursors.push(if k.replaced.is_some() {
             None
         } else {
             Some(Cursor {
@@ -698,21 +813,28 @@ fn copy_replaced<S: Source, R: Source, W: Write>(
             })
         });
     }
-    let (mut window, mut replaced_window) = (CopyWindow::new(), CopyWindow::new());
-    // The replacement's next sample and its offset in `data`.
-    let (mut replaced_copied, mut offset) = (0u32, 0u64);
+    let mut window = CopyWindow::new();
     muxer.for_each_chunk(|track, samples| -> Result<(), ExtractError> {
         let cursor = cursors.get_mut(track).ok_or_else(overflow)?;
         for _ in 0..samples {
             let Some(cursor) = cursor.as_mut() else {
+                let feed = match kept.get(track).and_then(|k| k.replaced) {
+                    Some(Replaced::Video) => video.as_mut(),
+                    Some(Replaced::Audio) => audio.as_mut(),
+                    None => None,
+                }
+                .ok_or(ExtractError::SourceChanged)?;
                 let size = muxer
-                    .sample_size(track, replaced_copied)
+                    .sample_size(track, feed.copied)
                     .ok_or(ExtractError::SourceChanged)?;
-                replaced_window.copy(&mut data, offset, size, &mut *out)?;
-                offset = offset
+                feed.window
+                    .copy(&mut feed.data, feed.offset, size, &mut *out)?;
+                feed.offset = feed
+                    .offset
                     .checked_add(u64::from(size))
                     .ok_or(ExtractError::SourceChanged)?;
-                replaced_copied = replaced_copied
+                feed.copied = feed
+                    .copied
                     .checked_add(1)
                     .ok_or(ExtractError::SourceChanged)?;
                 continue;
@@ -730,8 +852,13 @@ fn copy_replaced<S: Source, R: Source, W: Write>(
         Ok(())
     })?;
     for (index, cursor) in cursors.iter().enumerate() {
-        let copied = cursor.as_ref().map_or(replaced_copied, |c| c.copied);
-        if muxer.samples(index) != Some(copied) {
+        let copied = match (cursor, kept.get(index).and_then(|k| k.replaced)) {
+            (Some(c), _) => Some(c.copied),
+            (None, Some(Replaced::Video)) => video.as_ref().map(|f| f.copied),
+            (None, Some(Replaced::Audio)) => audio.as_ref().map(|f| f.copied),
+            (None, None) => None,
+        };
+        if copied.is_none() || muxer.samples(index) != copied {
             return Err(ExtractError::SourceChanged);
         }
     }
@@ -755,11 +882,11 @@ struct Plan<'m> {
     /// Header fields that sanitization clears.
     cleared: Vec<Cleared>,
     /// The stream's samples are a replacement's.
-    replaced: bool,
+    replaced: Option<Replaced>,
 }
 
 /// A box of the source that the output leaves out, and why.
-struct Gone {
+pub(crate) struct Gone {
     skipped: Skipped,
     reason: BoxDropReason,
     kind: Option<MetadataKind>,
@@ -824,20 +951,20 @@ struct Kept<'m> {
     /// The output's codec: the source's, or the replacement's.
     codec: Codec,
     /// The stream's samples are a replacement's.
-    replaced: bool,
+    replaced: Option<Replaced>,
     /// The track header duration set from the source, in its movie ticks.
     declared: Option<u64>,
 }
 
 /// Metadata bytes kept so far, against `max_retained_bytes`, and the
 /// optional boxes left out for size.
-struct Retained {
+pub(crate) struct Retained {
     left: u64,
     too_large: Vec<(Option<usize>, Skipped)>,
 }
 
 impl Retained {
-    fn new(limits: &Limits) -> Self {
+    pub(crate) fn new(limits: &Limits) -> Self {
         Self {
             left: limits.max_retained_bytes,
             too_large: Vec::new(),
@@ -893,9 +1020,105 @@ impl Retained {
     }
 }
 
+/// Which item list entries [`tags_without`] leaves out.
+#[derive(Clone, Copy)]
+pub(crate) enum Exclude<'a> {
+    /// The `data` values that start at these offsets (the cover pictures
+    /// of streams a remux does not carry), each of which must be found.
+    Values(&'a [u64]),
+    /// Every cover entry ([`metadata::is_cover_entry`]: `covr`, or keyed
+    /// artwork), whole, and the item box that starts at `item`. A `meta`
+    /// box whose `keys` box does not hold every key it counts is left out.
+    /// A user data, metadata or item list box whose children do not parse
+    /// to its end is cut where they stop, so that no such item is copied
+    /// unseen, and a box `item` lies in is left out when the walk does not
+    /// reach the item.
+    Extraction { item: Option<u64> },
+}
+
+/// The `udta` and `meta` boxes `tags`, children of `parent` (of stream
+/// `stream`, or of the movie), as stored, without the item list entries
+/// `exclude` names ([`without_covers`]); each box left out goes to
+/// `gone`, and a box larger than what `retained` leaves is left out and
+/// listed there. Fails with [`Error::NoSuchTrack`] when an offset of
+/// [`Exclude::Values`] starts no `data` value of those boxes, unless it
+/// lies in a box left out for size.
+pub(crate) fn tags_without<S: Source>(
+    stream: Option<usize>,
+    parent: Path,
+    tags: &[BoxHeader],
+    exclude: Exclude<'_>,
+    source: &mut S,
+    retained: &mut Retained,
+    gone: &mut dyn FnMut(Gone),
+) -> Result<Vec<RawBox>, Error> {
+    let mut boxes = Vec::new();
+    let mut left = Left {
+        found: Vec::new(),
+        gone,
+    };
+    for header in tags {
+        for tag in copy_boxes(
+            stream,
+            parent,
+            core::slice::from_ref(header),
+            source,
+            retained,
+        )? {
+            let at = header.payload_offset();
+            let inside = |offset: &u64| at < *offset && *offset < header.end();
+            let edited = match exclude {
+                Exclude::Values(left_out) if !left_out.iter().any(inside) => Edited::Same,
+                _ => without_covers(
+                    Level::of(tag.kind),
+                    &tag.payload,
+                    at,
+                    parent.with(tag.kind),
+                    exclude,
+                    &[],
+                    &mut left,
+                )?,
+            };
+            let removed = matches!(edited, Edited::Removed);
+            let unreached = match exclude {
+                Exclude::Extraction { item: Some(item) } => {
+                    inside(&item) && !left.found.contains(&item)
+                }
+                _ => false,
+            };
+            if removed || unreached {
+                (left.gone)(Gone::not_carried(parent, *header));
+                continue;
+            }
+            boxes.push(match edited {
+                Edited::Changed(payload) => RawBox {
+                    kind: tag.kind,
+                    payload,
+                },
+                Edited::Same | Edited::Removed => tag,
+            });
+        }
+    }
+    if let Exclude::Values(left_out) = exclude {
+        // A cover inside a box too large to copy is left out with it.
+        let too_large = |offset: u64| {
+            retained.too_large.iter().any(|(s, skipped)| {
+                *s == stream && skipped.header.offset < offset && offset < skipped.header.end()
+            })
+        };
+        if left_out
+            .iter()
+            .any(|o| !left.found.contains(o) && !too_large(*o))
+        {
+            return Err(Error::NoSuchTrack);
+        }
+    }
+    Ok(boxes)
+}
+
 /// Boxes as stored; a box larger than what `max_retained_bytes` leaves is
 /// listed as dropped instead.
-fn copy_boxes<S: Source>(
+pub(crate) fn copy_boxes<S: Source>(
     stream: Option<usize>,
     parent: Path,
     tags: &[BoxHeader],
@@ -921,6 +1144,183 @@ fn copy_boxes<S: Source>(
     Ok(boxes)
 }
 
+/// Where a box sits in the item list layout that [`without_covers`] walks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Level {
+    /// A user data box (`udta`, ISO/IEC 14496-12 8.10.1).
+    UserData,
+    /// A metadata box (`meta`, 8.11.1, or QuickTime's without version and
+    /// flags).
+    Meta,
+    /// An item list (`ilst`).
+    List,
+    /// One entry of an item list: its `data` boxes and others.
+    Item,
+    /// Anything else, copied as stored.
+    Other,
+}
+
+impl Level {
+    /// The level of a child of the movie box.
+    fn of(kind: FourCc) -> Self {
+        match &kind.0 {
+            b"udta" => Self::UserData,
+            b"meta" => Self::Meta,
+            _ => Self::Other,
+        }
+    }
+
+    /// The level of a child of `kind` at this level.
+    fn child(self, kind: FourCc) -> Self {
+        match (self, &kind.0) {
+            (Self::UserData, b"meta") => Self::Meta,
+            (Self::UserData | Self::Meta, b"ilst") => Self::List,
+            (Self::List, kind) if kind != b"uuid" => Self::Item,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// What [`without_covers`] did to a box.
+enum Edited {
+    Same,
+    Removed,
+    Changed(Vec<u8>),
+}
+
+/// What a walk of [`without_covers`] leaves out: the offsets it found, and
+/// each box, given to `gone`.
+struct Left<'g> {
+    found: Vec<u64>,
+    gone: &'g mut dyn FnMut(Gone),
+}
+
+/// The payload of a box at `level` that starts at `at` in the file
+/// (under `path`, its own type included), without the item list entries
+/// `exclude` names: with [`Exclude::Values`], the `data` boxes whose
+/// values start at one of its offsets, and an item left with no `data`
+/// box; with [`Exclude::Extraction`], whole items, a list's entries keyed
+/// by `keys` (its `meta` box's) as [`metadata::is_cover_entry`] reads
+/// them. Each offset it leaves out is added to `left.found`, and each box
+/// to `left.gone`: the item, or the `data` box of an item that stays. A child
+/// list that does not parse ends the walk; the bytes after it are kept as
+/// stored, except that an extraction cuts them when they could hold a box,
+/// and leaves out a `meta` box whose `keys` box does not hold every key it
+/// counts.
+fn without_covers(
+    level: Level,
+    payload: &[u8],
+    at: u64,
+    path: Path,
+    exclude: Exclude<'_>,
+    keys: &[(FourCc, &[u8])],
+    left: &mut Left<'_>,
+) -> Result<Edited, Error> {
+    let start = match level {
+        Level::Meta if payload.get(4..8) != Some(b"hdlr".as_slice()) => 4,
+        Level::UserData | Level::Meta | Level::List | Level::Item => 0,
+        Level::Other => return Ok(Edited::Same),
+    };
+    let mut children = Vec::new();
+    let mut pos = start;
+    while let Some(child) = payload.get(pos..).and_then(|rest| {
+        let offset = at.checked_add(u64::try_from(pos).ok()?)?;
+        let room = u64::try_from(rest.len()).ok()?;
+        match parse_box_header(rest, offset, room) {
+            Ok(Parsed::Done(header)) => Some(header),
+            _ => None,
+        }
+    }) {
+        let end = usize::try_from(child.size)
+            .ok()
+            .and_then(|size| pos.checked_add(size))
+            .ok_or_else(overflow)?;
+        children.push((child, payload.get(pos..end).ok_or_else(overflow)?));
+        pos = end;
+    }
+    let extraction = matches!(exclude, Exclude::Extraction { .. });
+    let meta_keys = match children.iter().find(|(c, _)| c.kind.0 == *b"keys") {
+        Some((child, bytes)) if extraction && level == Level::Meta => {
+            let body = bytes
+                .get(usize::from(child.header_len)..)
+                .ok_or_else(overflow)?;
+            // Without every key, a keyed cover could not be told apart.
+            let Some(keys) = metadata::keys(body) else {
+                return Ok(Edited::Removed);
+            };
+            keys
+        }
+        _ => Vec::new(),
+    };
+    let mut out = payload.get(..start).ok_or_else(overflow)?.to_vec();
+    let mut removed = Vec::new();
+    let (mut changed, mut data_kept) = (false, false);
+    for (child, bytes) in children {
+        let edited = match exclude {
+            Exclude::Values(left_out) if level == Level::Item && child.kind.0 == *b"data" => {
+                let value = child.payload_offset().saturating_add(8);
+                if left_out.contains(&value) {
+                    left.found.push(value);
+                    Edited::Removed
+                } else {
+                    data_kept = true;
+                    Edited::Same
+                }
+            }
+            Exclude::Extraction { item }
+                if level == Level::List
+                    && (metadata::is_cover_entry(child.kind, keys)
+                        || item == Some(child.offset)) =>
+            {
+                left.found.push(child.offset);
+                Edited::Removed
+            }
+            _ => {
+                let body = bytes
+                    .get(usize::from(child.header_len)..)
+                    .ok_or_else(overflow)?;
+                without_covers(
+                    level.child(child.kind),
+                    body,
+                    child.payload_offset(),
+                    path.with(child.kind),
+                    exclude,
+                    &meta_keys,
+                    left,
+                )?
+            }
+        };
+        changed |= !matches!(edited, Edited::Same);
+        match edited {
+            Edited::Same => out.extend_from_slice(bytes),
+            Edited::Removed => removed.push(child),
+            Edited::Changed(body) => {
+                let size = u32::try_from(body.len().saturating_add(8)).map_err(|_| overflow())?;
+                out.extend(size.to_be_bytes());
+                out.extend(child.kind.0);
+                out.extend(body);
+            }
+        }
+    }
+    let tail = payload.get(pos..).unwrap_or_default();
+    // Bytes that could hold a box but do not parse may hide an item an
+    // extraction leaves out.
+    let cut = extraction && level != Level::Item && tail.len() >= 8;
+    if !changed && !cut {
+        return Ok(Edited::Same);
+    }
+    if level == Level::Item && !data_kept {
+        return Ok(Edited::Removed);
+    }
+    for header in removed {
+        (left.gone)(Gone::not_carried(path, header));
+    }
+    if !cut {
+        out.extend_from_slice(tail);
+    }
+    Ok(Edited::Changed(out))
+}
+
 /// A required box's payload as stored (a sample entry child): it is copied
 /// whole or the remux fails.
 fn required<S: Source>(
@@ -943,7 +1343,7 @@ fn plan<'m, S: Source>(
     source: &mut S,
     limits: &Limits,
     retained: &mut Retained,
-    replace: Option<(&[u8], u32, u32)>,
+    replace: Option<Replace<'_>>,
 ) -> Result<Plan<'m>, Error> {
     let start = retained.left;
     let keep = match policy {
@@ -991,7 +1391,14 @@ fn plan<'m, S: Source>(
         .with(FourCc(*b"stsd"))
         .with(description.fourcc);
     let (media, entry) = match (replace, track.kind) {
-        (Some((entry, width, height)), TrackKind::Video) => (
+        (
+            Some(Replace::Video {
+                entry,
+                width,
+                height,
+            }),
+            TrackKind::Video,
+        ) => (
             TrackMedia::Video {
                 matrix: replaced_matrix(track.matrix, track.presentation_size, (width, height))?,
                 width,
@@ -999,7 +1406,18 @@ fn plan<'m, S: Source>(
             },
             entry.to_vec(),
         ),
-        (Some(_), _) => return Err(unsupported("the replaced stream is not a video stream")),
+        (Some(Replace::Audio { entry, .. }), TrackKind::Audio) => (
+            TrackMedia::Audio {
+                volume: flags.volume,
+            },
+            entry.to_vec(),
+        ),
+        (Some(Replace::Video { .. }), _) => {
+            return Err(unsupported("the replaced stream is not a video stream"));
+        }
+        (Some(Replace::Audio { .. }), _) => {
+            return Err(unsupported("the replaced stream is not an audio stream"));
+        }
         (None, TrackKind::Video) => {
             let config: &[u8; 4] = match (description.codec, &description.fourcc.0) {
                 (Codec::H264, b"avc1" | b"avc3") => b"avcC",
@@ -1086,21 +1504,20 @@ fn plan<'m, S: Source>(
             (media, entry)
         }
         (None, TrackKind::Audio) => {
-            let (fourcc, config): (&[u8; 4], &[u8; 4]) =
-                match (description.codec, &description.fourcc.0) {
-                    (Codec::Aac | Codec::Mp3, b"mp4a") => (b"mp4a", b"esds"),
-                    (Codec::Opus, b"Opus") => (b"Opus", b"dOps"),
-                    (Codec::Pcm, _) => return Err(unsupported("PCM audio is not copied to MP4")),
-                    _ => {
-                        return Err(unsupported(
-                            "audio other than AAC, MP3 or Opus in their MP4 sample entries",
-                        ));
-                    }
-                };
+            if description.codec == Codec::Pcm {
+                return Err(unsupported("PCM audio is not copied to MP4"));
+            }
+            let fourcc = description.fourcc;
+            let config = audio::config_kind(fourcc)
+                .filter(|_| description.codec != Codec::Other)
+                .ok_or(unsupported(
+                    "audio other than AAC, MP3, Opus, FLAC, ALAC, AC-3 or E-AC-3 in their MP4 \
+                     sample entries",
+                ))?;
             let codec_config = description
                 .codec_config
                 .as_ref()
-                .filter(|c| &c.kind.0 == config)
+                .filter(|c| c.kind == config)
                 .ok_or(unsupported(
                     "the audio sample entry has no codec configuration",
                 ))?;
@@ -1110,9 +1527,12 @@ fn plan<'m, S: Source>(
                 .ok_or(unsupported(
                     "channel count outside the version 0 sound entry",
                 ))?;
-            let rate = description
+            let mut rate = description
                 .sample_rate
                 .ok_or(unsupported("the audio sample entry has no sample rate"))?;
+            if matches!(description.codec, Codec::Flac | Codec::Alac) {
+                rate = audio::entry_rate(rate);
+            }
             // An ISO version 0 entry: the configuration box first, then the
             // other children as stored. QuickTime's `wave` wrapper holds the
             // configuration box (and its format, `frma`); anything else in
@@ -1122,13 +1542,22 @@ fn plan<'m, S: Source>(
                 u64::try_from(codec_config.data.len()).unwrap_or(u64::MAX),
                 0,
             )?;
+            let mut payload = codec_config.data.clone();
+            if keep.is_some() && config.0 == *b"dfLa" {
+                let (only, changed) = audio::dfla_streaminfo_only(&payload)
+                    .ok_or(unsupported("the FLAC configuration does not parse"))?;
+                if changed {
+                    clear(ClearedField::SampleEntryExtras);
+                }
+                payload = only;
+            }
             let mut children = vec![RawBox {
-                kind: FourCc(*config),
-                payload: codec_config.data.clone(),
+                kind: config,
+                payload,
             }];
             for child in &trak.entry_children {
                 match &child.kind.0 {
-                    kind if kind == config => {}
+                    kind if *kind == config.0 => {}
                     b"wave" => {
                         let wave_path = entry_path.with(child.kind);
                         for inner in &trak.wave_children {
@@ -1167,7 +1596,14 @@ fn plan<'m, S: Source>(
                     }
                 }
             }
-            let entry = audio_sample_entry(FourCc(*fourcc), channels, rate, &children)?;
+            let entry = audio_sample_entry(
+                fourcc,
+                channels,
+                audio::sample_size(description)
+                    .ok_or(unsupported("the FLAC or ALAC configuration does not parse"))?,
+                rate,
+                &children,
+            )?;
             (
                 TrackMedia::Audio {
                     volume: flags.volume,
@@ -1224,7 +1660,10 @@ fn plan<'m, S: Source>(
         trak,
         header: TrackHeader {
             media,
-            timescale: track.timescale,
+            timescale: match replace {
+                Some(Replace::Audio { timescale, .. }) => timescale,
+                _ => track.timescale,
+            },
             language,
             creation_time: created,
             media_creation_time: media_created,
@@ -1243,15 +1682,37 @@ fn plan<'m, S: Source>(
         retained: start.saturating_sub(retained.left),
         gone,
         cleared,
-        replaced: replace.is_some(),
+        replaced: replace.map(|r| match r {
+            Replace::Video { .. } => Replaced::Video,
+            Replace::Audio { .. } => Replaced::Audio,
+        }),
     })
 }
 
-/// Checks that `stream_index` names a video stream of `movie` that a
+/// What a replacement gives a stream's header.
+#[derive(Clone, Copy, Debug)]
+enum Replace<'r> {
+    Video {
+        entry: &'r [u8],
+        width: u32,
+        height: u32,
+    },
+    Audio {
+        entry: &'r [u8],
+        timescale: u32,
+    },
+}
+
+/// Checks that `stream_index` names a stream of `kind` of `movie` that a
 /// replacement can take the place of: one the allowlist keeps, among
-/// `options.streams` when they are named, with a media timescale and an
-/// edit list of the simple model or none.
-fn check_replaced(movie: &Movie, stream_index: usize, options: &RemuxOptions) -> Result<(), Error> {
+/// `options.streams` when they are named; a video stream with an edit list
+/// of the simple model or none.
+fn check_replaced(
+    movie: &Movie,
+    stream_index: usize,
+    kind: TrackKind,
+    options: &RemuxOptions,
+) -> Result<(), Error> {
     if let Some(d) = movie
         .dropped
         .iter()
@@ -1267,8 +1728,12 @@ fn check_replaced(movie: &Movie, stream_index: usize, options: &RemuxOptions) ->
         .iter()
         .find(|t| t.stream_index == stream_index)
         .ok_or(Error::NoSuchTrack)?;
-    if track.kind != TrackKind::Video {
-        return Err(unsupported("the replaced stream is not a video stream"));
+    if track.kind != kind {
+        return Err(unsupported(if kind == TrackKind::Video {
+            "the replaced stream is not a video stream"
+        } else {
+            "the replaced stream is not an audio stream"
+        }));
     }
     if options
         .streams
@@ -1278,6 +1743,9 @@ fn check_replaced(movie: &Movie, stream_index: usize, options: &RemuxOptions) ->
         return Err(unsupported(
             "the replaced stream is not among the selected streams",
         ));
+    }
+    if kind == TrackKind::Audio {
+        return Ok(());
     }
     match track.edit_list {
         EditList::None | EditList::Simple { .. } => Ok(()),
@@ -1372,6 +1840,28 @@ fn list_replaced(
         .first()
         .ok_or(unsupported("the replacement has no samples"))?
         .decode_time)
+}
+
+/// Pass 1 for the replaced audio stream: pushes its samples, every one a
+/// sync sample.
+fn list_audio<R>(
+    muxer: &mut Muxer,
+    index: usize,
+    audio: &AudioReplacement<'_, R>,
+) -> Result<(), ExtractError> {
+    for sample in audio.samples {
+        muxer.push_sample(
+            index,
+            Sample {
+                size: sample.size,
+                duration: sample.duration,
+                sync: true,
+                composition_offset: 0,
+            },
+        )?;
+    }
+    muxer.finish_track(index);
+    Ok(())
 }
 
 /// A media edit's duration: the source's, in its movie ticks, or computed,
@@ -1632,7 +2122,30 @@ fn computed_ticks(
 }
 
 /// The least common multiple of two timescales, when it fits 32 bits.
-fn lcm(a: u32, b: u32) -> Option<u32> {
+/// Whether a fragmented source's copied streams have computed edits that
+/// round in `movie_timescale` (the plain remux rounds them there, so the
+/// movie timescale must not change for a replaced stream).
+fn others_round(movie: &Movie, kept: &[Kept<'_>], muxer: &Muxer, movie_timescale: u32) -> bool {
+    movie.has_fragments()
+        && kept
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.replaced.is_none())
+            .any(|(i, o)| {
+                let sum = muxer.duration(i).unwrap_or(0);
+                computed_ticks(&o.edits, o.first_dts, sum, o.composition_end)
+                    .iter()
+                    .flatten()
+                    .any(|ticks| {
+                        u128::from(*ticks)
+                            .saturating_mul(u128::from(movie_timescale))
+                            .checked_rem(u128::from(o.track.timescale))
+                            .is_some_and(|r| r != 0)
+                    })
+            })
+}
+
+pub(crate) fn lcm(a: u32, b: u32) -> Option<u32> {
     let (mut x, mut y) = (u64::from(a), u64::from(b));
     while y != 0 {
         (x, y) = (y, x % y);
@@ -1733,9 +2246,10 @@ fn file_type(kept: &[Kept<'_>]) -> FileType {
 }
 
 /// The summary's dropped boxes: those outside the tracks (with the movie's
-/// sanitized metadata), then each kept stream's in output order, then the
-/// metadata boxes too large to copy; each group in file order; at most
-/// [`MAX_REPORTED`].
+/// sanitized metadata), then each kept source stream's once, in source
+/// order (a stream written twice has its boxes listed once), then the
+/// metadata boxes too large to copy, each once; each group in file order;
+/// at most [`MAX_REPORTED`].
 fn report(
     file: &FileScan,
     movie_gone: &[Gone],
@@ -1786,8 +2300,18 @@ fn report(
     for (s, reason, kind, name) in outside {
         add(None, s, reason, kind, name);
     }
-    let mut trak_more = 0u64;
+    let mut sources: Vec<&Kept<'_>> = Vec::new();
     for k in kept {
+        if !sources
+            .iter()
+            .any(|s| s.track.stream_index == k.track.stream_index)
+        {
+            sources.push(k);
+        }
+    }
+    sources.sort_by_key(|k| k.track.stream_index);
+    let mut trak_more = 0u64;
+    for k in sources {
         let stream = Some(k.track.stream_index);
         let mut mine: Vec<(
             &Skipped,
@@ -1814,8 +2338,11 @@ fn report(
             add(stream, s, reason, kind, name);
         }
     }
+    let mut seen = std::collections::BTreeSet::new();
     for (stream, s) in &retained.too_large {
-        if stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream) {
+        if (stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream))
+            && seen.insert((*stream, s.header.offset))
+        {
             add(*stream, s, BoxDropReason::TooLarge, None, None);
         }
     }

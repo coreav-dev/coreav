@@ -104,8 +104,10 @@ echo "$gate" > out/gate.verdict
 rm -rf data/gate
 [ "$gate" = pass ] || [ {'true' if rehearsal else 'false'} = true ] || exit 3
 {fetch} --files draw.json --dest data/draw > out/fetch-draw.log 2>&1 || exit 1
-{r4} --arm r4 --files data/draw/files.json --out out/r4.json 2> out/r4.log || exit 1
+r4_code=0
+{r4} --arm r4 --files data/draw/files.json --out out/r4.json 2> out/r4.log || r4_code=$?
 {report} --results out/r4.json --out out/r4.report.json > out/r4.report.txt
+[ "$r4_code" = 0 ] || exit "$r4_code"
 exit 0
 '''
 
@@ -170,6 +172,8 @@ def judge(out, rc, run):
     if reports['r4'] and reports['r4'].get('incomplete'):
         reasons.append(f"r4 has {len(reports['r4']['incomplete'])} pairs whose timed run failed (a crashed run)")
     for name in ('gate-aa', 'gate-null', 'r4'):
+        if reports[name] and (reports[name].get('aborted') or reports[name].get('coverage', {}).get('unprocessed', 0)):
+            reasons.append(f'{name} aborted before completing its eligible pairs')
         if reports[name] and reports[name]['fallback_log']['void']:
             reasons.append(f'the fallback log of {name} is void')
         if reports[name] and not reports[name]['classes']:

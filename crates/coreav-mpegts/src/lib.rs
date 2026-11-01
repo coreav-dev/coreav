@@ -32,6 +32,7 @@ mod video;
 pub use codec::{Allowlist, Codec, StreamKind, arib_caption_profile};
 pub use coreav_isobmff::{BufferedSource, FileSource, SliceSource, Source};
 pub use error::{Error, LimitKind, Warning};
+pub use frames::LatmBlocks;
 pub use limits::Limits;
 pub use packet::PacketSize;
 pub use packets::{Packet, Packets};
@@ -130,7 +131,9 @@ pub mod fuzzing {
             let mut sets = video::ParameterSets::default();
             sets.add(nal, payload);
             let _ = sets.record(nal);
-            let _ = video::keyframe(nal, payload, Some(1));
+            for refs in [Some(1), Some(4), None] {
+                let _ = video::keyframe(nal, payload, refs);
+            }
         }
         let _ = video::mpeg2_size(payload);
         let _ = video::mpeg2_profile(payload);

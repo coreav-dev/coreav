@@ -29,6 +29,10 @@ on:
     tags: ['v*']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+  # A group of the merge queue, filtered by what the group changes on main
+  # (docs/design/ci-checks.md, "The merge queue").
+  merge_group:
+    types: [checks_requested]
   schedule:
     # Every wheel once a week (Monday 04:00 UTC), on main.
     - cron: '0 4 * * 1'
@@ -39,7 +43,8 @@ permissions:
 
 concurrency:
   # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
+  # main, manual runs and merge groups each get their own group, so none is
+  # dropped.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -61,13 +66,14 @@ jobs:
         uses: ./.github/actions/changed-paths
         with:
           paths: |
-            packages/**
+            packages/cli/**
             crates/coreav-py/**
             crates/coreav-cli/**
             Cargo.lock
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
             scripts/oracle-ffmpeg.env
+            scripts/install-oracle-ffmpeg.sh
             .github/workflows/python.yml
             .github/actions/changed-paths/**
 
@@ -146,6 +152,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
+          python3 -I packages/cli/scripts/notices_check.py dist/*.whl
           for python in python3.9 python3.13; do
             "$python" -m venv "$RUNNER_TEMP/venv-$python"
             "$RUNNER_TEMP/venv-$python/bin/pip" install --quiet dist/*.whl pytest

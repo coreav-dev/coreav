@@ -150,3 +150,54 @@ fn rfc8251_vectors_decode() {
         }
     }
 }
+
+/// FNV-1a over the bits of every sample the decoder gives for a vector.
+fn output_hash(bit: &[u8], channels: u8) -> u64 {
+    let mut decoder = coreav_opus::Decoder::new(channels).expect("decoder");
+    let mut pcm = Vec::new();
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for (i, (_, data)) in packets(bit).into_iter().enumerate() {
+        pcm.clear();
+        decoder
+            .decode(data, &mut pcm)
+            .unwrap_or_else(|e| panic!("packet {i}: {e}"));
+        for x in &pcm {
+            hash = (hash ^ u64::from(x.to_bits())).wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    hash
+}
+
+/// The decoder's output, every sample's bits, on each vector in stereo and
+/// in mono, as the agreement bar measured it (`docs/design/audio-decode.md`,
+/// "Opus bars"): speed work keeps it.
+#[test]
+#[ignore = "needs COREAV_OPUS_VECTORS"]
+fn rfc8251_vectors_output_unchanged() {
+    let dir = PathBuf::from(std::env::var_os("COREAV_OPUS_VECTORS").expect("COREAV_OPUS_VECTORS"));
+    let mut got = Vec::new();
+    for n in 1..=12 {
+        let bit = std::fs::read(dir.join(format!("testvector{n:02}.bit"))).expect(".bit");
+        got.push([output_hash(&bit, 2), output_hash(&bit, 1)]);
+    }
+    for [stereo, mono] in &got {
+        println!("[{stereo:#018x}, {mono:#018x}],");
+    }
+    assert_eq!(got, OUTPUT_HASHES);
+}
+
+/// [stereo, mono] per vector, 01 to 12.
+const OUTPUT_HASHES: [[u64; 2]; 12] = [
+    [0x582a_a15b_2333_049f, 0x0a9a_6f51_551f_7819],
+    [0xb561_5650_dce3_4825, 0xfcc0_ab57_f730_01a5],
+    [0x2e69_2762_25b6_5725, 0xb992_3177_b721_8125],
+    [0xcf3a_a774_0a82_1025, 0x6023_98d7_fea2_f1a5],
+    [0x203b_c907_0a56_ba4d, 0x1bbb_81a0_1d14_bfa0],
+    [0x2e5d_47fd_ae93_c800, 0x29b1_ed13_7017_5d08],
+    [0x36ee_9248_c389_36af, 0x154a_e84d_c55b_2840],
+    [0x1577_e5ab_ed67_19a5, 0x0830_d6e5_9ee1_102f],
+    [0xf5a3_111c_1d4e_bd76, 0x8440_85df_4d21_6379],
+    [0xb7fb_4cf7_d137_d813, 0xb6cd_3eb1_b363_2238],
+    [0x7a3c_bbd0_6be6_150d, 0xf3e6_0f45_6afd_9ede],
+    [0xb98b_9250_c19f_ae05, 0x149f_389d_ca24_63b3],
+];

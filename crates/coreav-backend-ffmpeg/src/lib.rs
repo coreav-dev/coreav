@@ -631,7 +631,7 @@ fn spawn_thread(name: &str, f: impl FnOnce() + Send + 'static) -> Result<JoinHan
 fn frame_bytes(frame: &Frame) -> u64 {
     match &frame.pixels {
         Pixels::Cpu(p) => u64::try_from(p.packed_len()).unwrap_or(u64::MAX),
-        Pixels::Cuda(_) => 0,
+        Pixels::Cuda(_) | Pixels::Shared(_) => 0,
     }
 }
 

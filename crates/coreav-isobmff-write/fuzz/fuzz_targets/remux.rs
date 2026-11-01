@@ -53,6 +53,7 @@ fuzz_target!(|data: &[u8]| {
             OnUnsupported::Fail
         },
         metadata: Metadata::Copy,
+        left_out_covers: Vec::new(),
     };
     let mut out = Vec::new();
     let source = BufferedSource::new(SliceSource::new(input));

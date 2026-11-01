@@ -189,6 +189,48 @@ class Predicates(unittest.TestCase):
                                                                                      'profile': 'Main'})))
 
 
+class SbrTimescale(unittest.TestCase):
+    """KD-X-SBR-TIMESCALE: an HE-AAC source with a 22,050 Hz timescale,
+    decoded at 44,100, extracted at 44,100. Every time must be exactly
+    twice the source's."""
+
+    def sbr(self, **changes):
+        stream = {'codec_name': 'aac', 'sample_rate': '44100', 'time_base': '1/22050', 'start_pts': 0,
+                  'duration_ts': 220500}
+        base = {
+            'source_stream': stream,
+            'output_stream': dict(stream, time_base='1/44100', duration_ts=441000),
+            'source_packets': [{'data_hash': 'h0', 'size': 9, 'pts': 0, 'dts': 0},
+                               {'data_hash': 'h1', 'size': 9, 'pts': 1024, 'dts': 1024}],
+            'output_packets': [{'data_hash': 'h0', 'size': 9, 'pts': 0, 'dts': 0},
+                               {'data_hash': 'h1', 'size': 9, 'pts': 2048, 'dts': 2048}],
+            'source_trak': trak(10000, mdhd=(22050, 220500)),
+            'output_headers': {'mvhd': (1000, 10000), 'traks': [trak(10000, mdhd=(44100, 441000))]},
+        }
+        return evidence(**dict(base, **changes))
+
+    def test_twice_every_time_is_covered(self):
+        c = self.sbr()
+        for field in ('stream:time_base', 'stream:start_pts', 'stream:duration_ts', 'packets'):
+            self.assertTrue(ec.sbr_timescale(field, c), field)
+        self.assertFalse(ec.sbr_timescale('stream:duration', c))
+
+    def test_near_misses_are_not(self):
+        c = self.sbr()
+        packets = copy.deepcopy(c['output_packets'])
+        packets[1]['pts'] = 2047
+        self.assertFalse(ec.sbr_timescale('packets', dict(c, output_packets=packets)))
+        self.assertFalse(ec.sbr_timescale('stream:duration_ts', dict(
+            c, output_stream=dict(c['output_stream'], duration_ts=441001))))
+        # ffprobe decodes the source at its timescale: no SBR.
+        lc = dict(c['source_stream'], sample_rate='22050')
+        self.assertFalse(ec.sbr_timescale('stream:time_base', dict(
+            c, source_stream=lc, output_stream=dict(c['output_stream'], sample_rate='22050'))))
+        # An output timescale other than the decoded rate.
+        headers = {'mvhd': (1000, 10000), 'traks': [trak(10000, mdhd=(88200, 882000))]}
+        self.assertFalse(ec.sbr_timescale('stream:time_base', dict(c, output_headers=headers)))
+
+
 MULTI = [(1000, 0, 0x10000), (500, -1, 0x10000), (1000, 96000, 0x10000)]
 
 

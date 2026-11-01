@@ -31,8 +31,16 @@ pub enum Codec {
     /// Opus (`Opus`).
     Opus,
     /// FLAC (`fLaC`, configured by `dfLa`; the FLAC-in-ISOBMFF mapping of
-    /// RFC 9639 10.3). Not on the default allowlist.
+    /// RFC 9639 10.3).
     Flac,
+    /// Apple Lossless (`alac`, configured by its `alac` box holding the
+    /// magic cookie).
+    Alac,
+    /// AC-3 (`ac-3`, configured by `dac3`; ETSI TS 102 366 Annex F).
+    Ac3,
+    /// Enhanced AC-3 (`ec-3`, configured by `dec3`; ETSI TS 102 366
+    /// Annex F).
+    Eac3,
     /// Uncompressed linear PCM.
     Pcm,
     /// 3GPP timed text (`tx3g`).
@@ -123,6 +131,10 @@ impl Default for Allowlist {
             Codec::Aac,
             Codec::Mp3,
             Codec::Opus,
+            Codec::Flac,
+            Codec::Alac,
+            Codec::Ac3,
+            Codec::Eac3,
             Codec::Pcm,
             Codec::TimedText,
             Codec::Timecode,
@@ -187,6 +199,15 @@ pub struct SampleDescription {
     /// is kept as stored: writers copy it, and it cannot hold a rate of
     /// 65,536 Hz or more.
     pub configured_sample_rate: Option<u32>,
+    /// For AAC, the samples one frame decodes to at
+    /// [`SampleDescription::configured_sample_rate`]: 960 or 1,024 by the
+    /// `AudioSpecificConfig`'s `frameLengthFlag` (ISO/IEC 14496-3
+    /// 4.5.1.1), twice that with SBR signalled explicitly at twice the core
+    /// frequency (4.6.18.2.2). `None` without a readable configuration, for
+    /// object types other than AAC main, LC and LTP (and their
+    /// error-resilient LC and LTP), and for other codecs. SBR signalled only
+    /// in the bitstream (implicitly) is not known.
+    pub aac_frame_length: Option<u32>,
     /// The bits per sample the codec configuration declares: FLAC's
     /// `STREAMINFO` in `dfLa`, the ALAC magic cookie's `bitDepth`;
     /// `None` for other codecs and when it cannot be read.
@@ -367,7 +388,8 @@ pub struct DeclaredBitRate {
 /// A codec configuration box as stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CodecConfig {
-    /// Box type: `avcC`, `hvcC`, `av1C`, `vpcC`, `esds`, `dOps` or `dfLa`.
+    /// Box type: `avcC`, `hvcC`, `av1C`, `vpcC`, `esds`, `dOps`, `dfLa`,
+    /// `alac`, `dac3`, `dec3` or `QDCA`.
     pub kind: FourCc,
     /// Box payload.
     pub data: Vec<u8>,
@@ -406,6 +428,7 @@ pub(crate) fn parse_sample_entry(
         channels: None,
         sample_rate: None,
         configured_sample_rate: None,
+        aac_frame_length: None,
         configured_bits: None,
         implicit_ps_possible: false,
         pcm: None,
@@ -548,10 +571,10 @@ pub(crate) fn parse_sample_entry(
                     esds = Some(parse_esds(payload));
                 }
                 b"dfLa" if desc.codec == Codec::Flac && lossless.is_none() => {
-                    lossless = Some((kind, flac_streaminfo(payload)));
+                    lossless = Some((kind, lossless_config(kind, payload)));
                 }
                 b"alac" if fourcc.0 == *b"alac" && lossless.is_none() => {
-                    lossless = Some((kind, alac_cookie(payload)));
+                    lossless = Some((kind, lossless_config(kind, payload)));
                 }
                 b"enda" => little_endian = payload.get(..2).map(|v| v != [0, 0]),
                 b"pcmC" => {
@@ -571,9 +594,9 @@ pub(crate) fn parse_sample_entry(
         desc.color.full_range = codec_range;
     }
     match lossless {
-        Some((_, Some((rate, bits)))) => {
-            desc.configured_sample_rate = Some(rate);
-            desc.configured_bits = Some(bits);
+        Some((_, Some(config))) => {
+            desc.configured_sample_rate = Some(config.sample_rate);
+            desc.configured_bits = Some(config.bits);
         }
         Some((kind, None)) => crate::error::warn(warnings, Warning::MalformedCodecConfig(kind)),
         None if desc.codec == Codec::Flac => {
@@ -612,6 +635,7 @@ pub(crate) fn parse_sample_entry(
             // its configuration is trusted.
             let layout = esds.as_ref().and_then(|e| e.layout);
             desc.configured_sample_rate = layout.and_then(|l| l.rate);
+            desc.aac_frame_length = layout.and_then(|l| l.frame);
             let configured = layout.and_then(|l| l.channels);
             let no_ps = layout.is_some_and(|l| l.no_ps);
             let (core, ps) = match parsed {
@@ -640,6 +664,15 @@ pub(crate) fn parse_sample_entry(
         Codec::ProRes => prores_profile(fourcc).map(Profile::ProRes),
         _ => profile.flatten(),
     };
+    // AC-3 and E-AC-3 record their output channels in `dac3` and `dec3`
+    // too, so those win over the sample entry's count.
+    if let Some(channels) = desc
+        .codec_config
+        .as_ref()
+        .and_then(|c| ac3_channels(desc.codec, c))
+    {
+        desc.channels = Some(channels);
+    }
     desc.declared_bit_rate = btrt.or_else(|| {
         let (buffer_size, maximum, average) = esds.as_ref()?.rates?;
         Some(DeclaredBitRate {
@@ -657,8 +690,35 @@ pub(crate) fn parse_sample_entry(
     Ok(desc)
 }
 
-/// The sample rate and bits per sample of the `STREAMINFO` block a `dfLa`
-/// box carries. The box (the FLAC-in-ISOBMFF mapping) is a full box of
+/// What a FLAC `dfLa` or Apple Lossless `alac` configuration box declares
+/// of the decoded audio.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LosslessConfig {
+    /// Sample rate in Hz.
+    pub sample_rate: u32,
+    /// Bits per sample.
+    pub bits: u16,
+    /// Channels.
+    pub channels: u16,
+    /// The most samples a frame holds: FLAC's maximum block size, ALAC's
+    /// `frameLength`.
+    pub frame_length: u32,
+}
+
+/// The configuration a `dfLa` or `alac` box payload declares; `None` for
+/// another box, and for a payload that is missing a field or states a value
+/// the format does not allow (an invalid FLAC block size, an unsupported
+/// ALAC cookie version).
+pub fn lossless_config(kind: FourCc, payload: &[u8]) -> Option<LosslessConfig> {
+    match &kind.0 {
+        b"dfLa" => flac_streaminfo(payload),
+        b"alac" => alac_cookie(payload),
+        _ => None,
+    }
+}
+
+/// The sample rate, bits per sample, channels and maximum block size of the
+/// `STREAMINFO` block a `dfLa` box carries. The box (the FLAC-in-ISOBMFF mapping) is a full box of
 /// version 0 and flags 0 whose metadata blocks start with `STREAMINFO`:
 /// a block header of type 0 and length 34 (RFC 9639 8.1), then 16 bits
 /// each of minimum and maximum block size, 24 each of minimum and maximum
@@ -666,7 +726,7 @@ pub(crate) fn parse_sample_entry(
 /// sample less one (RFC 9639 8.2). `None` for any other layout, and for
 /// what RFC 9639 does not allow: a block size under 16, a minimum above
 /// the maximum, a rate of 0, or fewer than 4 bits per sample.
-fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
+fn flac_streaminfo(payload: &[u8]) -> Option<LosslessConfig> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 || p.u8().ok()? & 0x7F != 0 || p.u24().ok()? != 34 {
         return None;
@@ -678,12 +738,18 @@ fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
     let mut bits = Bits::new(p.take(30).ok()?);
     bits.skip(48)?;
     let rate = bits.bits(20)?;
-    bits.bits(3)?;
+    let channels = u16::try_from(bits.bits(3)?).ok()? + 1;
     let depth = u16::try_from(bits.bits(5)?).ok()? + 1;
-    (rate > 0 && depth >= 4).then_some((rate, depth))
+    (rate > 0 && depth >= 4).then_some(LosslessConfig {
+        sample_rate: rate,
+        bits: depth,
+        channels,
+        frame_length: u32::from(max_block),
+    })
 }
 
-/// The sample rate and bit depth of an ALAC magic cookie: the `alac` box
+/// The sample rate, bit depth, channels and frame length of an ALAC magic
+/// cookie: the `alac` box
 /// of an `alac` sample entry is a full box of version 0 and flags 0 that
 /// holds an `ALACSpecificConfig` (Apple Lossless Audio Codec, magic cookie
 /// description): `frameLength` (32 bits), `compatibleVersion` (8),
@@ -692,19 +758,26 @@ fn flac_streaminfo(payload: &[u8]) -> Option<(u32, u16)> {
 /// `None` for a shorter box, another version of the box or of the cookie
 /// (`compatibleVersion` other than 0), a bit depth of 0 or above 32, or a
 /// rate of 0.
-fn alac_cookie(payload: &[u8]) -> Option<(u32, u16)> {
+fn alac_cookie(payload: &[u8]) -> Option<LosslessConfig> {
     let mut p = Bytes::new(payload, 0);
     if p.u32().ok()? != 0 {
         return None;
     }
-    p.skip(4).ok()?;
+    let frame_length = p.u32().ok()?;
     if p.u8().ok()? != 0 {
         return None;
     }
     let depth = p.u8().ok()?;
-    p.skip(14).ok()?;
+    p.skip(3).ok()?;
+    let channels = p.u8().ok()?;
+    p.skip(10).ok()?;
     let rate = p.u32().ok()?;
-    ((1..=32).contains(&depth) && rate > 0).then_some((rate, u16::from(depth)))
+    ((1..=32).contains(&depth) && rate > 0).then_some(LosslessConfig {
+        sample_rate: rate,
+        bits: u16::from(depth),
+        channels: u16::from(channels),
+        frame_length,
+    })
 }
 
 /// A Dolby Vision decoder configuration record (`DOVIDecoderConfigurationRecord`
@@ -836,6 +909,25 @@ pub fn hevc_window_empty(hvcc: &[u8]) -> bool {
 /// decoding process keeps. `None` when it cannot be read.
 pub fn avc_max_num_ref_frames(avcc: &[u8]) -> Option<u32> {
     bitstream::avc_max_num_ref_frames(avcc)
+}
+
+/// The sequence and picture parameter set NAL units of an `avcC` payload
+/// (ISO/IEC 14496-15 5.3.3.1), in its order and without their lengths;
+/// `None` when the record ends inside them.
+pub fn avc_parameter_sets(avcc: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut sets = Vec::new();
+    let mut at = 5usize;
+    for mask in [0x1f, 0xff] {
+        let count = avcc.get(at)? & mask;
+        at += 1;
+        for _ in 0..count {
+            let len = usize::from(crate::bytes::be_u16_at(avcc, at)?);
+            let end = at.checked_add(2)?.checked_add(len)?;
+            sets.push(avcc.get(at + 2..end)?);
+            at = end;
+        }
+    }
+    Some(sets)
 }
 
 /// `num_units_in_tick` and `time_scale` of the first sequence parameter
@@ -1005,6 +1097,47 @@ fn configured_channels(configuration: u8) -> Option<u32> {
     }
 }
 
+/// The channels an AC-3 `dac3` or E-AC-3 `dec3` box declares (ETSI TS
+/// 102 366 F.4 and F.6): those its `acmod` (table 4.3) and `lfeon` code,
+/// for E-AC-3 those of the first independent substream, with the channel
+/// locations its dependent substreams add (`chan_loc`, table F.6.1: bits
+/// 0, 1, 4, 5 and 6 a pair each, bits 2, 3, 7 and 8 one each).
+fn ac3_channels(codec: Codec, config: &CodecConfig) -> Option<u32> {
+    let mut bits = Bits::new(&config.data);
+    match (codec, &config.kind.0) {
+        (Codec::Ac3, b"dac3") => bits.skip(2 + 5 + 3)?,
+        (Codec::Eac3, b"dec3") => bits.skip(13 + 3 + 2 + 5 + 1 + 1 + 3)?,
+        _ => return None,
+    }
+    let full = match bits.bits(3)? {
+        1 => 1,
+        0 | 2 => 2,
+        3 | 4 => 3,
+        5 | 6 => 4,
+        _ => 5,
+    };
+    let coded = full + bits.bits(1)?;
+    if codec != Codec::Eac3 {
+        return Some(coded);
+    }
+    bits.skip(3)?;
+    if bits.bits(4)? == 0 {
+        return Some(coded);
+    }
+    let chan_loc = bits.bits(9)?;
+    let added = (0..9)
+        .filter(|bit| chan_loc >> bit & 1 == 1)
+        .map(|bit| {
+            if matches!(bit, 0 | 1 | 4 | 5 | 6) {
+                2
+            } else {
+                1
+            }
+        })
+        .sum::<u32>();
+    Some(coded + added)
+}
+
 /// The output channels of an `AudioSpecificConfig` (ISO/IEC 14496-3
 /// 1.6.2.1): its `channelConfiguration`, or its program config element when
 /// that is 0; and whether the backward compatible extension after a plain
@@ -1018,11 +1151,20 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
         channels: configured_channels(configuration),
         no_ps: false,
         rate: core_rate,
+        frame: None,
     };
     // Explicit hierarchical signalling (5: SBR, 29: SBR and parametric
-    // stereo): the extension sampling frequency is the output's.
+    // stereo): the extension sampling frequency is the output's, and the
+    // core object type and its `GASpecificConfig` follow.
     if matches!(object_type, 5 | 29) {
-        layout.rate = sampling_frequency(&mut bits).flatten().or(core_rate);
+        let extension = sampling_frequency(&mut bits).flatten();
+        layout.rate = extension.or(core_rate);
+        let core = audio_object_type(&mut bits);
+        let short = bits.flag();
+        layout.frame = core
+            .zip(short)
+            .and_then(|(core, short)| frame_length(core, short))
+            .and_then(|frame| aac_frame(frame, core_rate, extension));
         return Some(layout);
     }
     // GASpecificConfig (4.4.1) only for the general audio object types.
@@ -1030,9 +1172,10 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
         return Some(layout);
     }
     // frameLengthFlag, dependsOnCoreCoder (+ 14-bit delay), extensionFlag.
-    if bits.skip(1).is_none() {
+    let Some(short) = bits.flag() else {
         return Some(layout);
-    }
+    };
+    layout.frame = frame_length(object_type, short);
     match bits.flag() {
         Some(true) if bits.skip(14).is_some() => {}
         Some(false) => {}
@@ -1064,6 +1207,9 @@ fn aac_layout(config: &[u8]) -> Option<AacLayout> {
                 let frequency = sampling_frequency(&mut ext);
                 if let Some(Some(rate)) = frequency {
                     layout.rate = Some(rate);
+                    layout.frame = layout
+                        .frame
+                        .and_then(|frame| aac_frame(frame, core_rate, Some(rate)));
                 }
                 frequency.is_some()
                     && ext.clone().bits(12).is_some()
@@ -1167,6 +1313,9 @@ fn codec_from_fourcc(fourcc: FourCc) -> Codec {
         b"apco" | b"apcs" | b"apcn" | b"apch" | b"ap4h" | b"ap4x" => Codec::ProRes,
         b"Opus" => Codec::Opus,
         b"fLaC" => Codec::Flac,
+        b"alac" => Codec::Alac,
+        b"ac-3" => Codec::Ac3,
+        b"ec-3" => Codec::Eac3,
         // QuickTime's MPEG-1 Layer 3 sound sample description.
         b".mp3" => Codec::Mp3,
         b"sowt" | b"twos" | b"in24" | b"in32" | b"fl32" | b"fl64" | b"lpcm" | b"ipcm" | b"fpcm"
@@ -1381,6 +1530,34 @@ struct AacLayout {
     /// 1.6.2.1, 1.6.5); `None` for a reserved index. Implicitly signalled
     /// SBR is in the bitstream only, which probe does not decode.
     rate: Option<u32>,
+    /// The samples one frame decodes to at [`AacLayout::rate`]: 960 or
+    /// 1,024 by `frameLengthFlag` (ISO/IEC 14496-3 4.5.1.1), times the
+    /// ratio of the output frequency to the core frequency when SBR is
+    /// signalled explicitly (4.6.18.2.2); `None` for object types other
+    /// than AAC main, LC and LTP (and their error-resilient LC and LTP), and
+    /// for an SBR ratio other than 1 or 2.
+    frame: Option<u32>,
+}
+
+/// The samples an AAC frame of `core` samples at `core_rate` decodes to at
+/// `rate`: the same with SBR at the core frequency (downsampled SBR), twice
+/// as many at twice it.
+fn aac_frame(core: u32, core_rate: Option<u32>, rate: Option<u32>) -> Option<u32> {
+    let (core_rate, rate) = (core_rate?, rate?);
+    if rate == core_rate {
+        Some(core)
+    } else if Some(rate) == core_rate.checked_mul(2) {
+        core.checked_mul(2)
+    } else {
+        None
+    }
+}
+
+/// The samples a `GASpecificConfig`'s `frameLengthFlag` gives an object
+/// type's frame (ISO/IEC 14496-3 4.5.1.1); `None` for the object types
+/// whose frames have other lengths.
+fn frame_length(object_type: u8, short: bool) -> Option<u32> {
+    matches!(object_type, 1 | 2 | 4 | 17 | 19).then_some(if short { 960 } else { 1024 })
 }
 
 /// The `objectTypeIndication` and `DecoderSpecificInfo` of an `esds`
@@ -1573,6 +1750,35 @@ mod tests {
     }
 
     #[test]
+    fn aac_frame_lengths() {
+        let frame = |config: &[u8]| aac_layout(config).and_then(|l| l.frame);
+        // LC at 48 kHz, stereo: frameLengthFlag 0 and 1.
+        assert_eq!(frame(&[0x11, 0x90]), Some(1024));
+        assert_eq!(frame(&[0x11, 0x94]), Some(960));
+        // SBR signalled hierarchically: LC core at 24 kHz, output at 48 kHz,
+        // then at the core's 24 kHz (downsampled SBR), then at 44.1 kHz.
+        let sbr = |extension| pack(&[(5, 5), (6, 4), (2, 4), (extension, 4), (2, 5), (0, 3)]);
+        assert_eq!(frame(&sbr(3)), Some(2048));
+        assert_eq!(frame(&sbr(6)), Some(1024));
+        assert_eq!(frame(&sbr(4)), None);
+        // The backward-compatible extension, sbrPresentFlag 1 at 48 kHz.
+        let compatible = pack(&[
+            (2, 5),
+            (6, 4),
+            (2, 4),
+            (0, 3),
+            (0x2b7, 11),
+            (5, 5),
+            (1, 1),
+            (3, 4),
+        ]);
+        assert_eq!(frame(&compatible), Some(2048));
+        // AAC LD (object type 23) has frames of 480 or 512 samples; not read.
+        assert_eq!(frame(&pack(&[(23, 5), (3, 4), (2, 4), (0, 3)])), None);
+        assert_eq!(frame(&[0x11]), None);
+    }
+
+    #[test]
     fn aac_channel_configuration() {
         let channels = |config: &[u8]| aac_layout(config).and_then(|l| l.channels);
         // LC, 44.1 kHz: channelConfiguration 2, then 6 (5.1) and 7 (7.1).
@@ -1676,6 +1882,7 @@ mod tests {
                 channels: Some(1),
                 no_ps: true,
                 rate: Some(44100),
+                frame: Some(1024),
             })
         );
         // Without the extension, or with SBR present: not known.

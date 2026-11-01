@@ -25,12 +25,14 @@ runs:
   steps:
     # The caller checks the repository out with `fetch-depth: 2`, which is
     # what the diff of a pull request's merge commit against its base, or of
-    # a push against its `before` commit, needs.
+    # a push against its `before` commit, needs. A merge group's base is
+    # fetched by the script.
     - id: decide
       shell: bash
       env:
         PATHS: ${{ inputs.paths }}
         PATHS_IGNORE: ${{ inputs.paths-ignore }}
         BEFORE: ${{ github.event.before }}
+        GROUP_BASE: ${{ github.event.merge_group.base_sha }}
         PYTHONDONTWRITEBYTECODE: '1'
       run: python3 -I "$GITHUB_ACTION_PATH/changed_paths.py"

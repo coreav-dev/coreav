@@ -31,18 +31,20 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Backend, Codec, DecoderInfo, ErrorKind, Packet, Policy, Skipped};
-use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, Picture, PixelFormat};
+use coreav_frame::{ChromaSiting, ColorInfo, Filter, Frame, PixelFormat, Pixels};
 use coreav_isobmff::{BufferedSource, FileSource, Rational, Source};
 use coreav_isobmff_write::mux::{Nclx, avc1_sample_entry};
 use coreav_isobmff_write::{
-    ExtractError, MatroskaRemuxError, MatroskaRemuxOptions, MatroskaRemuxSummary, Metadata,
-    OnUnsupported, RemuxOptions, RemuxSummary, Replacement, ReplacementSample,
-    remux_matroska_replacing, remux_mp4_replacing,
+    AudioReplacement, ExtractError, MatroskaRemuxError, MatroskaRemuxOptions, MatroskaRemuxSummary,
+    Metadata, OnUnsupported, RemuxOptions, RemuxSummary, Replacement, ReplacementSample,
+    Replacements, remux_matroska_replacing, remux_mp4_replacing,
 };
 use coreav_thumbnail::{Container, ThumbnailOptions, VideoStream};
 use coreav_worker::ExecLauncher;
 
+use crate::aac::AacAudio;
 use crate::annexb::{self, AnnexBReader};
+use crate::audio::{AudioSummary, Encode, OpusAudio};
 use crate::encoder::{
     Encoder, EncoderChoice, EncoderLimits, EncoderProgram, EncoderSettings, FrameRate, RateControl,
     Sink, Timing, find_encoder,
@@ -87,6 +89,13 @@ pub enum AudioMode {
     /// are stream-copied beside the video, as `coreav remux --streams`
     /// copies them: the streams an `ffmpeg` command line selects.
     Streams(Vec<usize>),
+    /// One audio stream is encoded to Opus (`docs/design/transcode.md`,
+    /// "Opus audio"); the others are dropped and listed.
+    Opus(OpusAudio),
+    /// One audio stream is encoded to AAC-LC by the `ffmpeg` program's
+    /// `aac` encoder (`docs/design/transcode.md`, "AAC audio"); the
+    /// others are dropped and listed.
+    Aac(AacAudio),
 }
 
 /// The source's container, as the caller detected it.
@@ -119,12 +128,17 @@ pub struct TranscodeOptions {
     pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
+    /// The cover pictures of an MP4 source to leave out, as
+    /// `RemuxOptions::left_out_covers` names them; the others are copied
+    /// with the movie's metadata.
+    pub left_out_covers: Vec<u64>,
     /// Which encoder program.
     pub encoder: EncoderChoice,
     /// The `x264` program (`--x264`); else `COREAV_X264`, else `PATH`.
     pub x264: Option<PathBuf>,
     /// The `ffmpeg` program (`--ffmpeg`); else `COREAV_FFMPEG`, else
-    /// `PATH`.
+    /// `PATH`: the video encoder with [`EncoderChoice::Ffmpeg`], and the
+    /// AAC encoder with [`AudioMode::Aac`].
     pub ffmpeg: Option<PathBuf>,
     /// Encoder threads; `None` for the encoder's own choice.
     pub threads: Option<u32>,
@@ -155,6 +169,7 @@ impl Default for TranscodeOptions {
             pixel_format: None,
             one_size: false,
             audio: AudioMode::Copy,
+            left_out_covers: Vec::new(),
             encoder: EncoderChoice::Auto,
             x264: None,
             ffmpeg: None,
@@ -218,6 +233,9 @@ pub enum Remuxed {
 pub struct Summary {
     /// The video stream.
     pub video: VideoSummary,
+    /// The audio stream encoded, with [`AudioMode::Opus`] or
+    /// [`AudioMode::Aac`].
+    pub audio: Option<AudioSummary>,
     /// The streams written and dropped.
     pub remux: Remuxed,
 }
@@ -252,6 +270,9 @@ pub enum Error {
     MatroskaRemux(MatroskaRemuxError),
     /// The spool file could not be created, written or read.
     Spool(std::io::ErrorKind),
+    /// The audio stream to encode could not be decoded, or the source
+    /// could not be read for it (`coreav-audio`'s error).
+    Audio(coreav_audio::Error),
 }
 
 impl fmt::Display for Error {
@@ -266,6 +287,7 @@ impl fmt::Display for Error {
             Self::Remux(e) => write!(f, "{e}"),
             Self::MatroskaRemux(e) => write!(f, "{e}"),
             Self::Spool(kind) => write!(f, "spool file: {kind}"),
+            Self::Audio(e) => write!(f, "the audio stream: {e}"),
         }
     }
 }
@@ -348,6 +370,38 @@ pub fn transcode<S: Source, W: Write>(
                 }
             })
         })?;
+    // Before the video: a stream that cannot be encoded is refused before
+    // the video encoder starts.
+    let encode = match &options.audio {
+        AudioMode::Opus(opus) => Some(Encode::Opus(opus)),
+        AudioMode::Aac(aac) => {
+            let program = find_encoder(EncoderChoice::Ffmpeg, None, options.ffmpeg.clone())
+                .ok_or_else(|| {
+                    unsupported(
+                        "no ffmpeg program for AAC audio: install FFmpeg, whose built-in aac \
+                         encoder encodes it, or name it with --ffmpeg",
+                    )
+                })?;
+            Some(Encode::Aac(aac, program.path().to_path_buf()))
+        }
+        _ => None,
+    };
+    let audio = match encode {
+        Some(encode) => Some(crate::audio::encode(
+            &mut source,
+            &encode,
+            &coreav_audio::Limits {
+                isobmff: options.isobmff_limits,
+                matroska: options.matroska_limits,
+                ..coreav_audio::Limits::default()
+            },
+            launcher,
+            deadline,
+            output,
+            options.max_spool_bytes,
+        )?),
+        None => None,
+    };
     let mut limits = options.decode_limits.clone();
     limits.timeout = deadline.saturating_duration_since(Instant::now());
     limits.max_decoded_bytes = decoded_bytes_cap(
@@ -422,7 +476,7 @@ pub fn transcode<S: Source, W: Write>(
                 || decoder.receive_frame().map_err(Error::Decode),
                 |frame| {
                     let counts = presented_frame(&run, &frame);
-                    run.take(&frame)?;
+                    run.take(frame)?;
                     Ok(counts)
                 },
             )?;
@@ -450,12 +504,12 @@ pub fn transcode<S: Source, W: Write>(
             if presented_frame(&run, &frame) {
                 pace.received();
             }
-            run.take(&frame)?;
+            run.take(frame)?;
         }
     }
     decoder.send_eof().map_err(Error::Decode)?;
     while let Some(frame) = decoder.receive_frame().map_err(Error::Decode)? {
-        run.take(&frame)?;
+        run.take(frame)?;
     }
     let decoder_info = decoder.info().clone();
     drop(decoder);
@@ -503,9 +557,34 @@ pub fn transcode<S: Source, W: Write>(
         last_duration,
         data,
     };
+    let audio_replacement = match &audio {
+        Some(encoded) => Some(AudioReplacement {
+            stream_index: encoded.summary.stream_index,
+            sample_entry: &encoded.entry,
+            timescale: encoded.timescale,
+            samples: &encoded.samples,
+            start: encoded.start,
+            priming: u32::from(encoded.summary.pre_skip),
+            presented: encoded.summary.samples,
+            roll: encoded.roll,
+            data: BufferedSource::new(
+                FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
+            ),
+        }),
+        None => None,
+    };
+    let replacements = Replacements {
+        video: Some(replacement),
+        audio: audio_replacement,
+    };
     let streams = match &options.audio {
         AudioMode::Copy => None,
         AudioMode::None => Some(vec![video.stream_index]),
+        AudioMode::Opus(_) | AudioMode::Aac(_) => Some(
+            std::iter::once(video.stream_index)
+                .chain(audio.as_ref().map(|a| a.summary.stream_index))
+                .collect(),
+        ),
         AudioMode::Streams(audio) => Some(
             std::iter::once(video.stream_index)
                 .chain(audio.iter().copied().filter(|&s| s != video.stream_index))
@@ -517,13 +596,14 @@ pub fn transcode<S: Source, W: Write>(
             remux_mp4_replacing(
                 &mut source,
                 &options.isobmff_limits,
-                &isobmff_allowlist(video.stream.codec),
+                &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &RemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
                     metadata: Metadata::Copy,
+                    left_out_covers: options.left_out_covers.clone(),
                 },
-                replacement,
+                replacements,
                 out,
             )
             .map_err(Error::Remux)?,
@@ -533,7 +613,7 @@ pub fn transcode<S: Source, W: Write>(
                 &mut source,
                 &options.matroska_limits,
                 &options.isobmff_limits,
-                &matroska_allowlist(video.stream.codec),
+                &matroska_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &MatroskaRemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
@@ -541,7 +621,7 @@ pub fn transcode<S: Source, W: Write>(
                     // and listed: the replaced one is the output's video.
                     drop_video: true,
                 },
-                replacement,
+                replacements,
                 out,
             )
             .map_err(Error::MatroskaRemux)?,
@@ -563,6 +643,7 @@ pub fn transcode<S: Source, W: Write>(
             sample_aspect: settings.sample_aspect,
             frame_rate: settings.frame_rate,
         },
+        audio: audio.map(|a| a.summary),
         remux,
     })
 }
@@ -571,7 +652,7 @@ fn encode_error(message: String) -> Error {
     Error::Encode(coreav_decode::Error::new(ErrorKind::Backend, message))
 }
 
-fn spool_read(error: coreav_isobmff::Error) -> Error {
+pub(crate) fn spool_read(error: coreav_isobmff::Error) -> Error {
     match error {
         coreav_isobmff::Error::Io(kind) => Error::Spool(kind),
         // The spool file is CoreAV's own: never an input's error.
@@ -579,21 +660,36 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
     }
 }
 
-/// The ISOBMFF allowlist of the writer: the default, and VP8 when it is
-/// the video stream's codec (the default leaves it out), so that the
-/// replaced stream is kept.
-fn isobmff_allowlist(codec: Codec) -> coreav_isobmff::Allowlist {
+/// The ISOBMFF allowlist of the writer: the default, VP8 when it is the
+/// video stream's codec, and the codec of the audio stream encoded (FLAC),
+/// which the default leaves out, so that the replaced streams are kept.
+fn isobmff_allowlist(
+    codec: Codec,
+    audio: Option<coreav_audio::Codec>,
+) -> coreav_isobmff::Allowlist {
+    use coreav_isobmff::Codec as I;
     let mut codecs = coreav_isobmff::Allowlist::default().codecs().to_vec();
-    if codec == Codec::Vp8 {
-        codecs.push(coreav_isobmff::Codec::Vp8);
+    let video = (codec == Codec::Vp8).then_some(I::Vp8);
+    let audio = audio.map(|codec| match codec {
+        coreav_audio::Codec::Flac => I::Flac,
+        coreav_audio::Codec::Mp3 => I::Mp3,
+        coreav_audio::Codec::Opus => I::Opus,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => I::Aac,
+    });
+    for own in video.into_iter().chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_isobmff::Allowlist::new(&codecs)
 }
 
-/// The Matroska allowlist of the writer: the default, and the video
-/// stream's codec (a long-tail codec the decode policy allows, which the
-/// default leaves out), so that the replaced stream is kept.
-fn matroska_allowlist(codec: Codec) -> coreav_mkv::Allowlist {
+/// The Matroska allowlist of the writer: the default, the video stream's
+/// codec (a long-tail codec the decode policy allows, which the default
+/// leaves out) and the codec of the audio stream encoded (FLAC),
+/// so that the replaced streams are kept.
+fn matroska_allowlist(codec: Codec, audio: Option<coreav_audio::Codec>) -> coreav_mkv::Allowlist {
     use coreav_mkv::Codec as M;
     let mut codecs = coreav_mkv::Allowlist::default().codecs().to_vec();
     let own = match codec {
@@ -610,8 +706,17 @@ fn matroska_allowlist(codec: Codec) -> coreav_mkv::Allowlist {
         Codec::Theora => M::Theora,
         Codec::Ffv1 => M::Ffv1,
     };
-    if !codecs.contains(&own) {
-        codecs.push(own);
+    let audio = audio.map(|codec| match codec {
+        coreav_audio::Codec::Flac => M::Flac,
+        coreav_audio::Codec::Mp3 => M::Mp3,
+        coreav_audio::Codec::Opus => M::Opus,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => M::Aac,
+    });
+    for own in std::iter::once(own).chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_mkv::Allowlist::new(&codecs)
 }
@@ -919,7 +1024,8 @@ const CAP_BYTES_PER_PIXEL: u64 = 6;
 /// it), or of `max_frame_bytes` where the size is not declared. The
 /// configured default (4 GiB) suits one thumbnail, and is about 55 s of
 /// 1080p.
-fn decoded_bytes_cap(
+#[doc(hidden)]
+pub fn decoded_bytes_cap(
     limits: &coreav_decode::Limits,
     packets: usize,
     size: Option<(u32, u32)>,
@@ -1047,8 +1153,10 @@ struct Run<'a> {
 
 impl Run<'_> {
     /// One frame from the decoder: encoded when the source presents it
-    /// and its time is not below the last one's ([`frame_time`]).
-    fn take(&mut self, frame: &Frame) -> Result<(), Error> {
+    /// and its time is not below the last one's ([`frame_time`]). Its
+    /// pixels go to the encoder where they are, in CPU memory or in the
+    /// decoder's shared memory, unless they are converted or resized.
+    fn take(&mut self, frame: Frame) -> Result<(), Error> {
         let Some(pts) = frame.pts else {
             self.dropped += 1;
             return Ok(());
@@ -1076,18 +1184,24 @@ impl Run<'_> {
             self.dropped += 1;
             return Ok(());
         };
-        let decoded = frame
-            .to_cpu()
-            .map_err(|e| unsupported(format!("frame: {e}")))?;
+        let frame_error = |e: coreav_frame::FrameError| unsupported(format!("frame: {e}"));
         // NVDEC's NV12 (and P010) to planar, without loss.
-        let picture = match decoded.format() {
-            PixelFormat::SemiPlanar { .. } => decoded
-                .to_planar()
-                .map_err(|e| unsupported(format!("frame: {e}")))?,
-            _ => decoded.into_owned(),
+        let pixels = match frame.format() {
+            PixelFormat::SemiPlanar { .. } => Pixels::Cpu(
+                frame
+                    .pixels
+                    .into_cpu()
+                    .and_then(|p| p.to_planar())
+                    .map_err(frame_error)?,
+            ),
+            _ => match frame.pixels {
+                Pixels::Cuda(_) => Pixels::Cpu(frame.pixels.into_cpu().map_err(frame_error)?),
+                pixels => pixels,
+            },
         };
+        let decoded = Frame { pixels, ..frame };
         if self.encoder.is_none() {
-            let settings = self.settings(&picture, frame)?;
+            let settings = self.settings(&decoded)?;
             let sink = SpoolSink::new(self.spool, Arc::clone(&self.sent), self.options)?;
             let limits = EncoderLimits::new(encoder_memory(
                 &settings,
@@ -1113,14 +1227,14 @@ impl Run<'_> {
         let Some((encoder, settings)) = self.encoder.as_mut() else {
             return Err(encode_error("the encoder is gone".into()));
         };
-        if picture.format() != settings.format {
+        if decoded.format() != settings.format {
             return Err(unsupported(format!(
                 "the pixel format changed within the stream, from {:?} to {:?}",
                 settings.format,
-                picture.format()
+                decoded.format()
             )));
         }
-        let size = (picture.width(), picture.height());
+        let size = (decoded.width(), decoded.height());
         if self.options.one_size && *self.first_size.get_or_insert(size) != size {
             return Err(unsupported(
                 "the frame size changes within the stream, and the frames are not resized",
@@ -1129,19 +1243,22 @@ impl Run<'_> {
         if Instant::now() >= self.deadline {
             return Err(timed_out());
         }
-        let picture = if (picture.width(), picture.height()) == (settings.width, settings.height) {
-            picture
+        let pixels = if size == (settings.width, settings.height) {
+            decoded.pixels
         } else {
             // FFmpeg's default scale at the same pixel format
             // (docs/design/transcode.md, "Size").
-            picture
-                .resize_with(
-                    settings.width,
-                    settings.height,
-                    Filter::Bicubic,
-                    ChromaSiting::FfmpegCompatible,
-                )
-                .map_err(|e| unsupported(format!("resizing: {e}")))?
+            let picture = decoded.pixels.into_cpu().map_err(frame_error)?;
+            Pixels::Cpu(
+                picture
+                    .resize_with(
+                        settings.width,
+                        settings.height,
+                        Filter::Bicubic,
+                        ChromaSiting::FfmpegCompatible,
+                    )
+                    .map_err(|e| unsupported(format!("resizing: {e}")))?,
+            )
         };
         // A resize of a large frame takes time of its own.
         if Instant::now() >= self.deadline {
@@ -1150,9 +1267,7 @@ impl Run<'_> {
         // Before the frame is queued: the encoder may write its picture as
         // soon as the writer thread has written the frame.
         self.sent.fetch_add(1, Ordering::SeqCst);
-        encoder
-            .send_frame_at(&picture, time)
-            .map_err(Error::Encode)?;
+        encoder.send_frame_at(pixels, time).map_err(Error::Encode)?;
         self.sent_pts.push(time);
         self.last = Some((pts, time));
         Ok(())
@@ -1162,15 +1277,15 @@ impl Run<'_> {
     /// (refused unless the encoder takes it), the output size, the sample
     /// aspect ratio that keeps the display aspect ratio, the colour
     /// description and the frame rate.
-    fn settings(&self, picture: &Picture, frame: &Frame) -> Result<EncoderSettings, Error> {
+    fn settings(&self, frame: &Frame) -> Result<EncoderSettings, Error> {
         if let Some(wanted) = self.options.pixel_format
-            && picture.format() != wanted
+            && frame.format() != wanted
         {
             return Err(unsupported(
                 "the frames decode to another pixel format than the one asked for, and are not converted",
             ));
         }
-        let (width, height) = (picture.width(), picture.height());
+        let (width, height) = (frame.width(), frame.height());
         let (out_w, out_h) = match self.options.scale {
             Some(scale) => scale.resolve(width, height).ok_or_else(|| {
                 unsupported(format!("--scale gives no valid size for {width}x{height}"))
@@ -1191,7 +1306,7 @@ impl Run<'_> {
             preset: self.options.preset.clone(),
             rate: self.options.rate,
             threads: self.options.threads,
-            ..EncoderSettings::new(out_w, out_h, picture.format(), self.frame_rate)
+            ..EncoderSettings::new(out_w, out_h, frame.format(), self.frame_rate)
         };
         settings.validate().map_err(|e| match e.kind {
             ErrorKind::Unsupported | ErrorKind::Limit => Error::Unsupported(e.message),
@@ -1307,7 +1422,7 @@ fn time_base_terms(time_base: Rational) -> Result<(u64, u64), Error> {
 /// timecode file), removed when dropped. It is created new and kept open:
 /// every write and read goes through this handle, never through the path
 /// again, so a link put in its place cannot redirect them.
-struct Spool {
+pub(crate) struct Spool {
     path: PathBuf,
     file: File,
 }
@@ -1316,7 +1431,7 @@ impl Spool {
     /// A new file `.{name}.coreav-{pid}.{kind}` next to `output`, the name
     /// shortened to fit 255 bytes, its path absolute (the encoder reads the
     /// timecode file from it).
-    fn create(output: &Path, kind: &str) -> Result<Self, Error> {
+    pub(crate) fn create(output: &Path, kind: &str) -> Result<Self, Error> {
         let name = output
             .file_name()
             .map_or_else(|| "output".into(), |n| n.to_string_lossy().into_owned());
@@ -1337,7 +1452,7 @@ impl Spool {
     }
 
     /// Another handle to the same open file.
-    fn handle(&self) -> Result<File, Error> {
+    pub(crate) fn handle(&self) -> Result<File, Error> {
         self.file.try_clone().map_err(|e| Error::Spool(e.kind()))
     }
 

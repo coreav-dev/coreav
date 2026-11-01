@@ -34,7 +34,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use coreav_decode::{Error, ErrorKind};
-use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat};
+use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat, Pixels};
 use coreav_worker::exec;
 use coreav_worker::{ExecLauncher, HugePages, SandboxLimits};
 
@@ -104,10 +104,10 @@ pub enum EncoderChoice {
 /// `ffmpeg` on `PATH`, as for the decode fallback
 /// ([`coreav_worker::find_ffmpeg`]). A variable set to something that is not
 /// a file finds nothing, not the `PATH` program. `Auto` takes `x264` when
-/// there is one and `ffmpeg` otherwise. A named path (with a `/`) is taken
-/// as given, and a wrong one fails when the encoder starts, with its path in
-/// the message; a bare name is looked for on `PATH`, and finds nothing when
-/// it is not there.
+/// there is one and `ffmpeg` otherwise. A named path (with a `/`, or on
+/// Windows a `/` or `\`) is taken as given, and a wrong one fails when
+/// the encoder starts, with its path in the message; a bare name is looked
+/// for on `PATH`, and finds nothing when it is not there.
 pub fn find_encoder(
     choice: EncoderChoice,
     x264: Option<PathBuf>,
@@ -732,7 +732,7 @@ struct Shared {
 
 #[derive(Default)]
 struct Queue {
-    frames: VecDeque<Vec<u8>>,
+    frames: VecDeque<Chunk>,
     /// No more frames will come: the writer closes the encoder's input
     /// once the queue is empty.
     input_done: bool,
@@ -803,8 +803,11 @@ impl Shared {
     }
 }
 
-/// A running encoder program.
-pub struct Encoder<S: Sink> {
+/// A running encoder process, with the threads the module describes: the
+/// video encoder program's ([`Encoder`]) or the Opus encoder's
+/// (`crate::audio`). Its input is a sequence of byte chunks; its output
+/// goes to a [`Sink`].
+pub(crate) struct Process<S: Sink> {
     shared: Arc<Shared>,
     /// Tells the keeper to kill the encoder (a message, or every sender
     /// gone); `None` once it was told.
@@ -812,20 +815,29 @@ pub struct Encoder<S: Sink> {
     writer_done: Receiver<()>,
     reader_done: Receiver<(S, Result<(), Error>)>,
     stderr_done: Receiver<()>,
-    settings: EncoderSettings,
     name: &'static str,
-    frame_bytes: usize,
+    /// What a chunk of the input is, for messages (`frames`).
+    unit: &'static str,
     deadline: Instant,
-    frames: u64,
-    /// FFmpeg with the frames' times: the Matroska stream's time scale, and
-    /// the first frame's time and the last one's.
-    blocks: Option<Blocks>,
+    /// Chunks queued so far.
+    queued: u64,
     /// The error the encode already ended with.
     error: Option<Error>,
 }
 
+/// A running encoder program.
+pub struct Encoder<S: Sink> {
+    process: Process<S>,
+    settings: EncoderSettings,
+    frame_bytes: usize,
+    frames: u64,
+    /// FFmpeg with the frames' times: the Matroska stream's time scale, and
+    /// the first frame's time and the last one's.
+    blocks: Option<Blocks>,
+}
+
 /// The frames' times in the Matroska stream to FFmpeg.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Blocks {
     timescale: crate::rawmkv::Timescale,
     /// The stream's header for more than one frame, and for one frame
@@ -834,7 +846,7 @@ struct Blocks {
     headers: Option<(Vec<u8>, Vec<u8>)>,
     /// The first frame, held until a second one or the end of the input
     /// says which header goes before it.
-    held: Option<Vec<u8>>,
+    held: Option<Chunk>,
     first: Option<i64>,
     last: Option<i64>,
 }
@@ -877,6 +889,38 @@ pub fn write_timecodes(
     out.write_all(text.as_bytes())
         .and_then(|()| out.flush())
         .map_err(|e| Error::new(ErrorKind::Io, format!("timecode file: {}", e.kind())))
+}
+
+/// The command that runs `program` with `args`: through `launcher` with
+/// `limits`, `huge_pages` and a CPU time of what is left to `deadline`
+/// times the CPU count (the sandbox), or directly when `launcher` is
+/// `None` (no limits; for tests).
+pub(crate) fn command(
+    program: &Path,
+    args: &[OsString],
+    huge_pages: HugePages,
+    launcher: Option<&ExecLauncher>,
+    limits: &EncoderLimits,
+    deadline: Instant,
+) -> std::process::Command {
+    match launcher {
+        Some(launcher) => {
+            let parallelism = std::thread::available_parallelism().map_or(1, |n| n.get());
+            let cpu_seconds = deadline
+                .saturating_duration_since(Instant::now())
+                .as_secs()
+                .saturating_add(1)
+                .saturating_mul(u64::try_from(parallelism).unwrap_or(1))
+                .saturating_add(10);
+            let sandbox = SandboxLimits {
+                address_space: limits.address_space,
+                cpu_seconds: Some(cpu_seconds),
+                open_files: limits.open_files,
+            };
+            launcher.command(&sandbox, huge_pages, program, args)
+        }
+        None => exec::direct_command(program, args),
+    }
 }
 
 /// Starts a thread, or reports why it could not.
@@ -960,33 +1004,158 @@ impl<S: Sink> Encoder<S> {
             }
             _ => None,
         };
-        let mut command = match launcher {
-            Some(launcher) => {
-                let parallelism = std::thread::available_parallelism().map_or(1, |n| n.get());
-                let cpu_seconds = deadline
-                    .saturating_duration_since(Instant::now())
-                    .as_secs()
-                    .saturating_add(1)
-                    .saturating_mul(u64::try_from(parallelism).unwrap_or(1))
-                    .saturating_add(10);
-                let sandbox = SandboxLimits {
-                    address_space: limits.address_space,
-                    cpu_seconds: Some(cpu_seconds),
-                    open_files: limits.open_files,
-                };
-                launcher.command(
-                    &sandbox,
-                    program.huge_pages(settings.format),
-                    program.path(),
-                    &args,
-                )
+        let command = command(
+            program.path(),
+            &args,
+            program.huge_pages(settings.format),
+            launcher,
+            limits,
+            deadline,
+        );
+        let process = Process::spawn(name, "frames", command, program.path(), deadline, sink)?;
+        Ok(Self {
+            process,
+            settings: settings.clone(),
+            frame_bytes,
+            frames: 0,
+            blocks,
+        })
+    }
+
+    /// Frames sent so far.
+    pub fn frames_sent(&self) -> u64 {
+        self.frames
+    }
+
+    /// Queues a frame for the encoder, in CPU or shared memory: its format
+    /// and size must be the settings'. The writer writes its planes from
+    /// where they are and drops them after. Waits while [`QUEUED_FRAMES`]
+    /// are queued, at most until the deadline; an encoder that exits
+    /// meanwhile ends the wait at once. With FFmpeg and
+    /// [`Timing::Timestamps`], use [`Encoder::send_frame_at`].
+    pub fn send_frame(&mut self, frame: impl Into<Pixels>) -> Result<(), Error> {
+        self.send(frame.into(), None)
+    }
+
+    /// [`Encoder::send_frame`] for a frame presented at `time`, in ticks of
+    /// the [`Timing::Timestamps`] time base; times must increase. With
+    /// x264 and with [`Timing::Constant`] the time is not passed (x264 has
+    /// the timecode file).
+    pub fn send_frame_at(&mut self, frame: impl Into<Pixels>, time: i64) -> Result<(), Error> {
+        self.send(frame.into(), Some(time))
+    }
+
+    fn send(&mut self, pixels: Pixels, time: Option<i64>) -> Result<(), Error> {
+        if let Some(e) = &self.process.error {
+            return Err(e.clone());
+        }
+        let (width, height, format, packed_len) = match &pixels {
+            Pixels::Cpu(p) => (p.width(), p.height(), p.format(), Some(p.packed_len())),
+            Pixels::Shared(p) => (p.width, p.height, p.format, p.packed_len()),
+            Pixels::Cuda(_) => {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "a frame in device memory, which the encoder does not read",
+                ));
             }
-            None => exec::direct_command(program.path(), &args),
         };
+        if format != self.settings.format
+            || width != self.settings.width
+            || height != self.settings.height
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "frame {width}x{height} {format:?} differs from the encoder's {}x{} {:?}",
+                    self.settings.width, self.settings.height, self.settings.format
+                ),
+            ));
+        }
+        if packed_len != Some(self.frame_bytes) {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "frame of the wrong size",
+            ));
+        }
+        let head = match self.blocks.as_mut() {
+            Some(blocks) => {
+                let Some(time) = time else {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "a frame without its time for an encoder told the frames' times",
+                    ));
+                };
+                if blocks.last.is_some_and(|last| time <= last) {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "frame times must increase",
+                    ));
+                }
+                let first = *blocks.first.get_or_insert(time);
+                let ticks = i64::try_from(i128::from(time) - i128::from(first))
+                    .ok()
+                    .and_then(|t| blocks.timescale.ticks(t))
+                    .ok_or_else(|| Error::new(ErrorKind::Limit, "a frame time is out of range"))?;
+                blocks.last = Some(time);
+                crate::rawmkv::cluster_head(ticks, self.frame_bytes as u64)
+            }
+            None => Vec::new(),
+        };
+        let chunk = Chunk::Frame { head, pixels };
+        if let Some(blocks) = self.blocks.as_mut() {
+            match blocks.held.take() {
+                None if blocks.headers.is_some() => {
+                    blocks.held = Some(chunk);
+                    self.frames += 1;
+                    return Ok(());
+                }
+                Some(held) => {
+                    let (many, _) = blocks.headers.take().unwrap_or_default();
+                    self.process.enqueue(held.after(many))?;
+                }
+                None => {}
+            }
+        }
+        self.process.enqueue(chunk)?;
+        self.frames += 1;
+        Ok(())
+    }
+
+    /// Closes the encoder's input once every queued frame is written, takes
+    /// the rest of its output, and waits for it to exit, at most until the
+    /// deadline. Returns the sink; an encoder that exited with an error, was
+    /// killed or did not read every frame is an error carrying the end of
+    /// its standard error.
+    pub fn finish(mut self) -> Result<S, Error> {
+        if let Some(e) = self.process.error.take() {
+            return Err(e);
+        }
+        let held = self
+            .blocks
+            .as_mut()
+            .and_then(|b| Some((b.headers.take()?.1, b.held.take()?)));
+        if let Some((one, held)) = held {
+            self.process.enqueue(held.after(one))?;
+        }
+        self.process.finish()
+    }
+}
+
+impl<S: Sink> Process<S> {
+    /// Starts `command` (running `program`), its output going to `sink`;
+    /// every wait ends at `deadline`, when the process is killed.
+    pub(crate) fn spawn(
+        name: &'static str,
+        unit: &'static str,
+        mut command: std::process::Command,
+        program: &Path,
+        deadline: Instant,
+        sink: S,
+    ) -> Result<Self, Error> {
         let mut child = command.spawn().map_err(|e| {
             Error::new(
                 ErrorKind::Backend,
-                format!("cannot start {name} {}: {e}", program.path().display()),
+                format!("cannot start {name} {}: {e}", program.display()),
             )
         })?;
         let pipes = (child.stdin.take(), child.stdout.take(), child.stderr.take());
@@ -1052,115 +1221,21 @@ impl<S: Sink> Encoder<S> {
             writer_done,
             reader_done,
             stderr_done,
-            settings: settings.clone(),
             name,
-            frame_bytes,
+            unit,
             deadline,
-            frames: 0,
-            blocks,
+            queued: 0,
             error: None,
         })
     }
 
-    /// Frames sent so far.
-    pub fn frames_sent(&self) -> u64 {
-        self.frames
-    }
-
-    /// Queues `picture` for the encoder: its format and size must be the
-    /// settings'. Waits while [`QUEUED_FRAMES`] are queued, at most until
-    /// the deadline; an encoder that exits meanwhile ends the wait at once.
-    /// With FFmpeg and [`Timing::Timestamps`], use
-    /// [`Encoder::send_frame_at`].
-    pub fn send_frame(&mut self, picture: &Picture) -> Result<(), Error> {
-        self.send(picture, None)
-    }
-
-    /// [`Encoder::send_frame`] for a frame presented at `time`, in ticks of
-    /// the [`Timing::Timestamps`] time base; times must increase. With
-    /// x264 and with [`Timing::Constant`] the time is not passed (x264 has
-    /// the timecode file).
-    pub fn send_frame_at(&mut self, picture: &Picture, time: i64) -> Result<(), Error> {
-        self.send(picture, Some(time))
-    }
-
-    fn send(&mut self, picture: &Picture, time: Option<i64>) -> Result<(), Error> {
+    /// Queues one chunk of the input for the writer, waiting while
+    /// [`QUEUED_FRAMES`] are queued, at most until the deadline.
+    pub(crate) fn enqueue(&mut self, chunk: impl Into<Chunk>) -> Result<(), Error> {
+        let chunk = chunk.into();
         if let Some(e) = &self.error {
             return Err(e.clone());
         }
-        if picture.format() != self.settings.format
-            || picture.width() != self.settings.width
-            || picture.height() != self.settings.height
-        {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "frame {}x{} {:?} differs from the encoder's {}x{} {:?}",
-                    picture.width(),
-                    picture.height(),
-                    picture.format(),
-                    self.settings.width,
-                    self.settings.height,
-                    self.settings.format
-                ),
-            ));
-        }
-        let mut bytes = match self.blocks.as_mut() {
-            Some(blocks) => {
-                let Some(time) = time else {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "a frame without its time for an encoder told the frames' times",
-                    ));
-                };
-                if blocks.last.is_some_and(|last| time <= last) {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "frame times must increase",
-                    ));
-                }
-                let first = *blocks.first.get_or_insert(time);
-                let ticks = i64::try_from(i128::from(time) - i128::from(first))
-                    .ok()
-                    .and_then(|t| blocks.timescale.ticks(t))
-                    .ok_or_else(|| Error::new(ErrorKind::Limit, "a frame time is out of range"))?;
-                blocks.last = Some(time);
-                crate::rawmkv::cluster_head(ticks, self.frame_bytes as u64)
-            }
-            None => Vec::new(),
-        };
-        let head = bytes.len();
-        picture
-            .write_packed(&mut bytes)
-            .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
-        if bytes.len() - head != self.frame_bytes {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "frame of the wrong size",
-            ));
-        }
-        if let Some(blocks) = self.blocks.as_mut() {
-            match blocks.held.take() {
-                None if blocks.headers.is_some() => {
-                    blocks.held = Some(bytes);
-                    self.frames += 1;
-                    return Ok(());
-                }
-                Some(held) => {
-                    let (many, _) = blocks.headers.take().unwrap_or_default();
-                    self.enqueue([many, held].concat())?;
-                }
-                None => {}
-            }
-        }
-        self.enqueue(bytes)?;
-        self.frames += 1;
-        Ok(())
-    }
-
-    /// Queues one frame's bytes for the writer, waiting while
-    /// [`QUEUED_FRAMES`] are queued, at most until the deadline.
-    fn enqueue(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
         let outcome = {
             let Ok(mut queue) = self.shared.queue.lock() else {
                 return Err(self.fail(Error::new(ErrorKind::Backend, "encoder state lost")));
@@ -1173,7 +1248,7 @@ impl<S: Sink> Encoder<S> {
                     ));
                 }
                 if queue.frames.len() < QUEUED_FRAMES {
-                    queue.frames.push_back(bytes);
+                    queue.frames.push_back(chunk);
                     break Ok(());
                 }
                 let remaining = self.deadline.saturating_duration_since(Instant::now());
@@ -1192,6 +1267,7 @@ impl<S: Sink> Encoder<S> {
         };
         match outcome {
             Ok(()) => {
+                self.queued += 1;
                 self.shared.changed.notify_all();
                 Ok(())
             }
@@ -1199,21 +1275,14 @@ impl<S: Sink> Encoder<S> {
         }
     }
 
-    /// Closes the encoder's input once every queued frame is written, takes
-    /// the rest of its output, and waits for it to exit, at most until the
-    /// deadline. Returns the sink; an encoder that exited with an error, was
-    /// killed or did not read every frame is an error carrying the end of
+    /// Closes the input once every queued chunk is written, takes the rest
+    /// of the output, and waits for the process to exit, at most until the
+    /// deadline. Returns the sink; a process that exited with an error, was
+    /// killed or did not read every chunk is an error carrying the end of
     /// its standard error.
-    pub fn finish(mut self) -> Result<S, Error> {
+    pub(crate) fn finish(mut self) -> Result<S, Error> {
         if let Some(e) = self.error.take() {
             return Err(e);
-        }
-        let held = self
-            .blocks
-            .as_mut()
-            .and_then(|b| Some((b.headers.take()?.1, b.held.take()?)));
-        if let Some((one, held)) = held {
-            self.enqueue([one, held].concat())?;
         }
         if let Ok(mut queue) = self.shared.queue.lock() {
             queue.input_done = true;
@@ -1267,12 +1336,12 @@ impl<S: Sink> Encoder<S> {
         }
         read.map_err(|e| self.describe(e))?;
         let written = self.shared.queue.lock().map_or(0, |q| q.written);
-        if written != self.frames {
+        if written != self.queued {
             return Err(self.describe(Error::new(
                 ErrorKind::Backend,
                 format!(
-                    "{} exited after reading {written} of {} frames",
-                    self.name, self.frames
+                    "{} exited after reading {written} of {} {}",
+                    self.name, self.queued, self.unit
                 ),
             )));
         }
@@ -1328,7 +1397,7 @@ impl<S: Sink> Encoder<S> {
     }
 }
 
-impl<S: Sink> Drop for Encoder<S> {
+impl<S: Sink> Drop for Process<S> {
     /// Stops the writer and tells the keeper to kill the encoder; never
     /// blocks.
     fn drop(&mut self) {
@@ -1339,10 +1408,15 @@ impl<S: Sink> Drop for Encoder<S> {
     }
 }
 
-/// Whether `path` names a file by its path (it has a `/`), not a name to
-/// search for.
-fn is_path(path: &Path) -> bool {
-    path.as_os_str().as_encoded_bytes().contains(&b'/')
+/// Whether `path` names a file by its path (it has a separator: a `/`, or
+/// on Windows a `/` or `\`), not a name to search for.
+pub(crate) fn is_path(path: &Path) -> bool {
+    has_separator(path.as_os_str().as_encoded_bytes(), cfg!(windows))
+}
+
+/// Whether `path` has a separator, `\` being one when `windows`.
+fn has_separator(path: &[u8], windows: bool) -> bool {
+    path.iter().any(|&b| b == b'/' || (windows && b == b'\\'))
 }
 
 fn timeout() -> Error {
@@ -1434,10 +1508,109 @@ fn has_exited(_: &mut Child, shared: &Shared, since: &mut Option<Instant>) -> bo
     since.get_or_insert_with(Instant::now).elapsed() >= EXIT_GRACE
 }
 
+/// One write to the encoder's input: bytes, or a frame's planes packed
+/// after a header.
+#[derive(Debug)]
+pub(crate) enum Chunk {
+    Bytes(Vec<u8>),
+    Frame { head: Vec<u8>, pixels: Pixels },
+}
+
+impl From<Vec<u8>> for Chunk {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::Bytes(bytes)
+    }
+}
+
+impl Chunk {
+    /// The chunk with `header` written before it.
+    fn after(self, header: Vec<u8>) -> Self {
+        match self {
+            Self::Bytes(bytes) => Self::Bytes([header, bytes].concat()),
+            Self::Frame { head, pixels } => Self::Frame {
+                head: [header, head].concat(),
+                pixels,
+            },
+        }
+    }
+
+    /// Writes the chunk, a frame's planes in order with their rows packed:
+    /// straight from a picture whose rows are, else gathered through
+    /// `buffer` (a picture in shared memory is read only by copying out).
+    fn write_to(&self, out: &mut impl Write, buffer: &mut Vec<u8>) -> io::Result<()> {
+        let (head, pixels) = match self {
+            Self::Bytes(bytes) => return out.write_all(bytes),
+            Self::Frame { head, pixels } => (head, pixels),
+        };
+        out.write_all(head)?;
+        if buffer.is_empty() {
+            buffer.resize(WRITE_BUFFER, 0);
+        }
+        match pixels {
+            Pixels::Cpu(picture) => write_picture(out, picture, buffer),
+            Pixels::Shared(picture) => {
+                let mut at = 0;
+                loop {
+                    let n = picture
+                        .memory
+                        .read_packed(at, buffer)
+                        .ok_or_else(|| io::Error::other("a frame outside its shared memory"))?;
+                    if n == 0 {
+                        return Ok(());
+                    }
+                    out.write_all(buffer.get(..n).unwrap_or_default())?;
+                    at += n;
+                }
+            }
+            Pixels::Cuda(_) => Err(io::Error::other("a frame in device memory")),
+        }
+    }
+}
+
+/// Bytes of the writer's buffer for rows it gathers: a few times the pipe's
+/// own buffer, and small enough to stay in a core's cache.
+const WRITE_BUFFER: usize = 1 << 20;
+
+/// Writes `picture`'s planes with their rows packed: each plane whose rows
+/// are packed in one write, the rows of the others gathered in `buffer`.
+fn write_picture(out: &mut impl Write, picture: &Picture, buffer: &mut [u8]) -> io::Result<()> {
+    for (index, plane) in picture.planes().iter().enumerate() {
+        let (rows, row_bytes) = picture
+            .plane_rows(index)
+            .ok_or_else(|| io::Error::other("a plane without rows"))?;
+        if plane.stride() == row_bytes {
+            let data = rows
+                .checked_mul(row_bytes)
+                .and_then(|len| plane.data().get(..len))
+                .ok_or_else(|| io::Error::other("a plane shorter than its rows"))?;
+            out.write_all(data)?;
+            continue;
+        }
+        let mut filled = 0;
+        for row in picture.rows(index) {
+            if filled + row.len() > buffer.len() {
+                out.write_all(buffer.get(..filled).unwrap_or_default())?;
+                filled = 0;
+            }
+            match buffer.get_mut(filled..filled + row.len()) {
+                Some(target) => {
+                    target.copy_from_slice(row);
+                    filled += row.len();
+                }
+                None => out.write_all(row)?,
+            }
+        }
+        out.write_all(buffer.get(..filled).unwrap_or_default())?;
+    }
+    Ok(())
+}
+
 /// Writes the queued frames to the encoder's input until the queue is
 /// done and empty, or a write fails, or the encode stops; then closes the
-/// input.
+/// input. A frame is dropped only after its write, so a frame lent in the
+/// decoder's shared memory goes back to it then.
 fn write_frames(mut stdin: ChildStdin, shared: &Shared) {
+    let mut buffer = Vec::new();
     loop {
         let frame = {
             let Ok(mut queue) = shared.queue.lock() else {
@@ -1461,11 +1634,11 @@ fn write_frames(mut stdin: ChildStdin, shared: &Shared) {
             }
         };
         shared.changed.notify_all();
-        if stdin
-            .write_all(&frame)
-            .and_then(|()| stdin.flush())
-            .is_err()
-        {
+        let written = frame
+            .write_to(&mut stdin, &mut buffer)
+            .and_then(|()| stdin.flush());
+        drop(frame);
+        if written.is_err() {
             shared.stop();
             return;
         }
@@ -1535,7 +1708,67 @@ fn keep_stderr(mut stderr: ChildStderr, shared: &Shared) {
 
 #[cfg(test)]
 mod tests {
+    use coreav_frame::{Plane, SharedMemory, SharedPicture};
+
     use super::*;
+
+    struct Packed(Vec<u8>);
+
+    impl SharedMemory for Packed {
+        fn read_packed(&self, at: usize, out: &mut [u8]) -> Option<usize> {
+            let rest = self.0.get(at..)?;
+            let n = rest.len().min(out.len());
+            out.get_mut(..n)?.copy_from_slice(rest.get(..n)?);
+            Some(n)
+        }
+    }
+
+    #[test]
+    fn a_frame_goes_out_packed_from_either_memory_through_any_buffer() {
+        let (width, height, format) = (5, 3, PixelFormat::YUV420P);
+        let planes = (0..format.plane_count())
+            .map(|index| {
+                let (_, rows) = format.plane_size(index, width, height).unwrap();
+                let stride = format.row_bytes(index, width, height).unwrap() + 3;
+                let data = (0..stride * rows as usize)
+                    .map(|b| u8::try_from((b * 7 + index) % 256).unwrap())
+                    .collect();
+                Plane::new(data, stride)
+            })
+            .collect();
+        let picture = Picture::new(width, height, format, planes).unwrap();
+        let mut expected = b"head".to_vec();
+        picture.write_packed(&mut expected).unwrap();
+        let shared = SharedPicture {
+            width,
+            height,
+            format,
+            memory: Arc::new(Packed(expected.get(4..).unwrap().to_vec())),
+        };
+        for size in [1, 4, 7, WRITE_BUFFER] {
+            for pixels in [Pixels::Cpu(picture.clone()), Pixels::Shared(shared.clone())] {
+                let mut out = Vec::new();
+                Chunk::Frame {
+                    head: b"head".to_vec(),
+                    pixels,
+                }
+                .write_to(&mut out, &mut vec![0; size])
+                .unwrap();
+                assert_eq!(out, expected, "{size}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_windows_absolute_path_names_a_file_on_windows() {
+        assert!(has_separator(br"C:\ffmpeg\bin\ffmpeg.exe", true));
+        assert!(has_separator(br"\\server\share\ffmpeg.exe", true));
+        assert!(has_separator(b"C:/ffmpeg/bin/ffmpeg.exe", true));
+        assert!(!has_separator(b"ffmpeg.exe", true));
+        assert!(!has_separator(br"C:\ffmpeg\bin\ffmpeg.exe", false));
+        assert!(has_separator(b"/usr/bin/ffmpeg", false));
+        assert!(!has_separator(b"ffmpeg", false));
+    }
 
     fn settings() -> EncoderSettings {
         EncoderSettings::new(

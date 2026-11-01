@@ -49,6 +49,14 @@ class Concat(unittest.TestCase):
         # Each file's own start time is moved to where the file goes.
         self.assertEqual(copy_check.placement([F(5), F(8)], [(500_000, 2_000_000), (-500_000, 1_000_000)]), [])
 
+    def test_a_placement_is_compared_in_the_video_ticks(self):
+        F = copy_check.fractions.Fraction
+        # 4.032 s is 51609.6 ticks of 1/12800: the video goes to 51610.
+        formats = [(0, 4_032_000), (0, 4_032_000)]
+        self.assertEqual(copy_check.placement([F(0), F(51610, 12800)], formats, 12800), [])
+        self.assertEqual(copy_check.placement([F(0), F(51609, 12800)], formats, 12800),
+                         ["timing: input 1 placed at 51609 ticks, ffmpeg concat 51610 ticks"])
+
     def test_the_presentation_end_by_the_boxes(self):
         F = copy_check.fractions.Fraction
 
@@ -105,8 +113,8 @@ class Concat(unittest.TestCase):
                 out = {}
             return subprocess.CompletedProcess(args, 0, json.dumps(out).encode(), b"")
 
-        record = {"detail": {"inputs": [{"path": "indexed.mp4", "offset": {"num": 0, "den": 1}},
-                                        {"path": "plain.mp4", "offset": {"num": 1, "den": 1}}]},
+        record = {"detail": {"inputs": [{"path": "indexed.mp4", "offset": {"num": 0, "den": 1, "timescale": 12_800}},
+                                        {"path": "plain.mp4", "offset": {"num": 1, "den": 1, "timescale": 12_800}}]},
                   "input": "list.txt", "args": ["-f", "concat", "-i", "INPUT", "-c", "copy", "OUTPUT"],
                   "output": "join.mp4"}
         boxes = {"indexed.mp4": [(b"ftyp",), (b"sidx",), (b"moof",)], "plain.mp4": [(b"ftyp",), (b"moov",)]}

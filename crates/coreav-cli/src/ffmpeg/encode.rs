@@ -9,10 +9,12 @@ use std::path::{Path, PathBuf};
 use coreav_isobmff::{BufferedSource, FileSource, Rational};
 use coreav_thumbnail::ThumbnailOptions;
 use coreav_transcode::PixelFormat;
+use coreav_transcode::aac;
 use coreav_transcode::encoder::{MAX_BITRATE, MAX_THREADS, PRESETS};
+use coreav_worker::opus::{MAX_BITRATE as MAX_OPUS_BITRATE, MIN_BITRATE};
 
-use super::args::{Codec, Command, Encoding};
-use super::{NotNative, Refusal, Stop};
+use super::args::{AudioEncoder, Codec, Command, Encoding};
+use super::{NotNative, Refusal, Stop, TranscodeJob};
 use crate::error::Failure;
 use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
@@ -39,6 +41,12 @@ fn refused(option: &str, value: &str, why: &str) -> Refusal {
 /// `M` or `G`) in bits a second, as the kbit/s libx264 receives: divided by
 /// 1,000, the remainder dropped.
 fn kbps(text: &str) -> Option<u32> {
+    u32::try_from(bits(text)? / 1_000).ok()
+}
+
+/// `ffmpeg`'s number syntax ([`kbps`]) in bits a second, the fraction of a
+/// bit dropped.
+fn bits(text: &str) -> Option<u128> {
     let (number, scale) = match text.char_indices().last()? {
         (i, 'k' | 'K') => (text.get(..i)?, 1_000u128),
         (i, 'M') => (text.get(..i)?, 1_000_000),
@@ -56,14 +64,31 @@ fn kbps(text: &str) -> Option<u32> {
     }
     let digits: u128 = format!("{whole}{fraction}").parse().ok()?;
     let ten = 10u128.checked_pow(u32::try_from(fraction.len()).ok()?)?;
-    let bits = digits.checked_mul(scale)? / ten;
-    u32::try_from(bits / 1_000).ok()
+    Some(digits.checked_mul(scale)? / ten)
 }
 
 /// The encoder of a command that encodes with `libx264`, as strict-safe
 /// mode allows it, from the command line alone: refused before the input
-/// is read. `None` for a command that names no `libx264`.
+/// is read. `None` for a command that names no `libx264`. A command that
+/// names `aac` is refused in strict-safe mode first: its encoder is the
+/// `ffmpeg` program.
 pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
+    if command
+        .codecs
+        .iter()
+        .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Aac))
+    {
+        strict_safe
+            .aac("use -c:a copy or libopus")
+            .map_err(|message| {
+                Refusal::NotNative(NotNative {
+                    reason: Reason::Property(
+                        "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)",
+                    ),
+                    message,
+                })
+            })?;
+    }
     if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
         return Ok(None);
     }
@@ -74,13 +99,20 @@ pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Enco
 }
 
 /// The request for the pipeline from the command's encoder options, its
-/// `encoder` and the audio streams it copies.
+/// `encoder` and the audio streams it copies, or the one it encodes with
+/// libopus or aac (`audio_encoder`).
 pub fn request(
     command: &Command,
-    audio: &[usize],
+    job: &TranscodeJob,
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<Request, Refusal> {
+    let TranscodeJob {
+        audio,
+        audio_encoder,
+        left_out_covers,
+        ..
+    } = job;
     let Encoding {
         crf,
         bitrate,
@@ -90,7 +122,41 @@ pub fn request(
         size,
         pixel_format,
         passthrough: _,
+        audio_bitrate,
     } = &command.encoding;
+    let (opus, aac) = match (audio_encoder, audio.as_slice()) {
+        (None, _) => (None, None),
+        (Some(encoder), [stream]) => {
+            let stream = Some(*stream);
+            let (range, why) = match encoder {
+                AudioEncoder::Libopus => (
+                    MIN_BITRATE..=MAX_OPUS_BITRATE,
+                    "the Opus bit rate must be from 6k to 510k bits a second",
+                ),
+                AudioEncoder::Aac => (
+                    aac::MIN_BITRATE..=aac::MAX_BITRATE,
+                    "the AAC bit rate must be from 16k to 512k bits a second",
+                ),
+            };
+            let bitrate = match audio_bitrate {
+                None => None,
+                Some(text) => match bits(text).and_then(|b| u32::try_from(b).ok()) {
+                    Some(b) if range.contains(&b) => Some(b),
+                    _ => return Err(refused("-b:a", text, why)),
+                },
+            };
+            match encoder {
+                AudioEncoder::Libopus => (Some(transcode::OpusRequest { stream, bitrate }), None),
+                AudioEncoder::Aac => (None, Some(transcode::AacRequest { stream, bitrate })),
+            }
+        }
+        (Some(encoder), _) => {
+            return Err(Refusal::not_native(match encoder {
+                AudioEncoder::Libopus => "encoding other than one audio stream with libopus",
+                AudioEncoder::Aac => "encoding other than one audio stream with aac",
+            }));
+        }
+    };
     if let (Some(_), Some(rate)) = (crf, bitrate) {
         return Err(refused(
             "-b:v",
@@ -173,7 +239,10 @@ pub fn request(
         preset,
         scale,
         no_audio: audio.is_empty(),
-        audio_streams: Some(audio.to_vec()),
+        audio_streams: Some(audio.clone()),
+        left_out_covers: left_out_covers.clone(),
+        opus,
+        aac,
         pixel_format,
         one_size: true,
         encoder,
@@ -195,10 +264,9 @@ const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 /// encoded. Copied `audio` the MP4 writer does not take is refused before
 /// the encode, not after it: each copied stream must be AAC or MP3 in an
 /// `mp4a` sample entry or Opus in an `Opus` one from MP4/MOV, AAC or Opus
-/// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`). The
-/// MP4/MOV input is probed with the writer's allowlist, so a stream it
-/// leaves out (FLAC, ALAC, AC-3) is among no tracks and is not taken
-/// either. The display transform is read whole: without
+/// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`); the
+/// other audio the writer copies (FLAC, ALAC, AC-3, E-AC-3) is not taken
+/// next to an encoded video yet. The display transform is read whole: without
 /// `-noautorotate` `ffmpeg` applies any transform other than the identity
 /// to the frames, and with it `ffmpeg` writes the source's matrix, which
 /// the transcode writes the same only when the matrix has no translation or
@@ -374,18 +442,22 @@ fn check_source(
     Ok(())
 }
 
-/// Encodes `video` and copies `audio` into the command's MP4 output.
+/// Encodes `video` and copies `audio` into the command's MP4 output, or
+/// encodes the one audio stream with libopus or aac (`audio_encoder`).
 pub fn write(
     command: &Command,
-    video: usize,
-    audio: &[usize],
-    reordered: bool,
+    job: &TranscodeJob,
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let request = request(command, audio, encoder, strict_safe)?;
+    let request = request(command, job, encoder, strict_safe)?;
     let input = Path::new(&command.input);
-    check_source(command, video, audio, reordered, input)?;
+    let copied = if job.audio_encoder.is_some() {
+        &[][..]
+    } else {
+        &job.audio[..]
+    };
+    check_source(command, job.video, copied, job.reordered, input)?;
     let this = std::env::current_exe()
         .map_err(|_| Refusal::not_native("encoding without the path of the running program"))?;
     let path = PathBuf::from(&command.output);
@@ -402,6 +474,22 @@ pub fn write(
             Stop::Refused(Refusal::NotNative(NotNative {
                 reason: Reason::Property("a source the transcode pipeline does not take"),
                 message: format!("not supported by coreav ffmpeg: {what}"),
+            }))
+        }
+        WriteFailure::Rejected(Failure::Decode(object))
+            if object.get("kind").and_then(serde_json::Value::as_str)
+                == Some("unsupported_feature") =>
+        {
+            let message = object
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            Stop::Refused(Refusal::NotNative(NotNative {
+                reason: Reason::Property(match job.audio_encoder {
+                    Some(AudioEncoder::Aac) => "an audio stream the AAC encode does not take",
+                    _ => "an audio stream the Opus encode does not take",
+                }),
+                message: format!("not supported by coreav ffmpeg: the audio stream: {message}"),
             }))
         }
         WriteFailure::Rejected(Failure::VideoDecode(e))
@@ -431,9 +519,8 @@ mod tests {
     use super::common::{aac_entry, audio_entry, av_movie_with};
     use super::*;
 
-    /// Copied MP4 audio the writer does not take is refused before the
-    /// encode, whether the writer's allowlist keeps its stream (PCM) or
-    /// leaves it out of the probe (FLAC, ALAC, AC-3).
+    /// Copied MP4 audio other than AAC, MP3 or Opus is refused before the
+    /// encode.
     #[test]
     fn copied_audio_the_mp4_writer_does_not_take_is_refused() {
         let dir = std::env::temp_dir().join(format!("coreav-encode-{}", std::process::id()));
@@ -465,6 +552,104 @@ mod tests {
             }
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn job(audio_encoder: AudioEncoder) -> TranscodeJob {
+        TranscodeJob {
+            video: 0,
+            audio: vec![1],
+            audio_encoder: Some(audio_encoder),
+            reordered: false,
+            left_out_covers: Vec::new(),
+        }
+    }
+
+    /// `-b:a` with `-c:a aac`: the AAC request's bit rate, 16k to 512k
+    /// bits a second; the encoder's default without it.
+    #[test]
+    fn aac_lines_request_aac_at_their_bit_rate() {
+        let encoder = StrictSafe::new(false).encoder("auto", None).unwrap();
+        let request = |rate: Option<&str>, audio_encoder| {
+            let mut line = vec!["-i", "in.mkv", "-c:v", "libx264", "-c:a", "aac"];
+            line.extend(rate.iter().flat_map(|r| ["-b:a", *r]));
+            line.push("out.mp4");
+            let line: Vec<String> = line.into_iter().map(String::from).collect();
+            let command = super::super::args::parse(&line).unwrap();
+            super::request(
+                &command,
+                &job(audio_encoder),
+                encoder,
+                StrictSafe::new(false),
+            )
+        };
+        for (rate, bits) in [
+            (None, None),
+            (Some("96k"), Some(96_000)),
+            (Some("16k"), Some(16_000)),
+            (Some("512k"), Some(512_000)),
+            (Some("128000"), Some(128_000)),
+        ] {
+            let made = request(rate, AudioEncoder::Aac).unwrap();
+            assert_eq!(
+                made.aac,
+                Some(transcode::AacRequest {
+                    stream: Some(1),
+                    bitrate: bits
+                }),
+                "{rate:?}"
+            );
+            assert_eq!(made.opus, None, "{rate:?}");
+        }
+        for rate in ["8k", "15999", "513k", "1M", "fast"] {
+            match request(Some(rate), AudioEncoder::Aac) {
+                Err(Refusal::NotNative(refusal)) => {
+                    assert_eq!(
+                        refusal.reason,
+                        Reason::Option("-b:a".to_owned(), Some(rate.to_owned()))
+                    );
+                    assert!(refusal.message.contains("16k to 512k"), "{rate}");
+                }
+                other => panic!("{rate}: {other:?}"),
+            }
+        }
+        // libopus keeps its own range.
+        assert!(request(Some("4k"), AudioEncoder::Libopus).is_err());
+        assert_eq!(
+            request(Some("6k"), AudioEncoder::Libopus).unwrap().opus,
+            Some(transcode::OpusRequest {
+                stream: Some(1),
+                bitrate: Some(6_000)
+            })
+        );
+    }
+
+    /// Strict-safe mode refuses every `-c:a aac` line before the input is
+    /// read: its encoder is the `ffmpeg` program.
+    #[test]
+    fn strict_safe_mode_refuses_aac_lines() {
+        for line in [
+            "-i in.mkv -c:v libx264 -c:a aac out.mp4",
+            "-i in.mkv -c:v copy -acodec aac out.mp4",
+        ] {
+            let line: Vec<String> = line.split(' ').map(String::from).collect();
+            let command = super::super::args::parse(&line).unwrap();
+            match encoder(&command, StrictSafe::new(true)) {
+                Err(Refusal::NotNative(refusal)) => {
+                    assert_eq!(
+                        refusal.reason,
+                        Reason::Property(
+                            "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
+                        )
+                    );
+                    assert!(
+                        refusal.message.contains("use -c:a copy or libopus"),
+                        "{}",
+                        refusal.message
+                    );
+                }
+                other => panic!("{line:?}: {other:?}"),
+            }
+        }
     }
 
     #[test]

@@ -31,6 +31,7 @@ on:
       - packages/cli/scripts/zig-requirements.txt
       - packages/cli/scripts/codecs.sh
       - packages/cli/scripts/release_assets.py
+      - packages/cli/scripts/notices_check.py
       - packages/cli/test/release-clips.sh
       - packages/cli/test/release-smoke.py
       - scripts/install-x264.sh
@@ -96,7 +97,7 @@ jobs:
       # The licence files and NOTICE ship as committed, without CRLF.
       - if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
-      # dav1d and libvpx, built once for both builds (scripts/codecs.sh), and
+      # dav1d, libvpx and libopus, built once for both builds (scripts/codecs.sh), and
       # the x264 program of the smoke test. The runner context is not
       # available in a job's env, so the paths are set here.
       - name: Set the build paths
@@ -267,7 +268,9 @@ jobs:
       - name: Check the release's file list
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python3 -I packages/cli/scripts/release_assets.py dist
+        run: |
+          python3 -I packages/cli/scripts/release_assets.py dist
+          python3 -I packages/cli/scripts/notices_check.py dist/*.tar.gz dist/*.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-dist

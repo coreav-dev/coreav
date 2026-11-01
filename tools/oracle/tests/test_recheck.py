@@ -176,7 +176,7 @@ class Fingerprint(unittest.TestCase):
         import shutil
         self.tmp = tempfile.TemporaryDirectory()
         root = pathlib.Path(self.tmp.name) / 'root'
-        for rel in corpus.HARNESS + corpus.OVERLAY_IMPORTS['matroska'] + (
+        for rel in corpus.HARNESS + corpus.OVERLAY_IMPORTS['isobmff'] + corpus.OVERLAY_IMPORTS['matroska'] + (
                 'scripts/oracle_kd.py', 'scripts/oracle_kd_mkv.py'):
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / rel, root / rel)
@@ -253,6 +253,13 @@ class Fingerprint(unittest.TestCase):
         # policy_ref.py is the Matroska overlay's import, not the MP4 one's.
         self.assertNotEqual(corpus.tools('matroska')['harness'], before)
         self.assertEqual(self.stale('isobmff'), 0)
+
+    def test_the_mp4_overlay_counts_the_transport_stream_module_it_imports(self):
+        matroska = corpus.tools('matroska')['harness']
+        with open(self.root / 'scripts' / 'oracle_kd_ts.py', 'a') as module:
+            module.write('\n# changed\n')
+        self.assertEqual(self.stale('isobmff'), 2)
+        self.assertEqual(corpus.tools('matroska')['harness'], matroska)
 
     def test_a_run_without_ffprobe_on_path_is_refused(self):
         import argparse
