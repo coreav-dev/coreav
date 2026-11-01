@@ -1,0 +1,12 @@
+name = "coreav-media-example"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+MAX_UPLOAD_BYTES = "8388608"
+ALLOWED_HOSTS = ""
+MAX_SOURCE_REQUESTS = "1000"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "your-media-bucket"

@@ -1,0 +1,16 @@
+name = "coreav-hls-example"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+SEGMENT_DURATION = "6"
+MAX_SOURCE_REQUESTS = "1000"
+CORS_ORIGIN = "*"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "your-media-bucket"
+
+[[r2_buckets]]
+binding = "INDEXES"
+bucket_name = "your-index-bucket"
