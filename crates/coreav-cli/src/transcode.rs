@@ -13,8 +13,8 @@ use std::time::Duration;
 use coreav_isobmff::Source;
 use coreav_transcode::encoder::RateControl;
 use coreav_transcode::{
-    AudioMode, OpusAudio, PixelFormat, Remuxed, Scale, SourceKind, Summary, TranscodeOptions,
-    parse_scale,
+    AacAudio, AudioMode, OpusAudio, PixelFormat, Remuxed, Scale, SourceKind, Summary,
+    TranscodeOptions, parse_scale,
 };
 use coreav_worker::{EXEC_ARG, ExecLauncher, WorkerCommand};
 use serde_json::{Value, json};
@@ -45,6 +45,8 @@ pub struct Request {
     pub left_out_covers: Vec<u64>,
     /// `--audio opus`: one audio stream encoded to Opus instead.
     pub opus: Option<OpusRequest>,
+    /// `--audio aac`: one audio stream encoded to AAC-LC instead.
+    pub aac: Option<AacRequest>,
     /// The pixel format the encoder must be given (`-pix_fmt`).
     pub pixel_format: Option<PixelFormat>,
     /// Refuse a stream whose frame size changes, instead of resizing it.
@@ -69,6 +71,15 @@ pub struct OpusRequest {
     /// The source stream; `None` for the first audio stream CoreAV decodes.
     pub stream: Option<usize>,
     /// Bits a second; `None` for 64,000 for mono and 96,000 for stereo.
+    pub bitrate: Option<u32>,
+}
+
+/// The audio stream encoded to AAC-LC, and how.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AacRequest {
+    /// The source stream; `None` for the first audio stream CoreAV decodes.
+    pub stream: Option<usize>,
+    /// Bits a second; `None` for the `aac` encoder's own default.
     pub bitrate: Option<u32>,
 }
 
@@ -113,15 +124,24 @@ pub fn make<S: Source>(
         scale: request.scale,
         pixel_format: request.pixel_format,
         one_size: request.one_size,
-        audio: match (&request.audio_streams, request.no_audio, request.opus) {
-            (_, true, _) => AudioMode::None,
-            (_, false, Some(opus)) => AudioMode::Opus(OpusAudio {
+        audio: match (
+            &request.audio_streams,
+            request.no_audio,
+            request.opus,
+            request.aac,
+        ) {
+            (_, true, _, _) => AudioMode::None,
+            (_, false, Some(opus), _) => AudioMode::Opus(OpusAudio {
                 stream: opus.stream,
                 bitrate: opus.bitrate,
                 program: this.to_path_buf(),
             }),
-            (Some(streams), false, None) => AudioMode::Streams(streams.clone()),
-            (None, false, None) => AudioMode::Copy,
+            (_, false, None, Some(aac)) => AudioMode::Aac(AacAudio {
+                stream: aac.stream,
+                bitrate: aac.bitrate,
+            }),
+            (Some(streams), false, None, None) => AudioMode::Streams(streams.clone()),
+            (None, false, None, None) => AudioMode::Copy,
         },
         left_out_covers: request.left_out_covers.clone(),
         encoder: request.encoder.choice(),
@@ -248,7 +268,7 @@ pub fn document(summary: &Summary) -> Value {
             "stream_index": a.stream_index,
             "codec": a.codec.name(),
             "sample_rate": a.sample_rate,
-            "encoder": "libopus",
+            "encoder": a.encoder,
             "channels": a.channels,
             "bit_rate": a.bitrate,
             "samples": a.samples,

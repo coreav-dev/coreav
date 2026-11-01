@@ -488,6 +488,12 @@ impl Cursor {
         self.dts
     }
 
+    /// The sample description index (1-based) that `stsc` gives the chunk
+    /// of the last sample returned, or of the first chunk before any.
+    pub(crate) fn description(&self, tables: &SampleTables) -> Option<u32> {
+        tables.stsc.as_ref()?.u32(self.stsc_entry, 8, 12)
+    }
+
     /// Returns the next run of at most `max` samples (at least one), or
     /// `Ok(None)` after the last sample. Advancing over a run is arithmetic
     /// on the run-length tables; only variable sample sizes are read one by

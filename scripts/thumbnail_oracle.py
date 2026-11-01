@@ -65,6 +65,13 @@ def default_video(path, ffprobe='ffprobe'):
         streams = json.loads(r.stdout or '{}').get('streams', [])
     except ValueError:
         return None
+    return choose_default_video(streams)
+
+
+def choose_default_video(streams):
+    """The index of the default video stream among `ffprobe`'s `streams`
+    (entries with codec_type, width, height and the attached_pic
+    disposition)."""
     best = None
     for s in streams:
         if s.get('codec_type') != 'video' or s.get('disposition', {}).get('attached_pic'):
@@ -172,7 +179,7 @@ def ffmpeg_time(ffprobe, path, summary):
     Matroska block or an MPEG-TS PES starts with a header. So FFmpeg's
     timeline may differ from CoreAV's: by known divergence KD-EDIT-SNAP in
     MP4, and by the later start FFmpeg 9.0.2 gives a Matroska file whose
-    audio has a `CodecDelay` (KD-FF9-MKV-START)."""
+    audio has a `CodecDelay`."""
     from fractions import Fraction
     mp4 = path.suffix.lstrip('.').lower() in MP4_EXTS
     r = run([ffprobe, '-v', 'error', '-select_streams', str(summary.get('stream_index')), '-show_entries',
@@ -272,22 +279,32 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     return out
 
 
-def framemd5(ffmpeg, ffprobe, path, ext, stream_index, n, backend):
-    """FFmpeg's MD5s of the first `n` frames of the stream."""
+RELABEL = 'setparams=colorspace=unknown:color_primaries=unknown:color_trc=unknown:range=unknown'
+
+
+def framemd5_command(ffmpeg, path, ext, stream_index, n, backend, codec, pix_fmt, unconverted=False):
+    """The command that prints FFmpeg's `framemd5` of the first `n` frames
+    of the stream (all of them when `n` is None), `codec` and `pix_fmt`
+    being the stream's as `ffprobe` names them. With `unconverted` (V1,
+    docs/measurements/compat-0.1.0/codec-coverage-plan.md, "The reference"),
+    frames whose colour description, range, pixel format or size changes
+    mid-stream come out as decoded: without `-pix_fmt`, the filter graph is
+    configured once and never rebuilt (`-reinit_filter 0`); with it, which
+    keeps a format filter configured for the first frame, the graph is rebuilt
+    and every frame is relabelled with the same unknown colour description
+    (`setparams`), so the rebuilt graph has no colour or range to convert.
+    With `-pix_fmt` a change of pixel format is still converted to that
+    format; the plan says why no V1 count can reach it."""
     # -noautorotate: framemd5 hashes decoded frames, before any rotation.
     # -noautoscale: frames keep their size when the stream changes it.
-    cmd = [ffmpeg, '-v', 'error', '-noautorotate']
+    cmd = [ffmpeg, '-nostdin', '-v', 'error', '-noautorotate']
     # CoreAV's frame model drops alpha planes (docs/design/decode.md):
     # compare the colour planes, in the decoder's format without alpha.
-    probe = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
-                 'stream=pix_fmt', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
-    codec = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
-                 'stream=codec_name', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
     alpha = None
-    if probe.startswith('yuva'):
-        alpha = 'yuv' + probe[4:]
-    elif probe.startswith('gbrap'):
-        alpha = 'gbrp' + probe[5:]
+    if (pix_fmt or '').startswith('yuva'):
+        alpha = 'yuv' + pix_fmt[4:]
+    elif (pix_fmt or '').startswith('gbrap'):
+        alpha = 'gbrp' + pix_fmt[5:]
     if ext in MP4_EXTS:
         cmd += ['-ignore_editlist', '1']
     if backend == 'dav1d':
@@ -300,10 +317,22 @@ def framemd5(ffmpeg, ffprobe, path, ext, stream_index, n, backend):
     # Crop exactly as the bitstream says: by default FFmpeg 7 skips a left crop
     # that would break its planes' alignment (docs/design/decode.md).
     cmd += ['-flags', 'unaligned']
-    cmd += ['-i', str(path), '-map', f'0:{stream_index}', '-fps_mode', 'passthrough', '-frames:v', str(n)]
+    cmd += ['-reinit_filter', '0'] if unconverted and not alpha else []
+    cmd += ['-i', str(path), '-map', f'0:{stream_index}', '-fps_mode', 'passthrough']
+    cmd += ['-frames:v', str(n)] if n is not None else []
     cmd += ['-pix_fmt', alpha] if alpha else []
+    cmd += ['-vf', RELABEL] if unconverted and alpha else []
     cmd += ['-noautoscale', '-f', 'framemd5', '-']
-    r = run(cmd)
+    return cmd
+
+
+def framemd5(ffmpeg, ffprobe, path, ext, stream_index, n, backend):
+    """FFmpeg's MD5s of the first `n` frames of the stream."""
+    pix_fmt = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
+                   'stream=pix_fmt', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
+    codec = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
+                 'stream=codec_name', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
+    r = run(framemd5_command(ffmpeg, path, ext, stream_index, n, backend, codec, pix_fmt))
     return [line.split(',')[-1].strip() for line in r.stdout.decode().splitlines()
             if line and not line.startswith('#')]
 

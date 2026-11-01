@@ -149,12 +149,24 @@ pub struct Command {
     pub no_subtitle: bool,
     /// `-dn`.
     pub no_data: bool,
-    /// `-map_metadata -1`.
-    pub strip_metadata: bool,
+    /// `-map_metadata`.
+    pub map_metadata: MapMetadata,
     /// `-segment_time`, for the segment muxer (2 seconds by default).
     pub segment_time: Rational,
     /// `-y`, `-n`.
     pub overwrite: Overwrite,
+}
+
+/// What `-map_metadata` asks of the output's metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MapMetadata {
+    /// No `-map_metadata`: `ffmpeg`'s default copy.
+    Default,
+    /// `-map_metadata -1`: no metadata of the input.
+    Strip,
+    /// `-map_metadata 0:s:N`: the file's metadata from the input's stream
+    /// N, and no stream's own metadata.
+    Stream(usize),
 }
 
 /// An option's value, or the flag itself.
@@ -513,7 +525,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         no_audio: false,
         no_subtitle: false,
         no_data: false,
-        strip_metadata: false,
+        map_metadata: MapMetadata::Default,
         segment_time: Rational::from_int(2),
         overwrite,
     };
@@ -626,13 +638,22 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
             "-map" => command.maps.push(parse_map(text)?),
-            "-map_metadata" if text == "-1" => command.strip_metadata = true,
             "-map_metadata" => {
-                return Err(not_native(
-                    option,
-                    Some(text),
-                    "copying metadata from a stream to the file is not native; of -map_metadata only -1 is",
-                ));
+                let stream = text
+                    .strip_prefix("0:s:")
+                    .filter(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                    .and_then(|n| n.parse().ok());
+                command.map_metadata = match (command.map_metadata, stream) {
+                    (MapMetadata::Default, _) if text == "-1" => MapMetadata::Strip,
+                    (MapMetadata::Default, Some(index)) => MapMetadata::Stream(index),
+                    _ => {
+                        return Err(not_native(
+                            option,
+                            Some(text),
+                            "of -map_metadata only one -1 or 0:s:N (an input stream's index) is native",
+                        ));
+                    }
+                };
             }
             "-movflags" if matches!(text, "+faststart" | "faststart") => {}
             "-movflags" => {
@@ -969,8 +990,8 @@ mod tests {
             named("-fflags", Some("+igndts"))
         );
         assert_eq!(
-            option("-i in.mp4 -c copy -map_metadata 0:s:0 out.m4a"),
-            named("-map_metadata", Some("0:s:0"))
+            option("-i in.mp4 -c copy -map_metadata 0 out.m4a"),
+            named("-map_metadata", Some("0"))
         );
         assert_eq!(
             option("-i in.mp4 -c copy -movflags +frag_keyframe out.mp4"),

@@ -80,8 +80,9 @@ use coreav_cli::{
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, MatroskaRemuxOptions, Metadata,
-    OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions, MatroskaRemuxOptions,
+    Metadata, OnUnsupported, Placement, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
+    VideoChoice,
 };
 use coreav_policy::Policy;
 #[cfg(not(feature = "net"))]
@@ -251,9 +252,8 @@ enum Command {
     /// untrusted input, anything else is refused with exit status 4;
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
-    /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
-    /// as `ffprobe` does the same.
+    /// MP4/MOV, Matroska/WebM and MPEG-TS (docs/measurements/compat-ffprobe.md).
+    /// `coreav` run as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
     /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
@@ -318,16 +318,19 @@ struct TranscodeArgs {
     #[arg(long, value_name = "W:H", allow_hyphen_values = true)]
     scale: Option<String>,
     /// `copy` every audio stream MP4 can carry (the others are dropped and
-    /// listed), `none`, or `opus`: the first audio stream CoreAV decodes
-    /// (FLAC or MP3, mono or stereo) encoded to Opus by libopus, the others
-    /// dropped and listed. `opus` needs a coreav built with the opt-in
-    /// libopus feature; other builds refuse it.
+    /// listed), `none`, `opus` or `aac`: the first audio stream CoreAV
+    /// decodes (FLAC or MP3, mono or stereo) encoded, the others dropped and
+    /// listed. `opus` is Opus by libopus, and needs a coreav built with the
+    /// opt-in libopus feature; other builds refuse it. `aac` is AAC-LC by
+    /// the ffmpeg program's built-in aac encoder (--ffmpeg), at the stream's
+    /// own rate, 8 to 64 kHz; --strict-safe refuses it.
     #[arg(long, value_name = "MODE", default_value = "copy",
-          value_parser = ["copy", "none", "opus"])]
+          value_parser = ["copy", "none", "opus", "aac"])]
     audio: String,
-    /// With --audio opus (opt-in libopus builds only), the Opus bit rate in
-    /// kbit/s, 6 to 510 (default: 64 for mono, 96 for stereo).
-    #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=510))]
+    /// With --audio opus or aac, the bit rate in kbit/s: Opus 6 to 510
+    /// (default: 64 for mono, 96 for stereo), AAC 16 to 512 (default: the
+    /// aac encoder's own).
+    #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=512))]
     audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
     /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
@@ -986,6 +989,27 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
 #[cfg(feature = "transcode")]
 fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
+    let bitrates = match args.audio.as_str() {
+        "opus" => Some(6..=510),
+        "aac" => Some(16..=512),
+        _ => None,
+    };
+    match (args.audio_bitrate, bitrates) {
+        (Some(_), None) => {
+            return usage(
+                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
+            );
+        }
+        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
+            return usage(&format!(
+                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
+                args.audio,
+                range.start(),
+                range.end()
+            ));
+        }
+        _ => {}
+    }
     if args.audio == "opus" && !cfg!(feature = "libopus") {
         let refusal = Failure::Unsupported(
             "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature"
@@ -1009,6 +1033,16 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
         }
     };
+    if args.audio == "aac" {
+        if let Err(message) = strict_safe.aac() {
+            let _ = writeln!(
+                std::io::stderr(),
+                "{}",
+                Failure::StrictSafe(message).to_json()
+            );
+            return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
+        }
+    }
     let request = transcode::Request {
         crf: args.crf,
         bitrate: args.bitrate,
@@ -1021,6 +1055,10 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        aac: (args.audio == "aac").then_some(transcode::AacRequest {
+            stream: None,
+            bitrate: args.audio_bitrate.map(|k| k * 1000),
+        }),
         pixel_format: None,
         one_size: false,
         encoder,
@@ -1030,9 +1068,6 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         timeout: args.timeout,
         strict_safe,
     };
-    if args.audio_bitrate.is_some() && args.audio != "opus" {
-        return usage("--audio-bitrate is the Opus bit rate: it needs --audio opus");
-    }
     if args.output.as_os_str() == "-" {
         return usage("the output must be a file: the MP4 is written with its movie box first");
     }
@@ -1189,7 +1224,7 @@ fn run_extract_audio(args: &ExtractAudioArgs) -> ExitCode {
     };
     write_output(&args.input, &args.output, args.force, |out| {
         let summary = match remote.as_mut() {
-            None => extract::run(&args.input, choice, &allowlist, out),
+            None => extract::run(&args.input, choice, &allowlist, HeaderMetadata::Copy, out),
             Some(source) => {
                 extract::run_source(BufferedSource::new(&mut *source), choice, &allowlist, out)
                     .map_err(|f| explain_write(source, f))
@@ -2179,6 +2214,7 @@ fn run_join(args: &JoinArgs) -> ExitCode {
     let options = JoinOptions {
         video: VideoChoice::First,
         audio,
+        placement: Placement::AfterVideo,
     };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.

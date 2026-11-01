@@ -12,7 +12,20 @@
   may not be listed, and its report job need not be);
 - a required job does not always run: a workflow its trigger's `paths` or
   `paths-ignore` skips reports nothing at all, and a required check that
-  never reports leaves every pull request pending;
+  never reports leaves every pull request pending; a workflow with a
+  required check that has no `pull_request:` trigger an ordinary push
+  reaches, or no `merge_group:` trigger (`checks_requested`), never reports
+  it on a pull request, or leaves the merge queue waiting for it;
+- a workflow with a required check has a `merge_group:` trigger with a
+  `branches` or `branches-ignore` filter, which leaves the check
+  unreported for every group it filters out;
+- a required workflow's trigger mapping has ambiguous or unsupported YAML
+  nodes: duplicate keys, merge keys, aliases, complex keys or explicit tags;
+- the workflow-level `concurrency:` of a workflow with a required check that
+  does not cancel job by job is missing or not exactly `WORKFLOW_GROUP` with
+  `cancel-in-progress: CANCEL`: a merge group's run needs a group of its own,
+  only a pull request's run may be cancelled, and without a group a
+  superseded pull request run is not cancelled at all;
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
@@ -62,8 +75,12 @@ CONCURRENCY = re.compile(r'\A {6}(group|cancel-in-progress):\s*(.*?)\s*\Z')
 TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
-PULL_REQUEST = re.compile(r'\A {2}pull_request:\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
+# The triggers a workflow with a required check needs, each with the
+# activity type its `types:` list, where it has one, must hold: an ordinary
+# push to a pull request's branch, and a group the merge queue asks checks
+# for (docs/design/ci-checks.md, "The merge queue").
+REQUIRED_TRIGGERS = {'pull_request': 'synchronize', 'merge_group': 'checks_requested'}
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
@@ -73,6 +90,10 @@ LABELS = 'github.event.pull_request.labels'
 GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
 CANCEL = "${{ github.event_name == 'pull_request' }}"
+# The workflow-level group of a workflow with a required check that cancels
+# a superseded pull request run as a whole: a push to main, a manual run and
+# a merge group each get a group of their own run.
+WORKFLOW_GROUP = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
 # After JOB_ID in the group of a job with a `strategy:`: each leg of its
 # matrix in a group of its own.
 MATRIX = '-${{ strategy.job-index }}'
@@ -176,32 +197,51 @@ def concurrency_problems(workflow, lines, jobs):
     return out
 
 
-def trigger(lines):
-    """(a `paths` or `paths-ignore` key is in the `on:` block, the block
-    has a `pull_request:` trigger that an ordinary push to the branch
-    reaches)."""
-    filtered, pull_request, inside, seen_pull_request = False, False, False, False
+def triggers(text):
+    """The path-filter flag, present required events, merge-group branch-filter
+    flag and problems of the YAML `on:` mapping."""
+    data = read_yaml(text, PARSE_TRIGGERS)
+    if isinstance(data, str):
+        return False, set(), False, [data]
+    if not isinstance(data, dict):
+        return False, set(), False, ['use an event mapping under `on:`']
+    filtered, events, branches, problems = False, set(), False, []
+    for event, fields in data.items():
+        if event in REQUIRED_TRIGGERS:
+            events.add(event)
+        if fields is None:
+            continue
+        if not isinstance(fields, dict):
+            if event in REQUIRED_TRIGGERS:
+                problems.append(f'`{event}:` needs a mapping of trigger options or no options')
+            continue
+        filtered |= bool({'paths', 'paths-ignore'} & fields.keys())
+        branches |= event == 'merge_group' and bool({'branches', 'branches-ignore'} & fields.keys())
+        if event in REQUIRED_TRIGGERS and 'types' in fields:
+            types = fields['types']
+            items = [types] if isinstance(types, str) else types
+            if not isinstance(items, list) or REQUIRED_TRIGGERS[event] not in items:
+                problems.append(f'`{event}:` types must include `{REQUIRED_TRIGGERS[event]}`: '
+                                f'use `types: [{REQUIRED_TRIGGERS[event]}]`')
+    return filtered, events, branches, problems
+
+
+def workflow_concurrency(lines):
+    """The workflow-level `concurrency:` as {'group': str, 'cancel-in-progress':
+    str}, or None when there is none."""
+    setting = None
     for line in lines:
-        if line.rstrip() == 'on:':
-            inside = True
+        if setting is not None:
+            if TOP.match(line):
+                break
+            match = re.match(r'\A {2}(group|cancel-in-progress):\s*(.*?)\s*\Z', line)
+            if match:
+                setting[match.group(1)] = match.group(2)
             continue
-        if not inside:
-            continue
-        if TOP.match(line):
-            break
-        # Any form: a block sequence, a flow sequence on the same line, or
-        # a block scalar. None of them may gate a required workflow.
-        if re.match(r'\A +(paths|paths-ignore):', line):
-            filtered = True
-        if PULL_REQUEST.match(line):
-            pull_request = True
-            seen_pull_request = True
-            continue
-        if seen_pull_request and re.match(r'\A {4}types:', line):
-            pull_request = 'synchronize' in line
-        elif seen_pull_request and TRIGGER.match(line):
-            seen_pull_request = False
-    return filtered, pull_request
+        match = re.match(r'\Aconcurrency:\s*(.*?)\s*\Z', line)
+        if match:
+            setting = {'group': match.group(1)} if match.group(1) else {}
+    return setting
 
 
 def run_lines(lines):
@@ -339,7 +379,7 @@ def workflow_files(root):
 # booleans (`on`, `yes`), merge keys and duplicate keys cannot hide a step.
 # Every `uses` key is read wherever it appears, anchored subtrees included;
 # an alias is resolved through the anchors defined before it.
-PARSE = r'''
+YAML_PARSE = r'''
 require "json"
 require "psych"
 begin
@@ -349,6 +389,8 @@ rescue Psych::SyntaxError => e
 end
 documents = stream.children.size
 abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
+'''
+PARSE = YAML_PARSE + r'''
 anchors, out = {}, []
 resolve = lambda do |node|
   next node unless node.is_a?(Psych::Nodes::Alias)
@@ -381,17 +423,60 @@ puts JSON.generate(out)
 '''
 
 
-def uses_entries(text):
-    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
-    keys of a file, or a str saying why it cannot be read."""
+PARSE_TRIGGERS = YAML_PARSE + r'''
+mapping = lambda do |node|
+  abort "use a mapping for the workflow and its trigger options" unless node.is_a?(Psych::Nodes::Mapping)
+  abort "remove explicit YAML tags from workflow mappings" if node.tag
+  out = {}
+  node.children.each_slice(2) do |key, value|
+    abort "use scalar keys in the workflow and its triggers" unless key.is_a?(Psych::Nodes::Scalar)
+    abort "remove explicit YAML tags from workflow keys" if key.tag
+    abort "expand YAML merge keys in the workflow and its triggers" if key.value == "<<"
+    abort "duplicate YAML key: #{key.value}" if out.key?(key.value)
+    out[key.value] = value
+  end
+  out
+end
+decode = lambda do |node|
+  abort "remove explicit YAML tags from trigger options" if node.respond_to?(:tag) && node.tag
+  case node
+  when Psych::Nodes::Mapping
+    mapping.(node).transform_values { |value| decode.(value) }
+  when Psych::Nodes::Sequence
+    node.children.map { |value| decode.(value) }
+  when Psych::Nodes::Scalar
+    if node.plain && ["", "~", "null", "Null", "NULL"].include?(node.value)
+      nil
+    else
+      node.value
+    end
+  else
+    abort "expand YAML aliases in trigger options"
+  end
+end
+root = stream.children.first&.root
+events = root ? mapping.(root)["on"] : nil
+abort "use an event mapping under on:" if events && !events.is_a?(Psych::Nodes::Mapping)
+puts JSON.generate(events ? decode.(events) : {})
+'''
+
+
+def read_yaml(text, program):
+    """The JSON result of a Psych node reader, or an error string."""
     try:
-        run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
+        run = subprocess.run(['ruby', '--disable-gems', '-e', program], input=text, capture_output=True, text=True,
                              timeout=60)
     except FileNotFoundError:
-        return 'ruby is not installed; the pin check parses YAML with its standard library (Psych)'
+        return 'ruby is not installed; the workflow check parses YAML with its standard library (Psych)'
     if run.returncode != 0:
         return 'not readable as YAML: ' + (run.stderr.strip().splitlines() or ['ruby failed'])[-1]
     return json.loads(run.stdout)
+
+
+def uses_entries(text):
+    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
+    keys of a file, or a str saying why it cannot be read."""
+    return read_yaml(text, PARSE)
 
 
 def pin_problems(root, path, seen):
@@ -485,14 +570,30 @@ def check(root):
         if where[0][0] != workflow:
             problems.append(f'{note.name} puts `{name}` in {workflow}, but it is in {where[0][0]}')
             continue
-        filtered, pull_request = trigger(
-            (root / '.github' / 'workflows' / workflow).read_text().splitlines())
+        lines = (root / '.github' / 'workflows' / workflow).read_text().splitlines()
+        filtered, events, branches, bad = triggers('\n'.join(lines))
+        problems.extend(f'{workflow}: {problem}' for problem in bad)
         if filtered:
             problems.append(f'{workflow}: required `{name}`, but the trigger carries a path filter, '
                             'so the check is not reported on every pull request')
-        if not pull_request:
+        if 'pull_request' not in events:
             problems.append(f'{workflow}: required `{name}`, but the workflow has no '
                             '`pull_request:` trigger, so the check is never reported on one')
+        if 'merge_group' not in events:
+            problems.append(f'{workflow}: required `{name}`, but the workflow has no `merge_group:` trigger '
+                            '(`types: [checks_requested]`), so the merge queue waits for the check until it '
+                            'times out (docs/design/ci-checks.md, "The merge queue")')
+        if branches:
+            problems.append(f'{workflow}: required `{name}`, but the `merge_group:` trigger carries a branch '
+                            'filter, so a group the filter leaves out never reports the check: remove it '
+                            '(docs/design/ci-checks.md, "The merge queue")')
+        setting = workflow_concurrency(lines)
+        by_job = workflow in JOB_GROUPS or any(fields['concurrency'] is not None for fields in jobs[workflow].values())
+        if not by_job and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': CANCEL}:
+            problems.append(f'{workflow}: required `{name}`, so give the workflow exactly `concurrency: '
+                            f'{{group: {WORKFLOW_GROUP}, cancel-in-progress: {CANCEL}}}`, as a block: a merge '
+                            'group\'s run needs a group of its own, and only a pull request\'s run may be '
+                            'cancelled (docs/design/ci-checks.md, "The merge queue")')
         job = where[0][1]
         fields = jobs[workflow][job]
         if not job.endswith('-report'):
