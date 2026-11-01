@@ -1,6 +1,6 @@
 # WASM memory bars
 
-These proposed bars take effect only after this plan merges. Scope: the WebAssembly linear-memory gates of the WASM package's example integration check (`packages/wasm/examples/test/check.mjs`). This note fixes every bar, the scenarios it applies to and the rules for judging it before any run judges it. The change that turns the gates on reads the bars from the block at the end of this note.
+These proposed bars take effect only after this plan merges. Scope: the proposed WebAssembly linear-memory gates of the package's forthcoming example integration check (`packages/wasm/examples/test/check.mjs`). This note fixes every bar, the scenarios it applies to and the rules for judging it before any run judges it. The change that turns the gates on reads the bars from the block at the end of this note.
 
 ## What is measured
 
@@ -24,22 +24,22 @@ Every request reads its fixture by object key through the examples' R2 reader. F
 | `fresh-ffprobe` | New | One `ffprobe` request | `av-text.mp4` | 32 MiB |
 | `fresh-remux`, `fresh-sanitize` | New, one per step | One request of that operation | `av-text.mp4` | 64 MiB |
 | `hls-built` | New | Crawl every playlist and segment of each fixture in turn, building each index | `av.mp4`, `audio.m4a`, `video-only.mp4` | 64 MiB |
-| `hls-concurrent` | Same as `hls-built` | Then four parallel requests for one video segment | `av.mp4` | 64 MiB |
+| `hls-concurrent` | Same as `hls-built` | Then ten error-path requests, including a malformed movie, followed by four parallel requests for one video segment | The preceding HLS fixtures and `not-a-movie.bin` | 64 MiB |
 | `hls-reloaded` | New | Crawl using the stored index | `av.mp4` | 64 MiB |
 | `hls-rebuilt` | New | Crawl after the stored index is damaged, so it is rebuilt once | `av.mp4` | 64 MiB |
-| `concurrent-with-writers-1`, `-4`, `-6` | New, one per level | 18 requests, each of probe, ffprobe, check, chapters, extract-audio, extract-subtitles, clip, remux and sanitize twice in that order, with at most 1, 4 or 6 in flight | `av-text.mp4` | 16 MiB |
+| `concurrent-with-writers-1`, `-4`, `-6` | New, one per level | 18 requests: probe, ffprobe, check, chapters, extract-audio, extract-subtitles, clip, remux and sanitize in that order, then the same nine again, with at most 1, 4 or 6 in flight | `av-text.mp4` | 16 MiB |
 
-The eight `fresh-*` bars other than `fresh-ffprobe` were gates before this note and are carried forward unchanged. The other eight gates are new.
+The eight `fresh-*` bars other than `fresh-ffprobe` carry forward the package implementation's fresh-operation budgets unchanged. This plan may merge before that implementation; it enables no gate itself. The other eight gates are new.
 
 ## How the bars were set
 
-The existing fresh-operation gates allow 32 MiB for operations that return a document or stream a small output, and 64 MiB for remux and sanitize, which hold output sample tables. This note carries those budgets forward rather than predicting real-media costs from the generated fixtures.
+The package implementation's fresh-operation gates allow 32 MiB for operations that return a document or stream a small output, and 64 MiB for remux and sanitize, which hold output sample tables. This note carries those budgets forward rather than predicting real-media costs from the generated fixtures.
 
 `ffprobe` joins the 32 MiB class. It reads the same structures as `probe`, under the same table limit, and returns a document.
 
 HLS joins the 64 MiB class. Building an index holds the sample tables of the whole file, like remux, and serving a resource copies the index into the module. Because memory never shrinks, the bar applies to each reading of the HLS isolate after all the work before it.
 
-Concurrent batches with writers have no earlier measurement to inherit a class from. Their bar follows a rule fixed here: take the highest local reading recorded for the three levels on the generated fixtures, multiply it by the highest covered level (6), round up to a power of two in MiB, and never exceed the heaviest class in the batch (64 MiB). The result is 16 MiB, for every level. Multiplying by the level is an envelope: it allows as much as if each of six requests in flight needed the whole recorded footprint at the same time. The local reading the rule used stays in a private record and is not published. This is a regression budget for these generated fixtures, not a class-wide maximum for arbitrary media. A mixed batch can fail this bar even when its fresh operations stay below their individual bars.
+Concurrent batches with writers have no earlier measurement to inherit a class from. Their bar follows a rule fixed here: take the highest local reading recorded for the three levels on the generated fixtures, multiply it by the highest covered level (6), round up to a power of two in MiB, and never exceed the heaviest class in the batch (64 MiB). The result is 16 MiB, for every level. Multiplying by the level is an envelope: it allows as much as if each of six requests in flight needed the whole recorded footprint at the same time. The planning anchor is one earlier local macOS diagnostic run of a different module build, with no usable heap or resident-memory readings; it is not a judged pass. Its raw readings remain private. This is a regression budget for these generated fixtures, not a class-wide maximum for arbitrary media. A mixed batch can fail this bar even when its fresh operations stay below their individual bars.
 
 Bars are exact byte counts: 1 MiB is 1,048,576 bytes, so 16, 32 and 64 MiB are 16,777,216, 33,554,432 and 67,108,864 bytes. A gate passes when its reading is at most its bar.
 
@@ -49,11 +49,12 @@ Bars are exact byte counts: 1 MiB is 1,048,576 bytes, so 16, 32 and 64 MiB are 1
 - **Fresh.** A fresh gate's isolate has served only the start-up readings before its one request.
 - **When the reading is taken.** After the client has read every response body of the step to its end, and after work the requests deferred (such as completion logs and index store writes) has finished.
 - **Build.** The module's reported build fingerprint must equal the SHA-256 of the module in the packed archive under test.
-- **Concurrency.** For each level the harness holds the first requests at entry until that many have arrived, then releases them together, and records the peak number of requests in flight. A level whose peak is below its number fails.
-- **Unavailable is a failure.** A missing, non-integer or non-positive reading, a changed isolate identity, a fingerprint mismatch, a registered gate that does not run, a gate step that is not registered, or a runtime that exits before its reading fails the run. Nothing unavailable counts as a pass. An unavailable heap or resident-memory record is written down and changes nothing.
+- **Concurrency.** Reset the in-flight counter before each writer batch and before the four-request `hls-concurrent` batch. Hold the first requests at harness entry until the declared number arrives, then release them together. Count each request until its response body completes, and require the peak to equal the declared level exactly: 1, 4 or 6 for writers, and 4 for HLS. A lower or higher peak fails; this does not prove overlap inside the module.
+- **Unavailable is a failure.** A missing, non-integer or non-positive reading, a changed isolate identity, a fingerprint mismatch, a missing, duplicate or unregistered gate step, or a runtime that exits before its reading fails the run. Nothing unavailable counts as a pass. An unavailable heap or resident-memory record is written down and changes nothing.
 - **Inputs.** A judged run uses the generated fixtures only, without extra fixture directories.
 - **Output.** Public logs print verdicts only: the number of gates passed, and on a failure the step and its bar, without the reading. Raw readings stay on the machine that ran the check.
-- **Which run judges.** The first run of the gated check at the head of the change that turns these gates on judges them. A miss is reported and stands for that head. A bar is not changed in the change it judges. Changing a bar later needs an edit to this note, with its cause, merged before the run it judges. A run is repeated only after an independently evidenced infrastructure fault, never to overturn a miss. A crash, timeout or start-up failure fails the run and is not automatically a host fault.
+- **Release verdict and enforcement.** The release verdict comes from one named `workflow_dispatch` run of the `wasm` workflow (`.github/workflows/wasm.yml`), job `wasm-module` on `ubuntu-24.04`, whose head SHA matches the frozen release-candidate SHA; record its run URL before judging its result. These gates stay non-required with no ruleset change, so a failure on a pull request or main gets a release-blocking issue but does not block merges between releases, and release requires the RC verdict run to pass; the gating change must widen the workflow's trigger path filters to every crate the module links.
+- **No retuning after a result.** A bar is not changed in the change it judges. A later bar change needs an edit to this note, with its cause, merged before the run it judges. A failed candidate needs a corrected new candidate and a new named verdict run, not a repeat of the unchanged candidate. Repeat a run only after an independently evidenced infrastructure fault, never to overturn a miss. A crash, timeout or start-up failure fails the run and is not automatically a host fault.
 
 ## Limits
 
