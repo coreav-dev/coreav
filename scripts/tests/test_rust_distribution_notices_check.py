@@ -39,6 +39,8 @@ class RustDistributionNoticesCheck(unittest.TestCase):
                 with self.subTest(name=name):
                     result = BASE['check']('--third-party', self.archive(name, target))
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = BASE['check']('--third-party', self.archive('coreav-1.0.0.tgz', 'wasm32-wasip1'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_missing_changed_or_scattered_rust_notices_fail(self):
         target = 'aarch64-apple-darwin'
@@ -64,6 +66,13 @@ class RustDistributionNoticesCheck(unittest.TestCase):
         result = BASE['check']('--third-party', archive)
         self.assertEqual(result.returncode, 1)
         self.assertIn('unrecognized Rust binary archive target', result.stdout)
+
+    def test_wasi_archive_names_do_not_cover_the_javascript_package(self):
+        for name in ('coreav-wasm-1.0.0.tgz', 'coreav-other-1.0.0.tgz'):
+            with self.subTest(name=name):
+                result = BASE['check']('--third-party', self.archive(name, 'wasm32-wasip1'))
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('unrecognized Rust binary archive target', result.stdout)
 
 
 if __name__ == '__main__':

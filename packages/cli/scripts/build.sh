@@ -9,9 +9,14 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"
 out="$here/wasm"
+. "$root/scripts/rust-dist.env"
+export RUSTUP_TOOLCHAIN="$RUST_DIST_TOOLCHAIN"
 # Without the `net` feature: WASI has no sockets, so URLs are refused.
-cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-cli \
-  --no-default-features --features cli --profile edge --target wasm32-wasip1
+selection=(-p coreav-cli --no-default-features --features cli --profile edge --target wasm32-wasip1)
+CARGO_ENCODED_RUSTFLAGS="$(node "$root/scripts/notices/main.mjs" prepare -- "${selection[@]}")"
+export CARGO_ENCODED_RUSTFLAGS
+unset RUSTFLAGS
+cargo build --locked --manifest-path "$root/Cargo.toml" "${selection[@]}"
 rm -rf "$out"
 mkdir -p "$out"
 cp "$root/target/wasm32-wasip1/edge/coreav.wasm" "$out/coreav.wasm"
@@ -29,6 +34,8 @@ else
 fi
 # NOTICE with every build of the command (docs/release/notices.md).
 cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$here/"
+node "$root/scripts/notices/main.mjs" generate --out "$here" --artifact "$out/coreav.wasm" \
+  --raw "$root/target/wasm32-wasip1/edge/coreav.wasm" -- "${selection[@]}"
 cd "$out"
-sha256sum coreav.wasm
+if command -v sha256sum > /dev/null; then sha256sum coreav.wasm; else shasum -a 256 coreav.wasm; fi
 echo "coreav.wasm: $(wc -c < coreav.wasm) bytes, gzip -9 $(gzip -9 -n -c coreav.wasm | wc -c) bytes"

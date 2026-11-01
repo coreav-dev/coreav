@@ -229,10 +229,10 @@ wording and keywords are positioning and the maintainer's to decide.
 
 ### Build
 
-Native builds use the compiler version and commit in `scripts/rust-dist.env`, with `rust-src` and the target standard library. `scripts/notices/main.mjs` generates notices for the same Cargo package, target, profile and features as the binary. The normal dependency graph excludes procedural macros; the target standard-library closure is a conservative superset of retained code. Every platform package ships `THIRD-PARTY-NOTICES.txt` (`docs/release/notices.md`). The main WASI package keeps its existing build and notices. This changes native distribution notices, not licences.
+Native and WASI builds use the compiler version and commit in `scripts/rust-dist.env`, with `rust-src` and the target standard library. `scripts/notices/main.mjs` generates notices for the same Cargo package, target, profile and features as the artifact. The normal dependency graph excludes procedural macros; the target standard-library closure is a conservative superset of retained code. Every platform package and the main WASI package ships `THIRD-PARTY-NOTICES.txt` (`docs/release/notices.md`). This changes distribution notices, not licences.
 
 - `packages/cli/scripts/build.sh`: `cargo build --locked -p coreav-cli
-  --profile edge --target wasm32-wasip1`, then `wasm-opt -O3` when binaryen
+  --no-default-features --features cli --profile edge --target wasm32-wasip1`, then `wasm-opt -O3` when binaryen
   is on `PATH` or named by `WASM_OPT` (CI uses binaryen version_133).
 - `packages/cli/scripts/platform.sh PLATFORM`: `cargo build --locked -p
   coreav-cli --profile dist --target T --features release-default` (the
@@ -243,7 +243,7 @@ Native builds use the compiler version and commit in `scripts/rust-dist.env`, wi
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
 - The module, the binaries and the license files are build outputs, not
-  committed. Native packaging verifies a matching build-owned notice record using Node only, without rewriting files or requiring Rust; CI also regenerates notices and checks artifact evidence before packing. The record stays out of the packages. The main WASI package retains its existing `prepack` guard.
+  committed. Native and WASI packaging verify a matching build-owned notice record using Node only, without rewriting files or requiring Rust; CI also regenerates notices and checks artifact evidence before packing. The record stays out of the packages.
 - CI builds the WASI module and the Linux x86-64 package on every ready
   pull request. Tags, manual and weekly runs, and pull requests labelled
   `binaries` also build the four other platforms, each built, run and

@@ -1,1 +1,2 @@
+/scripts/notices/upstream/** text eol=lf whitespace=-blank-at-eof
 /scripts/rust-dist.env text eol=lf

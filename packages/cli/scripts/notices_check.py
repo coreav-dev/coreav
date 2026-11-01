@@ -55,6 +55,8 @@ def problems(archive, third_party=False):
                 target = triple
             if archive.name.endswith(f'-{triple}.tar.gz') or archive.name.endswith(f'-{triple}.zip'):
                 target = triple
+        if target is None and re.fullmatch(r'coreav-[0-9][A-Za-z0-9.+-]*\.tgz', archive.name):
+            target = 'wasm32-wasip1'
         if target is None:
             return [f'{archive.name}: unrecognized Rust binary archive target']
         pin = (ROOT / 'scripts' / 'rust-dist.env').read_text()
