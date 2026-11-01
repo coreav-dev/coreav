@@ -48,10 +48,13 @@
 //!   audio stream; for video one, the reorder depth plus two for H.264
 //!   with B-frames and eight without, the rate window without a
 //!   `DefaultDuration` of a tick or more) has the format's start and
-//!   duration. A frame lasts its `DefaultDuration` truncated to the tick
-//!   (none when that is zero), laced ones too; audio frames otherwise last
-//!   what their codec's header says (a Vorbis packet that is not an audio
-//!   packet lasts what the previous one did). Decode times of reordered
+//!   duration. An unlaced audio block lasts its `BlockDuration` when that
+//!   is not zero (RFC 9559 5.1.3.5.3), and a frame of a laced audio block
+//!   from its start to the next frame's, which `DefaultDuration` places.
+//!   Otherwise a frame lasts its `DefaultDuration` truncated to the tick
+//!   (none when that is zero), except that audio frames last what their
+//!   codec's header says (a Vorbis packet that is not an audio packet lasts
+//!   what the previous one did). Decode times of reordered
 //!   video come from the presentation times through a buffer of the
 //!   reorder depth; an H.264 decoder without the VUI's reorder depth finds
 //!   it in the picture order counts of the first frames. A
@@ -109,6 +112,26 @@ const EARLY_WORK: u64 = 1 << 16;
 /// reads at most: a track with few packets must not make it read the file.
 const EARLY_SPAN: u64 = 64 << 20;
 const EARLY_TOTAL: usize = 1 << 14;
+
+/// Reads video rates from the bounded packet window without building a report.
+#[cfg(feature = "transcode")]
+pub(super) fn frame_rates<S: Source>(source: &mut S) -> Result<Vec<(usize, String)>, Failure> {
+    let limits = Limits::default();
+    let segment =
+        coreav_mkv::probe(&mut *source, &limits, &Allowlist::any()).map_err(Failure::Matroska)?;
+    let early = early_packets(&segment, source, &limits);
+    Ok(segment
+        .tracks
+        .iter()
+        .zip(&early)
+        .filter(|(track, _)| track.kind == TrackKind::Video)
+        .filter_map(|(track, first)| {
+            let info = Info::new(&segment, track, first, None);
+            let (real, _) = info.rates.shown?;
+            Some((track.stream_index, real))
+        })
+        .collect())
+}
 
 /// Probes `source` as Matroska.
 pub fn probe<'a, S: Source + 'a>(
@@ -2953,16 +2976,20 @@ impl<S: Source> PacketSource for MkvPackets<S> {
             .filter(|t| *t > 0)
             .and_then(|t| i64::try_from(t).ok());
             let block_duration = p.block_duration.and_then(|d| i64::try_from(d).ok());
-            // An audio packet lasts what its frame header says, else what
-            // the track or its codec says (found black box: a
-            // `DefaultDuration` that disagrees with the frames is ignored);
-            // a video packet what its block or the track says, or after the
-            // rate analysis, a frame of the estimated rate.
+            // An unlaced audio block lasts its nonzero `BlockDuration` (RFC
+            // 9559 5.1.3.5.3), and a frame of a laced one from its start to
+            // the next frame's. Otherwise an audio packet lasts what its frame
+            // header says, else what the track or its codec says (found black
+            // box: a `DefaultDuration` that disagrees with the frames is
+            // ignored); a video packet what its block or the track says, or
+            // after the rate analysis, a frame of the estimated rate.
+            let stated = block_duration.filter(|d| *d > 0);
             let duration = match info.kind {
+                TrackKind::Audio if frames > 1 => lace_duration.or(parsed).or(block_duration),
                 TrackKind::Audio if info.parser.reads_frame() => {
-                    parsed.or(lace_duration).or(block_duration)
+                    stated.or(parsed).or(lace_duration).or(block_duration)
                 }
-                TrackKind::Audio => lace_duration.or(parsed).or(block_duration),
+                TrackKind::Audio => stated.or(lace_duration).or(parsed).or(block_duration),
                 TrackKind::Video => block_duration
                     .or(lace_duration)
                     .or(info.rates.vui_ticks)

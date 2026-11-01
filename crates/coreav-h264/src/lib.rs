@@ -1,4 +1,4 @@
-//! An H.264 (AVC) decoder: High profile, 8-bit 4:2:0,
+//! An H.264 (AVC) decoder: High profile, 8-bit 4:2:0 and monochrome,
 //! progressive frames, written from Rec. ITU-T H.264 (08/2024).
 //!
 //! **This crate is opt-in and is never part of a default build.** Decoding

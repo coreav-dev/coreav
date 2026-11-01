@@ -8,10 +8,10 @@
 //! feature turns on: a build without a decoder cannot transcode.
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use coreav_isobmff::Source;
-use coreav_transcode::encoder::RateControl;
+use coreav_transcode::encoder::{FrameRate, RateControl};
 use coreav_transcode::{
     AacAudio, AudioMode, OpusAudio, PixelFormat, Remuxed, Scale, SourceKind, Summary,
     TranscodeOptions, parse_scale,
@@ -114,6 +114,7 @@ pub fn make<S: Source>(
     } else {
         SourceKind::Mp4
     };
+    let (frame_rates, timeout) = source_rates(&mut source, Duration::from_secs(request.timeout))?;
     let options = TranscodeOptions {
         rate: match (request.bitrate, request.crf) {
             (Some(kbps), _) => RateControl::Bitrate(kbps),
@@ -148,7 +149,8 @@ pub fn make<S: Source>(
         x264: request.x264.clone(),
         ffmpeg: request.ffmpeg.clone(),
         threads: request.threads,
-        timeout: Duration::from_secs(request.timeout),
+        frame_rates,
+        timeout,
         ..TranscodeOptions::default()
     };
     let launcher = ExecLauncher {
@@ -173,6 +175,78 @@ pub fn make<S: Source>(
     )
     .map_err(|e| decoders.explain(failure(e)))?;
     Ok(document(&summary))
+}
+
+/// Reads source rates within the transcode budget and returns the time
+/// left for the pipeline. Read boundaries check the deadline; an ongoing
+/// synchronous read cannot be interrupted.
+fn source_rates<S: Source>(
+    source: &mut S,
+    timeout: Duration,
+) -> Result<(Vec<(usize, FrameRate)>, Duration), WriteFailure> {
+    let expired = || {
+        failure(coreav_transcode::Error::Decode(coreav_decode::Error::new(
+            coreav_decode::ErrorKind::Timeout,
+            "the transcode took longer than its timeout",
+        )))
+    };
+    let deadline = Instant::now().checked_add(timeout).ok_or_else(expired)?;
+    let mut source = RateSource { source, deadline };
+    let rates = match source.len() {
+        Ok(_) => crate::ffprobe::source_frame_rates(&mut source)
+            .map(|rates| {
+                rates
+                    .into_iter()
+                    .filter_map(|(index, text)| {
+                        let (num, den) = crate::ffprobe::parse_rate(&text)?;
+                        Some((
+                            index,
+                            FrameRate {
+                                num: u32::try_from(num).ok()?,
+                                den: u32::try_from(den).ok()?,
+                            },
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
+    let remaining = deadline
+        .checked_duration_since(Instant::now())
+        .filter(|left| !left.is_zero())
+        .ok_or_else(expired)?;
+    Ok((rates, remaining))
+}
+
+struct RateSource<'a, S> {
+    source: &'a mut S,
+    deadline: Instant,
+}
+
+impl<S> RateSource<'_, S> {
+    fn check(&self) -> Result<(), coreav_isobmff::Error> {
+        if Instant::now() >= self.deadline {
+            return Err(coreav_isobmff::Error::Io(std::io::ErrorKind::TimedOut));
+        }
+        Ok(())
+    }
+}
+
+impl<S: Source> Source for RateSource<'_, S> {
+    fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+        self.check()?;
+        let result = self.source.len();
+        self.check()?;
+        result
+    }
+
+    fn read_exact_at(&mut self, offset: u64, buf: &mut [u8]) -> Result<(), coreav_isobmff::Error> {
+        self.check()?;
+        let result = self.source.read_exact_at(offset, buf);
+        self.check()?;
+        result
+    }
 }
 
 /// The `coreav.transcode/1` summary.
@@ -330,6 +404,122 @@ fn writer_failure(failure: WriteFailure) -> WriteFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct SlowSource {
+        lengths: usize,
+        reads: usize,
+        delay: Duration,
+    }
+
+    impl Source for SlowSource {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            self.lengths += 1;
+            Ok(16)
+        }
+
+        fn read_exact_at(&mut self, _: u64, buf: &mut [u8]) -> Result<(), coreav_isobmff::Error> {
+            self.reads += 1;
+            std::thread::sleep(self.delay);
+            buf.fill(0);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn rate_probing_consumes_the_transcode_timeout() {
+        let mut source = SlowSource {
+            lengths: 0,
+            reads: 0,
+            delay: Duration::from_millis(50),
+        };
+        let error = source_rates(&mut source, Duration::ZERO).unwrap_err();
+        assert_eq!(error.to_json()["limit"], "timeout");
+        assert_eq!((source.lengths, source.reads), (0, 0));
+        let error = source_rates(&mut source, Duration::from_millis(1)).unwrap_err();
+        assert_eq!(error.to_json()["limit"], "timeout");
+        assert!(source.reads <= 1);
+        let budget = Duration::from_secs(10);
+        let (rates, remaining) =
+            source_rates(&mut source, budget).unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert!(rates.is_empty());
+        assert!(remaining <= budget - source.delay);
+        assert!(!remaining.is_zero());
+    }
+
+    #[test]
+    fn rate_probe_stops_reads_after_the_deadline() {
+        let mut source = SlowSource {
+            lengths: 0,
+            reads: 0,
+            delay: Duration::ZERO,
+        };
+        let mut probe = RateSource {
+            source: &mut source,
+            deadline: Instant::now(),
+        };
+        let expired = coreav_isobmff::Error::Io(std::io::ErrorKind::TimedOut);
+        assert_eq!(probe.len(), Err(expired.clone()));
+        assert_eq!(probe.read_exact_at(0, &mut [0; 16]), Err(expired));
+        assert_eq!((source.lengths, source.reads), (0, 0));
+    }
+
+    #[test]
+    fn rate_probe_does_not_scan_declared_sample_count() {
+        fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+            [
+                ((payload.len() + 8) as u32).to_be_bytes().as_slice(),
+                kind.as_slice(),
+                payload,
+            ]
+            .concat()
+        }
+        fn words(values: &[u32]) -> Vec<u8> {
+            values.iter().flat_map(|v| v.to_be_bytes()).collect()
+        }
+        fn full(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+            bx(kind, &[vec![0; 4], payload.to_vec()].concat())
+        }
+        const COUNT: u32 = 10_000_000;
+        let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
+        let offset = (ftyp.len() + 8) as u32;
+        let mut entry = vec![0; 78];
+        entry[6..8].copy_from_slice(&1u16.to_be_bytes());
+        entry[24..26].copy_from_slice(&64u16.to_be_bytes());
+        entry[26..28].copy_from_slice(&48u16.to_be_bytes());
+        let stbl = bx(
+            b"stbl",
+            &[
+                full(b"stsd", &[words(&[1]), bx(b"avc1", &entry)].concat()),
+                full(b"stts", &words(&[1, COUNT, 200])),
+                full(b"ctts", &words(&[1, COUNT, 200])),
+                full(b"stsc", &words(&[1, 1, COUNT, 1])),
+                full(b"stsz", &words(&[1, COUNT])),
+                full(b"stco", &words(&[1, offset])),
+                full(b"stss", &words(&[1, 1])),
+            ]
+            .concat(),
+        );
+        let mvhd = full(b"mvhd", &[words(&[0, 0, 1000, 1600]), vec![0; 80]].concat());
+        let tkhd = full(b"tkhd", &[words(&[0, 0, 1, 0, 1600]), vec![0; 60]].concat());
+        let mdhd = full(
+            b"mdhd",
+            &[words(&[0, 0, 1000, 1600]), vec![0x55, 0xc4, 0, 0]].concat(),
+        );
+        let hdlr = full(
+            b"hdlr",
+            &[words(&[0]), b"vide".to_vec(), vec![0; 13]].concat(),
+        );
+        let mdia = bx(b"mdia", &[mdhd, hdlr, bx(b"minf", &stbl)].concat());
+        let moov = bx(
+            b"moov",
+            &[mvhd, bx(b"trak", &[tkhd, mdia].concat())].concat(),
+        );
+        let file = [ftyp, bx(b"mdat", &vec![0; COUNT as usize]), moov].concat();
+        let mut source = coreav_isobmff::SliceSource::new(&file);
+        let (rates, _) = source_rates(&mut source, Duration::from_secs(1))
+            .unwrap_or_else(|error| panic!("{}", error.to_json()));
+        assert_eq!(rates, vec![(0, FrameRate { num: 5, den: 1 })]);
+    }
 
     #[test]
     fn writer_failures_are_never_refusals() {
