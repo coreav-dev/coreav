@@ -104,9 +104,10 @@ pub struct Summary {
     pub samples: u32,
     /// Bytes written to the output.
     pub bytes_written: u64,
-    /// Media timescale of the output track (that of the source track).
+    /// Media timescale of the source track; the output's is a multiple of it
+    /// for HE-AAC ([`extract_audio`]).
     pub timescale: u32,
-    /// Sum of the decode durations, in media ticks.
+    /// Sum of the decode durations, in media ticks of `timescale`.
     pub duration: u64,
 }
 
