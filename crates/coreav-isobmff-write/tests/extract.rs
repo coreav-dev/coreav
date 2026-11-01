@@ -15,7 +15,7 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, Limits, Movie, Packet, SliceSource, Source, Track,
     probe,
 };
-use coreav_isobmff_write::{ExtractError, Summary, TrackChoice, extract_audio};
+use coreav_isobmff_write::{ExtractError, HeaderMetadata, Summary, TrackChoice, extract_audio};
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -267,6 +267,7 @@ fn an_edit_that_lasts_to_the_end_of_the_media_is_refused() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert_eq!(
@@ -303,6 +304,7 @@ fn fragmented_sources_need_contiguous_decode_times() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(
@@ -388,6 +390,7 @@ fn outputs_above_4_gib_use_64_bit_offsets() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     )
     .unwrap();
@@ -428,6 +431,7 @@ fn extract(data: &[u8], choice: TrackChoice) -> Result<(Summary, Vec<u8>), Extra
         &Limits::default(),
         &Allowlist::default(),
         choice,
+        HeaderMetadata::Copy,
         &mut out,
     )?;
     Ok((summary, out))
@@ -748,6 +752,47 @@ fn only_user_chosen_metadata_is_copied() {
 }
 
 #[test]
+fn cleared_header_metadata_leaves_the_audio_as_it_was() {
+    let source = aac_movie(100, 10, Some((0, 1024, 2000)), false);
+    let (_, copied) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    let mut cleared = Vec::new();
+    extract_audio(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::Clear,
+        &mut cleared,
+    )
+    .unwrap();
+    let probed = |data: &[u8]| {
+        probe(
+            SliceSource::new(data),
+            &Limits::default(),
+            &Allowlist::default(),
+        )
+        .unwrap()
+    };
+    let (copied_movie, cleared_movie) = (probed(&copied), probed(&cleared));
+    let (copied_track, cleared_track) = (&copied_movie.tracks[0], &cleared_movie.tracks[0]);
+    assert_eq!(copied_movie.creation_time, 0x7c25_b080);
+    assert_eq!(copied_track.media_creation_time, 0x7c25_b081);
+    assert_eq!(copied_track.language, Some(*b"fra"));
+    assert_eq!(cleared_movie.creation_time, 0);
+    assert_eq!(cleared_track.creation_time, 0);
+    assert_eq!(cleared_track.media_creation_time, 0);
+    assert_eq!(cleared_track.language, Some(*b"und"));
+    assert_eq!(cleared.len(), copied.len());
+    assert_eq!(cleared_track.edit_list, copied_track.edit_list);
+    assert_eq!(cleared_movie.mvhd_duration, copied_movie.mvhd_duration);
+    assert_eq!(cleared_track.mdhd_duration, copied_track.mdhd_duration);
+    assert_eq!(
+        packets(&cleared_movie, cleared_track, &cleared),
+        packets(&copied_movie, copied_track, &copied)
+    );
+}
+
+#[test]
 fn tracks_that_cannot_be_extracted_write_nothing() {
     let source = common::av_movie_with(common::aac_entry(), false);
     let cases = [
@@ -766,6 +811,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
             &Limits::default(),
             &Allowlist::default(),
             choice,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(result, Err(ExtractError::Source(expected)), "{choice:?}");
@@ -780,6 +826,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
         &Limits::default(),
         &video_only,
         TrackChoice::Stream(1),
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert!(matches!(
@@ -794,6 +841,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
         &Limits::default(),
         &video_only,
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     // The allowlist dropped the only audio track: its codec is not allowed.
@@ -839,6 +887,7 @@ fn table_limit_applies_to_the_output_tables() {
             &limits,
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         if ok {
@@ -997,6 +1046,7 @@ fn several_edits_outside_the_model_are_refused() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         );
         assert_eq!(
@@ -1071,6 +1121,7 @@ fn write_errors_are_reported() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             FailingWriter { left },
         );
         assert_eq!(result, Err(ExtractError::Write(io::ErrorKind::BrokenPipe)));
@@ -1110,6 +1161,7 @@ fn read_errors_while_copying_are_reported() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         io::sink(),
     )
     .is_err()
@@ -1126,6 +1178,7 @@ fn read_errors_while_copying_are_reported() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             io::sink(),
         );
         assert_eq!(
@@ -1149,6 +1202,7 @@ fn truncated_inputs_are_safe() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         )
         .is_ok()
@@ -1191,6 +1245,7 @@ fn assert_mutations_are_safe(source: &[u8], rounds: u32, seed: u64) {
             &limits,
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut out,
         ) else {
             continue;
@@ -1338,6 +1393,7 @@ fn samples_are_copied_through_a_read_window() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     )
     .unwrap();
@@ -1406,6 +1462,7 @@ fn a_failed_read_of_the_gapless_item_is_an_error() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         &mut out,
     );
     assert_eq!(
@@ -1458,6 +1515,7 @@ fn the_copy_pass_advises_where_it_starts_and_how_much_it_copies() {
         &Limits::default(),
         &Allowlist::default(),
         TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
         io::sink(),
     )
     .unwrap();
@@ -1548,6 +1606,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
             &Limits::default(),
             &Allowlist::default(),
             TrackChoice::FirstAudio,
+            HeaderMetadata::Copy,
             &mut expected,
         )
         .unwrap();
@@ -1563,6 +1622,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
                     &Limits::default(),
                     &Allowlist::default(),
                     TrackChoice::FirstAudio,
+                    HeaderMetadata::Copy,
                     &mut out,
                 )
             } else {
@@ -1571,6 +1631,7 @@ fn a_source_that_skips_bytes_is_told_exactly_what_the_copy_pass_reads() {
                     &Limits::default(),
                     &Allowlist::default(),
                     TrackChoice::FirstAudio,
+                    HeaderMetadata::Copy,
                     &mut out,
                 )
             }

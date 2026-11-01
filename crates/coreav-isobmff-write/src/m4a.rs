@@ -9,7 +9,7 @@ use crate::moov::{
 };
 use crate::mux::RawBox;
 use crate::tables::Tables;
-use crate::{ExtractError, Summary, TrackChoice};
+use crate::{ExtractError, HeaderMetadata, Summary, TrackChoice};
 use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, ItunesGapless, Limits, Movie, Source, Track,
     TrackKind, probe,
@@ -27,7 +27,8 @@ const MAX_REGIONS: usize = 1 << 16;
 /// Copies one AAC track of `source` into an M4A file written to `out`.
 ///
 /// The source is probed with `limits` and `allowlist`; the track is chosen by
-/// `choice`. Its samples are listed once to build the sample tables, then
+/// `choice`; `metadata` says whether the header times and the language are
+/// the source's. Its samples are listed once to build the sample tables, then
 /// listed again and copied, so `out` receives `ftyp`, `moov` and `mdat` in
 /// that order without seeking. `out` gets many small writes; give it a
 /// buffered writer.
@@ -60,6 +61,7 @@ pub fn extract_audio<S: Source, W: Write>(
     limits: &Limits,
     allowlist: &Allowlist,
     choice: TrackChoice,
+    metadata: HeaderMetadata,
     mut out: W,
 ) -> Result<Summary, ExtractError> {
     let mut source = source;
@@ -117,7 +119,7 @@ pub fn extract_audio<S: Source, W: Write>(
     } else {
         None
     };
-    let header = Header::new(&movie, track, &tables, first_dts, gapless)?;
+    let header = Header::new(&movie, track, &tables, first_dts, gapless, metadata)?;
     let (data_start, data_bytes) = write_head(
         &mut out,
         ftyp(b"M4A ", &[b"M4A ", b"mp42", b"isom"]),
@@ -366,6 +368,7 @@ impl Header {
         tables: &Tables,
         first_dts: i64,
         gapless: Option<ItunesGapless>,
+        metadata: HeaderMetadata,
     ) -> Result<Self, Error> {
         let media_timescale = track.timescale;
         let movie_timescale = if movie.timescale == 0 {
@@ -475,16 +478,24 @@ impl Header {
                 .try_fold(0u64, |sum, e| sum.checked_add(e.duration))
                 .ok_or_else(overflow)?
         };
-        let language = language(track.language);
+        let (movie_created, track_created, media_created, language) = match metadata {
+            HeaderMetadata::Copy => (
+                movie.creation_time,
+                track.creation_time,
+                track.media_creation_time,
+                language(track.language),
+            ),
+            HeaderMetadata::Clear => (0, 0, 0, *b"und"),
+        };
         Ok(Self {
             movie_timescale,
             media_timescale,
             media_duration,
             movie_duration,
             edits,
-            movie_created: movie.creation_time,
-            track_created: track.creation_time,
-            media_created: track.media_creation_time,
+            movie_created,
+            track_created,
+            media_created,
             language,
         })
     }
