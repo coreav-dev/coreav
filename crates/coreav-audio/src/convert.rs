@@ -4,6 +4,12 @@
 use crate::decode::SampleFormat;
 use crate::{Pcm, Plane};
 
+#[cfg(test)]
+mod oracle;
+
+#[cfg(test)]
+mod layout;
+
 /// The speaker positions of `channels` channels in the default order of
 /// FLAC (RFC 9639 Table 16), which is also WAV's channel order.
 pub(crate) fn default_mask(channels: u16) -> u32 {
