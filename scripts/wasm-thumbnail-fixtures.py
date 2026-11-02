@@ -92,12 +92,12 @@ def commands(oracle, x264, output):
         args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-fflags", "+bitexact"]
         if variant == "edits":
             args += ["-itsoffset", "0.08"]
+        if variant.startswith("rotate"):
+            args += ["-display_rotation:v:0", variant[6:]]
         args += ["-i", str(source), "-map", "0:v:0"]
         if variant == "stream-ties":
             args += ["-map", "0:v:0"]
         args += ["-an", "-c:v", "copy", "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact"]
-        if variant.startswith("rotate"):
-            args += ["-metadata:s:v:0", "rotate=" + variant[6:]]
         args += [*(["-write_crc32", "0"] if row["container"] == "matroska" else []), "-f", row["container"], str(output / f"{row['id']}.{extension}")]
         yield {"kind": "variant", "geometry": variant, "argv": args}
 

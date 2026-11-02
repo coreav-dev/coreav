@@ -64,6 +64,20 @@ class FixtureContracts(unittest.TestCase):
         self.assertEqual(sum("--crop-rect" in argv for argv in encodes), 2)
         self.assertEqual(sum(row["kind"] == "inspect-sps" for row in plan), 14)
 
+    def test_rotation_sets_the_input_display_matrix_before_stream_copy(self):
+        plan = list(FIXTURES.commands(pathlib.Path("/oracle"), pathlib.Path("/x264"), pathlib.Path("/outside")))
+        rotations = [row for row in plan if row["kind"] == "variant" and row["geometry"].startswith("rotate")]
+        self.assertEqual(len(rotations), 12)
+        for row in rotations:
+            argv = row["argv"]
+            with self.subTest(geometry=row["geometry"], output=argv[-1]):
+                self.assertIn("-display_rotation:v:0", argv)
+                at = argv.index("-display_rotation:v:0")
+                self.assertLess(at, argv.index("-i"))
+                self.assertEqual(argv[at + 1], row["geometry"][6:])
+                self.assertNotIn("-metadata:s:v:0", argv)
+                self.assertEqual(argv[argv.index("-c:v") + 1], "copy")
+
     def test_mp4_patch_changes_both_geometry_owners_not_payload_or_configuration(self):
         def box(kind, data):
             return struct.pack(">I4s", len(data) + 8, kind) + data
