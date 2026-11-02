@@ -1443,6 +1443,10 @@ Spend: the correctness and speed runs together are capped at 10 USD in
 the scripts that run them, and the actual spend is reported with the
 results.
 
+## PCM audio output
+
+`coreav ffmpeg` writes `pcm_s16le` to WAV and raw `-f s16le` independently of the video transcode pipeline. It needs no video backend or external encoder. [PCM output](pcm-output.md) defines its container defaults, stream selection, refusals and correctness bars.
+
 ## Results
 
 [`docs/measurements/transcode.md`](../measurements/transcode.md), with its
