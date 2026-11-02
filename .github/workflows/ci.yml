@@ -71,12 +71,11 @@ jobs:
       group: ${{ github.workflow }}-ci-changes-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     outputs:
       run: ${{ steps.result.outputs.reuse != 'true' && steps.filter.outputs.run == 'true' }}
       h264-conformance: ${{ steps.result.outputs.reuse != 'true' && steps.h264-conformance.outputs.run == 'true' }}
       h264-main: ${{ steps.h264-conformance.outputs.run }}
-      fixtures: ${{ steps.filter.outputs.run }}
       main-cache: ${{ steps.result.outputs.reuse == 'true' && steps.filter.outputs.run == 'true' }}
       oracle-installer: ${{ steps.result.outputs.reuse != 'true' && steps.oracle-installer.outputs.run == 'true' }}
       bench-guard: ${{ steps.bench-guard.outputs.run }}
@@ -193,6 +192,12 @@ jobs:
           else
             echo "None: the change affects no fuzz project." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Publish the shared fixtures before fan-out
+        if: >-
+          steps.filter.outputs.run == 'true' &&
+          (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+        uses: ./.github/actions/ci-fixtures
 
   check:
     needs: ci-changes
@@ -848,76 +853,10 @@ jobs:
           if-no-files-found: ignore
 
 
-  # The ISO base media fixtures that isobmff-writers, isobmff-decode and
-  # b9-shard check, generated once a run so that they all, and every B9
-  # shard, check the same bytes: generation is not byte for byte
-  # reproducible. Kept between runs under a key of the generator, every
-  # file it runs from scripts/, and the FFmpeg install; isobmff-fixtures
-  # generates its own on every run (docs/design/ci-checks.md, "The fixture
-  # jobs").
-  isobmff-fixture-set:
-    needs: ci-changes
-    if: >-
-      needs.ci-changes.outputs.fixtures == 'true' &&
-      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    concurrency:
-      group: ${{ github.workflow }}-isobmff-fixture-set-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Key the fixtures by what generates them
-        id: key
-        run: |
-          set -euo pipefail
-          helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
-          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
-      - name: Restore the fixtures
-        id: fixtures
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-fixtures
-          key: ${{ steps.key.outputs.key }}
-      - name: Cache pinned black-box binaries
-        if: steps.fixtures.outputs.cache-hit != 'true'
-        id: ffmpeg-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
-      - name: Install pinned FFmpeg, ffprobe and MediaInfo
-        if: steps.fixtures.outputs.cache-hit != 'true' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: |
-          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
-          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
-      - name: Generate all required fixtures
-        if: steps.fixtures.outputs.cache-hit != 'true'
-        env:
-          COREAV_REQUIRE_ALL_FIXTURES: '1'
-        run: |
-          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
-          export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
-          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: isobmff-fixture-set
-          path: ${{ runner.temp }}/coreav-fixtures
-          if-no-files-found: error
-          retention-days: 1
-      - name: Save the fixtures
-        if: steps.fixtures.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-fixtures
-          key: ${{ steps.key.outputs.key }}
-
   # The writers' oracles of the ISO base media fixtures, beside
   # isobmff-fixtures (docs/design/ci-checks.md, "The fixture jobs").
   isobmff-writers:
-    needs: [ci-changes, isobmff-fixture-set]
+    needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
@@ -953,7 +892,6 @@ jobs:
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: isobmff-fixture-set
@@ -1111,7 +1049,7 @@ jobs:
   # The decoders, thumbnails and `coreav transcode` on the ISO base media
   # fixtures: the build with the FFmpeg fallback, dav1d and libvpx.
   isobmff-decode:
-    needs: [ci-changes, isobmff-fixture-set]
+    needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
@@ -1147,7 +1085,6 @@ jobs:
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: isobmff-fixture-set
@@ -1317,7 +1254,7 @@ jobs:
   # of the fixtures a job; `b9` judges the bars once over all three
   # (docs/design/ci-checks.md, "The fixture jobs").
   b9-shard:
-    needs: [ci-changes, isobmff-fixture-set]
+    needs: ci-changes
     strategy:
       fail-fast: false
       matrix:
@@ -1357,7 +1294,6 @@ jobs:
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: isobmff-fixture-set
@@ -2407,7 +2343,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-fixture-set, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
