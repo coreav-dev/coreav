@@ -1,8 +1,9 @@
 """Synthetic records and fake commands only; never the registered roster."""
 
 import ast
-from contextlib import closing
+from contextlib import closing, redirect_stderr
 import copy
+import io
 import math
 import os
 from pathlib import Path
@@ -222,6 +223,30 @@ class Records(unittest.TestCase):
 
 
 class Smoke(unittest.TestCase):
+    @mock.patch.object(smoke.sys, "platform", "darwin")
+    def test_capture_failure_exposes_only_bounded_native_scalar_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exporter = root / "exporter"
+            exporter.write_bytes(b"fake")
+
+            def failed(command, temporary, timeout):
+                (Path(temporary) / "stderr").write_text(
+                    "private /secret/path 0x12345678\n"
+                    "videotoolbox: VideoToolbox Create failed with status -12908\n"
+                    "videotoolbox: VideoToolbox did not retain ExpectedFrameRate\n"
+                    "videotoolbox: VideoToolbox did not retain /secret/path\n")
+                raise evidence.Invalid("child_failure")
+
+            error = io.StringIO()
+            with mock.patch.object(smoke, "run", side_effect=failed), redirect_stderr(error), \
+                    self.assertRaises(evidence.Invalid) as caught:
+                smoke.capture(exporter, root / "output", "software", "synthetic")
+            self.assertEqual(caught.exception.code, "child_failure")
+            self.assertEqual(error.getvalue().splitlines(), [
+                "videotoolbox-smoke software: videotoolbox: VideoToolbox Create failed with status -12908",
+                "videotoolbox-smoke software: videotoolbox: VideoToolbox did not retain ExpectedFrameRate"])
+
     def test_independent_source_contract_and_fixed_frame_order(self):
         expected = b"".join(bytes([level]) * 64 * 64 + b"\x80" * (64 * 64 // 2)
                             for level in (37, 91, 145, 199))

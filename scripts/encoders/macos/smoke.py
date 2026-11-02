@@ -5,6 +5,7 @@ import argparse
 from fractions import Fraction
 from pathlib import Path
 import platform
+import re
 import sys
 import tempfile
 
@@ -83,8 +84,18 @@ def capture(exporter, output, mode, runner_image):
     output = Path(output)
     output.mkdir(parents=False, exist_ok=False)
     with tempfile.TemporaryDirectory() as temporary:
-        run([str(exporter), "smoke", "--mode", mode, "--output", str(output.resolve())],
-            temporary, 120)
+        try:
+            run([str(exporter), "smoke", "--mode", mode, "--output", str(output.resolve())],
+                temporary, 120)
+        except Invalid:
+            try:
+                detail = read(temporary, "stderr", 32768).decode("utf-8")
+            except (Invalid, OSError, UnicodeError):
+                detail = ""
+            for line in detail.splitlines():
+                if re.fullmatch(r"videotoolbox: VideoToolbox (?:[A-Za-z]{1,32} failed with status -?[0-9]{1,10}|did not retain [A-Za-z0-9]{1,64})", line):
+                    print(f"videotoolbox-smoke {mode}: {line}", file=sys.stderr)
+            raise
         value, names = artifacts(output, mode, False)
         run(["/usr/bin/sw_vers", "-buildVersion"], temporary, 10,
             stdout="os-build", stderr="os-error")
@@ -219,11 +230,12 @@ def main():
         result = verify_capture(args.capture, args.oracle_bin, args.mode, args.coreav_decoder, args.install_oracle)
         write(args.report, result)
         return 0 if result["status"] == "verified" or args.mode == "software" else 1
-    except (Invalid, OSError, UnicodeError, ValueError):
+    except (Invalid, OSError, UnicodeError, ValueError) as error:
         if args.command == "verify":
             write(args.report, {"schema": "coreav.videotoolbox-smoke-verification/1", "status": "failed",
                                 "diagnostic": "verification_failed"})
-        print("videotoolbox-smoke: failed", file=sys.stderr)
+        diagnostic = error.code if isinstance(error, Invalid) and re.fullmatch(r"[a-z_]{1,64}", error.code) else "capture_or_verification_error"
+        print(f"videotoolbox-smoke {args.mode}: failed ({diagnostic})", file=sys.stderr)
         return 1
 
 
