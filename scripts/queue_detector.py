@@ -73,6 +73,85 @@ def sha(value):
     return value
 
 
+def endpoint(method, path):
+    path = path.split('?', 1)[0]
+    routes = (
+        ('POST', '/graphql', 'POST /graphql'),
+        ('GET', '/rules/branches/main', 'GET branch rules'),
+        ('GET', '/actions/workflows/(?:ci|deny|python|npm)\\.yml/runs', 'GET workflow runs'),
+        ('GET', '/actions/runs', 'GET runs'),
+        ('GET', '/actions/runs/[0-9]+/attempts/[0-9]+/jobs', 'GET attempt jobs'),
+        ('GET', '/check-suites/[0-9]+/check-runs', 'GET suite check runs'),
+        ('GET', '/commits/[0-9a-f]{40}/check-runs', 'GET commit check-run index'),
+        ('GET', '/check-runs/[0-9]+', 'GET check run'),
+        ('GET', f'/issues/{TRACKING_ISSUE}/comments', 'GET issue comments'),
+        ('POST', f'/issues/{TRACKING_ISSUE}/comments', 'POST issue comments'),
+    )
+    for verb, pattern, label in routes:
+        prefix = '' if pattern == '/graphql' else f'/repos/{REPO}'
+        if method == verb and re.fullmatch(re.escape(prefix) + pattern, path):
+            return label
+    return 'other'
+
+
+def response_facts(status, headers):
+    facts = {}
+    if type(status) is int and 100 <= status <= 599:
+        facts['status'] = status
+    headers = headers or {}
+    rate = {}
+    for name in ('X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Used',
+                 'X-RateLimit-Reset', 'Retry-After'):
+        value = headers.get(name)
+        if value is not None:
+            rate[name] = value if type(value) is str and re.fullmatch('[0-9]{1,10}', value) else 'invalid'
+    resource = headers.get('X-RateLimit-Resource')
+    if resource is not None:
+        rate['X-RateLimit-Resource'] = resource if type(resource) is str and resource in (
+            'core', 'graphql', 'search', 'code_search') else 'other'
+    if rate:
+        facts['rate_limit'] = rate
+    return facts
+
+
+def graphql_errors(errors):
+    if not isinstance(errors, list):
+        return 'malformed'
+    fields = ('repository', 'mergeQueue', 'entries', 'totalCount', 'pageInfo', 'hasNextPage',
+              'endCursor', 'nodes', 'id', 'state', 'headCommit', 'oid', 'pullRequest', 'number', 'headRefOid')
+    types = ('FORBIDDEN', 'NOT_FOUND', 'RATE_LIMITED', 'INSUFFICIENT_SCOPES', 'MAX_NODE_LIMIT_EXCEEDED',
+             'UNPROCESSABLE', 'INTERNAL', 'SERVICE_UNAVAILABLE')
+    result = []
+    for error in errors[:5]:
+        if not isinstance(error, dict):
+            result.append({'type': 'malformed'})
+            continue
+        kind, path = error.get('type'), error.get('path')
+        item = {'type': kind if type(kind) is str and kind in types else 'other'}
+        if isinstance(path, list) and len(path) <= 8:
+            item['path'] = [part if ((type(part) is str and part in fields)
+                           or (type(part) is int and 0 <= part < 100)) else '?' for part in path]
+        elif path is not None:
+            item['path'] = 'malformed'
+        result.append(item)
+    return result
+
+
+def diagnostic(error, trace):
+    classes = {'GraphQL evidence unavailable': 'GRAPHQL_ERROR', 'Rate reserve reached': 'RATE_RESERVE',
+               'Ambiguous API response framing': 'RESPONSE_FRAMING', 'API response exceeds limit': 'RESPONSE_SIZE',
+               'Invalid API response or HTTP Date': 'RESPONSE_INVALID',
+               'Unexpected API response status': 'HTTP_STATUS', 'API permission refused': 'PERMISSION',
+               'API authentication refused': 'AUTHENTICATION', 'API rate limited': 'RATE_LIMIT',
+               'Incomplete API refusal': 'TRANSFER', 'API request failed': 'REQUEST_FAILED',
+               'Tick budget exhausted': 'BUDGET', 'Tick deadline reached': 'BUDGET'}
+    kind = next((base.__name__ for base in (ConfigError, Unknown, OSError, ValueError, KeyError,
+                                          TypeError, AttributeError) if isinstance(error, base)), 'Unknown')
+    if len(error.args) == 1 and type(error.args[0]) is str:
+        kind = classes.get(error.args[0], kind)
+    return 'API diagnostic (last request): ' + json.dumps(dict(trace or {}, failure_class=kind), sort_keys=True)
+
+
 class Api:
     def __init__(self, token, opener=None, clock=time.monotonic, pause=time.sleep):
         self.token = token
@@ -84,8 +163,10 @@ class Api:
         self.date = None
         self.links = ''
         self.allow_comments = False
+        self.trace = None
 
     def request(self, method, path, body=None):
+        self.trace = {'endpoint': endpoint(method, path)}
         if method not in ('GET', 'POST'):
             raise ConfigError('Unexpected API method')
         if path != '/graphql' and not path.startswith(f'/repos/{REPO}/'):
@@ -100,6 +181,7 @@ class Api:
             if self.calls >= CALL_CAP or remaining <= 0:
                 raise Unknown('Tick budget exhausted')
             self.calls += 1
+            self.trace = {'endpoint': endpoint(method, path)}
             req = urllib.request.Request(
                 'https://api.github.com' + path, method=method,
                 data=None if body is None else json.dumps(body).encode(),
@@ -108,6 +190,7 @@ class Api:
                          'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28'})
             try:
                 with self.opener(req, timeout=min(10, remaining)) as response:
+                    self.trace.update(response_facts(response.status, response.headers))
                     if method == 'POST' and path != '/graphql' and response.status != 201:
                         raise Unknown('Comment creation was not acknowledged')
                     if (method == 'GET' or path == '/graphql') and response.status != 200:
@@ -146,6 +229,7 @@ class Api:
                         raise Unknown('Tick budget exhausted')
                     return result
             except urllib.error.HTTPError as error:
+                self.trace.update(response_facts(error.code, error.headers))
                 if error.code == 401:
                     raise ConfigError('API authentication refused') from None
                 if error.code in (403, 429):
@@ -220,6 +304,8 @@ class Api:
 
     def graphql(self, cursor=None):
         body = self.request('POST', '/graphql', {'query': QUEUE_QUERY, 'variables': {'cursor': cursor}})
+        if body.get('errors'):
+            self.trace['graphql_errors'] = graphql_errors(body['errors'])
         if body.get('errors') or not body.get('data'):
             raise Unknown('GraphQL evidence unavailable')
         return body['data']
@@ -710,11 +796,13 @@ def main():
             report(api, state, due, args.mode == 'live', summaries=summaries)
     except ConfigError as error:
         reset(state['episodes'])
-        summaries.append('Configuration unavailable: ' + str(error))
+        summaries.append('Configuration unavailable; keep alerts disabled.')
+        summaries.append(diagnostic(error, api.trace))
         exit_code = 1
-    except (Unknown, OSError, ValueError, KeyError, TypeError, AttributeError):
+    except (Unknown, OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         reset(state['episodes'])
         summaries.append('UNKNOWN: evidence incomplete; observation streaks reset and no further comment attempted.')
+        summaries.append(diagnostic(error, api.trace))
         exit_code = int(args.mode in ('probe', 'notice'))
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
