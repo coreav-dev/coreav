@@ -2,6 +2,8 @@
 import json
 import os
 import pathlib
+import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -36,9 +38,14 @@ class PackageRehearsal(unittest.TestCase):
                 self.assertTrue(failed_step)
                 self.assertEqual(len(attempted), 4)
                 self.assertEqual(exercise.get('if'), '${{ !cancelled() }}')
-                command = exercise['run'].replace('packages/cli/test/package-rehearsal.mjs',
-                                                   str(ROOT / 'packages/cli/test/package-rehearsal.mjs'))
-                done = subprocess.run(command, shell=True, cwd=directory,
+                script = directory / 'checkout with spaces/packages/cli/test/package-rehearsal.mjs'
+                script.parent.mkdir(parents=True)
+                shutil.copyfile(ROOT / 'packages/cli/test/package-rehearsal.mjs', script)
+                shutil.copyfile(ROOT / 'packages/cli/package.json', script.parent.parent / 'package.json')
+                command = shlex.split(exercise['run'])
+                self.assertEqual(command[1], 'packages/cli/test/package-rehearsal.mjs')
+                command[1] = str(script)
+                done = subprocess.run(command, cwd=directory,
                                       env={**os.environ, 'PLATFORM': platform, 'TARGET': 'missing-target'},
                                       capture_output=True, timeout=30)
                 self.assertEqual(done.returncode, 1, done.stderr.decode())
