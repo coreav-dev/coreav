@@ -45,6 +45,19 @@ jobs:
         uses: ./.github/actions/merge-group-result
         with:
           workflow: deny.yml
+      # scripts/pr_shape_check.py reads a body with the parser pinned in
+      # scripts/pr-text-requirements.txt, and its self-test sits in the step
+      # below. A virtual environment keeps the runner's own Python untouched,
+      # and $GITHUB_PATH makes `python3` in the later steps this one.
+      - name: Install the parser the pull request body is read with
+        if: steps.result.outputs.reuse != 'true'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/parser"
+          "$RUNNER_TEMP/parser/bin/pip" install --quiet --require-hashes -r scripts/pr-text-requirements.txt
+          echo "$RUNNER_TEMP/parser/bin" >> "$GITHUB_PATH"
       # The required checks and the workflows have to agree whatever a change
       # touches, and docs/design/ci-checks.md, which names them, is
       # itself behind ci.yml's filter; so this runs here, where nothing is

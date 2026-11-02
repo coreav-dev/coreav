@@ -97,6 +97,204 @@ class Commits(unittest.TestCase):
             'perf(mpegts): parse a PES header once per packet\n\nThe code of #9 stays.\n\nSigned-off-by: A <a@b.c>')), [])
 
 
+BODY = """## TL;DR
+
+- A probe of a fragmented file reads each `moof` once, so a clip of 500 fragments probes faster.
+- Nothing outside the probe path changes.
+
+## Background
+
+A fragmented file names its samples in every fragment, and the probe read all of them before this change. coreav-dev/coreav#12 records the slow probe, and the fix reads each fragment header once.
+
+## What changes
+
+**What changes for users of the library or CLI?** A probe of a fragmented file is faster, and its output is unchanged.
+
+**What does this cover, and what nearby areas did it deliberately leave alone?**
+
+- Covered: the fragment walk in `coreav-isobmff`, with a fixture of 500 fragments.
+- Not covered: non-fragmented files, and the thumbnail path.
+
+**What must a person do after merging?** None.
+
+## How it works
+
+<details><summary>Probe a fragmented file</summary>
+
+```mermaid
+sequenceDiagram
+  participant C as coreav CLI
+  participant L as library API
+  C->>L: probe(path)
+  Note over C,L: Changed: previously every fragment was read
+```
+
+</details>
+
+## Decisions
+
+- Read the headers in one pass rather than caching the walk, so a caller that stops early stops reading.
+
+## Evidence
+
+**Verification run**: `cargo test -p coreav-isobmff` passed.
+
+- [x] Every commit is signed off (`git commit -s`, DCO).
+"""
+
+EXEMPT = """## TL;DR
+
+-
+- A bullet, on one line.
+
+## Background
+
+A paragraph, on one line.
+
+Another paragraph, on one line.
+
+> A quote
+> that runs over two lines.
+
+> A quoted paragraph
+with a lazy continuation
+and another quoted line.
+
+| a | b |
+|---|---|
+| 1 | 2 |
+| 3 | 4 |
+
+Name | Result
+--- | ---
+unit | pass
+fixture | pass
+
+```text
+a code block
+  whose lines
+  wrap
+```
+
+```mermaid
+sequenceDiagram
+  A->>B: a message
+```
+
+    An indented code block
+      whose lines
+      wrap
+
+<!--
+a comment
+over two lines
+-->
+
+<a href="a">
+  <img src="b">
+</a>
+
+***
+
+Setext heading
+==============
+
+## What changes
+
+- Covered: one
+  - a nested item
+- Not covered: two
+
+## Decisions
+
+A paragraph.
+
+<!-- Evidence follows -->
+## Evidence
+
+Text.
+
+<!--
+A comment
+with a blank line inside
+
+and a line after it
+-->
+"""
+
+
+class Body(unittest.TestCase):
+    def test_a_body_of_the_template_passes(self):
+        self.assertEqual(check.body_failures(BODY), [])
+
+    def test_every_other_block_keeps_the_sections_it_holds(self):
+        # The constructs a body carries around its sections are the parser's
+        # blocks, not text this check reads: none of them hides a heading or
+        # invents one.
+        self.assertEqual(check.body_failures(EXEMPT), [])
+
+    def test_the_template_and_the_required_sections_agree(self):
+        # The template owns the section list, and the comment under a
+        # heading marks the sections an author may delete: one of those is
+        # an optional section.
+        template = (HERE.parent / '.github' / 'pull_request_template.md').read_text(encoding='utf-8')
+        lines = template.split('\n')
+        headings = check.scan_body(template)
+        required, optional = [], []
+        for index, (text, line) in enumerate(headings):
+            ends = headings[index + 1][1] - 1 if index + 1 < len(headings) else len(lines)
+            comment = '\n'.join(lines[line:ends]).casefold()
+            (optional if 'delete this section' in comment else required).append(text)
+        self.assertEqual(required, list(check.REQUIRED_SECTIONS))
+        self.assertEqual(optional, list(check.OPTIONAL_SECTIONS))
+
+    def test_a_missing_section(self):
+        for section in check.REQUIRED_SECTIONS:
+            with self.subTest(section=section):
+                failures = check.body_failures(BODY.replace(f'## {section}', '## Another'))
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(f'no level-2 heading for its `{section}` section', failures[0])
+
+    def test_a_body_with_no_section_at_all(self):
+        failures = check.body_failures('A description of the change.')
+        self.assertEqual(len(failures), len(check.REQUIRED_SECTIONS), failures)
+
+    def test_a_setext_heading_opens_a_section(self):
+        # `Evidence` over a rule is the level-2 heading GitHub renders, so the
+        # section is there; the template's own syntax is `## Evidence`.
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', 'Evidence\n--------')), [])
+
+    def test_a_section_name_in_another_case_is_the_same_section(self):
+        self.assertEqual(check.body_failures(BODY.replace('## TL;DR', '## tl;dr')), [])
+
+    def test_a_hash_attached_to_a_heading_is_not_a_closing_sequence(self):
+        # `## Evidence#` is a heading named `Evidence#`, not the Evidence section.
+        failures = check.body_failures(BODY.replace('## Evidence', '## Evidence#'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
+
+    def test_a_heading_inside_a_quote_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '> ## Evidence'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
+
+    def test_a_heading_inside_a_fence_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '```text\n## Evidence\n```'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
+
+    def test_a_heading_inside_a_comment_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '<!--\n## Evidence\n-->'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
+
+    def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
+
+    def test_inline_html_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<a href="x">Read more</a>\n## Evidence')), [])
+
+
 class Command(unittest.TestCase):
     def run_check(self, *args):
         return subprocess.run([sys.executable, '-I', str(HERE / 'pr_shape_check.py'), *args],
@@ -106,7 +304,7 @@ class Command(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             event = pathlib.Path(d) / 'event.json'
             commits = pathlib.Path(d) / 'commits'
-            event.write_text(json.dumps({'pull_request': {'title': 'ci: fine', 'body': None}}))
+            event.write_text(json.dumps({'pull_request': {'title': 'ci: fine', 'body': BODY}}))
             commits.write_text(log('ci: fine\n\nSigned-off-by: A <a@b.c>'))
             run = self.run_check('--event', str(event), '--commits', str(commits))
             self.assertEqual(run.returncode, 0, run.stdout)
@@ -119,6 +317,28 @@ class Command(unittest.TestCase):
             self.assertEqual(run.returncode, 1)
             self.assertIn('no commit was checked', run.stdout)
             run = self.run_check('--event', str(event), '--commits', str(pathlib.Path(d) / 'nope'))
+            self.assertEqual(run.returncode, 1)
+            self.assertIn('pr-shape: cannot read', run.stderr)
+
+    def test_a_title_alone(self):
+        run = self.run_check('--title', 'ci: fine')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn('the title keeps its shape', run.stdout)
+        run = self.run_check('--title', 'fine')
+        self.assertEqual(run.returncode, 1)
+        self.assertIn(NOT_FORM, run.stdout)
+
+    def test_title_and_body_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            body = pathlib.Path(d) / 'body.md'
+            body.write_text(BODY.replace('## Decisions', '## Decision'))
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
+            self.assertEqual(run.returncode, 1)
+            self.assertIn('no level-2 heading for its `Decisions` section', run.stdout)
+            body.write_text(BODY)
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
+            self.assertEqual(run.returncode, 0, run.stdout)
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(pathlib.Path(d) / 'nope'))
             self.assertEqual(run.returncode, 1)
             self.assertIn('pr-shape: cannot read', run.stderr)
 
