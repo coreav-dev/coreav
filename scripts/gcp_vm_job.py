@@ -287,6 +287,8 @@ def main():
                     help='script inside the upload directory and its arguments, run as `bash JOB` in ~/job (a shell '
                          'word list, as given)')
     ap.add_argument('--download', help='local directory that receives ~/job/out')
+    ap.add_argument('--stage-instance-receipt', action='store_true',
+                    help='put the observed instance.json in the upload before starting the job')
     ap.add_argument('--state', help='new or empty directory for the job state and its ssh key (default: DOWNLOAD.gcpjob)')
     ap.add_argument('--collect', metavar='STATE_DIR',
                     help='finish the job of an earlier run whose controller stopped (no other job arguments)')
@@ -307,11 +309,13 @@ def main():
                     help='advancedMachineFeatures.turboMode (unset: the platform\'s default, unrestricted boost)')
     a = ap.parse_args()
     if a.collect:
-        if a.upload or a.job or a.download or a.state:
+        if a.upload or a.job or a.download or a.state or a.stage_instance_receipt:
             ap.error('--collect takes no --upload, --job, --download or --state: the state directory has them')
         return collect(Compute(credentials()), a.collect)
     if not (a.upload and a.job and a.download):
         ap.error('--upload, --job and --download are required (or --collect STATE_DIR)')
+    if a.stage_instance_receipt and os.path.exists(os.path.join(a.upload, 'instance.json')):
+        raise SystemExit('upload/instance.json already exists; refusing to overwrite a host receipt')
     if a.usd_per_hour is None:
         if a.machine != 'c4-standard-8':
             raise SystemExit('--usd-per-hour is required with a machine other than c4-standard-8')
@@ -384,11 +388,15 @@ def main():
         gce.wait(op)
         inst = gce.call('GET', f'{z}/instances/{name}')
         os.makedirs(a.download, exist_ok=True)
+        receipt = {'machine_type': inst['machineType'].rsplit('/', 1)[-1], 'zone': inst['zone'].rsplit('/', 1)[-1],
+                   'cpu_platform': inst.get('cpuPlatform'),
+                   'advanced_machine_features': inst.get('advancedMachineFeatures'),
+                   'provisioning': inst.get('scheduling', {}).get('provisioningModel')}
         with open(os.path.join(a.download, 'instance.json'), 'w') as f:
-            json.dump({'machine_type': inst['machineType'].rsplit('/', 1)[-1], 'zone': inst['zone'].rsplit('/', 1)[-1],
-                       'cpu_platform': inst.get('cpuPlatform'),
-                       'advanced_machine_features': inst.get('advancedMachineFeatures'),
-                       'provisioning': inst.get('scheduling', {}).get('provisioningModel')}, f, indent=1)
+            json.dump(receipt, f, indent=1)
+        if a.stage_instance_receipt:
+            with open(os.path.join(a.upload, 'instance.json'), 'x') as f:
+                json.dump(receipt, f, indent=1)
         ip = inst['networkInterfaces'][0]['accessConfigs'][0]['natIP']
         opts = ssh_opts(state_dir)
         ssh = ['ssh'] + opts + [f'coreav@{ip}']

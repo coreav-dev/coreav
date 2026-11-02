@@ -182,6 +182,21 @@ class Restart(unittest.TestCase):
             vm_job(*self.argv)
         self.assertIn('--collect', str(e.exception))
 
+    def test_observed_host_receipt_is_staged_before_the_job(self):
+        (self.up / 'job.sh').write_text('mkdir -p out\ncp instance.json out/observed.json\n')
+        vm_job(*self.argv, '--stage-instance-receipt')
+        receipt = json.loads((self.out / 'instance.json').read_text())
+        self.assertEqual(json.loads((self.out / 'observed.json').read_text()), receipt)
+        self.assertEqual(json.loads((self.up / 'instance.json').read_text()), receipt)
+        self.assertEqual(vms(), {})
+
+    def test_host_receipt_staging_never_overwrites_or_provisions(self):
+        (self.up / 'instance.json').write_text('existing receipt')
+        with self.assertRaisesRegex(SystemExit, 'refusing to overwrite'):
+            vm_job(*self.argv, '--stage-instance-receipt')
+        self.assertEqual((self.up / 'instance.json').read_text(), 'existing receipt')
+        self.assertEqual(vms(), {})
+
     def test_collect_finishes_a_run_whose_controller_was_killed(self):
         job = self.killed_run()
         root = pathlib.Path(self.tmp.name)
