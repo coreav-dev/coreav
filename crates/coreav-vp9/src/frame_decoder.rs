@@ -22,8 +22,8 @@ struct Previous {
 /// An experimental pixel decoder. Unlike [`crate::Decoder::read_headers`],
 /// this entry point refuses frames it cannot reconstruct and never advances
 /// its stream state using undecoded pictures or unadapted probabilities.
-/// Today it supports profile 0 with single-reference inter prediction;
-/// compound prediction and segmentation in inter frames are unsupported.
+/// Today it supports profile 0 with single-reference and compound inter
+/// prediction. Segmentation in inter frames is unsupported.
 #[derive(Debug)]
 pub struct FrameDecoder {
     limits: Limits,
