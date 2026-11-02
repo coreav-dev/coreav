@@ -489,8 +489,10 @@ class Prepared:
     capture: Capture
     signature: str
     registry: Registry
+    registry_state: tuple
     media: pathlib.Path
     container: str
+    inputs: tuple
     facts: dict
     reference: Listing
     candidate: object
@@ -500,8 +502,14 @@ class Prepared:
                 or self.media != pathlib.Path(media) or self.container != container \
                 or self.signature != capture_signature(capture):
             raise ValueError('prepared evidence belongs to a different capture')
+        self.verify()
 
     def verify(self):
+        if self.signature != capture_signature(self.capture) or self.registry_state != registry_state(self.registry):
+            raise ValueError('prepared capture or registry changed')
+        for path, digest in self.inputs:
+            if input_hash(path) != digest:
+                raise ValueError('evidence input changed during preparation, comparison or audit')
         for listing in (self.reference, self.candidate):
             if listing is not None and file_hash(listing.path) != listing.sha256:
                 raise ValueError('packet capture changed during comparison or audit')
@@ -513,7 +521,21 @@ def capture_signature(capture):
                         sorted(capture.strict_keys)])
 
 
+def registry_state(registry):
+    return record_hash(registry.records()), registry.rules, tuple(registry.readers.items()), registry.reader_paths
+
+
+def input_hash(path):
+    try:
+        return file_hash(path)
+    except OSError:
+        return None
+
+
 def prepare(capture, media, registry, container):
+    signature, state = capture_signature(capture), registry_state(registry)
+    inputs = tuple((path, input_hash(path)) for path in
+                   (pathlib.Path(media), *(ROOT / path for path in registry.reader_paths)))
     remaining = PACKET_CACHE_BYTES
     listings = []
     for path in (capture.reference_packets, capture.candidate_packets if capture.packet_code == 0 else None):
@@ -533,7 +555,7 @@ def prepare(capture, media, registry, container):
                 remaining -= cost
                 cached.append(types.MappingProxyType(row))
         listings.append(Listing(pathlib.Path(path), digest, tuple(cached) if cached is not None else None))
-    prepared = Prepared(capture, capture_signature(capture), registry, pathlib.Path(media), container,
+    prepared = Prepared(capture, signature, registry, state, pathlib.Path(media), container, inputs,
                         registry.evidence(media, container), *listings)
     prepared.verify()
     return prepared

@@ -199,6 +199,81 @@ class Replay(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'capture changed'):
             kd.audit(fixture.capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
 
+    def test_one_changed_media_byte_cannot_reuse_downmix_evidence(self):
+        fixture = self.fixture(ts_fixtures.TransportStreams)
+        capture = fixture.downmix()
+        prepared = kd.prepare(capture, fixture.media, fixture.registry, 'mpegts')
+        self.assertEqual(len(kd.compare(capture, fixture.media, fixture.registry, 'mpegts',
+                                       prepared=prepared)['excluded']), 5)
+        original = fixture.media.read_bytes()
+        fixture.downmix(corrupt=True)
+        corrupt = fixture.media.read_bytes()
+        self.assertEqual(len(original), len(corrupt))
+        self.assertEqual(sum(a != b for a, b in zip(original, corrupt, strict=True)), 1)
+        self.assertEqual(kd.compare(capture, fixture.media, fixture.registry, 'mpegts')['excluded'], {})
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.compare(capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.audit(capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
+
+    def test_media_changes_during_evidence_acquisition_abort(self):
+        fixture = self.fixture(base.Corpus)
+        def changed_reader(path):
+            facts = path.read_bytes()
+            path.write_bytes(b'\x15')
+            return facts
+        fixture.registry.readers['mpegts'] = changed_reader
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.prepare(fixture.capture, fixture.media, fixture.registry, 'mpegts')
+
+    def test_media_changes_during_audit_abort_before_a_result_is_returned(self):
+        fixture = self.fixture(base.Corpus)
+        prepared = kd.prepare(fixture.capture, fixture.media, fixture.registry, 'mpegts')
+        def attacks():
+            yield kd.Attack('unchanged')
+            fixture.media.write_bytes(b'\x15')
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.audit(fixture.capture, fixture.media, fixture.registry, 'mpegts', attacks(), prepared=prepared)
+
+    def test_missing_media_stays_uncovered_but_its_appearance_invalidates_preparation(self):
+        fixture = self.fixture(base.Corpus)
+        fixture.media.unlink()
+        prepared = kd.prepare(fixture.capture, fixture.media, fixture.registry, 'mpegts')
+        self.assertEqual(kd.compare(fixture.capture, fixture.media, fixture.registry, 'mpegts',
+                                   prepared=prepared)['excluded'], {})
+        fixture.media.write_bytes(b'\x14')
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.compare(fixture.capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
+
+    def test_reader_bytes_and_registry_changes_invalidate_shared_evidence(self):
+        fixture = self.fixture(base.Corpus)
+        helper = fixture.root / 'reader.py'
+        helper.write_bytes(b'original')
+        fixture.registry.reader_paths = (str(helper),)
+        prepared = kd.prepare(fixture.capture, fixture.media, fixture.registry, 'mpegts')
+        helper.write_bytes(b'changed!')
+        with self.assertRaisesRegex(ValueError, 'evidence input changed'):
+            kd.compare(fixture.capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
+        helper.write_bytes(b'original')
+        fixture.registry.readers['mpegts'] = lambda p: b'other'
+        with self.assertRaisesRegex(ValueError, 'registry changed'):
+            kd.audit(fixture.capture, fixture.media, fixture.registry, 'mpegts', prepared=prepared)
+
+    def test_capture_and_registry_changes_during_audit_cannot_certify_cached_coverage(self):
+        for target in ('capture', 'registry'):
+            fixture = self.fixture(base.Corpus)
+            fixture.registry.rules = tuple(dataclasses.replace(rule, record=copy.deepcopy(rule.record))
+                                           for rule in fixture.registry.rules)
+            prepared = kd.prepare(fixture.capture, fixture.media, fixture.registry, 'mpegts')
+            def attacks():
+                yield kd.Attack('unchanged')
+                if target == 'capture':
+                    fixture.capture.candidate['streams'][0]['width'] = 101
+                else:
+                    fixture.registry.rules[0].record['basis'] = 'changed'
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, 'capture or registry changed'):
+                kd.audit(fixture.capture, fixture.media, fixture.registry, 'mpegts', attacks(), prepared=prepared)
+
     def test_driver_reads_evidence_once_per_file(self):
         driver = self.fixture(base.Driver)
         driver.complete_population()

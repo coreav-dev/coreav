@@ -167,11 +167,19 @@ line, byte-reader evidence or packet summaries. No packet or leaf is
 truncated when a cache fills.
 
 Prepared evidence belongs to one capture, registry, media path and
-container. Section documents, capture status and strict coverage must stay
-unchanged. Packet-listing hashes are checked after preparation, comparison
-and audit. Changed captures abort rather than returning a judgment from
-stale rows. The manifest loop releases preparation before the next file;
-there is no cross-file or cross-binary cache.
+container. Media and registered reader-file digests are taken before
+evidence acquisition and verified afterward, and before and after each
+comparison or audit that reuses preparation. These checks read the complete
+media bytes, including for same-path, same-size replacements. Initially
+unreadable media still supplies no evidence; its later appearance invalidates
+the preparation.
+
+Section documents, capture status, strict coverage, rule records and reader
+bindings must stay unchanged. Their snapshots and packet-listing hashes
+are checked around reuse as well. Changed inputs abort rather than
+returning a judgment from stale rows, summaries or baseline coverage. The
+manifest loop releases preparation before the next file; there is no
+cross-file or cross-binary cache.
 
 Audit computes baseline coverage once, retaining at most 65,536 covered
 paths. Exceeding that limit recomputes baseline coverage during replay.
