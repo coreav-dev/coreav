@@ -3,7 +3,8 @@
 //! probabilities of clause 9.3.
 
 use coreav_kernels_vp9::{
-    BlockMut, Edges, IntraMode, TxSize, TxType, inverse_transform_add, predict_intra,
+    BitDepth, BlockMut, Coefficients, Edges, IntraMode, TxSize, TxType, inverse_transform_add,
+    predict_intra,
 };
 
 use crate::bool::BoolDecoder;
@@ -460,7 +461,7 @@ impl<P: Sample> Tiles<'_, P> {
                                     tx_size,
                                     tx_type,
                                     b.segment_id,
-                                );
+                                )?;
                             }
                         }
                     }
@@ -501,9 +502,11 @@ impl<P: Sample> Tiles<'_, P> {
         end: (u32, u32),
     ) {
         let (have_left, have_above, not_on_right) = have;
-        let bit_depth = self.h.color.bit_depth;
+        let Some(bit_depth) = BitDepth::from_bits(self.h.color.bit_depth) else {
+            return;
+        };
         let size = 4usize << tx_size;
-        let base = 1i64 << (bit_depth - 1);
+        let base = 1i64 << (bit_depth.bits() - 1);
         let Some(p) = self.frame.planes.get_mut(plane) else {
             return;
         };
@@ -563,7 +566,9 @@ impl<P: Sample> Tiles<'_, P> {
     }
 
     /// The reconstruct process (clause 8.6.2): dequantizes the transform
-    /// block just read and adds its inverse transform at (`x`, `y`).
+    /// block just read and adds its inverse transform at (`x`, `y`). A
+    /// dequantized coefficient outside `8 + BitDepth` bits breaks the
+    /// clause's requirement, which the transforms rely on, and is refused.
     fn reconstruct(
         &mut self,
         plane: usize,
@@ -572,7 +577,7 @@ impl<P: Sample> Tiles<'_, P> {
         tx_size: u8,
         tx_type: u8,
         segment_id: u8,
-    ) {
+    ) -> Result<()> {
         let h = self.h;
         let q = &h.quantization;
         let seg = &h.segmentation;
@@ -593,7 +598,12 @@ impl<P: Sample> Tiles<'_, P> {
             }
             _ => i32::from(q.base_q_idx),
         };
-        let depth = usize::from((h.color.bit_depth - 8) >> 1);
+        let bit_depth = BitDepth::from_bits(h.color.bit_depth).ok_or(Error::Invalid("BitDepth"))?;
+        let depth = match bit_depth {
+            BitDepth::Eight => 0,
+            BitDepth::Ten => 1,
+            BitDepth::Twelve => 2,
+        };
         let lookup = |table: &[[u16; 256]; 3], b: i32| {
             i64::from(
                 table
@@ -613,7 +623,7 @@ impl<P: Sample> Tiles<'_, P> {
         let denom = if tx_size == 3 { 2 } else { 1 };
         let n0 = 4usize << tx_size;
         let Some(coefs) = self.coefs.get_mut(..n0 * n0) else {
-            return;
+            return Ok(());
         };
         for (i, c) in coefs.iter_mut().enumerate() {
             *c = *c * if i == 0 { dc } else { ac } / denom;
@@ -624,15 +634,19 @@ impl<P: Sample> Tiles<'_, P> {
             DCT_DCT => TxType::DctDct,
             _ => TxType::AdstAdst,
         };
+        let coefs = Coefficients::new(coefs, bit_depth).ok_or(Error::Invalid(
+            "a dequantized coefficient outside 8 + BitDepth bits (clause 8.6.2)",
+        ))?;
         let Some(p) = self.frame.planes.get_mut(plane) else {
-            return;
+            return Ok(());
         };
         let stride = p.stride;
         if let Some(dst) = TxSize::from_value(tx_size).and_then(|t| {
             BlockMut::new(&mut p.samples, y as usize * stride + x as usize, stride, t)
         }) {
-            inverse_transform_add(dst, coefs, tx_type, q.lossless(), h.color.bit_depth);
+            inverse_transform_add(dst, coefs, tx_type, q.lossless());
         }
+        Ok(())
     }
 
     /// `TxType` of `get_scan` (clause 6.4.25) for an intra block.

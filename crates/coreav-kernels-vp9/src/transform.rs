@@ -2,7 +2,7 @@
 //! prediction (step 4 of clause 8.6.2).
 
 use crate::tables::{COS64_LOOKUP, SINPI_1_9, SINPI_2_9, SINPI_3_9, SINPI_4_9};
-use crate::{BlockMut, Pixel, TxSize, round2};
+use crate::{BlockMut, Coefficients, Pixel, TxSize, round2};
 
 /// `TxType`: the 1D transform of the columns, then of the rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +22,10 @@ pub enum TxType {
 struct Arrays {
     t: [i64; 32],
     s: [i64; 32],
+    /// The largest magnitudes written to `T` and to `S`, for the overflow
+    /// bound.
+    #[cfg(test)]
+    peak: (i64, i64),
 }
 
 impl Arrays {
@@ -30,6 +34,10 @@ impl Arrays {
     }
 
     fn set_t(&mut self, i: usize, v: i64) {
+        #[cfg(test)]
+        {
+            self.peak.0 = self.peak.0.max(v.abs());
+        }
         if let Some(t) = self.t.get_mut(i) {
             *t = v;
         }
@@ -40,6 +48,10 @@ impl Arrays {
     }
 
     fn set_s(&mut self, i: usize, v: i64) {
+        #[cfg(test)]
+        {
+            self.peak.1 = self.peak.1.max(v.abs());
+        }
         if let Some(s) = self.s.get_mut(i) {
             *s = v;
         }
@@ -354,20 +366,22 @@ fn brev(num_bits: u32, x: usize) -> usize {
 }
 
 /// The 2D inverse transform (clause 8.7.2) of `coefs`, the dequantized
-/// coefficients of a block of `dst.size()` by `dst.size()` in raster
-/// order (`Dequant`), added to the prediction in `dst` with `Clip1`
-/// (step 4 of clause 8.6.2). `coefs` holds the transform's output
-/// afterwards. A 32x32 block takes the DCT whatever `tx_type` says, since
+/// coefficients of a block of `dst.size()` by `dst.size()` (a missing one
+/// is 0), added to the prediction in `dst` with `Clip1` at their bit depth
+/// (step 4 of clause 8.6.2). A 32x32 block takes the DCT whatever `tx_type` says, since
 /// `get_scan` (clause 6.4.25) gives it `DCT_DCT` only; the WHT of a
 /// `lossless` frame applies to 4x4 blocks, its only size (`tx_mode` is
 /// `ONLY_4X4`), and a larger block takes the DCT or ADST instead.
 pub fn inverse_transform_add<P: Pixel>(
     mut dst: BlockMut<'_, P>,
-    coefs: &mut [i64],
+    coefs: Coefficients<'_>,
     tx_type: TxType,
     lossless: bool,
-    bit_depth: u8,
 ) {
+    let Coefficients {
+        values: coefs,
+        bit_depth,
+    } = coefs;
     let tx_size = dst.tx_size();
     let n0 = tx_size.samples();
     let n = tx_size.log2();
@@ -378,6 +392,8 @@ pub fn inverse_transform_add<P: Pixel>(
     let mut a = Arrays {
         t: [0; 32],
         s: [0; 32],
+        #[cfg(test)]
+        peak: (0, 0),
     };
     for row in coefs.chunks_mut(n0).take(n0) {
         a.t = [0; 32];

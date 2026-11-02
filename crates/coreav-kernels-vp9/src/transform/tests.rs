@@ -1,6 +1,7 @@
 #![allow(clippy::indexing_slicing)]
 
 use super::*;
+use crate::BitDepth;
 
 /// A deterministic generator of test inputs.
 fn inputs(seed: u64, len: usize, range: i64) -> Vec<i64> {
@@ -19,6 +20,7 @@ fn run(input: &[i64], f: impl FnOnce(&mut Arrays)) -> Vec<i64> {
     let mut a = Arrays {
         t: [0; 32],
         s: [0; 32],
+        peak: (0, 0),
     };
     a.t[..input.len()].copy_from_slice(input);
     f(&mut a);
@@ -130,10 +132,11 @@ fn a_dc_only_block_adds_a_constant() {
         let size = tx_size.samples();
         for dc in [-4096i64, -64, 64, 1000] {
             let mut plane = vec![128u8; size * size];
-            let mut coefs = vec![0i64; size * size];
-            coefs[0] = dc;
+            let mut values = vec![0i64; size * size];
+            values[0] = dc;
+            let coefs = Coefficients::new(&mut values, BitDepth::Eight).unwrap();
             let block = BlockMut::new(&mut plane, 0, size, tx_size).unwrap();
-            inverse_transform_add(block, &mut coefs, TxType::DctDct, false, 8);
+            inverse_transform_add(block, coefs, TxType::DctDct, false);
             assert!(plane.iter().all(|&p| p == plane[0]), "size {size} dc {dc}");
         }
     }
@@ -172,8 +175,9 @@ fn every_size_type_and_mode_is_defined() {
         let out = |tx_type, lossless| {
             let mut plane = vec![128u8; size * size];
             let mut c = coefs.clone();
+            let c = Coefficients::new(&mut c, BitDepth::Eight).unwrap();
             let block = BlockMut::new(&mut plane, 0, size, tx_size).unwrap();
-            inverse_transform_add(block, &mut c, tx_type, lossless, 8);
+            inverse_transform_add(block, c, tx_type, lossless);
             plane
         };
         for tx_type in types {
@@ -182,6 +186,132 @@ fn every_size_type_and_mode_is_defined() {
             }
             if tx_size != TxSize::Tx4x4 {
                 assert_eq!(out(tx_type, true), out(tx_type, false));
+            }
+        }
+    }
+}
+
+const TYPES: [TxType; 4] = [
+    TxType::DctDct,
+    TxType::AdstDct,
+    TxType::DctAdst,
+    TxType::AdstAdst,
+];
+const SIZES: [TxSize; 4] = [
+    TxSize::Tx4x4,
+    TxSize::Tx8x8,
+    TxSize::Tx16x16,
+    TxSize::Tx32x32,
+];
+const DEPTHS: [BitDepth; 3] = [BitDepth::Eight, BitDepth::Ten, BitDepth::Twelve];
+
+/// A coefficient outside `8 + BitDepth` bits, or a depth VP9 does not
+/// have, cannot be given to a kernel.
+#[test]
+fn values_outside_the_domains_are_refused() {
+    for bits in [0, 1, 7, 9, 11, 13, 16, 255] {
+        assert_eq!(BitDepth::from_bits(bits), None, "{bits} bits");
+    }
+    for depth in DEPTHS {
+        let limit = 1i64 << (7 + depth.bits());
+        for v in [i64::MAX, i64::MIN, limit, -limit - 1] {
+            let mut values = [v, 0, 0, 0];
+            assert!(
+                Coefficients::new(&mut values, depth).is_none(),
+                "{v} at {depth:?}"
+            );
+        }
+        for v in [limit - 1, -limit] {
+            let mut values = [v, 0, 0, 0];
+            assert!(
+                Coefficients::new(&mut values, depth).is_some(),
+                "{v} at {depth:?}"
+            );
+        }
+    }
+}
+
+/// Upper bounds on the magnitudes, relative to its inputs', of the values
+/// a 1D transform of `1 << n` inputs writes to `T` and to `S`. Each such
+/// value is a linear function of the inputs plus the rounding of the steps
+/// before it, so the sum over inputs of its response to each alone bounds
+/// it. With impulses of `2^24`, the rounding is below the `+ 1`.
+fn gain(n: u32, adst: bool, lossless: bool, shift: u32) -> (i64, i64) {
+    let impulse = 1i64 << 24;
+    let (t, s) = (0..1usize << n)
+        .map(|i| {
+            let mut a = Arrays {
+                t: [0; 32],
+                s: [0; 32],
+                peak: (impulse, 0),
+            };
+            a.t[i] = impulse;
+            a.transform(n, adst, lossless, shift);
+            a.peak
+        })
+        .fold((0, 0), |(t, s), (pt, ps)| (t + pt, s + ps));
+    (t / impulse + 1, s / impulse + 1)
+}
+
+/// No value the 2D transform computes from coefficients in the domain at
+/// 12 bits, the widest, can overflow: the rows' outputs are bounded by
+/// their gain, the columns' values by theirs, a sum of two `S` values by
+/// twice their bound, and every value no step stores (the products of `B`
+/// and the four-point ADST's sums of products) by `2^17` times the `T`
+/// values it is computed from.
+#[test]
+fn no_coefficient_in_the_domain_can_overflow() {
+    let input = 1i64 << 19;
+    for tx_size in SIZES {
+        let n = tx_size.log2();
+        for (adst, lossless) in [(false, false), (true, false), (false, true)] {
+            if (adst && n == 5) || (lossless && n != 2) {
+                continue;
+            }
+            let (row_t, row_s) = gain(n, adst, lossless, 2);
+            let rows = i128::from(row_t * input);
+            for col_adst in [false, true] {
+                if col_adst && (n == 5 || lossless) {
+                    continue;
+                }
+                let (col_t, col_s) = gain(n, col_adst, lossless, 0);
+                let largest = [
+                    (1 << 17) * rows,
+                    2 * i128::from(row_s * input),
+                    (1 << 17) * i128::from(col_t) * rows,
+                    2 * i128::from(col_s) * rows,
+                ]
+                .into_iter()
+                .max()
+                .unwrap_or(0);
+                assert!(largest < 1 << 62, "{tx_size:?}: {largest}");
+            }
+        }
+    }
+}
+
+/// The extremes of the domain, at every depth, size, type and mode, run
+/// without overflow (these tests run with overflow checks).
+#[test]
+fn the_extremes_of_the_domain_transform() {
+    for depth in DEPTHS {
+        let limit = 1i64 << (7 + depth.bits());
+        for tx_size in SIZES {
+            let size = tx_size.samples();
+            for seed in 0..8u64 {
+                let signs = inputs(seed, size * size, 1);
+                for tx_type in TYPES {
+                    for lossless in [false, true] {
+                        let mut values: Vec<i64> = signs
+                            .iter()
+                            .map(|&s| if s < 0 { -limit } else { limit - 1 })
+                            .collect();
+                        let coefs = Coefficients::new(&mut values, depth).unwrap();
+                        let mut plane = vec![0u16; size * size];
+                        let block = BlockMut::new(&mut plane, 0, size, tx_size).unwrap();
+                        inverse_transform_add(block, coefs, tx_type, lossless);
+                    }
+                }
             }
         }
     }

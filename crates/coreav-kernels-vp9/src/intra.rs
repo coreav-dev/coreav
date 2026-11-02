@@ -1,6 +1,6 @@
 //! Intra prediction (clause 8.5.1) from the edges the decoder gathered.
 
-use crate::{BlockMut, Pixel, round2};
+use crate::{BitDepth, BlockMut, Pixel, round2};
 
 /// The intra prediction modes (`intra_mode` and `uv_mode`, clause 7.4.5),
 /// numbered as the specification numbers them.
@@ -81,7 +81,7 @@ pub fn predict_intra<P: Pixel>(
     mut dst: BlockMut<'_, P>,
     mode: IntraMode,
     edges: &Edges<P>,
-    bit_depth: u8,
+    bit_depth: BitDepth,
 ) {
     let size = dst.size();
     let log2 = dst.tx_size().log2();
@@ -313,7 +313,7 @@ pub fn predict_intra<P: Pixel>(
                 (true, true) => (above_sum + left_sum + s as i64) >> (log2 + 1),
                 (true, false) => (left_sum + (1 << (log2 - 1))) >> log2,
                 (false, true) => (above_sum + (1 << (log2 - 1))) >> log2,
-                (false, false) => 1 << (bit_depth - 1),
+                (false, false) => 1 << (bit_depth.bits() - 1),
             };
             for i in 0..size {
                 for j in 0..size {
@@ -335,3 +335,6 @@ fn put(pred: &mut [[i64; 32]; 32], i: usize, j: usize, v: i64) {
         *p = v;
     }
 }
+
+#[cfg(test)]
+mod tests;
