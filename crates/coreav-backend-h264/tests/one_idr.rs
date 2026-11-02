@@ -361,6 +361,120 @@ fn a_streaming_decoder_cannot_import_large_scratch_into_one_idr() {
 }
 
 #[test]
+fn activated_geometry_and_caller_veto_precede_pixel_allocation() {
+    let mut w = Writer::default();
+    w.u(8, 100)
+        .u(8, 0)
+        .u(8, 51)
+        .ue(0)
+        .ue(1)
+        .ue(0)
+        .ue(0)
+        .flag(false)
+        .flag(false)
+        .ue(0)
+        .ue(0)
+        .ue(2)
+        .ue(16)
+        .flag(false)
+        .ue(119)
+        .ue(67)
+        .flag(true)
+        .flag(true)
+        .flag(true)
+        .ue(1)
+        .ue(2)
+        .ue(3)
+        .ue(4)
+        .flag(false);
+    let mut data = nal(3, 7, w.finish());
+    data.extend(sps_id(40, 23, false, 0, 1));
+    data.extend(nal(3, 8, pps()));
+    data.extend(slice(0, 8160, false));
+    let expected = coreav_h264::OneIdrGeometry {
+        coded_width: 1920,
+        coded_height: 1088,
+        visible_left: 2,
+        visible_top: 6,
+        visible_width: 1914,
+        visible_height: 1074,
+    };
+    let (_, counters) = measure(|| {
+        let mut codec = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
+        let mut called = 0;
+        let result = codec.decode_one_idr_with(&data, None, |geometry| {
+            called += 1;
+            assert_eq!(geometry, expected);
+            Err(Error::Limit(coreav_h264::LimitKind::PictureSize))
+        });
+        assert_eq!(called, 1);
+        assert_eq!(
+            result,
+            Err(Error::Limit(coreav_h264::LimitKind::PictureSize))
+        );
+        assert!(codec.take_pictures().is_empty());
+        assert!(codec.flush().is_err());
+    });
+    let minimum_luma_allocation =
+        u64::from(expected.coded_width) * u64::from(expected.coded_height + 8);
+    assert_eq!(counters.trough_bytes, 0);
+    assert!(counters.bytes < minimum_luma_allocation);
+    assert!(counters.peak_bytes < 128 << 10);
+    report("one-idr-caller-veto", &counters);
+    println!(
+        "one-IDR caller veto: picture_allocations=0 total_requested_bytes={} minimum_luma_allocation={minimum_luma_allocation}",
+        counters.bytes
+    );
+
+    let mut codec = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
+    codec
+        .decode_one_idr_with(&data, None, |geometry| {
+            assert_eq!(geometry, expected);
+            Ok(())
+        })
+        .unwrap();
+    let pictures = codec.take_pictures();
+    assert_eq!((pictures[0].width(), pictures[0].height()), (1914, 1074));
+
+    let limits = Limits::default();
+    let (_, counters) = measure(|| {
+        let stream = StreamConfig {
+            width: Some(16),
+            height: Some(16),
+            ..StreamConfig::new(Codec::H264)
+        };
+        let backend = NativeH264::one_idr_with_admission(|geometry, limits| {
+            assert_eq!((geometry.coded_width, geometry.coded_height), (1920, 1088));
+            assert_eq!(
+                (geometry.visible_width, geometry.visible_height),
+                (1914, 1074)
+            );
+            assert_eq!(limits.max_width, Limits::default().max_width);
+            Err(Error::Limit(coreav_h264::LimitKind::PictureSize))
+        });
+        let mut decoder = backend.open(&stream, &limits).unwrap();
+        assert_eq!(
+            decoder
+                .send_packet(&Packet {
+                    data: &data,
+                    pts: None,
+                    dts: None,
+                    keyframe: true,
+                    discard: false,
+                })
+                .unwrap_err()
+                .kind,
+            ErrorKind::Limit
+        );
+        assert!(decoder.receive_frame().unwrap().is_none());
+    });
+    assert_eq!(counters.trough_bytes, 0);
+    assert!(counters.bytes < minimum_luma_allocation);
+    assert!(counters.peak_bytes < 128 << 10);
+    report("one-idr-backend-caller-veto", &counters);
+}
+
+#[test]
 fn gap_frame_numbers_and_predicted_idr_slices_are_typed_errors() {
     for (predicted, frame_num, want) in [
         (false, 2, OneIdrError::FrameNumGap),

@@ -4,6 +4,24 @@ use crate::error::OneIdrError;
 const MEMORY_CEILING: u64 = 32 << 20;
 const PACKET_CEILING: usize = 4 << 20;
 
+/// Validated geometry of the SPS activated by the admitted IDR's PPS.
+/// Dimensions and rectangle offsets are in luma samples, not container units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OneIdrGeometry {
+    /// Full macroblock-padded width.
+    pub coded_width: u32,
+    /// Full macroblock-padded height.
+    pub coded_height: u32,
+    /// Left edge of the visible rectangle in the coded picture.
+    pub visible_left: u32,
+    /// Top edge of the visible rectangle in the coded picture.
+    pub visible_top: u32,
+    /// Width after applying SPS cropping.
+    pub visible_width: u32,
+    /// Height after applying SPS cropping.
+    pub visible_height: u32,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum OneIdrState {
     Fresh,
@@ -42,6 +60,20 @@ impl<K: Kernels> Decoder<K> {
     /// decoding then requires exact macroblock coverage before any output.
     /// Failure poisons this request and cannot produce a concealed picture.
     pub fn decode_one_idr(&mut self, data: &[u8], length_size: Option<usize>) -> Result<()> {
+        self.decode_one_idr_with(data, length_size, |_| Ok(()))
+    }
+
+    /// Runs `admit` after all parameter-set and slice-header checks and
+    /// before any picture allocation. Geometry comes from the activated
+    /// SPS/PPS, never container metadata. A caller's refusal is returned
+    /// unchanged and poisons the request. Allocations inside `admit` belong
+    /// to the caller, outside the codec's allocation bound.
+    pub fn decode_one_idr_with(
+        &mut self,
+        data: &[u8],
+        length_size: Option<usize>,
+        admit: impl FnOnce(OneIdrGeometry) -> Result<()>,
+    ) -> Result<()> {
         if self.mode != Mode::OneIdr {
             return Err(Error::OneIdr(OneIdrError::AccessUnitRequired));
         }
@@ -56,9 +88,9 @@ impl<K: Kernels> Decoder<K> {
             Err(Error::Limit(LimitKind::NalBytes))
         } else {
             match length_size {
-                Some(size) => self.admit_one_idr(crate::length_prefixed(data, size)),
+                Some(size) => self.admit_one_idr(crate::length_prefixed(data, size), admit),
                 None => strict_annex_b(data)
-                    .and_then(|()| self.admit_one_idr(crate::annex_b(data).map(Ok))),
+                    .and_then(|()| self.admit_one_idr(crate::annex_b(data).map(Ok), admit)),
             }
         };
         if result.is_err() {
@@ -70,6 +102,7 @@ impl<K: Kernels> Decoder<K> {
     fn admit_one_idr<'a>(
         &mut self,
         units: impl Iterator<Item = Result<&'a [u8]>> + Clone,
+        admit: impl FnOnce(OneIdrGeometry) -> Result<()>,
     ) -> Result<()> {
         let mut first: Option<(Boundary, Arc<Sps>, Arc<Pps>)> = None;
         let mut last = None;
@@ -156,9 +189,34 @@ impl<K: Kernels> Decoder<K> {
                 return Err(Error::Limit(LimitKind::SlicesPerPicture));
             }
         }
-        if first.is_none() {
-            return Err(Error::OneIdr(OneIdrError::ExpectedIdr));
-        }
+        let (_, sps, _) = first.ok_or(Error::OneIdr(OneIdrError::ExpectedIdr))?;
+        let coded_width = sps
+            .width_mbs
+            .checked_mul(16)
+            .ok_or(Error::Limit(LimitKind::PictureSize))?;
+        let coded_height = sps
+            .frame_height_mbs()
+            .checked_mul(16)
+            .ok_or(Error::Limit(LimitKind::PictureSize))?;
+        let [left, right, top, bottom] = sps.crop;
+        let visible_width = coded_width
+            .checked_sub(left)
+            .and_then(|n| n.checked_sub(right))
+            .filter(|&n| n > 0)
+            .ok_or(Error::Invalid("frame cropping outside the picture"))?;
+        let visible_height = coded_height
+            .checked_sub(top)
+            .and_then(|n| n.checked_sub(bottom))
+            .filter(|&n| n > 0)
+            .ok_or(Error::Invalid("frame cropping outside the picture"))?;
+        admit(OneIdrGeometry {
+            coded_width,
+            coded_height,
+            visible_left: left,
+            visible_top: top,
+            visible_width,
+            visible_height,
+        })?;
         self.one_idr = OneIdrState::Decoding;
         self.threads = 1;
         self.band_mbs = None;

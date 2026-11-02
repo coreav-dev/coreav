@@ -70,7 +70,7 @@ mod work;
 pub use coreav_kernels_h264::{self as kernels, Auto, Kernels, Scalar, Simd};
 
 pub use bits::BitReader;
-pub use decoder::{Decoder, MAX_WARNINGS, Mode, Warning};
+pub use decoder::{Decoder, MAX_WARNINGS, Mode, OneIdrGeometry, Warning};
 pub use error::{Error, LimitKind, OneIdrError, Result};
 pub use limits::Limits;
 pub use nal::{

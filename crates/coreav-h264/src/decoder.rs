@@ -27,6 +27,7 @@ use crate::work::{
 };
 
 mod one_idr;
+pub use one_idr::OneIdrGeometry;
 use one_idr::OneIdrState;
 
 /// What a decoder spends its work on.

@@ -51,6 +51,8 @@ Use fallible frame-sized reservations and the existing counting allocator to tes
 
 The decoder-owned prerequisite is `Mode::OneIdr` with `Decoder::decode_one_idr` and `NativeH264::one_idr()`, described in [h264.md](h264.md#pictures-that-need-no-other-picture). Its admission contract requires the complete supplied access unit and checks every slice header before picture start. Exact entropy-decoded macroblock coverage is checked before output, not before pixel allocation; a separate entropy-validation pass is not used. Its SPS-derived fallible bound retains `K0` because the preflight borrows the supplied packet and adds no retained packet/header copy, and it reserves slice-filter capacity once. The caller still owns this plan's tighter geometry, packet restoration, planning, rendering, encoding and host budgets. Native allocation tests do not establish the Workers envelope.
 
+The package applies its coded/visible side and pixel caps inside `Decoder::decode_one_idr_with` or `NativeH264::one_idr_with_admission`. The callback receives `OneIdrGeometry` after all header preflight but before picture allocation, from the SPS actually activated through the selected access unit's PPS. It includes the full coded dimensions and the cropped visible rectangle. The codec supplies facts, not the 1,920-side or thumbnail pixel policy; container dimensions and other unactivated SPS entries cannot authorize allocation.
+
 ## Derivation of budgets
 
 [Workers documents 128 MB per isolate](https://developers.cloudflare.com/workers/platform/limits/#memory), including JS heap and WASM allocations, shared by requests. Conservatively treat this as 128,000,000 bytes, not 128 MiB. Every MiB below is 1,048,576 bytes.

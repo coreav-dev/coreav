@@ -41,7 +41,12 @@ use coreav_decode::{
     Limits, Packet, StreamConfig, StreamTraits, Support,
 };
 use coreav_frame::{Chroma, ColorInfo, Frame, Picture, PixelFormat, Pixels, Plane};
+pub use coreav_h264::OneIdrGeometry;
 use coreav_h264::{Auto, Mode, PlaneRef};
+
+/// A caller's geometry policy, invoked before one-IDR picture allocation.
+/// Receives codec-validated geometry and this request's decode limits.
+pub type OneIdrAdmission = fn(OneIdrGeometry, &Limits) -> coreav_h264::Result<()>;
 
 /// Packets whose pictures have not come out yet, at most, beside one more
 /// for each picture the decoder decodes at once. A decoded picture waits
@@ -77,6 +82,7 @@ pub struct NativeOptions {
 pub struct NativeH264 {
     options: NativeOptions,
     one_idr: bool,
+    one_idr_admission: Option<OneIdrAdmission>,
 }
 
 impl NativeH264 {
@@ -91,6 +97,7 @@ impl NativeH264 {
         NativeH264 {
             options,
             one_idr: false,
+            one_idr_admission: None,
         }
     }
 
@@ -103,6 +110,17 @@ impl NativeH264 {
                 threads: Some(1),
             },
             one_idr: true,
+            one_idr_admission: None,
+        }
+    }
+
+    /// One-IDR decoding with a caller-owned geometry policy. The callback
+    /// runs after every header is preflighted and before picture allocation.
+    /// It may lower admission without changing codec or container geometry.
+    pub fn one_idr_with_admission(admit: OneIdrAdmission) -> NativeH264 {
+        NativeH264 {
+            one_idr_admission: Some(admit),
+            ..Self::one_idr()
         }
     }
 
@@ -184,6 +202,7 @@ impl Backend for NativeH264 {
             limits,
             self.options,
             self.one_idr,
+            self.one_idr_admission,
         )?))
     }
 }
@@ -234,6 +253,7 @@ struct NativeDecoder {
     decoder: coreav_h264::Decoder<Auto>,
     one_idr: bool,
     one_idr_failed: bool,
+    one_idr_admission: Option<OneIdrAdmission>,
     /// Pictures the decoder decodes at once.
     threads: usize,
     info: DecoderInfo,
@@ -264,6 +284,7 @@ impl NativeDecoder {
         limits: &Limits,
         options: NativeOptions,
         one_idr: bool,
+        one_idr_admission: Option<OneIdrAdmission>,
     ) -> Result<NativeDecoder, Error> {
         let kernels = Auto::detect();
         let own_limits = decode_limits(limits);
@@ -320,6 +341,7 @@ impl NativeDecoder {
             decoder,
             one_idr,
             one_idr_failed: false,
+            one_idr_admission,
             info: DecoderInfo {
                 backend: BackendKind::Native,
                 isolation: Isolation::InProcess,
@@ -454,8 +476,12 @@ impl NativeDecoder {
     /// not the rest of the packet's.
     fn decode_access_unit(&mut self, data: &[u8]) -> Result<(), Error> {
         if self.one_idr {
+            let admit = self.one_idr_admission;
+            let limits = &self.limits;
             self.decoder
-                .decode_one_idr(data, self.length_size)
+                .decode_one_idr_with(data, self.length_size, |geometry| {
+                    admit.map_or(Ok(()), |admit| admit(geometry, limits))
+                })
                 .map_err(|e| Error::new(kind_of(&e), e.to_string()))?;
             return self.collect();
         }
