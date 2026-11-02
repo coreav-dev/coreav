@@ -327,7 +327,10 @@ async function reading(worker) {
 
 async function recordMemory(worker, step, expect) {
   if (expect === undefined) ledger.diagnostic(step);
-  const info = await reading(worker);
+  const info = await reading(worker).catch((error) => {
+    if (expect === undefined) throw error;
+    ledger.gate(worker, step, null, expect);
+  });
   if (expect !== undefined) ledger.gate(worker, step, info, expect);
   const { memoryBytes, ...details } = info;
   assert.ok(Number.isSafeInteger(memoryBytes) && memoryBytes > 0, "moduleInfo must report linear memory");

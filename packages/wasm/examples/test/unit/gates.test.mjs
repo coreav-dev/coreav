@@ -38,6 +38,9 @@ test("missing duplicate unregistered and misclassified gates cannot pass", () =>
 });
 
 test("readings and completion must be available without leaking reading digits", () => {
+  const missing = setup();
+  assert.throws(() => missing.ledger.gate(missing.worker, "one", null), /one \(bar 65536 bytes\)/);
+  assert.equal(missing.ledger.finish().failures[0].reason, "unavailable");
   for (const changes of [{ memoryBytes: undefined }, { memoryBytes: 0 }, { memoryBytes: -1 }, { memoryBytes: 1.5 }, { memoryBytes: Infinity }, { inFlight: 1 }, { pending: 1 }, { served: 0 }, { served: 2 }]) {
     const { ledger, worker, reading } = setup();
     assert.throws(() => ledger.gate(worker, "one", { ...reading, ...changes }, { served: 1 }), /unavailable/);

@@ -34,6 +34,7 @@ export class GateLedger {
     const prior = this.results.has(step);
     let reason = null;
     if (prior) reason = "duplicate";
+    else if (!info || typeof info !== "object") reason = "unavailable";
     else if (info.isolate !== this.workers.get(worker) || !this.workers.has(worker)) reason = "isolate";
     else if (expect.sameAs ? this.steps.get(expect.sameAs) !== worker : [...this.steps.values()].includes(worker)) reason = "isolate";
     else if (info.build !== this.build || worker.build !== this.build || worker.defaultReaders) reason = "build";
