@@ -247,6 +247,80 @@ fn pcm_selection_refuses_video_and_keeps_codec_output_positions() {
 }
 
 #[test]
+fn opus_pcm_keeps_refusal_and_the_existing_ffmpeg_fallback() {
+    let dir = scratch("ffmpeg-pcm-opus-fallback");
+    let input = dir.join("opus.mka");
+    let mut track = element(&[0xd7], &[1]);
+    track.extend(element(&[0x83], &[2]));
+    track.extend(element(&[0x86], b"A_OPUS"));
+    track.extend(element(
+        &[0x63, 0xa2],
+        b"OpusHead\x01\x01\x00\x00\x80\xbb\x00\x00\x00\x00\x00",
+    ));
+    let mut audio = element(&[0xb5], &48_000f64.to_be_bytes());
+    audio.extend(element(&[0x9f], &[1]));
+    track.extend(element(&[0xe1], &audio));
+    let mut segment = element(
+        &[0x15, 0x49, 0xa9, 0x66],
+        &element(&[0x2a, 0xd7, 0xb1], &[0x0f, 0x42, 0x40]),
+    );
+    segment.extend(element(
+        &[0x16, 0x54, 0xae, 0x6b],
+        &element(&[0xae], &track),
+    ));
+    let mut cluster = element(&[0xe7], &[0]);
+    cluster.extend(element(&[0xa3], &[0x81, 0, 0, 0x80, 0xf8, 0xff, 0xfe]));
+    segment.extend(element(&[0x1f, 0x43, 0xb6, 0x75], &cluster));
+    let mut bytes = element(
+        &[0x1a, 0x45, 0xdf, 0xa3],
+        &element(&[0x42, 0x82], b"matroska"),
+    );
+    bytes.extend(element(&[0x18, 0x53, 0x80, 0x67], &segment));
+    std::fs::write(&input, bytes).unwrap();
+    let output = dir.join("output");
+    for format in ["wav", "s16le"] {
+        std::fs::write(&output, b"original").unwrap();
+        let args = ["-y", "-f", format, "-acodec", "pcm_s16le"];
+        let refused = run(&input, &output, &args);
+        assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+        assert!(refused.stdout.is_empty());
+        assert_eq!(std::fs::read(&output).unwrap(), b"original");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let fallback = dir.join("ffmpeg");
+            std::fs::write(&fallback, "#!/bin/sh\nprintf '%s\\n' \"$@\"\nexit 7\n").unwrap();
+            std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let ran = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .env_clear()
+                .env("PATH", "/nonexistent")
+                .env("COREAV_FALLBACK", &fallback)
+                .args(["ffmpeg", "-i"])
+                .arg(&input)
+                .args(args)
+                .arg(&output)
+                .output()
+                .unwrap();
+            assert_eq!(ran.status.code(), Some(7), "{ran:?}");
+            let expected = [
+                "-i",
+                input.to_str().unwrap(),
+                "-y",
+                "-f",
+                format,
+                "-acodec",
+                "pcm_s16le",
+                output.to_str().unwrap(),
+            ]
+            .join("\n")
+                + "\n";
+            assert_eq!(ran.stdout, expected.as_bytes());
+            assert_eq!(std::fs::read(&output).unwrap(), b"original");
+        }
+    }
+}
+
+#[test]
 fn input_and_output_zero_time_options_keep_their_distinct_meanings() {
     let dir = scratch("ffmpeg-pcm-zero-time");
     let (input, expected) = fixture(&dir, false);

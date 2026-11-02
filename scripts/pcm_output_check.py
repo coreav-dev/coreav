@@ -135,6 +135,18 @@ def check(coreav, oracle, root):
     expected = (root / "source-2-44100.s16le").read_bytes()
     compare("metadata", 0, tagged, [], ["-map_metadata", "-1"], "wav", expected, 44100, 2)
     compare("metadata", 1, tagged, [], ["-f", "s16le"], "raw", expected, 44100, 2)
+    for encoder in ("libmp3lame", "libopus", "aac"):
+        lossy = root / f"lossy-{encoder}.mka"
+        run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", root / "input-2-44100-mka.mka",
+             "-map", "0:a:0", "-c:a", encoder, lossy])
+        for kind in ("wav", "s16le"):
+            output = root / f"lossy-{encoder}-{kind}.output"
+            output.write_bytes(b"original")
+            refused = subprocess.run(native_command(coreav, lossy, output, after=[
+                "-y", "-f", kind, "-acodec", "pcm_s16le",
+            ]), capture_output=True, timeout=30, env=env)
+            if refused.returncode != 4 or refused.stdout or output.read_bytes() != b"original":
+                raise AssertionError(f"lossy PCM source must retain its refusal: {encoder}/{kind}")
     return outcomes
 
 
