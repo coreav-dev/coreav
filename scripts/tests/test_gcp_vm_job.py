@@ -197,6 +197,14 @@ class Restart(unittest.TestCase):
         self.assertEqual((self.up / 'instance.json').read_text(), 'existing receipt')
         self.assertEqual(vms(), {})
 
+    def test_host_receipt_staging_rejects_shared_or_aliased_directories_before_provision(self):
+        alias = self.up.parent / 'upload-alias'
+        alias.symlink_to(self.up, target_is_directory=True)
+        for path in (self.up, alias):
+            with self.subTest(path=path), self.assertRaisesRegex(SystemExit, 'distinct'):
+                vm_job(*self.argv, '--download', str(path), '--stage-instance-receipt')
+            self.assertEqual(vms(), {})
+
     def test_collect_finishes_a_run_whose_controller_was_killed(self):
         job = self.killed_run()
         root = pathlib.Path(self.tmp.name)

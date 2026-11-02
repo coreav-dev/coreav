@@ -55,9 +55,18 @@ def successful_call(elapsed=1, code=0):
                           'frequency_khz': {'before': unavailable(), 'after': unavailable()}}}
 
 
+def timeline(calls):
+    end = 0
+    for call in calls:
+        call['start'] = end + 0.01
+        call['end'] = call['start'] + call.get('elapsed', 1) + 0.01
+        end = call['end']
+    return calls
+
+
 def calls_for(schedule):
-    return [{**pair, 'side': side, 'position': position, **successful_call()}
-            for pair in schedule for position, side in enumerate(pair['order'])]
+    return timeline([{**pair, 'side': side, 'position': position, **successful_call()}
+                     for pair in schedule for position, side in enumerate(pair['order'])])
 
 
 def report_data(mode='calibration'):
@@ -555,7 +564,7 @@ class PhaseExecution(MediaFree):
             self.execute([successful_call()] * 2, phase='calibration', log=log)
 
     def test_unreadable_fallback_capture_is_explicitly_void(self):
-        with mock.patch.object(b4.speed, 'b4_fallback', side_effect=OSError('unreadable')):
+        with mock.patch.object(pathlib.Path, 'read_text', side_effect=OSError('unreadable')):
             result = b4.fallback(pathlib.Path('/missing'))
         self.assertTrue(result['void'])
         self.assertEqual(result['invalid'], 1)
@@ -669,6 +678,7 @@ class Reporter(MediaFree):
         calls[0]['exit'] = 4
         del calls[0]['telemetry']['child']['utime']
         data['receipts'] += calls
+        timeline(data['receipts'])
         with mock.patch.object(b4.speed, 'interval', return_value=None):
             result = b4.summary(data)
         coverage = result['product']['coverage']
@@ -684,6 +694,7 @@ class Reporter(MediaFree):
         calls = calls_for([pair])
         calls[0]['exit'] = 4
         data['receipts'] += calls
+        timeline(data['receipts'])
         with mock.patch.object(b4.speed, 'interval', return_value=None):
             result = b4.summary(data)
         self.assertTrue(result['calibration']['passes'])
@@ -703,6 +714,7 @@ class Reporter(MediaFree):
         failed = calls_for(schedules[2][:5])
         failed[-1]['exit'] = None
         data['receipts'] += success + refused + failed
+        timeline(data['receipts'])
         with mock.patch.object(b4.speed, 'interval', return_value=[0.3, 0.3]):
             result = b4.summary(data)
         product = result['product']
@@ -721,11 +733,10 @@ class Reporter(MediaFree):
         for row in product_calls:
             row['elapsed'] = 1 if row['side'] == 'A' else 2
         data['receipts'] += product_calls
+        timeline(data['receipts'])
         with mock.patch.object(b4.speed, 'interval', return_value=[0.5, 0.5]):
-            result = b4.summary(data)
-        self.assertTrue(result['product']['passes'])
-        self.assertFalse(result['calibration']['passes'])
-        self.assertFalse(result['passes'])
+            with self.assertRaises(ValueError):
+                b4.summary(data)
 
 
 class RunMode(MediaFree):

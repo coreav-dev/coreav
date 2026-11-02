@@ -53,21 +53,32 @@ def identity(value, length=64):
     return isinstance(value, str) and len(value) == length and all(c in '0123456789abcdef' for c in value)
 
 
-def records(path):
-    data = json.loads(pathlib.Path(path).read_text())
+def read_metadata(path):
+    path = pathlib.Path(path).resolve()
+    raw = path.read_bytes()
+    data = json.loads(raw)
     rows = data.get('files', data.get('entries')) if isinstance(data, dict) else data
     if not isinstance(rows, list):
         raise ValueError('invalid roster metadata')
-    return rows
+    return rows, {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(), 'files': len(rows)}
+
+
+def verify_metadata(receipts, root=None):
+    if any(digest(receipt['path']) != receipt['sha256'] for receipt in receipts):
+        raise ValueError('metadata changed during freezing')
+    if root is not None and not {str(path.resolve()) for path in (pathlib.Path(root) / 'corpus').glob('*/manifest.json')}.issubset(
+            {receipt['path'] for receipt in receipts}):
+        raise ValueError('registered metadata roster changed during freezing')
 
 
 def select_rosters(root, extra_rosters=()):
-    root = pathlib.Path(root)
+    root = pathlib.Path(root).resolve()
     paths = sorted((root / 'corpus').glob('*/manifest.json'))
     required = {root / 'corpus' / name / 'manifest.json' for name in MANIFESTS}
     if not required.issubset(paths):
         raise ValueError('all registered corpus manifests are required')
-    metadata = {path: records(path) for path in paths}
+    captured = {path: read_metadata(path) for path in paths}
+    metadata = {path: rows for path, (rows, _) in captured.items()}
     heldout = set()
     for rows in metadata.values():
         for row in rows:
@@ -76,8 +87,11 @@ def select_rosters(root, extra_rosters=()):
                     raise ValueError('invalid registered held-out digest')
                 heldout.add(row['sha256'])
     for path in extra_rosters:
-        rows = records(path)
-        metadata[pathlib.Path(path)] = rows
+        path = pathlib.Path(path).resolve()
+        if path in captured:
+            raise ValueError('duplicate registered metadata roster')
+        rows, receipt = read_metadata(path)
+        captured[path] = rows, receipt
         for row in rows:
             if not identity(row.get('sha256')):
                 raise ValueError('invalid additional held-out digest')
@@ -107,7 +121,9 @@ def select_rosters(root, extra_rosters=()):
     product = [row['sha256'] for row in selected['product']]
     if len(set(dev)) != len(dev) or len(set(product)) != len(product) or set(dev) & heldout:
         raise ValueError('selection is duplicated or calibration overlaps a held-out roster')
-    return selected, [{'sha256': digest(path), 'files': len(rows)} for path, rows in metadata.items()]
+    receipts = [receipt for _, receipt in captured.values()]
+    verify_metadata(receipts, root)
+    return selected, receipts
 
 
 def checked(command):
@@ -128,21 +144,19 @@ def verify_sources(sources):
     if checked(['git', 'status', '--porcelain', '--untracked-files=no']):
         raise ValueError('tooling checkout has tracked changes')
     rules = json.loads(checked(['gh', 'api', 'repos/coreav-dev/coreav/rules/branches/main']))
-    required = {check['context'] for rule in rules if rule['type'] == 'required_status_checks'
+    required = {(check['context'], check.get('integration_id')) for rule in rules if rule['type'] == 'required_status_checks'
                 for check in rule['parameters']['required_status_checks']}
     if not required:
         raise ValueError('required CI checks are unavailable')
     for commit in {sources['candidate'], sources['tooling'], sources['baseline']}:
         pages = json.loads(checked(['gh', 'api', '--paginate', '--slurp',
                                    f'repos/coreav-dev/coreav/commits/{commit}/check-runs?per_page=100']))
-        checks = {}
-        for page in pages:
-            for check in page['check_runs']:
-                if check['name'] not in checks or check['id'] > checks[check['name']]['id']:
-                    checks[check['name']] = check
-        if any(checks.get(name, {}).get('conclusion') != 'success'
-               or checks.get(name, {}).get('status') != 'completed' for name in required):
-            raise ValueError('required CI is not green at a frozen revision')
+        for name, integration in required:
+            matching = [check for page in pages for check in page['check_runs'] if check['name'] == name
+                        and (integration in (None, -1) or (check.get('app') or {}).get('id') == integration)]
+            latest = max(matching, key=lambda check: check['id'], default={})
+            if latest.get('conclusion') != 'success' or latest.get('status') != 'completed':
+                raise ValueError('required CI is not green at a frozen revision')
     builds = sources.get('builds', {})
     for name in ('candidate', 'baseline'):
         build = builds.get(name, {})
@@ -153,7 +167,7 @@ def verify_sources(sources):
 
 def freeze(opts):
     selected, manifests = select_rosters(opts.manifests, opts.heldout_roster)
-    historical = records(opts.product_roster)
+    historical, historical_receipt = read_metadata(opts.product_roster)
     identities = [{key: row[key] for key in ('class', 'sha256', 'ext', 'size')} for row in selected['product']]
     if identities != historical:
         raise ValueError('product selection differs from the historical frozen roster')
@@ -170,11 +184,12 @@ def freeze(opts):
     if len(commands) != 93:
         raise ValueError('registered native command roster changed')
     data = {'method': protocol.METHOD, 'sources': sources, 'binaries': binaries,
-            'metadata': manifests, 'product_roster_sha256': digest(opts.product_roster),
+            'metadata': manifests, 'product_roster_sha256': historical_receipt['sha256'],
             'selection': selected, 'commands': commands,
             'command_sha256': digest(speed.COMMANDS),
             'tools': {name: digest(ROOT / name) for name in TOOL_FILES},
             'schedule': protocol.calibration_schedule() + protocol.product_schedule(selected['product'], commands)}
+    verify_metadata(manifests + [historical_receipt], opts.manifests)
     with pathlib.Path(opts.out).open('x') as out:
         out.write(json.dumps(data, indent=1) + '\n')
     return 0
@@ -318,10 +333,26 @@ def payload_pool(entries):
 
 def fallback(log):
     try:
-        return speed.b4_fallback(log)
+        lines = pathlib.Path(log).read_text(errors='replace').splitlines()
     except OSError:
         return {'lines': None, 'refused': None, 'executed': None, 'invalid': 1,
                 'void': True, 'capture_error': 'unreadable log'}
+    counts = {'lines': 0, 'refused': 0, 'executed': 0, 'invalid': 0}
+    for line in lines:
+        if not line.strip():
+            continue
+        counts['lines'] += 1
+        try:
+            event = json.loads(line)
+            if event.get('ran') is not None:
+                counts['executed'] += 1
+            elif event.get('not_run') == 'strict_safe':
+                counts['refused'] += 1
+            else:
+                counts['invalid'] += 1
+        except (ValueError, AttributeError):
+            counts['invalid'] += 1
+    return {**counts, 'void': bool(counts['executed'] or counts['invalid'])}
 
 
 def valid_fallback(counts):
@@ -541,6 +572,53 @@ def valid_call(row):
     return captured_call(row) and type(row.get('exit')) is int and row['exit'] == 0
 
 
+def validate_receipts(data, calibration):
+    schedule = protocol.calibration_schedule()
+    if data['mode'] == 'product':
+        schedule += protocol.product_schedule(data['selection']['product'], data['commands'])
+    calls = data['receipts']
+    cursor, previous_end = 0, 0
+    refused = set()
+    for pair in schedule:
+        key = (pair['command'], pair['file'])
+        if pair['phase'] == 'product' and key in refused:
+            continue
+        if cursor == len(calls):
+            return
+        if pair['phase'] == 'product' and not calibration['passes']:
+            raise ValueError('product observations precede a passing complete calibration')
+        observed = []
+        for position, side in enumerate(pair['order']):
+            if cursor == len(calls):
+                return
+            actual = calls[cursor]
+            if any(actual.get(name) != value for name, value in {**pair, 'side': side, 'position': position}.items()):
+                raise ValueError('receipts differ from the frozen global schedule')
+            if actual.get('executed') is True or 'start' in actual or 'end' in actual:
+                if (not all(type(actual.get(name)) in (int, float) and math.isfinite(actual[name])
+                            for name in ('start', 'end'))
+                        or not previous_end <= actual['start'] < actual['end']):
+                    raise ValueError('receipt clocks overlap or move backwards')
+                if (type(actual.get('elapsed')) in (int, float) and math.isfinite(actual['elapsed'])
+                        and actual['elapsed'] > actual['end'] - actual['start'] + 1e-9):
+                    raise ValueError('elapsed time exceeds its receipt boundaries')
+                previous_end = actual['end']
+            elif not actual.get('error'):
+                raise ValueError('receipt has no invocation boundaries')
+            cursor += 1
+            observed.append(actual)
+            if actual.get('error') and cursor != len(calls):
+                raise ValueError('observations continue after a capture or infrastructure failure')
+        statuses = {row['side']: row.get('exit') for row in observed}
+        if (pair['phase'] == 'product' and not pair['timed'] and pair['pair'] == 0
+                and statuses == {'A': 4, 'B': 0} and all(captured_call(row) for row in observed)):
+            refused.add(key)
+        elif not all(valid_call(row) for row in observed) and cursor != len(calls):
+            raise ValueError('observations continue after a failed pair')
+    if cursor != len(calls):
+        raise ValueError('unexpected observations after the frozen schedule')
+
+
 def summary(data):
     if data.get('method') != protocol.METHOD:
         raise ValueError('historical B4 schemas cannot be re-scored')
@@ -556,6 +634,7 @@ def summary(data):
             and 'calibration_fallback_log' not in data):
         raise ValueError('fallback capture does not identify its measurement phase')
     calibration = calibration_summary(data)
+    validate_receipts(data, calibration)
     result = {'method': protocol.METHOD, 'mode': data['mode'], 'calibration': calibration,
               'aborted': data['aborted'], 'fallback_log': data['fallback_log'], 'product': None,
               'passes': calibration['passes'] and not data['aborted'],
@@ -578,18 +657,6 @@ def summary(data):
                     raise ValueError('ineligible product case has observations')
                 rows.append({**row, 'ineligible': True})
                 continue
-            expected = protocol.product_schedule([entry], [args])
-            start = (command + entry['rank']) % 2
-            expected = [{**pair, 'command': command,
-                         'order': ('BA' if (start + pair['pair']) % 2 else 'AB') if pair['timed'] else pair['order']}
-                        for pair in expected]
-            planned = [{**pair, 'side': side, 'position': position} for pair in expected
-                       for position, side in enumerate(pair['order'])]
-            for actual, planned_call in zip(observed, planned):
-                if any(actual.get(k) != v for k, v in planned_call.items()):
-                    raise ValueError('product receipts differ from the frozen schedule')
-            if len(observed) > len(planned):
-                raise ValueError('duplicate product observations')
             statuses = {call['side']: call.get('exit') for call in observed[:2]}
             if len(observed) == 2 and statuses == {'A': 4, 'B': 0} and all(captured_call(call) for call in observed):
                 rows.append({**row, 'refused': True})

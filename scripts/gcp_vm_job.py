@@ -314,6 +314,8 @@ def main():
         return collect(Compute(credentials()), a.collect)
     if not (a.upload and a.job and a.download):
         ap.error('--upload, --job and --download are required (or --collect STATE_DIR)')
+    if a.stage_instance_receipt and os.path.realpath(a.upload) == os.path.realpath(a.download):
+        raise SystemExit('instance receipt staging requires distinct upload and download directories')
     if a.stage_instance_receipt and os.path.exists(os.path.join(a.upload, 'instance.json')):
         raise SystemExit('upload/instance.json already exists; refusing to overwrite a host receipt')
     if a.usd_per_hour is None:
