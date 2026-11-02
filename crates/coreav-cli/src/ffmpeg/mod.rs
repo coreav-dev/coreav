@@ -518,21 +518,6 @@ pub fn plan(
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
     let decided = codecs(command, &output);
-    for (position, ((_, stream), codec)) in output.iter().zip(&decided).enumerate() {
-        if *codec == Some(Codec::Audio(args::AudioEncoder::Aac))
-            && stream.entries.iter().any(|(key, value)| {
-                *key == "codec_name" && matches!(value, Value::Str(name) if name == "opus")
-            })
-            && !command
-                .codecs
-                .iter()
-                .any(|(spec, _)| matching(spec, &output).contains(&position))
-        {
-            return Err(Refusal::not_native(
-                "default AAC encoding of an Opus source (its exact output has not been verified)",
-            ));
-        }
-    }
     if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
