@@ -19,7 +19,8 @@ def build_comparator(directory, env):
     with tempfile.TemporaryDirectory() as temporary:
         temporary = Path(temporary)
         archive = temporary / 'opus.tar.gz'
-        composed.bounded(['curl', '--fail', '--silent', '--show-error', '--connect-timeout', '15',
+        composed.bounded(['curl', '--fail', '--silent', '--show-error', '--location',
+                          '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '15',
                           '--max-time', '120', '--max-filesize', str(10 << 20), '-o', archive, pin['url']],
                          env, timeout=125)
         if composed.sha256_file(archive) != pin['sha256']:

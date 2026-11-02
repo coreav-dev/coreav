@@ -9,7 +9,39 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import composed_audio as composed
+import composed_audio_fixtures as fixtures
 import transcode_check as checker
+
+
+class ComparatorDownload(unittest.TestCase):
+    def test_a_redirect_downloads_the_registered_archive_not_its_response_body(self):
+        archive = b'registered archive'
+        pin, identity = composed.registration()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stored = root / 'expected'
+            stored.write_bytes(archive)
+            pin['opus_compare']['sha256'] = composed.sha256_file(stored)
+
+            def command(argv, env, **kwargs):
+                if argv[0] == 'curl':
+                    payload = archive if '--location' in argv else b'redirect response body'
+                    Path(argv[argv.index('-o') + 1]).write_bytes(payload)
+                elif argv[0] == 'tar':
+                    license_path = Path(argv[argv.index('-C') + 1]) / argv[-1]
+                    license_path.parent.mkdir(parents=True)
+                    license_path.write_text('Fixture license')
+                elif argv[0] == 'cc':
+                    Path(argv[argv.index('-o') + 1]).write_bytes(b'comparator')
+                else:
+                    self.fail('unexpected program')
+
+            with mock.patch.object(composed, 'registration', return_value=(pin, identity)), \
+                    mock.patch.object(composed, 'bounded', side_effect=command):
+                digest = fixtures.build_comparator(root / 'tools', {})
+            metadata = json.loads((root / 'tools/comparator.json').read_text())
+            self.assertEqual(metadata['archive_sha256'], pin['opus_compare']['sha256'])
+            self.assertEqual(digest, composed.sha256_file(root / 'tools/opus_compare'))
 
 
 def box(kind, payload):
