@@ -30,6 +30,12 @@
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
+- a check name the note requires is reported by a job that does the work
+  itself: GitHub cancels a job that reaches its own `timeout-minutes` and
+  reports the check as `cancelled`, no concurrency group starts a newer run
+  to replace that cancellation, and a cancelled required check is not
+  shippable, so the required name has to be reported by a report job that
+  fails instead;
 - a workflow cancels a superseded run job by job (it is in
   `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
   than a report job has no group, or not exactly `GROUP` with its own job
@@ -680,6 +686,11 @@ def check(root):
         job = where[0][1]
         fields = jobs[workflow][job]
         if not job.endswith('-report'):
+            problems.append(f'{workflow}: `{name}` is reported by `{job}`, which does the work: GitHub '
+                            'cancels a job that reaches its own `timeout-minutes` and reports the check '
+                            'as cancelled, and no newer run replaces that cancellation; report '
+                            f'`{name}` from a report job whose `needs:` holds the work '
+                            '(docs/design/ci-checks.md, "A job timeout is not a cancellation")')
             continue
         if not fields['always']:
             problems.append(f'{workflow}: the report job `{job}` needs `if: always()`')
@@ -704,8 +715,10 @@ def check(root):
     for workflow, found in jobs.items():
         if workflow in unlisted:
             continue
-        for job in found:
-            if job.endswith('-report') and job not in required:
+        for job, fields in found.items():
+            # The table lists check names, and a job may carry one in `name:`
+            # that its id does not match (`deny-report` reports `deny`).
+            if job.endswith('-report') and (fields['name'] or job) not in required:
                 problems.append(f'{workflow}: the report job `{job}` is not in {note.name}')
     return problems
 

@@ -292,6 +292,19 @@ class Repository(unittest.TestCase):
         self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow exactly '
                                             '`concurrency:'), found)
 
+    def test_a_required_check_reported_by_the_job_that_does_the_work_is_reported(self):
+        # The shape deny.yml had: one job that does the work and carries the
+        # required name. A job GitHub cancels at its own timeout leaves the
+        # check cancelled, and no newer run replaces that cancellation.
+        path = self.root / '.github' / 'workflows' / 'deny.yml'
+        text = path.read_text()
+        path.write_text(text.split('  deny-report:\n')[0].replace('  deny-checks:\n', '  deny:\n', 1))
+        self.assertEqual(check.check(self.root), [
+            'deny.yml: `deny` is reported by `deny`, which does the work: GitHub cancels a job that '
+            'reaches its own `timeout-minutes` and reports the check as cancelled, and no newer run '
+            'replaces that cancellation; report `deny` from a report job whose `needs:` holds the work '
+            '(docs/design/ci-checks.md, "A job timeout is not a cancellation")'])
+
     def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
         for key in ('"types"', "'types'", 'types ', '"typ\\u0065s"'):
             with self.subTest(key=key):
