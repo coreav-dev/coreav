@@ -1,0 +1,51 @@
+# Exact default-path audio resampling investigation
+
+Status: characterization plan, not a support claim. Refs coreav-dev/coreav#25.
+
+The goal is native raw PCM input, verified equal-rate handling and a default swr-compatible rate path whose complete command outputs pass the unchanged exact decoded-output oracle. Dither and soxr are excluded. Commit this plan before any experiment. Keep the plan and any eventual implementation in one pull request; the reviewer reads this commit first. Synthetic characterization may run before review, but no held-out, corpus or judged run may run before the pull request merges.
+
+## Sources and constraints
+
+Derive a candidate from the [bandlimited interpolation equation](https://www.dsprelated.com/freebooks/pasp/Windowed_Sinc_Interpolation.html), the [modified Bessel series](https://dlmf.nist.gov/10.25.E2), and [FFmpeg's public resampler options](https://ffmpeg.org/ffmpeg-resampler.html). Read no FFmpeg or libswresample source, other implementation source, disassembly or source-level profiles. Measured coefficient tables must not become production constants.
+
+The ideal kernel is `sinc(x) = sin(pi*x)/(pi*x)`, with its limit 1 at zero. A finite Kaiser-windowed version uses `I0(beta*sqrt(1-u*u))/I0(beta)` inside its support, with beta 9. The documented swr defaults constrain filter size 32, cutoff 0.97, phase limit 1024, exact rational phases when possible and linear interpolation otherwise. They do not fully specify finite arithmetic, support geometry, padding or draining.
+
+Use only the binaries pinned in `scripts/oracle-ffmpeg.env`. Verify them with the shared pin checker before each capture, retain their hashes and version banners with the candidate source identity, and use `scripts/oracle-audio-args.txt` for audio input threads. The installed system FFmpeg is not an alternative oracle. Scalar CPU flags are diagnostic comparisons only; the default pinned invocation remains the target.
+
+## Bounded characterization
+
+Use deterministic synthetic PCM only, with a maximum of 768 oracle subprocesses, a 10-second timeout per call, a 300-second capture deadline and a 32 MiB output cap. Run captures in GitHub Actions. Local work is limited to small generation, replay and unit checks. Run no benchmark, fuzz campaign, corpus draw or performance acceptance test.
+
+The first pass captures these pairs in this order: 44,100 to 48,000, 22,050 and 16,000; 48,000 to 44,100, 22,050 and 16,000; 8,000 to 44,100; and identity at 8,000, 44,100 and 48,000 Hz.
+
+- Use one, two and three channels with different values per channel. Keep channel counts unchanged to separate rate conversion from rematrixing.
+- Capture signed-16 and signed-32 integer paths and F32 paths. Include F32 output, integer output and diagnostic F64 output because the selected internal precision may depend on both formats.
+- Use impulses at the first, middle and last samples and at neighboring interior positions; zero and nonzero steps; a signed alternating sequence; a deterministic low-amplitude irregular sequence; and very short lengths on both sides of the filter and input-frame boundaries.
+- Compare a normal flush with deterministic filter-frame partitions of 1, 7 and 31 samples, without padding. Capture zero-length input as an outcome rather than assuming it must succeed.
+- Capture default CPU behavior first. Repeat the floating path with SIMD disabled to locate arithmetic dependence, never to substitute a more convenient reference.
+
+Retain raw synthetic output bytes, complete lengths, the exact argument vector, return status and input digest. A subprocess error, timeout, cap or incomplete capture is an experiment failure, not evidence of parity.
+
+## Independent candidate and hypotheses
+
+Keep the initial numerical prototype outside the product. Compute coefficients from the cited equations rather than recorded outputs. Evaluate two support models derived from the documented size: a continuous 32-tap window at the lower rate, and a finite tap-grid-centered support of `ceil(32/a)` coefficients adjusted for the cutoff. For the first model use half-width `16/min(1, output/input)` with the window centered on the output position. For the second use a window centered at `(length-1)/2` on the integer tap grid while the sinc follows the fractional position.
+
+Use two cutoff interpretations, `a=.97*min(1, output/input)` and `a=min(1, .97*output/input)`. Use either per-phase normalization or one shared gain derived from the zero phase. These are eight independently computed recipes, not a parameter search. Use rational input positions so rate stepping does not accumulate floating-point position error. First compare the double-precision kernel geometry, then independently examine coefficient rounding and accumulation if a geometry survives. Do not embed harvested coefficient tables or pursue undocumented numerical tuning without a concrete hypothesis.
+
+Interior impulses first distinguish support, phase center, cutoff and coefficient quantization. Steps distinguish normalization. Edge impulses distinguish zero extension, repeated endpoints and mirror extension. Short signals and complete output lengths distinguish startup delay and flush behavior. Irregular signals distinguish accumulation order after the coefficient and edge hypotheses have survived.
+
+Record each hypothesis, its decisive cases and its result. Do not search an unbounded parameter space or alter the synthetic set to hide a mismatch. Permit at most three characterization captures: the initial pass and two further passes answering concrete hypotheses from the previous result. Float comparisons use stored bits and exact lengths; no error tolerance is an acceptance criterion.
+
+## Implementation only after the evidence supports it
+
+If the necessary behavior can be pinned down, add a typed raw signed-16 input declaration with input-scoped sample rate and channel count. Validate positive integral rates, numeric suffix syntax, frame boundaries, limits and option placement before output creation. Preserve complete frames without converting them through float on the equal-rate path. Do not silently accept rate options with stream copy or an unsupported decoder, encoder or container.
+
+Keep FFmpeg-compatible resampling separate from the native decoder's current silence-extension and ceil-length contract. Its tests must cover rational stepping, coefficient construction, startup, chunk splits, drain, allocation limits and all accepted sample formats. No unsafe code is planned. Equal-rate bypass must independently preserve bytes and metadata and must not ignore a requested format or channel conversion.
+
+Before claiming a new command, execute its complete unmodified registered argument vector and compare every selected output stream using the unchanged same-command V2 oracle. A matching numerical prototype or rate-only raw PCM command is not a full-command pass. A finite matching synthetic set is evidence, not proof of general parity.
+
+## Stop and report
+
+Stop without pushing a product implementation if a necessary choice in coefficients, normalization, accumulation, edges, delay or flush cannot be pinned down by the experiments, or if the candidate still differs after the bounded pass and there is no further concrete hypothesis. Report the unresolved choice, decisive sample bits and lengths, attempted derivations, source identities and what further work would require. Keep unsuccessful prototypes out of the product pull request.
+
+High-pass triangular dither would additionally need an exact noise sequence, seed, scaling, per-channel progression and filter state. soxr would need a separate engine/version investigation and potentially a dependency and licence decision. Neither is part of this investigation. No tolerance, baseline, fixture, roster, frozen judging file or registered predicate may change.
