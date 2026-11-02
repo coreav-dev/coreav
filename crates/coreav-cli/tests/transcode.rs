@@ -1947,6 +1947,177 @@ fn ffmpeg_audio_only_encodes_match_the_oracle_timeline() {
 
 #[cfg(unix)]
 #[test]
+fn ffmpeg_avi_mp3_keeps_the_previous_complete_file_bytes() {
+    struct Samples(Vec<u8>);
+    impl coreav_audio::Sink for Samples {
+        fn start(&mut self, _: &coreav_audio::OutputFormat) -> Result<(), coreav_audio::Error> {
+            Ok(())
+        }
+        fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_audio::Error> {
+            self.0.extend_from_slice(bytes);
+            Ok(())
+        }
+    }
+    let Some(tools) = tools() else { return };
+    let dir = dir("avi-mp3-byte-identity");
+    for rate in [8000u32, 16000, 48000] {
+        let frame_samples = if rate >= 32000 { 1152 } else { 576 };
+        for channels in [1u16, 2] {
+            for residue in [1, 46, 47] {
+                let count = 8 * frame_samples + residue;
+                let source = dir.join(format!("{rate}-{channels}-{count}.mp4"));
+                let generated = Command::new(&tools.ffmpeg)
+                    .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+                    .arg(format!("sine=sample_rate={rate}:duration=2"))
+                    .args([
+                        "-af",
+                        &format!("atrim=end_sample={count}"),
+                        "-ac",
+                        &channels.to_string(),
+                        "-c:a",
+                        "flac",
+                    ])
+                    .arg(&source)
+                    .output()
+                    .unwrap();
+                assert!(
+                    generated.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&generated.stderr)
+                );
+                let mut samples = Samples(Vec::new());
+                let summary = coreav_audio::decode(
+                    coreav_isobmff::FileSource::open(&source).unwrap(),
+                    &coreav_audio::Options {
+                        format: coreav_audio::SampleFormat::F32,
+                        ..Default::default()
+                    },
+                    &coreav_audio::Limits::default(),
+                    &mut samples,
+                )
+                .unwrap();
+                assert_eq!(summary.samples, u64::from(count));
+                assert!(summary.warnings.is_empty());
+                for bitrate in [None, Some(128000u32)] {
+                    let name = format!("{rate}-{channels}-{count}-{bitrate:?}");
+                    let mut old = Command::new(&tools.ffmpeg);
+                    old.args([
+                        "-nostdin",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-f",
+                        "f32le",
+                        "-ar",
+                        &rate.to_string(),
+                        "-ac",
+                        &channels.to_string(),
+                    ])
+                    .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                    .args([
+                        "-i",
+                        "pipe:0",
+                        "-map",
+                        "0:a:0",
+                        "-c:a",
+                        "libmp3lame",
+                    ]);
+                    if let Some(bitrate) = bitrate {
+                        old.args(["-b:a", &bitrate.to_string()]);
+                    }
+                    old.args(["-f", "mp3", "pipe:1"]);
+                    let old = bounded::output(
+                        &mut old,
+                        Some(samples.0.clone()),
+                        std::time::Duration::from_secs(20),
+                    )
+                    .unwrap();
+                    assert!(
+                        old.status.success(),
+                        "{name}: {}",
+                        String::from_utf8_lossy(&old.stderr)
+                    );
+                    let raw = dir.join(format!("{name}.mp3"));
+                    std::fs::write(&raw, &old.stdout).unwrap();
+                    let listing = probe_json(
+                        &tools,
+                        &["-show_packets", "-show_entries", "packet=pos,size"],
+                        &raw,
+                    );
+                    let frames: Vec<_> = listing["packets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|packet| {
+                            let start = packet["pos"].as_str().unwrap().parse::<usize>().unwrap();
+                            let size = packet["size"].as_str().unwrap().parse::<usize>().unwrap();
+                            &old.stdout[start..start + size]
+                        })
+                        .collect();
+                    let bytes: usize = frames.iter().map(|frame| frame.len()).sum();
+                    let tracks = [coreav_avi::Track::Mp3 {
+                        rate,
+                        channels,
+                        frame_samples,
+                        bytes_per_second: (bytes as u64 * u64::from(rate)
+                            / (frames.len() as u64 * u64::from(frame_samples)))
+                            as u32,
+                    }];
+                    let packets: Vec<_> = frames
+                        .iter()
+                        .enumerate()
+                        .map(|(n, frame)| coreav_avi::Packet {
+                            track: 0,
+                            time: n as u64,
+                            duration: 1,
+                            size: frame.len() as u32,
+                            keyframe: true,
+                        })
+                        .collect();
+                    let mut expected = Vec::new();
+                    coreav_avi::plan(&tracks, &packets, &coreav_avi::Limits::default())
+                        .unwrap()
+                        .write(&mut expected, |n, out| out.write_all(frames[n]))
+                        .unwrap();
+                    for explicit in [false, true] {
+                        let output = dir.join(format!("{name}-{explicit}.avi"));
+                        let mut actual = Command::new(bin());
+                        actual.args(["ffmpeg", "-i"]).arg(&source).arg("-vn");
+                        if explicit || bitrate.is_some() {
+                            actual.args(["-c:a", "libmp3lame"]);
+                        }
+                        if let Some(bitrate) = bitrate {
+                            actual.args(["-b:a", &bitrate.to_string()]);
+                        }
+                        let run = actual
+                            .arg(&output)
+                            .env("COREAV_FFMPEG", &tools.ffmpeg)
+                            .env("COREAV_FALLBACK", NO_FALLBACK)
+                            .env("COREAV_STRICT_SAFE", "0")
+                            .output()
+                            .unwrap();
+                        assert!(
+                            run.status.success(),
+                            "{name}: {}",
+                            String::from_utf8_lossy(&run.stderr)
+                        );
+                        let actual = std::fs::read(output).unwrap();
+                        assert!(
+                            actual == expected,
+                            "{name} explicit={explicit}: AVI bytes changed ({} versus {})",
+                            actual.len(),
+                            expected.len()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
 fn ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery() {
     let Some(tools) = tools() else { return };
     let dir = dir("audio-only-strict-policy");
@@ -1958,6 +2129,8 @@ fn ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery() {
             ("explicit-aac", vec!["-c:a", "aac"], "m4a"),
             ("implicit-mp3", vec![], "mp3"),
             ("explicit-mp3", vec!["-c:a", "libmp3lame"], "mp3"),
+            ("implicit-avi-mp3", vec![], "avi"),
+            ("explicit-avi-mp3", vec!["-c:a", "libmp3lame"], "avi"),
         ] {
             let marker = dir.join(format!("{name}-{flag}.called"));
             let renamed = script(

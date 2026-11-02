@@ -168,6 +168,44 @@ enum Description {
 }
 
 impl EncodedAudio {
+    /// Retains the checked MP3 frames for a bounded, per-frame container writer.
+    pub fn mp3_packets(&self, deadline: Instant, max_bytes: usize) -> Result<mp3::Packets, Error> {
+        if !matches!(self.description, Description::Mp3(_)) {
+            return Err(Error::Unsupported("non-MP3 audio in AVI output".into()));
+        }
+        let mut length = 0usize;
+        let mut frames = Vec::with_capacity(self.samples.len());
+        for sample in &self.samples {
+            let end = length
+                .checked_add(usize::try_from(sample.size).unwrap_or(usize::MAX))
+                .filter(|&end| end <= max_bytes)
+                .ok_or_else(|| {
+                    Error::Encode(coreav_decode::Error::new(
+                        ErrorKind::Limit,
+                        "MP3 output exceeds its buffer limit",
+                    ))
+                })?;
+            frames.push(length..end);
+            length = end;
+        }
+        let frame_samples = self
+            .samples
+            .first()
+            .map(|sample| sample.duration)
+            .ok_or_else(|| encoder_error("MP3 output has no frames".into()))?;
+        let decoded = u128::from(frame_samples) * frames.len() as u128;
+        let bytes_per_second = u32::try_from(length as u128 * u128::from(self.timescale) / decoded)
+            .map_err(|_| encoder_error("MP3 byte rate overflows".into()))?;
+        let mut data = Vec::with_capacity(length);
+        self.write_packets(deadline, &mut data)?;
+        Ok(mp3::Packets {
+            data,
+            frames,
+            frame_samples,
+            bytes_per_second,
+        })
+    }
+
     pub(crate) fn mp4_description(&self) -> Result<(&[u8], u16), Error> {
         match &self.description {
             Description::Mp4 { entry, roll } => Ok((entry, *roll)),
@@ -309,7 +347,86 @@ impl EncodedAudio {
 /// tests) and is killed at `deadline`; its packets go to a spool file next
 /// to `output`, at most `max_spool_bytes` of them.
 pub fn encode<S: Source>(
-    source: S,
+    mut source: S,
+    encode: &Encode<'_>,
+    limits: &coreav_audio::Limits,
+    launcher: Option<&ExecLauncher>,
+    deadline: Instant,
+    output: &Path,
+    max_spool_bytes: u64,
+) -> Result<EncodedAudio, Error> {
+    encode_with(
+        |requested, feed| {
+            match encode {
+                Encode::Aac(_, program) => probe_encoder(program, launcher, deadline, "aac")?,
+                Encode::Mp3(_, program) => {
+                    probe_encoder(program, launcher, deadline, "libmp3lame")?
+                }
+                Encode::Opus(_) => {}
+            }
+            let options = coreav_audio::Options {
+                stream: requested,
+                format: SampleFormat::F32,
+                threads: 1,
+                sample_rate: match encode {
+                    Encode::Opus(_) => Some(SAMPLE_RATE),
+                    Encode::Aac(..) | Encode::Mp3(..) => None,
+                },
+                channels: None,
+            };
+            let summary =
+                coreav_audio::decode(&mut source, &options, limits, feed).map_err(Error::Audio)?;
+            let start = matroska_start(&mut source, Some(summary.stream_index), limits)?;
+            Ok((summary, start))
+        },
+        encode,
+        limits,
+        launcher,
+        deadline,
+        output,
+        max_spool_bytes,
+    )
+}
+
+/// Encodes already-decoded interleaved F32 PCM through the same feeder and audit.
+pub fn encode_pcm(
+    samples: &[u8],
+    summary: &coreav_audio::Summary,
+    encode: &Encode<'_>,
+    launcher: Option<&ExecLauncher>,
+    deadline: Instant,
+    output: &Path,
+    max_spool_bytes: u64,
+) -> Result<EncodedAudio, Error> {
+    use coreav_audio::Sink as _;
+    let frame = u64::from(summary.output.channels) * 4;
+    if summary.output.format != SampleFormat::F32
+        || frame == 0
+        || u64::try_from(samples.len()).ok() != summary.samples.checked_mul(frame)
+    {
+        return Err(encoder_error(
+            "PCM bytes do not match the decoded summary".into(),
+        ));
+    }
+    encode_with(
+        |_, feed| {
+            feed.start(&summary.output).map_err(Error::Audio)?;
+            for bytes in samples.chunks(32 << 10) {
+                feed.write(bytes).map_err(Error::Audio)?;
+            }
+            Ok((summary.clone(), 0))
+        },
+        encode,
+        &coreav_audio::Limits::default(),
+        launcher,
+        deadline,
+        output,
+        max_spool_bytes,
+    )
+}
+
+fn encode_with(
+    decode: impl FnOnce(Option<usize>, &mut Feed<'_>) -> Result<(coreav_audio::Summary, u64), Error>,
     encode: &Encode<'_>,
     limits: &coreav_audio::Limits,
     launcher: Option<&ExecLauncher>,
@@ -347,22 +464,6 @@ pub fn encode<S: Source>(
             program.display()
         )));
     }
-    match encode {
-        Encode::Aac(_, program) => probe_encoder(program, launcher, deadline, "aac")?,
-        Encode::Mp3(_, program) => probe_encoder(program, launcher, deadline, "libmp3lame")?,
-        Encode::Opus(_) => {}
-    }
-    let mut source = source;
-    let options = coreav_audio::Options {
-        stream: requested,
-        format: SampleFormat::F32,
-        threads: 1,
-        sample_rate: match encode {
-            Encode::Opus(_) => Some(SAMPLE_RATE),
-            Encode::Aac(..) | Encode::Mp3(..) => None,
-        },
-        channels: None,
-    };
     let spool = Spool::create(
         output,
         match encode {
@@ -385,16 +486,16 @@ pub fn encode<S: Source>(
         started: None,
         error: None,
     };
-    let decoded = coreav_audio::decode(&mut source, &options, limits, &mut feed);
+    let decoded = decode(requested, &mut feed);
     let Feed { started, error, .. } = feed;
-    let summary = match (decoded, error) {
+    let (summary, start_ns) = match (decoded, error) {
         (_, Some(e)) => return Err(e),
-        (Err(coreav_audio::Error::NoSuchStream), None) if requested.is_none() => {
+        (Err(Error::Audio(coreav_audio::Error::NoSuchStream)), None) if requested.is_none() => {
             return Err(Error::Unsupported(
                 "the source has no audio stream CoreAV decodes".into(),
             ));
         }
-        (Err(e), None) => return Err(Error::Audio(e)),
+        (Err(e), None) => return Err(e),
         (Ok(summary), None) => summary,
     };
     if let Some(warning) = summary
@@ -408,7 +509,6 @@ pub fn encode<S: Source>(
     let Some(started) = started.filter(|s| s.sent.load(Ordering::SeqCst) > 0) else {
         return Err(Error::Unsupported("the audio stream has no samples".into()));
     };
-    let start_ns = matroska_start(&mut source, Some(summary.stream_index), limits)?;
     let Started {
         mut process,
         channels,

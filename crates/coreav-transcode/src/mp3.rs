@@ -4,6 +4,7 @@
 
 use std::ffi::OsString;
 use std::fmt;
+use std::ops::Range;
 
 use coreav_audio::mp3::{Header, Version};
 use coreav_isobmff::Source;
@@ -97,6 +98,18 @@ pub struct Expected {
     pub guard: u16,
     /// Whether quality, rather than a constant rate, was requested.
     pub variable: bool,
+}
+
+/// Checked frames retained for a bounded per-frame container writer.
+pub struct Packets {
+    /// Back-to-back Layer III frame bytes, without container metadata.
+    pub data: Vec<u8>,
+    /// Complete frame ranges in decode order.
+    pub frames: Vec<Range<usize>>,
+    /// Decoded samples per frame.
+    pub frame_samples: u32,
+    /// Mean compressed bytes per second over the complete frames.
+    pub bytes_per_second: u32,
 }
 
 /// One complete Layer III frame in the encoder's output.

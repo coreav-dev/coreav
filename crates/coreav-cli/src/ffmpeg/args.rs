@@ -28,6 +28,8 @@ pub enum Demuxer {
 /// What the output is written as: `-f`, or the output's extension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Muxer {
+    /// `avi` (`.avi`), a single bounded RIFF file.
+    Avi,
     /// `mp4` (`.mp4`).
     Mp4,
     /// `ipod` (`.m4a`): an audio-only M4A file.
@@ -64,6 +66,8 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
+    /// Audio encoders supported by the AVI writer.
+    AviAudio(AviAudio),
     /// `copy`.
     Copy,
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
@@ -71,6 +75,17 @@ pub enum Codec {
     Libx264,
     /// An encoder of one audio stream.
     Audio(AudioEncoder),
+}
+
+/// AVI audio output encoders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AviAudio {
+    /// The operator's external FFmpeg `libmp3lame` encoder.
+    Mp3,
+    /// Signed little-endian 16-bit PCM.
+    PcmS16,
+    /// Unsigned 8-bit PCM.
+    PcmU8,
 }
 
 /// The audio encoders of `coreav ffmpeg` (`docs/design/transcode.md`).
@@ -605,6 +620,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
+                "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
+                "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
                 _ => {
                     return Err(not_native(
                         option,
@@ -759,12 +776,22 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         && !command
             .codecs
             .iter()
-            .any(|(_, c)| matches!(c, Codec::Audio(_)))
+            .any(|(_, c)| matches!(c, Codec::Audio(_) | Codec::AviAudio(_)))
     {
         return Err(not_native(
             option,
             None,
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
+        ));
+    }
+    if command.muxer != Muxer::Avi
+        && command
+            .codecs
+            .iter()
+            .any(|(_, c)| matches!(c, Codec::AviAudio(_)))
+    {
+        return Err(Refusal::not_native(
+            "PCM encoding to a container other than AVI",
         ));
     }
     if command.muxer == Muxer::Segment {
@@ -844,6 +871,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
         "mp3" => Some(Muxer::Mp3),
+        "avi" => Some(Muxer::Avi),
         _ => None,
     }
 }
@@ -853,6 +881,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
         Some("mp3") => Ok(Muxer::Mp3),
+        Some("avi") => Ok(Muxer::Avi),
         Some("segment") => Ok(Muxer::Segment),
         Some(other) => Err(not_native(
             "-f",

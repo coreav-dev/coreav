@@ -35,7 +35,6 @@ use crate::error::Failure;
 use crate::output::WriteFailure;
 
 /// How to turn the mode off, the way out every refusal names.
-#[cfg(feature = "thumbnail")]
 const OFF: &str = "or run without --strict-safe and COREAV_STRICT_SAFE";
 
 /// The reason strict-safe mode starts no sandboxed process here.
@@ -190,7 +189,6 @@ impl StrictSafe {
     }
 
     /// MP3 encoding uses the external `ffmpeg` program, even under a different file name.
-    #[cfg(feature = "transcode")]
     pub fn mp3(self) -> Result<(), String> {
         if self.on {
             return Err(format!(

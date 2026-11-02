@@ -1016,6 +1016,14 @@ value from 0 to 9; absent quality selects the encoder's default or the
 requested constant bit rate. No source-rate conversion, sample-format
 conversion option, cover-art encoding or AVI/FLV writer is added.
 
+The existing AVI writer takes MP3 frames from this same feeder and audited
+reader. Its bounded adapter retains every complete frame, without adding
+an ID3 or Xing/Info header or applying a presentation trim. AVI keeps its
+existing frame clock and byte-rate calculation. A complete-file regression
+compares the result with the former raw-pipe invocation and the unchanged
+AVI writer, including the final-frame boundary cases. AVI source decoding
+and its limits remain owned by the AVI caller.
+
 **Known boundary difference.** The pinned FFmpeg clamps final discard
 padding when r = N mod F is from 1 to 46, presenting N + (47 - r)
 samples instead of N. CoreAV preserves the original N samples. This

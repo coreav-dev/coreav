@@ -16,6 +16,7 @@ import Help from '/snippets/help/ffmpeg.mdx';
 |---|---|
 | A copy to `.mp4` (or `-f mp4`) from MP4, MOV, Matroska or WebM | [`coreav remux`](/commands/remux) of the selected streams |
 | A copy of one audio stream to `.m4a` (or `-f ipod`) | [`coreav extract-audio`](/commands/extract-audio) |
+| A copy to `.avi` (or `-f avi`) from MP4 or MOV | Bounded H.264, MP3 and integer PCM packet output |
 | `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip), or for a copy of one audio stream and no video, a clip of that audio alone |
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
@@ -35,6 +36,8 @@ In a build with the `transcode` feature, a `.mp3` output or `-f mp3` defaults to
 Use `-b:a RATE` for a constant bit rate or `-q:a Q`/`-qscale:a Q` for VBR quality from 0 (highest) to 9. Quality takes precedence when both are given. Without them, the encoder's default applies. The source must be mono or stereo at a supported MP3 rate from 8 to 48 kHz. Sources are the audio codecs this build decodes; AAC-LC input needs `aac`. No video decoder runs. Rate/channel conversion, trim options, multiple streams and cover-art output remain unsupported. Missing FFmpeg or libmp3lame, failed readback and strict-safe mode publish nothing. `coreav transcode` itself does not select MP3.
 
 CoreAV preserves the source's presented sample count. The pinned FFmpeg adds samples for MP3 input lengths where the count modulo a codec frame is from 1 to 46: it presents `N + 47 - (N mod F)` samples, where `F` is 1,152 at 32, 44.1 and 48 kHz and 576 at lower rates. CoreAV's EOF zero guard and gapless tag retain exactly `N`; FFmpeg and ffprobe read the resulting file at its original length. Other duration differences are not covered by this rule.
+
+AVI output also accepts `-c:a pcm_s16le` or `pcm_u8` for mono or stereo audio that this build decodes. MP3 encoding (`-c:a libmp3lame`) needs the opt-in `transcode` feature, absent from default builds, and an external `ffmpeg` program with that encoder. Strict-safe mode refuses this external encoder even when the feature is enabled. AVI output is limited to files smaller than 1 GiB, with fixed-rate, non-reordered, zero-based H.264 video. [The AVI design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/avi-write.md) lists the supported clocks and resource limits.
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
 
