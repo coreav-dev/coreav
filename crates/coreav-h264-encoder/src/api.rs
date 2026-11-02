@@ -177,7 +177,7 @@ impl Encoder {
         {
             return Err(Error::Limit);
         }
-        limits.access_unit_bytes = limits.access_unit_bytes.min(192 * mbs).min(1_000_000);
+        limits.access_unit_bytes = limits.access_unit_bytes.min(1_000_000);
         Ok(Self {
             settings,
             limits,

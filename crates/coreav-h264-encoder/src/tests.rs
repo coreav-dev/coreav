@@ -363,3 +363,32 @@ fn unspecified_primaries_cannot_signal_derived_colour_matrices() {
         assert!(Encoder::new(s, Limits::default()).is_ok());
     }
 }
+
+#[test]
+fn a_small_textured_picture_uses_the_level_ceiling_not_a_raw_size_fraction() {
+    let mut state = 17u32;
+    let mut bytes = [0u8; 384];
+    for value in &mut bytes {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        *value = state as u8;
+    }
+    let picture = Picture {
+        y: Plane::new(&bytes[..256], 16, 16, 16).unwrap(),
+        cb: Plane::new(&bytes[256..320], 8, 8, 8).unwrap(),
+        cr: Plane::new(&bytes[320..], 8, 8, 8).unwrap(),
+    };
+    let mut encoder = Encoder::new(settings(16, 16, 10), Limits::default()).unwrap();
+    let au = encoder.encode(picture).unwrap();
+    assert!(au.nals.iter().map(Vec::len).sum::<usize>() > 192);
+    let mut limited = Encoder::new(
+        settings(16, 16, 10),
+        Limits {
+            access_unit_bytes: 192,
+            ..Limits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(limited.encode(picture).unwrap_err(), Error::Limit);
+}
