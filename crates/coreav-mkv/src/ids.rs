@@ -56,6 +56,7 @@ pub(crate) const SIMPLE_BLOCK: u32 = 0xA3;
 pub(crate) const BLOCK_GROUP: u32 = 0xA0;
 pub(crate) const BLOCK: u32 = 0xA1;
 pub(crate) const BLOCK_DURATION: u32 = 0x9B;
+pub(crate) const CODEC_STATE: u32 = 0xA4;
 pub(crate) const REFERENCE_BLOCK: u32 = 0xFB;
 pub(crate) const DISCARD_PADDING: u32 = 0x75A2;
 pub(crate) const BLOCK_ADDITIONS: u32 = 0x75A1;

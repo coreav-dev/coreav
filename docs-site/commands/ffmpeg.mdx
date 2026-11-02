@@ -27,6 +27,16 @@ In a build with the `libopus` feature, such a command line can also encode one a
 
 In every build with a decoder backend, such a command line can also encode one audio stream this build decodes, mono or stereo, sampled at an AAC rate from 8 to 64 kHz, with `-c:a aac` (or `-acodec aac`), at the bit rate `-b:a` gives (16k to 512k; without it, the encoder's default), through [`coreav transcode --audio aac`](/commands/transcode). Sources can be FLAC, MP3, Opus, or AAC-LC with the `aac` feature. The encoder is FFmpeg's built-in `aac` encoder, run as a separate process: the `ffmpeg` program `COREAV_FFMPEG` names, else the one on `PATH`. A command line is refused with exit status 4 when no `ffmpeg` program is found or it has no `aac` encoder. Strict-safe mode never runs an `ffmpeg` program, so it refuses every `-c:a aac` command line with exit status 4 and nothing runs.
 
+These audio encoders also work without video: use `-vn` or select one audio stream with `-map a` or `-map 0:a:0`. AAC output can be MP4 or M4A; Opus output can be MP4. `-b:a` and the encoder defaults are unchanged. No video decoder or video encoder runs. Multiple audio streams, delayed source audio, chapters, source tags or dispositions the writer does not preserve, video encoder options and trim options are refused. On M4A, `-map_metadata -1` discards source tags. The standalone `coreav transcode` command still requires video.
+
+### MP3 output
+
+In a build with the `transcode` feature, a `.mp3` output or `-f mp3` defaults to MP3 encoding. `-c:a libmp3lame`, `-codec:a libmp3lame` and `-acodec libmp3lame` select it explicitly. CoreAV runs the `ffmpeg` program named by `COREAV_FFMPEG`, else the one on `PATH`, with libmp3lame as a separate resource-limited encoder. CoreAV supplies decoded PCM, checks its output, and writes the MP3 file itself, including ID3v2.4 and Xing/Info gapless metadata. It never links or bundles libmp3lame.
+
+Use `-b:a RATE` for a constant bit rate or `-q:a Q`/`-qscale:a Q` for VBR quality from 0 (highest) to 9. Quality takes precedence when both are given. Without them, the encoder's default applies. The source must be mono or stereo at a supported MP3 rate from 8 to 48 kHz. Sources are the audio codecs this build decodes; AAC-LC input needs `aac`. No video decoder runs. Rate/channel conversion, trim options, multiple streams and cover-art output remain unsupported. Missing FFmpeg or libmp3lame, failed readback and strict-safe mode publish nothing. `coreav transcode` itself does not select MP3.
+
+CoreAV preserves the source's presented sample count. The pinned FFmpeg adds samples for MP3 input lengths where the count modulo a codec frame is from 1 to 46: it presents `N + 47 - (N mod F)` samples, where `F` is 1,152 at 32, 44.1 and 48 kHz and 576 at lower rates. CoreAV's EOF zero guard and gapless tag retain exactly `N`; FFmpeg and ffprobe read the resulting file at its original length. Other duration differences are not covered by this rule.
+
 AVI output also accepts `-c:a pcm_s16le` or `pcm_u8` for mono or stereo audio that this build decodes. MP3 encoding (`-c:a libmp3lame`) needs the opt-in `transcode` feature, absent from default builds, and an external `ffmpeg` program with that encoder. Strict-safe mode refuses this external encoder even when the feature is enabled. AVI output is limited to files smaller than 1 GiB, with fixed-rate, non-reordered, zero-based H.264 video. [The AVI design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/avi-write.md) lists the supported clocks and resource limits.
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
@@ -37,6 +47,8 @@ Any other command line is refused in strict-safe mode, and goes to the real `ffm
 coreav --strict-safe ffmpeg -i input.mkv -c copy -movflags +faststart output.mp4
 coreav --strict-safe ffmpeg -ss 10 -t 5 -i input.mp4 -c copy clip.mp4
 coreav --strict-safe ffmpeg -f concat -safe 0 -i list.txt -c copy joined.mp4
+coreav ffmpeg -i input.mp4 -vn -c:a aac output.m4a
+coreav ffmpeg -i input.mp4 -q:a 2 output.mp3
 ```
 
 `coreav ffmpeg` prints nothing on success. It writes the output to a temporary file and moves it into place only when the whole job succeeded.

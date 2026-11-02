@@ -77,6 +77,8 @@ pub struct Packet {
     /// its default, with its `BlockAdditional`: additional data the codec
     /// defines (RFC 9559 5.1.3.5.2.2 and 5.1.3.5.2.3).
     pub codec_addition: bool,
+    /// This block's group contains a `CodecState` change.
+    pub codec_state: bool,
 }
 
 impl Packet {
@@ -174,7 +176,7 @@ impl<'a, S: Source> Packets<'a, S> {
     /// Walks the structure audit (`crate::audit`) with the listing, from the
     /// start of the Segment to the end of the file: an audit error, found
     /// anywhere, is returned instead of the listing's error or its end.
-    pub(crate) fn with_audit(mut self) -> Self {
+    pub fn with_audit(mut self) -> Self {
         self.audit = Some(Audit::new(self.segment, &self.limits));
         self
     }
@@ -430,6 +432,7 @@ impl<'a, S: Source> Packets<'a, S> {
                     extra.duration = Some(ebml::uint(&data, &h)?);
                 }
                 ids::REFERENCE_BLOCK => extra.referenced = true,
+                ids::CODEC_STATE => extra.codec_state = true,
                 ids::BLOCK_ADDITIONS => {
                     extra.additions = Some((h.offset, child_end - h.offset));
                     // A malformed addition, optional metadata, leaves the
@@ -602,6 +605,7 @@ impl<'a, S: Source> Packets<'a, S> {
                 discard_padding: group.and_then(|g| g.discard_padding),
                 block_additions: group.and_then(|g| g.additions).filter(|_| lace == 0),
                 codec_addition: group.is_some_and(|g| g.codec_addition) && lace == 0,
+                codec_state: group.is_some_and(|g| g.codec_state),
             });
         }
         Ok(())
@@ -615,6 +619,7 @@ struct GroupFields {
     discard_padding: Option<i64>,
     additions: Option<(u64, u64)>,
     codec_addition: bool,
+    codec_state: bool,
 }
 
 /// How a track's block timestamps become presentation timestamps.

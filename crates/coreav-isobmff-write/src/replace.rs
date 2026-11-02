@@ -450,7 +450,7 @@ pub(crate) fn audio_edits_exact<R>(
 /// and 8.9.2): a version 1 description of one `AudioRollRecoveryEntry`,
 /// and the first `roll` of `samples` samples outside the group, every
 /// later one in it.
-pub(crate) fn roll_boxes(samples: u32, roll: u16) -> Vec<RawBox> {
+pub fn roll_boxes(samples: u32, roll: u16) -> Vec<RawBox> {
     let distance = i16::try_from(roll).unwrap_or(i16::MAX);
     let mut sgpd = vec![1, 0, 0, 0];
     sgpd.extend_from_slice(b"roll");
