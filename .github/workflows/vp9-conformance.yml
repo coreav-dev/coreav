@@ -1,10 +1,11 @@
 name: vp9-conformance
 
-# Gates G1 and G2 of docs/design/vp9.md: every test vector of
+# Gates G1 and G2 and G4's profile 0 vector comparisons of docs/design/vp9.md: every test vector of
 # crates/coreav-vp9/tests/data/vectors.json, fetched from the WebM project's
 # bucket and checked against the SHA-256 the manifest pins, through the
 # crate's header reader, and the MD5 of every intra frame without the loop
-# filter (gate G2). Also checks that crates/coreav-vp9/src/tables.rs and
+# filter (gate G2), and every shown profile 0 frame's published size and
+# MD5 after reconstruction and filtering. Also checks that crates/coreav-vp9/src/tables.rs and
 # crates/coreav-kernels-vp9/src/tables.rs are what
 # crates/coreav-vp9/tools/gen_tables.py reads from the specification.
 # Runs when either crate or this workflow changes, and weekly.
@@ -30,7 +31,11 @@ concurrency:
 jobs:
   vectors:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -40,11 +45,18 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: The tables are the specification's
+      - name: Install the PDF reader on Linux
+        if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends poppler-utils
+      - name: Install the PDF reader on macOS
+        if: runner.os == 'macOS'
+        run: brew install poppler
+      - name: The tables are the specification's
+        run: |
+          set -euo pipefail
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/vp9-spec.pdf" https://storage.googleapis.com/downloads.webmproject.org/docs/vp9/vp9-bitstream-specification-v0.7-20170222-draft.pdf
           python3 -I crates/coreav-vp9/tools/gen_tables.py --pdf "$RUNNER_TEMP/vp9-spec.pdf" --out crates/coreav-vp9/src/tables.rs --kernels-out crates/coreav-kernels-vp9/src/tables.rs --check
       - name: List the vectors and their checksums
@@ -73,7 +85,7 @@ jobs:
           cd "$RUNNER_TEMP/vp9-vectors"
           xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"' < "$RUNNER_TEMP/vp9-urls.txt"
       - name: Check the vectors
-        run: cd "$RUNNER_TEMP/vp9-vectors" && sha256sum --quiet -c "$RUNNER_TEMP/vp9.sha256"
+        run: cd "$RUNNER_TEMP/vp9-vectors" && shasum -a 256 --quiet -c "$RUNNER_TEMP/vp9.sha256"
       - name: Read vector headers and compare decoded frames
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors

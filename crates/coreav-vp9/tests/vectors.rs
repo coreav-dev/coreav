@@ -438,6 +438,20 @@ fn segmented_inter_frames_match_the_published_md5s() {
     assert_eq!(shown, 385);
 }
 
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn every_profile0_vector_matches_the_published_pixels_and_sizes() {
+    let names: Vec<_> = manifest()
+        .into_iter()
+        .map(|(name, _)| name)
+        .filter(|name| name.starts_with("vp90-"))
+        .collect();
+    assert_eq!(names.len(), 341);
+    let shown = check_pixel_md5s(&vectors_dir(), names);
+    assert_eq!(shown, 5835);
+    println!("341 profile 0 vectors match all {shown} published frame MD5s and sizes");
+}
+
 fn check_pixel_md5s(dir: &Path, names: impl IntoIterator<Item = String>) -> usize {
     let mut total = 0;
     for name in names {
@@ -445,7 +459,17 @@ fn check_pixel_md5s(dir: &Path, names: impl IntoIterator<Item = String>) -> usiz
         let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
         let expected: Vec<_> = list
             .lines()
-            .filter_map(|l| l.split_whitespace().next())
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| {
+                let mut fields = l.split_whitespace();
+                let hash = fields.next().unwrap();
+                let size = SIZE_OVERRIDES
+                    .iter()
+                    .find_map(|(vector, size, _)| (*vector == name).then_some(*size))
+                    .or_else(|| entry_size(fields.next().unwrap()))
+                    .expect("a published frame size or a registered size override");
+                (hash, size)
+            })
             .collect();
         let packets = if data.starts_with(b"DKIF") {
             ivf_packets(&data)
@@ -455,13 +479,27 @@ fn check_pixel_md5s(dir: &Path, names: impl IntoIterator<Item = String>) -> usiz
         let mut decoder = FrameDecoder::new(SPEC_LIMITS);
         let mut shown = 0;
         for (i, packet) in packets.iter().enumerate() {
-            for picture in decoder
+            let pictures = decoder
                 .decode(packet)
-                .unwrap_or_else(|e| panic!("{name}, packet {i}: {e}"))
-            {
+                .unwrap_or_else(|e| panic!("{name}, packet {i}: {e}"));
+            if name == LAYERED {
                 assert_eq!(
-                    md5(&picture),
-                    expected[shown],
+                    pictures
+                        .iter()
+                        .map(|picture| (picture.width, picture.height))
+                        .collect::<Vec<_>>(),
+                    LAYERS,
+                    "{name}, packet {i}"
+                );
+            } else {
+                assert!(pictures.len() <= 1, "{name}, packet {i}");
+            }
+            if let Some(picture) = pictures.last() {
+                assert_eq!(
+                    (md5(picture).as_str(), (picture.width, picture.height)),
+                    *expected.get(shown).unwrap_or_else(|| {
+                        panic!("{name}, packet {i}: unexpected shown frame {shown}")
+                    }),
                     "{name}, packet {i}, shown {shown}"
                 );
                 shown += 1;
