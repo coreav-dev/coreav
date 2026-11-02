@@ -643,6 +643,97 @@ fn the_movie_box_moves_to_the_front() {
 }
 
 #[test]
+fn mapped_inputs_keep_each_files_samples_and_track_order() {
+    use coreav_isobmff_write::{InputStream, remux_mp4_inputs};
+    let first = build(&file(vec![video(50, 25), aac(95, false)]));
+    let mut second = first.clone();
+    let limits = Limits::default();
+    let allowlist = Allowlist::default();
+    let movie = probe(SliceSource::new(&first), &limits, &allowlist).unwrap();
+    for index in 0..movie.tracks.len() {
+        for packet in packets(&first, &movie, index) {
+            for byte in &mut second
+                [packet.offset as usize..(packet.offset + u64::from(packet.size)) as usize]
+            {
+                *byte ^= 0x5a;
+            }
+        }
+    }
+    let maps = [
+        InputStream {
+            input: 1,
+            stream: 1,
+        },
+        InputStream {
+            input: 0,
+            stream: 0,
+        },
+        InputStream {
+            input: 1,
+            stream: 0,
+        },
+        InputStream {
+            input: 0,
+            stream: 1,
+        },
+        InputStream {
+            input: 1,
+            stream: 1,
+        },
+    ];
+    let mut output = Vec::new();
+    let summary = remux_mp4_inputs(
+        vec![SliceSource::new(&first), SliceSource::new(&second)],
+        &maps,
+        &[],
+        &limits,
+        &allowlist,
+        &mut output,
+    )
+    .unwrap();
+    let result = probe(SliceSource::new(&output), &limits, &allowlist).unwrap();
+    assert_eq!(result.tracks.len(), maps.len());
+    assert_eq!(summary.bytes_written, output.len() as u64);
+    for (index, selected) in maps.iter().enumerate() {
+        let source = if selected.input == 0 { &first } else { &second };
+        let original = packets(source, &movie, selected.stream);
+        let copied = packets(&output, &result, index);
+        assert_eq!(copied.len(), original.len());
+        for (a, b) in copied.iter().zip(&original) {
+            assert_eq!(bytes(&output, a), bytes(source, b));
+            assert_eq!(a.dts, b.dts);
+            assert_eq!(a.pts, b.pts);
+            assert_eq!(a.duration, b.duration);
+        }
+    }
+}
+
+#[test]
+fn mapped_inputs_refuse_invalid_sources_before_writing() {
+    use coreav_isobmff_write::{InputStream, remux_mp4_inputs};
+    let first = build(&file(vec![video(10, 5)]));
+    let mut different_clock = first.clone();
+    let mvhd = different_clock
+        .windows(4)
+        .position(|bytes| bytes == b"mvhd")
+        .unwrap();
+    different_clock[mvhd + 16..mvhd + 20].copy_from_slice(&2000u32.to_be_bytes());
+    for (second, input) in [(&first, 2), (&different_clock, 1)] {
+        let mut output = Vec::new();
+        let result = remux_mp4_inputs(
+            vec![SliceSource::new(&first), SliceSource::new(second)],
+            &[InputStream { input, stream: 0 }],
+            &[],
+            &Limits::default(),
+            &Allowlist::default(),
+            &mut output,
+        );
+        assert!(result.is_err());
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
 fn a_compressed_movie_is_not_copied() {
     // The movie box last, replaced by a QuickTime compressed movie box
     // (docs/design/compressed-movie.md): probe reads it, the copy does not.

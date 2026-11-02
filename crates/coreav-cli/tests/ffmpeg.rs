@@ -83,6 +83,223 @@ fn a_stream_copy_runs_and_prints_nothing() {
 }
 
 #[test]
+fn mapped_inputs_copy_streams_in_map_order() {
+    let dir = scratch("ffmpeg-mapped-inputs");
+    let input = movie(&dir);
+    for (case, count, maps, kinds) in [
+        (
+            "all-and-audio",
+            2,
+            vec!["0", "1:a"],
+            vec![
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Audio,
+                coreav_isobmff::TrackKind::Audio,
+            ],
+        ),
+        (
+            "separate-av",
+            2,
+            vec!["0:v", "1:a"],
+            vec![
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Audio,
+            ],
+        ),
+        (
+            "three-inputs",
+            3,
+            vec!["0:0", "1:0", "2:0", "2:1"],
+            vec![
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Audio,
+            ],
+        ),
+        (
+            "remove-only-second-audio",
+            2,
+            vec!["0", "1:a", "-1:a"],
+            vec![
+                coreav_isobmff::TrackKind::Video,
+                coreav_isobmff::TrackKind::Audio,
+            ],
+        ),
+    ] {
+        let output = dir.join(format!("{case}.mp4"));
+        let mut args: Vec<&str> = (0..count).flat_map(|_| ["-i", input.as_str()]).collect();
+        for map in maps {
+            args.extend(["-map", map]);
+        }
+        args.extend(["-c", "copy", output.to_str().unwrap()]);
+        let run = ffmpeg(&args);
+        assert_eq!(run.code, 0, "{case}: {}", run.stderr);
+        let data = std::fs::read(output).unwrap();
+        let result = coreav_isobmff::probe(
+            coreav_isobmff::SliceSource::new(&data),
+            &coreav_isobmff::Limits::default(),
+            &coreav_isobmff::Allowlist::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            result.tracks.iter().map(|t| t.kind).collect::<Vec<_>>(),
+            kinds
+        );
+    }
+    let output = dir.join("refused.mp4");
+    for options in [
+        vec!["-ss", "0.5"],
+        vec!["-f", "ipod"],
+        vec!["-c:v", "libx264"],
+    ] {
+        let mut args = vec![
+            "-i", &input, "-i", &input, "-map", "0:v", "-map", "1:a", "-c", "copy",
+        ];
+        args.extend(options);
+        args.push(output.to_str().unwrap());
+        assert_eq!(ffmpeg(&args).code, 4, "{args:?}");
+        assert!(!output.exists());
+    }
+    let original = std::fs::read(&input).unwrap();
+    assert_eq!(
+        ffmpeg(&[
+            "-y", "-i", &input, "-i", &input, "-map", "1", "-c", "copy", &input
+        ])
+        .code,
+        2
+    );
+    assert_eq!(std::fs::read(&input).unwrap(), original);
+}
+
+#[test]
+fn mapped_inputs_refuse_missing_default_dispositions() {
+    let dir = scratch("ffmpeg-mapped-inputs-no-default");
+    let mut data = av_movie_with(aac_entry(), false);
+    let headers: Vec<usize> = data
+        .windows(4)
+        .enumerate()
+        .filter_map(|(offset, bytes)| (bytes == b"tkhd").then_some(offset))
+        .collect();
+    assert_eq!(headers.len(), 2);
+    for offset in headers {
+        data[offset + 7] &= !1;
+    }
+    let input = dir.join("no-default.mp4");
+    std::fs::write(&input, data).unwrap();
+    let input = input.to_str().unwrap();
+    let output = dir.join("out.mp4");
+    let run = ffmpeg(&[
+        "-i",
+        input,
+        "-i",
+        input,
+        "-map",
+        "0:v",
+        "-map",
+        "1:v",
+        "-c",
+        "copy",
+        output.to_str().unwrap(),
+    ]);
+    assert_eq!(run.code, 4, "{}", run.stderr);
+    assert!(run.stderr.contains("default disposition"), "{}", run.stderr);
+    assert!(!output.exists());
+}
+
+#[test]
+fn mapped_inputs_agree_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-mapped-inputs-oracle");
+    let inputs: Vec<PathBuf> = (0..3)
+        .map(|i| dir.join(format!("source-{i}.mp4")))
+        .collect();
+    for (index, path) in inputs.iter().enumerate() {
+        let made = Command::new(&ffmpeg_bin)
+            .args([
+                "-nostdin",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=64x64:rate=10:duration=1",
+            ])
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                &format!("sine=frequency={}:duration=1", 440 + index * 110),
+            ])
+            .args(["-c:v", "libx264", "-bf", "0", "-c:a", "aac"])
+            .args(["-metadata", &format!("title=source-{index}")])
+            .args([
+                "-metadata:s:a:0",
+                &format!("language={}", ["eng", "fra", "deu"][index]),
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(
+            made.status.success(),
+            "{}",
+            String::from_utf8_lossy(&made.stderr)
+        );
+    }
+    let capture = |path: &Path| {
+        let output = Command::new(&ffprobe_bin).args(["-v", "error", "-of", "json", "-show_packets", "-show_data_hash", "MD5", "-show_entries", "stream=codec_type,codec_name,width,height,time_base,sample_rate,channels:stream_tags=language,handler_name:stream_disposition=default:format_tags=title:packet=stream_index,pts_time,dts_time,duration_time,data_hash,flags"])
+            .arg(path).output().unwrap();
+        assert!(output.status.success());
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    for (name, count, maps) in [
+        ("all-and-audio", 2, vec!["0", "1:a"]),
+        ("separate-av", 2, vec!["0:v", "1:a"]),
+        ("three-inputs", 3, vec!["0:0", "1:0", "2:0", "2:1"]),
+        ("remove-second-audio", 2, vec!["0", "1:a", "-1:a"]),
+        ("repeated-audio-first", 2, vec!["1:a", "0:v", "1:a"]),
+    ] {
+        let mut args = Vec::new();
+        for path in inputs.iter().take(count) {
+            args.extend(["-i", path.to_str().unwrap()]);
+        }
+        for map in maps {
+            args.extend(["-map", map]);
+        }
+        args.extend(["-c", "copy"]);
+        let output = dir.join(format!("{name}.mp4"));
+        let oracle = dir.join(format!("{name}-oracle.mp4"));
+        let expected = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(&args)
+            .arg(&oracle)
+            .output()
+            .unwrap();
+        assert!(
+            expected.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&expected.stderr)
+        );
+        args.push(output.to_str().unwrap());
+        let run = ffmpeg(&args);
+        assert_eq!(run.code, 0, "{name}: {}", run.stderr);
+        let mut actual = capture(&output);
+        let mut expected = capture(&oracle);
+        for result in [&mut actual, &mut expected] {
+            result["packets"].as_array_mut().unwrap().sort_by_key(|p| {
+                (
+                    p["stream_index"].as_i64().unwrap(),
+                    p["dts_time"].as_str().unwrap().to_owned(),
+                )
+            });
+        }
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+#[test]
 fn commands_outside_the_vocabulary_are_refused_by_name() {
     let dir = scratch("ffmpeg-refused");
     let input = movie(&dir);

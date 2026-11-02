@@ -1150,7 +1150,7 @@ when native strict probe still rejects it with `codec_not_allowed`.
 ### `coreav ffmpeg`
 
 `coreav_cli::ffmpeg`, one implementation in three steps. `args::parse` reads the
-command line into one input, one output and their options, and refuses
+command line into its inputs, one output and their options, and refuses
 anything outside the vocabulary before the input is opened. `plan` reads the
 input's streams as `coreav ffprobe` lists them, selects the streams as
 `ffmpeg` does and picks the writer. `run` writes the output to a temporary
@@ -1159,6 +1159,22 @@ file next to it and moves it into place only when the whole job succeeded.
 writer's own command prints, which the fixture test hands to the oracles.
 The writers are the existing jobs, each with the options the command
 implies:
+
+Mapped stream copies can also combine up to sixteen MP4/MOV inputs into
+one MP4. For example, `-i video.mp4 -i audio.m4a -map 0:v -map 1:a -c copy
+out.mp4` copies video from input zero and audio from input one. Type,
+index and language specifiers are local to their input; output codec
+specifiers still address the output stream order. Negative maps remove
+only streams selected from the named input. Movie metadata comes from
+input zero and stream metadata follows its stream.
+
+This path requires explicit maps and copied audio/video streams. Every
+input must start at presentation time zero, have the same movie timescale
+and be unfragmented. Automatic selection across files, input options,
+trimming, encoding, chapters, selected cover pictures, other input/output
+containers, explicit metadata mapping and a stream type whose multiple
+mapped streams have no default disposition are refused by name. The output
+is checked against every input, including hard links, before writing.
 
 | The command | The writer |
 |---|---|
