@@ -34,12 +34,16 @@ and from the path filters an earlier change put on the heavy workflows:
   `h264-conformance`, `oracle-installer`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
 - **Each required workflow ends in a report job** (`ci-report`,
-  `python-report`, `npm-report`), which carries `if: always()`, waits for
-  the changes job and every other job, prints their results and fails when
-  one failed or was cancelled. A job the filter skipped reports `skipped`
-  and passes. That name is the required check: it appears on every pull
-  request, including one that changes documentation only. Every job of a
-  workflow with a required report job is waited for by one of them.
+  `python-report`, `npm-report`, `deny`), which carries `if: always()`,
+  waits for the changes job and every other job, prints their results and
+  fails when one failed or was cancelled. A job the filter skipped reports
+  `skipped` and passes. That name is the required check: it appears on
+  every pull request, including one that changes documentation only. Every
+  job of a workflow with a required report job is waited for by one of
+  them. `deny` is the required name and the report job's id, because a
+  ruleset matches by name and that name was there before the job reported;
+  the job that does the work is `deny-checks` ("A job timeout is not a
+  cancellation" below).
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
@@ -129,6 +133,44 @@ release read; they are opt-in builds, not a gate on every pull request.
 `workflow_check.py` enforces both halves: every job that is not
 label-gated must be covered by a report job of its workflow, and no report
 job may cover one that is.
+
+## A job timeout is not a cancellation
+
+A concurrency group cancels a superseded run and starts a newer one, so the
+cancelled check is replaced by a run for the same head. A job that reaches
+its own `timeout-minutes` is a different thing: GitHub cancels that job and
+reports its check as `cancelled`, the run ends, and no group has a newer run
+to start. Nothing about the check then says whether the work failed or the
+runner was slow.
+
+`deny`'s job took 6.7 to 9.8 minutes over the 53 jobs that finished
+successfully in two days, and its ceiling was 10, so the ceiling sat inside
+the job's own runtime: one run crossed it and left `deny` cancelled on its
+commit with no replacement. Its ceiling is now 30, well above that runtime,
+and the required `deny` name is reported by a job of its own, which always
+runs and fails unless `deny-checks` succeeded. A timeout is a red required check
+that names the job which stopped, not a cancelled one with nothing after it.
+
+The pull request is not the only loser: a merge group has no newer run to
+fall back on either, and a `deny` job that ran out its ceiling ejected the
+queued pull request from the queue. The queue waits on the same check, so
+the same report job reports it.
+
+That report passes on `success` and nothing else. Nothing in `deny.yml` is
+filtered, so no job of it has anything to skip, and a required check that a
+skipped job passes says nothing about the commit. The report jobs of
+`ci.yml`, `python.yml` and `npm.yml` still pass a job their path filter
+skipped, because there the skip is the filter's own decision.
+
+A report job waits on the jobs that do the work, carries `if: always()` so
+it runs after they stop, and reports their results rather than doing work
+itself. That it does no work is review judgment: whether arbitrary steps
+and shell commands work cannot be read from the workflow file, and no check
+claims to. What is checked is the report's own behaviour, by running it
+(`scripts/tests/test_deny_report.py`).
+
+Every report job runs for seconds under a ceiling of 5 minutes, so a job it
+waits for is not cancelled by a timeout without the report saying so.
 
 ## The filter
 
@@ -227,9 +269,10 @@ by its job's name, not by its workflow.
 - **A manual run of `ci.yml` runs everything,** the H.264 conformance suite
   included, which had no manual trigger before; `update` keeps the
   guard's counts as an artifact, as `bench-guard.yml`'s input did.
-- **Not moved:** `deny.yml` is one job, so moving it saves nothing, and
-  folding its steps into `ci-changes` would drop the required `deny` name
-  and hold every heavy job back by its run time. `python.yml` and
+- **Not moved:** `deny.yml`'s checks are one job and its report is another,
+  so moving it saves nothing, and folding its steps into `ci-changes` would
+  drop the required `deny` name and hold every heavy job back by its run
+  time. `python.yml` and
   `npm.yml` also run on `labeled`, so in `ci.yml` a label would rerun, and
   cancel, every job of the pull request. `pr-text.yml` runs on `edited`, for
   the same reason. The workflows that are not required keep their trigger
@@ -313,7 +356,7 @@ The `main` ruleset can require a merge queue. The queue applies each pull reques
 - **The changes jobs diff the group's base against the group's commit** (`github.event.merge_group.base_sha` to the checked-out `head_sha`), so a group runs the jobs a pull request with the same changes would, the platform jobs included when it touches their list. The base is the tip of `main` or the commit of the group queued ahead; either can be more than the one parent `fetch-depth: 2` brings, so the changed-paths action fetches it (`--depth=1`) before the diff. When it cannot be fetched, everything runs.
 - **`bench-guard` counts the group's base**, fetched the same way, as a pull request's run counts the first parent of its merge commit, and compares the group's counts with it.
 - **No fuzzing in the queue.** `fuzz-plan` stays empty for a merge group, so `fuzz` is skipped and `ci-report` covers it. The pull request already fuzzed every target its change reaches, on its own merge commit, and `fuzz-nightly.yml` runs every target on `main` each day. A fuzz run is a search, not a property of the commit: a finding in the queue would most likely be an old bug found by chance, and it would eject whichever pull request happened to be queued. The fuzz job, among the longest of a pull request's run, would also lengthen every entry.
-- **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny` runs.
+- **No pull request text or DCO check in the queue.** A merge group has no pull request. `pr-text.yml` is not required and does not run on it. The DCO step of `deny-checks` runs on `pull_request` only: the queue adds no contributor's commit, only the squash of a pull request whose commits that step passed, as the merge button would. Every other step of `deny-checks` runs, and `deny` reports the result.
 - **The label-gated builds are skipped**: a merge group carries no labels, and no report job covers those jobs ("What a report job must not hide").
 - **The draft condition** lets every job run on a merge group: only a ready pull request can be queued.
 - **Concurrency.** Merge groups have run-id groups of their own and cannot cancel one another. Main jobs in the filtered workflows are independent too; an unfiltered deny replacement may cancel its whole predecessor ("Concurrency"). `workflow_check.py` refuses a required workflow with neither a workflow-level group nor job groups: its superseded PR runs would never be cancelled. When the queue drops a group, GitHub deletes its branch and starts a new group; the old run is not cancelled and ends on its own.
@@ -324,7 +367,7 @@ A squash commit does not have the merge group's commit SHA, but can have the sam
 
 Missing evidence, a mismatching tree, an API error, unavailable commit metadata, or the search limit means the normal suite runs. PRs, merge groups, tags, schedules and manual runs never reuse results. The token gets `actions: read` as well as `contents: read`, and only the lookup step sees it.
 
-On a proven tree, `python-report` and `npm-report` retain their changes and report jobs, but skip the repeated wheel/package tests. `deny` logs its evidence instead of repeating the licence, advisory and repository checks. Their required names still report conclusions. `ci-report` retains:
+On a proven tree, `python-report` and `npm-report` retain their changes and report jobs, but skip the repeated wheel/package tests. `deny-checks` logs its evidence instead of repeating the licence, advisory and repository checks. Their required names still report conclusions. `ci-report` retains:
 
 - `ci-changes` and the report itself, so the evidence and all maintenance outcomes remain visible.
 - `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
@@ -334,7 +377,7 @@ The other job-specific caches are refreshed by full fallback/manual runs rather 
 
 ### Load measurements
 
-A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 10 jobs for the ordinary Rust case and 11 for the full case; the documentation case stays at 7 lightweight jobs. These after counts are tested job plans, not production observations. The sanitized cohorts and a recomputation command are retained in [the load sample](../measurements/ci-main-load/README.md).
+A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 11 jobs for the ordinary Rust case and 12 for the full case; the documentation case is 8 lightweight jobs. These after counts are tested job plans, not production observations. The sanitized cohorts and a recomputation command are retained in [the load sample](../measurements/ci-main-load/README.md).
 
 For one merge-group cohort, first actual job starts were 9m45s–15m03s after workflow creation, with `ci` at 15m03s. In a later cohort Python started at 12m50s, while the other three workflows were still queued after at least 15m07s at observation. Queued jobs' placeholder `started_at` values are not starts. A post-change production wait has not yet been observed; cancellation of old runs also changes the queue, so these snapshots cannot establish a causal wait-time improvement.
 
@@ -545,7 +588,7 @@ failed.
 
 | Check | Workflow | Note |
 |---|---|---|
-| `deny` | `deny.yml` | Licence, advisory, repository and PR DCO checks; on main, a successful same-tree merge-group result may replace repeated checks |
+| `deny` | `deny.yml` | The licence, advisory, repository and PR DCO checks, reported by the `deny` job, which fails when they failed, were cancelled or were skipped; on main, a successful same-tree merge-group result may replace repeated checks |
 | `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard; on proven main trees, only the baseline guard, arm64 conformance and shared-cache maintenance are repeated |
 | `python-report` | `python.yml` | The abi3 wheel and its tests, or on main their successful same-tree merge-group result |
 | `npm-report` | `npm.yml` | The npm packages, launcher and smoke tests, or on main their successful same-tree merge-group result |
