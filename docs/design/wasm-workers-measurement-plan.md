@@ -4,7 +4,7 @@ This plan registers a future measurement of `@coreav/wasm` in local `workerd` an
 
 ## Operations and scenarios
 
-The operation inventory comes from `packages/wasm/src/index.js`. The harness must compare that export list with this table before it starts. A changed inventory requires a plan update before measurement, not an omitted row.
+Classify every public export from `packages/wasm/src/index.js` as either a media operation in this table or a non-media export in the inventory below. Freeze both inventories in the manifest. Before timing, the harness must reject an export that is missing, unknown, or classified more than once. Do not derive the measured inventory by filtering exports against this table, because that would hide a new media operation. A changed inventory requires a plan update before measurement, not an omitted row.
 
 | Public operation | Successful scenario | Additional scenario |
 | --- | --- | --- |
@@ -23,6 +23,8 @@ The operation inventory comes from `packages/wasm/src/index.js`. The harness mus
 `hlsGet` starts with the same prebuilt index in both engines. Index loading is outside its operation timer and has a separate byte and memory record. `hlsIndex` measures index construction. The complete HLS crawl reports both index construction included and index reuse. Application cache hits, stored-index reloads, and damaged-index rebuilds are separate scenarios, not substitutes for library execution.
 
 There is no thumbnail, decode, or transcode operation in this package. Initialization, `moduleInfo`, source adapters, constants, and error helpers are setup or diagnostics. Record their costs separately rather than counting them as media operations.
+
+The non-media inventory is `init`, `moduleInfo`, `CoreAVError`, `RequestLimitError`, `SourceChangedError`, `SourceNotFoundError`, `errorResponse`, `RANGE_DEFAULTS`, `bytesSource`, `httpSource`, and `rangeSource`. The Workers entry adds `R2_DEFAULTS` and `r2Source` to that inventory. Check that entry separately against the shared inventories and these two additions.
 
 ## Inputs and frozen artifacts
 
