@@ -14,7 +14,8 @@ import { noticeSections, validateEvidence } from "../../../scripts/notices/evide
 export const PACKED = Object.freeze([
   "package/LICENSE-APACHE", "package/LICENSE-MIT", "package/NOTICE", "package/README.md",
   "package/THIRD-PARTY-NOTICES.txt", "package/package.json",
-  "package/src/api.js", "package/src/engine.js", "package/src/errors.js", "package/src/index.d.ts",
+  "package/src/bounded-source.js",
+  "package/src/api.js", "package/src/engine.js", "package/src/engine-core.js", "package/src/errors.js", "package/src/index.d.ts",
   "package/src/index.js", "package/src/internal.js", "package/src/node.d.ts", "package/src/node.js",
   "package/src/r2.js", "package/src/sources.js", "package/src/workers.d.ts", "package/src/workers.js",
   "package/wasm/build.js", "package/wasm/coreav.js", "package/wasm/coreav_bg.wasm",
