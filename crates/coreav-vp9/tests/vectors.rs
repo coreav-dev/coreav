@@ -14,7 +14,7 @@
 )]
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use coreav_vp9::{Decoder, Header, Limits, Picture, Samples};
 use md5::{Digest, Md5};
@@ -179,9 +179,9 @@ const SIZE_OVERRIDES: [(&str, (u32, u32), &str); 3] = [
 
 /// The vector whose key frame's tile does not end as clause 9.2.3 requires,
 /// and the reason it is not counted against the tile reader and its key
-/// frame's MD5 is not checked against the list. The check
-/// fails once that tile ends cleanly, so the exception cannot outlive its
-/// cause.
+/// frame, the first frame it shows, may have an MD5 other than the list's.
+/// The check fails once that tile ends cleanly or that MD5 matches the
+/// list, so the exception cannot outlive its cause.
 const UNCLEAN_TILE: (&str, &str) = (
     "vp91-2-04-yv444.webm",
     "no black box decodes it: libvpx 1.17.0, through FFmpeg 9.0.2, refuses its first packet as a bitstream it does not support, and FFmpeg 9.0.2's own decoder fails on the four packets after it and gives the first frame an MD5 the list does not have. Its tile leaves 21,157 nonzero bytes after the last block",
@@ -266,7 +266,7 @@ fn check(dir: &Path, name: &str) -> Option<String> {
                     if h.show_frame {
                         in_packet.push((h.width, h.height));
                         hashes.push(
-                            (h.is_intra() && name != UNCLEAN_TILE.0)
+                            h.is_intra()
                                 .then(|| md5(&picture.expect("an intra frame is decoded"))),
                         );
                     }
@@ -300,6 +300,14 @@ fn check(dir: &Path, name: &str) -> Option<String> {
             shown[wrong], expected[wrong]
         ));
     }
+    if name == UNCLEAN_TILE.0 {
+        if shown_hashes.first().and_then(Option::as_deref) == hashes.first().copied() {
+            return Some("its key frame has its published MD5, so UNCLEAN_TILE is stale".into());
+        }
+        if let Some(key) = shown_hashes.first_mut() {
+            *key = None;
+        }
+    }
     let wrong = shown_hashes
         .iter()
         .zip(&hashes)
@@ -328,11 +336,23 @@ fn md5(picture: &Picture) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// The directory of the downloaded vectors: the harness's one input from
+/// the environment.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the decoder reads no environment; the harness finds its vectors there"
+)]
+fn vectors_dir() -> PathBuf {
+    std::env::var_os("COREAV_VP9_VECTORS")
+        .expect("COREAV_VP9_VECTORS")
+        .into()
+}
+
 #[test]
 #[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
 fn every_vector_shows_the_frames_of_its_md5_list() {
-    let dir = std::env::var_os("COREAV_VP9_VECTORS").expect("COREAV_VP9_VECTORS");
-    let dir = Path::new(&dir);
+    let dir = vectors_dir();
+    let dir = dir.as_path();
     let vectors = manifest();
     let failures: Vec<String> = vectors
         .iter()
@@ -365,9 +385,8 @@ const UNPADDED: (&str, &str, &str) = (
 #[test]
 #[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
 fn a_frame_that_does_not_end_cleanly_is_decoded_as_ffmpeg_decodes_it() {
-    let dir = std::env::var_os("COREAV_VP9_VECTORS").expect("COREAV_VP9_VECTORS");
     let (name, published, cut_md5) = UNPADDED;
-    let data = std::fs::read(Path::new(&dir).join(name)).unwrap();
+    let data = std::fs::read(vectors_dir().join(name)).unwrap();
     let key = ivf_packets(&data)[0];
     let decode = |packet: &[u8]| {
         let headers = Decoder::new(SPEC_LIMITS).read_headers(packet).unwrap();

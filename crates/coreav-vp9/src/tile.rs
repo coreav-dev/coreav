@@ -646,9 +646,6 @@ impl<P: Sample> Tiles<'_, P> {
         };
         for (i, c) in coefs.iter_mut().enumerate() {
             *c = *c * if i == 0 { dc } else { ac } / denom;
-            if std::env::var("WRAP").is_ok() {
-                *c = i64::from(*c as i16);
-            }
         }
         let tx_type = match tx_type {
             ADST_DCT => TxType::AdstDct,

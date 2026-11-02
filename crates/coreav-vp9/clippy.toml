@@ -1,0 +1,22 @@
+# Clippy reads the clippy.toml nearest the crate and nothing above it, so
+# this file repeats the workspace's ../../clippy.toml line for line
+# (tests/clippy_config.rs checks it) and adds what holds for this crate.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+# Clippy's version-aware lints keep to Rust 1.85, the workspace's version
+# before the H.264 kernels' AVX-512 tier raised `rust-version` to 1.89 for
+# its target features (docs/design/h264.md, "Kernel round: an AVX-512
+# tier"); suggestions of what 1.86 to 1.89 stabilized are left to a change
+# of their own.
+msrv = "1.85"
+
+# The decoder is sans-IO: what it decodes depends on its input and its
+# `Limits` alone, never on the environment.
+disallowed-methods = [
+    { path = "std::env::var", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
+    { path = "std::env::var_os", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
+    { path = "std::env::vars", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
+    { path = "std::env::vars_os", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
+]

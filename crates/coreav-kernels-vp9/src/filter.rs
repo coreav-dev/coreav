@@ -96,7 +96,7 @@ impl<'a, P: Pixel> Edge<'a, P> {
     fn get(&self, i: isize) -> i32 {
         self.index(i)
             .and_then(|k| self.plane.get(k))
-            .map_or(0, |p| p.get() as i32)
+            .map_or(0, |p| p.get())
     }
 
     fn set(&mut self, i: isize, v: i32, bit_depth: BitDepth) {

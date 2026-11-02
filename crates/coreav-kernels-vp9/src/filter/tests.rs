@@ -106,3 +106,39 @@ fn extremes_stay_in_range() {
         }
     }
 }
+
+/// Every value a sample type holds filters without overflow at every depth,
+/// even outside the depth's range: the sealed sample types bound the
+/// arithmetic, not the stream.
+#[test]
+fn every_value_a_sample_holds_filters_without_overflow() {
+    for depth in [BitDepth::Eight, BitDepth::Ten, BitDepth::Twelve] {
+        for (lvl, sharpness) in [(1, 0), (63, 0), (63, 7)] {
+            let strength = Strength::new(lvl, sharpness).unwrap();
+            for pattern in 0..256u32 {
+                let wide: Vec<u16> = (0..16)
+                    .map(|i| {
+                        if pattern >> (i % 8) & 1 == 1 {
+                            u16::MAX
+                        } else {
+                            0
+                        }
+                    })
+                    .collect();
+                let narrow: Vec<u8> = wide.iter().map(|&s| (s >> 8) as u8).collect();
+                for size in [FilterSize::Four, FilterSize::Eight, FilterSize::Sixteen] {
+                    let mut plane = wide.clone();
+                    filter_edge(Edge::new(&mut plane, 8, 1, size).unwrap(), strength, depth);
+                    let mut plane = narrow.clone();
+                    filter_edge(Edge::new(&mut plane, 8, 1, size).unwrap(), strength, depth);
+                }
+            }
+            let mut flat = vec![u16::MAX; 16];
+            filter_edge(
+                Edge::new(&mut flat, 8, 1, FilterSize::Sixteen).unwrap(),
+                strength,
+                depth,
+            );
+        }
+    }
+}

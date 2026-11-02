@@ -70,18 +70,44 @@ impl BitDepth {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for u8 {}
+    impl Sealed for u16 {}
+}
+
 /// A sample: `u8` for 8-bit video, `u16` for 10 and 12 bits.
-pub trait Pixel: Copy + Default + core::fmt::Debug + PartialEq + 'static {
+///
+/// The trait is sealed: the kernels' arithmetic is bounded for samples of
+/// these two types, so no other type can be one.
+///
+/// ```compile_fail,E0277
+/// use coreav_kernels_vp9::{BitDepth, Pixel};
+///
+/// #[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// struct Wide(i32);
+///
+/// impl Pixel for Wide {
+///     fn get(self) -> i32 {
+///         self.0
+///     }
+///     fn clip(v: i64, _: BitDepth) -> Self {
+///         Wide(v as i32)
+///     }
+/// }
+/// ```
+pub trait Pixel: sealed::Sealed + Copy + Default + core::fmt::Debug + PartialEq + 'static {
     /// The sample's value.
-    fn get(self) -> i64;
+    fn get(self) -> i32;
     /// `Clip1(v)` at `bit_depth`: `v` clamped to 0 and
     /// `(1 << BitDepth) - 1`, and to the type's range.
     fn clip(v: i64, bit_depth: BitDepth) -> Self;
 }
 
 impl Pixel for u8 {
-    fn get(self) -> i64 {
-        i64::from(self)
+    fn get(self) -> i32 {
+        i32::from(self)
     }
 
     fn clip(v: i64, _bit_depth: BitDepth) -> Self {
@@ -90,8 +116,8 @@ impl Pixel for u8 {
 }
 
 impl Pixel for u16 {
-    fn get(self) -> i64 {
-        i64::from(self)
+    fn get(self) -> i32 {
+        i32::from(self)
     }
 
     fn clip(v: i64, bit_depth: BitDepth) -> Self {
