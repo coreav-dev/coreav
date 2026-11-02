@@ -243,7 +243,7 @@ Native and WASI builds use the compiler version and commit in `scripts/rust-dist
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
 - The module, the binaries and the license files are build outputs, not
-  committed. Native and WASI packaging verify a matching build-owned notice record using Node only, without rewriting files or requiring Rust; CI also regenerates notices and checks artifact evidence before packing. The record stays out of the packages.
+  committed. Native CI regenerates notices and checks artifact evidence before packing. The main WASI package's `prepack` hook also verifies its matching build-owned notice record using Node only, without rewriting files or requiring Rust. Generated native platform packages have no `prepack` hook, so a direct `npm pack` there does not run that record check. The record stays out of the packages.
 - CI builds the WASI module and the Linux x86-64 package on every ready
   pull request. Tags, manual and weekly runs, and pull requests labelled
   `binaries` also build the four other platforms, each built, run and
