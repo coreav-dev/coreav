@@ -64,6 +64,38 @@ def evidence():
     return receipt, binding
 
 
+class RetainedEvidence(unittest.TestCase):
+    def test_full_receipt_qualifies_with_its_exact_binding(self):
+        directory = ROOT / 'bench/audio-decode/evidence'
+        binding = capacity.load(directory / 'binding.json')
+        value = capacity.load(directory / 'capacity.json')
+        proof = capacity.validate_capacity(value, binding)
+        self.assertEqual(proof.binding_sha256,
+                         'c3962b386482b448471085b8844e42e0c6f6db2c10f5ec44afb59c08b8b83250')
+        self.assertEqual(sum(len(row['operations']) for row in value['inputs']), 60)
+
+    def test_smoke_and_failed_pilot_cannot_be_promoted_by_changing_flags(self):
+        directory = ROOT / 'bench/audio-decode/evidence'
+        for name in ('pilot.json', 'failed-pilot.json'):
+            value = capacity.load(directory / name)
+            self.assertFalse(capacity.qualify(value, value['binding']))
+            value.update(purpose='full', complete=True, passed=True)
+            self.assertFalse(capacity.qualify(value, value['binding']))
+
+    def test_allocation_error_and_remote_resume_proof_are_retained(self):
+        directory = ROOT / 'bench/audio-decode/evidence'
+        diagnostic = capacity.load(directory / 'memory-error.json')
+        self.assertEqual(diagnostic['memory_as_bytes'], 3 << 30)
+        self.assertTrue(capacity.oracle.validate(diagnostic['receipt']))
+        error = diagnostic['receipt']['error']
+        self.assertEqual((error['operation'], error['tool'], error['outcome'], error['exit_code']),
+                         ('oracle.compare', 'opus_compare', 'out_of_memory', 1))
+        proof = capacity.load(directory / 'resume.json')
+        self.assertEqual(proof, {'schema': 'opus-capacity-resume-proof/1', 'signal_interrupted': True,
+                                'completed_retained': 1, 'lost_local_checkpoint': True,
+                                'empty_temporary_directory': True, 'completed_remote_replay_unchanged': True})
+
+
 class Workflow(unittest.TestCase):
     def test_required_check_runs_the_real_gate_and_propagates_its_failure(self):
         workflow = (ROOT / '.github/workflows/deny.yml').read_text()

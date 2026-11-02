@@ -86,3 +86,30 @@ OPENBLAS_NUM_THREADS=1 .venv/bin/python -m unittest discover -s bench/audio-deco
 ```
 
 The unfiltered required `deny` check installs the hash-pinned dependency, runs these regressions and checks every future registration. The historical round outcomes are not reclassified by this tooling.
+
+## Retained validation evidence
+
+The [full receipt](evidence/capacity.json) completed all 60 operations on six already-spent full-length inputs. Its [binding](evidence/binding.json) has canonical SHA-256 `c3962b386482b448471085b8844e42e0c6f6db2c10f5ec44afb59c08b8b83250`. These are capacity results, not a new speed round or decoder acceptance. No timing values are retained.
+
+| Mode | Container | Raw decoded frames | Packets |
+| --- | --- | ---: | ---: |
+| CELT | MP4 | 81,932,640 | 170,693 |
+| CELT | Matroska | 84,508,320 | 352,118 |
+| Hybrid | MP4 | 54,895,200 | 114,365 |
+| Hybrid | Matroska | 54,895,200 | 114,365 |
+| SILK | MP4 | 64,111,680 | 133,566 |
+| SILK | Matroska | 64,111,680 | 133,566 |
+
+The host was an Intel Xeon Platinum 8581C with SMT off. The bound envelope is one concurrent operation, 8 GiB inherited address space per process, a 4 GiB temporary-output budget on tmpfs, a 900-second per-call deadline and a 3,600-second whole-pass deadline. Python was 3.13 and NumPy was 2.5.4. Both CoreAV arms use the existing fixed executables; the oracle and libavcodec baseline use the shared FFmpeg pin. The full receipt contains the executable and judging-file hashes and all sample and byte counts.
+
+The [initial pilot](evidence/failed-pilot.json) completed 18 operations but failed both comparator operations under a 3 GiB address-space limit; it remains failed. Its original protocol errors do not establish a cause. A separate [diagnostic receipt](evidence/memory-error.json) reproduces an explicit comparator allocation error under that limit with the current classifier. Increasing the separately bound envelope to 8 GiB let the [second pilot](evidence/pilot.json) finish all 20 operations. Neither pilot can qualify because its purpose is smoke and it covers only two cells. This diagnostic does not identify the causes of the historical speed round's unretained worker errors.
+
+The [resume proof](evidence/resume.json) records an actual signal interruption after one completed operation. The new process recovered from remote storage after losing its local checkpoint and temporary outputs, kept the completed result and finished the remaining work. A second remote-only replay left the completed receipt unchanged. The numerical and schema regressions replay these retained documents in CI.
+
+Replay the full qualification without media or external executables:
+
+```sh
+.venv/bin/python bench/audio-decode/capacity.py validate \
+  --receipt bench/audio-decode/evidence/capacity.json \
+  --binding bench/audio-decode/evidence/binding.json
+```
