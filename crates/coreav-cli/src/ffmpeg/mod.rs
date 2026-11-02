@@ -26,9 +26,9 @@ use crate::strict_safe::StrictSafe;
 use args::{Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions,
-    JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions, SplitAt,
-    SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
+    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -84,6 +84,13 @@ impl From<WriteFailure> for Stop {
 pub enum Job {
     /// Selected streams written to AVI, with explicit audio jobs.
     Avi(Vec<(usize, Codec)>),
+    /// Mapped streams copied from several MP4/MOV sources.
+    RemuxInputs {
+        /// Input-file and stream indexes in output order.
+        streams: Vec<InputStream>,
+        /// Unselected cover pictures from input zero.
+        left_out_covers: Vec<u64>,
+    },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
         /// The tracks, in the output's order, a stream mapped twice twice.
@@ -208,7 +215,21 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     let report = crate::ffprobe::probe(&mut file, size, &name, force)
         .map_err(WriteFailure::Rejected)?
         .report;
-    let job = plan(&command, &report, list)?;
+    let job = if command.more_inputs.is_empty() {
+        plan(&command, &report, list)?
+    } else {
+        let mut reports = vec![report];
+        for path in &command.more_inputs {
+            let size = std::fs::metadata(path).map_err(io)?.len();
+            let mut source = FileSource::open(path).map_err(WriteFailure::from)?;
+            reports.push(
+                crate::ffprobe::probe(&mut source, size, path, None)
+                    .map_err(WriteFailure::Rejected)?
+                    .report,
+            );
+        }
+        plan_inputs(&command, &reports)?
+    };
     if let Job::Avi(streams) = &job
         && strict_safe.on()
         && streams
@@ -936,7 +957,19 @@ const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "w
 /// largest picture or the most channels, the first of equals), less the
 /// disabled types. Each needs an explicit codec or a supported muxer default.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
-    let all: Vec<(usize, &Stream)> = streams.iter().enumerate().collect();
+    select_sources(
+        command,
+        &streams.iter().collect::<Vec<_>>(),
+        std::slice::from_ref(&(0..streams.len())),
+    )
+}
+
+fn select_sources(
+    command: &Command,
+    streams: &[&Stream],
+    ranges: &[std::ops::Range<usize>],
+) -> Result<Vec<usize>, Refusal> {
+    let all: Vec<(usize, &Stream)> = streams.iter().copied().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
         StreamKind::Video => command.no_video,
         StreamKind::Audio => command.no_audio,
@@ -990,7 +1023,16 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         let mut removed = vec![false; streams.len()];
         let mut outputs = 0usize;
         for map in command.maps.iter().rev() {
-            let hits = matching(&map.spec, &all);
+            let range = ranges.get(map.file).ok_or_else(|| {
+                Refusal::Usage(format!("Invalid input file index: {}.", map.file))
+            })?;
+            let source = all
+                .get(range.clone())
+                .ok_or_else(|| Refusal::Usage("Invalid input stream range".to_owned()))?;
+            let hits: Vec<usize> = matching(&map.spec, source)
+                .into_iter()
+                .map(|i| range.start.saturating_add(i))
+                .collect();
             if map.remove {
                 for i in hits {
                     if let Some(gone) = removed.get_mut(i) {
@@ -1029,7 +1071,7 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
     }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
-        .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
+        .filter_map(|i| streams.get(*i).map(|s| (*i, *s)))
         .collect();
     if command.muxer != Muxer::Avi && codecs(command, &output).contains(&None) {
         return Err(Refusal::not_native(
@@ -1040,6 +1082,112 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         return Err(Refusal::not_native("copying a subtitle stream"));
     }
     Ok(selected)
+}
+
+fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
+    if command.muxer != Muxer::Mp4 || command.map_metadata != MapMetadata::Default {
+        return Err(Refusal::not_native(
+            "multiple-input output other than MP4 with default metadata",
+        ));
+    }
+    if command.maps.is_empty() {
+        return Err(Refusal::not_native(
+            "automatic stream selection across several inputs",
+        ));
+    }
+    if command.seek.is_some() || command.duration.is_some() || command.until.is_some() {
+        return Err(Refusal::not_native("seeking or trimming several inputs"));
+    }
+    if (args::Encoding {
+        threads: None,
+        ..command.encoding.clone()
+    }) != args::Encoding::default()
+    {
+        return Err(Refusal::not_native("encoding options with several inputs"));
+    }
+    let first = reports
+        .first()
+        .ok_or_else(|| Refusal::Usage("No input file".to_owned()))?;
+    for report in reports {
+        if format_name(report) != Some("mov,mp4,m4a,3gp,3g2,mj2") {
+            return Err(Refusal::not_native(
+                "multiple inputs of other containers than MP4/MOV",
+            ));
+        }
+        if input_start(report) != Rational::from_int(0) {
+            return Err(Refusal::not_native(
+                "multiple inputs whose presentation starts outside time zero",
+            ));
+        }
+        if !report.chapters.is_empty() {
+            return Err(Refusal::not_native("chapters with several inputs"));
+        }
+    }
+    let mut streams = Vec::new();
+    let mut ranges = Vec::new();
+    for report in reports {
+        let start = streams.len();
+        streams.extend(&report.streams);
+        ranges.push(start..streams.len());
+    }
+    let selected = select_sources(command, &streams, &ranges)?;
+    let output: Vec<(usize, &Stream)> = selected
+        .iter()
+        .filter_map(|i| streams.get(*i).map(|stream| (*i, *stream)))
+        .collect();
+    if codecs(command, &output)
+        .iter()
+        .any(|codec| *codec != Some(Codec::Copy))
+    {
+        return Err(Refusal::not_native("encoding with several inputs"));
+    }
+    for kind in [StreamKind::Video, StreamKind::Audio] {
+        if output
+            .iter()
+            .filter(|(_, stream)| stream.kind == kind)
+            .count()
+            > 1
+            && !output
+                .iter()
+                .any(|(_, stream)| stream.kind == kind && is_default(stream))
+        {
+            return Err(Refusal::not_native(
+                "multiple mapped streams that need a default disposition assigned",
+            ));
+        }
+    }
+    let mut mapped = Vec::new();
+    for index in selected {
+        let (input, range) = ranges
+            .iter()
+            .enumerate()
+            .find(|(_, range)| range.contains(&index))
+            .ok_or_else(|| Refusal::Usage("Invalid selected input stream".to_owned()))?;
+        let stream = index.saturating_sub(range.start);
+        let selected = streams
+            .get(index)
+            .ok_or_else(|| Refusal::Usage("Invalid selected input stream".to_owned()))?;
+        if !matches!(selected.kind, StreamKind::Video | StreamKind::Audio) {
+            return Err(Refusal::not_native(
+                "copying non-audio/video streams from several inputs",
+            ));
+        }
+        if selected.attached_pic {
+            return Err(Refusal::not_native(
+                "selected cover pictures with several inputs",
+            ));
+        }
+        mapped.push(InputStream { input, stream });
+    }
+    let first_streams: Vec<usize> = mapped
+        .iter()
+        .filter(|s| s.input == 0)
+        .map(|s| s.stream)
+        .collect();
+    Ok(Job::RemuxInputs {
+        streams: mapped,
+        left_out_covers: left_out_covers(first, &first_streams),
+    })
 }
 
 /// The reason a writer gives for a source it does not implement, as
@@ -1106,6 +1254,16 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;
+    if command
+        .more_inputs
+        .iter()
+        .any(|input| output::same_file(Path::new(input), &path))
+    {
+        return Err(Refusal::Usage(
+            "The output is also an input file; write to another path".to_owned(),
+        )
+        .into());
+    }
     if let Job::Join { paths, .. } = job
         && paths.iter().any(|p| output::same_file(p, &path))
     {
@@ -1121,6 +1279,16 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     };
     let mut refused = None;
     let written = output::to_file(&path, force, |out| match job {
+        Job::RemuxInputs {
+            streams,
+            left_out_covers,
+        } => {
+            let paths: Vec<&Path> = std::iter::once(input)
+                .chain(command.more_inputs.iter().map(Path::new))
+                .collect();
+            crate::remux::run_inputs(&paths, streams, left_out_covers, &allowlist, out)
+                .map(|summary| crate::remux::document(&summary, &RemuxOptions::default()))
+        }
         Job::Remux {
             streams,
             left_out_covers,
