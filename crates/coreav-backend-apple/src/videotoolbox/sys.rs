@@ -713,6 +713,11 @@ impl Native {
                 }
             })?,
             None => {
+                #[cfg(test)]
+                eprintln!(
+                    "native identity probe: session_id_present={}",
+                    identifier.is_some()
+                );
                 let identifier = identifier.as_ref().ok_or(Error::UnknownHardware)?;
                 let list = controlled(&self.control, || unsafe {
                     let mut list = ptr::null();
@@ -1037,6 +1042,8 @@ unsafe fn hardware_from_list(
         if !(0..=MAX_ENCODER_LIST_ENTRIES).contains(&count) {
             return Err(Error::Limit);
         }
+        #[cfg(test)]
+        eprintln!("native identity probe: list_entries={count}");
         let mut hardware = None;
         for index in 0..count {
             control.check()?;
@@ -1058,10 +1065,18 @@ unsafe fn hardware_from_list(
                 continue;
             }
             if hardware.is_some() {
+                #[cfg(test)]
+                eprintln!("native identity probe: duplicate_match_index={index}");
                 return Err(Error::UnknownHardware);
             }
             let flag = CFDictionaryGetValue(entry, kVTVideoEncoderList_IsHardwareAccelerated);
-            if flag.is_null() || CFGetTypeID(flag) != CFBooleanGetTypeID() {
+            let kind = if flag.is_null() { 0 } else { CFGetTypeID(flag) };
+            #[cfg(test)]
+            eprintln!(
+                "native identity probe: match_index={index} flag_present={} flag_type={kind}",
+                !flag.is_null()
+            );
+            if flag.is_null() || kind != CFBooleanGetTypeID() {
                 return Err(Error::UnknownHardware);
             }
             hardware = Some(if CFBooleanGetValue(flag) != 0 {
@@ -1071,6 +1086,8 @@ unsafe fn hardware_from_list(
             });
         }
         control.check()?;
+        #[cfg(test)]
+        eprintln!("native identity probe: matched_flag={}", hardware.is_some());
         hardware.ok_or(Error::UnknownHardware)
     }
 }

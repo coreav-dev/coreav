@@ -468,6 +468,21 @@ fn cadence_hints_do_not_replace_fractional_source_clocks() {
 }
 
 #[test]
+fn native_software_identity_requires_an_observed_status() -> Result<(), Error> {
+    let _serial = lock(&SERIAL);
+    let settings = Settings::bt709_limited(64, 64, 30, 1, 2_000_000, HardwarePolicy::Disable)?;
+    let control = Control::new(Instant::now() + Duration::from_secs(60));
+    match Encoder::new(settings, Limits::default(), control) {
+        Ok(encoder) => {
+            assert_eq!(encoder.identity()?.hardware, Hardware::Software);
+            Ok(())
+        }
+        Err(Error::Unavailable(_)) => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+#[test]
 fn native_fractional_rate_creation_reads_back_the_requested_hint() {
     let _serial = lock(&SERIAL);
     let settings =
