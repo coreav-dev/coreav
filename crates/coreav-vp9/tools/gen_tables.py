@@ -98,6 +98,7 @@ TABLES = [
 # The tables and constants of crates/coreav-kernels-vp9/src/tables.rs.
 KERNEL_TABLES = [
     ("cos64_lookup", "COS64_LOOKUP", "8.7.1.1", "`cos64(angle)` for angles 0 to 32."),
+    ("subpel_filters", "SUBPEL_FILTERS", "8.5.2.4", "The eight interpolation taps of each filter and sixteenth-sample phase."),
 ]
 KERNEL_CONSTANTS = [
     ("SINPI_1_9", "8.7.1.6"),
@@ -246,9 +247,9 @@ def table(text, consts, name):
     while flat and isinstance(flat[0], list):
         flat = [x for row in flat for x in row]
     if min(flat) < 0:
-        if not all(-128 <= x <= 127 for x in flat):
-            sys.exit(f"{name}: a negative value with one outside -128 to 127")
-        return dims, values, "i8"
+        if not all(-32768 <= x <= 32767 for x in flat):
+            sys.exit(f"{name}: a value outside signed 16 bits")
+        return dims, values, "i8" if all(-128 <= x <= 127 for x in flat) else "i16"
     if max(flat) > 65535:
         sys.exit(f"{name}: a value above 65535")
     return dims, values, "u8" if max(flat) <= 255 else "u16"
