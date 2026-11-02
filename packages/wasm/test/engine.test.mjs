@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createEngine } from "../src/engine-core.js";
 import { SourceCleanupError, boundedOpeners } from "../src/bounded-source.js";
+import { adapterRangeSource } from "../src/sources.js";
 
 function deferred() {
   let resolve;
@@ -66,6 +67,60 @@ function source({ opening, closing } = {}) {
   };
   boundedOpeners.set(result, () => result.open());
   return result;
+}
+
+for (const operation of ["document", "stream"]) {
+  test(`bounded range ${operation} sessions expose the complete binding interface`, async () => {
+    const input = adapterRangeSource(async ({ offset, length }) => {
+      const end = Math.min(8, offset + length);
+      return {
+        offset,
+        end,
+        size: 8,
+        validator: "fixed",
+        body: new ReadableStream({
+          type: "bytes",
+          start(controller) {
+            controller.enqueue(Uint8Array.from({ length: end - offset }, (_, i) => offset + i));
+            controller.close();
+          },
+        }),
+      };
+    });
+    async function read(session) {
+      assert.equal(session.readInto(0, new Uint8Array(4)), 0);
+      session.plan(0, 4);
+      session.planRegions(new Float64Array([0, 4]));
+      const bytes = await session.read(0, 4);
+      assert.deepEqual(bytes, new Uint8Array([0, 1, 2, 3]));
+      return bytes;
+    }
+    const host = engine(true, {
+      async runDocument(_operation, session) {
+        await read(session);
+        return "{}";
+      },
+      async runStream(_operation, session, _size, _memory, sink) {
+        await sink.write(await read(session));
+        return "{}";
+      },
+    });
+    for (let call = 1; call <= 2; call += 1) {
+      if (operation === "document") {
+        assert.equal(await host.runToText("probe", input, {}), "{}");
+      } else {
+        const output = await host.runToStream("thumbnail", input, {});
+        assert.deepEqual(new Uint8Array(await new Response(output.body).arrayBuffer()), new Uint8Array([0, 1, 2, 3]));
+        assert.deepEqual(await output.summary, {});
+      }
+      const diagnostics = host.diagnostics();
+      assert.equal(diagnostics.settled, true);
+      assert.equal(diagnostics.lease.released, call);
+      assert.equal(diagnostics.lease.sourceOpens, call);
+      assert.ok(diagnostics.host.maxBackingBytes > 0);
+      assert.equal(diagnostics.host.liveBytes, 0);
+    }
+  });
 }
 
 test("signals are not serialized into Rust options", async () => {

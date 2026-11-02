@@ -202,7 +202,6 @@ export class BoundedRangeSession {
     this.error = null;
     this.requests = 0;
     this.bytesReceived = 0;
-    this[TRUSTED] = true;
   }
 
   async start() {
