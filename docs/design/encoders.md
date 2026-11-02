@@ -1,6 +1,6 @@
 # Built-in encoders
 
-Status: Design only. No backend, command option, or release feature described here is implemented by this note.
+Status: Selection groundwork only. The codec-neutral frame and packet contracts and the new selection options exist, but no built-in backend is connected. AV1 and platform requests report an unavailable-backend refusal. Effective AV1 and platform settings, the version 2 summary and backend acceptance remain integration work.
 
 The default output remains H.264 video with copied audio in MP4. AV1 is explicit. [Policy record 0043](encoder-policy.md) adds the platform and licence exceptions to record 0042. The existing [transcode design](transcode.md) continues to describe shipped behavior. This note specifies the new backend contract and its acceptance bars, not a claim that they have passed.
 
@@ -34,7 +34,9 @@ VideoToolbox auto permits either hardware or software encoding and reports what 
 
 ### Missing encoders and strict-safe mode
 
-Build, OS, executable discovery, and parameter-only capability failures are reported before media reads and before an output is created. Header-known incompatibilities follow the bounded header probe, before decoding or encoding. Decoded-only requirements are checked before the first frame is submitted to the encoder. An unsupported format or size change discovered later terminates with cleanup and no fallback. These refusals use the existing `unsupported_feature` error and transcode's existing error exit status. These are transcode diagnostics, not changes to the separate compatibility command's exit status 4.
+The first selection phase preserves legacy missing-encoder diagnostics and their precedence. H.264 requests using only the existing `auto`, `x264` or `ffmpeg` encoder choices and no new selection flag retain their messages, summaries and exit statuses, including when both the input and encoder are unavailable. Early selection refusal applies to `--video av1`, `--encoder platform|svt-av1`, `--audio-encoder` and `--require-hardware`. Moving legacy diagnostics before media reads is a separate later change that requires the release owner's agreement.
+
+For new selection requests, build, OS, executable discovery, and parameter-only capability failures are reported before media reads and before an output is created. Header-known incompatibilities follow the bounded header probe, before decoding or encoding. Decoded-only requirements are checked before the first frame is submitted to the encoder. An unsupported format or size change discovered later terminates with cleanup and no fallback. These refusals use the existing `unsupported_feature` error and transcode's existing error exit status. These are transcode diagnostics, not changes to the separate compatibility command's exit status 4.
 
 Example diagnostics after integration are:
 
@@ -74,6 +76,8 @@ The video object and each audio-stream object carry their own metadata. A copied
 No `coreav ffprobe` output changes. `coreav ffmpeg -c:v libx264` must continue to select x264 or FFmpeg with libx264, never an OS encoder merely because transcode auto changed. New compatibility vocabulary and any ffprobe change require the compatibility surface owner's agreement and a separate scope. This note authorizes neither.
 
 ## Process and validation boundaries
+
+The initial shared video contract in `coreav-transcode::contract` assigns sequential frame identities to checked, owned pictures with strictly increasing presentation times. The submission ledger retains times rather than pixels. The packet ledger bounds sample extents, count and total bytes, then requires one complete sample per submitted identity at drain and derives timing in decode order. Codec-specific readers still validate syntax, random-access status and configuration; accepting a packet into this ledger does not validate its codec. Existing encoder execution does not use these new contracts until backend connection.
 
 SVT-AV1 follows libopus. The default path reexecutes the binary as a sandboxed encoder worker. It receives checked frames and parameters, not a source file or compressed source packets. The parent bounds queued frames, shared buffers, packet sizes, total output, and work against one deadline. EOF drains the encoder. Crash, timeout, premature output completion, or malformed output fails and reaps the child. The in-process comparison uses the same safe backend and validators in a measurement-only executable.
 

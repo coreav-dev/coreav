@@ -13,6 +13,12 @@ Arguments:
           Where to write the MP4 file: a new file (not the input; an existing one only with --force)
 
 Options:
+      --video <CODEC>
+          Output video codec. AV1 is unavailable in this build
+          
+          [default: h264]
+          [possible values: h264, av1]
+
       --crf <Q>
           Constant rate factor, 0 to 51 (default 23)
 
@@ -38,10 +44,18 @@ Options:
           With --audio opus or aac, the bit rate in kbit/s: Opus 6 to 510 (default: 64 for mono, 96 for stereo), AAC 16 to 512 (default: the aac encoder's own)
 
       --encoder <ENCODER>
-          The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`: x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg` is refused and `auto` is x264 only
+          The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`: x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg` is refused and `auto` is x264 only. `platform` and `svt-av1` are unavailable in this build
           
           [default: auto]
-          [possible values: auto, x264, ffmpeg]
+          [possible values: auto, x264, ffmpeg, platform, svt-av1]
+
+      --audio-encoder <ENCODER>
+          AAC encoder selection (needs --audio aac). `auto` and `ffmpeg` use the installed FFmpeg AAC encoder. `platform` is unavailable in this build
+          
+          [possible values: auto, platform, ffmpeg]
+
+      --require-hardware
+          Require hardware platform encoding with --encoder auto or platform. Unavailable in this build; never falls back to software or another encoder
 
       --x264 <PATH>
           The x264 program (default: COREAV_X264, else x264 on PATH)

@@ -24,10 +24,12 @@
 pub mod aac;
 pub mod annexb;
 pub mod audio;
+pub mod contract;
 pub mod encoder;
 pub mod pipeline;
 pub mod rawmkv;
 pub mod scale;
+pub mod selection;
 pub mod timing;
 
 pub use aac::AacAudio;

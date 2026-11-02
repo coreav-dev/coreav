@@ -308,7 +308,7 @@ jobs:
       # Checks the documentation site's help text of `coreav thumbnail` and
       # `coreav transcode`, which only builds with a decoder backend include
       # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
-      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       # The unit tests of what only a build with a decoder backend has
       # (`coreav ffmpeg`'s encode, `coreav transcode`), which
       # `cargo test --workspace` does not build.
@@ -395,7 +395,7 @@ jobs:
       - run: |
           env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
-      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
           cargo test --release -p coreav-isobmff-write --test extract outputs_above_4_gib -- --ignored
@@ -453,7 +453,7 @@ jobs:
           env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
       - if: ${{ !cancelled() }}
-        run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+        run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site --test transcode_selection
       - if: ${{ !cancelled() }}
         run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
@@ -1204,6 +1204,18 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends nasm
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
+      - name: Build the frozen legacy transcode command
+        env:
+          LEGACY_REF: 9cf20657668d772fa94cb293e7f6c70479461796
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth 1 origin "$LEGACY_REF"
+          mkdir -p "$RUNNER_TEMP/coreav-legacy-source"
+          git archive FETCH_HEAD | tar -x -C "$RUNNER_TEMP/coreav-legacy-source"
+          cargo build --locked --release \
+            --manifest-path "$RUNNER_TEMP/coreav-legacy-source/Cargo.toml" \
+            -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
+            --target-dir "$RUNNER_TEMP/coreav-legacy-target"
       - name: coreav transcode on the fixtures, with both encoders
         env:
           COREAV_REQUIRE_FFMPEG: '1'
@@ -1211,9 +1223,12 @@ jobs:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+          COREAV_LEGACY_TRANSCODE: ${{ runner.temp }}/coreav-legacy-target/release/coreav
         run: |
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
+            --test legacy_encoders --target-dir target/fallback
           # The Opus and AAC encodes pass over AAC in a build that decodes it, and Opus.
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
             --target-dir target/fallback -- opus_encode aac_encode
