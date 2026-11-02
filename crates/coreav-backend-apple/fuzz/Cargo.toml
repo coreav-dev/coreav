@@ -22,5 +22,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "h264_output"
+path = "fuzz_targets/h264_output.rs"
+test = false
+doc = false
+bench = false
+
 [lints.rust]
 unsafe_code = "forbid"

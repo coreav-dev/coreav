@@ -1,6 +1,6 @@
 # Apple encoder output readers
 
-The Apple backend is under development. The standalone crate has checked AAC metadata readers and a macOS AudioToolbox adapter. It is not integrated into the CLI and provides no acceptance-bar or performance result. The [encoder contract](../encoders.md) defines the remaining work and its acceptance bars. Platform encoding is not a finding that an operator's use is patent-covered. Paid services may need their own patent licence.
+The Apple backend is under development. The standalone crate has checked AAC and H.264 metadata readers and a macOS AudioToolbox adapter. It is not integrated into the CLI and provides no acceptance-bar or performance result. The [encoder contract](../encoders.md) defines the remaining work and its acceptance bars. Platform encoding is not a finding that an operator's use is patent-covered. Paid services may need their own patent licence.
 
 ## AAC configuration and packet boundaries
 
@@ -29,7 +29,19 @@ cargo test --locked --manifest-path crates/coreav-backend-apple/Cargo.toml
 cargo clippy --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --all-targets -- -D warnings
 ```
 
-VideoToolbox ownership and callback cancellation, H.264 output, the hosted H.264 independent-decode capability smoke, and the reference-host driver remain separate implementation steps. No M1 through M5 or AAC acceptance result is claimed. The development machine is not a measurement host, and no physical measurement host is provisioned or promised.
+VideoToolbox ownership and callback cancellation, the hosted H.264 independent-decode capability smoke, and the reference-host driver remain separate implementation steps. No M1 through M5 or AAC acceptance result is claimed. The development machine is not a measurement host, and no physical measurement host is provisioned or promised.
+
+## H.264 configuration and access-unit metadata
+
+The safe `h264` module adds no native calls or production dependencies. `Dimensions` represents nonempty even visible geometry. `Config::from_parameter_sets` checks one complete SPS and PPS against that geometry before constructing an owned avcC record, including the High-profile chroma/depth extension fields and four-byte NAL lengths. It retains the exact checked parameter-set NALs; in-band replacements must match them byte for byte. Configuration size and uncropped coded geometry have caller limits. Cropping uses progressive 4:2:0 crop units, not raw pixel offsets.
+
+The initial subset is High profile, 8-bit 4:2:0 progressive output with POC type 0 or 2. The readers check bounded Exp-Golomb fields, parameter-set references, emulation-prevention bytes, complete parameter-set trailing bits, and the optional VUI/HRD syntax with its bounded CPB table. Custom scaling matrices, intra-profile constraints, interlacing, POC type 1, frame-number gaps, slice groups, redundant pictures and a nonzero VUI reordering allowance are explicitly unsupported. This is not a general H.264 parser or a decoder, and it does not certify every level constraint or compressed slice.
+
+`AccessUnit::copy_from` validates complete four-byte length-prefixed NAL extents, NAL headers and caller byte/NAL-count limits before copying the access unit. It requires an I/P coded-slice header starting at macroblock zero. Additional slices must have increasing start addresses and matching frame number, parameter-set reference, IDR identity, reference/non-reference classification and POC fields. B/SP/SI slices and other NAL forms outside the subset are refused. Declared sync must agree with IDR NAL headers; a non-IDR I slice is not relabeled as a random-access point. Identical parameter sets before the slices, an initial access-unit delimiter, bounded SEI payload extents and filler are supported.
+
+The owned bytes preserve their original order and framing. Slice payload syntax, macroblock coverage, decoded pixels and reference availability are not validated by these metadata checks. Source-frame identity, timestamp order, durations and final submitted-frame accounting belong to the later session owner. A metadata-reader success does not establish successful decoding or complete encoder drain.
+
+Configuration parsing uses bounded temporary RBSP buffers and retains parameter-set bytes plus avcC; peak storage is a fixed multiple of the caller's configuration bound. Access-unit parsing holds at most one bounded temporary RBSP plus its final owned byte copy. Processing is linear in the bounded input sizes, with no recursive parsing or untrusted-count allocation. Synthetic fixtures build header metadata only, not decodable video. The `h264_output` fuzz target checks hostile parameter sets and access units on hosted CI; no local hostile-fixture or fuzz execution is required.
 
 ## AudioToolbox ownership and streaming
 
@@ -48,6 +60,9 @@ Synthetic tail work has a separate bound, not a source or caller-chunk allowance
 Finalization reads the final cookie and codec-specific priming and padding values, checks their arithmetic against the actual accepted PCM and emitted packet totals, and returns validated container configuration only after drain. The final priming values must equal those that planned the tail; the codec must report no additional padded zeros after explicitly aligned input. Leading trim is the codec's reported delay, and trailing trim is the planned tail minus that delay. These are `AudioCodec` properties, not `AudioConverterPrimeInfo` input lookahead. The native fixtures independently decode synthetic AAC with the Rust decoder and check declared trim, channel impulse placement, and all four acceptance formats. They are correctness fixtures, not quality or speed bars against the pinned FFmpeg oracle.
 
 ## Sources
+
+- ITU-T H.264 (08/2024), clauses 7.3.1, 7.3.2, 7.3.3, 7.4 and Annex E: NAL/RBSP syntax, parameter sets, picture-header identity and VUI/HRD.
+- ISO/IEC 14496-15:2004/Amd.1:2006, clause 5.2.4.1: AVC decoder configuration and High-profile extension fields.
 
 - ISO/IEC 14496-3:2009, subpart 1 `AudioSpecificConfig` and subpart 4 `GASpecificConfig`.
 - Apple's public `CoreAudioBaseTypes.h`, `AudioStreamPacketDescription`, and `AudioConverter.h`, `AudioConverterPrimeInfo`.
