@@ -23,6 +23,17 @@ SOURCES = ('scripts/vp9_filter_coverage.py', 'scripts/vp9_filter_frames.py',
            'scripts/oracle_pin.py', 'scripts/oracle-ffmpeg.env',
            'docs/measurements/vp9-filter-coverage/plan.json')
 HEX = re.compile('[0-9a-f]{64}')
+FAILURE_CODES = {
+    'unexpected generated IVF header': 'ivf_header',
+    'expected exactly one IVF packet at zero': 'ivf_packet',
+    'invalid generated IVF length': 'ivf_length',
+    'expected a shown keyframe': 'not_keyframe',
+    'expected profile 0 coded frame': 'not_profile0',
+    'source encoder added segmentation': 'source_segmentation',
+    'fixture tool reported an error': 'tool_stderr',
+    'black-box encoding is not reproducible': 'encoding_changed',
+    'a registered filter contrast has no pixel-affecting witness': 'no_pixel_effect',
+}
 
 
 def registration():
@@ -145,7 +156,8 @@ def capture(args):
                        'judged filter inputs run only from the merged main workflow')
     plan = registration()
     width, height, patterns, levels = grid(plan, args.mode)
-    report = dict(schema=1, mode=args.mode, sources=hashes(), complete=False, streams=[])
+    report = dict(schema=1, mode=args.mode, sources=hashes(), complete=False, streams=[],
+                  phase='verify_tools', encoded_ivf=[])
     try:
         with tempfile.TemporaryDirectory(prefix='vp9-filter-capture-') as temporary:
             work = pathlib.Path(temporary)
@@ -153,8 +165,22 @@ def capture(args):
             def command(argv):
                 nonlocal sequence
                 sequence += 1
-                out, errors = corpus.child(argv, work, f'command-{sequence}', plan['command_seconds'])
-                corpus.require(errors.stat().st_size == 0, 'fixture tool reported an error')
+                report['command'] = sequence
+                try:
+                    out, errors = corpus.child(argv, work, f'command-{sequence}', plan['command_seconds'])
+                    corpus.require(errors.stat().st_size == 0, 'fixture tool reported an error')
+                except Exception:
+                    error_path = work / f'command-{sequence}.stderr'
+                    if error_path.is_file():
+                        data = error_path.read_bytes()[:65536]
+                        for token, code in ((b'has not been used for any stream', 'unused_option'),
+                                            (b'Unrecognized option', 'unknown_option'),
+                                            (b'Error setting option', 'invalid_option'),
+                                            (b'Cannot allocate memory', 'memory')):
+                            if token in data:
+                                report['tool_diagnostic'] = code
+                                break
+                    raise
                 return out.read_bytes()
             command([sys.executable, ROOT / 'scripts/oracle_pin.py', '--verify-bin', pathlib.Path(args.ffmpeg).parent])
             report['commit'] = command(['git', '-C', ROOT, 'rev-parse', 'HEAD']).decode().strip()
@@ -165,6 +191,7 @@ def capture(args):
             report['tools'] = {name: corpus.digest(getattr(args, name)) for name in ('native', 'ffmpeg', 'ffprobe')}
             encoded = {}
             for pattern in patterns:
+                report['phase'] = 'encode'
                 raw = work / f'{pattern}.yuv'
                 raw.write_bytes(frames.picture(pattern, width, height))
                 outputs = []
@@ -175,6 +202,11 @@ def capture(args):
                              *AUDIO_DECODE_INPUT, '-i', raw, '-an', *plan['encoder'], '-f', 'ivf', target])
                     outputs.append(target.read_bytes())
                 corpus.require(outputs[0] == outputs[1], 'black-box encoding is not reproducible')
+                report['phase'] = 'parse_ivf'
+                data = outputs[0]
+                report['encoded_ivf'].append(dict(pattern=pattern, bytes=len(data),
+                    rate=int.from_bytes(data[16:20], 'little'), scale=int.from_bytes(data[20:24], 'little'),
+                    frames=int.from_bytes(data[24:28], 'little')))
                 packet = frames.ivf(outputs[0])
                 template = frames.keyframe(packet)
                 corpus.require(not template.control['segmentation'], 'source encoder added segmentation')
@@ -183,17 +215,20 @@ def capture(args):
             private = work / 'captures'
             private.mkdir(mode=0o700)
             for pattern, level, variant in roster(plan, args.mode):
+                report['phase'] = 'rewrite'
                 template, encoded_sha, raw_sha = encoded[pattern]
                 packet = frames.rewrite(template, level, plan['variants'][variant])
                 stem = f'{pattern}-{level}-{variant}'
                 ivf_path, mkv_path, roundtrip = (work / f'{stem}.{suffix}' for suffix in ('ivf', 'mkv', 'roundtrip.ivf'))
                 ivf_path.write_bytes(frames.wrap(packet))
+                report['phase'] = 'remux'
                 command([args.ffmpeg, '-nostdin', '-v', 'error', '-xerror', *AUDIO_DECODE_INPUT, '-i', ivf_path,
                          '-map', '0:v:0', '-c:v', 'copy', '-an', '-f', 'matroska', mkv_path])
                 command([args.ffmpeg, '-nostdin', '-v', 'error', '-xerror', *AUDIO_DECODE_INPUT, '-i', mkv_path,
                          '-map', '0:v:0', '-c:v', 'copy', '-an', '-f', 'ivf', roundtrip])
                 corpus.require(frames.ivf(roundtrip.read_bytes()) == packet, 'packet-copy round trip changed bytes')
                 input_sha = corpus.digest(mkv_path)
+                report['phase'] = 'compare'
                 result = corpus.compare(dict(path=str(mkv_path), sha256=input_sha), args, set(), private)
                 corpus.require(result['status'] == 'agree' and result['frames'] == 1, 'generated comparison failed')
                 directory = private / input_sha
@@ -209,10 +244,13 @@ def capture(args):
             corpus.require(report['tools'] == {name: corpus.digest(getattr(args, name))
                            for name in ('native', 'ffmpeg', 'ffprobe')}, 'tool bytes changed during capture')
             report['complete'] = True
+            report['phase'] = 'validate'
             report['judgment'] = validate(report)
     except Exception as error:
         report['complete'] = False
         report['error'] = type(error).__name__
+        if type(error) is ValueError and str(error) in FAILURE_CODES:
+            report['failure_code'] = FAILURE_CODES[str(error)]
         raise
     finally:
         corpus.write_json(args.out, report)

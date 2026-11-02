@@ -219,6 +219,24 @@ class Judgment(unittest.TestCase):
             self.assertFalse(value['complete'])
             self.assertEqual(value['streams'], [])
             self.assertEqual(value['error'], 'RuntimeError')
+            self.assertEqual(value['phase'], 'verify_tools')
+            self.assertEqual(value['command'], 1)
+            self.assertNotIn('credential-marker', out.read_text())
+
+    def test_command_diagnostics_are_closed_labels_not_stderr_or_exception_text(self):
+        def fail(argv, directory, label, timeout):
+            (directory / f'{label}.stderr').write_text('credential-marker has not been used for any stream')
+            raise ValueError('credential-marker')
+        with tempfile.TemporaryDirectory() as temporary:
+            out = pathlib.Path(temporary) / 'report.json'
+            args = SimpleNamespace(mode='smoke', out=out, ffmpeg='synthetic-ffmpeg')
+            with mock.patch.object(coverage.sys, 'platform', 'linux'), \
+                    mock.patch.object(coverage.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), \
+                    mock.patch.object(coverage.corpus, 'child', side_effect=fail):
+                with self.assertRaises(ValueError):
+                    coverage.capture(args)
+            value = json.loads(out.read_text())
+            self.assertEqual(value['tool_diagnostic'], 'unused_option')
             self.assertNotIn('credential-marker', out.read_text())
 
     def test_judged_capture_is_refused_before_any_child_outside_merged_main(self):
