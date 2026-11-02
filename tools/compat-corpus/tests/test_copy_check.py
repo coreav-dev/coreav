@@ -12,6 +12,39 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import copy_check  # noqa: E402
 
 
+class Timing(unittest.TestCase):
+    def check(self, record, value):
+        self.assertEqual(record, {"job": "join"})
+        return value
+
+    def test_check_timing_preserves_the_result(self):
+        result = object()
+        with mock.patch.object(copy_check.time, "monotonic", side_effect=[10, 12.5]), \
+                mock.patch.object(copy_check.os, "write") as write:
+            self.assertIs(copy_check.timed_check(True, 123, self.check, {"job": "join"}, result), result)
+        event = json.loads(write.call_args.args[1])
+        self.assertEqual(event, {"event": "copy_check_call", "sequence": 123, "check": "check", "job": "join",
+                                 "seconds": 2.5, "completed": True})
+
+    def test_check_timing_preserves_an_exception(self):
+        def failed(record):
+            raise ValueError("invalid check")
+
+        with mock.patch.object(copy_check.time, "monotonic", side_effect=[10, 11]), \
+                mock.patch.object(copy_check.os, "write") as write:
+            with self.assertRaisesRegex(ValueError, "invalid check"):
+                copy_check.timed_check(True, 123, failed, {"job": "join"})
+        event = json.loads(write.call_args.args[1])
+        self.assertEqual(event["seconds"], 1)
+        self.assertFalse(event["completed"])
+
+    def test_timing_is_opt_in_for_other_copy_checker_callers(self):
+        result = object()
+        with mock.patch.object(copy_check.os, "write") as write:
+            self.assertIs(copy_check.timed_check(False, 123, self.check, {"job": "join"}, result), result)
+        write.assert_not_called()
+
+
 class Mapping(unittest.TestCase):
     def test_mapping_lines(self):
         stderr = ("Stream mapping:\n"

@@ -100,7 +100,7 @@ for pair in json.load(open(os.environ['COREAV_R3_PAIRS'])):
 json.dump(records, open(os.environ['COREAV_R3_RECORDS'], 'w'))
 '''
 CHECK = '''#!{py}
-import collections, json, os, sys
+import collections, json, os, sys, time
 cfg = json.load(open(os.environ['FAKE_CONFIG']))['check']
 args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 records = json.load(open(args['--records']))
@@ -108,6 +108,8 @@ failures = [{'id': r['id'], 'args': r['args'], 'source': r['source'], 'selection
             for r in records if cfg == 'fail']
 if cfg == 'crash':
     sys.exit(1)
+if cfg == 'timeout':
+    time.sleep(30)
 json.dump({'counts': {r['id']: {'written': 1} for r in records}, 'failures': failures}, open(args['--report'], 'w'))
 '''
 
@@ -491,6 +493,17 @@ class CopyOracle(Stubs):
         self.assertEqual((record['miss'], record['detail']['check']), ('oracle', 'copy_check'))
         record = self.run_copy(harness=harness, check='crash')
         self.assertEqual(record['fault'], 'RuntimeError: copy_check crashed')
+
+    def test_a_copy_check_timeout_is_a_fault_that_voids_the_run(self):
+        with mock.patch.object(r3, 'COPY_CHECK_TIMEOUT', 0.05):
+            record = self.run_copy(harness={'bytes': json.dumps(LISTING)}, check='timeout')
+        self.assertEqual(record.get('fault'), 'RuntimeError: copy_check timeout')
+        self.assertEqual((record['miss'], record['counted']), (None, False))
+        with mock.patch.object(eb, 'commands', return_value=[(record['index'], self.COPY)]):
+            summary = eb.summarize([record], 'v3')
+        self.assertTrue(summary['void']['void'])
+        self.assertEqual(summary['void']['faults'], [record['index']])
+        self.assertEqual(summary['v3']['misses'], {})
 
     def test_the_job_is_the_one_the_summary_schema_names_and_never_the_command_text(self):
         source = (HERE.parent.parent / 'crates' / 'coreav-cli' / 'tests' / 'ffmpeg.rs').read_text()

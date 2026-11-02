@@ -5,7 +5,7 @@ judged with the oracle of each command's job at that oracle's own rules
 (those rules set aside the fixtures UNMODELLED names).
 
     copy_check.py --records FILE [--ffmpeg PATH] [--ffprobe PATH]
-                  [--mediainfo PATH] [--jobs N] [--report FILE]
+                  [--mediainfo PATH] [--jobs N] [--report FILE] [--timings]
 
 FILE is the `records.json` the `the_0_1_0_commands_on_the_fixtures` test of
 coreav-cli writes (`COREAV_FFMPEG_OUT`): each command run on a fixture, its
@@ -36,11 +36,13 @@ import concurrent.futures
 import fractions
 import hashlib
 import json
+import os
 import re
 import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -433,6 +435,21 @@ def oracle(record, tools):
     return [str(p) for p in problems]
 
 
+def timed_check(timings, sequence, check, record, *args):
+    if not timings:
+        return check(record, *args)
+    started = time.monotonic()
+    completed = False
+    try:
+        result = check(record, *args)
+        completed = True
+        return result
+    finally:
+        event = {"event": "copy_check_call", "sequence": sequence, "check": check.__name__,
+                 "job": record["job"], "seconds": time.monotonic() - started, "completed": completed}
+        os.write(sys.stdout.fileno(), (json.dumps(event) + "\n").encode())
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--records", required=True)
@@ -441,6 +458,7 @@ def main():
     parser.add_argument("--mediainfo")
     parser.add_argument("--jobs", type=int, default=None)
     parser.add_argument("--report")
+    parser.add_argument("--timings", action="store_true", help="log elapsed time per oracle and selection check")
     args = parser.parse_args()
     records = json.loads(pathlib.Path(args.records).read_text(encoding="utf-8"))
     tools = {"ffmpeg": args.ffmpeg, "ffprobe": args.ffprobe, "mediainfo": args.mediainfo}
@@ -456,10 +474,13 @@ def main():
     for record in written:
         groups[(record["source"], record["job"], digest(outputs(record)))].append(record)
     failures = []
+    sequence = os.getpid()
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:
-        judged = {key: pool.submit(oracle, group[0], tools) for key, group in groups.items()
+        judged = {key: pool.submit(timed_check, args.timings, sequence, oracle, group[0], tools)
+                  for key, group in groups.items()
                   if pathlib.Path(key[0]).name not in UNMODELLED.get(key[1], ())}
-        mapped = {id(r): pool.submit(selection, r, tools["ffmpeg"]) for r in written}
+        mapped = {id(r): pool.submit(timed_check, args.timings, sequence, selection, r, tools["ffmpeg"])
+                  for r in written}
         for key, group in groups.items():
             try:
                 problems = judged[key].result() if key in judged else None

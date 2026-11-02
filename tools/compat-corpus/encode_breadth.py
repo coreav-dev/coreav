@@ -476,7 +476,7 @@ def copy_only(cx):
     scratch = cx.base / 'check'
     scratch.mkdir()
     outcome, why = r3.check_copies(cx.opts.check, [record], scratch, cx.opts.env)[('c', 0)]
-    if why == 'copy_check crashed':
+    if why in ('copy_check crashed', 'copy_check timeout'):
         raise RuntimeError(why)
     if outcome == 'set aside':
         return 'no_oracle', {'job': chosen}
