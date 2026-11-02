@@ -1579,6 +1579,30 @@ comparisons and baseline reporting are retained. The report adds separate
 refused, verified, unverified and failed counts. These are current-CI
 outcomes, not revised historical B1 verdicts or measured V2 coverage.
 
+**Mapped copies in current CI.** A single MP4 or Matroska output can
+qualify copied H.264, AAC, VP9 and Opus streams for exact decoded-output
+verification. The successful pinned reference command must report a
+complete `Stream mapping:` block: every output stream has exactly one
+mapping, every mapping says `copy`, and every source file and stream
+index exists. Missing, mixed encode/copy, duplicate or malformed mappings
+do not qualify. Other output formats and codecs retain their existing
+eligibility rules. This does not change the V2 copy predicate.
+
+Every qualified stream still needs the same decoded samples or pixels,
+stream fields and available rational timing as the same-command reference.
+Qualification never waives a comparison or permits a numeric tolerance.
+The comparison establishes command-output equivalence, not encoded-byte
+identity or proof of the candidate's internal implementation.
+
+The checker keeps its fixture assignment: all input placeholders contain
+the first fixture's bytes. It cannot distinguish choosing one of two
+identical inputs. Direct regression cases supply distinguishable inputs
+and same-kind streams for each of the four codecs and must reject the
+wrong input or stream. Linux oracle tests cover the mapped multi-input
+MP4 commands and `-i INPUT -map 0:0 -map 0:1 -c copy -f matroska OUTPUT`
+with VP9/Opus as well as H.264/AAC. Frozen rows, baselines and judged
+sources remain unchanged.
+
 **B1, B2 and the writers (CI, every change).**
 `tools/compat-corpus/run.py` runs every `ffprobe` command of `commands-v1`
 with each placeholder filled by every generated fixture (the ISO base media
@@ -2227,6 +2251,10 @@ decision, 2026-10-30):
   refused the same way. All come before the input is read: a `coreav ffmpeg` line that names `libx264` takes its
   encoder from the command line alone, so in the mode it is refused
   without x264 even when its input turns out to hold no video to encode.
+  For MP4/M4A streams with no explicit codec, CoreAV first probes and selects
+  the streams, then checks the default encoders before decoding. Default
+  libx264 requires x264 in this mode, and default AAC is refused because
+  its encoder is the ffmpeg program. Explicit `-c copy` suppresses both defaults.
 - **In the hidden entries.** `coreav` runs itself as its decode worker
   (`__coreav_worker`) and as the sandbox launcher of its encoder
   (`__coreav_exec`; `decode.md`, "The sandboxed worker"), before it
