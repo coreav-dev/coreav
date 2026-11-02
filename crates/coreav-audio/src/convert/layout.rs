@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used, clippy::panic)]
-
 use super::*;
 
 #[test]
@@ -25,17 +23,20 @@ fn packed_float_to_planes_preserves_every_sample_bit() {
                 *value = f32::from_bits(*bits.iter().cycle().nth(i + c).unwrap());
             }
         }
+        let expected_packed: Vec<u8> = (0..frames)
+            .flat_map(|i| (0..channels).flat_map(move |c| bits[(i + c) % frames].to_le_bytes()))
+            .collect();
         let mut packed = Vec::new();
         interleave(&pcm, 0, frames, SampleFormat::F32, &mut packed, 0);
+        assert_eq!(packed, expected_packed);
         for c in 0..channels {
             let mut plane = Vec::new();
-            crate::mix::deinterleave(&packed, channels, c, &mut plane);
-            let Some(Plane::Float(expected)) = pcm.plane(c) else {
-                panic!("missing float plane");
-            };
+            crate::mix::deinterleave(&expected_packed, channels, c, &mut plane);
             assert_eq!(
                 plane.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
-                expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
+                (0..frames)
+                    .map(|i| bits[(i + c) % frames])
+                    .collect::<Vec<_>>()
             );
         }
     }

@@ -296,4 +296,44 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn float_to_s24_rounds_once_at_the_stored_width() {
+        let cases = [
+            (-7.0f32 / 16_777_216.0, -4i32),
+            (-5.0 / 16_777_216.0, -2),
+            (-3.0 / 16_777_216.0, -2),
+            (-1.0 / 16_777_216.0, 0),
+            (1.0 / 16_777_216.0, 0),
+            (3.0 / 16_777_216.0, 2),
+            (5.0 / 16_777_216.0, 2),
+            (7.0 / 16_777_216.0, 4),
+            (1.0, 8_388_607),
+            (-1.0, -8_388_608),
+            (2.0, 8_388_607),
+            (-2.0, -8_388_608),
+        ];
+        for channels in [1, 2, 3] {
+            let mut pcm = Pcm::new();
+            let frames = cases.len();
+            for (c, plane) in pcm
+                .float_buffer(channels, frames)
+                .chunks_exact_mut(frames)
+                .enumerate()
+            {
+                for (i, value) in plane.iter_mut().enumerate() {
+                    *value = cases[(i + c) % frames].0;
+                }
+            }
+            let mut actual = Vec::new();
+            interleave(&pcm, 0, frames, SampleFormat::S24, &mut actual, 0);
+            let mut expected = Vec::new();
+            for i in 0..frames {
+                for c in 0..channels {
+                    expected.extend_from_slice(&cases[(i + c) % frames].1.to_le_bytes()[..3]);
+                }
+            }
+            assert_eq!(actual, expected);
+        }
+    }
 }

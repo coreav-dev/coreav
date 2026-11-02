@@ -62,6 +62,10 @@ fn reference(
 #[test]
 fn sample_conversion_is_exact_against_the_pinned_oracle() {
     let Some(ffmpeg) = std::env::var_os("COREAV_FFMPEG").map(PathBuf::from) else {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "CI requires COREAV_FFMPEG"
+        );
         eprintln!("skipping sample conversion oracle; set COREAV_FFMPEG");
         return;
     };
@@ -145,7 +149,7 @@ fn sample_conversion_is_exact_against_the_pinned_oracle() {
                     }
                 }
             }
-            for target in formats {
+            for target in [SampleFormat::S16, SampleFormat::S32, SampleFormat::F32] {
                 let mut actual = Vec::new();
                 interleave(&pcm, 0, frames, target, &mut actual, 0);
                 for planar in [false, true] {
@@ -172,4 +176,16 @@ fn sample_conversion_is_exact_against_the_pinned_oracle() {
         }
     }
     assert!(differences.is_empty(), "{}", differences.join("\n"));
+    assert_eq!(
+        reference(
+            &ffmpeg,
+            &(3.0f32 / 16_777_216.0).to_le_bytes(),
+            SampleFormat::F32,
+            SampleFormat::S24,
+            1,
+            false,
+        ),
+        [1, 0, 0],
+        "the documented PCM24 reference value changed"
+    );
 }
