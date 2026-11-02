@@ -42,7 +42,7 @@ def invoke(argv, env, cwd=None, output=None):
 
 
 def probe(path, ffprobe, env, inputs=()):
-    code, data, err = invoke([ffprobe, '-v', 'error', *inputs, '-i', str(path),
+    code, data, err = invoke([ffprobe, '-v', 'error', *inputs, *AUDIO_DECODE_INPUT, '-i', str(path),
                               '-show_streams', '-show_frames', '-of', 'json'], env)
     if code != 0 or err:
         return None
@@ -160,27 +160,32 @@ def video_command(ffmpeg, source, inputs, index, decoded):
             '-i', str(source), '-map', f'0:{index}', '-noautoscale', *decoded, '-']
 
 
-def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=()):
+def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None):
     expected = probe(reference, ffprobe, env, inputs)
     if expected is None:
         return 'unverified', 'reference probe'
-    for stream in expected['streams']:
-        codec = stream.get('codec_name', '')
+    indices = list(range(len(expected['streams']))) if stream is None else [stream]
+    if any(index < 0 or index >= len(expected['streams']) for index in indices):
+        return 'unverified', 'reference stream mapping'
+    for index in indices:
+        description = expected['streams'][index]
+        codec = description.get('codec_name', '')
         if codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
             return 'unverified', f'unregistered codec {codec}'
-        if stream.get('codec_type') == 'audio' and stream.get('sample_fmt') not in (
+        if description.get('codec_type') == 'audio' and description.get('sample_fmt') not in (
                 'u8', 'u8p', 's16', 's16p', 's32', 's32p', 'flt', 'fltp', 'dbl', 'dblp'):
             return 'unverified', 'reference sample format'
-        if stream.get('codec_type') == 'video':
-            frames = [f for f in expected.get('frames', []) if f.get('stream_index') == stream.get('index')]
-            if any(f.get('pix_fmt') != stream.get('pix_fmt') for f in frames):
+        if description.get('codec_type') == 'video':
+            frames = [f for f in expected.get('frames', []) if f.get('stream_index') == description.get('index')]
+            if any(f.get('pix_fmt') != description.get('pix_fmt') for f in frames):
                 return 'unverified', 'changing reference pixel format'
     actual = probe(mine, ffprobe, env, inputs)
     if actual is None:
         return 'failed', 'candidate probe'
     if len(actual['streams']) != len(expected['streams']):
         return 'failed', 'stream count'
-    for index, (ours, theirs) in enumerate(zip(actual['streams'], expected['streams'])):
+    for index in indices:
+        ours, theirs = actual['streams'][index], expected['streams'][index]
         if not metadata(ours, theirs):
             return 'failed', 'stream fields or timing'
         kind = theirs['codec_type']
