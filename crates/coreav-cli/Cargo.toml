@@ -74,6 +74,7 @@ release-default = ["cli", "net", "dav1d", "libvpx", "libopus"]
 release-full = ["release-default", "native-h264", "aac"]
 
 [dependencies]
+coreav-avi = { path = "../coreav-avi" }
 coreav-audio = { path = "../coreav-audio" }
 coreav-isobmff = { path = "../coreav-isobmff" }
 coreav-isobmff-write = { path = "../coreav-isobmff-write" }

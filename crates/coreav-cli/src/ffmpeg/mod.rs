@@ -11,6 +11,7 @@
 //! [`NotNative`] refusal, found before any output is written.
 
 pub mod args;
+mod avi;
 #[cfg(feature = "transcode")]
 pub mod encode;
 
@@ -81,6 +82,8 @@ impl From<WriteFailure> for Stop {
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
+    /// Selected streams written to AVI, with explicit audio jobs.
+    Avi(Vec<(usize, Codec)>),
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
         /// The tracks, in the output's order, a stream mapped twice twice.
@@ -158,10 +161,14 @@ The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
+  .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
 Builds with a decoder backend also encode the video with -c:v libx264.
+AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
+needs the opt-in transcode feature and an external encoder; strict-safe
+mode refuses it.
 Prints nothing on success.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
@@ -182,6 +189,7 @@ See docs/design/compat-cli.md.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
     encode::preflight(&command, strict_safe)?;
     let io = |e| WriteFailure::Rejected(Failure::io(e));
@@ -201,6 +209,17 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
         .map_err(WriteFailure::Rejected)?
         .report;
     let job = plan(&command, &report, list)?;
+    if let Job::Avi(streams) = &job
+        && strict_safe.on()
+        && streams
+            .iter()
+            .any(|(_, c)| *c == Codec::AviAudio(args::AviAudio::Mp3))
+    {
+        return Err(Refusal::not_native(
+            "MP3 encoding in strict-safe mode (its encoder is the ffmpeg program)",
+        )
+        .into());
+    }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
         let encoder = encode::encoder(transcode, strict_safe)?;
@@ -278,6 +297,9 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if command.muxer == Muxer::Avi {
+        return avi::job(command, report, &selected, list.is_some());
+    }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
@@ -1009,7 +1031,7 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
-    if codecs(command, &output).contains(&None) {
+    if command.muxer != Muxer::Avi && codecs(command, &output).contains(&None) {
         return Err(Refusal::not_native(
             "a selected stream that no -c copy option covers (it would be encoded)",
         ));
@@ -1069,6 +1091,9 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 /// moved into place only once the whole job succeeded. A transcode is
 /// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+    if let Job::Avi(streams) = job {
+        return avi::write(command, streams);
+    }
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -1161,7 +1186,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Split(_) | Job::Transcode(_) => Ok(serde_json::Value::Null),
+        Job::Avi(_) | Job::Split(_) | Job::Transcode(_) => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),
