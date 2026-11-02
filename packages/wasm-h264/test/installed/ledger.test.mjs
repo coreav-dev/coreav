@@ -40,10 +40,25 @@ test("outcome parity failures retain only closed native and WASM outcomes", () =
   assert.deepEqual(failureRecord("parity", 2, failed), { stage: "parity", item: 2, reason: "outcome_parity", actual: "io", native: "success", type: "other", cause: "other" });
 });
 
+test("image mismatch diagnostics distinguish transport loss from encoder lengths", () => {
+  const options = { at: "0" };
+  const summary = { schema: "coreav.thumbnail/1", packet: {}, time: {}, output: { bytes: 5 }, decoder: {} };
+  const reference = { complete: true, runtimeExit: false, outcome: "success", inputSha256: hash, optionsSha256: optionsSha256(options), summary, bytes: 5, outputSha256: hash };
+  for (const [actual, details] of [
+    [{ ...reference, bytes: 4 }, { actualTransport: false, nativeTransport: true, sameLength: false, sameSummary: true }],
+    [{ ...reference, bytes: 4, summary: { ...summary, output: { bytes: 4 } } }, { actualTransport: true, nativeTransport: true, sameLength: false, sameSummary: false }],
+    [{ ...reference, outputSha256: other }, { actualTransport: true, nativeTransport: true, sameLength: true, sameSummary: true }],
+  ]) {
+    let failed;
+    try { validateParity(actual, reference, { options, inputSha256: hash, expectation: "success" }); } catch (error) { failed = error; }
+    assert.deepEqual(failureRecord("parity", 1, failed), { stage: "parity", item: 1, reason: "image_bytes", ...details });
+  }
+});
+
 test("installed Node parity covers each format, entropy and container at both sizes", () => {
   const rows = nodeParityRoster();
-  assert.equal(rows.length, 24);
-  assert.equal(new Set(rows.map(row => row.id)).size, 24);
+  assert.equal(rows.length, 26);
+  assert.equal(new Set(rows.map(row => row.id)).size, 26);
   for (const geometry of ["360p", "coded-crop"]) for (const entropy of roster.entropy) for (const container of roster.containers) for (const format of roster.formats) {
     const fixture = `${geometry}-${entropy}-${container}`;
     assert.deepEqual(rows.find(row => row.id === `node-${fixture}-${format}`), {
@@ -51,6 +66,10 @@ test("installed Node parity covers each format, entropy and container at both si
       options: { at: "1", format, ...(geometry === "coded-crop" ? { width: 1280, height: 720 } : {}) },
     });
   }
+  for (const format of ["png", "webp"]) assert.deepEqual(rows.find(row => row.id === `node-upscaled-${format}`), {
+    id: `node-upscaled-${format}`, fixture: "360p-cavlc-mp4", expectation: "success",
+    options: { at: "0", format, width: 1280, height: 720 },
+  });
 });
 
 test("the registered eleven gates have the complete deterministic request roster", () => {

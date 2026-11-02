@@ -39,7 +39,12 @@ export function validateParity(actual, native, expected) {
   if (expected.expectation !== actual.outcome) fail("unexpected outcome");
   if (actual.outcome === "success") {
     if (actual.summary?.schema !== "coreav.thumbnail/1" || native.summary?.schema !== "coreav.thumbnail/1" || !actual.summary.packet || !actual.summary.time || !actual.summary.output || !actual.summary.decoder) fail("summary missing");
-    if (!positive(actual.bytes) || actual.bytes !== native.bytes || !hash(actual.outputSha256) || actual.outputSha256 !== native.outputSha256) fail("image bytes");
+    if (!positive(actual.bytes) || actual.bytes !== native.bytes || !hash(actual.outputSha256) || actual.outputSha256 !== native.outputSha256) fail("image bytes", {
+      actualTransport: actual.bytes === actual.summary.output.bytes,
+      nativeTransport: native.bytes === native.summary.output?.bytes,
+      sameLength: actual.bytes === native.bytes,
+      sameSummary: canonical(comparableSummary(actual.summary)) === canonical(comparableSummary(native.summary)),
+    });
     if (canonical(comparableSummary(actual.summary)) !== canonical(comparableSummary(native.summary))) fail("summary parity");
   } else {
     if (actual.bytes !== 0 || native.bytes !== 0 || actual.error?.schema !== "coreav.error/1" || native.error?.schema !== "coreav.error/1" || actual.error.kind !== native.error.kind || actual.error.kind !== expected.expectation) fail("structured refusal");
