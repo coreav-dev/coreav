@@ -322,7 +322,7 @@ jobs:
       - run: |
           cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           cargo test -p coreav-cli --features dav1d,ffmpeg-fallback --test strict_safe --test strict_safe_limit
-          cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+          cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit --test ffmpeg_frames
           cargo test -p coreav-cli --features native-h264,libopus --test strict_safe
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg

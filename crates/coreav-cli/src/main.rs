@@ -69,7 +69,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use coreav_cli::output::{self, WriteFailure};
+use coreav_cli::output::{self, WriteFailure, media_stdout};
 #[cfg(feature = "net")]
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_cli::{
@@ -892,55 +892,6 @@ fn print_document(document: &Value) -> Result<(), ExitCode> {
     writeln!(out, "{text}")
         .and_then(|()| out.flush())
         .map_err(|error| write_error(&error))
-}
-
-/// Standard output for media bytes (an output written to `-`), buffered.
-///
-/// `std::io::Stdout` is line-buffered whatever it is connected to: every
-/// write runs `memrchr` for a newline over the whole buffer, and a 0x0a
-/// byte in the media flushes there. So the media go through a `File` on a
-/// duplicate of the standard output descriptor (Unix) or handle (Windows),
-/// which the standard library opens without `unsafe`. Where there is no
-/// descriptor to duplicate (WASI, or a Windows process without a standard
-/// output handle) the media go through `Stdout` as before. Rust's own
-/// buffer is flushed first, so that nothing written through `Stdout`
-/// earlier comes after the media; the JSON documents, messages and `--help`
-/// keep using `Stdout`.
-///
-/// The buffer is std's default 8 KiB, as for a file output: a larger one
-/// would copy the sample runs that now go to the kernel straight from the
-/// source's buffer (`docs/design/cli-stdout.md`).
-fn media_stdout() -> std::io::BufWriter<Box<dyn Write>> {
-    let stdout = std::io::stdout();
-    // An error here shows again on the first write of the media.
-    let _ = stdout.lock().flush();
-    #[cfg(unix)]
-    let duplicate = {
-        use std::os::fd::AsFd;
-        stdout.as_fd().try_clone_to_owned().map(std::fs::File::from)
-    };
-    // A Windows process without standard output has a null handle, which
-    // std duplicates into a handle that fails every write; `Stdout`
-    // discards the bytes instead, so that case keeps `Stdout`.
-    #[cfg(windows)]
-    let duplicate = {
-        use std::os::windows::io::{AsHandle, AsRawHandle};
-        if stdout.as_raw_handle().is_null() {
-            Err(std::io::ErrorKind::Unsupported.into())
-        } else {
-            stdout
-                .as_handle()
-                .try_clone_to_owned()
-                .map(std::fs::File::from)
-        }
-    };
-    #[cfg(not(any(unix, windows)))]
-    let duplicate: std::io::Result<std::fs::File> = Err(std::io::ErrorKind::Unsupported.into());
-    let inner: Box<dyn Write> = match duplicate {
-        Ok(file) => Box::new(file),
-        Err(_) => Box::new(stdout.lock()),
-    };
-    std::io::BufWriter::new(inner)
 }
 
 /// A writer that remembers whether a write or a flush failed because the

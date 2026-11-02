@@ -1,9 +1,9 @@
-//! A PNG writer (ISO/IEC 15948): 8-bit RGB, one IDAT of a zlib stream
+//! A PNG writer (ISO/IEC 15948): RGB, RGBA and 8/16-bit monochrome, one IDAT of a zlib stream
 //! (RFC 1950) compressed with `miniz_oxide`, each row with the filter of
 //! the smallest sum of absolute differences (the heuristic the PNG
 //! specification suggests, 12.8). Its input is CoreAV's own pixels.
 
-use coreav_frame::{Picture, PixelFormat};
+use coreav_frame::{Chroma, Picture, PixelFormat};
 
 use crate::Error;
 
@@ -13,10 +13,36 @@ const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 /// fast as level 1, with files a few percent larger than level 6's.
 const LEVEL: u8 = 3;
 
-/// Encodes an [`PixelFormat::Rgb24`] picture as PNG.
+/// Encodes RGB, RGBA or 8/16-bit monochrome samples as PNG, without loss.
 pub fn encode(picture: &Picture) -> Result<Vec<u8>, Error> {
-    if picture.format() != PixelFormat::Rgb24 {
-        return Err(Error::Encode("PNG input must be RGB".into()));
+    encode_with_aspect(picture, None)
+}
+
+/// Encodes the same samples with an optional pixel width-to-height ratio.
+pub fn encode_with_aspect(picture: &Picture, aspect: Option<(u64, u64)>) -> Result<Vec<u8>, Error> {
+    let (depth, color, step) = match picture.format() {
+        PixelFormat::Rgb24 => (8, 2, 3),
+        PixelFormat::Rgba => (8, 6, 4),
+        PixelFormat::Yuv {
+            chroma: Chroma::Mono,
+            depth: 8,
+        } => (8, 0, 1),
+        PixelFormat::Yuv {
+            chroma: Chroma::Mono,
+            depth: 16,
+        } => (16, 0, 2),
+        _ => {
+            return Err(Error::Encode(
+                "PNG input must be RGB, RGBA or 8/16-bit monochrome".into(),
+            ));
+        }
+    };
+    let mut packed = Vec::new();
+    if depth == 16 {
+        picture.write_packed(&mut packed)?;
+        for sample in packed.chunks_exact_mut(2) {
+            sample.reverse();
+        }
     }
     let (w, h) = (picture.width(), picture.height());
     let row_bytes = picture.plane_rows(0).map_or(0, |(_, b)| b);
@@ -32,11 +58,17 @@ pub fn encode(picture: &Picture) -> Result<Vec<u8>, Error> {
     let mut previous: &[u8] = &zero;
     let mut candidate = vec![0u8; row_bytes];
     let mut best = vec![0u8; row_bytes];
-    for row in picture.rows(0) {
+    for y in 0..usize::try_from(h).map_err(|_| Error::Encode("PNG height".into()))? {
+        let row = if depth == 16 {
+            packed.get(y.saturating_mul(row_bytes)..y.saturating_add(1).saturating_mul(row_bytes))
+        } else {
+            picture.row(0, y)
+        }
+        .ok_or_else(|| Error::Encode("PNG row".into()))?;
         let mut best_type = 0u8;
         let mut best_cost = u64::MAX;
         for filter in 0..5u8 {
-            apply(filter, row, previous, &mut candidate);
+            apply(filter, row, previous, &mut candidate, step);
             let cost: u64 = candidate
                 .iter()
                 .map(|b| u64::from(b.unsigned_abs_i8()))
@@ -57,8 +89,22 @@ pub fn encode(picture: &Picture) -> Result<Vec<u8>, Error> {
     let mut ihdr = Vec::with_capacity(13);
     ihdr.extend_from_slice(&w.to_be_bytes());
     ihdr.extend_from_slice(&h.to_be_bytes());
-    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+    ihdr.extend_from_slice(&[depth, color, 0, 0, 0]);
     chunk(&mut out, b"IHDR", &ihdr);
+    if let Some((width, height)) = aspect {
+        let ratio = coreav_isobmff::Rational::new(i128::from(width), height)
+            .filter(|r| r.num > 0)
+            .ok_or_else(|| Error::Encode("PNG pixel aspect ratio".into()))?;
+        let x =
+            u32::try_from(ratio.den).map_err(|_| Error::Encode("PNG pixel aspect ratio".into()))?;
+        let y =
+            u32::try_from(ratio.num).map_err(|_| Error::Encode("PNG pixel aspect ratio".into()))?;
+        let mut phys = Vec::with_capacity(9);
+        phys.extend_from_slice(&x.to_be_bytes());
+        phys.extend_from_slice(&y.to_be_bytes());
+        phys.push(0);
+        chunk(&mut out, b"pHYs", &phys);
+    }
     chunk(&mut out, b"IDAT", &compressed);
     chunk(&mut out, b"IEND", &[]);
     Ok(out)
@@ -75,17 +121,16 @@ impl AbsI8 for u8 {
     }
 }
 
-/// Filters `row` with filter type `filter` (12.2, 9.2) into `out`; three
-/// bytes per pixel.
-fn apply(filter: u8, row: &[u8], previous: &[u8], out: &mut [u8]) {
+/// Filters `row` with filter type `filter` (12.2, 9.2) into `out`.
+fn apply(filter: u8, row: &[u8], previous: &[u8], out: &mut [u8], step: usize) {
     for (i, ((o, x), b)) in out.iter_mut().zip(row).zip(previous).enumerate() {
         let a = i
-            .checked_sub(3)
+            .checked_sub(step)
             .and_then(|j| row.get(j))
             .copied()
             .unwrap_or(0);
         let c = i
-            .checked_sub(3)
+            .checked_sub(step)
             .and_then(|j| previous.get(j))
             .copied()
             .unwrap_or(0);
@@ -183,6 +228,91 @@ mod tests {
             }
             assert_eq!(Some(out.as_slice()), p.row(0, y));
             prev = out;
+        }
+    }
+
+    #[test]
+    fn every_supported_layout_keeps_its_samples() {
+        for (format, depth, color, step) in [
+            (PixelFormat::Rgb24, 8, 2, 3),
+            (PixelFormat::Rgba, 8, 6, 4),
+            (
+                PixelFormat::Yuv {
+                    chroma: Chroma::Mono,
+                    depth: 8,
+                },
+                8,
+                0,
+                1,
+            ),
+            (
+                PixelFormat::Yuv {
+                    chroma: Chroma::Mono,
+                    depth: 16,
+                },
+                16,
+                0,
+                2,
+            ),
+        ] {
+            let mut picture = Picture::zeroed(5, 3, format).unwrap();
+            for y in 0..3 {
+                for (x, byte) in picture.row_mut(0, y).unwrap().iter_mut().enumerate() {
+                    *byte = (x * 39 + y * 71) as u8;
+                }
+            }
+            let png = encode_with_aspect(&picture, Some((4, 3))).unwrap();
+            assert_eq!(&png[24..26], &[depth, color]);
+            let mut offset = 8;
+            let mut raw = Vec::new();
+            let mut phys = None;
+            while offset < png.len() {
+                let len = u32::from_be_bytes(png[offset..offset + 4].try_into().unwrap()) as usize;
+                let kind = &png[offset + 4..offset + 8];
+                let data = &png[offset + 8..offset + 8 + len];
+                let crc = u32::from_be_bytes(
+                    png[offset + 8 + len..offset + 12 + len].try_into().unwrap(),
+                );
+                assert_eq!(crc32(&png[offset + 4..offset + 8 + len]), crc);
+                if kind == b"IDAT" {
+                    raw = miniz_oxide::inflate::decompress_to_vec_zlib(data).unwrap();
+                }
+                if kind == b"pHYs" {
+                    phys = Some(data.to_vec());
+                }
+                offset += len + 12;
+            }
+            assert_eq!(phys.unwrap(), [0, 0, 0, 3, 0, 0, 0, 4, 0]);
+            let bytes = picture.plane_rows(0).unwrap().1;
+            let mut previous = vec![0u8; bytes];
+            let mut actual = Vec::new();
+            for line in raw.chunks_exact(bytes + 1) {
+                let mut row = vec![0u8; bytes];
+                for i in 0..bytes {
+                    let a = if i >= step { row[i - step] } else { 0 };
+                    let b = previous[i];
+                    let c = if i >= step { previous[i - step] } else { 0 };
+                    let predictor = match line[0] {
+                        0 => 0,
+                        1 => a,
+                        2 => b,
+                        3 => ((u16::from(a) + u16::from(b)) / 2) as u8,
+                        4 => paeth(a, b, c),
+                        _ => panic!("filter"),
+                    };
+                    row[i] = line[i + 1].wrapping_add(predictor);
+                }
+                actual.extend_from_slice(&row);
+                previous = row;
+            }
+            if depth == 16 {
+                for sample in actual.chunks_exact_mut(2) {
+                    sample.reverse();
+                }
+            }
+            let mut expected = Vec::new();
+            picture.write_packed(&mut expected).unwrap();
+            assert_eq!(actual, expected, "{format:?}");
         }
     }
 }
