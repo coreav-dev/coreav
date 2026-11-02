@@ -339,7 +339,7 @@ Main stopped fuzzing on push because the run had outgrown its job. Every target 
 
 ## Concurrency
 
-`ci.yml`, `python.yml` and `npm.yml` cancel superseded PR work job by job, never as a whole workflow. Every main job has an independent run-id group. A docs push cannot discard unfinished source maintenance, and a delayed older changes job cannot cancel a newer push's jobs. GitHub orders concurrency-group arrivals, not commits; selecting the same job does not prove that the replacing run is newer.
+`ci.yml`, `python.yml` and `npm.yml` cancel superseded PR work job by job, never as a whole workflow. Every main job has an independent run-id group. A docs push cannot discard unfinished main source maintenance. GitHub orders concurrency-group arrivals, not commits; selecting the same job does not prove that the replacing run is newer.
 
 Every non-report job, including the changes job, has this form, with its own job id (and `-${{ strategy.job-index }}` after the id for a matrix job):
 
@@ -349,7 +349,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
-PR changes jobs cancel superseded PR gates before they can dispatch old jobs. Reports have no concurrency group and carry `if: always()`. They wait for their own run's jobs and fail on failure or cancellation; they never turn cancellation into a skipped green check.
+PR changes jobs cancel superseded PR gates before they can dispatch old jobs. An old PR run's job cancelling a new one is unlikely, not impossible: an old `ci-changes` can end just before the new run is created, then its jobs can join their groups after the new run's jobs. This race fails closed: a cancelled job leaves `ci-report` red. Reports have no concurrency group and carry `if: always()`. They wait for their own run's jobs and fail on failure or cancellation; they never turn cancellation into a skipped green check.
 
 Setting only `cancel-in-progress: false` on a shared main group is insufficient: GitHub still replaces its pending job when another arrives. Unique run-id groups protect both queued and running work. Protecting only main maintenance is also insufficient: a delayed old gate could still cancel the newest full fallback suite. Successful same-tree queue evidence removes duplicate suites instead. If evidence is unavailable for two overlapping main pushes, both fallback suites run; there is no extra API orchestration to cancel one.
 
