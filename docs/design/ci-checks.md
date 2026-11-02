@@ -153,6 +153,11 @@ and the required `deny` name is reported by `deny-report`, which always runs
 and fails unless `deny-checks` succeeded. A timeout is a red required check
 that names the job which stopped, not a cancelled one with nothing after it.
 
+The pull request is not the only loser: a merge group has no newer run to
+fall back on either, and a `deny` job that ran out its ceiling ejected the
+queued pull request from the queue. The queue waits on the same check, so
+the same report job reports it.
+
 `deny-report` passes on `success` and nothing else. Nothing in `deny.yml` is
 filtered, so no job of it has anything to skip, and a required check that a
 skipped job passes says nothing about the commit. The report jobs of
