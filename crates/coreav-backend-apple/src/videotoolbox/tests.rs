@@ -448,6 +448,15 @@ fn creation_failure_retires_the_registry_and_unknown_hardware_is_not_software() 
 }
 
 #[test]
+fn native_fractional_rate_creation_reads_back_the_requested_hint() {
+    let _serial = lock(&SERIAL);
+    let settings =
+        Settings::bt709_limited(32, 30, 30_000, 1001, 2_000_000, HardwarePolicy::Require).unwrap();
+    let encoder = Encoder::new(settings, Limits::default(), control()).unwrap();
+    drop(encoder);
+}
+
+#[test]
 fn native_drop_retires_its_key_before_the_outer_constructor_returns() {
     let _serial = lock(&SERIAL);
     let control = control();
