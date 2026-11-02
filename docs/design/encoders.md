@@ -4,6 +4,8 @@ Status: Selection groundwork only. The codec-neutral frame and packet contracts 
 
 The default output remains H.264 video with copied audio in MP4. AV1 is explicit. [Policy record 0043](encoder-policy.md) adds the platform and licence exceptions to record 0042. The existing [transcode design](transcode.md) continues to describe shipped behavior. This note specifies the new backend contract and its acceptance bars, not a claim that they have passed.
 
+The separate [G1 H.264 encoder design](h264-encoder.md) pre-registers a self-written, full-build-only intra spike. It adds no backend or command-line option to this plan.
+
 ## Output and encoder selection
 
 Codec selection and encoder selection are separate. The proposed `--video h264|av1` selects the output codec. Omission means H.264 on every platform. The proposed encoder choices extend `--encoder auto|x264|ffmpeg` with `platform` and `svt-av1`. An explicit encoder never falls back. Selecting an encoder incompatible with the requested codec is an `unsupported_feature` error.

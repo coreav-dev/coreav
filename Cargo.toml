@@ -36,6 +36,7 @@ members = [
     "tools/ts-speed",
     "tools/edge-native",
     "tools/decode-oracle",
+    "tools/vp9-corpus-oracle",
     "tools/counting-alloc",
 ]
 

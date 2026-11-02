@@ -1,0 +1,27 @@
+{
+  "id": "VP9-C2-TRUNCATED-TAIL",
+  "sha256": "dd16cf26796d3ff046a7506e4d7549d0328c4725c9deff93c3314116bcc3b117",
+  "file_size": 51904512,
+  "timestamp_scale": 1000000,
+  "track_number": 1,
+  "cluster": {
+    "offset": 51534851,
+    "id": 524531317,
+    "header_len": 7,
+    "size": 531381
+  },
+  "timestamp": {
+    "offset": 51534858,
+    "id": 231,
+    "header_len": 2,
+    "size": 3
+  },
+  "cluster_timestamp": 394241,
+  "block": {
+    "offset": 51904099,
+    "id": 163,
+    "header_len": 3,
+    "size": 8663
+  },
+  "partial_pts": 396807
+}
