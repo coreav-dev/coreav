@@ -372,7 +372,32 @@ pub fn plan(
     if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
         return pcm::plan(command, report, &selected, list.is_some());
     }
+    if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
+        match command.map_metadata {
+            MapMetadata::Default => {}
+            MapMetadata::Strip => {
+                return Err(Refusal::not_native(
+                    "-map_metadata -1 on another output than an M4A file",
+                ));
+            }
+            MapMetadata::Stream(_) => {
+                return Err(Refusal::not_native(
+                    "-map_metadata from a stream on another output than an M4A file",
+                ));
+            }
+        }
+    }
     if command.muxer.frames() {
+        if (args::Encoding {
+            pixel_format: None,
+            threads: None,
+            ..command.encoding.clone()
+        }) != args::Encoding::default()
+        {
+            return Err(Refusal::not_native(
+                "encoder settings or filters on image and raw output",
+            ));
+        }
         if list.is_some() {
             return Err(Refusal::not_native(
                 "image or raw output from a concat list",
@@ -442,21 +467,6 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
-        match command.map_metadata {
-            MapMetadata::Default => {}
-            MapMetadata::Strip => {
-                return Err(Refusal::not_native(
-                    "-map_metadata -1 on another output than an M4A file",
-                ));
-            }
-            MapMetadata::Stream(_) => {
-                return Err(Refusal::not_native(
-                    "-map_metadata from a stream on another output than an M4A file",
-                ));
-            }
-        }
-    }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))

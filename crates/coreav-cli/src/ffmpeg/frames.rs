@@ -13,7 +13,7 @@ use coreav_frame::{
 use coreav_isobmff::{BufferedSource, FileSource, Rational};
 use coreav_thumbnail::{ThumbnailOptions, VideoStream};
 
-use super::args::{Command, Encoding, Muxer, VideoEncoder};
+use super::args::{Command, Muxer, VideoEncoder};
 use super::{Refusal, Stop, check_output, clip_range};
 use crate::error::Failure;
 use crate::ffprobe::{Report, model::Value};
@@ -118,16 +118,6 @@ fn times_rate(video: &VideoStream) -> Result<Option<Rational>, Stop> {
 }
 
 fn validate(command: &Command, video: &VideoStream) -> Result<Option<Rational>, Stop> {
-    if (Encoding {
-        pixel_format: None,
-        threads: None,
-        ..command.encoding.clone()
-    }) != Encoding::default()
-    {
-        return Err(unsupported(
-            "encoder settings or filters on image and raw output",
-        ));
-    }
     if command.frames.update && command.muxer != Muxer::Image2 {
         return Err(unsupported("-update on an output other than image2"));
     }
