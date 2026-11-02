@@ -153,7 +153,7 @@ class Judgment(unittest.TestCase):
 
     def test_missing_duplicate_reordered_stale_and_aborted_evidence_fail(self):
         original = report()
-        for mode in ('missing', 'duplicate', 'reordered', 'stale', 'aborted', 'binary'):
+        for mode in ('missing', 'duplicate', 'reordered', 'stale', 'workflow', 'aborted', 'binary'):
             value = copy.deepcopy(original)
             if mode == 'missing':
                 value['streams'].pop()
@@ -163,6 +163,8 @@ class Judgment(unittest.TestCase):
                 value['streams'].reverse()
             elif mode == 'stale':
                 value['sources']['scripts/vp9_filter_frames.py'] = '0' * 64
+            elif mode == 'workflow':
+                value['sources']['.github/workflows/vp9-filter.yml'] = '0' * 64
             elif mode == 'binary':
                 value['tools'].pop('native')
             else:
@@ -273,6 +275,10 @@ class Workflow(unittest.TestCase):
         self.assertEqual(jobs['filter-capture']['timeout-minutes'], coverage.registration()['workflow_minutes'])
         steps = jobs['filter-capture']['steps']
         run = next(step for step in steps if step.get('name') == 'Capture the registered filter controls')
+        verify = next(step for step in steps if step.get('name') == 'Verify the oracle including cache hits')
+        self.assertNotIn('if', verify)
+        self.assertIn('scripts/oracle_pin.py --verify-bin', verify['run'])
+        self.assertLess(steps.index(verify), steps.index(run))
         self.assertEqual(run['env']['MODE'], "${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'smoke' }}")
         self.assertIn("github.ref == 'refs/heads/main'", jobs['filter-capture']['if'])
         self.assertIn('"$MODE"', run['run'])
