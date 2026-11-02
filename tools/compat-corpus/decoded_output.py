@@ -160,7 +160,7 @@ def video_command(ffmpeg, source, inputs, index, decoded):
             '-i', str(source), '-map', f'0:{index}', '-noautoscale', *decoded, '-']
 
 
-def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None):
+def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None, copied_streams=()):
     expected = probe(reference, ffprobe, env, inputs)
     if expected is None:
         return 'unverified', 'reference probe'
@@ -170,7 +170,8 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
     for index in indices:
         description = expected['streams'][index]
         codec = description.get('codec_name', '')
-        if codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
+        copied = index in copied_streams and codec in ('h264', 'aac', 'vp9', 'opus')
+        if not copied and codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
             return 'unverified', f'unregistered codec {codec}'
         if description.get('codec_type') == 'audio' and description.get('sample_fmt') not in (
                 'u8', 'u8p', 's16', 's16p', 's32', 's32p', 'flt', 'fltp', 'dbl', 'dblp'):
@@ -184,12 +185,35 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
         return 'failed', 'candidate probe'
     if len(actual['streams']) != len(expected['streams']):
         return 'failed', 'stream count'
+    if copied_streams and any([s.get('index') for s in document['streams']] != list(range(len(document['streams'])))
+                              for document in (actual, expected)):
+        return 'failed', 'stream indices'
     for index in indices:
         ours, theirs = actual['streams'][index], expected['streams'][index]
         if not metadata(ours, theirs):
             return 'failed', 'stream fields or timing'
         kind = theirs['codec_type']
         if kind == 'audio':
+            if index in copied_streams:
+                try:
+                    timelines = []
+                    for document, stream in ((actual, ours), (expected, theirs)):
+                        frames = [f for f in document.get('frames', []) if f.get('stream_index') == index]
+                        if not frames:
+                            return 'failed', 'no audio frames'
+                        timeline = []
+                        for frame in frames:
+                            clock = {**frame, 'time_base': stream['time_base']}
+                            pts, duration = time(clock, 'best_effort_timestamp'), time(clock, 'duration')
+                            samples = int(frame['nb_samples'])
+                            if pts is None or duration is None or duration <= 0 or samples <= 0:
+                                return 'failed', 'invalid audio timing'
+                            timeline.append((pts, duration, samples))
+                        timelines.append(timeline)
+                    if timelines[0] != timelines[1]:
+                        return 'failed', 'audio frame timing or count'
+                except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                    return 'failed', 'invalid audio timing'
             floating = theirs['sample_fmt'].startswith(('flt', 'dbl')) or theirs['codec_name'] == 'mp3'
             codec, form, size = ('pcm_f64le', 'f64le', 8) if floating else ('pcm_s32le', 's32le', 4)
             decoded = ['-c:a', codec, '-f', form]

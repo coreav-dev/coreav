@@ -16,6 +16,7 @@ import Help from '/snippets/help/ffmpeg.mdx';
 |---|---|
 | A copy to `.mp4` (or `-f mp4`) from MP4, MOV, Matroska or WebM | [`coreav remux`](/commands/remux) of the selected streams |
 | A copy of one audio stream to `.m4a` (or `-f ipod`) | [`coreav extract-audio`](/commands/extract-audio) |
+| A copy to `.avi` (or `-f avi`) from MP4 or MOV | Bounded H.264, MP3 and integer PCM packet output |
 | `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip), or for a copy of one audio stream and no video, a clip of that audio alone |
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
@@ -25,6 +26,8 @@ In a build with a decoder backend, it also runs a command line that encodes the 
 In a build with the `libopus` feature, such a command line can also encode one audio stream this build decodes, mono or stereo, with `-c:a libopus`, at the bit rate `-b:a` gives (6k to 510k), through [`coreav transcode --audio opus`](/commands/transcode). Sources can be FLAC, MP3, Opus, or AAC-LC with the `aac` feature. CoreAV runs libopus itself in a sandboxed process, never an `ffmpeg` program. In a build without the `libopus` feature, a `-c:a libopus` command line is not native: it goes to the real `ffmpeg`, and in strict-safe mode it is refused with exit status 4 and nothing runs.
 
 In every build with a decoder backend, such a command line can also encode one audio stream this build decodes, mono or stereo, sampled at an AAC rate from 8 to 64 kHz, with `-c:a aac` (or `-acodec aac`), at the bit rate `-b:a` gives (16k to 512k; without it, the encoder's default), through [`coreav transcode --audio aac`](/commands/transcode). Sources can be FLAC, MP3, Opus, or AAC-LC with the `aac` feature. The encoder is FFmpeg's built-in `aac` encoder, run as a separate process: the `ffmpeg` program `COREAV_FFMPEG` names, else the one on `PATH`. A command line is refused with exit status 4 when no `ffmpeg` program is found or it has no `aac` encoder. Strict-safe mode never runs an `ffmpeg` program, so it refuses every `-c:a aac` command line with exit status 4 and nothing runs.
+
+AVI output also accepts `-c:a pcm_s16le` or `pcm_u8` for mono or stereo audio that this build decodes. MP3 encoding (`-c:a libmp3lame`) needs the opt-in `transcode` feature, absent from default builds, and an external `ffmpeg` program with that encoder. Strict-safe mode refuses this external encoder even when the feature is enabled. AVI output is limited to files smaller than 1 GiB, with fixed-rate, non-reordered, zero-based H.264 video. [The AVI design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/avi-write.md) lists the supported clocks and resource limits.
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
 

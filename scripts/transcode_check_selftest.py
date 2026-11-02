@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 import unittest
 from fractions import Fraction
+from types import SimpleNamespace
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -296,6 +297,101 @@ class Layout(unittest.TestCase):
         self.assertTrue(tc.misconfigured({'message': 'no encoder program: install x264 or ffmpeg with libx264'}))
         self.assertFalse(tc.misconfigured({'message': 'the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 '
                                                       'bits, not Gray'}))
+
+
+class EncodedAudio(unittest.TestCase):
+    fields = {'codec_name': 'aac', 'profile': 'LC', 'sample_fmt': 'fltp', 'sample_rate': '44100',
+              'channels': 2, 'channel_layout': 'stereo', 'time_base': '1/44100',
+              'start_pts': 0, 'duration_ts': 88200}
+
+    def compare(self, candidate=None, candidate_hash=b'a' * 64, status=0, stderr=b''):
+        args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe')
+        with mock.patch.object(tc, 'jrun', side_effect=[
+                (SimpleNamespace(returncode=0), {'streams': [candidate or dict(self.fields)]}),
+                (SimpleNamespace(returncode=0), {'streams': [dict(self.fields)]})]), \
+                mock.patch.object(tc, 'run', side_effect=[
+                    SimpleNamespace(returncode=status, stdout=b'SHA256=' + candidate_hash, stderr=stderr),
+                    SimpleNamespace(returncode=0, stdout=b'SHA256=' + b'a' * 64, stderr=b'')]) as decoder:
+            result = tc.compare_encoded_audio(args, 'candidate.mp4', 1, 'baseline.mp4', 1)
+            command = decoder.call_args_list[0].args[0]
+            self.assertLess(command.index('-threads:a'), command.index('-i'))
+            self.assertIn('pcm_f32le', command)
+        return result
+
+    def test_exact_samples_and_fields_pass(self):
+        self.assertTrue(self.compare()['ok'])
+
+    def test_wrong_samples_or_properties_fail(self):
+        self.assertFalse(self.compare(candidate_hash=b'b' * 64)['ok'])
+        for key, value in [('codec_name', 'opus'), ('channels', 1), ('sample_rate', '48000'),
+                           ('start_pts', 1024), ('duration_ts', 89224)]:
+            self.assertFalse(self.compare(candidate=dict(self.fields, **{key: value}))['ok'], key)
+
+    def test_failed_empty_or_warned_decodes_fail(self):
+        self.assertFalse(self.compare(status=1)['ok'])
+        self.assertFalse(self.compare(stderr=b'decoder error')['ok'])
+        self.assertFalse(self.compare(candidate_hash=hashlib.sha256(b'').hexdigest().encode())['ok'])
+
+    def compat(self, origins, encoded_ok, baseline_ok=True, key='x01', has_audio=True):
+        args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe', coreav='coreav', arms=[('test', [])])
+        source = mock.Mock()
+        source.streams = [{'index': 0, 'codec_type': 'video'}]
+        kinds = [('video', 'h264')] + ([('audio', 'aac')] if has_audio else [])
+        audios = [1] if has_audio else []
+        judged = {'B1': {'ok': True}, 'B2': {'ok': True}, 'B3': {'ok': True},
+                  'video': {'width': 64, 'height': 64, 'bytes': 100}}
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(tc, 'Source', return_value=source), \
+                mock.patch.object(pathlib.Path, 'is_file', return_value=True), \
+                mock.patch.object(tc, 'run', return_value=SimpleNamespace(
+                    returncode=0 if baseline_ok else 1, stderr=b'baseline error')), \
+                mock.patch.object(tc, 'written', return_value=(kinds, 0, audios)), \
+                mock.patch.object(tc, 'audio_origin', side_effect=origins), \
+                mock.patch.object(tc, 'compat_run', return_value={'status': 'ok'}), \
+                mock.patch.object(tc, 'judge_output', return_value=judged) as judge, \
+                mock.patch.object(tc, 'compare_encoded_audio', return_value={'ok': encoded_ok}) as encoded, \
+                mock.patch.object(tc, 'display_matrix', return_value=[]), \
+                mock.patch.object(tc, 'psnr', return_value={'ok': True, 'average': 40}), \
+                mock.patch.object(tc, 'probe_size', return_value=(64, 64)), \
+                mock.patch.object(tc, 'video_bytes_and_rate', return_value=(100, 800)):
+            result = tc.check_compat(args, 'source.mp4', key, 'h264', pathlib.Path(temp))
+            return result['arms']['test'], judge.call_args, encoded.call_count
+
+    def test_compat_rejects_wrong_encoded_audio(self):
+        result, judged, calls = self.compat([None, None], False)
+        self.assertEqual(calls, 1)
+        self.assertFalse(result['B3']['ok'])
+        self.assertEqual(judged.kwargs['extra_audio'], 1)
+
+    def test_compat_preserves_copied_audio_judgment(self):
+        result, judged, calls = self.compat([1, 1], False)
+        self.assertEqual(calls, 0)
+        self.assertTrue(result['B3']['ok'])
+        self.assertEqual(judged.args[5], [1])
+        self.assertEqual(judged.kwargs['expected_audio'], [1])
+        self.assertEqual(judged.kwargs['extra_audio'], 0)
+
+    def test_failed_baseline_retains_remux_audio_expectation(self):
+        result, judged, calls = self.compat([1], False, baseline_ok=False)
+        self.assertEqual(calls, 0)
+        self.assertEqual(judged.args[5], [1])
+        self.assertIsNone(judged.kwargs['expected_audio'])
+        self.assertFalse(result['Q1']['ok'])
+        self.assertFalse(result['Q2']['ok'])
+
+    def test_failed_baseline_retains_explicit_no_audio_expectation(self):
+        result, judged, calls = self.compat([], False, baseline_ok=False, key='x12', has_audio=False)
+        self.assertEqual(calls, 0)
+        self.assertEqual(judged.args[5], [])
+        self.assertEqual(judged.kwargs['expected_audio'], [])
+        self.assertFalse(result['Q1']['ok'])
+        self.assertFalse(result['Q2']['ok'])
+
+    def test_failed_baseline_cannot_hide_unexpected_audio(self):
+        for origin in [1, None]:
+            result, judged, calls = self.compat([origin], False, baseline_ok=False, key='x12')
+            self.assertEqual(result['status'], 'failed')
+            self.assertIsNone(judged)
+            self.assertEqual(calls, 0)
 
 
 class Summary(unittest.TestCase):
