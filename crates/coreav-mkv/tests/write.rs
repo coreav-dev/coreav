@@ -348,12 +348,19 @@ fn nonpositive_presentation_ends_omit_duration_without_losing_packets() {
 
 #[test]
 fn seek_head_obeys_the_element_byte_limit() {
-    let tracks = [video(CodecId::Vp9)];
+    let mut track = video(CodecId::Vp9);
+    track.name = None;
+    let tracks = [track];
     let packets = [packet(0, 0, true)];
     let limits = Limits {
         max_element_bytes: 60,
         ..Limits::default()
     };
+    let without_cues = [Packet {
+        keyframe: false,
+        ..packets[0]
+    }];
+    assert!(plan(&tracks, &without_cues, Options::default(), &limits).is_ok());
     assert!(matches!(
         plan(&tracks, &packets, Options::default(), &limits),
         Err(Error::LimitExceeded {
