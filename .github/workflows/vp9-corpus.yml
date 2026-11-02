@@ -1,0 +1,177 @@
+name: vp9-corpus
+
+on:
+  push:
+    branches: [main]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+  schedule:
+    - cron: '11 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check the comparison contract before corpus acquisition
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p 'test_vp9_corpus*.py' -v
+          cargo test --locked -p coreav-vp9-corpus-oracle
+          cargo clippy --locked -p coreav-vp9-corpus-oracle --all-targets -- -D warnings
+          cargo build --locked --release -p coreav-vp9-corpus-oracle
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Preflight the original-file oracle on a pinned public vector
+        run: |
+          set -euo pipefail
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I - "$RUNNER_TEMP/preflight.webm" <<'PY'
+          import hashlib, json, pathlib, sys, urllib.request
+          manifest = json.load(open('crates/coreav-vp9/tests/data/vectors.json'))
+          vector = next(v for v in manifest['vectors'] if v['name'] == 'vp90-2-00-quantizer-10.webm')
+          with urllib.request.urlopen(manifest['source'] + vector['name'], timeout=60) as response:
+              data = response.read(1 << 24)
+          if hashlib.sha256(data).hexdigest() != vector['sha256']:
+              raise SystemExit('public preflight vector checksum mismatch')
+          pathlib.Path(sys.argv[1]).write_bytes(data)
+          PY
+          python3 -I scripts/vp9_corpus.py preflight --file "$RUNNER_TEMP/preflight.webm" \
+            --native target/release/vp9-corpus-oracle --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" --private "$RUNNER_TEMP/preflight"
+      - name: Stage the verified tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin/oracle"
+          cp target/release/vp9-corpus-oracle "$RUNNER_TEMP/bin/"
+          cp -a "$RUNNER_TEMP/coreav-oracle-bin/." "$RUNNER_TEMP/bin/oracle/"
+          cd "$RUNNER_TEMP/bin"
+          sha256sum vp9-corpus-oracle oracle/ffmpeg oracle/ffprobe > checksums.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: vp9-c2-tools
+          path: ${{ runner.temp }}/bin
+          retention-days: 7
+
+  corpus:
+    needs: contract
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: vp9-c2-tools
+          path: ${{ runner.temp }}/bin
+      - name: Verify the tools before fetching private inputs
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/bin"
+          sha256sum --quiet -c checksums.sha256
+          chmod +x vp9-corpus-oracle oracle/ffmpeg oracle/ffprobe
+          cd "$GITHUB_WORKSPACE"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/bin/oracle"
+      - name: Fetch the registered shard
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -I scripts/vp9_corpus.py fetch --dest "$RUNNER_TEMP/media" --shard '${{ matrix.shard }}/8'
+      - name: Compare exact clocks and pixels without credentials
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/public"
+          python3 -I scripts/vp9_corpus.py run --files "$RUNNER_TEMP/media" \
+            --native "$RUNNER_TEMP/bin/vp9-corpus-oracle" --ffmpeg "$RUNNER_TEMP/bin/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/bin/oracle/ffprobe" --private "$RUNNER_TEMP/private" \
+            --summary "$RUNNER_TEMP/public/summary-${{ matrix.shard }}.json" --shard '${{ matrix.shard }}/8'
+      - name: Seal private records and remove media
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          rm -rf media
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-c2-sealed-${{ matrix.shard }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-c2-summary-${{ matrix.shard }}
+          path: ${{ runner.temp }}/public/summary-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  corpus-summary:
+    needs: corpus
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: vp9-c2-summary-*
+          path: ${{ runner.temp }}/summaries
+          merge-multiple: true
+      - name: Require every registered shard and comparison
+        env:
+          CORPUS_RESULT: ${{ needs.corpus.result }}
+        run: |
+          set -euo pipefail
+          python3 -I scripts/vp9_corpus.py summarize --summaries "$RUNNER_TEMP/summaries" \
+            --shards 8 --out "$RUNNER_TEMP/c2-summary.json" >> "$GITHUB_STEP_SUMMARY"
+          test "$CORPUS_RESULT" = success
