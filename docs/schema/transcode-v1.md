@@ -45,7 +45,7 @@ change.
 | Key | Type | Meaning |
 |---|---|---|
 | `stream_index` | integer | The source stream's position among all of its streams. The output's encoded stream keeps its place in the track order. |
-| `codec` | string | The source stream's codec: `flac` or `mp3`. |
+| `codec` | string | The source stream's codec: `flac`, `mp3`, `opus`, or `aac` (with the `aac` feature). |
 | `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. The AAC stream has the source's rate, 8 to 64 kHz. |
 | `encoder` | string | `libopus` for Opus; `aac`, FFmpeg's built-in AAC encoder, for AAC-LC. |
 | `channels` | integer | The encoded stream's channels, 1 or 2: the source's. |

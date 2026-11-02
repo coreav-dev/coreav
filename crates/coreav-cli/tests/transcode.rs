@@ -2007,6 +2007,8 @@ fn audio_encodes_preserve_the_decoders_presented_samples() {
                 );
                 assert_eq!(run.code, 0, "{codec} {container} {mode}: {}", run.stderr);
                 let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                let contract: Value = serde_json::from_str(TRANSCODE_SCHEMA).unwrap();
+                schema::validate(&summary, &contract, &contract, "$").unwrap();
                 assert_eq!(summary["encoded_audio"]["codec"], codec);
                 assert_eq!(summary["encoded_audio"]["samples"], decoded.samples);
                 let streams = probe_json(
