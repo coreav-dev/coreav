@@ -487,6 +487,7 @@ dependencies = [
  "image-webp",
  "jpeg-encoder",
  "miniz_oxide",
+ "sha2",
 ]
 
 [[package]]
