@@ -972,6 +972,63 @@ refusal test checks that unsupported options, a missing encoder and
 strict-safe AAC encoding publish nothing. Both tests run in CI's whole
 transcode fixture target with and without `aac`.
 
+## MP3 audio
+
+MP3 encoding uses the operator's `ffmpeg -c:a libmp3lame` as a separate
+resource-limited process under policy record 0042. CoreAV supplies decoded
+float PCM, never the input file. The process writes Matroska to a bounded
+spool: RFC 9559's `CodecDelay` and final `DiscardPadding` retain the
+presentation boundaries that a raw MP3 pipe does not. CoreAV's reader
+checks one uncompressed `A_MPEG/L3` track, rate, channels, every complete
+Layer III frame and the exact decoded sample total before writing output.
+
+The encoded stream's description distinguishes MP4 sample entries from
+MP3 gapless metadata. The MP3 writer emits its own ID3v2.4 header and
+Xing/Info frame, then copies only checked audio frames. The first frame
+contains the frame/byte counts, seek table and encoder delay/padding from
+the [MP3 Info Tag specification](http://gabriel.mp3-tech.org/mp3infotag.html).
+The decoder delay is the 528-sample filterbank delay plus one sample
+documented by the [LAME technical FAQ](https://lame.sourceforge.io/tech-FAQ.txt);
+it is not counted twice in the stored encoder-delay field. ID3 text uses
+the [ID3v2.4 structure](https://id3.org/id3v2.4.0-structure) and
+[frame specification](https://id3.org/id3v2.4.0-frames).
+
+The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
+encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`
+or one selected audio stream. The source's supported MP3 sampling rate is
+kept; channels are mono or stereo. Quality selects VBR, with a finite
+value from 0 to 9; absent quality selects the encoder's default or the
+requested constant bit rate. No source-rate conversion, sample-format
+conversion option, cover-art encoding or AVI/FLV writer is added.
+
+### MP3 correctness bars
+
+Committed before the MP3 correctness matrix runs:
+
+1. The reader accepts only complete Layer III frames at the requested
+   rate and channels, with bounded packet sizes/counts and a delay/padding
+   pair that accounts for exactly the submitted samples. Wrong codecs,
+   truncation, changed headers, excess output and inconsistent timing are
+   errors, and the reader has a fuzz target in per-change CI.
+2. The MP3 file decodes without errors with the pinned oracle. Its decoded
+   sample count is exactly the submitted count after gapless trimming.
+   Source presentation trimming is applied once. The writer's Xing/Info
+   frame is not counted as an audio frame.
+3. For the same supported command, pinned `ffprobe` agrees on codec,
+   sample format, rate, channels/layout, time base, start time, duration
+   and packet count. ID3 text and Xing/Info counts, lengths and delay/
+   padding are checked independently. Full probe differences are retained;
+   encoded bytes are not required to be identical.
+4. On generated tonal fixtures the output SNR against the source is at
+   least the oracle's minus 0.5 dB. At a requested constant rate, output
+   stream bit rate is within 5% of the oracle's. No speed or size claim is
+   made. The matrix covers mono/stereo, MPEG-1 and lower sampling rates,
+   default/explicit bit rates and VBR quality, and both AAC source builds.
+5. A missing FFmpeg program or libmp3lame encoder, unsupported source or
+   settings, strict-safe mode and failed readback leave no published
+   output. Every command in the requested MP3 command set is reported as
+   passed or blocked, with a reason; unsupported containers stay blocked.
+
 ## Through `coreav ffmpeg`
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
