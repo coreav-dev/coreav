@@ -17,6 +17,9 @@ VIDEO_ONLY = {
     ('scripts/vp9_release_attribution.py', 'hashes'): 'selected video stream only',
     ('scripts/vp9_corpus.py', 'ffmpeg_command'): 'selected video stream only',
 }
+COMMAND_EXPECTATIONS = {
+    ('scripts/composed_audio.py', 'expected_encoder'): 'validates native encoder arguments; does not execute an oracle',
+}
 FORMATS = {'md5', 'framemd5', 'f32le', 's32le', 's16le', 'pcm_f32le'}
 
 
@@ -33,7 +36,7 @@ def python_problems(text, rel):
         body = [n for n in scope.body if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
         lists = [n for statement in body for n in ast.walk(statement) if isinstance(n, (ast.List, ast.Tuple))]
         strings = {n.value for seq in lists for n in ast.walk(seq) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
-        if not strings & FORMATS or (rel, getattr(scope, 'name', '')) in VIDEO_ONLY:
+        if not strings & FORMATS or (rel, getattr(scope, 'name', '')) in VIDEO_ONLY | COMMAND_EXPECTATIONS:
             continue
         for seq in lists:
             values = [n.value if isinstance(n, ast.Constant) else None for n in seq.elts]

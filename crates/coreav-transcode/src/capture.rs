@@ -173,9 +173,22 @@ impl<W: Write> Write for RecordedInput<W> {
 
 /// Hashes a file without retaining its contents.
 pub fn file_sha256(path: &Path) -> io::Result<String> {
-    let mut file = File::open(path)?;
+    use std::io::Read;
+    const MAX_HASH_BYTES: u64 = 2 << 30;
+    let file = File::open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() || metadata.len() > MAX_HASH_BYTES {
+        return Err(io::Error::other(
+            "capture identities require regular files of at most 2 GiB",
+        ));
+    }
+    let mut file = file.take(MAX_HASH_BYTES + 1);
     let mut hash = Sha256::new();
-    io::copy(&mut file, &mut hash)?;
+    if io::copy(&mut file, &mut hash)? > MAX_HASH_BYTES {
+        return Err(io::Error::other(
+            "capture identity file grew beyond its byte limit",
+        ));
+    }
     Ok(format!("{:x}", hash.finalize()))
 }
 

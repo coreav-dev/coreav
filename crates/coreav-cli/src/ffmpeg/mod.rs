@@ -1763,7 +1763,7 @@ mod tests {
     }
 
     #[test]
-    fn implicit_aac_refuses_opus_without_changing_explicit_choices() {
+    fn implicit_aac_takes_verified_opus_without_changing_explicit_choices() {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             streams: vec![
@@ -1812,21 +1812,13 @@ mod tests {
             "-c:v libx264",
             "-c:a:1 aac",
             "-c:0 libx264",
-            "-vn",
-            "-vn -c:a:1 aac",
+            "-c:a aac",
+            "-c:a:0 aac",
+            "-c:1 aac",
+            "-c:a copy -c:a aac",
         ] {
-            let Err(Refusal::NotNative(reason)) = plan_options(options, &report) else {
-                panic!("{options}: implicit Opus source was not refused");
-            };
-            assert!(
-                reason
-                    .message
-                    .contains("default AAC encoding of an Opus source")
-            );
-        }
-        for options in ["-c:a aac", "-c:a:0 aac", "-c:1 aac", "-c:a copy -c:a aac"] {
             let Job::Transcode(options) = plan_options(options, &report).unwrap() else {
-                panic!("{options}: explicit AAC was not planned");
+                panic!("{options}: AAC was not planned");
             };
             assert_eq!(options.audio_encoder, Some(args::AudioEncoder::Aac));
         }
@@ -1836,7 +1828,13 @@ mod tests {
             };
             assert_eq!(options.audio_encoder, None);
         }
-        for options in ["-vn -c:a aac", "-vn -c:a:0 aac", "-vn -c:0 aac"] {
+        for options in [
+            "-vn",
+            "-vn -c:a:1 aac",
+            "-vn -c:a aac",
+            "-vn -c:a:0 aac",
+            "-vn -c:0 aac",
+        ] {
             assert_eq!(
                 plan_options(options, &report).unwrap(),
                 Job::AudioEncode {

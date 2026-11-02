@@ -139,11 +139,13 @@ import tarfile
 import tempfile
 import threading
 import time
+import uuid
 from fractions import Fraction
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+import composed_audio
 
 ROOT = HERE.parent
 MANIFEST = ROOT / 'corpus' / 'v1' / 'manifest.json'
@@ -204,6 +206,25 @@ COMPAT_COMMANDS = {
     'x11': '-i IN -c copy -c:v libx264 -preset veryfast -s 320x240 -threads 2 -fps_mode passthrough OUT.mp4',
     'x12': '-i IN -an -c:v libx264 -preset veryfast OUT.mp4',
 }
+COMPOSED_COMMANDS = COMPAT_COMMANDS | {
+    'x13': '-i IN -c:v libx264 -c:a aac OUT.mp4',
+    'x14': '-i IN -c:v libx264 -c:a aac -b:a 96k OUT.mp4',
+    'x15': '-i IN -map 0:v:0 -map 0:a:0 -c:v libx264 -c:a aac OUT.mp4',
+    'x16': '-i IN -map 0:v:0 -map 0:a:1 -c:v libx264 -c:a aac OUT.mp4',
+}
+
+
+def check_identity(args):
+    selected = getattr(args, 'compat_check', 'legacy-b9')
+    if selected == 'legacy-b9':
+        return None
+    if selected != composed_audio.VERSION:
+        raise composed_audio.Invalid('unknown compatibility check version')
+    return composed_audio.registration()[1]
+
+
+def compat_commands(args):
+    return COMPOSED_COMMANDS if check_identity(args) is not None else COMPAT_COMMANDS
 # Fixtures that miss B2 with `coreav transcode` as well (docs/measurements/transcode.md): B9 sets their B2 apart.
 B2_KNOWN_MISSES = {'size_inband_sps.mp4'}
 EXIT_UNSUPPORTED = 4
@@ -917,17 +938,19 @@ def check_input(args, path, config, cls, tmp):
     return res
 
 
-def compat_words(key, path, out):
-    return [str(path) if w == 'IN' else str(out) if w == 'OUT.mp4' else w for w in shlex.split(COMPAT_COMMANDS[key])]
+def compat_words(key, path, out, commands=None):
+    commands = COMPAT_COMMANDS if commands is None else commands
+    return [str(path) if w == 'IN' else str(out) if w == 'OUT.mp4' else w for w in shlex.split(commands[key])]
 
 
-def compat_run(args, arm_env, key, path, out):
+def compat_run(args, arm_env, key, path, out, capture=None):
     """`coreav ffmpeg` with one B9 command line: 'ok', 'refused' (exit status 4, or exit status 1 naming a defect of
     the file as REJECTED_DEFECTS lists, nothing written either way) or 'failed'."""
     env = dict(ENV, **arm_env)
     t = time.monotonic()
     try:
-        r = subprocess.run([args.coreav, 'ffmpeg'] + compat_words(key, path, out), stdout=subprocess.PIPE,
+        prefix = [args.coreav] + (['--capture-encoder-input', str(capture)] if capture is not None else [])
+        r = subprocess.run(prefix + ['ffmpeg'] + compat_words(key, path, out, compat_commands(args)), stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, timeout=TIMEOUT, check=False, env=env)
     except subprocess.TimeoutExpired:
         r = subprocess.CompletedProcess([], -999, b'', b'timeout')
@@ -997,10 +1020,18 @@ def check_compat(args, path, key, cls, tmp):
     """B9: one `coreav ffmpeg` command line on one fixture, each arm against FFmpeg running the same line."""
     src = Source(args, path)
     src.remux(tmp)
-    res = {'config': key, 'class': cls, 'command': COMPAT_COMMANDS[key], 'arms': {}, 'has_audio': False,
+    commands = compat_commands(args)
+    identity = check_identity(args)
+    res = {'config': key, 'class': cls, 'command': commands[key], 'arms': {}, 'has_audio': False,
            'b2_known_miss': os.path.basename(path) in B2_KNOWN_MISSES}
+    if identity is not None:
+        res.update(compat_check=identity, judging_sha256=composed_audio.method_identity(),
+                   source_sha256=sha256_file(path), composed_outputs=[])
     base = tmp / 'baseline.mp4'
-    cmd = [args.ffmpeg, '-nostdin'] + compat_words(key, path, base)
+    cmd = [args.ffmpeg, '-nostdin'] + compat_words(key, path, base, commands)
+    if identity is not None:
+        at = cmd.index('-i')
+        cmd[at:at] = AUDIO_DECODE_INPUT
     ba = []
     t = time.monotonic()
     r = run(cmd)
@@ -1012,16 +1043,36 @@ def check_compat(args, path, key, cls, tmp):
         kinds, bv, ba = written(args, base)
         res['baseline'].update(streams=kinds, audio_from=[audio_origin(args, src, base, a) for a in ba])
         res['has_audio'] = bool(ba)
+        if identity is not None:
+            try:
+                selected = composed_audio.source_mapping(r.stderr, ba, src.streams)
+                for output in ba:
+                    source = next(s for s in src.streams if s.get('index') == selected[output])
+                    if source.get('codec_name') == 'opus' and kinds[output] == ('audio', 'aac'):
+                        res['composed_outputs'].append({'output': output, 'source': selected[output]})
+            except composed_audio.Invalid as error:
+                res['baseline'].update(status='failed', reason=str(error))
+    if identity is not None:
+        res['baseline']['compat_check'] = identity
+        res['baseline']['judging_sha256'] = res['judging_sha256']
     for name, arm_env in args.arms:
         out = tmp / f'{name}.mp4'
-        arm = res['arms'][name] = compat_run(args, dict(arm_env), key, path, out)
+        composed = res.get('composed_outputs') or []
+        capture = tmp / uuid.uuid4().hex if composed else None
+        if capture is None:
+            arm = res['arms'][name] = compat_run(args, dict(arm_env), key, path, out)
+        else:
+            arm = res['arms'][name] = compat_run(args, dict(arm_env), key, path, out, capture)
+        if identity is not None:
+            arm['compat_check'] = identity
+            arm['judging_sha256'] = res['judging_sha256']
         if arm['status'] != 'ok':
             continue
         kinds, vi, ai = written(args, out)
         arm['streams'] = kinds
         src_audio = [audio_origin(args, src, out, a) for a in ai]
         expected = res['baseline'].get('audio_from') if res['baseline']['status'] == 'ok' else None
-        if expected is None and '-an' in shlex.split(COMPAT_COMMANDS[key]):
+        if expected is None and '-an' in shlex.split(commands[key]):
             expected = []
         if vi is None or (None in src_audio and expected is None) or \
                 (expected is not None and src_audio != expected):
@@ -1033,8 +1084,18 @@ def check_compat(args, path, key, cls, tmp):
         video = default_video(src.streams)['index']
         copied = [(output, source) for output, source in zip(ai, src_audio) if source is not None]
         copy_layout = dict(layout, audio=[output for output, _ in copied])
-        encoded = [compare_encoded_audio(args, out, output, base, reference)
-                   for output, reference, source in zip(ai, ba, src_audio) if source is None]
+        encoded = []
+        for output, reference, source in zip(ai, ba, src_audio):
+            if source is not None:
+                continue
+            selected = next((item for item in composed if item['output'] == reference), None)
+            if selected is None:
+                encoded.append(compare_encoded_audio(args, out, output, base, reference))
+            else:
+                encoded.append(composed_audio.compare(
+                    args, capture, path, out, output, base, reference,
+                    compat_words(key, path, out, commands), selected['source'],
+                    96000 if key == 'x14' else None, compare_encoded_audio, dict(ENV, **dict(arm_env))))
         arm.update(judge_output(args, src, out, copy_layout, video, [source for _, source in copied], tmp,
                                 expected_audio=(None if expected is None else
                                                 [a for a in expected if a is not None]),
@@ -1077,6 +1138,88 @@ def display_matrix(args, path, index):
     return [x.get('displaymatrix') for x in s.get('side_data_list', [])]
 
 
+def validate_info(info, identity, manifest=False):
+    composed_audio.require_version(info, identity)
+    if identity is None:
+        return
+    if info.get('judging_sha256') != composed_audio.method_identity():
+        raise composed_audio.Invalid('evidence was acquired with different judging source bytes')
+    if info.get('commands' if manifest else 'compat') != COMPOSED_COMMANDS or \
+            (not manifest and info.get('mode') != 'fixtures'):
+        raise composed_audio.Invalid('current evidence has the wrong command roster or mode')
+    tools = info.get('tools')
+    groups = tools if isinstance(tools, list) else [tools]
+    if not groups:
+        raise composed_audio.Invalid('current evidence has no program identities')
+    for group in groups:
+        if not isinstance(group, dict):
+            raise composed_audio.Invalid('current evidence has no program identities')
+        for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare'):
+            if not isinstance(group.get(name), dict) or \
+                    re.fullmatch(r'[0-9a-f]{64}', str(group[name].get('sha256'))) is None:
+                raise composed_audio.Invalid('current evidence has incomplete program identities')
+
+
+def validate_result(result, identity):
+    composed_audio.require_version(result, identity)
+    if identity is None:
+        return
+    if result.get('judging_sha256') != composed_audio.method_identity():
+        raise composed_audio.Invalid('result was acquired with different judging source bytes')
+    if not isinstance(result.get('complete'), bool):
+        raise composed_audio.Invalid('current result has no boolean completion state')
+    if re.fullmatch(r'[0-9a-f]{64}', str(result.get('source_sha256'))) is None:
+        raise composed_audio.Invalid('current result has no bound source bytes')
+    outputs = result.get('composed_outputs')
+    if not isinstance(outputs, list) or len(outputs) > 1:
+        raise composed_audio.Invalid('current result has no resolved composed-output roster')
+    for selected in outputs:
+        composed_audio.integer(selected.get('output'), 'selected output')
+        composed_audio.integer(selected.get('source'), 'selected source')
+    for arm in [result.get('baseline')] + list(result.get('arms', {}).values()):
+        composed_audio.require_version(arm, identity)
+        if arm.get('judging_sha256') != result['judging_sha256']:
+            raise composed_audio.Invalid('arm judging source binding differs')
+    for arm in result.get('arms', {}).values():
+        if arm.get('status') != 'ok':
+            continue
+        encoded = (arm.get('B3') or {}).get('encoded_streams', [])
+        current = [item for item in encoded if item.get('compat_check') is not None]
+        if len(current) != len(outputs):
+            raise composed_audio.Invalid('current composed output lacks its registered comparison')
+        for item in current:
+            composed_audio.require_version(item, identity)
+            if item.get('judging_sha256') != result['judging_sha256']:
+                raise composed_audio.Invalid('composed comparison judging source binding differs')
+            if item.get('ok') is not True:
+                continue
+            if item.get('source_stream') != outputs[0]['source'] or item.get('source_sha256') != result['source_sha256']:
+                raise composed_audio.Invalid('composed comparison belongs to another source')
+            for block in ('decoder', 'encoder', 'presentation'):
+                if not isinstance(item.get(block), dict) or item[block].get('ok') is not True:
+                    raise composed_audio.Invalid('passing composed comparison lacks a required conjunct')
+            if item.get('properties_equal') is not True or item['encoder'].get('decoded_samples_equal') is not True:
+                raise composed_audio.Invalid('passing composed comparison lacks exact output checks')
+            quality = item['decoder'].get('quality')
+            if isinstance(quality, bool) or not isinstance(quality, (int, float)) or not math.isfinite(quality):
+                raise composed_audio.Invalid('passing composed comparison lacks a finite comparator metric')
+            capture = item.get('capture') or {}
+            frames = composed_audio.integer(capture.get('frames'), 'captured frames', 1)
+            composed_audio.integer(capture.get('start_ticks'), 'captured presentation origin')
+            if capture.get('channels') not in (1, 2) or capture.get('rate') != 48000 or \
+                    item['presentation'].get('frames') != frames or item['presentation'].get('rate') != 48000 or \
+                    item['presentation'].get('start_ticks') != capture.get('start_ticks'):
+                raise composed_audio.Invalid('stored capture and presentation bindings disagree')
+            if set(item.get('tools') or {}) != {'coreav', 'ffmpeg', 'ffprobe', 'opus_compare'} or \
+                    item['encoder'].get('argv') != composed_audio.expected_encoder(
+                        48000, capture['channels'], 96000 if result.get('config') == 'x14' else None):
+                raise composed_audio.Invalid('stored composed tool or argument bindings are incomplete')
+            for digest in [item.get('output_sha256'), item.get('receipt_sha256'), capture.get('sha256'),
+                           *(item.get('tools') or {}).values()]:
+                if re.fullmatch(r'[0-9a-f]{64}', str(digest)) is None:
+                    raise composed_audio.Invalid('passing composed comparison lacks complete byte identities')
+
+
 def export_evidence(args, out, run_info):
     """B9's per-call evidence with absolute paths taken out, in OUT/evidence: calls.jsonl (one row per command
     line, file and arm, the baseline included), manifest.json (the command lines, the arms, the programs' and the
@@ -1096,6 +1239,10 @@ def export_evidence(args, out, run_info):
         return text
 
     out = pathlib.Path(out)
+    identity = check_identity(args)
+    validate_info(run_info, identity)
+    fixtures = sorted(p for p in pathlib.Path(args.fixtures).iterdir() if p.is_file())
+    fixture_hashes = {p.name: sha256_file(p) for p in fixtures}
     ev = out / 'evidence'
     ev.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -1109,6 +1256,9 @@ def export_evidence(args, out, run_info):
             if p.parent.parent.name != 'results':
                 continue
             r = json.loads(p.read_text())
+            validate_result(r, identity)
+            if identity is not None and fixture_hashes.get(r.get('file')) != r.get('source_sha256'):
+                raise composed_audio.Invalid('export input bytes differ from the recorded input')
             for arm, a in [('baseline', r.get('baseline', {}))] + list(r.get('arms', {}).items()):
                 rows.append({'config': r.get('config'), 'file': r.get('file'), 'class': r.get('class'), 'arm': arm,
                              'status': a.get('status'), 'exit': a.get('exit'),
@@ -1116,14 +1266,18 @@ def export_evidence(args, out, run_info):
                              **{b: (a.get(b) or {}).get('ok') for b in ('B1', 'B2', 'B3')},
                              'Q1_delta_db': (a.get('Q1') or {}).get('delta'),
                              'Q2_db': (a.get('Q2') or {}).get('average'), 'size_ratio': a.get('size_ratio'),
-                             'b2_known_miss': r.get('b2_known_miss')})
+                             'b2_known_miss': r.get('b2_known_miss'),
+                             **({'compat_check': check_identity(args), 'source_sha256': r['source_sha256'],
+                                 'judging_sha256': r['judging_sha256']}
+                                if check_identity(args) is not None else {})})
     (ev / 'calls.jsonl').write_text(''.join(json.dumps(x, sort_keys=True) + '\n' for x in rows))
-    fixtures = sorted(p for p in pathlib.Path(args.fixtures).iterdir() if p.is_file())
     _write(ev / 'manifest.json', {
-        'commit': os.environ.get('GITHUB_SHA'), 'commands': COMPAT_COMMANDS,
+        'commit': os.environ.get('GITHUB_SHA'), 'commands': compat_commands(args),
         'arms': {n: [f'{var}={os.path.basename(v)}' for var, v in w] for n, w in args.arms},
         'tools': run_info['tools'], 'ffmpeg_version': run_info['ffmpeg_version'],
-        'fixtures': {p.name: sha256_file(p) for p in fixtures}})
+        'fixtures': fixture_hashes,
+        **({'compat_check': check_identity(args), 'judging_sha256': composed_audio.method_identity()}
+           if check_identity(args) is not None else {})})
 
 
 def probe_size(args, path, index):
@@ -1172,7 +1326,9 @@ def fixture_inputs(args):
         # The scaled configuration is a corpus run (docs/design/transcode.md); on fixtures only for debugging.
         configs = ['default'] + (['scaled'] if args.debug_scale_all else [])
         if args.compat:
-            configs = list(COMPAT_COMMANDS)
+            configs = list(compat_commands(args))
+            if 'x16' in configs and path.name != 'composed-mapped-opus.mp4':
+                configs.remove('x16')
         items.append({'key': path.name, 'path': str(path), 'class': p['codec'], 'configs': configs})
     return items
 
@@ -1326,6 +1482,14 @@ def result_path(out, config, key):
 
 
 def process(args, item):
+    identity = check_identity(args)
+    for config in item['configs']:
+        saved = result_path(args.out, config, item['key'])
+        if saved.exists():
+            recorded = composed_audio.json_document(saved.read_bytes())
+            validate_result(recorded, identity)
+            if identity is not None and 'path' in item and recorded.get('source_sha256') != sha256_file(item['path']):
+                raise composed_audio.Invalid('resume input bytes differ from the recorded input')
     todo = [c for c in item['configs'] if not _complete(result_path(args.out, c, item['key']))]
     if not todo:
         return
@@ -1400,11 +1564,19 @@ def summarize(out, fixtures, expected, arms, compat=False):
     of the run only (`expected`: {config: {file: class}}). An input without a complete result is counted as
     missing, and a class with one missing gets no verdict."""
     rows = collections.defaultdict(list)
+    info_path = pathlib.Path(out) / 'run.json'
+    identity = composed_audio.json_document(info_path.read_bytes()).get('compat_check') if info_path.exists() else None
+    if identity is not None and identity != composed_audio.registration()[1]:
+        raise composed_audio.Invalid('unknown stored compatibility check version')
+    if info_path.exists():
+        validate_info(composed_audio.json_document(info_path.read_bytes()), identity)
     missing = collections.defaultdict(collections.Counter)
     for config, files in expected.items():
         for key, cls in files.items():
             f = result_path(out, config, key)
             r = json.loads(f.read_text()) if f.exists() else {}
+            if r:
+                validate_result(r, identity)
             if not r.get('complete'):
                 missing[config][cls] += 1
                 missing[config]['all'] += 1
@@ -1412,6 +1584,9 @@ def summarize(out, fixtures, expected, arms, compat=False):
             rows[config].append(r)
     report = {'mode': 'fixtures' if fixtures else 'corpus', 'configs': {},
               'missing': {c: dict(m) for c, m in missing.items() if m}}
+    if identity is not None:
+        report['compat_check'] = identity
+        report['judging_sha256'] = composed_audio.method_identity()
     for config, files in expected.items():
         results = rows[config]
         classes = sorted(set(files.values()), key=CLASSES.index) + ['all']
@@ -1589,6 +1764,8 @@ def tool_hashes(args):
                 files[f'{name}{w}'] = words[i + 1]
     if args.decode_oracle:
         files['decode-oracle'] = args.decode_oracle
+    if getattr(args, 'opus_compare', None):
+        files['opus-compare'] = args.opus_compare
     out = {}
     for k, p in files.items():
         p = shutil.which(p) or p
@@ -1641,14 +1818,21 @@ def main():
                    help=f'the fixture each arm must transcode before the run (default {PREFLIGHT})')
     p.add_argument('--compat', action='store_true',
                    help='with --fixtures: bar B9, the coreav ffmpeg command lines of COMPAT_COMMANDS')
+    p.add_argument('--compat-check', choices=('legacy-b9', composed_audio.VERSION), default='legacy-b9',
+                   help='explicitly select a registered compatibility judgment')
+    p.add_argument('--opus-compare', help='the comparator built from the registered pinned libopus source')
     p.add_argument('--debug-scale-all', action='store_true',
                    help='debug: run the scaled configuration on every input, whatever its height')
     args = p.parse_args()
+    identity = check_identity(args)
+    if identity is not None:
+        composed_audio.check_policy()
     args.classes = [c for c in args.classes.split(',') if c]
     if not set(args.classes) <= set(CLASSES):
         p.error(f'--classes: {CLASSES}')
     if args.summarize:
-        info = json.loads((pathlib.Path(args.out) / 'run.json').read_text())
+        info = composed_audio.json_document((pathlib.Path(args.out) / 'run.json').read_bytes())
+        validate_info(info, identity)
         rep = summarize(args.out, info['mode'] == 'fixtures', info['expected'], list(info['arms']),
                         info.get('compat') is not None)
         rep['run'] = info
@@ -1662,6 +1846,8 @@ def main():
     args.work = args.work or str(pathlib.Path(args.out) / 'work')
     if args.compat and not args.fixtures:
         p.error('--compat runs on --fixtures')
+    if identity is not None and (not args.compat or not args.fixtures or not args.opus_compare):
+        p.error('the composed check requires --compat --fixtures and --opus-compare')
     args.arms = parse_arms(args.arm, p, args.compat)
     if not args.coreav or not args.arms:
         p.error('--coreav and at least one --arm are required')
@@ -1669,13 +1855,23 @@ def main():
         p.error('ffmpeg and ffprobe are required (--ffmpeg, --ffprobe)')
     global ENV
     ENV = child_env(args.ffmpeg)
+    if identity is not None:
+        composed_audio.verify_oracle(args, ENV)
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if (out / 'run.json').exists():
+        validate_info(composed_audio.json_document((out / 'run.json').read_bytes()), identity)
     run_info = {'mode': 'fixtures' if args.fixtures else 'corpus', 'preset': PRESET, 'crf': CRF,
-                'compat': COMPAT_COMMANDS if args.compat else None,
+                'compat': compat_commands(args) if args.compat else None,
                 'arms': {n: a for n, a in args.arms}, 'tools': tool_hashes(args),
                 'ffmpeg_version': run([args.ffmpeg, '-version']).stdout.decode(errors='replace').splitlines()[:1],
                 'debug_scale_all': args.debug_scale_all, 'max_files': args.max_files}
+    if identity is not None:
+        run_info['compat_check'] = identity
+        run_info['judging_sha256'] = composed_audio.method_identity()
+        if (out / 'run.json').exists() and json.loads((out / 'run.json').read_text()).get('tools') != run_info['tools']:
+            raise composed_audio.Invalid('resume candidate or oracle programs differ')
+        validate_info(run_info, identity)
     preflight(args)
     if args.fixtures:
         items = fixture_inputs(args)
@@ -1731,8 +1927,11 @@ def merge(args):
     if (out / 'results').exists():
         raise SystemExit(f'--merge: {out} already holds results')
     infos, manifests, rows = {}, [], []
+    records = []
+    identity = check_identity(args)
     for d in map(pathlib.Path, args.merge):
         manifests.append(json.loads((d / 'manifest.json').read_text()))
+        validate_info(manifests[-1], identity, manifest=True)
         rows += [json.loads(line) for line in (d / 'calls.jsonl').read_text().splitlines()]
         with tarfile.open(d / 'results.tar.gz') as tar:
             for m in tar.getmembers():
@@ -1743,12 +1942,20 @@ def merge(args):
                 data = tar.extractfile(m).read()
                 if parts == ('run.json',):
                     info = json.loads(data)
+                    validate_info(info, identity)
                     k = (info.get('shard') or [None])[0]
                     if k is None or k in infos:
                         raise SystemExit(f'--merge: {d} is no shard, or a shard given twice')
                     infos[k] = info
                     continue
                 path = out.joinpath(*parts)
+                record = composed_audio.json_document(data)
+                validate_result(record, identity)
+                if identity is not None:
+                    if manifests[-1].get('fixtures', {}).get(record.get('file')) != record.get('source_sha256') or \
+                            parts[1] != record.get('config') or parts[2] != str(record.get('file')) + '.json':
+                        raise composed_audio.Invalid('result source bytes or archive identity differs')
+                    records.append(record)
                 if path.exists():
                     raise SystemExit(f'--merge: {m.name} is in two shards')
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -1769,6 +1976,29 @@ def merge(args):
             any(common(m) != common(manifests[0]) for m in manifests):
         raise SystemExit('--merge: the shards ran different command lines, arms or fixtures')
     tools = [infos[k]['tools'] for k in sorted(infos)]
+    for row in rows:
+        composed_audio.require_version(row, identity)
+    if identity is not None:
+        expected_rows = {}
+        fields = ('config', 'file', 'arm', 'status', 'exit', 'compat_check', 'judging_sha256', 'source_sha256')
+        for record in records:
+            for name, arm in [('baseline', record['baseline']), *record['arms'].items()]:
+                expected_rows[(record['config'], record['file'], name)] = {
+                    'config': record['config'], 'file': record['file'], 'arm': name,
+                    'status': arm.get('status'), 'exit': arm.get('exit'), 'compat_check': identity,
+                    'judging_sha256': record['judging_sha256'], 'source_sha256': record['source_sha256']}
+        observed = {}
+        for row in rows:
+            key = (row.get('config'), row.get('file'), row.get('arm'))
+            if key in observed:
+                raise composed_audio.Invalid('duplicate current call row')
+            observed[key] = {field: row.get(field) for field in fields}
+        if observed != expected_rows:
+            raise composed_audio.Invalid('current call rows differ from their bound results')
+    if identity is not None and any(
+            {name: tool.get(name) for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare')} !=
+            {name: tools[0].get(name) for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare')} for tool in tools):
+        raise composed_audio.Invalid('composed shards used different candidate or oracle programs')
     expected = {}
     for k in sorted(infos):
         for config, files in infos[k]['expected'].items():

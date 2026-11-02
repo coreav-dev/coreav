@@ -1,5 +1,6 @@
 """scripts/transcode_check.py --shard and --merge: the shards of a run, merged, are judged as the run."""
 import io
+import hashlib
 import json
 import pathlib
 import subprocess
@@ -7,6 +8,11 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from types import SimpleNamespace
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import composed_audio as composed
+import transcode_check as checker
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / 'transcode_check.py'
 FILES = {'a.mp4': 'h264', 'b.mov': 'h264', 'c.mp4': 'hevc', 'd.webm': 'vp9', 'e.mp4': 'h264'}
@@ -107,6 +113,134 @@ class Merge(unittest.TestCase):
         status, text = check('--merge', *shards, '--out', str(tmp / 'merged'))
         self.assertEqual(status, 1)
         self.assertIn('different bytes of a.mp4', text)
+
+
+class ComposedMerge(unittest.TestCase):
+    def runs(self):
+        fixtures = {name: hashlib.sha256(name.encode()).hexdigest() for name in FILES}
+        tmp, whole, shards = Merge.runs(self, lambda c, k: 'refused', fixtures=lambda _: fixtures)
+        self.marker = {'compat_check': composed.check_policy(), 'judging_sha256': composed.method_identity()}
+        tools = {name: {'path': name, 'sha256': 'a' * 64}
+                 for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare')}
+
+        def upgrade(document):
+            document.update(self.marker)
+            if 'config' in document:
+                document['source_sha256'] = fixtures[document['file']]
+                document['composed_outputs'] = []
+                for arm in [document['baseline'], *document['arms'].values()]:
+                    arm.update(self.marker)
+            else:
+                document['commands' if 'commands' in document else 'compat'] = checker.COMPOSED_COMMANDS
+                document['tools'] = tools
+            return document
+
+        for path in [whole / 'run.json', *whole.glob('results/*/*.json')]:
+            path.write_text(json.dumps(upgrade(json.loads(path.read_text()))))
+        for shard in map(pathlib.Path, shards):
+            self.rewrite_archive(shard, lambda name, document: upgrade(document))
+            manifest = shard / 'manifest.json'
+            manifest.write_text(json.dumps(upgrade(json.loads(manifest.read_text()))))
+            rows = []
+            with tarfile.open(shard / 'results.tar.gz') as archive:
+                for member in archive.getmembers():
+                    if not member.name.startswith('results/'):
+                        continue
+                    record = json.load(archive.extractfile(member))
+                    for name, arm in [('baseline', record['baseline']), *record['arms'].items()]:
+                        rows.append(self.marker | {'config': record['config'], 'file': record['file'],
+                            'arm': name, 'status': arm['status'], 'exit': arm['exit'],
+                            'source_sha256': record['source_sha256']})
+            (shard / 'calls.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in rows))
+        return tmp, whole, shards
+
+    def rewrite_archive(self, shard, change):
+        path = pathlib.Path(shard) / 'results.tar.gz'
+        with tarfile.open(path) as archive:
+            records = [(member.name, json.load(archive.extractfile(member))) for member in archive.getmembers()]
+        with tarfile.open(path, 'w:gz') as archive:
+            for name, record in records:
+                data = json.dumps(change(name, record)).encode()
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+
+    def test_current_shards_and_whole_have_the_same_verdict(self):
+        tmp, whole, shards = self.runs()
+        options = ('--compat-check', composed.VERSION)
+        status, text = check('--summarize', '--out', str(whole), *options)
+        merged = tmp / 'merged'
+        merged_status, merged_text = check('--merge', *shards, '--out', str(merged), *options)
+        self.assertEqual((merged_status, merged_text), (status, text))
+        report = json.loads((merged / 'summary.json').read_text())
+        self.assertEqual({key: report[key] for key in self.marker}, self.marker)
+        self.assertEqual(report['missing'], {})
+
+    def test_historical_evidence_cannot_be_selected_as_current_or_current_as_historical(self):
+        tmp, whole, shards = Merge.runs(self, lambda c, k: 'refused')
+        for mode in [('--summarize', '--out', str(whole)), ('--merge', *shards, '--out', str(tmp / 'merged'))]:
+            status, text = check(*mode, '--compat-check', composed.VERSION)
+            self.assertNotEqual(status, 0)
+            self.assertIn('missing, mixed or relabeled', text)
+        tmp, whole, shards = self.runs()
+        for mode in [('--summarize', '--out', str(whole)), ('--merge', *shards, '--out', str(tmp / 'merged'))]:
+            status, text = check(*mode)
+            self.assertNotEqual(status, 0)
+            self.assertIn('missing, mixed or relabeled', text)
+
+    def test_changed_judging_source_is_rejected_at_every_evidence_boundary(self):
+        for location in ('manifest', 'run', 'result', 'row'):
+            with self.subTest(location=location):
+                tmp, _, shards = self.runs()
+                shard = pathlib.Path(shards[-1])
+                if location in ('manifest', 'row'):
+                    path = shard / ('manifest.json' if location == 'manifest' else 'calls.jsonl')
+                    path.write_text(path.read_text().replace(self.marker['judging_sha256'], '0' * 64))
+                else:
+                    def change(name, record):
+                        if (name == 'run.json') == (location == 'run'):
+                            record['judging_sha256'] = '0' * 64
+                        return record
+                    self.rewrite_archive(shard, change)
+                status, text = check('--merge', *shards, '--out', str(tmp / 'merged'),
+                                     '--compat-check', composed.VERSION)
+                self.assertNotEqual(status, 0)
+                self.assertIn('call rows differ' if location == 'row' else 'different judging source bytes', text)
+
+    def test_different_candidate_and_oracle_bytes_cannot_be_merged(self):
+        for program in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare'):
+            with self.subTest(program=program):
+                tmp, _, shards = self.runs()
+                def change(name, record):
+                    if name == 'run.json':
+                        record['tools'][program]['sha256'] = 'b' * 64
+                    return record
+                self.rewrite_archive(shards[-1], change)
+                status, text = check('--merge', *shards, '--out', str(tmp / 'merged'),
+                                     '--compat-check', composed.VERSION)
+                self.assertNotEqual(status, 0)
+                self.assertIn('different candidate or oracle programs', text)
+
+    def test_resume_and_export_refuse_relabeling_changed_source_and_changed_method(self):
+        for mutation in ('version', 'source', 'method'):
+            with self.subTest(mutation=mutation):
+                tmp, whole, _ = self.runs()
+                fixture_dir = tmp / 'fixtures'
+                fixture_dir.mkdir()
+                for name in FILES:
+                    (fixture_dir / name).write_bytes(name.encode())
+                args = SimpleNamespace(out=str(whole), compat_check=composed.VERSION,
+                    fixtures=str(fixture_dir), tmp=str(tmp), coreav='/missing/coreav',
+                    ffmpeg='/missing/ffmpeg', ffprobe='/missing/ffprobe', arms=[('x264', [])])
+                path = whole / 'results/x01/a.mp4.json'
+                record = json.loads(path.read_text())
+                field = {'version': 'compat_check', 'source': 'source_sha256', 'method': 'judging_sha256'}[mutation]
+                record[field] = None if mutation == 'version' else '0' * 64
+                path.write_text(json.dumps(record))
+                with self.assertRaises(composed.Invalid):
+                    checker.process(args, {'key': 'a.mp4', 'configs': ['x01'], 'path': fixture_dir / 'a.mp4'})
+                with self.assertRaises(composed.Invalid):
+                    checker.export_evidence(args, whole, json.loads((whole / 'run.json').read_text()))
 
 
 if __name__ == '__main__':

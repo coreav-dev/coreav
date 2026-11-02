@@ -16,15 +16,21 @@ runs:
       with:
         path: ${{ runner.temp }}/coreav-fixtures
         key: ${{ steps.key.outputs.key }}
+    - name: Restore the registered composed-audio fixtures
+      id: composed
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ${{ runner.temp }}/coreav-composed-fixtures
+        key: linux-x64-composed-${{ hashFiles('docs/design/composed-opus-aac-v1.json', 'scripts/composed_audio.py', 'scripts/composed_audio_fixtures.py', 'scripts/oracle_audio.py', 'scripts/oracle-audio-args.txt', 'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
     - name: Cache pinned black-box binaries
-      if: steps.fixtures.outputs.cache-hit != 'true'
+      if: steps.fixtures.outputs.cache-hit != 'true' || steps.composed.outputs.cache-hit != 'true'
       id: ffmpeg-cache
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ runner.temp }}/coreav-oracle-bin
         key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
     - name: Install pinned FFmpeg, ffprobe and MediaInfo
-      if: steps.fixtures.outputs.cache-hit != 'true' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
+      if: (steps.fixtures.outputs.cache-hit != 'true' || steps.composed.outputs.cache-hit != 'true') && steps.ffmpeg-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
@@ -38,6 +44,25 @@ runs:
         python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
         export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
         scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+    - name: Generate the registered composed-audio fixtures
+      if: steps.composed.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        python3 -I scripts/composed_audio_fixtures.py \
+          --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --out "$RUNNER_TEMP/coreav-composed-fixtures"
+    - name: Publish the registered composed-audio fixtures
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: composed-audio-fixture-set
+        path: ${{ runner.temp }}/coreav-composed-fixtures
+        if-no-files-found: error
+        retention-days: 1
+    - name: Save the registered composed-audio fixtures
+      if: steps.composed.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ${{ runner.temp }}/coreav-composed-fixtures
+        key: linux-x64-composed-${{ hashFiles('docs/design/composed-opus-aac-v1.json', 'scripts/composed_audio.py', 'scripts/composed_audio_fixtures.py', 'scripts/oracle_audio.py', 'scripts/oracle-audio-args.txt', 'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
     - name: Publish this run's fixtures
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
