@@ -409,19 +409,42 @@ class Credentials(unittest.TestCase):
 
 
 class LocalGroup(unittest.TestCase):
+    def child_script(self, root):
+        return ('import os, pathlib, subprocess, sys, time\n'
+                'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
+                f'root = pathlib.Path({str(root)!r})\n'
+                'for name in ("data", "scratch"):\n'
+                '    (root / name).mkdir()\n'
+                '    (root / name / "partial").write_text("temporary")\n'
+                '(root / "ready.tmp").write_text(f"{os.getpid()} {p.pid}")\n'
+                'os.replace(root / "ready.tmp", root / "ready")\n'
+                'time.sleep(60)\n')
+
+    def test_readiness_is_invisible_until_both_pids_are_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            visible = []
+            write = pathlib.Path.write_text
+            def observe(path, text, *args, **kwargs):
+                if path.name.startswith('ready'):
+                    with path.open('w') as out:
+                        visible.append((root / 'ready').exists())
+                        return out.write(text)
+                return write(path, text, *args, **kwargs)
+            with mock.patch.object(pathlib.Path, 'write_text', autospec=True, side_effect=observe), \
+                 mock.patch.object(subprocess, 'Popen', return_value=mock.Mock(pid=123)), \
+                 mock.patch('time.sleep', side_effect=InterruptedError):
+                with self.assertRaises(InterruptedError):
+                    exec(self.child_script(root), {})
+            self.assertEqual(visible, [False])
+            self.assertEqual((root / 'ready').read_text(), f'{os.getpid()} 123')
+
     @unittest.skipUnless(sys.platform == 'linux', 'Linux adopted-child status')
     def test_timeouts_and_signals_stop_real_descendants_before_cleanup(self):
         for signum in (None, signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
             with self.subTest(signum=signum), tempfile.TemporaryDirectory() as tmp:
                 root = pathlib.Path(tmp)
-                child = ('import os, pathlib, subprocess, sys, time\n'
-                         'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
-                         f'root = pathlib.Path({str(root)!r})\n'
-                         'for name in ("data", "scratch"):\n'
-                         '    (root / name).mkdir()\n'
-                         '    (root / name / "partial").write_text("temporary")\n'
-                         '(root / "ready").write_text(f"{os.getpid()} {p.pid}")\n'
-                         'time.sleep(60)\n')
+                child = self.child_script(root)
                 driver = f'''
 import os, signal, sys
 sys.path.insert(0, {str(pathlib.Path(compat_r4_gcp.__file__).parent)!r})
