@@ -312,7 +312,7 @@ class Credentials(unittest.TestCase):
                               f'driver.job_script = lambda *a: "exec {sys.executable} -I {stub}\\n"\n'
                               f'sys.argv = {self.argv + (["--local"] if local else [])!r}\n'
                               'sys.exit(driver.main())\n')
-                    ready = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+                    ready = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
                     child = None
                     process = subprocess.Popen([sys.executable, '-I', '-c', script], cwd=self.root,
                                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
