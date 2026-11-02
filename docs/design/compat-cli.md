@@ -48,7 +48,7 @@ What `native` means, option by option. Anything not here is refused.
 | `-show_entries` sections | `format`, `stream`, `packet`, `frame`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `frame_tags`, `chapter_tags`, `program_tags`, `stream_side_data`, `frame_side_data` |
 | Demuxers (`-f`) | `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, `mpegts` |
 
-**`coreav ffmpeg`**, stream copy only
+**`coreav ffmpeg`**, stream-copy vocabulary; the encoding extension is described below.
 
 | | |
 |---|---|
@@ -57,7 +57,6 @@ What `native` means, option by option. Anything not here is refused.
 | Flags | `-y`, `-n`, `-an`, `-vn`, `-sn`, `-dn`, `-hide_banner`, `-nostdin`, `-copyts`, `-start_at_zero`, `-ignore_unknown`, `-shortest` |
 | Demuxers (`-f` before the first `-i`) | `concat`, `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, and the aliases FFmpeg matches against those names: `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`. **Not** `mpegts`: `coreav probe` reads transport streams, no writer of step 1 does |
 | Muxers (`-f` after it) | `mp4`, `ipod`, `hls`, `segment` — CoreAV reads more containers than it writes, so `-f matroska` on the way out is refused although Matroska on the way in is read |
-| One input, one output | several inputs means muxing streams together, which is not a step 1 job |
 | Containers written | MP4, M4A, HLS (`.m3u8`), and numbered segments |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
@@ -1150,7 +1149,7 @@ when native strict probe still rejects it with `codec_not_allowed`.
 ### `coreav ffmpeg`
 
 `coreav_cli::ffmpeg`, one implementation in three steps. `args::parse` reads the
-command line into one input, one output and their options, and refuses
+command line into its inputs, one output and their options, and refuses
 anything outside the vocabulary before the input is opened. `plan` reads the
 input's streams as `coreav ffprobe` lists them, selects the streams as
 `ffmpeg` does and picks the writer. `run` writes the output to a temporary
@@ -1159,6 +1158,22 @@ file next to it and moves it into place only when the whole job succeeded.
 writer's own command prints, which the fixture test hands to the oracles.
 The writers are the existing jobs, each with the options the command
 implies:
+
+Mapped stream copies can also combine up to sixteen MP4/MOV inputs into
+one MP4. For example, `-i video.mp4 -i audio.m4a -map 0:v -map 1:a -c copy
+out.mp4` copies video from input zero and audio from input one. Type,
+index and language specifiers are local to their input; output codec
+specifiers still address the output stream order. Negative maps remove
+only streams selected from the named input. Movie metadata comes from
+input zero and stream metadata follows its stream.
+
+This path requires explicit maps and copied audio/video streams. Every
+input must start at presentation time zero, have the same movie timescale
+and be unfragmented. Automatic selection across files, input options,
+trimming, encoding, chapters, selected cover pictures, other input/output
+containers, explicit metadata mapping and a stream type whose multiple
+mapped streams have no default disposition are refused by name. The output
+is checked against every input, including hard links, before writing.
 
 | The command | The writer |
 |---|---|
@@ -1578,6 +1593,30 @@ and replaces only its `ffmpeg` policy for this invocation. The `ffprobe`
 comparisons and baseline reporting are retained. The report adds separate
 refused, verified, unverified and failed counts. These are current-CI
 outcomes, not revised historical B1 verdicts or measured V2 coverage.
+
+**Mapped copies in current CI.** A single MP4 or Matroska output can
+qualify copied H.264, AAC, VP9 and Opus streams for exact decoded-output
+verification. The successful pinned reference command must report a
+complete `Stream mapping:` block: every output stream has exactly one
+mapping, every mapping says `copy`, and every source file and stream
+index exists. Missing, mixed encode/copy, duplicate or malformed mappings
+do not qualify. Other output formats and codecs retain their existing
+eligibility rules. This does not change the V2 copy predicate.
+
+Every qualified stream still needs the same decoded samples or pixels,
+stream fields and available rational timing as the same-command reference.
+Qualification never waives a comparison or permits a numeric tolerance.
+The comparison establishes command-output equivalence, not encoded-byte
+identity or proof of the candidate's internal implementation.
+
+The checker keeps its fixture assignment: all input placeholders contain
+the first fixture's bytes. It cannot distinguish choosing one of two
+identical inputs. Direct regression cases supply distinguishable inputs
+and same-kind streams for each of the four codecs and must reject the
+wrong input or stream. Linux oracle tests cover the mapped multi-input
+MP4 commands and `-i INPUT -map 0:0 -map 0:1 -c copy -f matroska OUTPUT`
+with VP9/Opus as well as H.264/AAC. Frozen rows, baselines and judged
+sources remain unchanged.
 
 **B1, B2 and the writers (CI, every change).**
 `tools/compat-corpus/run.py` runs every `ffprobe` command of `commands-v1`

@@ -26,6 +26,7 @@ pub mod annexb;
 pub mod audio;
 pub mod contract;
 pub mod encoder;
+pub mod mp3;
 pub mod pipeline;
 pub mod rawmkv;
 pub mod scale;

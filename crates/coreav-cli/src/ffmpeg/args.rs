@@ -28,12 +28,20 @@ pub enum Demuxer {
 /// What the output is written as: `-f`, or the output's extension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Muxer {
+    /// `avi` (`.avi`), a single bounded RIFF file.
+    Avi,
     /// `mp4` (`.mp4`).
     Mp4,
     /// `ipod` (`.m4a`): an audio-only M4A file.
     Ipod,
+    /// `mp3` (`.mp3`): one Layer III stream.
+    Mp3,
     /// `segment`, writing MP4 segments.
     Segment,
+    /// `wav` (`.wav`), with signed 16-bit PCM by default.
+    Wav,
+    /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
+    S16le,
 }
 
 /// A stream specifier: of `-map` (input streams) or of a codec option
@@ -53,6 +61,8 @@ pub enum Spec {
 /// One `-map`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Map {
+    /// Which input file, starting at zero.
+    pub file: usize,
     /// `-map -0:a`: removes from what the earlier `-map` options selected.
     pub remove: bool,
     /// Which streams of the input.
@@ -62,18 +72,29 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
+    /// Audio encoders supported by the AVI and PCM writers.
+    AviAudio(AviAudio),
     /// `copy`.
     Copy,
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
-    /// An audio encoder: one audio stream encoded beside the re-encoded
-    /// video.
+    /// An encoder of one audio stream.
     Audio(AudioEncoder),
 }
 
-/// The audio encoders of `coreav ffmpeg`, each beside a video encoded with
-/// `libx264` (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
+/// AVI and PCM audio output encoders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AviAudio {
+    /// The operator's external FFmpeg `libmp3lame` encoder.
+    Mp3,
+    /// Signed little-endian 16-bit PCM.
+    PcmS16,
+    /// Unsigned 8-bit PCM.
+    PcmU8,
+}
+
+/// The audio encoders of `coreav ffmpeg` (`docs/design/transcode.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AudioEncoder {
     /// `libopus`: Opus (`docs/design/transcode.md`, "Opus audio").
@@ -81,6 +102,8 @@ pub enum AudioEncoder {
     /// `aac`, FFmpeg's built-in encoder: AAC-LC (`docs/design/transcode.md`,
     /// "AAC audio").
     Aac,
+    /// `libmp3lame`, an operator-provided FFmpeg encoder process.
+    Libmp3lame,
 }
 
 /// The encoder options of a command that encodes with `libx264`, as given;
@@ -104,6 +127,8 @@ pub struct Encoding {
     pub pixel_format: Option<String>,
     /// `-b:a`, with `libopus` or `aac`.
     pub audio_bitrate: Option<String>,
+    /// `-q:a` or `-qscale:a` for libmp3lame VBR.
+    pub audio_quality: Option<String>,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
 }
@@ -125,6 +150,8 @@ pub enum Overwrite {
 pub struct Command {
     /// The input file.
     pub input: String,
+    /// The remaining input files, in command-line order.
+    pub more_inputs: Vec<String>,
     /// `-f` before `-i`.
     pub demuxer: Option<Demuxer>,
     /// `-ss` before `-i`: input seeking.
@@ -150,6 +177,10 @@ pub struct Command {
     pub codecs: Vec<(Spec, Codec)>,
     /// The encoder options; with no `libx264` codec option there are none.
     pub encoding: Encoding,
+    /// `-ar` after the input, accepted for PCM only at the source rate.
+    pub sample_rate: Option<u32>,
+    /// `-ac` after the input, accepted for PCM only at the source count.
+    pub channels: Option<u16>,
     /// `-noautorotate` before the input.
     pub noautorotate: bool,
     /// `-vn`.
@@ -198,7 +229,9 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 28] = [
+const PER_FILE: [(&str, Arity); 32] = [
+    ("-ar", Arity::Value),
+    ("-ac", Arity::Value),
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -220,6 +253,8 @@ const PER_FILE: [(&str, Arity); 28] = [
     ("-crf", Arity::Value),
     ("-b:v", Arity::Value),
     ("-b:a", Arity::Value),
+    ("-q:a", Arity::Value),
+    ("-qscale:a", Arity::Value),
     ("-preset", Arity::Value),
     ("-vf", Arity::Value),
     ("-filter:v", Arity::Value),
@@ -345,14 +380,19 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
     if rest.ends_with('?') {
         return Err(Refusal::not_native("an optional -map (ending in ?)"));
     }
+    if rest == "a" {
+        return Ok(Map {
+            remove,
+            file: 0,
+            spec: Spec::Kind(Kind2::Audio, None),
+        });
+    }
     let (file, spec) = rest
         .split_once(':')
         .map_or((rest, None), |(f, s)| (f, Some(s)));
-    match file.parse::<usize>() {
-        Ok(0) => {}
-        Ok(_) => return Err(usage(format!("Invalid input file index: {file}."))),
-        Err(_) => return Err(usage(format!("Invalid stream specifier: {text}."))),
-    }
+    let file = file
+        .parse::<usize>()
+        .map_err(|_| usage(format!("Invalid stream specifier: {text}.")))?;
     let spec = match spec {
         None => Spec::All,
         Some(metadata) if metadata.starts_with("m:") => {
@@ -370,7 +410,7 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
             Refusal::not_native("a -map stream specifier other than a type, an index or language")
         })?,
     };
-    Ok(Map { remove, spec })
+    Ok(Map { file, remove, spec })
 }
 
 /// A time in `ffmpeg`'s duration syntax, exactly: `[HH:]MM:SS[.m...]`
@@ -507,11 +547,28 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         (false, true) => Overwrite::No,
         (false, false) => Overwrite::Ask,
     };
-    let (input, input_options) = match inputs.as_slice() {
-        [] => return Err(usage("No input file: give one with -i INPUT.")),
-        [one] => one.clone(),
-        _ => return Err(Refusal::not_native("a command with several inputs")),
-    };
+    if inputs.len() > coreav_isobmff_write::MAX_REMUX_INPUTS {
+        return Err(Refusal::not_native("more than sixteen input files"));
+    }
+    if inputs.len() > 1 && inputs.iter().any(|(_, group)| !group.is_empty()) {
+        return Err(Refusal::not_native("input options with several inputs"));
+    }
+    let (input, input_options) = inputs
+        .first()
+        .cloned()
+        .ok_or_else(|| usage("No input file: give one with -i INPUT."))?;
+    let more_inputs: Vec<String> = inputs
+        .iter()
+        .skip(1)
+        .map(|(path, _)| path.to_string())
+        .collect();
+    for path in &more_inputs {
+        if path == "-" || path.starts_with("pipe:") || !local(path, cfg!(windows)) {
+            return Err(Refusal::not_native(
+                "an input named with a protocol or pipe",
+            ));
+        }
+    }
     let (output, output_options) = match outputs.as_slice() {
         [] => return Err(usage("At least one output file must be specified")),
         [one] => one.clone(),
@@ -519,12 +576,15 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     };
     let mut command = Command {
         input: input.to_owned(),
+        more_inputs,
         demuxer: None,
         input_seek: None,
         input_duration: None,
         input_until: None,
         output: output.to_owned(),
         muxer: Muxer::Mp4,
+        sample_rate: None,
+        channels: None,
         seek: None,
         duration: None,
         until: None,
@@ -584,6 +644,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut segment_time = None;
     let mut encoders = Vec::new();
     let mut audio_encoders = Vec::new();
+    let mut movflags = false;
     for (option, value) in output_options {
         let text = value.unwrap_or_default();
         if let Some(spec) = codec_option(option) {
@@ -592,11 +653,14 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libx264" => Codec::Libx264,
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
+                "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
+                "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
+                "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
                 _ => {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus or aac",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus, aac or libmp3lame",
                     ));
                 }
             };
@@ -613,6 +677,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-s" => encoding.size = value,
             "-pix_fmt" => encoding.pixel_format = value,
             "-b:a" => encoding.audio_bitrate = value,
+            "-q:a" | "-qscale:a" => encoding.audio_quality = value,
             "-fps_mode" | "-vsync" => {
                 if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
                     return Err(not_native(
@@ -640,7 +705,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             encoders.push(option);
             continue;
         }
-        if option == "-b:a" {
+        if matches!(option, "-b:a" | "-q:a" | "-qscale:a") {
             audio_encoders.push(option);
             continue;
         }
@@ -649,6 +714,24 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
+            "-ar" => {
+                command.sample_rate =
+                    Some(text.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        not_native(
+                            option,
+                            Some(text),
+                            "PCM output takes a positive integer source rate",
+                        )
+                    })?)
+            }
+            "-ac" => {
+                command.channels = Some(
+                    text.parse::<u16>()
+                        .ok()
+                        .filter(|n| *n > 0)
+                        .ok_or_else(|| usage("Invalid audio channel count."))?,
+                )
+            }
             "-map" => command.maps.push(parse_map(text)?),
             "-map_metadata" => {
                 let stream = text
@@ -667,7 +750,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     }
                 };
             }
-            "-movflags" if matches!(text, "+faststart" | "faststart") => {}
+            "-movflags" if matches!(text, "+faststart" | "faststart") => movflags = true,
             "-movflags" => {
                 return Err(not_native(
                     option,
@@ -714,6 +797,23 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if !local(output, cfg!(windows)) {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
+    command.muxer = muxer(format, output)?;
+    if let Some(option) = audio_encoders
+        .iter()
+        .copied()
+        .find(|option| *option != "-b:a")
+        && command.muxer != Muxer::Mp3
+        && !command
+            .codecs
+            .iter()
+            .any(|(_, codec)| *codec == Codec::Audio(AudioEncoder::Libmp3lame))
+    {
+        return Err(not_native(
+            option,
+            None,
+            "audio quality is supported only with libmp3lame",
+        ));
+    }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
     {
@@ -724,18 +824,49 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     if let Some(option) = audio_encoders.first()
+        && command.muxer != Muxer::Mp3
         && !command
             .codecs
             .iter()
-            .any(|(_, c)| matches!(c, Codec::Audio(_)))
+            .any(|(_, c)| matches!(c, Codec::Audio(_) | Codec::AviAudio(_)))
     {
         return Err(not_native(
             option,
             None,
-            "it is an audio encoder option, and coreav ffmpeg encodes audio only with -c:a libopus or aac",
+            "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    command.muxer = muxer(format, output)?;
+    if !matches!(command.muxer, Muxer::Avi | Muxer::Wav | Muxer::S16le)
+        && command
+            .codecs
+            .iter()
+            .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
+    {
+        return Err(Refusal::not_native(
+            "PCM encoding to an unsupported container",
+        ));
+    }
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        if movflags {
+            return Err(not_native(
+                "-movflags",
+                None,
+                "it is not an option of PCM output",
+            ));
+        }
+    } else if command.sample_rate.is_some() {
+        return Err(not_native(
+            "-ar",
+            None,
+            "it is not supported on this output",
+        ));
+    } else if command.channels.is_some() {
+        return Err(not_native(
+            "-ac",
+            None,
+            "it is not supported on this output",
+        ));
+    }
     if command.muxer == Muxer::Segment {
         let written = match segment_format {
             None => extension_muxer(output),
@@ -761,6 +892,17 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 ));
             }
         }
+    }
+    for map in &command.maps {
+        if map.file >= inputs.len() {
+            return Err(usage(format!("Invalid input file index: {}.", map.file)));
+        }
+    }
+    if !command.more_inputs.is_empty() && command.maps.is_empty() {
+        return Err(Refusal::NotNative(NotNative::property(
+            "a command with several inputs",
+            "not supported by coreav ffmpeg: automatic stream selection across several inputs; give explicit -map options",
+        )));
     }
     Ok(command)
 }
@@ -812,6 +954,9 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
     match extension.as_str() {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
+        "mp3" => Some(Muxer::Mp3),
+        "avi" => Some(Muxer::Avi),
+        "wav" => Some(Muxer::Wav),
         _ => None,
     }
 }
@@ -820,14 +965,18 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
     match format {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
+        Some("mp3") => Ok(Muxer::Mp3),
+        Some("avi") => Ok(Muxer::Avi),
+        Some("wav") => Ok(Muxer::Wav),
+        Some("s16le") => Ok(Muxer::S16le),
         Some("segment") => Ok(Muxer::Segment),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes mp4, ipod (M4A) and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le and segment",
         )),
         None => extension_muxer(output)
-            .ok_or_else(|| Refusal::not_native("an output container other than MP4 or M4A")),
+            .ok_or_else(|| Refusal::not_native("an unsupported output container")),
     }
 }
 
@@ -939,7 +1088,11 @@ mod tests {
             "-i in.mkv -map 0 -map -0:a:2 -map 0:1 -map -0:m:language:eng -map 0:m:language -c copy out.mp4",
         ))
         .unwrap();
-        let map = |remove, spec| Map { remove, spec };
+        let map = |remove, spec| Map {
+            file: 0,
+            remove,
+            spec,
+        };
         assert_eq!(
             c.maps,
             vec![
@@ -950,6 +1103,35 @@ mod tests {
                 map(false, Spec::Language(None)),
             ]
         );
+    }
+
+    #[test]
+    fn mapped_inputs_are_bounded_and_validate_file_indexes() {
+        let command = parse(&args(
+            "-i first.mp4 -i second.mp4 -map 1:a -map -0:a -c copy out.mp4",
+        ))
+        .unwrap();
+        assert_eq!(command.more_inputs, ["second.mp4"]);
+        assert_eq!(
+            command.maps.iter().map(|map| map.file).collect::<Vec<_>>(),
+            [1, 0]
+        );
+        assert!(matches!(
+            parse(&args("-i first.mp4 -i second.mp4 -map 2:a -c copy out.mp4")),
+            Err(Refusal::Usage(_))
+        ));
+        assert!(matches!(
+            parse(&args(
+                "-i first.mp4 -i https://example.invalid/second.mp4 -map 0 -c copy out.mp4"
+            )),
+            Err(Refusal::NotNative(_))
+        ));
+        let mut many = Vec::new();
+        for _ in 0..=coreav_isobmff_write::MAX_REMUX_INPUTS {
+            many.extend(["-i".to_owned(), "in.mp4".to_owned()]);
+        }
+        many.extend(["-map", "0", "-c", "copy", "out.mp4"].map(String::from));
+        assert!(matches!(parse(&many), Err(Refusal::NotNative(_))));
     }
 
     #[test]
@@ -1108,6 +1290,7 @@ mod tests {
                 pixel_format: text("yuv420p"),
                 passthrough: true,
                 audio_bitrate: None,
+                audio_quality: None,
             }
         );
     }
