@@ -97,6 +97,9 @@ def check(coreav, oracle, root):
                 ([], ["-to", "0.01"], "wav", rate // 100),
                 (["-to", "0", "-t", "0"], [], "wav", 4096),
                 ([], ["-t", "0"], "wav", 0),
+                ([], ["-threads", "0"], "wav", 4096),
+                ([], ["-threads", "4"], "wav", 4096),
+                ([], ["-threads", "auto", "-f", "s16le"], "raw", 4096),
             ]
             for number, (before, after, kind, count) in enumerate(commands):
                 expected = samples[:count * channels * 2]
