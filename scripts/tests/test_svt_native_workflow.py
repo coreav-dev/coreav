@@ -91,6 +91,51 @@ class SvtNativeWorkflow(unittest.TestCase):
                 if failure in ('', 'probe'):
                     self.assertIn('linked-version', (root / 'svt-native-logs/version.log').read_text())
 
+    def test_licence_inputs_trigger_every_native_target(self):
+        inputs = ('scripts/svt_av1_licenses.py', 'scripts/svt-av1-notices.json',
+                  'scripts/tests/test_svt_av1_licenses.py',
+                  'scripts/tests/fixtures/svt-av1-notices/**')
+        for event in ('push', 'pull_request'):
+            for path in inputs:
+                self.assertIn(path, self.workflow['on'][event]['paths'])
+
+    def test_native_licence_gate_follows_build_and_propagates_failures(self):
+        step = next(s for s in self.job['steps'] if s.get('id') == 'native-licenses')
+        self.assertGreater(self.job['steps'].index(step), self.job['steps'].index(self.step))
+        self.assertNotIn('if', step)
+        for failure, expected, calls in (('', 0, 2), ('tests', 7, 1), ('gate', 8, 2)):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                bindir = root / 'tools'
+                bindir.mkdir()
+                (root / 'svt-native-logs').mkdir()
+                python = bindir / 'python3'
+                python.write_text(
+                    '#!/bin/bash\nset -euo pipefail\n'
+                    'echo "$*" >> "$CALLS"\n'
+                    'if [[ "$*" == "-I -m unittest discover -s scripts/tests -p test_svt_av1_licenses.py" ]]; then\n'
+                    '  echo licence-tests\n'
+                    '  if [[ "$FAILURE" == tests ]]; then exit 7; fi\n'
+                    '  exit 0\nfi\n'
+                    '[[ "$*" == "-I scripts/svt_av1_licenses.py --target x86_64-unknown-linux-musl --prefix $RUNNER_TEMP/svt-av1" ]]\n'
+                    'echo licence-gate\n'
+                    'if [[ "$FAILURE" == gate ]]; then exit 8; fi\n'
+                )
+                python.chmod(0o755)
+                log = root / 'calls'
+                result = subprocess.run(
+                    ['bash', '-c', step['run']], cwd=root,
+                    env={**os.environ, 'PATH': str(bindir) + os.pathsep + os.environ['PATH'],
+                         'RUNNER_TEMP': str(root), 'TARGET': 'x86_64-unknown-linux-musl',
+                         'CALLS': str(log), 'FAILURE': failure},
+                    capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertEqual(len(log.read_text().splitlines()), calls)
+                self.assertIn('licence-tests', (root / 'svt-native-logs/license-tests.log').read_text())
+                if failure != 'tests':
+                    self.assertIn('licence-gate', (root / 'svt-native-logs/licenses.log').read_text())
+
 
 if __name__ == '__main__':
     unittest.main()

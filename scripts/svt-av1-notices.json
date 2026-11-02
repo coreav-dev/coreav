@@ -1,0 +1,10 @@
+{
+  "archive_sha256": "c7b13c4a84bd3751aa35fcc72be13e6875467e7c2216879251a486e5b1e4e740",
+  "notices": {
+    "LICENSE.md": "0acc2fcb27472bdc9aaf8b71f37055bbdac4f54671b7d922f241bd7fcd0dd3e6",
+    "LICENSE-BSD2.md": "c582fcbeb9cf972a60d298bfaf41dc5adff2dd14208946edcb9bb56a281e8438",
+    "PATENTS.md": "20678ab10402659106dc4c147c97b2a6e94b5c0695415e15a8f195ebc3547922",
+    "third_party/fastfeat/LICENSE": "043dcfd059386f9facd376351b2bd79325778744aa442177390cdfcca54babed",
+    "third_party/safestringlib/LICENSE": "c0f99a208799ca20c9ccf31a30533d49334eb458dca5a3d14f9afe3e884e5d7d"
+  }
+}

@@ -69,6 +69,16 @@ themselves: the npm tarballs (`.github/workflows/npm.yml`), the wheel
 (`.github/workflows/release.yml`) each must hold `LICENSE-MIT`,
 `LICENSE-APACHE` and `NOTICE` as committed, in one directory.
 
+## Native SVT-AV1 notice checks
+
+Policy record [0043](../design/encoder-policy.md) permits BSD-3-Clause-Clear only for the SVT-AV1 encoder dependency and its dedicated backend. SVT is an external native library, not a Cargo dependency with its own package metadata. `scripts/svt_av1_licenses.py` enforces that scoped exception on a recipe installation; it does not add Clear to `deny.toml` or change the Rust glue's `MIT OR Apache-2.0` licence.
+
+Run `python3 -I scripts/svt_av1_licenses.py --target TARGET --prefix PREFIX` after the pinned recipe build. The prefix must be absolute and unchanged during the check. The checker reads the version, archive pin, targets and notice destinations from the recipe owner. It requires matching manifest identity, regular retained files with matching hashes, and exactly the five expected notice files. Each notice must also match `scripts/svt-av1-notices.json`, which records SHA-256 fingerprints of the complete, unmodified upstream copyright, licence and patent texts. The fingerprints were obtained from only those legal members after verifying the recipe's archive digest. The record's archive digest binds that evidence to its source; it does not select a second source pin. A recipe archive change requires reviewing the fingerprint evidence again, even if the text is unchanged. Do not derive approved fingerprints from an installed prefix or its self-reported manifest.
+
+The retained texts include the primary Clear licence, BSD-2 licence, AOM Patent License 1.0, and the fastfeat and safestringlib licences. The gate emits an identity and notice-hash record without local paths. The existing four-target native CI runs it after every fresh successful build and retains its log. Offline tests use exact upstream legal fixtures; replacing any text and rewriting its manifest hash still fails.
+
+This gate checks consistency and exact notice bytes. Manifest self-hashes do not authenticate arbitrary replacement libraries or prove their source, architecture or linkage. Those build checks belong to the trusted recipe invocation. The gate neither executes installed code nor establishes Rust linkage, complete release-package coverage or encoder acceptance. No SVT encoder is enabled and no distribution is authorized by this check; packaging must still carry these texts when it ships the native library.
+
 ## Rust dependency notices
 
 Every native release archive (default and full), npm platform package, main npm WASI package and private JavaScript WASM package also ships `THIRD-PARTY-NOTICES.txt` beside the root licence files. Python wheels keep the notices described above; their Rust dependency notices are not covered here.
