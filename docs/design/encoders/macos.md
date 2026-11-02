@@ -59,10 +59,58 @@ Synthetic tail work has a separate bound, not a source or caller-chunk allowance
 
 Finalization reads the final cookie and codec-specific priming and padding values, checks their arithmetic against the actual accepted PCM and emitted packet totals, and returns validated container configuration only after drain. The final priming values must equal those that planned the tail; the codec must report no additional padded zeros after explicitly aligned input. Leading trim is the codec's reported delay, and trailing trim is the planned tail minus that delay. These are `AudioCodec` properties, not `AudioConverterPrimeInfo` input lookahead. The native fixtures independently decode synthetic AAC with the Rust decoder and check declared trim, channel impulse placement, and all four acceptance formats. They are correctness fixtures, not quality or speed bars against the pinned FFmpeg oracle.
 
+## Planned VideoToolbox owner
+
+This section specifies the native H.264 ownership change before its implementation. The standalone safe interface remains separate from transcode, CLI selection, schemas and packaging. The existing H.264 readers remain the syntax boundary, not a decoder or a source-frame ledger.
+
+### Input and session ownership
+
+One owner-thread-only `videotoolbox::Encoder` creates, configures, submits to, completes, invalidates and releases one `VTCompressionSession`. It is neither Send nor Sync. Cancellation from another thread changes only Rust-owned state. No other thread calls the native session, and no callback calls application code, invalidates the session or borrows the movable Rust owner.
+
+The initial request is High-profile, progressive 8-bit 4:2:0, with a checked bitrate, rational frame clock, no reordering and a two-second maximum keyframe interval. Source geometry, colour description and range are explicit. Unsupported values are refused rather than converted silently. Required settings are queried back after preparation and checked again against encoded output. Average bitrate is Apple's desired long-term average, not a hard byte cap. Cumulative output has an independent resource bound.
+
+Each submission carries a sequential identity, exact presentation time and positive duration. Checked 4:2:0 planes are copied synchronously into a framework-owned NV12 pixel buffer; interleaving U and V changes packing, not samples or colour. The source borrow ends with the call. A successful pixel-buffer lock is paired with unlock, and plane count, geometry, strides, address arithmetic and storage bounds are checked before row copies. Allocate from the session's retained pixel-buffer pool with a threshold on every allocation. The threshold includes the encoder's outstanding buffers, not only Rust's pending ledger. Do not wrap caller storage with an external-byte constructor or recycle submitted pixels on callback arrival. Apple documents that the session or encoder retains its image buffer as long as necessary.
+
+Reserve the source identity, timing and output allowance before `VTCompressionSessionEncodeFrame`: the callback can run before that call returns. A synchronous submission error makes the session fail, even if a callback already produced bytes. Such bytes cannot reach the caller as a successful output. The input acceptance count advances only on a successful submission.
+
+### Callback lifetime without an undocumented teardown guarantee
+
+The callback refcon is a nonzero, never-reused numeric registry key, not a pointer to a Box or the encoder. The registry contains an `Arc` to a safe bounded mailbox. A callback looks up the key, clones that Arc, releases the registry lock and reserves a bounded extraction slot under the mailbox lock. It performs CoreMedia extraction outside both locks, then commits or discards its owned result under the mailbox lock. Native session calls also occur outside both locks. No registry and mailbox lock is held at the same time.
+
+The mailbox contains only Rust-owned bytes and metadata, not a native handle, caller reference or borrowed sample. A retired registry entry prevents new callback leases; an existing callback Arc keeps only its mailbox alive. A late callback with a missing key returns without inspecting the sample. Keys never wrap or recycle. Admission and aggregate reserved-storage permits live in the Arc-owned allocation, so retired mailboxes still held by callbacks count against the process limits. Counting active map entries alone would not bound late callbacks' retained storage. Exhausted key space or admission capacity refuses creation.
+
+The alternative is a stable per-session Box passed directly as refcon. Reclaiming that Box requires proof that no callback can begin after it is freed. Apple's inspected `Invalidate` contract promises orderly teardown, but does not explicitly promise callback quiescence, and an active-callback counter cannot exclude a callback that has not entered yet. Permanently allocated tombstones would require a lifetime admission cap and eventually refuse all further sessions. The reclaimable key-to-Arc registry is chosen instead of assuming either guarantee or leaking per-session contexts.
+
+Callbacks can overlap. Their native invocation order does not establish the order in which concurrent Rust copies finish. Reserve each known frame once, reject unknown or duplicate identities, and publish completed access units in submission order through a bounded pending ledger. A duplicate, dropped frame, callback error, missing sample, queue overflow or unexpected picture fails the session. No callback unwinds across the C ABI.
+
+### Copy and validate output before delivery
+
+The private native module requires ready data and exactly one complete sample. Sample size must agree with the block length and fit per-access-unit, queue and cumulative limits before allocation. `CMBlockBufferCopyDataBytes` copies noncontiguous block storage into initialized owned bytes; its destination is discarded on error. Copy bounded SPS and PPS while a retained format description remains alive, and require the supported parameter-set count and four-byte NAL lengths. Read attachments without creating or mutating them. An absent `NotSync` attachment means sync, still subject to the safe reader's IDR check.
+
+Only owned data crosses into the safe reader and frame ledger. Parameter sets, geometry, supported colour signalling and sync must agree with the request and remain unchanged. Presentation time and duration must match the submitted identity; valid decode times cannot introduce reordering. Account separately for raw callback copies, parameter sets, the reader's final copy and RBSP scratch. A bounded output queue alone does not bound that peak.
+
+Backpressure never increases a buffer bound. When output is needed but the oldest submitted frame is still pending, complete through its presentation time outside the locks, then wait only for bounded callback work within the session's remaining deadline. Final drain stops submission and calls `VTCompressionSessionCompleteFrames` with nonnumeric time to request all pending frames. Successful completion requires every accepted identity exactly once, no copying slot or pending frame left, and a fully consumed output queue. Metadata validity alone cannot establish that condition.
+
+Finish, cancellation, failure and Drop close submission and retire the registry entry before final native teardown. Invalidation and CF release happen on the owner thread without callback locks. Already leased callback mailboxes discard work after closing and are reclaimed only with their last Arc and admission permit. Failure and Drop do not need a successful drain to make callback-context reclamation safe. Teardown is idempotent.
+
+Synchronous framework calls cannot be interrupted. Deadlines are checked before and after them and around Rust waits; they do not prove a native-call or teardown deadline, bound all encoder-internal memory, or establish strict-safe isolation. `CompleteFrames` documents emission before return, not that every callback body has returned, so completion also accounts for active extraction slots. A failed or cancelled native call is not assumed to return each refcon once.
+
+### Actual implementation and hosted smoke
+
+Read the actual session's copied encoder ID and hardware-use property with runtime CF-type checks and bounded string conversion. Candidate-list entries and a requested preference are not proof of the selected implementation. Missing hardware metadata is unknown, not software. A hardware-required request refuses unknown or software results. No reliable encoder semantic-version query is assumed; the driver records OS version and build separately.
+
+Hosted macOS checks exercise synthetic submission, drain, independent decoding, exact frame count/order and source-pattern identity. Software-only availability is established by real submission and drain, not framework presence or session creation alone. Recognized pre-submission unavailability is recorded and refusal cleanup is tested; unsupported settings, unexpected native errors and any failure after accepting a frame cannot become a successful encode or a post-hoc exclusion. Mocked safe-backend tests cover synchronous/reentrant and overlapping callbacks, out-of-order copy completion, early/duplicate/late output, cancellation, partial drain, counter overflow and resource cleanup. Host timing is diagnostic only. The fixed-physical-host speed plan is a separate commit before any run.
+
+All new native declarations, pointer access, packed CoreMedia ABI types, CF ownership and the callback trampoline belong to `src/videotoolbox/sys.rs`. Other files retain safe Rust. The actual site inventory and exact shared-file changes go to the integration owner before the source lands. The source and its integration-owned unsafe-site row ship together; this design is not an empty registration or a safety sign-off.
+
 ## Sources
 
 - ITU-T H.264 (08/2024), clauses 7.3.1, 7.3.2, 7.3.3, 7.4 and Annex E: NAL/RBSP syntax, parameter sets, picture-header identity and VUI/HRD.
 - ISO/IEC 14496-15:2004/Amd.1:2006, clause 5.2.4.1: AVC decoder configuration and High-profile extension fields.
+
+- Apple's public `VTCompressionSession.h`, `VTCompressionProperties.h`, `VTSession.h`, `CVPixelBuffer.h`, `CVPixelBufferPool.h`, `CMSampleBuffer.h`, `CMFormatDescription.h`, `CMBlockBuffer.h` and Core Foundation ownership/type declarations. `CMTime.h` specifies pack(4), not the default Rust C alignment.
+- Apple's [compression callback](https://developer.apple.com/documentation/videotoolbox/vtcompressionoutputcallback), [frame submission](https://developer.apple.com/documentation/videotoolbox/vtcompressionsessionencodeframe(_:imagebuffer:presentationtimestamp:duration:frameproperties:sourceframerefcon:infoflagsout:)), [frame completion](https://developer.apple.com/documentation/videotoolbox/vtcompressionsessioncompleteframes(_:untilpresentationtimestamp:)) and [invalidation](https://developer.apple.com/documentation/videotoolbox/vtcompressionsessioninvalidate(_:)) contracts.
+- Apple's [threshold-capable pixel-pool allocation](https://developer.apple.com/documentation/corevideo/cvpixelbufferpoolcreatepixelbufferwithauxattributes(_:_:_:_:)) and [Core Foundation ownership policy](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFMemoryMgmt/Concepts/Ownership.html).
 
 - ISO/IEC 14496-3:2009, subpart 1 `AudioSpecificConfig` and subpart 4 `GASpecificConfig`.
 - Apple's public `CoreAudioBaseTypes.h`, `AudioStreamPacketDescription`, and `AudioConverter.h`, `AudioConverterPrimeInfo`.
