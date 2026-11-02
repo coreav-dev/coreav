@@ -24,6 +24,11 @@ struct Input<'a> {
 
 fuzz_target!(|input: Input<'_>| {
     for (rate, channels) in [(44_100, 1), (44_100, 2), (48_000, 1), (48_000, 2)] {
+        if let Ok(config) = Config::from_cookie(input.config, rate, channels) {
+            assert_eq!(config.sample_rate(), rate);
+            assert_eq!(config.channels(), channels);
+            assert_eq!(Config::parse(config.as_bytes(), rate, channels), Ok(config));
+        }
         if let Ok(config) = Config::parse(input.config, rate, channels) {
             assert_eq!(config.sample_rate(), rate);
             assert_eq!(config.channels(), channels);

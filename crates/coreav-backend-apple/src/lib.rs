@@ -1,6 +1,9 @@
-//! Checked readers for output from Apple's encoders.
+//! Checked Apple encoder output readers and a native AAC adapter.
 //!
-//! These readers make no framework calls. They validate AAC-LC configuration,
-//! packet extents, and declared drain counts, not the compressed AAC syntax.
+//! The metadata readers validate AAC-LC configuration, packet extents, and
+//! declared drain counts, not compressed AAC syntax. On macOS, AudioToolbox's
+//! synchronous AudioCodec API is owned behind a safe streaming interface.
 
 pub mod aac;
+#[cfg(target_os = "macos")]
+pub mod audiotoolbox;

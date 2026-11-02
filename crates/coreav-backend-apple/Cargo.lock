@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "coreav-aac"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-backend-apple"
 version = "0.0.1"
+dependencies = [
+ "coreav-aac",
+]

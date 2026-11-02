@@ -56,6 +56,62 @@ pub struct Config {
 }
 
 impl Config {
+    /// Constructs the supported configuration for an unchanged PCM format.
+    pub fn for_pcm(sample_rate: u32, channels: u16) -> Result<Self, Error> {
+        if !matches!(channels, 1 | 2) {
+            return Err(Error::Configuration);
+        }
+        let index = SAMPLE_RATES
+            .iter()
+            .position(|&rate| rate == sample_rate)
+            .and_then(|index| u16::try_from(index).ok())
+            .ok_or(Error::Configuration)?;
+        let bytes = ((2 << 11) | (index << 7) | (channels << 3)).to_be_bytes();
+        Self::parse(&bytes, sample_rate, channels)
+    }
+
+    /// Reads an AAC elementary-stream descriptor cookie or a supported raw ASC.
+    ///
+    /// The only accepted optional ASC suffix explicitly signals absent SBR.
+    /// Unknown descriptors and suffixes are refused, not searched or skipped.
+    pub fn from_cookie(data: &[u8], sample_rate: u32, channels: u16) -> Result<Self, Error> {
+        let asc = match data {
+            [_, _] | [_, _, 0x56, 0xe5, 0] => data,
+            _ => {
+                let (tag, es, rest) = descriptor(data)?;
+                if tag != 3 || !rest.is_empty() {
+                    return Err(Error::Configuration);
+                }
+                let [_, _, 0, children @ ..] = es else {
+                    return Err(Error::Configuration);
+                };
+                let (tag, decoder, sl) = descriptor(children)?;
+                if tag != 4 {
+                    return Err(Error::Configuration);
+                }
+                let (sl_tag, sl_data, rest) = descriptor(sl)?;
+                if sl_tag != 6 || sl_data != [2] || !rest.is_empty() {
+                    return Err(Error::Configuration);
+                }
+                let [0x40, 0x14 | 0x15, ..] = decoder else {
+                    return Err(Error::Configuration);
+                };
+                let (tag, asc, rest) = descriptor(decoder.get(13..).ok_or(Error::Configuration)?)?;
+                if tag != 5 || !rest.is_empty() {
+                    return Err(Error::Configuration);
+                }
+                asc
+            }
+        };
+        let [first, second] = asc else {
+            if let [first, second, 0x56, 0xe5, 0] = asc {
+                return Self::parse(&[*first, *second], sample_rate, channels);
+            }
+            return Err(Error::Configuration);
+        };
+        Self::parse(&[*first, *second], sample_rate, channels)
+    }
+
     /// Checks the encoder's configuration against the requested PCM format.
     ///
     /// `data` is the AudioSpecificConfig itself, not an AudioToolbox magic cookie
@@ -100,6 +156,27 @@ impl Config {
     pub fn channels(&self) -> u16 {
         self.channels
     }
+}
+
+fn descriptor(data: &[u8]) -> Result<(u8, &[u8], &[u8]), Error> {
+    let (&tag, mut data) = data.split_first().ok_or(Error::Configuration)?;
+    let mut size = 0_usize;
+    for _ in 0..4 {
+        let (&byte, rest) = data.split_first().ok_or(Error::Configuration)?;
+        data = rest;
+        size = size
+            .checked_mul(128)
+            .and_then(|n| n.checked_add(usize::from(byte & 127)))
+            .ok_or(Error::Configuration)?;
+        if byte & 128 == 0 {
+            return Ok((
+                tag,
+                data.get(..size).ok_or(Error::Configuration)?,
+                data.get(size..).ok_or(Error::Configuration)?,
+            ));
+        }
+    }
+    Err(Error::Configuration)
 }
 
 /// Untrusted values copied from one AudioStreamPacketDescription.

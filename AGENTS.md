@@ -6,6 +6,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 
 | Rule | Enforced by |
 |---|---|
+| AudioToolbox native fixtures append source PCM or begin drain only at `Flow::NeedInput`, pulling pending `Flow::More` output first | The `flow == Flow::NeedInput` append branch and pre-drain assertion in `native_four_cells_drain_and_decode_with_the_independent_rust_decoder` (`coreav-backend-apple/src/audiotoolbox/tests.rs`) enforce the fixture's ordering; it runs in `encoder-backends.yml` on hosted macOS |
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
 | No `unsafe` outside the files `docs/unsafe-sites.md` lists; the change that adds or changes an `unsafe` site adds or updates its row there | `unsafe_code = "forbid"` (`Cargo.toml`); `scripts/unsafe_sites_check.py` (`ci.yml`) fails on a file with `unsafe` and no row. It checks files, not sites: a new site in a listed file passes it, so its row is review judgment |
 | Every commit a pull request adds carries a `Signed-off-by` with its author's email (`git commit -s`) | `scripts/dco_check.py` (`deny.yml`): the name may differ and the email's case is ignored; commits already on `main` are skipped |
