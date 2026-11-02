@@ -60,10 +60,10 @@ function archive(...records) {
   return gzipSync(Buffer.concat([...records, Buffer.alloc(1024)]));
 }
 
-test("the exact 21-file archive roster includes upstream notices", () => {
-  assert.equal(PACKED.length, 21);
+test("the exact 23-file archive roster includes upstream notices", () => {
+  assert.equal(PACKED.length, 23);
   const files = validateArchive(roster());
-  assert.equal(files.size, 21);
+  assert.equal(files.size, 23);
   const parsed = archiveEntries(archive(...roster().map(entry => tarRecord(entry.path))));
   assert.deepEqual(validateArchive(parsed), files);
   assert.throws(() => validateArchive(roster().slice(1)), /roster/);

@@ -1,6 +1,7 @@
 import { RequestLimitError, SourceChangedError, SourceNotFoundError } from "./errors.js";
 
 import { TRUSTED } from "./internal.js";
+import { BoundedRangeSession, SourceCleanupError, boundedMemorySession, boundedOpeners } from "./bounded-source.js";
 
 /** A response that breaks the range protocol; not retried. */
 class ProtocolError extends Error {
@@ -109,7 +110,7 @@ function checkMemory(value) {
 /** An input already in memory: a `Uint8Array`, `ArrayBuffer` or view. */
 export function bytesSource(data) {
   const bytes = toBytes(data);
-  return {
+  const source = {
     open() {
       return {
         [TRUSTED]: true,
@@ -129,6 +130,8 @@ export function bytesSource(data) {
       };
     }
   };
+  boundedOpeners.set(source, () => boundedMemorySession(bytes));
+  return source;
 }
 
 function toBytes(data) {
@@ -154,6 +157,14 @@ function toBytes(data) {
  * `lastStats`.
  */
 export function rangeSource(fetchRange, options = {}) {
+  return ranged(fetchRange, options, false);
+}
+
+export function adapterRangeSource(fetchRange, options = {}) {
+  return ranged(fetchRange, options, true);
+}
+
+function ranged(fetchRange, options, bounded) {
   const settings = {
     ...RANGE_DEFAULTS,
     ...options
@@ -185,6 +196,13 @@ export function rangeSource(fetchRange, options = {}) {
       return session;
     }
   };
+  if (bounded) {
+    boundedOpeners.set(source, () => new BoundedRangeSession(fetchRange, {
+      ...settings, maxRequests: Math.min(settings.maxRequests, RANGE_DEFAULTS.maxRequests),
+    }, stats => {
+      source.lastStats = stats;
+    }).start());
+  }
   return source;
 }
 
@@ -1157,7 +1175,7 @@ export function httpSource(url, options = {}) {
   const {headers: headers = {}, fetch: fetchImpl = globalThis.fetch, followRedirects: followRedirects = false, ...range} = options;
   const callerHeaders = new Headers(headers);
   for (const name of ["range", "if-match", "accept-encoding"]) callerHeaders.delete(name);
-  return rangeSource(async ({offset: offset, length: length, validator: validator, signal: signal}) => {
+  return ranged(async ({offset: offset, length: length, validator: validator, signal: signal}) => {
     let current = target;
     let includeCallerHeaders = true;
     let response;
@@ -1168,7 +1186,7 @@ export function httpSource(url, options = {}) {
       if (validator !== undefined) request.set("if-match", validator);
       response = await fetchImpl(current, { headers: request, redirect: "manual", signal: signal });
       if (response.type !== "opaqueredirect" && !(response.status >= 300 && response.status < 400)) break;
-      await response.body?.cancel();
+      await dropBody(response.body);
       if (!followRedirects) throw new ProtocolError("the server redirected the request (followRedirects is off)");
       if (response.type === "opaqueredirect" || ![301, 302, 303, 307, 308].includes(response.status)) throw new ProtocolError("the server returned an unsupported redirect");
       if (hop === 5) throw new ProtocolError("the server redirected too many times");
@@ -1183,14 +1201,14 @@ export function httpSource(url, options = {}) {
       if (next.origin !== current.origin) includeCallerHeaders = false;
       current = next;
     }
-    const drop = () => response.body?.cancel().catch(() => {});
+    const drop = () => dropBody(response.body);
     const encoding = response.headers.get("content-encoding");
     if (encoding !== null && encoding.trim().toLowerCase() !== "identity") {
-      drop();
+      await drop();
       throw new ProtocolError("compressed HTTP responses do not preserve byte ranges (Content-Encoding must be identity)");
     }
     if (response.status === 412) {
-      drop();
+      await drop();
       throw new SourceChangedError;
     }
     const etag = response.headers.get("etag");
@@ -1198,7 +1216,7 @@ export function httpSource(url, options = {}) {
     if (response.status === 206) {
       const match = CONTENT_RANGE.exec(response.headers.get("content-range") ?? "");
       if (match === null) {
-        drop();
+        await drop();
         throw new ProtocolError("a 206 response without a usable Content-Range");
       }
       return {
@@ -1210,7 +1228,7 @@ export function httpSource(url, options = {}) {
       };
     }
     if (response.status === 416 && offset === 0) {
-      drop();
+      await drop();
       return {
         body: new ReadableStream({
           start: c => c.close()
@@ -1224,7 +1242,7 @@ export function httpSource(url, options = {}) {
       const declared = response.headers.get("content-length");
       const size = declared === null ? Number.NaN : Number(declared);
       if (!Number.isSafeInteger(size)) {
-        drop();
+        await drop();
         throw new ProtocolError("a 200 response without a Content-Length");
       }
       return {
@@ -1235,10 +1253,18 @@ export function httpSource(url, options = {}) {
         whole: true
       };
     }
-    drop();
+    await drop();
     if (response.status === 200) throw new ProtocolError("the server does not answer range requests");
     if (response.status === 404) throw new SourceNotFoundError;
     const error = new Error(`HTTP ${response.status} for a range request`);
     throw response.status < 500 ? new ProtocolError(error.message) : error;
-  }, range);
+  }, range, fetchImpl === globalThis.fetch);
+}
+
+async function dropBody(body) {
+  try {
+    await body?.cancel();
+  } catch (cause) {
+    throw new SourceCleanupError(cause);
+  }
 }

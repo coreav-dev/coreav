@@ -14,6 +14,10 @@ Rust owns parsing, option validation, limits, documents and output writing. The 
 
 The specifiers are explicit, not conditional exports. Common sources and types do not depend on Workers or Node. `api.js`, `engine.js`, `errors.js` and `sources.js` are shared; `r2.js` is re-exported only by the Workers entry.
 
+The private engine implementation accepts an artifact's bindings and fingerprint without importing generated glue itself. The package's `engine.js` supplies them. This is an internal ownership boundary, not a public factory or an additional module instance. The default engine keeps concurrent source sessions.
+
+An internal exclusive profile is prepared for the H.264 artifact. It admits one operation before source opening and retains admission through output backpressure and awaited session cleanup. Its output has no prefetch queue and each write is at most 256 KiB. Its sources accept fixed in-memory backing buffers of at most 4 MiB or platform HTTP/R2 byte streams through native BYOB readers, with one response at a time. Generic readers, custom HTTP producers, shared buffers and resizable buffers are refused. Response replacement awaits cancellation; a cleanup failure makes that engine unusable and keeps the host exception in `cause`. Backing-store capacity and pre-allocation charges are separate counters, not hosted isolate measurements. This profile is not enabled by the default package and does not establish the thumbnail memory gates.
+
 The [thumbnail plan and registered memory bars](wasm-thumbnail-memory-bars.md) specify a separate H.264 package for servers, followed by a decoder-free browser WebCodecs path in the default package. This is a plan, not current package support; it changes no operation, artifact, publishing or existing gate here.
 
 `init` accepts a compiled `WebAssembly.Module` or its bytes. It initializes once; later calls do not replace the instance. A trap marks the instance unusable for subsequent operations. Recovery needs a new isolate or module instance, not another call to `init`.
