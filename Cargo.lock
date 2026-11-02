@@ -358,6 +358,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-h264-encoder"
+version = "0.0.1"
+dependencies = [
+ "coreav-h264",
+ "coreav-kernels-h264",
+]
+
+[[package]]
 name = "coreav-isobmff"
 version = "0.0.1"
 dependencies = [

@@ -1,0 +1,29 @@
+# H.264 G1 harness contract
+
+This is the interface of `scripts/h264_g1.py`, not a frozen roster or a run result. The [G1 design](h264-encoder.md) owns quotas, baseline controls, metrics, and failure rules. This driver does not fetch or prepare source media.
+
+## Entry gate
+
+Every action requires `--freeze COMMIT --manifest PATH --sha256 SHA256`. The commit must be a full immutable revision already contained in `origin/main`. The driver reads the file from that commit with Git, verifies its byte digest, and validates the complete protocol before any encoder or metric process starts. A candidate-supplied working-tree copy cannot replace it. The run job must fetch current `origin/main` before invocation.
+
+`verify-freeze` performs only this gate. `report --cells FILE` checks complete cell data and computes the registered curves without encoding. `run` is enabled only in Linux Actions and additionally requires `--candidate COMMIT --identity PATH --authorize COMMIT --driver FILE --decoder FILE --tools FILE --inputs DIR --metric-fixture DIR --output DIR`. Authorization must name that exact candidate. The candidate must also be contained in `origin/main`. The identity is a committed JSON file at that candidate with `driver_sha256` and `decoder_sha256`; these bind the test-only G1 encoder driver and the independent `coreav-h264` decode example. Build settings and toolchain records belong beside that identity.
+
+The driver verifies every prepared input and tool before work. It verifies the frozen synthetic conversion fixture before encoding any roster input. Completed cells bind the freeze, candidate, binary identity, tool digests, and every retained file digest. Resume refuses changed identities or artifacts. Incomplete cells remain failures. `--resume-fault FILE` permits resuming only an incomplete cell named in a recorded infrastructure fault with the same identity digest. Its reason is `preemption`, `runner-loss`, `input-integrity`, or `host-gate`; the old directory and fault record are retained under `failed-attempts`. It cannot replace a completed cell or repair a measured miss.
+
+## Freeze JSON
+
+The freeze uses `protocol = "coreav-h264-g1-v1"`, `qps = [16,22,28,34,40]`, `frames = 60`, `timing = [30,1]`, and `colour = [false,1,1,1,0]`. The last value fixes the measurement preparation signalling as limited-range BT.709 with left chroma siting. Original declarations stay separate, including absent values.
+
+`clips` contains all 24 ordered neutral labels. Each row contains `label`, `parent` as a neutral parent identity, `class` from 1 through 8, `resolution_group` from 1 through 4, `split`, `width`, `height`, `frames`, `bytes`, `sha256`, `original_sha256`, `original_bytes`, `original_geometry`, `original_timing`, `source_declarations`, `selected_stream`, `first_frame`, `preparation`, `licence`, and `licence_approved`. No source names, URLs, acquisition chains, or private mapping belong in this public interface. The freeze owner retains those privately. `licence` is `public-domain`, `CC0`, `CC-BY`, or `internal-rd-permission`. The freeze review establishes the underlying permission evidence. `ordered_planes_sha256` is the SHA-256 of the canonical JSON array of ordered prepared hashes, with sorted keys and compact separators.
+
+`tools` maps `ffmpeg`, `ffprobe`, `jm`, `x264`, `metric_ffmpeg`, and `ssimulacra2` to records with `sha256`, `version`, `build`, and `compiler`. JM, metric FFmpeg, and SSIMULACRA2 also require `archive_sha256`. Build and version records include the complete pinned configuration and dependencies described by the G1 design. The runtime `--tools` JSON maps those names to executable paths. No runtime tool choice can replace a frozen digest. Conformance additionally verifies the shared FFmpeg version pin.
+
+`commands` maps `convert`, `ssimulacra2`, and `xpsnr` to complete argument arrays, not shell strings. Placeholders are tool names plus `width`, `height`, `frames`, and `fps`. Conversion also receives `input` and `output`, with `output` naming a six-digit PNG pattern. Both scoring commands receive `reference` and `reconstruction`. SSIMULACRA2 must print one finite numeric score. XPSNR must print one sequence summary with `XPSNR y: ... u: ... v: ...`. The freeze review checks that these commands implement the exact conversion and aggregation conventions in the design. The driver does not select filters after a result.
+
+`metric_fixture` records `width`, `height`, `frames = 60`, `finite = true`, `reference_sha256`, `reconstruction_sha256`, and all 60 `png_sha256` values for the converted reference. The fixture directory contains the two tightly packed Y/Cb/Cr files as `reference.yuv` and `reconstruction.yuv`. Both files must match their digests and frame byte counts. The driver reruns the frozen conversion and scoring commands, checks all reference PNG hashes, and refuses nonfinite output before roster encoding.
+
+## Outputs and interpretation
+
+Each encoder/QP cell retains its elementary stream, reconstruction, conformance output, command records, and frame scores. Both arms receive the same plane bytes and nominal timing. The CoreAV arm must match its own reconstruction in all three decoders. The x264 arm is decoded by CoreAV, FFmpeg, and JM; its syntax is checked for the registered subset and effective slice QP. Only identifying SEI is removed, preserving all other bytes and original Annex B delimiters.
+
+The report requires exactly 240 cells, all 60 frames, and both metrics at all five QPs. It retains training results separately and judges the sixteen held-out clips only. PCHIP integrates natural log rate over the required common interval without extrapolation or curve repair. Both held-out medians must be at most +30%; either above +60% requests reconsideration. There is no speed verdict. This implementation supplies no judged run workflow or schedule.
