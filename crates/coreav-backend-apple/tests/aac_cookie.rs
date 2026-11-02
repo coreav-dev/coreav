@@ -91,6 +91,38 @@ fn a_cookie_cannot_change_the_requested_rate_or_channels() {
 }
 
 #[test]
+fn an_apple_cookie_may_clear_only_the_decoder_reserved_bit() -> Result<(), Error> {
+    let original = [
+        0x03, 0x80, 0x80, 0x80, 0x22, 0, 0, 0, 0x04, 0x80, 0x80, 0x80, 0x14, 0x40, 0x14, 0, 0x18,
+        0, 0, 0, 0, 0, 0, 0x01, 0xf4, 0, 0x05, 0x80, 0x80, 0x80, 0x02, 0x12, 0x08, 0x06, 0x80,
+        0x80, 0x80, 0x01, 0x02,
+    ];
+    assert_eq!(
+        Config::from_cookie(&original, 44_100, 1)?.as_bytes(),
+        &[0x12, 0x08]
+    );
+    for flags in 0..=u8::MAX {
+        let mut changed = original;
+        if let Some(value) = changed.get_mut(14) {
+            *value = flags;
+        }
+        assert_eq!(
+            Config::from_cookie(&changed, 44_100, 1).is_ok(),
+            matches!(flags, 0x14 | 0x15)
+        );
+    }
+    assert_eq!(
+        Config::from_cookie(&original, 48_000, 1),
+        Err(Error::FormatMismatch)
+    );
+    assert_eq!(
+        Config::from_cookie(&original, 44_100, 2),
+        Err(Error::FormatMismatch)
+    );
+    Ok(())
+}
+
+#[test]
 fn every_single_byte_mutation_is_checked_without_panicking() {
     let original = cookie(&[0x11, 0x90, 0x56, 0xe5, 0], true);
     for offset in 0..original.len() {

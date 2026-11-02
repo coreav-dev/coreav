@@ -93,7 +93,7 @@ impl Config {
                 if sl_tag != 6 || sl_data != [2] || !rest.is_empty() {
                     return Err(Error::Configuration);
                 }
-                let [0x40, 0x15, ..] = decoder else {
+                let [0x40, 0x14 | 0x15, ..] = decoder else {
                     return Err(Error::Configuration);
                 };
                 let (tag, asc, rest) = descriptor(decoder.get(13..).ok_or(Error::Configuration)?)?;
