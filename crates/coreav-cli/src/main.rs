@@ -101,6 +101,9 @@ struct Cli {
     /// refused (exit status 4).
     #[arg(long)]
     strict_safe: bool,
+    #[cfg(feature = "input-capture")]
+    #[arg(long, hide = true)]
+    capture_encoder_input: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -928,6 +931,17 @@ impl<W: Write> Write for Watched<W> {
 /// Runs the command `cli` describes.
 #[cfg_attr(not(feature = "thumbnail"), allow(unused_variables))]
 fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
+    #[cfg(feature = "input-capture")]
+    if let Some(target) = cli.capture_encoder_input.as_ref() {
+        return match &cli.command {
+            Command::Ffmpeg(args) => compat_cmd::run_ffmpeg_captured(
+                &args.args,
+                StrictSafe::new(cli.strict_safe),
+                target,
+            ),
+            _ => usage("--capture-encoder-input requires the ffmpeg command"),
+        };
+    }
     match cli.command {
         Command::Ffprobe(args) => {
             compat_cmd::run_ffprobe(&args.args, StrictSafe::new(cli.strict_safe))
@@ -1090,6 +1104,8 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        #[cfg(feature = "input-capture")]
+        input_capture: None,
         pixel_format: None,
         one_size: false,
         encoder,

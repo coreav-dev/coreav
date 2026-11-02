@@ -47,6 +47,7 @@ thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker", "dep:coreav-frame"]
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
 # backend feature turns it on.
 transcode = ["thumbnail", "dep:coreav-transcode"]
+input-capture = ["transcode", "coreav-transcode/input-capture"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
 dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]

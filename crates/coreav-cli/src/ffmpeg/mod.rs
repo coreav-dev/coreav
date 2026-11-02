@@ -13,6 +13,8 @@
 pub mod args;
 mod audio;
 mod avi;
+#[cfg(feature = "input-capture")]
+mod capture;
 #[cfg(feature = "transcode")]
 pub mod encode;
 #[cfg(feature = "thumbnail")]
@@ -245,6 +247,34 @@ See docs/design/compat-cli.md.
 /// is checked before decoding. Explicit encoders are checked before the input is read.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
+    run_inner(args, strict_safe, None)
+}
+
+/// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
+#[cfg(feature = "input-capture")]
+pub fn run_captured(
+    args: &[String],
+    strict_safe: StrictSafe,
+    directory: &Path,
+) -> Result<serde_json::Value, Stop> {
+    let command = args::parse(args)?;
+    let session = capture::Session::begin(directory, Path::new(&command.input))?;
+    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")))?;
+    session.seal(
+        &summary,
+        args,
+        Path::new(&command.input),
+        Path::new(&command.output),
+    )?;
+    Ok(summary)
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_inner(
+    args: &[String],
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
@@ -297,8 +327,14 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
+        if capture.is_some() && transcode.audio_encoder != Some(args::AudioEncoder::Aac) {
+            return Err(Refusal::not_native("input capture without a native AAC encode").into());
+        }
         let encoder = encode::encoder(transcode, strict_safe)?;
-        return encode::write(&command, transcode, encoder, strict_safe);
+        return encode::write_inner(&command, transcode, encoder, strict_safe, capture);
+    }
+    if capture.is_some() {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {

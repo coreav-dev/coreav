@@ -49,6 +49,9 @@ pub struct Request {
     pub opus: Option<OpusRequest>,
     /// `--audio aac`: one audio stream encoded to AAC-LC instead.
     pub aac: Option<AacRequest>,
+    /// Optional actual AAC-encoder stdin capture.
+    #[cfg(feature = "input-capture")]
+    pub input_capture: Option<coreav_transcode::capture::Target>,
     /// The pixel format the encoder must be given (`-pix_fmt`).
     pub pixel_format: Option<PixelFormat>,
     /// Refuse a stream whose frame size changes, instead of resizing it.
@@ -143,6 +146,8 @@ pub fn make<S: Source>(
             (_, false, None, Some(aac)) => AudioMode::Aac(AacAudio {
                 stream: aac.stream,
                 bitrate: aac.bitrate,
+                #[cfg(feature = "input-capture")]
+                input_capture: request.input_capture.clone(),
             }),
             (Some(streams), false, None, None) => AudioMode::Streams(streams.clone()),
             (None, false, None, None) => AudioMode::Copy,
@@ -331,7 +336,8 @@ pub fn document(summary: &Summary) -> Value {
             }
         }
     }
-    json!({
+    #[cfg_attr(not(feature = "input-capture"), allow(unused_mut))]
+    let mut document = json!({
         "schema": "coreav.transcode/1",
         "output": {"bytes": bytes},
         "video": {
@@ -361,7 +367,17 @@ pub fn document(summary: &Summary) -> Value {
         })),
         "other": other,
         "dropped": dropped,
-    })
+    });
+    #[cfg(feature = "input-capture")]
+    if let Some(capture) = summary
+        .audio
+        .as_ref()
+        .and_then(|audio| audio.input_capture.as_ref())
+        && let Some(object) = document.as_object_mut()
+    {
+        object.insert("input_capture".into(), json!(capture));
+    }
+    document
 }
 
 /// The failure of a transcode.

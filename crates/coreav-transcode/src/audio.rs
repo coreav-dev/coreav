@@ -145,6 +145,37 @@ pub struct AudioSummary {
     /// The encoded stream's presentation delay in output samples,
     /// including the MP3 decoder delay, when applicable.
     pub pre_skip: u16,
+    /// Completed actual-stdin capture; not a complete transcode receipt.
+    #[cfg(feature = "input-capture")]
+    pub input_capture: Option<EncoderInput>,
+}
+
+/// Encoder input identity, emitted only for an explicitly requested capture.
+#[cfg(feature = "input-capture")]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct EncoderInput {
+    /// Sample representation and byte order on the actual input pipe.
+    pub format: &'static str,
+    /// The actual bytes accepted by stdin.
+    pub pcm: crate::capture::Receipt,
+    /// SHA-256 of the encoder executable before and after execution.
+    pub encoder_sha256: String,
+    /// The encoder arguments actually supplied to the launcher.
+    pub argv: Vec<String>,
+    /// The final command's actual launcher arguments, including its limits.
+    pub launcher_argv: Vec<String>,
+    /// Input sample rate in Hz.
+    pub sample_rate: u32,
+    /// WAV speaker mask of the supplied channel order.
+    pub channel_mask: u32,
+    /// First presented sample in output sample-rate ticks.
+    pub start_ticks: u64,
+    /// Whether the normal sandbox launcher was used.
+    pub sandboxed: bool,
+    /// Address-space limit supplied to the normal launcher.
+    pub address_space: Option<u64>,
+    /// Open-file limit supplied to the normal launcher.
+    pub open_files: Option<u64>,
 }
 
 /// The checked encoded audio, ready for a container writer.
@@ -515,6 +546,8 @@ fn encode_with(
         rate,
         bitrate,
         sent,
+        #[cfg(feature = "input-capture")]
+        capture,
     } = started;
     let samples = sent.load(Ordering::SeqCst);
     let guard = if matches!(encode, Encode::Mp3(..)) {
@@ -649,6 +682,34 @@ fn encode_with(
             )
         }
     };
+    #[cfg(feature = "input-capture")]
+    let input_capture = capture
+        .map(|capture| {
+            let sha256 = crate::capture::file_sha256(encode.program())
+                .map_err(|e| Error::Spool(e.kind()))?;
+            if sha256 != capture.encoder_sha256 {
+                return Err(encoder_error(
+                    "the captured encoder executable changed".into(),
+                ));
+            }
+            Ok(EncoderInput {
+                format: "f32le",
+                pcm: capture
+                    .pending
+                    .finish(samples, channels)
+                    .map_err(|e| encoder_error(e.to_string()))?,
+                encoder_sha256: sha256,
+                argv: capture.argv,
+                launcher_argv: capture.launcher_argv,
+                sample_rate: rate,
+                channel_mask: capture.channel_mask,
+                start_ticks: ticks(start_ns, rate),
+                sandboxed: launcher.is_some(),
+                address_space: Some(AAC_ENCODER_MEMORY),
+                open_files: EncoderLimits::new(AAC_ENCODER_MEMORY).open_files,
+            })
+        })
+        .transpose()?;
     Ok(EncodedAudio {
         summary: AudioSummary {
             stream_index: summary.stream_index,
@@ -665,6 +726,8 @@ fn encode_with(
             samples,
             packets: u64::try_from(sizes.len()).unwrap_or(u64::MAX),
             pre_skip,
+            #[cfg(feature = "input-capture")]
+            input_capture,
         },
         description,
         timescale: rate,
@@ -906,6 +969,17 @@ struct Started {
     bitrate: Option<u32>,
     /// Samples per channel sent to the encoder.
     sent: Arc<AtomicU64>,
+    #[cfg(feature = "input-capture")]
+    capture: Option<CaptureStarted>,
+}
+
+#[cfg(feature = "input-capture")]
+struct CaptureStarted {
+    pending: crate::capture::Pending,
+    encoder_sha256: String,
+    argv: Vec<String>,
+    launcher_argv: Vec<String>,
+    channel_mask: u32,
 }
 
 impl Feed<'_> {
@@ -1004,6 +1078,37 @@ impl Feed<'_> {
             }
         };
         let program = self.encode.program();
+        #[cfg(feature = "input-capture")]
+        let (mut capture, recording) = match self.encode {
+            Encode::Aac(settings, _) if settings.input_capture.is_some() => {
+                let target = settings
+                    .input_capture
+                    .as_ref()
+                    .ok_or_else(|| encoder_error("no capture target".into()))?;
+                let encoder_sha256 =
+                    crate::capture::file_sha256(program).map_err(|e| Error::Spool(e.kind()))?;
+                let argv = args
+                    .iter()
+                    .map(|arg| {
+                        arg.to_str()
+                            .map(str::to_owned)
+                            .ok_or_else(|| encoder_error("non-UTF-8 encoder arguments".into()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let (recording, pending) = target.create().map_err(|e| Error::Spool(e.kind()))?;
+                (
+                    Some(CaptureStarted {
+                        pending,
+                        encoder_sha256,
+                        argv,
+                        launcher_argv: Vec::new(),
+                        channel_mask: format.channel_mask,
+                    }),
+                    Some(recording),
+                )
+            }
+            _ => (None, None),
+        };
         let command = command(
             program,
             &args,
@@ -1012,6 +1117,18 @@ impl Feed<'_> {
             &EncoderLimits::new(memory),
             self.deadline,
         );
+        #[cfg(feature = "input-capture")]
+        if let Some(capture) = capture.as_mut() {
+            capture.launcher_argv = command
+                .get_args()
+                .map(|arg| {
+                    arg.to_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| encoder_error("non-UTF-8 launcher arguments".into()))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+        #[cfg(not(feature = "input-capture"))]
         let process = Process::spawn(
             self.encode.name(),
             "sample blocks",
@@ -1021,12 +1138,34 @@ impl Feed<'_> {
             output,
         )
         .map_err(Error::Encode)?;
+        #[cfg(feature = "input-capture")]
+        let process = match recording {
+            Some(recording) => Process::spawn_captured(
+                self.encode.name(),
+                command,
+                program,
+                self.deadline,
+                output,
+                recording,
+            ),
+            None => Process::spawn(
+                self.encode.name(),
+                "sample blocks",
+                command,
+                program,
+                self.deadline,
+                output,
+            ),
+        }
+        .map_err(Error::Encode)?;
         Ok(Started {
             process,
             channels,
             rate,
             bitrate,
             sent,
+            #[cfg(feature = "input-capture")]
+            capture,
         })
     }
 }
