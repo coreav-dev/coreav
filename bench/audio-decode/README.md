@@ -77,6 +77,8 @@ No receipt contains command arguments, paths, stdout, stderr, PCM or arbitrary e
 
 ## Synthetic checks
 
+The full suite runs on Linux. Its kernel-bound output regression requires mount capability, either as root or through passwordless `sudo -n`. An unavailable mount prerequisite is a test failure rather than a silent loss of this required enforcement check. Ordinary unprivileged Linux environments need that capability before running the full suite.
+
 These tests use short generated data and child processes, not real media or a speed benchmark:
 
 ```sh

@@ -25,6 +25,8 @@ OPERATIONS = ('raw_identity', 'cli_identity', 'oracle', 'head_lib', 'base_lib',
               'lav_lib', 'head_dec', 'base_dec', 'lav_dec', 'ffmpeg_cli')
 TOOLS = ('base_abench', 'head_abench', 'base_coreav', 'head_coreav',
          'lav', 'ffmpeg', 'ffprobe', 'opus_compare')
+BASELINE_LIBRARY = re.compile(r'(lib(?:avcodec|avformat|avutil|avfilter|avdevice|swresample|swscale))\.so\.\d+(?:\.\d+)*')
+BASELINE_REQUIRED = {'libavcodec', 'libavformat', 'libavutil', 'libswresample'}
 SCRIPT_INPUTS = ('scripts/opus_identity.py', 'scripts/oracle_audio.py',
                  'scripts/oracle-audio-args.txt', 'scripts/decode_audio_check.py',
                  'scripts/oracle_kd.py', 'scripts/oracle_kd_ts.py',
@@ -101,13 +103,13 @@ def verify_tools(repo, tools):
                 if name in libraries:
                     raise Invalid('ambiguous_baseline_library')
                 libraries[name] = digest(path)
-        required = ('libavcodec', 'libavformat', 'libavutil', 'libswresample')
-        if any(not any(name.startswith(prefix + '.so.') for name in libraries) for prefix in required):
+        pinned = {name for name in libraries if BASELINE_LIBRARY.fullmatch(name)}
+        if not BASELINE_REQUIRED <= {BASELINE_LIBRARY.fullmatch(name)[1] for name in pinned}:
             raise Invalid('missing_baseline_library')
         with tarfile.open(archive, 'r:xz') as source:
             members = source.getmembers()
             for name, actual in libraries.items():
-                if not re.fullmatch(r'lib(?:avcodec|avformat|avutil|avfilter|avdevice|swresample|swscale)\.so\.\d+', name):
+                if name not in pinned:
                     continue
                 matches = [member for member in members if member.isfile()
                            and member.name.startswith(pin['LAV_ARCHIVE'] + '/lib/' + name)
@@ -298,8 +300,8 @@ def validate_binding(binding):
             or not isinstance(provenance['libraries'], dict)
             or not all(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_.+-]+', name) and sha(value)
                        for name, value in provenance['libraries'].items())
-            or any(not any(name.startswith(prefix + '.so.') for name in provenance['libraries'])
-                   for prefix in ('libavcodec', 'libavformat', 'libavutil', 'libswresample'))):
+            or not BASELINE_REQUIRED <= {match[1] for name in provenance['libraries']
+                                        if (match := BASELINE_LIBRARY.fullmatch(name))}):
         raise Invalid('invalid_oracle_provenance')
     normalized_limits(binding['limits'])
     inputs = {'scope': 'spent', 'inputs': [dict(row, file='bound') for row in binding['inputs']]}

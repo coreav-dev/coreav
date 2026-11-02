@@ -276,7 +276,7 @@ class Binding(unittest.TestCase):
             paths = {}
             with tarfile.open(archive, 'w:xz') as out:
                 for name in ('libavcodec', 'libavformat', 'libavutil', 'libswresample'):
-                    soname = name + '.so.1'
+                    soname = name + ('.so.1.2' if name == 'libavcodec' else '.so.1')
                     path = root / soname
                     path.write_bytes(name.encode())
                     paths[soname] = path
@@ -301,7 +301,8 @@ class Binding(unittest.TestCase):
             def invoke(argv, **kwargs):
                 if argv[0] == 'ldd':
                     return subprocess.CompletedProcess(argv, 0, stdout=''.join(
-                        (f'{path} (0x1234)\n' if name == loader.name else f'{name} => {path} (0x1234)\n')
+                        (f'{path} (0x1234)\n' if name == loader.name or name.startswith('libavcodec.so.')
+                         else f'{name} => {path} (0x1234)\n')
                         for name, path in paths.items()).encode())
                 return original(argv, **kwargs)
             with patch.object(subprocess, 'run', side_effect=invoke):
@@ -313,7 +314,7 @@ class Binding(unittest.TestCase):
                 with patch.dict(os.environ, LD_PRELOAD='synthetic'):
                     with self.assertRaisesRegex(capacity.Invalid, 'injected_baseline_loader'):
                         capacity.verify_tools(root, tools)
-                changed = paths['libavcodec.so.1']
+                changed = paths['libavcodec.so.1.2']
                 changed.write_bytes(b'different baseline bytes')
                 with self.assertRaisesRegex(capacity.Invalid, 'baseline_library_pin_mismatch'):
                     capacity.verify_tools(root, tools)
