@@ -585,3 +585,30 @@ jobs, with one `ci-report`.
 The heavy jobs are still skipped, which is where the minutes of an earlier change and
 of the shorter pull request fuzz runs actually are. The whole cost falls to nothing when the
 repository is public and standard runners are free.
+
+## The queue detector
+
+`queue-detector.yml` is not required by branch protection and changes no required workflow. Every ten minutes, at minutes 7, 17, 27, 37, 47 and 57, it checks out trusted `main` with checkout credentials disabled. A single non-cancelling concurrency group serializes its state writes. Scheduled runs are shadow-only unless the repository variable `QUEUE_DETECTOR_LIVE` is exactly `true`. Manual runs cannot publish alerts.
+
+The detector observes entries in `AWAITING_CHECKS`, retaining both the pull request head and the merge-group commit. All four latest merge-group workflows must have successful latest attempts. Required contexts come from the active branch rules, refreshed hourly and again before publishing. Unknown contexts or a different source app stop detection rather than becoming missing reports.
+
+For each required name, the name-filtered check-run index must contain zero matching rows on that group commit from the configured app. The corresponding attempt's complete job list must identify a direct check that proves success for the same name, app and commit. An indexed success suppresses an alert even if its ID differs. Indexed non-success records are `INDEX_STALE`, not missing. A complete job list and suite both lacking the report give `NO_GATE_JOB`, also not an alert. API failures, incomplete pagination and malformed evidence are `UNKNOWN` and reset observation streaks.
+
+An episode is the queue entry, group commit, context and direct check ID. It needs three clean observations spanning at least twenty minutes. A gap over twenty minutes, an unknown result, a new attempt, a changed pull request head or a changed episode restarts observation. Ages use GitHub's HTTP `Date`, not run or check timestamps. Cron can be late or dropped, so twenty minutes is a minimum observation span, not a notification guarantee.
+
+Immediately before publication, the detector rechecks queue identity, both heads, the latest workflow attempts, direct success, active required contexts and index absence. It posts only to coreav-dev/coreav#43 and includes the pull request head, group commit, missing names, evidence IDs and KST observation times. The comment describes an index omission, not its cause or GitHub's internal queue decision. It never reruns jobs, enqueues, dequeues or changes a ruleset.
+
+Versioned state lives in an Actions cache. Missing or invalid state delays detection. Durable comment markers by `github-actions[bot]` deduplicate every episode even after cache loss or an ambiguous POST response; the detector reads all comment pages without an age cutoff. Comment POSTs are never blindly retried. Shadow runs put would-be comments, observation gaps and unknown outcomes in the job summary without posting.
+
+Each tick has a 120-request cap and a sixty-second budget, including retries and reads. A process alarm interrupts stalled network reads. Server errors and timeouts have at most two retries with jitter; permission failures and secondary rate limits do not retry. Fewer than 150 remaining API requests stops the tick. No response body or token is printed on an API error. Persistent configuration failures fail this non-required job; transient incomplete evidence produces an unknown summary without an issue alert.
+
+### Activation
+
+The new workflow cannot be dispatched until it exists on the default branch. Pre-merge synthetic tests and a local read-only smoke check therefore do not prove `GITHUB_TOKEN` permissions. GraphQL errors give an unknown result, so a green scheduled job alone is not permission proof. Keep live alerts disabled through these steps:
+
+1. After merging, dispatch `queue-detector.yml` on `main` with `mode=probe`. This reads real queue, rules, runs, attempt jobs, direct checks, suite checks, index and issue-comment endpoints with the workflow's own token. Every endpoint must succeed.
+2. Retain at least seventy-two hours of scheduled shadow results through a real queue cycle. Inspect every would-be alert against its evidence, including gaps and unknown results. A synthetic replay is not a substitute for these observations.
+3. Explicitly dispatch `mode=notice` to publish one permission-verification comment on coreav-dev/coreav#43. Its successful creation proves issue-comment write access. Dispatch it again and verify that it posts nothing.
+4. Only after those checks, the maintainer sets `QUEUE_DETECTOR_LIVE=true`. The script also requires the bot-authored permission notice before it can publish alerts, so a prematurely set variable alone cannot activate publication. Removing the variable disables alerts. If the workflow token cannot read the queue or rules, do not widen permissions automatically or substitute a personal token.
+
+The workflow requests `contents`, `actions`, `checks` and `pull-requests` read access, plus `issues` write access for that fixed comment destination. It executes no pull request source and does not persist checkout credentials. Its tests run in the existing `deny.yml` Python discovery step. No new required check is added.
