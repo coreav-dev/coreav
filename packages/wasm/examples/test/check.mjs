@@ -16,7 +16,7 @@ import { indexIdentity } from "../hls/src/indexes.js";
 import { archiveEntries, validateArchive, validateManifest, consumerEnv } from "../../scripts/check-package.mjs";
 import { allowedLicenses } from "../../scripts/legal.mjs";
 import { registeredBars } from "./registry.mjs";
-import { GateLedger } from "./gates.mjs";
+import { GateLedger, residentMemory } from "./gates.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const platform = process.platform === "win32" ? "windows" : process.platform;
@@ -331,13 +331,8 @@ async function recordMemory(worker, step, expect) {
   if (expect !== undefined) ledger.gate(worker, step, info, expect);
   const { memoryBytes, ...details } = info;
   assert.ok(Number.isSafeInteger(memoryBytes) && memoryBytes > 0, "moduleInfo must report linear memory");
-  let peakRss = null, peakRssError = "unavailable_on_this_os";
-  if (process.platform === "linux") {
-    const match = /^VmHWM:\s+(\d+) kB$/m.exec(readFileSync(`/proc/${worker.child.pid}/status`, "utf8"));
-    peakRss = match ? Number(match[1]) * 1024 : null;
-    peakRssError = match ? null : "process_high_water_mark_unavailable";
-  }
-  memory.push({ step, classification: expect === undefined ? "diagnostic" : "gate", wasm: memoryBytes, ...await heapUsage(worker), peakRss, peakRssError, readerMemoryBytes: worker.defaultReaders ? 0 : 40 * 1024 * 1024, ...details });
+  const rss = residentMemory(process.platform === "linux" ? () => readFileSync(`/proc/${worker.child.pid}/status`, "utf8") : null);
+  memory.push({ step, classification: expect === undefined ? "diagnostic" : "gate", wasm: memoryBytes, ...await heapUsage(worker), ...rss, readerMemoryBytes: worker.defaultReaders ? 0 : 40 * 1024 * 1024, ...details });
 }
 
 async function arm(worker, size, total) {

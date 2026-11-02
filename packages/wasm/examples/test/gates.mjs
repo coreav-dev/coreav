@@ -1,3 +1,13 @@
+export function residentMemory(read) {
+  if (!read) return { peakRss: null, peakRssError: "unavailable_on_this_os" };
+  try {
+    const match = /^VmHWM:\s+(\d+) kB$/m.exec(read());
+    const bytes = match ? Number(match[1]) * 1024 : null;
+    if (Number.isSafeInteger(bytes) && bytes > 0) return { peakRss: bytes, peakRssError: null };
+  } catch {}
+  return { peakRss: null, peakRssError: "process_high_water_mark_unavailable" };
+}
+
 export class GateLedger {
   constructor(bars, build) {
     this.bars = new Map(bars);

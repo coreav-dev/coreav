@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GateLedger } from "../gates.mjs";
+import { GateLedger, residentMemory } from "../gates.mjs";
 
 const build = "a".repeat(64);
 const info = (isolate = "isolate-a", changes = {}) => ({ build, isolate, served: 0, inFlight: 0, pending: 0, memoryBytes: 65536, ...changes });
@@ -10,6 +10,13 @@ function setup(names = ["one"]) {
   ledger.start(worker, info());
   return { ledger, worker, reading: info("isolate-a", { served: 1 }) };
 }
+
+test("unavailable resident memory is diagnostic rather than a failure", () => {
+  assert.deepEqual(residentMemory(null), { peakRss: null, peakRssError: "unavailable_on_this_os" });
+  for (const read of [() => { throw new Error("unavailable"); }, () => "", () => "VmHWM: 0 kB", () => "VmHWM: 999999999999999999999 kB"])
+    assert.deepEqual(residentMemory(read), { peakRss: null, peakRssError: "process_high_water_mark_unavailable" });
+  assert.deepEqual(residentMemory(() => "VmHWM: 64 kB\n"), { peakRss: 65536, peakRssError: null });
+});
 
 test("only a complete closed registry passes and equality is accepted", () => {
   const { ledger, worker, reading } = setup();
