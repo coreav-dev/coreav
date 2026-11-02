@@ -12,7 +12,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
 Builds with a decoder backend also encode the video with -c:v libx264.
-AVI audio encodes with -c:a pcm_s16le, pcm_u8 or libmp3lame (external).
+AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
+needs the opt-in transcode feature and an external encoder; strict-safe
+mode refuses it.
 Prints nothing on success.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then

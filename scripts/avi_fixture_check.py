@@ -145,8 +145,9 @@ def main():
                                  str(opts.work / '44100-1/source.mp4'), '-c:a', 'libmp3lame', str(existing)],
                                 env={**env, 'COREAV_FFMPEG': str(broken.resolve())}, capture_output=True,
                                 timeout=10, check=False)
-        error = json.loads(failed.stderr)
-        assert error['kind'] in ('decode', 'io') and failed.returncode == (3 if error['kind'] == 'io' else 1), error
+        assert failed.returncode in (1, 3), (failed.returncode, failed.stderr)
+        assert failed.stderr.startswith(b'coreav ffmpeg: ') and b': encoding: ' in failed.stderr, failed.stderr
+        assert b'unsupported' not in failed.stderr and b'fallback' not in failed.stderr, failed.stderr
         assert existing.read_bytes() == b'preserved'
         for args in (['-i', source, '-c:v', 'huffyuv'], ['-i', source], ['-i', source, '-c', 'copy', '-ss', '0.1']):
             result = subprocess.run([str(opts.coreav), 'ffmpeg', '-y', *map(str, args), str(existing)],
