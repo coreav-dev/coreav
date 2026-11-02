@@ -16,6 +16,8 @@ These bars are committed before the comparisons that judge this change. No speed
 
 The thumbnail crate owns the image encoders. The existing PNG writer remains the only PNG writer. The compatibility command owns image sequence names, frame limits, output seeking and frame-rate selection, independently of the image codec.
 
+BMP follows Microsoft's [BITMAPINFOHEADER documentation](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader): one plane, 24 bits per pixel, BI_RGB, positive height for bottom-up rows and DWORD row alignment. PNG retains the existing ISO/IEC 15948 writer, with channel-aware filter distances, big-endian 16-bit samples and an optional `pHYs` aspect ratio.
+
 Raw output accepts only the decoded pixel format. There is no new colour conversion or resampler. Images reuse CoreAV's existing RGB conversion. Output rates may drop frames, but may not require duplicated frames. Image output accepts `%d` and `%0Nd` names with one to nine padding digits; numbering starts at one. `-update 1` replaces one image after each selected frame.
 
 The packet reader supplies presentation seconds relative to the input start, including leading empty edits. Frame selection never treats a media timestamp as a presentation timestamp. This retains one optional rational per packet that the thumbnail planner already computed. Stream-copy commands add an output-family/default-codec check; their instruction-count guard and tolerance are unchanged.
