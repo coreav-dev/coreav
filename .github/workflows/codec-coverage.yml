@@ -65,6 +65,7 @@ on:
       - scripts/mkv_remux_check.py
       - scripts/opus_encode_check.py
       - scripts/oracle_audio.py
+      - scripts/oracle_pin.py
       - scripts/oracle-audio-args.txt
       - scripts/thumbnail_oracle.py
       - scripts/remux_check.py
