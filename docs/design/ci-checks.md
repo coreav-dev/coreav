@@ -227,6 +227,21 @@ JSPI package, WASM crate and shared build inputs. Its contract tests need
 no WASM build; its module tests run on generated fixtures for ready pull
 requests, main pushes and manual runs. Required reports are unchanged.
 
+## Native SVT-AV1 builds
+
+`svt-av1-native.yml` runs the pinned static build recipe and its link-and-version probe on four native hosts:
+
+| Target | Hosted runner |
+|---|---|
+| `x86_64-unknown-linux-musl` | `ubuntu-24.04` |
+| `aarch64-unknown-linux-musl` | `ubuntu-24.04-arm` |
+| `x86_64-apple-darwin` | `macos-15-intel` |
+| `aarch64-apple-darwin` | `macos-15` |
+
+Each matrix leg installs its build tools, runs the recipe tests, builds into an absent prefix with two jobs, and executes the installed version probe. The recipe owns source pins, architecture and dependency checks, and notice installation. No installed prefix is cached. Logs and the successful installation's manifest are retained for seven days, including logs from a failed build.
+
+The workflow runs on recipe, workflow or workflow-test changes, and by manual dispatch. It is not a required check, so the required-check table is unchanged and no merge-group report is added. Its four matrix checks must all succeed before the native recipe is considered verified on every target. This checks builds and linkage only, not media encoding, distribution clearance or acceptance measurements.
+
 ## The platform jobs
 
 `check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.
