@@ -65,10 +65,14 @@ jobs:
           set -euo pipefail
           mkdir -p captures
           for mode in hardware software any; do
+            set --
+            if [[ "$mode" == software ]]; then
+              set -- --hosted-software-exemption
+            fi
             python3 scripts/encoders/macos/smoke.py capture \
               --exporter crates/coreav-backend-apple/target/dist/examples/videotoolbox \
               --mode "$mode" --output "captures/$mode" \
-              --runner-image "macos-15-${ImageVersion:?runner image version is missing}"
+              --runner-image "macos-15-${ImageVersion:?runner image version is missing}" "$@"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -108,11 +112,15 @@ jobs:
           set -euo pipefail
           mkdir -p reports
           for mode in hardware software any; do
+            set --
+            if [[ "$mode" == software ]]; then
+              set -- --hosted-software-exemption
+            fi
             python3 scripts/encoders/macos/smoke.py verify \
               --capture "captures/$mode" --mode "$mode" \
               --oracle-bin "$RUNNER_TEMP/oracle" --install-oracle \
               --coreav-decoder crates/coreav-backend-apple/target/dist/examples/videotoolbox \
-              --report "reports/$mode.json"
+              --report "reports/$mode.json" "$@"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

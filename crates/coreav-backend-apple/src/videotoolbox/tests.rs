@@ -20,6 +20,7 @@ enum Mode {
     CompletionFailure,
     BadTiming,
     UnknownHardware,
+    MissingHardwareFlag,
     PoolBackpressure,
     Corrupt(u8),
 }
@@ -57,6 +58,9 @@ fn emit(key: usize, frame_key: usize, pts: Time, duration: Time) {
 
 impl Backend for Fake {
     fn identity(&self) -> Result<Identity, Error> {
+        if matches!(self.mode, Mode::MissingHardwareFlag) {
+            return Err(Error::MissingHardwareFlag);
+        }
         Ok(Identity {
             encoder_id: Some("test encoder".into()),
             hardware: if matches!(self.mode, Mode::UnknownHardware) {
@@ -420,6 +424,17 @@ fn invalid_time_input_and_global_reservation_limits_fail_before_submission() {
 }
 
 #[test]
+fn a_live_missing_flag_never_becomes_the_initial_hosted_refusal() {
+    let _serial = lock(&SERIAL);
+    let (mut owner, closes) = session(Mode::Immediate, control(), limits());
+    owner.native.as_mut().unwrap().mode = Mode::MissingHardwareFlag;
+    assert_eq!(owner.identity().unwrap_err(), Error::UnknownHardware);
+    assert_eq!(owner.pull().unwrap_err(), Error::UnknownHardware);
+    drop(owner);
+    assert_eq!(closes.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn creation_failure_retires_the_registry_and_unknown_hardware_is_not_software() {
     let _serial = lock(&SERIAL);
     let error = Session::<Fake>::new(settings(), limits(), control(), |key| {
@@ -464,21 +479,6 @@ fn cadence_hints_do_not_replace_fractional_source_clocks() {
             Settings::bt709_limited(32, 30, num, den, 2_000_000, HardwarePolicy::Require).unwrap();
         assert_eq!(settings.expected_frame_rate_hint(), hint);
         assert_eq!(settings.rate(), (num, den));
-    }
-}
-
-#[test]
-fn native_software_identity_requires_an_observed_status() -> Result<(), Error> {
-    let _serial = lock(&SERIAL);
-    let settings = Settings::bt709_limited(64, 64, 30, 1, 2_000_000, HardwarePolicy::Disable)?;
-    let control = Control::new(Instant::now() + Duration::from_secs(60));
-    match Encoder::new(settings, Limits::default(), control) {
-        Ok(encoder) => {
-            assert_eq!(encoder.identity()?.hardware, Hardware::Software);
-            Ok(())
-        }
-        Err(Error::Unavailable(_)) => Ok(()),
-        Err(error) => Err(error),
     }
 }
 

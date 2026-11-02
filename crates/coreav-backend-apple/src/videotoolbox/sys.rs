@@ -713,11 +713,6 @@ impl Native {
                 }
             })?,
             None => {
-                #[cfg(test)]
-                eprintln!(
-                    "native identity probe: session_id_present={}",
-                    identifier.is_some()
-                );
                 let identifier = identifier.as_ref().ok_or(Error::UnknownHardware)?;
                 let list = controlled(&self.control, || unsafe {
                     let mut list = ptr::null();
@@ -1024,6 +1019,10 @@ unsafe fn hardware_from_list(
     list: Ref,
     control: &Control,
 ) -> Result<Hardware, Error> {
+    enum MatchedHardware {
+        MissingFlag,
+        Flag(bool),
+    }
     control.check()?;
     unsafe {
         if identifier.is_null()
@@ -1042,8 +1041,6 @@ unsafe fn hardware_from_list(
         if !(0..=MAX_ENCODER_LIST_ENTRIES).contains(&count) {
             return Err(Error::Limit);
         }
-        #[cfg(test)]
-        eprintln!("native identity probe: list_entries={count}");
         let mut hardware = None;
         for index in 0..count {
             control.check()?;
@@ -1065,30 +1062,25 @@ unsafe fn hardware_from_list(
                 continue;
             }
             if hardware.is_some() {
-                #[cfg(test)]
-                eprintln!("native identity probe: duplicate_match_index={index}");
                 return Err(Error::UnknownHardware);
             }
             let flag = CFDictionaryGetValue(entry, kVTVideoEncoderList_IsHardwareAccelerated);
-            let kind = if flag.is_null() { 0 } else { CFGetTypeID(flag) };
-            #[cfg(test)]
-            eprintln!(
-                "native identity probe: match_index={index} flag_present={} flag_type={kind}",
-                !flag.is_null()
-            );
-            if flag.is_null() || kind != CFBooleanGetTypeID() {
+            if flag.is_null() {
+                hardware = Some(MatchedHardware::MissingFlag);
+                continue;
+            }
+            if CFGetTypeID(flag) != CFBooleanGetTypeID() {
                 return Err(Error::UnknownHardware);
             }
-            hardware = Some(if CFBooleanGetValue(flag) != 0 {
-                Hardware::Hardware
-            } else {
-                Hardware::Software
-            });
+            hardware = Some(MatchedHardware::Flag(CFBooleanGetValue(flag) != 0));
         }
         control.check()?;
-        #[cfg(test)]
-        eprintln!("native identity probe: matched_flag={}", hardware.is_some());
-        hardware.ok_or(Error::UnknownHardware)
+        match hardware {
+            Some(MatchedHardware::Flag(true)) => Ok(Hardware::Hardware),
+            Some(MatchedHardware::Flag(false)) => Ok(Hardware::Software),
+            Some(MatchedHardware::MissingFlag) => Err(Error::MissingHardwareFlag),
+            None => Err(Error::UnknownHardware),
+        }
     }
 }
 
@@ -1420,7 +1412,9 @@ mod identity_tests {
             vec![software.get(), software.get()],
             vec![software.get(), hardware.get()],
             vec![nonboolean.get()],
-            vec![missing_flag.get()],
+            vec![missing_flag.get(), software.get()],
+            vec![software.get(), missing_flag.get()],
+            vec![missing_flag.get(), missing_flag.get()],
         ] {
             let list = array(&values);
             assert_eq!(
@@ -1428,6 +1422,11 @@ mod identity_tests {
                 Err(Error::UnknownHardware)
             );
         }
+        let list = array(&[unrelated.get(), missing_flag.get()]);
+        assert_eq!(
+            unsafe { hardware_from_list(identifier, list.get(), &control) },
+            Err(Error::MissingHardwareFlag)
+        );
         let invalid_id = entry(number.get(), unsafe { kCFBooleanTrue });
         let missing_id = unsafe {
             dictionary(
@@ -1440,6 +1439,8 @@ mod identity_tests {
             vec![number.get()],
             vec![invalid_id.get()],
             vec![missing_id.get()],
+            vec![missing_flag.get(), missing_id.get()],
+            vec![missing_flag.get(), number.get()],
         ] {
             let list = array(&values);
             assert_eq!(

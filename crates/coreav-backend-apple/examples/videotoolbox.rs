@@ -8,7 +8,7 @@ mod decode;
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("--help") {
         println!(
-            "videotoolbox smoke --mode software|hardware|any --output DIR\nvideotoolbox encode --input RAW --width N --height N --rate-num N --rate-den N --frames N --bitrate N --mode software|hardware --output H264 --report JSON\nvideotoolbox decode --input H264 --output RAW --report JSON"
+            "videotoolbox smoke --mode software|hardware|any --output DIR [--hosted-software-exemption true]\nvideotoolbox encode --input RAW --width N --height N --rate-num N --rate-den N --frames N --bitrate N --mode software|hardware --output H264 --report JSON\nvideotoolbox decode --input H264 --output RAW --report JSON"
         );
         println!(
             "videotoolbox compare --source RAW --decoded RAW --width N --height N --frames N --report JSON"
@@ -195,7 +195,28 @@ mod driver {
         })
     }
 
-    fn smoke(directory: &Path, mode: &str, hardware: HardwarePolicy) -> Result<()> {
+    fn hosted_software_refusal(error: Option<Error>) -> Result<Value> {
+        match error {
+            Some(Error::MissingHardwareFlag) => Ok(json!({
+                "schema": "coreav.videotoolbox-hosted-refusal/1",
+                "outcome": "refused_hardware_status_unobservable",
+                "requested_mode": "software",
+                "condition": "unique_session_encoder_id_match_without_hardware_flag",
+                "submitted": 0, "software_encode_exercised": false,
+            })),
+            None | Some(Error::Setting("HardwarePolicy")) => Err(
+                "hardware status is now observable; remove the hosted software exemption".into(),
+            ),
+            Some(error) => Err(native(error)),
+        }
+    }
+
+    fn smoke(
+        directory: &Path,
+        mode: &str,
+        hardware: HardwarePolicy,
+        hosted_exemption: bool,
+    ) -> Result<()> {
         if !directory.is_dir()
             || directory
                 .read_dir()
@@ -214,8 +235,15 @@ mod driver {
             "frames": [], "elementary_file": null, "source_file": null,
         });
         let control = Control::new(Instant::now() + Duration::from_secs(60));
+        let created = Encoder::new(settings, Limits::default(), control);
+        if hosted_exemption {
+            return document(
+                &directory.join("manifest.json"),
+                &hosted_software_refusal(created.as_ref().err().copied())?,
+            );
+        }
         let fields = manifest.as_object_mut().ok_or("invalid smoke manifest")?;
-        let mut encoder = match Encoder::new(settings, Limits::default(), control) {
+        let mut encoder = match created {
             Ok(encoder) => encoder,
             Err(Error::Unavailable(reason)) => {
                 fields.insert(
@@ -278,10 +306,15 @@ mod driver {
         };
         let output = options.remove("--output").ok_or("missing output")?;
         if command == "smoke" {
+            let hosted_exemption = match options.remove("--hosted-software-exemption") {
+                None => false,
+                Some(value) if value == "true" && mode == "software" => true,
+                _ => return Err("invalid hosted software exemption".into()),
+            };
             if !options.is_empty() {
                 return Err("unknown smoke option".into());
             }
-            return smoke(Path::new(&output), &mode, hardware);
+            return smoke(Path::new(&output), &mode, hardware, hosted_exemption);
         }
         if command != "encode" {
             return Err("expected smoke or encode".into());
@@ -344,6 +377,37 @@ mod driver {
         impl Drop for Scratch {
             fn drop(&mut self) {
                 let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        #[test]
+        fn hosted_software_refusal_never_accepts_observed_or_other_missing_metadata() {
+            let refusal = hosted_software_refusal(Some(Error::MissingHardwareFlag)).unwrap();
+            assert_eq!(
+                refusal,
+                json!({
+                    "schema": "coreav.videotoolbox-hosted-refusal/1",
+                    "outcome": "refused_hardware_status_unobservable",
+                    "requested_mode": "software",
+                    "condition": "unique_session_encoder_id_match_without_hardware_flag",
+                    "submitted": 0, "software_encode_exercised": false,
+                })
+            );
+            for observed in [None, Some(Error::Setting("HardwarePolicy"))] {
+                assert!(
+                    hosted_software_refusal(observed)
+                        .unwrap_err()
+                        .contains("remove the hosted software exemption")
+                );
+            }
+            for error in [
+                Error::UnknownHardware,
+                Error::Output,
+                Error::Setting("ExpectedFrameRate"),
+                Error::Unavailable(Availability::NoEncoder),
+                Error::Unavailable(Availability::TemporarilyUnavailable),
+            ] {
+                assert!(hosted_software_refusal(Some(error)).is_err());
             }
         }
 

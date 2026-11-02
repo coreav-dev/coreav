@@ -71,6 +71,8 @@ pub enum Error {
     Output,
     /// The required implementation kind could not be established.
     UnknownHardware,
+    /// Initial creation found one exact session-ID match without a hardware flag.
+    MissingHardwareFlag,
     /// Pull output before submitting another picture; the session is not failed.
     Backpressure,
     /// H.264 metadata validation failed.
@@ -105,6 +107,7 @@ impl std::fmt::Display for Error {
                 Self::Deadline => "VideoToolbox deadline expired",
                 Self::Output => "invalid VideoToolbox output or accounting",
                 Self::UnknownHardware => "cannot establish VideoToolbox hardware status",
+                Self::MissingHardwareFlag => "VideoToolbox encoder-list match has no hardware flag",
                 Self::Backpressure => "pull VideoToolbox output before submitting more frames",
                 Self::Unavailable(_) => "the requested VideoToolbox encoder is unavailable",
                 _ => "VideoToolbox encoding failed",
@@ -881,7 +884,15 @@ impl<B: Backend> Session<B> {
     }
     fn identity_inner(&self) -> Result<Identity, Error> {
         self.check()?;
-        let identity = self.native.as_ref().ok_or(Error::State)?.identity()?;
+        let identity = self
+            .native
+            .as_ref()
+            .ok_or(Error::State)?
+            .identity()
+            .map_err(|error| match error {
+                Error::MissingHardwareFlag => Error::UnknownHardware,
+                other => other,
+            })?;
         match (self.settings.hardware, identity.hardware) {
             (HardwarePolicy::Require, Hardware::Hardware)
             | (HardwarePolicy::Disable, Hardware::Software)

@@ -18,6 +18,10 @@ LEVELS = (37, 91, 145, 199)
 LIMIT = 4 * 1024**2
 FIELDS = ("schema status requested_mode unavailable_reason width height fps_num fps_den "
           "bitrate submitted encoder_id hardware frames elementary_file source_file")
+HOSTED_REFUSAL_SCHEMA = "coreav.videotoolbox-hosted-refusal/1"
+HOSTED_REFUSAL_CAPTURE_SCHEMA = "coreav.videotoolbox-hosted-refusal-capture/1"
+HOSTED_REFUSAL_VERIFICATION_SCHEMA = "coreav.videotoolbox-hosted-refusal-verification/1"
+HOSTED_REFUSAL_OUTCOME = "refused_hardware_status_unobservable"
 NATIVE_FAILURES = {
     "invalid VideoToolbox input or settings", "invalid VideoToolbox session state",
     "VideoToolbox resource limit exceeded", "cannot reserve VideoToolbox output storage",
@@ -29,6 +33,8 @@ NATIVE_FAILURES = {
     "H.264 output format changed", "unknown H.264 parameter-set reference",
     "H.264 slices do not form one ordered picture", "H.264 sync declaration disagrees with IDR headers",
     "H.264 output metadata exceeds its limit", "cannot reserve H.264 output storage",
+    "VideoToolbox encoder-list match has no hardware flag",
+    "hardware status is now observable; remove the hosted software exemption",
 }
 
 
@@ -36,7 +42,18 @@ def source():
     return b"".join(bytes([level]) * 4096 + bytes([128]) * 2048 for level in LEVELS)
 
 
-def manifest(value, mode):
+def manifest(value, mode, hosted_software_exemption=False):
+    if hosted_software_exemption:
+        require(mode == "software" and type(value) is dict, "hosted_software_exemption_scope")
+        require(not (value.get("schema") == "coreav.videotoolbox-smoke/1" and value.get("status") == "encoded"),
+                "remove_hosted_software_exemption_flag_is_now_observable")
+        keys(value, "schema outcome requested_mode condition submitted software_encode_exercised")
+        require(value["schema"] == HOSTED_REFUSAL_SCHEMA and value["outcome"] == HOSTED_REFUSAL_OUTCOME and
+                value["requested_mode"] == "software" and
+                value["condition"] == "unique_session_encoder_id_match_without_hardware_flag" and
+                type(value["submitted"]) is int and value["submitted"] == 0 and
+                value["software_encode_exercised"] is False, "hosted_refusal_condition")
+        return ["manifest.json"]
     keys(value, FIELDS)
     require(value["schema"] == "coreav.videotoolbox-smoke/1", "schema")
     require(mode in ("hardware", "software", "any") and
@@ -75,21 +92,22 @@ def manifest(value, mode):
     return ["manifest.json", "video.h264", "source.yuv"]
 
 
-def artifacts(directory, mode, captured):
+def artifacts(directory, mode, captured, hosted_software_exemption=False):
     value = load(Path(directory) / "manifest.json", 32768)
-    names = manifest(value, mode)
+    names = manifest(value, mode, hosted_software_exemption)
     require({p.name for p in Path(directory).iterdir()} ==
             set(names) | ({"capture.json"} if captured else set()), "file_coverage")
     for name in names:
         data = read(directory, name, LIMIT)
         require(data, "empty_file")
-    if value["status"] == "encoded":
+    if not hosted_software_exemption and value["status"] == "encoded":
         require(sha(read(directory, "source.yuv", 24576)) == sha(source()), "source_pattern")
     return value, names
 
 
-def capture(exporter, output, mode, runner_image):
+def capture(exporter, output, mode, runner_image, hosted_software_exemption=False):
     require(sys.platform == "darwin", "capture_platform")
+    require(not hosted_software_exemption or mode == "software", "hosted_software_exemption_scope")
     token(runner_image)
     exporter = Path(exporter).resolve(strict=True)
     identity = file_hash(exporter)
@@ -97,8 +115,10 @@ def capture(exporter, output, mode, runner_image):
     output.mkdir(parents=False, exist_ok=False)
     with tempfile.TemporaryDirectory() as temporary:
         try:
-            run([str(exporter), "smoke", "--mode", mode, "--output", str(output.resolve())],
-                temporary, 120)
+            command = [str(exporter), "smoke", "--mode", mode, "--output", str(output.resolve())]
+            if hosted_software_exemption:
+                command += ["--hosted-software-exemption", "true"]
+            run(command, temporary, 120)
         except Invalid:
             try:
                 detail = read(temporary, "stderr", 32768).decode("utf-8")
@@ -109,19 +129,20 @@ def capture(exporter, output, mode, runner_image):
                         r"videotoolbox: VideoToolbox (?:[A-Za-z]{1,32} failed with status -?[0-9]{1,10}|did not retain [A-Za-z0-9]{1,64})", line):
                     print(f"videotoolbox-smoke {mode}: {line}", file=sys.stderr)
             raise
-        value, names = artifacts(output, mode, False)
+        value, names = artifacts(output, mode, False, hosted_software_exemption)
         run(["/usr/bin/sw_vers", "-buildVersion"], temporary, 10,
             stdout="os-build", stderr="os-error")
         os_build = read(temporary, "os-build", 128).decode().strip()
         token(os_build)
         require(identity == file_hash(exporter), "tool_changed")
         write(output / "capture.json", {
-            "schema": "coreav.videotoolbox-capture/1", "requested_mode": mode,
+            "schema": HOSTED_REFUSAL_CAPTURE_SCHEMA if hosted_software_exemption else "coreav.videotoolbox-capture/1",
+            "requested_mode": mode,
             "exporter_sha256": identity, "runner_image": runner_image,
             "os_build": os_build, "machine": platform.machine(),
             "files": bind(output, names, LIMIT),
         })
-        return {"status": value["status"], "requested_mode": mode}
+        return value if hosted_software_exemption else {"status": value["status"], "requested_mode": mode}
 
 
 def pixels(data):
@@ -152,20 +173,26 @@ def probe(value, native):
                 bool(frame["key_frame"]) == native["frames"][index]["sync"], "probe_frame")
 
 
-def verify_capture(directory, oracle, mode, coreav_decoder, install=False):
+def verify_capture(directory, oracle, mode, coreav_decoder, install=False, hosted_software_exemption=False):
     require(sys.platform == "linux" and platform.machine() == "x86_64", "oracle_platform")
+    require(not hosted_software_exemption or mode == "software", "hosted_software_exemption_scope")
     directory, oracle = Path(directory), Path(oracle).resolve()
     capture_record = load(directory / "capture.json", 32768)
     keys(capture_record, "schema requested_mode exporter_sha256 runner_image os_build machine files")
-    require(capture_record["schema"] == "coreav.videotoolbox-capture/1" and
+    expected_schema = HOSTED_REFUSAL_CAPTURE_SCHEMA if hosted_software_exemption else "coreav.videotoolbox-capture/1"
+    require(capture_record["schema"] == expected_schema and
             capture_record["requested_mode"] == mode, "capture_schema")
     from evidence import digest
     digest(capture_record["exporter_sha256"])
     token(capture_record["runner_image"])
     token(capture_record["os_build"])
     require(capture_record["machine"] == "arm64", "capture_machine")
-    value, names = artifacts(directory, mode, True)
+    value, names = artifacts(directory, mode, True, hosted_software_exemption)
     verify(directory, capture_record["files"], names, LIMIT)
+    if hosted_software_exemption:
+        return {"schema": HOSTED_REFUSAL_VERIFICATION_SCHEMA, "outcome": HOSTED_REFUSAL_OUTCOME,
+                "requested_mode": "software", "software_encode_exercised": False,
+                "capture_sha256": file_hash(directory / "capture.json"), "scope": "hosted-refusal-only"}
     if value["status"] == "unavailable":
         return {"schema": "coreav.videotoolbox-smoke-verification/1", "status": "unavailable",
                 "requested_mode": mode, "reason": value["unavailable_reason"],
@@ -235,13 +262,17 @@ def main():
     check.add_argument("--report", required=True, type=Path)
     for sub in (cap, check):
         sub.add_argument("--mode", required=True, choices=("hardware", "software", "any"))
+        sub.add_argument("--hosted-software-exemption", action="store_true")
     args = parser.parse_args()
     try:
         if args.command == "capture":
-            capture(args.exporter, args.output, args.mode, args.runner_image)
+            capture(args.exporter, args.output, args.mode, args.runner_image, args.hosted_software_exemption)
             return 0
-        result = verify_capture(args.capture, args.oracle_bin, args.mode, args.coreav_decoder, args.install_oracle)
+        result = verify_capture(args.capture, args.oracle_bin, args.mode, args.coreav_decoder,
+                                args.install_oracle, args.hosted_software_exemption)
         write(args.report, result)
+        if args.hosted_software_exemption:
+            return 0 if result["schema"] == HOSTED_REFUSAL_VERIFICATION_SCHEMA and result["outcome"] == HOSTED_REFUSAL_OUTCOME else 1
         return 0 if result["status"] == "verified" or args.mode == "software" else 1
     except (Invalid, OSError, UnicodeError, ValueError) as error:
         if args.command == "verify":

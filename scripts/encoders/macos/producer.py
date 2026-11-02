@@ -507,6 +507,13 @@ def preflight_limits(files, encoded, side):
     return expected
 
 
+def native_preflight_manifest(directory, cell):
+    value = load(directory / "manifest.json")
+    require(type(value) is dict, "native_preflight_manifest")
+    require(value.get("schema") != smoke.HOSTED_REFUSAL_SCHEMA, "hosted_refusal_is_not_availability")
+    return value, smoke.manifest(value, cell)
+
+
 def preflight_facts(directory, cell, side, reg, observability):
     command = load(directory / "command.json")
     keys(command, "schema status")
@@ -517,8 +524,7 @@ def preflight_facts(directory, cell, side, reg, observability):
     unit = unit_item()
     identity, hardware, reason = None, "unknown", None
     if side == "coreav":
-        value = load(directory / "manifest.json")
-        names = smoke.manifest(value, cell)
+        value, names = native_preflight_manifest(directory, cell)
         native_capture = load(directory / "capture.json")
         keys(native_capture, "schema requested_mode exporter_sha256 runner_image os_build machine files")
         require(native_capture["schema"] == "coreav.videotoolbox-capture/1" and
@@ -604,7 +610,8 @@ def capture_preflights(args):
                 status = "success"
                 if side == "coreav":
                     smoke.capture(native, directory, cell, "ENC-MAC-1")
-                    encoded = load(directory / "manifest.json")["status"] == "encoded"
+                    value, _ = native_preflight_manifest(directory, cell)
+                    encoded = value["status"] == "encoded"
                 else:
                     directory.mkdir()
                     (directory / "source.yuv").write_bytes(smoke.source())
@@ -659,6 +666,7 @@ def capture_preflights(args):
                 path.unlink()
         diagnostic = error.code if isinstance(error, Invalid) and error.code in {
             "ffmpeg_observability_missing", "ffmpeg_observation_changed", "ffmpeg_effective_settings",
+            "hosted_refusal_is_not_availability",
             "judged_event", "timeout", "child_crash", "child_failure", "decoder_disagreement", "host_fault"} else "preflight_failed"
         write(args.output / "failure.json", {"schema": "coreav.videotoolbox-producer-failure/1",
                                            "status": "failed", "diagnostic": diagnostic, "retained": ledger})

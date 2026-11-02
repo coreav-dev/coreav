@@ -20,7 +20,7 @@ import producer
 import registration
 import smoke
 import timing
-from test_tools import h, native, observation, proof, registered
+from test_tools import h, hosted_refusal, native, observation, proof, registered
 
 SPS = b"\x67\x64\x00\x1f\x80"
 PPS = b"\x68\x80"
@@ -350,10 +350,11 @@ class RealEvidencePaths(unittest.TestCase):
                                    ffprobe=root / "ffprobe")
             fake = FakeCommands(producer.unit_item(), smoke.source(), smoke.source())
             fake.unavailable_software = True
+            refused_software = False
 
             def native_capture(exporter, directory, mode, runner):
                 directory.mkdir()
-                value = native(mode, mode == "software")
+                value = hosted_refusal() if mode == "software" and refused_software else native(mode, mode == "software")
                 evidence.write(directory / "manifest.json", value)
                 names = ["manifest.json"]
                 if mode == "hardware":
@@ -374,6 +375,26 @@ class RealEvidencePaths(unittest.TestCase):
             result = timing.availability_file(args.output / "availability.json", reg, root)
             self.assertEqual(result["cells"]["hardware"]["ffmpeg"]["status"], "encoded")
             self.assertEqual(result["cells"]["software"]["coreav"]["status"], "unavailable")
+            software = args.output / "preflight.software.coreav.artifacts"
+            original = (software / "manifest.json").read_bytes()
+            evidence.write(software / "manifest.json", hosted_refusal())
+            with self.assertRaises(evidence.Invalid) as refused:
+                producer.preflight_facts(software, "software", "coreav", reg, spec())
+            self.assertEqual(refused.exception.code, "hosted_refusal_is_not_availability")
+            with self.assertRaises(evidence.Invalid):
+                timing.availability_file(args.output / "availability.json", reg, root)
+            (software / "manifest.json").write_bytes(original)
+            refused_software = True
+            refused_args = SimpleNamespace(**{**vars(args), "output": root / "hosted-refusal"})
+            with mock.patch.object(producer, "preflight", return_value=reg), \
+                    mock.patch.object(timing, "host_state", return_value=observation()), \
+                    mock.patch.object(smoke, "capture", side_effect=native_capture), \
+                    mock.patch.object(producer, "run", side_effect=fake), self.assertRaises(evidence.Invalid) as refused:
+                producer.capture_preflights(refused_args)
+            self.assertEqual(refused.exception.code, "hosted_refusal_is_not_availability")
+            self.assertFalse((refused_args.output / "availability.json").exists())
+            self.assertEqual(evidence.load(refused_args.output / "failure.json")["diagnostic"], "hosted_refusal_is_not_availability")
+            refused_software = False
             proof_path = args.output / "preflight.hardware.ffmpeg.json"
             value = evidence.load(proof_path)
             value["result"]["pattern_identity"] = False

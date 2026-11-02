@@ -1,9 +1,11 @@
 """Exercise the standalone backend workflow without compiling Rust."""
 import os
 import importlib.util
+import json
 import pathlib
 import re
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -66,6 +68,34 @@ class EncoderBackends(unittest.TestCase):
         self.assertNotIn('This plan precedes native implementation', plan)
         self.assertIn('CoreAV payload bytes divided by FFmpeg payload bytes', plan)
         self.assertIn('within 0.95 through 1.05 inclusive', plan)
+        for document in (note, plan):
+            self.assertIn('Hosted CI does not exercise the software encode path.', document)
+
+    def test_hosted_software_exemption_is_passed_only_to_software_capture_and_verification(self):
+        workflow = workflow_check.workflow_yaml((ROOT / '.github/workflows/videotoolbox.yml').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            bindir = root / 'bin'
+            bindir.mkdir()
+            python = bindir / 'python3'
+            python.write_text(f'#!{sys.executable}\nimport json, os, sys\n'
+                              'with open(os.environ["LOG"], "a") as log:\n'
+                              '    log.write(json.dumps(sys.argv[1:]) + "\\n")\n')
+            python.chmod(0o755)
+            for job, name in (('capture', 'Capture synthetic hardware and software output'),
+                              ('verify', 'Decode with the existing pinned Linux oracle')):
+                step = next(s for s in workflow['jobs'][job]['steps'] if s.get('name') == name)
+                log = root / f'{job}.jsonl'
+                result = subprocess.run(['bash', '-c', step['run']], cwd=root, capture_output=True,
+                                        text=True, timeout=10,
+                                        env={**os.environ, 'PATH': str(bindir) + os.pathsep + os.environ['PATH'],
+                                             'LOG': str(log), 'ImageVersion': 'synthetic', 'RUNNER_TEMP': str(root / 'runner')})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = [json.loads(line) for line in log.read_text().splitlines()]
+                self.assertEqual([c[c.index('--mode') + 1] for c in calls], ['hardware', 'software', 'any'])
+                for call in calls:
+                    self.assertEqual('--hosted-software-exemption' in call,
+                                     call[call.index('--mode') + 1] == 'software')
 
     def test_videotoolbox_smoke_tracks_its_rust_build_closure(self):
         workflow = workflow_check.workflow_yaml((ROOT / '.github/workflows/videotoolbox.yml').read_text())

@@ -104,6 +104,13 @@ def native(mode="hardware", unavailable=False):
             "source_file": None if unavailable else "source.yuv"}
 
 
+def hosted_refusal():
+    return {"schema": "coreav.videotoolbox-hosted-refusal/1",
+            "outcome": "refused_hardware_status_unobservable", "requested_mode": "software",
+            "condition": "unique_session_encoder_id_match_without_hardware_flag",
+            "submitted": 0, "software_encode_exercised": False}
+
+
 def smoke_directory(path, mode="hardware", unavailable=False):
     record = native(mode, unavailable)
     evidence.write(path / "manifest.json", record)
@@ -223,6 +230,75 @@ class Records(unittest.TestCase):
 
 
 class Smoke(unittest.TestCase):
+    def test_hosted_refusal_requires_the_exact_condition_and_expires_when_observable(self):
+        good = hosted_refusal()
+        self.assertEqual(smoke.manifest(good, "software", True), ["manifest.json"])
+        for mode, exempt in (("software", False), ("hardware", True), ("any", True)):
+            with self.assertRaises(evidence.Invalid):
+                smoke.manifest(good, mode, exempt)
+        for mutate in (lambda r: r.update(condition="unmatched_encoder_id"),
+                       lambda r: r.update(condition="duplicate_encoder_id"),
+                       lambda r: r.update(condition="wrong_flag_type"),
+                       lambda r: r.update(condition="missing_session_id"),
+                       lambda r: r.update(submitted=1), lambda r: r.update(submitted=False),
+                       lambda r: r.update(software_encode_exercised=True),
+                       lambda r: r.update(outcome="unavailable"), lambda r: r.update(status="encoded"),
+                       lambda r: r.update(available=True), lambda r: r.pop("condition")):
+            value = dict(good)
+            mutate(value)
+            with self.assertRaises(evidence.Invalid):
+                smoke.manifest(value, "software", True)
+        with self.assertRaises(evidence.Invalid) as stale:
+            smoke.manifest(native("software"), "software", True)
+        self.assertEqual(stale.exception.code, "remove_hosted_software_exemption_flag_is_now_observable")
+        with self.assertRaises(evidence.Invalid):
+            smoke.manifest(native("software", True), "software", True)
+
+    def test_hosted_refusal_transport_never_invokes_a_decoder_or_reports_conformance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            exporter = root / "exporter"
+            exporter.write_bytes(b"fake")
+            value = hosted_refusal()
+            commands = []
+
+            def fake(command, directory, timeout, stdout="stdout", stderr="stderr"):
+                commands.append(command)
+                if "smoke" in command:
+                    evidence.write(Path(command[command.index("--output") + 1]) / "manifest.json", value)
+                else:
+                    (Path(directory) / stdout).write_text("synthetic-build\n")
+                return 1
+
+            capture = root / "capture"
+            with mock.patch.object(smoke.sys, "platform", "darwin"), \
+                    mock.patch.object(smoke.platform, "machine", return_value="arm64"), \
+                    mock.patch.object(smoke, "run", side_effect=fake):
+                result = smoke.capture(exporter, capture, "software", "synthetic", True)
+            self.assertEqual(result, hosted_refusal())
+            self.assertEqual(commands[0][-2:], ["--hosted-software-exemption", "true"])
+            self.assertEqual({p.name for p in capture.iterdir()}, {"manifest.json", "capture.json"})
+            with mock.patch.object(smoke.sys, "platform", "linux"), \
+                    mock.patch.object(smoke.platform, "machine", return_value="x86_64"), \
+                    mock.patch.object(smoke, "run") as run:
+                result = smoke.verify_capture(capture, root / "oracle", "software", root / "decoder", True, True)
+                self.assertEqual(set(result), {"schema", "outcome", "requested_mode", "software_encode_exercised", "capture_sha256", "scope"})
+                self.assertEqual(result["schema"], "coreav.videotoolbox-hosted-refusal-verification/1")
+                self.assertEqual(result["outcome"], "refused_hardware_status_unobservable")
+                self.assertIs(result["software_encode_exercised"], False)
+                self.assertEqual(result["scope"], "hosted-refusal-only")
+                with self.assertRaises(evidence.Invalid):
+                    smoke.verify_capture(capture, root / "oracle", "software", root / "decoder")
+                run.assert_not_called()
+            (capture / "video.h264").write_bytes(b"unexpected")
+            with self.assertRaises(evidence.Invalid):
+                smoke.artifacts(capture, "software", True, True)
+            value = native("software")
+            with mock.patch.object(smoke.sys, "platform", "darwin"), mock.patch.object(smoke, "run", side_effect=fake), \
+                    self.assertRaises(evidence.Invalid) as stale:
+                smoke.capture(exporter, root / "stale", "software", "synthetic", True)
+            self.assertEqual(stale.exception.code, "remove_hosted_software_exemption_flag_is_now_observable")
+
     @mock.patch.object(smoke.sys, "platform", "darwin")
     def test_capture_failure_exposes_only_bounded_native_scalar_diagnostics(self):
         with tempfile.TemporaryDirectory() as directory:
