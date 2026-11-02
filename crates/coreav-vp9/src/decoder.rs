@@ -15,16 +15,16 @@ use crate::tile;
 /// Today it reads headers only ([`Decoder::read_headers`]): it splits each
 /// packet into its frames, reads each frame's uncompressed and compressed
 /// headers, and keeps the reference slots' sizes and formats and the saved
-/// probability contexts as decoding the frames would.
+/// header-updated probability contexts. It reconstructs intra frames but
+/// skips inter tiles, so it does not perform backward adaptation. Use
+/// [`crate::FrameDecoder`] for pixel decoding with its own complete state.
 #[derive(Debug)]
 pub struct Decoder {
     limits: Limits,
     slots: [Option<Slot>; 8],
     carried: Carried,
-    /// The saved frame contexts. A frame that adapts its probabilities to
-    /// what its tiles decoded (`refresh_probs()`, clause 6.1.2) saves them
-    /// unadapted until tiles are decoded (`docs/design/vp9.md`, milestone
-    /// 2).
+    /// Inspection's saved contexts, without backward adaptation because
+    /// inspection does not read inter tiles.
     contexts: Contexts,
 }
 
@@ -63,7 +63,7 @@ impl Decoder {
                 Some(probs),
             ) = (&mut parsed.header, parsed.probs)
             {
-                self.check_size(h.width, h.height)?;
+                self.limits.check_size(h.width, h.height)?;
                 let (mut contexts, probs) = *probs;
                 if h.is_intra() {
                     let tiles = frame
@@ -97,19 +97,6 @@ impl Decoder {
     pub(crate) fn contexts(&self) -> &Contexts {
         &self.contexts
     }
-
-    fn check_size(&self, width: u32, height: u32) -> Result<()> {
-        if width > self.limits.max_width {
-            return Err(Error::Limit(LimitKind::Width));
-        }
-        if height > self.limits.max_height {
-            return Err(Error::Limit(LimitKind::Height));
-        }
-        if u64::from(width) * u64::from(height) > self.limits.max_pixels {
-            return Err(Error::Limit(LimitKind::Pixels));
-        }
-        Ok(())
-    }
 }
 
 /// Decodes the tiles of intra frame `h` and filters the result (clauses
@@ -122,10 +109,21 @@ fn decode_intra<P: Sample>(
 ) -> Result<(bool, Picture)> {
     let c = h.color;
     let mut frame = Planes::<P>::new(h.mi_cols(), h.mi_rows(), c.subsampling_x, c.subsampling_y);
-    let (clean, mi) = tile::read(tiles, h, probs, tx_mode, &mut frame)?;
-    loop_filter::apply(h, &mi, &mut frame)?;
+    let decoded = tile::read(
+        tiles,
+        h,
+        probs,
+        tx_mode,
+        &mut frame,
+        tile::TileContext {
+            references: &[],
+            previous: None,
+            reference_mode: crate::compressed::ReferenceMode::Single,
+        },
+    )?;
+    loop_filter::apply(h, &decoded.modes, &mut frame)?;
     Ok((
-        clean,
+        decoded.clean,
         frame.picture(
             h.width,
             h.height,

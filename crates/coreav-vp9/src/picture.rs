@@ -85,17 +85,30 @@ impl<P: Sample> Planes<P> {
 /// A sample type the decoder decodes into.
 pub(crate) trait Sample: Pixel {
     fn samples(samples: Vec<Self>) -> Samples;
+    fn plane(samples: &Samples) -> Option<&[Self]>;
 }
 
 impl Sample for u8 {
     fn samples(samples: Vec<Self>) -> Samples {
         Samples::Eight(samples)
     }
+    fn plane(samples: &Samples) -> Option<&[Self]> {
+        match samples {
+            Samples::Eight(s) => Some(s),
+            Samples::High(_) => None,
+        }
+    }
 }
 
 impl Sample for u16 {
     fn samples(samples: Vec<Self>) -> Samples {
         Samples::High(samples)
+    }
+    fn plane(samples: &Samples) -> Option<&[Self]> {
+        match samples {
+            Samples::High(s) => Some(s),
+            Samples::Eight(_) => None,
+        }
     }
 }
 

@@ -93,6 +93,16 @@ TABLES = [
     ("token_tree", "TOKEN_TREE", "9.3.1", "The tree of `token`."),
     ("dc_qlookup", "DC_QLOOKUP", "8.6.1", "The DC quantizer step, by `(BitDepth - 8) >> 1` and quantizer index."),
     ("ac_qlookup", "AC_QLOOKUP", "8.6.1", "The AC quantizer step, by `(BitDepth - 8) >> 1` and quantizer index."),
+    ("mv_ref_blocks", "MV_REF_BLOCKS", "6.5.1", "The ordered motion-vector search locations, by block size."),
+    ("mode_2_counter", "MODE_2_COUNTER", "6.5.1", "The inter-mode context contribution of a neighboring mode."),
+    ("counter_to_context", "COUNTER_TO_CONTEXT", "6.5.1", "The inter-mode probability context of the two-neighbor sum."),
+    ("idx_n_column_to_subblock", "IDX_N_COLUMN_TO_SUBBLOCK", "6.5.11", "The neighboring subblock used by each subblock and search direction."),
+    ("size_group_lookup", "SIZE_GROUP", "10.2", "The intra-mode probability group of a block size."),
+    ("inter_mode_tree", "INTER_MODE_TREE", "9.3.1", "The tree of inter prediction modes."),
+    ("interp_filter_tree", "INTERP_FILTER_TREE", "9.3.1", "The tree of switchable interpolation filters."),
+    ("mv_joint_tree", "MV_JOINT_TREE", "9.3.1", "The tree of nonzero motion-vector components."),
+    ("mv_class_tree", "MV_CLASS_TREE", "9.3.1", "The tree of motion-vector magnitude classes."),
+    ("mv_fr_tree", "MV_FR_TREE", "9.3.1", "The tree of motion-vector fractional positions."),
 ]
 
 # The tables and constants of crates/coreav-kernels-vp9/src/tables.rs.
@@ -142,8 +152,16 @@ def constants(text):
         add(name, value)
         if name == "INVALID_CASE":
             break
-    named = r"(?:BLOCK|TX)_\d+X\d+|PARTITION_[A-Z]+|[A-Z0-9]+_PRED|[A-Z]+_TOKEN|DCT_VAL_CAT\d"
+    split = re.search(r"^ZERO_PLUS_PREDICTED[^\n]*\n\s+(\d+)\s", text[start:], re.M)
+    if not split:
+        sys.exit("ZERO_PLUS_PREDICTED: missing split constant row")
+    add("ZERO_PLUS_PREDICTED", split.group(1))
+    named = r"(?:BLOCK|TX)_\d+X\d+|PARTITION_[A-Z]+|[A-Z0-9]+_PRED|[A-Z]+_TOKEN|DCT_VAL_CAT\d|EIGHTTAP(?:_SMOOTH|_SHARP)?|BILINEAR|MV_CLASS_\d+"
     for value, name in re.findall(rf"^\s*(\d+)\s+({named})\s*$", text, re.M):
+        add(name, value)
+    for value, name in re.findall(r"^\s*\d+\s+(\d+)\s+(NEARESTMV|NEARMV|ZEROMV|NEWMV)\s*$", text, re.M):
+        add(name, value)
+    for value, name in re.findall(r"^\s*(\d+)\s+(MV_JOINT_[A-Z]+)\s", text, re.M):
         add(name, value)
     for n in range(1, 7):
         add(f"DCT_VAL_CATEGORY{n}", found[f"DCT_VAL_CAT{n}"])
@@ -196,19 +214,44 @@ def braces(body, symbols):
                     pos += 1
                 elif body[pos] != "}":
                     sys.exit(f"unexpected {body[pos:pos + 20]!r}")
-        sign = 1
-        if body[pos] == "-":
-            sign = -1
+        return expression()
+
+    def atom():
+        nonlocal pos
+        while body[pos].isspace():
             pos += 1
+        if body[pos] in "+-":
+            sign = -1 if body[pos] == "-" else 1
+            pos += 1
+            return sign * atom()
+        if body[pos] == "(":
+            pos += 1
+            result = expression()
+            if body[pos] != ")":
+                sys.exit("an unclosed table expression")
+            pos += 1
+            return result
         m = re.compile(r"\d+|[A-Za-z_][A-Za-z0-9_]*").match(body, pos)
         if not m:
             sys.exit(f"not a number: {body[pos:pos + 20]!r}")
         pos = m.end()
         if m.group().isdigit():
-            return sign * int(m.group())
+            return int(m.group())
         if m.group() not in symbols:
             sys.exit(f"unknown name {m.group()!r}")
-        return sign * symbols[m.group()]
+        return symbols[m.group()]
+
+    def expression():
+        nonlocal pos
+        result = atom()
+        while True:
+            while body[pos].isspace():
+                pos += 1
+            if body[pos] not in "+-":
+                return result
+            sign = -1 if body[pos] == "-" else 1
+            pos += 1
+            result += sign * atom()
 
     return value()
 

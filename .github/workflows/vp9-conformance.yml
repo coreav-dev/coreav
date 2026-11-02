@@ -74,7 +74,7 @@ jobs:
           xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"' < "$RUNNER_TEMP/vp9-urls.txt"
       - name: Check the vectors
         run: cd "$RUNNER_TEMP/vp9-vectors" && sha256sum --quiet -c "$RUNNER_TEMP/vp9.sha256"
-      - name: Read every vector's headers (gate G1)
+      - name: Read vector headers and compare decoded frames
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
         run: cargo test --locked --release -p coreav-vp9 --test vectors -- --include-ignored --nocapture
