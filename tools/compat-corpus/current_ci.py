@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import shutil
 import sys
 import tempfile
@@ -26,20 +27,59 @@ def outputs(directory):
     return {p.relative_to(directory).as_posix(): p for p in directory.rglob('*') if p.is_file()}
 
 
-def verify(args, target, candidate, reference, env, ffmpeg, ffprobe, scratch):
-    source = decoded_output.probe(target, ffprobe, env)
-    if source is None:
-        return 'unverified', 'source probe'
-    reference_input = reference.parent / ('reference-input' + target.suffix)
-    shutil.copyfile(target, reference_input)
+def copy_mapping(stderr, sources, reference):
+    try:
+        lines = stderr.decode('utf-8').splitlines()
+    except UnicodeDecodeError:
+        return ()
+    if lines.count('Stream mapping:') != 1:
+        return ()
+    streams = reference['streams']
+    if [s.get('index') for s in streams] != list(range(len(streams))):
+        return ()
+    mapped = {}
+    for line in lines[lines.index('Stream mapping:') + 1:]:
+        if line.startswith(('Output #', 'Press [q]', '[out#', 'frame=', 'size=', 'video:')):
+            break
+        if not line.strip():
+            continue
+        match = re.fullmatch(r'\s+Stream #(\d+):(\d+)(?:\[[^]\r\n]*\])? -> #(\d+):(\d+) \(copy\)', line)
+        if not match:
+            return ()
+        file, source, output, index = map(int, match.groups())
+        if output != 0 or index in mapped or file >= len(sources) or index >= len(streams):
+            return ()
+        originals = [s for s in sources[file]['streams'] if s.get('index') == source]
+        if len(originals) != 1 or any(originals[0].get(k) != streams[index].get(k)
+                                       for k in ('codec_name', 'codec_type')):
+            return ()
+        mapped[index] = (index, file, source)
+    return tuple(mapped[i] for i in range(len(streams))) if set(mapped) == set(range(len(streams))) else ()
+
+
+def verify(args, bindings, candidate, reference, env, ffmpeg, ffprobe, scratch):
+    names = [args[i + 1] for i, a in enumerate(args[:-1]) if a == '-i']
+    if not names or any(name not in bindings for name in names):
+        return 'unverified', 'source input binding'
+    sources, staged = {}, {}
+    directory = reference.parent / 'reference-inputs'
+    directory.mkdir(exist_ok=True)
+    for name in dict.fromkeys(names):
+        source = decoded_output.probe(bindings[name], ffprobe, env)
+        if source is None:
+            return 'unverified', 'source probe'
+        sources[name] = source
+        path = directory / (str(len(staged)) + bindings[name].suffix)
+        shutil.copyfile(bindings[name], path)
+        staged[name] = path
     argv = [str(reference / 'output.mp4') if a == 'OUTPUT' else
             str(reference / 'file.mp4') if a == 'FILE' else
-            str(reference_input) if a.startswith('INPUT') else a for a in args]
-    code, stdout, _ = decoded_output.invoke([ffmpeg, '-nostdin', '-hide_banner', '-v', 'error', *argv],
-                                           env, reference)
+            str(staged[a]) if a in staged else a for a in args]
+    code, stdout, stderr = decoded_output.invoke([ffmpeg, '-nostdin', '-hide_banner', '-v', 'info', *argv],
+                                                env, reference)
     if code != 0:
         return 'unverified', 'reference command'
-    if not decoded_output.same_files(target, reference_input):
+    if any(not path.is_file() or not decoded_output.same_files(bindings[name], path) for name, path in staged.items()):
         return 'unverified', 'reference modified its input'
     if stdout and args[-1] in ('-', 'pipe:1'):
         (reference / 'stdout').write_bytes(stdout)
@@ -49,19 +89,24 @@ def verify(args, target, candidate, reference, env, ffmpeg, ffprobe, scratch):
     if set(mine) != set(theirs) or not theirs:
         return 'failed', 'output files'
     try:
-        inputs = decoded_output.raw_inputs(args, source)
+        inputs = decoded_output.raw_inputs(args, sources[names[0]])
     except (TypeError, ValueError, ZeroDivisionError):
         return 'unverified', 'raw output description'
+    output = args[max(i for i, a in enumerate(args) if a == '-i') + 2:]
+    form = dict(zip(output, output[1:])).get('-f')
     for name in sorted(theirs):
         listing = decoded_output.probe(theirs[name], ffprobe, env, inputs)
         if listing is None:
             return 'unverified', 'reference probe'
         if any(s.get('codec_name') in ('png', 'bmp') for s in listing['streams']):
-            videos = [s for s in source['streams'] if s.get('codec_type') == 'video']
+            videos = [s for s in sources[names[0]]['streams'] if s.get('codec_type') == 'video']
             if not videos or any(s.get('pix_fmt') not in ('rgb24', 'bgr24', 'gbrp', 'rgba', 'bgra', 'gbrap')
                                  for s in videos):
                 return 'unverified', 'no_oracle: PNG/BMP colour conversion'
-        result = decoded_output.compare(mine[name], theirs[name], ffmpeg, ffprobe, env, scratch, inputs)
+        mapping = copy_mapping(stderr, [sources[n] for n in names], listing) if (
+            len(theirs) == 1 and form in (None, 'mp4', 'matroska')) else ()
+        result = decoded_output.compare(mine[name], theirs[name], ffmpeg, ffprobe, env, scratch, inputs,
+                                         copied_streams=tuple(index for index, _, _ in mapping))
         if result[0] != 'verified':
             return result
     return 'verified', 'exact decoded output'
@@ -103,7 +148,8 @@ def refusals(legacy, opts, files, counts, failures, records, ffmpeg, ffprobe):
             elif code == 0 and not fallback and not events and target and (not out or row['args'][-1] in ('-', 'pipe:1')):
                 if row['args'][-1] in ('-', 'pipe:1'):
                     (candidate / 'stdout').write_bytes(out)
-                status, reason = verify(row['args'], staged, candidate, reference, env, ffmpeg, ffprobe, scratch)
+                bindings = {a: staged for a in row['args'] if a.startswith('INPUT')}
+                status, reason = verify(row['args'], bindings, candidate, reference, env, ffmpeg, ffprobe, scratch)
             else:
                 status, reason = 'failed', 'crash, timeout, side effect or invalid outcome'
         record = {'args': row['args'], 'status': status, 'reason': reason, 'exit': code}

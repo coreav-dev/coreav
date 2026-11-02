@@ -193,6 +193,81 @@ class DecodedSamples(unittest.TestCase):
                          ['-f', 's16le', '-sample_rate', '48000', '-ch_layout', 'stereo'])
 
 
+class CopyMapping(unittest.TestCase):
+    def setUp(self):
+        self.video = {'index': 4, 'codec_type': 'video', 'codec_name': 'h264'}
+        self.audio = {'index': 8, 'codec_type': 'audio', 'codec_name': 'aac'}
+        self.sources = [{'streams': [self.video, self.audio]}] * 2
+        self.reference = {'streams': [{**self.video, 'index': 0}, {**self.audio, 'index': 1}]}
+        self.lines = ['  Stream #0:4 -> #0:0 (copy)', '  Stream #1:8 -> #0:1 (copy)']
+
+    def mapping(self, lines):
+        return current_ci.copy_mapping(('Stream mapping:\n' + '\n'.join(lines) + '\nOutput #0, mp4\n').encode(),
+                                        self.sources, self.reference)
+
+    def test_every_output_binds_its_actual_source_index_in_mapping_order(self):
+        self.assertEqual(self.mapping(self.lines), ((0, 0, 4), (1, 1, 8)))
+        self.assertEqual(self.mapping(self.lines[::-1]), ((0, 0, 4), (1, 1, 8)))
+        self.reference['streams'][1] = {**self.video, 'index': 1}
+        self.assertEqual(self.mapping([self.lines[0], '  Stream #0:4 -> #0:1 (copy)']),
+                         ((0, 0, 4), (1, 0, 4)))
+
+    def test_incomplete_or_noncopy_mapping_never_qualifies(self):
+        changes = [[], self.lines[:1], self.lines + self.lines[:1],
+                   self.lines + ['  unparsed mapping'],
+                   [self.lines[0], self.lines[1].replace('(copy)', '(aac (native) -> aac (native))')],
+                   [self.lines[0], '  Stream #1:8 -> output:audio (copy)'],
+                   [self.lines[0], 'unparsed mapping'],
+                   [self.lines[0], self.lines[1].replace('#1:8', '#2:8')],
+                   [self.lines[0], self.lines[1].replace('#1:8', '#1:1')],
+                   [self.lines[0], self.lines[1].replace('#0:1', '#1:1')],
+                   [self.lines[0], self.lines[1].replace('#0:1', '#0:2')],
+                   [self.lines[0], self.lines[1].replace('#1:8', '#1:4')]]
+        for lines in changes:
+            with self.subTest(lines=lines):
+                self.assertEqual(self.mapping(lines), ())
+
+    def test_probe_stream_indices_cannot_be_duplicated_or_relabelled(self):
+        for indices in ((0, 0), (1, 2), (1, 0)):
+            self.reference['streams'] = [{**s, 'index': i} for s, i in zip((self.video, self.audio), indices)]
+            self.assertEqual(self.mapping(self.lines), ())
+
+    def test_missing_and_duplicate_mapping_sections_never_qualify(self):
+        for data in (b'', b'Stream mapping:\nStream mapping:\n', b'\xff'):
+            self.assertEqual(current_ci.copy_mapping(data, self.sources, self.reference), ())
+
+    def test_the_default_comparator_does_not_admit_copied_codecs(self):
+        for codec in ('h264', 'aac', 'vp9', 'opus'):
+            with mock.patch.object(decoded_output, 'probe', return_value={'streams': [{'codec_name': codec}]}):
+                self.assertEqual(decoded_output.compare('a', 'b', 'ffmpeg', 'ffprobe', {}, pathlib.Path('.')),
+                                 ('unverified', 'unregistered codec ' + codec))
+
+    def test_verification_stages_distinct_bindings_in_input_occurrence_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = pathlib.Path(tmp)
+            candidate, reference, scratch = (work / n for n in ('candidate', 'reference', 'scratch'))
+            for directory in (candidate, reference, scratch):
+                directory.mkdir()
+            first, second = work / 'a.mp4', work / 'b.mp4'
+            first.write_bytes(b'first')
+            second.write_bytes(b'second')
+            (candidate / 'output.mp4').write_bytes(b'output')
+            args = ['-i', 'INPUT2', '-i', 'INPUT', '-c', 'copy', 'OUTPUT']
+            def reference_command(argv, env, cwd):
+                inputs = [pathlib.Path(argv[i + 1]) for i, a in enumerate(argv[:-1]) if a == '-i']
+                self.assertEqual([p.read_bytes() for p in inputs], [b'second', b'first'])
+                self.assertTrue(all(not p.is_relative_to(reference) for p in inputs))
+                self.assertEqual(argv[argv.index('-v') + 1], 'info')
+                (cwd / 'output.mp4').write_bytes(b'output')
+                return 0, b'', ('Stream mapping:\n' + '\n'.join(self.lines) + '\nOutput #0, mp4\n').encode()
+            with mock.patch.object(decoded_output, 'probe', side_effect=[*self.sources, self.reference]), \
+                    mock.patch.object(decoded_output, 'invoke', side_effect=reference_command), \
+                    mock.patch.object(decoded_output, 'compare', return_value=('verified', 'exact')) as compare:
+                self.assertEqual(current_ci.verify(args, {'INPUT': first, 'INPUT2': second}, candidate, reference,
+                                                    {}, 'ffmpeg', 'ffprobe', scratch)[0], 'verified')
+            self.assertEqual(compare.call_args.kwargs, {'copied_streams': (0, 1)})
+
+
 @unittest.skipUnless(os.environ.get('COREAV_CURRENT_CI_ORACLE') == '1', 'pinned Linux oracle runs in fixture CI')
 class PinnedOracle(unittest.TestCase):
     @classmethod
@@ -220,6 +295,88 @@ class PinnedOracle(unittest.TestCase):
         header = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
         path.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header)
                          + chunk(b'IDAT', zlib.compress(b'\0' + pixel, level)) + chunk(b'IEND', b''))
+
+    def copy_sources(self, work, video, audio):
+        paths = []
+        for index, colours in enumerate((('red', 'green'), ('blue', 'white'))):
+            path = work / f'source-{index}.mkv'
+            argv = [self.ffmpeg, '-nostdin', '-v', 'error']
+            for expression in (f'color=c={colours[0]}:s=16x16:r=5:d=0.6',
+                               f'color=c={colours[1]}:s=16x16:r=5:d=0.6',
+                               f'sine=frequency={440 + index * 400}:sample_rate=48000:duration=0.6',
+                               f'sine=frequency={660 + index * 400}:sample_rate=48000:duration=0.6'):
+                argv += [*decoded_output.AUDIO_DECODE_INPUT, '-f', 'lavfi', '-i', expression]
+            argv += ['-map', '0:v', '-map', '2:a', '-map', '1:v', '-map', '3:a',
+                     '-c:v', video, '-pix_fmt', 'yuv420p', '-c:a', audio]
+            argv += ['-preset', 'ultrafast', '-bf', '0'] if video == 'libx264' else [
+                '-deadline', 'realtime', '-cpu-used', '8']
+            code, _, err = decoded_output.invoke([*argv, str(path)], self.env)
+            self.assertEqual(code, 0, err)
+            paths.append(path)
+        decoded = {}
+        for file, path in enumerate(paths):
+            for stream in range(4):
+                output = ['-c:a', 'pcm_f64le', '-f', 'f64le'] if stream % 2 else ['-f', 'rawvideo']
+                code, data, err = decoded_output.invoke(
+                    [self.ffmpeg, '-nostdin', '-v', 'error', *decoded_output.AUDIO_DECODE_INPUT,
+                     '-i', str(path), '-map', f'0:{stream}', *output, '-'], self.env)
+                self.assertEqual((code, err), (0, b''))
+                self.assertTrue(data)
+                decoded[file, stream] = data
+        for stream in (0, 1):
+            self.assertNotEqual(decoded[0, stream], decoded[1, stream])
+            for file in (0, 1):
+                self.assertNotEqual(decoded[file, stream], decoded[file, stream + 2])
+        return {'INPUT': paths[0], 'INPUT2': paths[1], 'INPUT3': paths[0]}
+
+    def copy_case(self, work, args, bindings, candidate_args=None):
+        with tempfile.TemporaryDirectory(dir=work) as tmp:
+            root = pathlib.Path(tmp)
+            candidate, reference, scratch = (root / n for n in ('candidate', 'reference', 'scratch'))
+            for directory in (candidate, reference, scratch):
+                directory.mkdir()
+            argv = [str(candidate / 'output.mp4') if a == 'OUTPUT' else str(bindings[a]) if a in bindings else a
+                    for a in (candidate_args or args)]
+            code, _, err = decoded_output.invoke([self.ffmpeg, '-nostdin', '-v', 'error', *argv], self.env)
+            self.assertEqual(code, 0, err)
+            return current_ci.verify(args, bindings, candidate, reference, self.env, self.ffmpeg, self.ffprobe, scratch)
+
+    def test_mapped_mp4_commands_and_explicit_matroska_copies_are_verified(self):
+        rows = [json.loads(line) for line in (HERE / 'commands-v1/commands.jsonl').read_text().splitlines()]
+        commands = [rows[i - 1]['args'] for i in (321, 392, 597, 710, 748, 804, 1052, 1120)]
+        matroska = ['-i', 'INPUT', '-map', '0:0', '-map', '0:1', '-c', 'copy', '-f', 'matroska', 'OUTPUT']
+        for video, audio in (('libx264', 'aac'), ('libvpx-vp9', 'libopus')):
+            with self.subTest(video=video), tempfile.TemporaryDirectory() as tmp:
+                work = pathlib.Path(tmp)
+                bindings = self.copy_sources(work, video, audio)
+                for args in [*commands, matroska]:
+                    with self.subTest(args=args):
+                        self.assertEqual(self.copy_case(work, args, bindings)[0], 'verified')
+                changed_container = matroska[:-1] + ['-metadata', 'title=different container bytes', 'OUTPUT']
+                self.assertEqual(self.copy_case(work, matroska, bindings, changed_container)[0], 'verified')
+                for maps in (['0:1', '0:0'], ['0:0'], ['0:0', '0:1', '0:2']):
+                    wrong = ['-i', 'INPUT'] + [a for spec in maps for a in ('-map', spec)] + [
+                        '-c', 'copy', '-f', 'matroska', 'OUTPUT']
+                    with self.subTest(maps=maps):
+                        self.assertEqual(self.copy_case(work, matroska, bindings, wrong)[0], 'failed')
+
+    def test_wrong_input_and_same_kind_stream_copies_fail_for_each_codec(self):
+        for video, audio in (('libx264', 'aac'), ('libvpx-vp9', 'libopus')):
+            with self.subTest(video=video), tempfile.TemporaryDirectory() as tmp:
+                work = pathlib.Path(tmp)
+                bindings = self.copy_sources(work, video, audio)
+                for form in ('mp4', 'matroska'):
+                    for stream in (0, 1):
+                        args = ['-i', 'INPUT', '-i', 'INPUT2', '-map', f'1:{stream}',
+                                '-c', 'copy', '-f', form, 'OUTPUT']
+                        self.assertEqual(self.copy_case(work, args, bindings)[0], 'verified')
+                        for wrong in (f'0:{stream}', f'1:{stream + 2}'):
+                            candidate = [wrong if a == f'1:{stream}' else a for a in args]
+                            with self.subTest(form=form, stream=stream, wrong=wrong):
+                                result = self.copy_case(work, args, bindings, candidate)
+                                self.assertEqual(result[0], 'failed', result)
+                        shifted = args[:-1] + ['-output_ts_offset', '1', 'OUTPUT']
+                        self.assertEqual(self.copy_case(work, args, bindings, shifted)[0], 'failed')
 
     def test_byte_different_audio_passes_but_one_wrong_sample_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,12 +406,12 @@ class PinnedOracle(unittest.TestCase):
                 output = candidate / 'output.mp4'
                 output.write_bytes(pcm)
                 args = ['-i', 'INPUT', '-f', 's16le', '-acodec', 'pcm_s16le', 'OUTPUT']
-                self.assertEqual(current_ci.verify(args, source, candidate, reference, self.env,
+                self.assertEqual(current_ci.verify(args, {'INPUT': source}, candidate, reference, self.env,
                                                     self.ffmpeg, self.ffprobe, scratch)[0], 'verified')
                 for path in reference.iterdir():
                     path.unlink()
                 output.write_bytes(struct.pack('<8h', *samples[:-1], 9))
-                self.assertEqual(current_ci.verify(args, source, candidate, reference, self.env,
+                self.assertEqual(current_ci.verify(args, {'INPUT': source}, candidate, reference, self.env,
                                                     self.ffmpeg, self.ffprobe, scratch),
                                  ('failed', 'decoded samples'))
 

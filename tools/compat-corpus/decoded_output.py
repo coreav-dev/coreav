@@ -160,7 +160,7 @@ def video_command(ffmpeg, source, inputs, index, decoded):
             '-i', str(source), '-map', f'0:{index}', '-noautoscale', *decoded, '-']
 
 
-def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None):
+def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None, copied_streams=()):
     expected = probe(reference, ffprobe, env, inputs)
     if expected is None:
         return 'unverified', 'reference probe'
@@ -170,7 +170,8 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
     for index in indices:
         description = expected['streams'][index]
         codec = description.get('codec_name', '')
-        if codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
+        copied = index in copied_streams and codec in ('h264', 'aac', 'vp9', 'opus')
+        if not copied and codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
             return 'unverified', f'unregistered codec {codec}'
         if description.get('codec_type') == 'audio' and description.get('sample_fmt') not in (
                 'u8', 'u8p', 's16', 's16p', 's32', 's32p', 'flt', 'fltp', 'dbl', 'dblp'):
@@ -184,6 +185,9 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
         return 'failed', 'candidate probe'
     if len(actual['streams']) != len(expected['streams']):
         return 'failed', 'stream count'
+    if copied_streams and any([s.get('index') for s in document['streams']] != list(range(len(document['streams'])))
+                              for document in (actual, expected)):
+        return 'failed', 'stream indices'
     for index in indices:
         ours, theirs = actual['streams'][index], expected['streams'][index]
         if not metadata(ours, theirs):
