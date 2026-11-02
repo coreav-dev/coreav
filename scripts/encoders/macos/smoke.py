@@ -18,6 +18,18 @@ LEVELS = (37, 91, 145, 199)
 LIMIT = 4 * 1024**2
 FIELDS = ("schema status requested_mode unavailable_reason width height fps_num fps_den "
           "bitrate submitted encoder_id hardware frames elementary_file source_file")
+NATIVE_FAILURES = {
+    "invalid VideoToolbox input or settings", "invalid VideoToolbox session state",
+    "VideoToolbox resource limit exceeded", "cannot reserve VideoToolbox output storage",
+    "VideoToolbox encoding cancelled", "VideoToolbox deadline expired",
+    "invalid VideoToolbox output or accounting", "cannot establish VideoToolbox hardware status",
+    "pull VideoToolbox output before submitting more frames",
+    "the requested VideoToolbox encoder is unavailable", "VideoToolbox encoding failed",
+    "malformed H.264 output metadata", "unsupported H.264 output metadata",
+    "H.264 output format changed", "unknown H.264 parameter-set reference",
+    "H.264 slices do not form one ordered picture", "H.264 sync declaration disagrees with IDR headers",
+    "H.264 output metadata exceeds its limit", "cannot reserve H.264 output storage",
+}
 
 
 def source():
@@ -93,7 +105,8 @@ def capture(exporter, output, mode, runner_image):
             except (Invalid, OSError, UnicodeError):
                 detail = ""
             for line in detail.splitlines():
-                if re.fullmatch(r"videotoolbox: VideoToolbox (?:[A-Za-z]{1,32} failed with status -?[0-9]{1,10}|did not retain [A-Za-z0-9]{1,64})", line):
+                if line.removeprefix("videotoolbox: ") in NATIVE_FAILURES or re.fullmatch(
+                        r"videotoolbox: VideoToolbox (?:[A-Za-z]{1,32} failed with status -?[0-9]{1,10}|did not retain [A-Za-z0-9]{1,64})", line):
                     print(f"videotoolbox-smoke {mode}: {line}", file=sys.stderr)
             raise
         value, names = artifacts(output, mode, False)
