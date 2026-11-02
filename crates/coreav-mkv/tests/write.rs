@@ -324,6 +324,46 @@ fn unknown_end_and_missing_keyframes_do_not_invent_metadata() {
 }
 
 #[test]
+fn nonpositive_presentation_ends_omit_duration_without_losing_packets() {
+    for (pts_ns, padding) in [(-1_000_000, None), (0, Some(1_000_000))] {
+        let mut track = video(CodecId::Vp9);
+        track.default_duration_ns = None;
+        let mut p = packet(0, pts_ns, true);
+        p.duration_ns = Some(1_000_000);
+        p.discard_padding_ns = padding;
+        let data = output(&[track], &[p], Options::default());
+        assert!(!data.windows(3).any(|b| b == [0x44, 0x89, 0x88]));
+        let limits = Limits::default();
+        let segment = probe(SliceSource::new(&data), &limits, &Allowlist::any()).unwrap();
+        assert_eq!(segment.duration, None);
+        let packets: Vec<_> = segment
+            .packets(SliceSource::new(&data), &limits)
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets[0].pts, Some(pts_ns / 1_000_000));
+        assert_eq!(packets[0].discard_padding, padding);
+    }
+}
+
+#[test]
+fn seek_head_obeys_the_element_byte_limit() {
+    let tracks = [video(CodecId::Vp9)];
+    let packets = [packet(0, 0, true)];
+    let limits = Limits {
+        max_element_bytes: 60,
+        ..Limits::default()
+    };
+    assert!(matches!(
+        plan(&tracks, &packets, Options::default(), &limits),
+        Err(Error::LimitExceeded {
+            limit: coreav_mkv::LimitKind::ElementBytes,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn multibyte_track_numbers_and_interleaved_tracks_roundtrip() {
     let tracks = vec![video(CodecId::Vp9); 128];
     let packets: Vec<_> = (0..128).rev().map(|track| packet(track, 0, true)).collect();

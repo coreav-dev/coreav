@@ -178,6 +178,9 @@ pub fn plan<'a>(
     let cues_len = result.cues()?.len() as u64;
     let has_cues = cues_len != 0;
     let seek_len = seek_head(0, 0, has_cues.then_some(0))?.len() as u64;
+    if seek_len > limits.max_element_bytes {
+        return Err(limit(LimitKind::ElementBytes));
+    }
     let info_pos = seek_len;
     let tracks_pos = add(info_pos, info.len() as u64)?;
     let cues_pos = add(tracks_pos, tracks_bytes.len() as u64)?;
@@ -208,6 +211,9 @@ pub fn plan<'a>(
     )?);
     ebml.extend(uint(ids::DOC_TYPE_VERSION, 4)?);
     ebml.extend(uint(ids::DOC_TYPE_READ_VERSION, 2)?);
+    if ebml.len() as u64 > limits.max_element_bytes {
+        return Err(limit(LimitKind::ElementBytes));
+    }
     result.head = element(ids::EBML, &ebml)?;
     result.head.extend(header(ids::SEGMENT, position)?);
     result.bytes = add(result.head.len() as u64, position)?;
@@ -375,7 +381,7 @@ fn track_entries(tracks: &[Track], max_element_bytes: u64) -> Result<Vec<u8>, Er
 
 fn info(scale: u64, end_ns: Option<i128>) -> Result<Vec<u8>, Error> {
     let mut data = uint(ids::TIMESTAMP_SCALE, scale)?;
-    if let Some(end) = end_ns {
+    if let Some(end) = end_ns.filter(|end| *end > 0) {
         #[allow(clippy::cast_precision_loss)]
         let duration = end as f64 / scale as f64;
         data.extend(element(ids::DURATION, &duration.to_be_bytes())?);
