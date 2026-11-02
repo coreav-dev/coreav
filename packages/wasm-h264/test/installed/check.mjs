@@ -13,7 +13,7 @@ import { registeredBars } from "../../../wasm/examples/test/registry.mjs";
 import { archiveEntries, validateArchive, consumerEnv } from "../../../wasm/scripts/check-package.mjs";
 import { profile } from "../../scripts/profile.mjs";
 import { fixtureRoster, gateRoster, parityRoster, roster, rosterSha256, sha, optionsSha256 } from "./roster.mjs";
-import { ThumbnailLedger, validateParity, validateHostCases } from "./ledger.mjs";
+import { ThumbnailLedger, validateParity, validateHostCases, failureRecord } from "./ledger.mjs";
 
 let captureOutput;
 async function main() {
@@ -103,6 +103,7 @@ const hostCasesSha256 = sha(readFileSync(settings["--host-cases"]));
 const consumer = mkdtempSync(join(tmpdir(), "coreav-thumbnail-installed-"));
 const workers = new Set(), runtimeLogs = [];
 let server, comparisons = 0, finished = false, workerNumber = 0;
+let stage = "install", item = 0, failure;
 const recordsFile = join(output, "captures.ndjson");
 writeFileSync(recordsFile, "");
 writeFileSync(join(output, "verdict.json"), JSON.stringify({ state: "running", preflightOnly: true }) + "\n");
@@ -133,6 +134,7 @@ async function reading(worker) {
   return info;
 }
 async function start() {
+  stage = "bundle";
   const directory = join(consumer, `worker-${workerNumber++}`); mkdirSync(directory);
   const bundle = await build({ absWorkingDir: consumer, entryPoints: [join(consumer, "worker.js")], outfile: join(directory, "bundle.js"), bundle: true, format: "esm", platform: "neutral", metafile: true,
     alias: { H264_ENGINE: join(consumer, "node_modules/@coreav/wasm-h264/src/engine.js"), HOST_CASES: join(consumer, "host-cases.js") },
@@ -154,10 +156,12 @@ async function start() {
 const config :Workerd.Config = (
 services = [(name = "thumbnail", worker = (compatibilityDate = "2026-11-01", modules = [(name = "bundle.js", esModule = embed "bundle.js"), (name = "coreav_bg.wasm", wasm = embed "coreav_bg.wasm")], bindings = [(name = "FIXTURES", service = "fixtures")], globalOutbound = "fixtures")), (name = "fixtures", external = (address = "127.0.0.1:${server.address().port}", http = ()))],
 sockets = [(name = "http", address = "127.0.0.1:${port}", http = (), service = "thumbnail")]);\n`);
+  stage = "runtime-launch";
   const child = spawn(workerd, ["serve", join(directory, "config.capnp")], { stdio: ["ignore", "pipe", "pipe"] });
   const worker = { child, base: `http://127.0.0.1:${port}` }; workers.add(worker);
   child.on("error", error => { worker.launchError = error; });
   child.stdout.on("data", chunk => runtimeLogs.push(String(chunk))); child.stderr.on("data", chunk => runtimeLogs.push(String(chunk)));
+  stage = "runtime-startup";
   for (let attempt = 0; attempt < 100; attempt += 1) {
     alive(worker);
     let response;
@@ -199,21 +203,32 @@ function native(row) {
   return { complete: true, runtimeExit: false, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), requestOptions: row.options, resolvedOptions: options, outcome: result.status === 0 ? "success" : document.kind, bytes: bytes.length, outputSha256: bytes.length ? sha(bytes) : null, ...(result.status === 0 ? { summary: document } : { error: document }), binarySha256: nativeSha256 };
 }
 async function run(worker, row) {
+  item += 1;
   const requestId = randomUUID(), fixture = files.get(row.fixture);
+  stage = "before-memory";
   const before = await reading(worker);
+  stage = "request";
   const response = await fetch(worker.base + (row.operation === "admission" ? "/admission" : "/thumbnail"), { method: "POST", body: JSON.stringify({ requestId, fixture: row.fixture, options: row.options, stage: row.id }), signal: AbortSignal.timeout(30000) });
   const hash = createHash("sha256"); let bytes = 0;
+  stage = "response";
   for await (const chunk of response.body) { if (response.status === 200 && row.operation !== "admission") { hash.update(chunk); bytes += chunk.byteLength; } }
-  const made = await json(worker, `/result/${requestId}`), info = await reading(worker);
+  stage = "result";
+  const made = await json(worker, `/result/${requestId}`);
+  stage = "after-memory";
+  const info = await reading(worker);
+  stage = "request-accounting";
   assert.equal(info.served, before.served + 1);
   assert.equal(made.isolate, worker.isolate); assert.equal(made.operationId, info.diagnostic.host.requestId);
   assert.equal(info.diagnostic.lease.acquired - before.diagnostic.lease.acquired, row.operation === "admission" ? 2 : 1);
   const actual = { ...made, requestId, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), options: row.options, bytes, outputSha256: bytes ? hash.digest("hex") : null, runtimeExit: false };
   if (row.operation !== "admission") {
+    stage = "native-reference";
     const reference = native(row);
-    validateParity(actual, reference, { ...row, inputSha256: fixture.sha256 }); comparisons += 1;
     record({ classification: "parity", id: row.id, ...actual, native: reference });
+    stage = "parity";
+    validateParity(actual, reference, { ...row, inputSha256: fixture.sha256 }); comparisons += 1;
   }
+  stage = "host-accounting";
   const host = { ...info.diagnostic.host };
   if (made.admission) for (const snapshot of made.admission.hostSnapshots) {
     assert.equal(snapshot.liveBytes, 0);
@@ -229,6 +244,7 @@ try {
   writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "thumbnail-installed-preflight", private: true, type: "module", dependencies: { "@coreav/wasm-h264": `file:${checkedTarball}` } }));
   const installed = spawnSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false"], { cwd: consumer, env: consumerEnv(), timeout: 30000, encoding: "utf8" });
   assert.ifError(installed.error); assert.equal(installed.status, 0, "installed tarball setup failed");
+  stage = "installed-files";
   const packageRoot = join(consumer, "node_modules/@coreav/wasm-h264");
   assert.equal(realpathSync(packageRoot), join(realpathSync(consumer), "node_modules/@coreav/wasm-h264"), "package is a source link");
   assert.equal(sha(readFileSync(join(packageRoot, "wasm/coreav_bg.wasm"))), artifactSha256);
@@ -236,6 +252,7 @@ try {
   copyFileSync(fileURLToPath(new URL("./worker.js", import.meta.url)), join(consumer, "worker.js"));
   copyFileSync(settings["--host-cases"], join(consumer, "host-cases.js"));
   copyFileSync(fileURLToPath(new URL("../../../wasm/examples/test/batch.mjs", import.meta.url)), join(consumer, "batch.mjs"));
+  stage = "fixture-server";
   server = createServer((request, response) => {
     const id = decodeURIComponent(new URL(request.url, "http://fixtures.test").pathname.slice(1)), fixture = files.get(id);
     if (!fixture) { response.writeHead(404).end(); return; }
@@ -250,11 +267,16 @@ try {
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   for (const [gate, rows] of groups) {
-    const worker = await start(); ledger.begin(gate, worker.initial);
+    const worker = await start();
+    stage = "fresh-isolate";
+    ledger.begin(gate, worker.initial);
     for (const row of rows) {
+      if (row.operation === "startup") item += 1;
       const result = row.operation === "startup" ? { requestId: randomUUID(), operationId: 0, served: 0, outcome: "startup", complete: true, runtimeExit: false, optionsSha256: optionsSha256({}), artifactSha256, tarballSha256, isolate: worker.isolate, memoryBytes: worker.initial.memoryBytes, inFlight: 0, pending: 0, settled: worker.initial.diagnostic.settled, host: worker.initial.diagnostic.host } : await run(worker, row);
+      stage = "memory-ledger";
       record({ classification: "gate", gate, step: row.id, ...result }); ledger.record(gate, row.id, result);
     }
+    stage = "shutdown";
     alive(worker); await stop(worker);
   }
   const parity = await start();
@@ -264,13 +286,17 @@ try {
     await run(parity, { ...row, operation: "thumbnail", fixture: row.id });
     await run(parity, { id: `${row.id}-reuse`, fixture: "360p-cavlc-mp4", options: { at: "0", format: "jpeg" }, expectation: "success" });
   }
+  stage = "shutdown";
   alive(parity); await stop(parity);
   const hostWorker = await start(), hostBefore = await reading(hostWorker);
+  stage = "host-cases"; item += 1;
   const hostReport = await json(hostWorker, "/host-cases", { requestId: randomUUID(), fixture: "360p-cavlc-mp4", options: { at: "0", format: "jpeg" } });
   const hostAfter = await reading(hostWorker);
   validateHostCases(hostReport, hostBefore.diagnostic, hostAfter.diagnostic);
   record({ classification: "host-cases", artifactSha256, tarballSha256, hostCasesSha256, isolate: hostWorker.isolate, report: hostReport, before: hostBefore, after: hostAfter });
+  stage = "shutdown";
   alive(hostWorker); await stop(hostWorker);
+  stage = "integrity";
   for (const fixture of files.values()) assert.equal(sha(readFileSync(join(fixtureRoot, fixture.path))), fixture.sha256, "fixture bytes changed during capture");
   assert.equal(sha(readFileSync(settings["--edge-native"])), nativeSha256, "native reference changed during capture");
   assert.equal(sha(readFileSync(settings["--allocation-binary"])), allocationBinarySha256, "allocation witness binary changed during capture");
@@ -278,15 +304,18 @@ try {
   assert.equal(sha(readFileSync(settings["--host-cases"])), hostCasesSha256, "host case module changed during capture");
   assert.equal(sha(readFileSync(workerd)), workerdBinarySha256, "runtime binary changed during capture");
   assert.equal(sha(readFileSync(settings["--package-record"])), sha(packageRecordBytes), "package check record changed during capture");
+  stage = "verdict";
   const verdict = ledger.finish(); assert.equal(verdict.state, "passed", "registered thumbnail memory gate failed");
   finished = true;
   console.log(`thumbnail preflight: ${verdict.gatesPassed} gates, ${verdict.readings} readings, ${comparisons} parity checks passed; Workers envelope unvalidated`);
-} catch {
-  console.error("thumbnail preflight: failed; inspect private verdict and captures");
+} catch (error) {
+  failure = failureRecord(stage, item, error);
+  writeFileSync(join(output, "capture-error.txt"), String(error.stack ?? error));
+  console.error(`thumbnail preflight: failed stage=${failure.stage} item=${failure.item} reason=${failure.reason}; inspect private verdict and captures`);
   process.exitCode = 1;
 } finally {
   const verdict = ledger.finish();
-  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
+  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), ...(failure && { failure }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
   writeFileSync(join(output, "runtime.log"), runtimeLogs.join(""));
   for (const worker of [...workers]) await stop(worker, false);
   if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });

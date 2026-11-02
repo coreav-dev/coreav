@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { registeredBars } from "../../../wasm/examples/test/registry.mjs";
-import { ThumbnailLedger, validateParity, validateAllocation, validateHostCases } from "./ledger.mjs";
+import { ThumbnailLedger, validateParity, validateAllocation, validateHostCases, failureRecord } from "./ledger.mjs";
 import { fixtureRoster, gateRoster, parityRoster, optionsSha256, roster, sha } from "./roster.mjs";
 
 const hash = "a".repeat(64), other = "b".repeat(64);
@@ -17,6 +17,14 @@ function record(gate, row) {
   return { artifactSha256: hash, tarballSha256: hash, isolate: gate, requestId: sha(`${gate}/${row.id}`), operationId, served, inputSha256: hash, optionsSha256: optionsSha256(row.options), complete: true, runtimeExit: false, pending: 0, inFlight: 0, settled: true, outcome: row.expectation, memoryBytes: 65536, host: { ...host(), requestId: operationId }, nativeAllocation: { ...witness(), optionsSha256: optionsSha256(row.options) }, admission: { stage: row.id, reused: true, drained: true, settled: true, holdAcquired: 1, rejections: row.id === "probe-first" ? 1 : 2, extraAcquisitions: 0, extraSourceOpens: 0, activeAtHold: true, activeAfterCleanup: false, holdReleased: 1 } };
 }
 function ledger() { return new ThumbnailLedger(bars, hash, hash, fixtures); }
+
+test("failure labels expose only owned reasons, closed phases and numeric ordinals", () => {
+  let owned;
+  try { validateParity(null, null, {}); } catch (error) { owned = error; }
+  assert.deepEqual(failureRecord("parity", 3, owned), { stage: "parity", item: 3, reason: "incomplete_output_or_runtime_exit" });
+  const untrusted = new Proxy(new Error("private-marker"), { get() { throw new Error("private-marker"); } });
+  assert.deepEqual(failureRecord("private-marker", "private-marker", untrusted), { stage: "unexpected", item: 0, reason: "unexpected" });
+});
 
 test("the registered eleven gates have the complete deterministic request roster", () => {
   assert.equal(bars.size, 11); assert.equal(fixtureRoster().length, 52);

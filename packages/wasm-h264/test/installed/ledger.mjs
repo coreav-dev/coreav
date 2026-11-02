@@ -3,7 +3,21 @@ import { canonical, gateRoster, optionsSha256 } from "./roster.mjs";
 const hash = value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const natural = value => Number.isSafeInteger(value) && value >= 0;
 const positive = value => natural(value) && value > 0;
-const fail = reason => { throw new Error(`thumbnail capture invalid: ${reason}`); };
+const reasons = new WeakMap();
+const fail = reason => {
+  const error = new Error(`thumbnail capture invalid: ${reason}`);
+  reasons.set(error, reason);
+  throw error;
+};
+const stages = new Set(["install", "installed-files", "fixture-server", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
+
+export function failureRecord(stage, item, error) {
+  return {
+    stage: stages.has(stage) ? stage : "unexpected",
+    item: natural(item) ? item : 0,
+    reason: reasons.get(error)?.replaceAll(" ", "_") ?? "unexpected",
+  };
+}
 
 export function comparableSummary(summary) {
   const copy = structuredClone(summary);
