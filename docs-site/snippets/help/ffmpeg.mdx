@@ -19,10 +19,16 @@ using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
 Use -vn or -map a to select audio only. Audio encoding needs no video decoder.
 
+Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs:
+  -f image2: one image, a %d or %0Nd sequence, or -update 1
+  -frames:v / -vframes: limit the frames written
+  -f rawvideo: packed frames to a file or standard output (-)
+  -pix_fmt: the decoded format for raw output, without conversion
+  -r after -i: select frames without duplicating them
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints nothing on success.
+Prints no status text on success; rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg

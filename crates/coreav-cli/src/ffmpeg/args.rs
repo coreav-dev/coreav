@@ -1,6 +1,6 @@
 //! `ffmpeg`'s arguments, read as its documentation describes them: options
 //! apply to the next file named, `-i` names an input, and any other bare
-//! argument an output. Only the stream-copy vocabulary of
+//! argument an output. Only the vocabulary of
 //! `docs/design/compat-cli.md` ("Step 1's vocabulary") that a writer of
 //! CoreAV implements is accepted; every other option is refused by name
 //! before the input is opened.
@@ -42,6 +42,41 @@ pub enum Muxer {
     Wav,
     /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
     S16le,
+    /// One encoded image per file.
+    Image2,
+    /// Encoded video packets without a container.
+    Rawvideo,
+    /// YUV4MPEG2 frames and their stream header.
+    Yuv4mpeg,
+}
+
+impl Muxer {
+    /// Whether this muxer writes decoded video rather than a remux.
+    pub fn frames(self) -> bool {
+        matches!(self, Self::Image2 | Self::Rawvideo | Self::Yuv4mpeg)
+    }
+}
+
+/// The native video encoders for image and raw output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VideoEncoder {
+    /// PNG.
+    Png,
+    /// Windows bitmap.
+    Bmp,
+    /// Unconverted decoded samples.
+    Rawvideo,
+}
+
+/// Frame selection and image-file naming, independent of the encoder.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FrameOptions {
+    /// `-frames:v` or `-vframes`.
+    pub limit: Option<u64>,
+    /// `-update 1`.
+    pub update: bool,
+    /// `-r` after the input, in frames per second.
+    pub rate: Option<Rational>,
 }
 
 /// A stream specifier: of `-map` (input streams) or of a codec option
@@ -81,6 +116,8 @@ pub enum Codec {
     Libx264,
     /// An encoder of one audio stream.
     Audio(AudioEncoder),
+    /// A native image or raw video encoder.
+    Video(VideoEncoder),
 }
 
 /// AVI and PCM audio output encoders.
@@ -175,12 +212,14 @@ pub struct Command {
     /// The codec options, in order: for each stream the last one that
     /// names it decides.
     pub codecs: Vec<(Spec, Codec)>,
-    /// The encoder options; with no `libx264` codec option there are none.
+    /// Video and audio encoder options, checked by the selected writer.
     pub encoding: Encoding,
     /// `-ar` after the input, accepted for PCM only at the source rate.
     pub sample_rate: Option<u32>,
     /// `-ac` after the input, accepted for PCM only at the source count.
     pub channels: Option<u16>,
+    /// Image and raw-video output options.
+    pub frames: FrameOptions,
     /// `-noautorotate` before the input.
     pub noautorotate: bool,
     /// `-vn`.
@@ -232,6 +271,10 @@ const GLOBAL: [(&str, Arity); 6] = [
 const PER_FILE: [(&str, Arity); 32] = [
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
+    ("-frames:v", Arity::Value),
+    ("-vframes", Arity::Value),
+    ("-update", Arity::Value),
+    ("-r", Arity::Value),
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -591,6 +634,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         maps: Vec::new(),
         codecs: Vec::new(),
         encoding: Encoding::default(),
+        frames: FrameOptions::default(),
         noautorotate: false,
         no_video: false,
         no_audio: false,
@@ -656,6 +700,9 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
                 "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
                 "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
+                "png" => Codec::Video(VideoEncoder::Png),
+                "bmp" => Codec::Video(VideoEncoder::Bmp),
+                "rawvideo" => Codec::Video(VideoEncoder::Rawvideo),
                 _ => {
                     return Err(not_native(
                         option,
@@ -710,6 +757,26 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             continue;
         }
         match option {
+            "-frames:v" | "-vframes" => {
+                command.frames.limit = Some(
+                    text.parse()
+                        .map_err(|_| usage("Invalid video frame limit"))?,
+                );
+            }
+            "-update" => command.frames.update = boolean(option, text)?,
+            "-r" => {
+                let rate = match text.split_once('/') {
+                    Some((n, d)) => n
+                        .parse::<i128>()
+                        .ok()
+                        .zip(d.parse::<u64>().ok())
+                        .and_then(|(n, d)| Rational::new(n, d)),
+                    None => crate::clip::parse_time(text),
+                }
+                .filter(|r| r.num > 0)
+                .ok_or_else(|| usage("Invalid output frame rate"))?;
+                command.frames.rate = Some(rate);
+            }
             "-ss" => command.seek = Some(time(option, text)?),
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
@@ -791,13 +858,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
-    if output == "-" || output.starts_with("pipe:") {
+    command.muxer = muxer(format, output)?;
+    if (output == "-" || output.starts_with("pipe:")) && command.muxer != Muxer::Rawvideo {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if !local(output, cfg!(windows)) {
+    if !local(output, cfg!(windows)) && output != "-" {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
-    command.muxer = muxer(format, output)?;
     if let Some(option) = audio_encoders
         .iter()
         .copied()
@@ -816,6 +883,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
+        && !command.muxer.frames()
     {
         return Err(not_native(
             option,
@@ -865,6 +933,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-ac",
             None,
             "it is not supported on this output",
+        ));
+    }
+    if !command.muxer.frames() && command.frames != FrameOptions::default() {
+        return Err(Refusal::not_native(
+            "image and raw-video options on another output",
         ));
     }
     if command.muxer == Muxer::Segment {
@@ -957,6 +1030,9 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "mp3" => Some(Muxer::Mp3),
         "avi" => Some(Muxer::Avi),
         "wav" => Some(Muxer::Wav),
+        "png" | "bmp" => Some(Muxer::Image2),
+        "yuv" => Some(Muxer::Rawvideo),
+        "y4m" => Some(Muxer::Yuv4mpeg),
         _ => None,
     }
 }
@@ -970,6 +1046,9 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("wav") => Ok(Muxer::Wav),
         Some("s16le") => Ok(Muxer::S16le),
         Some("segment") => Ok(Muxer::Segment),
+        Some("image2") => Ok(Muxer::Image2),
+        Some("rawvideo") => Ok(Muxer::Rawvideo),
+        Some("yuv4mpegpipe") => Ok(Muxer::Yuv4mpeg),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
@@ -997,6 +1076,36 @@ mod tests {
         match parse(&args(text)) {
             Err(Refusal::NotNative(n)) => n.reason,
             other => panic!("{text}: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn frame_output_options_belong_to_the_output() {
+        for (output, muxer) in [
+            ("out.png", Muxer::Image2),
+            ("out.BMP", Muxer::Image2),
+            ("out.yuv", Muxer::Rawvideo),
+            ("out.y4m", Muxer::Yuv4mpeg),
+        ] {
+            let command = parse(&args(&format!(
+                "-i in.mp4 -frames:v 3 -r 30000/1001 {output}"
+            )))
+            .unwrap();
+            assert_eq!(command.muxer, muxer);
+            assert_eq!(command.frames.limit, Some(3));
+            assert_eq!(command.frames.rate, Rational::new(30000, 1001));
+        }
+        assert!(parse(&args("-i in.mp4 -f rawvideo -")).is_ok());
+        assert!(parse(&args("-i in.mp4 -c:v png -f rawvideo -")).is_ok());
+        for text in [
+            "-r 1 -i in.mp4 out.png",
+            "-i in.mp4 -frames:v -1 out.png",
+            "-i in.mp4 -r 0 out.png",
+            "-i in.mp4 -r 1/0 out.png",
+            "-i in.mp4 -c copy -frames:v 1 out.mp4",
+            "-i in.mp4 -f image2 -",
+        ] {
+            assert!(parse(&args(text)).is_err(), "{text}");
         }
     }
 

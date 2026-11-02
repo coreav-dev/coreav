@@ -26,6 +26,7 @@
 
 #![forbid(unsafe_code)]
 
+mod bmp;
 mod color;
 mod image;
 mod jpeg;
@@ -45,7 +46,10 @@ use coreav_decode::{
 use coreav_frame::{ChromaUpsampling, Filter, Frame, FrameError, Picture};
 use coreav_isobmff::{Rational, Source};
 
+pub use bmp::encode as encode_bmp;
 pub use image::{BuiltinEncoder, ImageEncoder, ImageFormat};
+pub use png::encode as encode_png;
+pub use png::encode_with_aspect as encode_png_with_aspect;
 use select::{Choice, Sample};
 
 /// Largest side of a thumbnail.
@@ -481,6 +485,9 @@ pub struct StreamPacket {
     /// Matroska, the block's timestamp in Segment Ticks
     /// (`coreav_mkv::Packet::pts`).
     pub pts: i64,
+    /// Presentation time in seconds from the input's start, including
+    /// media edits and leading empty edits; `None` when not known.
+    pub time: Option<Rational>,
     /// Decode timestamp in the same units, when the container has one.
     pub dts: Option<i64>,
     /// Duration in the same units, when known: MP4, the decode duration;
@@ -588,6 +595,11 @@ pub fn video_stream<S: Source>(
             offset: p.offset,
             size: p.size,
             pts: p.pts,
+            time: plan
+                .samples
+                .get(i)
+                .and_then(|s| s.time)
+                .and_then(|t| t.checked_add(negate(plan.start)?)),
             dts: p.dts,
             duration: plan.durations.get(i).copied().flatten(),
             keyframe: p.keyframe,

@@ -1,4 +1,4 @@
-//! `coreav ffmpeg`: `ffmpeg`'s stream-copy command lines over CoreAV's
+//! `coreav ffmpeg`: `ffmpeg`'s command lines over CoreAV's
 //! writers (`docs/design/compat-cli.md`, "The command").
 //!
 //! [`args::parse`] reads the command line and refuses what is outside the
@@ -15,6 +15,8 @@ mod audio;
 mod avi;
 #[cfg(feature = "transcode")]
 pub mod encode;
+#[cfg(feature = "thumbnail")]
+mod frames;
 mod pcm;
 
 use crate::error::Failure;
@@ -136,6 +138,13 @@ pub enum Job {
         /// The output audio encoder.
         encoder: args::AudioEncoder,
     },
+    /// One video stream written as images or raw frames.
+    Frames {
+        /// The input stream index.
+        video: usize,
+        /// The image or raw video encoder.
+        encoder: args::VideoEncoder,
+    },
     /// The files of a concat list, joined in order.
     Join {
         /// The files.
@@ -198,10 +207,16 @@ using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
 Use -vn or -map a to select audio only. Audio encoding needs no video decoder.
 
+Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs:
+  -f image2: one image, a %d or %0Nd sequence, or -update 1
+  -frames:v / -vframes: limit the frames written
+  -f rawvideo: packed frames to a file or standard output (-)
+  -pix_fmt: the decoded format for raw output, without conversion
+  -r after -i: select frames without duplicating them
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints nothing on success.
+Prints no status text on success; rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg
@@ -224,7 +239,7 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) && !command.muxer.frames() {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
@@ -265,6 +280,10 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
             .any(|(_, c)| *c == Codec::AviAudio(args::AviAudio::Mp3))
     {
         encode::authorize_audio(args::AudioEncoder::Libmp3lame, strict_safe)?;
+    }
+    #[cfg(feature = "thumbnail")]
+    if let Job::Frames { video, encoder } = job {
+        return frames::write(&command, video, encoder, &report, strict_safe);
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
@@ -352,6 +371,44 @@ pub fn plan(
     }
     if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
         return pcm::plan(command, report, &selected, list.is_some());
+    }
+    if command.muxer.frames() {
+        if list.is_some() {
+            return Err(Refusal::not_native(
+                "image or raw output from a concat list",
+            ));
+        }
+        let output: Vec<_> = selected
+            .iter()
+            .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
+            .collect();
+        return match (output.as_slice(), codecs(command, &output).as_slice()) {
+            ([(video, stream)], [Some(Codec::Video(encoder))])
+                if stream.kind == StreamKind::Video =>
+            {
+                if command.muxer == Muxer::Yuv4mpeg && *encoder != args::VideoEncoder::Rawvideo {
+                    return Err(Refusal::not_native(
+                        "YUV4MPEG output with a compressed codec",
+                    ));
+                }
+                Ok(Job::Frames {
+                    video: *video,
+                    encoder: *encoder,
+                })
+            }
+            _ => Err(Refusal::not_native(
+                "image or raw output other than one encoded video stream",
+            )),
+        };
+    }
+    if command
+        .codecs
+        .iter()
+        .any(|(_, c)| matches!(c, Codec::Video(_)))
+    {
+        return Err(Refusal::not_native(
+            "an image or raw codec in this container",
+        ));
     }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
@@ -792,6 +849,18 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
 /// copy` copies the video). Options name output streams, so a stream
 /// mapped twice is decided once for each place it has.
 fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> {
+    let frame_default = match command.muxer {
+        Muxer::Rawvideo | Muxer::Yuv4mpeg => Some(args::VideoEncoder::Rawvideo),
+        Muxer::Image2 => match Path::new(&command.output)
+            .extension()
+            .and_then(|s| s.to_str())
+        {
+            Some(s) if s.eq_ignore_ascii_case("png") => Some(args::VideoEncoder::Png),
+            Some(s) if s.eq_ignore_ascii_case("bmp") => Some(args::VideoEncoder::Bmp),
+            _ => None,
+        },
+        _ => None,
+    };
     let mut decided: Vec<Option<Codec>> = output
         .iter()
         .map(|(_, stream)| match (command.muxer, stream.kind) {
@@ -803,6 +872,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
+            (_, StreamKind::Video) => frame_default.map(Codec::Video),
             _ => None,
         })
         .collect();
@@ -1050,7 +1120,9 @@ fn select_sources(
                 int(s, "width").saturating_mul(int(s, "height"))
             }));
         }
-        selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
+        if !command.muxer.frames() {
+            selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
+        }
         let subtitle = all
             .iter()
             .filter(|_| {
@@ -1315,7 +1387,10 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if matches!(job, Job::Transcode(_) | Job::AudioEncode { .. }) {
+    if matches!(
+        job,
+        Job::Transcode(_) | Job::AudioEncode { .. } | Job::Frames { .. }
+    ) {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
@@ -1424,7 +1499,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         | Job::Split(_)
         | Job::Transcode(_)
         | Job::AudioEncode { .. }
-        | Job::Pcm { .. } => Ok(serde_json::Value::Null),
+        | Job::Pcm { .. }
+        | Job::Frames { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),

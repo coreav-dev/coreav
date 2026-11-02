@@ -2,6 +2,8 @@
 
 Status: Proposed
 
+Image and raw-video output is specified separately in [Image and raw video output](frame-output.md). It adds PNG, BMP, rawvideo and YUV4MPEG2 defaults for their output extensions, image2 naming and frame selection, without changing stream-copy defaults for other containers.
+
 Roadmap step 1 and an earlier change: a command that accepts the common `ffmpeg`
 and `ffprobe` invocations of the jobs CoreAV does natively, and refuses
 every option it does not implement with a clear error, so that an
