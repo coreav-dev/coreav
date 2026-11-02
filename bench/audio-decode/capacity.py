@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -73,6 +74,8 @@ def digest(path):
 
 
 def verify_tools(repo, tools):
+    if os.environ.get('LD_PRELOAD') or os.environ.get('LD_AUDIT'):
+        raise Invalid('injected_baseline_loader')
     pin = oracle_pin.load(pathlib.Path(repo))
     binaries = [pathlib.Path(tools[name]).resolve() for name in ('ffmpeg', 'ffprobe')]
     if (any(path.name != name for path, name in zip(binaries, ('ffmpeg', 'ffprobe')))
@@ -88,8 +91,13 @@ def verify_tools(repo, tools):
         libraries = {}
         for line in done.stdout.decode().splitlines():
             match = re.fullmatch(r'\s*(\S+) => (/.+) \(0x[0-9a-f]+\)\s*', line)
+            direct = re.fullmatch(r'\s*(/.+) \(0x[0-9a-f]+\)\s*', line)
+            if direct:
+                path = direct[1]
+                name = pathlib.Path(path).name
             if match:
                 name, path = match.groups()
+            if match or direct:
                 if name in libraries:
                     raise Invalid('ambiguous_baseline_library')
                 libraries[name] = digest(path)

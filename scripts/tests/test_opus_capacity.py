@@ -289,6 +289,9 @@ class Binding(unittest.TestCase):
             system = root / 'libc.so.6'
             system.write_bytes(b'system dependency')
             paths[system.name] = system
+            loader = root / 'ld-linux-x86-64.so.2'
+            loader.write_bytes(b'loader')
+            paths[loader.name] = loader
             for name in ('ffmpeg', 'ffprobe'):
                 binary = root / name
                 binary.write_text(f'#!{sys.executable}\nprint("{name} version synthetic")\n')
@@ -298,7 +301,8 @@ class Binding(unittest.TestCase):
             def invoke(argv, **kwargs):
                 if argv[0] == 'ldd':
                     return subprocess.CompletedProcess(argv, 0, stdout=''.join(
-                        f'{name} => {path} (0x1234)\n' for name, path in paths.items()).encode())
+                        (f'{path} (0x1234)\n' if name == loader.name else f'{name} => {path} (0x1234)\n')
+                        for name, path in paths.items()).encode())
                 return original(argv, **kwargs)
             with patch.object(subprocess, 'run', side_effect=invoke):
                 first = capacity.verify_tools(root, tools)
@@ -306,6 +310,9 @@ class Binding(unittest.TestCase):
                 system.write_bytes(b'changed system dependency')
                 second = capacity.verify_tools(root, tools)
                 self.assertNotEqual(first['libraries'], second['libraries'])
+                with patch.dict(os.environ, LD_PRELOAD='synthetic'):
+                    with self.assertRaisesRegex(capacity.Invalid, 'injected_baseline_loader'):
+                        capacity.verify_tools(root, tools)
                 changed = paths['libavcodec.so.1']
                 changed.write_bytes(b'different baseline bytes')
                 with self.assertRaisesRegex(capacity.Invalid, 'baseline_library_pin_mismatch'):
