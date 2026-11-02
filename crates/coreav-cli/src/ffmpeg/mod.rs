@@ -607,6 +607,20 @@ fn transcode_job(
     let audio_encoder = match (audio, others.as_slice()) {
         ([], _) => None,
         ([(index, encoder)], [(other, stream)]) if index == other => {
+            if *encoder == args::AudioEncoder::Aac
+                && stream.entries.iter().any(|(key, value)| {
+                    *key == "codec_name" && matches!(value, Value::Str(name) if name == "opus")
+                })
+                && !command.codecs.iter().any(|(spec, _)| {
+                    matching(spec, output)
+                        .into_iter()
+                        .any(|position| output.get(position).is_some_and(|(i, _)| i == index))
+                })
+            {
+                return Err(Refusal::not_native(
+                    "default AAC encoding of an Opus source (its exact output has not been verified)",
+                ));
+            }
             audio_source(*encoder, stream)?;
             Some(*encoder)
         }
@@ -1276,6 +1290,90 @@ mod tests {
             ("-c:v libx264 -c copy", "-c copy"),
         ] {
             assert_eq!(job(implicit), job(explicit), "{implicit}");
+        }
+    }
+
+    #[test]
+    fn implicit_aac_refuses_opus_without_changing_explicit_choices() {
+        use crate::ffprobe::model::Unit;
+        let mut report = Report {
+            streams: vec![
+                Stream {
+                    kind: StreamKind::Video,
+                    attached_pic: false,
+                    entries: vec![],
+                    disposition: vec![],
+                    tags: vec![],
+                    side_data: vec![],
+                },
+                Stream {
+                    kind: StreamKind::Audio,
+                    attached_pic: false,
+                    entries: vec![
+                        ("codec_name", Value::Str("opus".to_owned())),
+                        ("sample_rate", Value::Unit(48_000, Unit::Hertz)),
+                        ("channels", Value::Int(1)),
+                    ],
+                    disposition: vec![],
+                    tags: vec![],
+                    side_data: vec![],
+                },
+            ],
+            time_bases: vec![],
+            format: vec![("format_name", Value::Str("matroska,webm".to_owned()))],
+            format_tags: vec![],
+            chapters: vec![],
+            programs: vec![],
+            setups: vec![],
+            covers: vec![],
+        };
+        let plan_options = |options: &str, report: &Report| {
+            let line = format!("-i in.webm {options} out.mp4");
+            let command = args::parse(
+                &line
+                    .split_whitespace()
+                    .map(String::from)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+            plan(&command, report, None)
+        };
+        for options in ["", "-c:v libx264", "-c:a:1 aac", "-c:0 libx264"] {
+            let Err(Refusal::NotNative(reason)) = plan_options(options, &report) else {
+                panic!("{options}: implicit Opus source was not refused");
+            };
+            assert!(
+                reason
+                    .message
+                    .contains("default AAC encoding of an Opus source")
+            );
+        }
+        for options in ["-c:a aac", "-c:a:0 aac", "-c:1 aac", "-c:a copy -c:a aac"] {
+            let Job::Transcode(options) = plan_options(options, &report).unwrap() else {
+                panic!("{options}: explicit AAC was not planned");
+            };
+            assert_eq!(options.audio_encoder, Some(args::AudioEncoder::Aac));
+        }
+        for options in ["-an", "-c:a copy", "-c:a aac -c:a copy"] {
+            let Job::Transcode(options) = plan_options(options, &report).unwrap() else {
+                panic!("{options}: video was not planned");
+            };
+            assert_eq!(options.audio_encoder, None);
+        }
+        for codec in ["flac", "mp3", "aac"] {
+            report
+                .streams
+                .get_mut(1)
+                .unwrap()
+                .entries
+                .get_mut(0)
+                .unwrap()
+                .1 = Value::Str(codec.to_owned());
+            assert_eq!(
+                plan_options("", &report).is_ok(),
+                codec != "aac" || cfg!(feature = "aac"),
+                "{codec}"
+            );
         }
     }
 

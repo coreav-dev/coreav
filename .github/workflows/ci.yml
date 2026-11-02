@@ -1188,6 +1188,20 @@ jobs:
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
             --target-dir target/fallback
+      - name: Observe decoder and AAC encoder boundaries on generated fixtures
+        run: |
+          python3 -I scripts/audio_source_diagnostic.py \
+            --coreav target/fallback/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" \
+            --out "$RUNNER_TEMP/coreav-audio-source-diagnostic"
+      - name: Preserve audio source diagnostic observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: audio-source-diagnostic
+          path: ${{ runner.temp }}/coreav-audio-source-diagnostic/report.json
+          retention-days: 7
       - name: Keep timed-out test process snapshots
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

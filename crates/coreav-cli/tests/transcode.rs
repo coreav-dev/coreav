@@ -1224,9 +1224,9 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
 }
 
 /// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
-/// "Through `coreav ffmpeg`"): the pipeline's encode, the audio copied; and
-/// the refusals where `ffmpeg`'s defaults would give another output, at
-/// exit status 4 with nothing written.
+/// "Through `coreav ffmpeg`"): the video's encode with copied audio, or
+/// default AAC when this build decodes the source; unsupported commands
+/// refuse at exit status 4 with nothing written.
 #[test]
 fn ffmpeg_libx264_commands_run_the_pipeline() {
     let Some(tools) = tools() else { return };
@@ -1279,21 +1279,48 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     );
     decodes_cleanly(&tools, &out);
     std::fs::remove_file(&out).unwrap();
-    for (words, source) in [
-        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4"),
-        ("-i IN -c:v libx264 OUT", "vfr.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "timecode.mov"),
-        ("-i IN -an -c:v libx264 OUT", "chapters.mov"),
-        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 OUT", "basic.mp4"),
-        ("-i IN -c copy -crf 20 OUT", "basic.mp4"),
+    for (words, source, expected) in [
+        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "vfr.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "browser.webm", 4),
+        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "timecode.mov", 4),
+        ("-i IN -an -c:v libx264 OUT", "chapters.mov", 4),
+        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4", 4),
+        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4", 4),
+        (
+            "-i IN -c:v libx264 OUT",
+            "basic.mp4",
+            if cfg!(feature = "aac") { 0 } else { 4 },
+        ),
+        ("-i IN -c copy -crf 20 OUT", "basic.mp4", 4),
     ] {
         let (code, stderr) = run(words, source, &out);
-        assert_eq!(code, 4, "{words} on {source}: {stderr}");
-        assert!(!out.exists(), "{words} on {source}");
+        assert_eq!(code, expected, "{words} on {source}: {stderr}");
+        if source == "browser.webm" {
+            assert!(
+                stderr.contains("default AAC encoding of an Opus source"),
+                "{stderr}"
+            );
+        }
+        if expected == 4 {
+            assert!(!out.exists(), "{words} on {source}");
+        } else {
+            assert_eq!(
+                probe_json(
+                    &tools,
+                    &["-show_entries", "stream=codec_type,codec_name"],
+                    &out
+                )["streams"],
+                serde_json::json!([
+                    {"codec_type": "video", "codec_name": "h264"},
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ]),
+            );
+            decodes_cleanly(&tools, &out);
+            std::fs::remove_file(&out).unwrap();
+        }
     }
     let (code, stderr) = run(
         "-noautorotate -i IN -an -c:v libx264 -preset ultrafast OUT",
@@ -1751,14 +1778,18 @@ fn ffmpeg_default_codecs_match_the_oracle() {
     let dir = dir("ffmpeg-default-codecs");
     let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
     let basic = tools.fixtures.join("basic.mp4");
-    for (name, source, flags) in [
+    let mut cases = vec![
         ("video-only", &basic, vec!["-an"]),
         ("audio-copy", &basic, vec!["-c:a", "copy"]),
         ("both-default", &flac, vec![]),
         ("video-default", &flac, vec!["-c:a", "aac"]),
         ("audio-default", &flac, vec!["-c:v", "libx264"]),
         ("last-copy", &basic, vec!["-c:v", "libx264", "-c", "copy"]),
-    ] {
+    ];
+    if cfg!(feature = "aac") {
+        cases.push(("aac-source-default", &basic, vec!["-c:v", "libx264"]));
+    }
+    for (name, source, flags) in cases {
         let output = dir.join(format!("{name}.mp4"));
         let oracle = dir.join(format!("{name}-oracle.mp4"));
         let log = dir.join(format!("{name}-fallback.log"));

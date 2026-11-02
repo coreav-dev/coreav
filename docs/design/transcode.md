@@ -947,6 +947,13 @@ is still refused, not silently reduced to audio. Segment output still
 requires explicit codecs. Encoder options still require their explicit
 encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
+An Opus source still requires an explicit audio codec choice. Default AAC
+encoding of Opus is refused because its exact end-to-end output has not
+been verified. Explicit audio encoding and copying keep their existing
+behavior. FLAC, MP3 and, with the `aac` feature, AAC sources retain their
+existing eligibility checks. The [audio source diagnostic](audio-source-diagnostic.md)
+separates decoder samples from AAC encoder behavior without changing B9.
+
 Explicit encoder names are checked before the input is read. Default
 encoders are checked after CoreAV probes and selects the streams, before
 decoding. Strict-safe mode refuses default AAC just as it refuses
