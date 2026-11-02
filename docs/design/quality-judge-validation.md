@@ -1,8 +1,24 @@
 # Encoder quality judge validation
 
-Status: proposed registration. No held-out metric or vision-model run starts before this note merges. This study writes no encoder and does not authorise an encoder implementation.
+Status: completed without quality-vote authority. Development calibration failed; held-out and vision-model judging were not run. The registration below is preserved. This study writes no encoder and does not authorise an encoder implementation.
 
 The question is whether a repeatable quality judge can replace routine visual comparisons during encoder development. The eventual encoder target is x264 medium-class quality at matched-quality speed parity. This study measures the judge's cost, not encoder speed. A favourable quality result alone does not establish that the judge is affordable on every candidate encode.
+
+## Result dated 2026-11-02
+
+G0 ended with no quality-vote authority under the registered failure rule. All 276 required development cases completed with finite readings on all 120 frames and the required in-scope support. The byte identities were frozen before calibration, and all five calibration dispositions were fixed before any held-out judging.
+
+| Detector | Clean controls | Severe positives | Development calibration |
+| --- | --- | --- | --- |
+| Banding | 20 | 32 | Failed: zero separation, null threshold |
+| Blocking | 20 | 32 | Calibrated |
+| Flicker | 20 | 80 | Calibrated |
+| Colour shift | 20 | 80 | Calibrated |
+| Pumping | 8 | 32 | Calibrated; 12 controls out of scope |
+
+Banding's maximum clean-control CAMBI increase and minimum severe-positive increase were both zero. Every severe banding candidate had different bytes from its reference, but all 32 measured CAMBI increases were zero. The gap did not exceed `1e-9`, so no threshold was substituted. No detector, fixture, scope, weight or bar was changed after observing this result.
+
+The other four detectors calibrated on development data only. This does not establish their held-out recall or false-positive rates. Human held-out scoring, planted held-out judging and vision-model judging were never opened. No human-agreement, vision-gain or full-judge affordability claim follows from this study. The 0.90 proxy bar remains unchanged.
 
 ## Claims and current data limit
 

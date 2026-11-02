@@ -94,3 +94,13 @@ decode spike's fixture script.
   packet's (ISO/IEC 11172-3, Layer III's IMDCT) makes it differ from the
   fresh decode.
   CoreAV writes silence there, which is checked.
+
+## Float-to-PCM24 rounding
+
+This is a documented format-conversion difference, not an edit-list exception or an oracle acceptance rule. It adds no entry to the machine-readable edit-list registry and no tolerance to any comparison.
+
+For floating-point decoder output written as `s24`, CoreAV scales by 2^23, rounds once to the nearest integer with ties to even, and clips to the signed 24-bit range. FFmpeg 9.0.2's pinned PCM24 output differs on half-LSB cases. Its observed values are consistent with rounding to S32 and then dropping eight low bits when packing PCM24. This is a black-box inference, not a claim about its source code.
+
+For example, the exactly representable F32 input `3 / 2^24` is 1.5 at the 24-bit integer scale. CoreAV writes integer 2, bytes `02 00 00`. The pinned FFmpeg writes integer 1, bytes `01 00 00`. Native `s24` keeps its independently specified single-rounding contract. The PCM storage and floating-point specifications do not prescribe which audio quantizer to choose, so this does not identify a specification violation by either implementation.
+
+The exact-format regression compares only S16, S32 and F32 outputs, including integer PCM24 inputs converted to those formats. A separate native-contract regression derives S24 half-LSB and clipping results independently. The 488 media rows of the registered V2 roster contain no PCM24 encoder or raw-format request, and their WAV outputs default to PCM16. Consequently, zero V2 rows exercise this packed-S24 output difference. This does not imply equality for an unrelated FLAC encoder's internal S32 path or for an entire command.

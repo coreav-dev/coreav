@@ -10,6 +10,9 @@ on:
       - scripts/tests/test_svt_native_workflow.py
       - scripts/svt_av1_licenses.py
       - scripts/svt-av1-notices.json
+      - scripts/svt_av1_rust_link.py
+      - scripts/tests/test_svt_av1_rust_link.py
+      - scripts/rust-dist.env
       - scripts/tests/test_svt_av1_licenses.py
       - scripts/tests/fixtures/svt-av1-notices/**
       - .github/workflows/svt-av1-native.yml
@@ -20,6 +23,9 @@ on:
       - scripts/tests/test_svt_native_workflow.py
       - scripts/svt_av1_licenses.py
       - scripts/svt-av1-notices.json
+      - scripts/svt_av1_rust_link.py
+      - scripts/tests/test_svt_av1_rust_link.py
+      - scripts/rust-dist.env
       - scripts/tests/test_svt_av1_licenses.py
       - scripts/tests/fixtures/svt-av1-notices/**
       - .github/workflows/svt-av1-native.yml
@@ -73,6 +79,17 @@ jobs:
           if [[ "$TARGET" == x86_64-* ]]; then
             brew install nasm
           fi
+      - name: Read the distribution Rust pin
+        id: rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          . scripts/rust-dist.env
+          echo "version=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+          targets: ${{ matrix.target }}
       - name: Build and verify the native static library
         id: native-build
         shell: bash
@@ -89,12 +106,20 @@ jobs:
           set -euo pipefail
           python3 -I -m unittest discover -s scripts/tests -p 'test_svt_av1_licenses.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/license-tests.log"
           python3 -I scripts/svt_av1_licenses.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/licenses.log"
+      - name: Verify the rooted Rust static link
+        id: rust-link
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p 'test_svt_av1_rust_link.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/rust-link-tests.log"
+          python3 -I scripts/svt_av1_rust_link.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" --output "$RUNNER_TEMP/svt-rust-link" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/rust-link.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: svt-native-${{ matrix.target }}
           path: |
             ${{ runner.temp }}/svt-av1/manifest.json
+            ${{ runner.temp }}/svt-rust-link/manifest.json
             ${{ runner.temp }}/svt-native-logs/*.log
           if-no-files-found: warn
           retention-days: 7
