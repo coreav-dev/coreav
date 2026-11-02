@@ -171,6 +171,22 @@ def read(path):
         return None
 
 
+def local_job(cmd, up, log, timeout):
+    try:
+        with subprocess.Popen(cmd, cwd=up, stdout=log, stderr=subprocess.STDOUT,
+                              start_new_session=True) as child:
+            try:
+                return child.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child.pid, signal.SIGKILL)
+                child.wait()
+                raise
+    finally:
+        for name in ('data', 'scratch'):
+            shutil.rmtree(os.path.join(up, name), ignore_errors=True)
+
+
 def judge(out, rc, run):
     """verdict.json from what came back: the class of the host, the gate, R4."""
     vm = os.path.join(out, 'vm')
@@ -286,8 +302,7 @@ def main():
             print('would run in', up, ':', shlex.join(cmd))
             return 0
         with open(os.path.join(up, 'job.log'), 'w') as log, staged_credentials(up):
-            rc = subprocess.run(cmd, cwd=up, stdout=log, stderr=subprocess.STDOUT,
-                                timeout=int(args.max_hours * 3600)).returncode
+            rc = local_job(cmd, up, log, int(args.max_hours * 3600))
         shutil.copytree(os.path.join(up, 'out'), vm)
         with open(os.path.join(vm, 'job.status'), 'w') as f:
             f.write(f'{rc}\n')

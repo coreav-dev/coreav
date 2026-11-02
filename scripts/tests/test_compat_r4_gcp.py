@@ -190,13 +190,13 @@ class Credentials(unittest.TestCase):
         for error in (OSError('launch failed'), subprocess.TimeoutExpired('job', 1), KeyboardInterrupt()):
             with self.subTest(error=type(error).__name__):
                 shutil.rmtree(self.out, ignore_errors=True)
-                with mock.patch.object(subprocess, 'run', side_effect=error):
+                with mock.patch.object(compat_r4_gcp, 'local_job', side_effect=error):
                     with self.assertRaises(type(error)):
                         self.run_main('--local')
                 self.assert_no_credentials()
 
     def test_local_collection_failure_removes_credentials(self):
-        with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
+        with mock.patch.object(compat_r4_gcp, 'local_job', return_value=1):
             with self.assertRaises(FileNotFoundError):
                 self.run_main('--local')
         self.assert_no_credentials()
@@ -207,6 +207,42 @@ class Credentials(unittest.TestCase):
             with self.assertRaises(subprocess.TimeoutExpired):
                 self.run_main('--local', '--max-hours', '0.0003')
         self.assert_no_credentials()
+
+    def test_a_local_timeout_removes_data_and_scratch_but_keeps_reports(self):
+        up = self.out / 'upload'
+        job = ('mkdir -p data/gate scratch out\n'
+               'echo input > data/gate/input\n'
+               'echo partial > scratch/output\n'
+               'echo retained > out/report.json\n'
+               f'exec {sys.executable} -I -c "import time; time.sleep(30)"\n')
+        with mock.patch.object(compat_r4_gcp, 'job_script', return_value=job):
+            with mock.patch.object(os, 'killpg', wraps=os.killpg) as kill:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    self.run_main('--local', '--max-hours', '0.0003')
+                self.assertEqual(kill.call_count, 1)
+                self.assertEqual(kill.call_args.args[1], signal.SIGKILL)
+        self.assertFalse((up / 'data').exists())
+        self.assertFalse((up / 'scratch').exists())
+        self.assertEqual((up / 'out/report.json').read_text(), 'retained\n')
+        self.assertTrue((self.out / 'run.json').is_file())
+        self.assert_no_credentials()
+
+    def test_local_job_cleans_scratch_after_exit_and_launch_failure(self):
+        for cmd, code in (([sys.executable, '-I', '-c', 'pass'], 0),
+                          ([sys.executable, '-I', '-c', 'raise SystemExit(23)'], 23),
+                          ([str(self.root / 'missing')], None)):
+            with self.subTest(cmd=cmd):
+                for name in ('data', 'scratch'):
+                    (self.root / name).mkdir()
+                    (self.root / name / 'partial').write_text('temporary')
+                with open(os.devnull, 'w') as log:
+                    if code is None:
+                        with self.assertRaises(FileNotFoundError):
+                            compat_r4_gcp.local_job(cmd, self.root, log, 10)
+                    else:
+                        self.assertEqual(compat_r4_gcp.local_job(cmd, self.root, log, 10), code)
+                self.assertFalse((self.root / 'data').exists())
+                self.assertFalse((self.root / 'scratch').exists())
 
     def test_remote_execution_exceptions_remove_credentials(self):
         for error in (OSError('launch failed'), KeyboardInterrupt()):
@@ -229,8 +265,9 @@ class Credentials(unittest.TestCase):
                         reports = self.out / 'upload' / 'out'
                         reports.mkdir()
                         (reports / 'report.json').write_text('{}')
-                    return subprocess.CompletedProcess([], 1)
-                with mock.patch.object(subprocess, 'run', side_effect=execute):
+                    return 1 if local else subprocess.CompletedProcess([], 1)
+                target, name = (compat_r4_gcp, 'local_job') if local else (subprocess, 'run')
+                with mock.patch.object(target, name, side_effect=execute):
                     with mock.patch.object(compat_r4_gcp, 'judge', return_value=5):
                         self.assertEqual(self.run_main(*(['--local'] if local else [])), 5)
                 self.assert_no_credentials()
