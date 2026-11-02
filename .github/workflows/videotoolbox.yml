@@ -1,0 +1,123 @@
+name: videotoolbox
+
+# workflow-check: not required
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - crates/coreav-backend-apple/**
+      - crates/coreav-h264/**
+      - crates/coreav-kernels-h264/**
+      - crates/coreav-aac/**
+      - Cargo.toml
+      - deny.toml
+      - scripts/encoders/macos/**
+      - scripts/install-oracle-ffmpeg.sh
+      - scripts/oracle-ffmpeg.env
+      - scripts/oracle_pin.py
+      - scripts/rust-dist.env
+      - .github/workflows/videotoolbox.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - crates/coreav-backend-apple/**
+      - crates/coreav-h264/**
+      - crates/coreav-kernels-h264/**
+      - crates/coreav-aac/**
+      - Cargo.toml
+      - deny.toml
+      - scripts/encoders/macos/**
+      - scripts/install-oracle-ffmpeg.sh
+      - scripts/oracle-ffmpeg.env
+      - scripts/oracle_pin.py
+      - scripts/rust-dist.env
+      - .github/workflows/videotoolbox.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  capture:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - name: Test tooling without judged inputs
+        run: python3 -m unittest discover -s scripts/encoders/macos -p 'test_*.py' -v
+      - name: Test native ownership and raw evidence helpers
+        run: cargo test --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --all-targets
+      - name: Build the standalone native exporter
+        run: cargo build --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --profile dist --example videotoolbox
+      - name: Capture synthetic hardware and software output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p captures
+          for mode in hardware software any; do
+            python3 scripts/encoders/macos/smoke.py capture \
+              --exporter crates/coreav-backend-apple/target/dist/examples/videotoolbox \
+              --mode "$mode" --output "captures/$mode" \
+              --runner-image "macos-15-${ImageVersion:?runner image version is missing}"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: videotoolbox-synthetic-captures
+          path: captures/
+          if-no-files-found: error
+          retention-days: 14
+  verify:
+    needs: capture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: videotoolbox-synthetic-captures
+          path: captures/
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - name: Build the independent Rust decoder and error calculator
+        run: cargo build --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --profile dist --example videotoolbox
+      - name: Check the standalone dependency licenses
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: crates/coreav-backend-apple/Cargo.toml
+          command: check licenses
+          rust-version: stable
+      - name: Test Linux evidence replay and child cleanup
+        run: python3 -m unittest discover -s scripts/encoders/macos -p 'test_*.py' -v
+      - name: Decode with the existing pinned Linux oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          for mode in hardware software any; do
+            python3 scripts/encoders/macos/smoke.py verify \
+              --capture "captures/$mode" --mode "$mode" \
+              --oracle-bin "$RUNNER_TEMP/oracle" --install-oracle \
+              --coreav-decoder crates/coreav-backend-apple/target/dist/examples/videotoolbox \
+              --report "reports/$mode.json"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: videotoolbox-synthetic-verification
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14

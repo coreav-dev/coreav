@@ -29,7 +29,7 @@ cargo test --locked --manifest-path crates/coreav-backend-apple/Cargo.toml
 cargo clippy --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --all-targets -- -D warnings
 ```
 
-VideoToolbox ownership and callback cancellation, the hosted H.264 independent-decode capability smoke, and the reference-host driver remain separate implementation steps. No M1 through M5 or AAC acceptance result is claimed. The development machine is not a measurement host, and no physical measurement host is provisioned or promised.
+The standalone VideoToolbox owner, callback cancellation, hosted H.264 independent-decode capability smoke and reference-host driver are described below. They do not integrate an encoder into the transcode API. No M1 through M5 or AAC acceptance result is claimed. The development machine is not a measurement host, and no physical measurement host is provisioned or promised.
 
 ## H.264 configuration and access-unit metadata
 
@@ -103,6 +103,20 @@ Hosted macOS checks exercise synthetic submission, drain, independent decoding, 
 
 All new native declarations, pointer access, packed CoreMedia ABI types, CF ownership and the callback trampoline belong to `src/videotoolbox/sys.rs`. Other files retain safe Rust. The actual site inventory and exact shared-file changes go to the integration owner before the source lands. The source and its integration-owned unsafe-site row ship together; this design is not an empty registration or a safety sign-off.
 
+### Standalone tools
+
+Build the bounded raw-I420 driver with `cargo build --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --profile dist --example videotoolbox`. Its `smoke` command writes four synthetic frames, native source identities and timing, and an elementary H.264 stream. Its `encode` command consumes explicitly sized, timed BT.709 limited-range frames; it does not choose streams, trim a source, convert samples or mux a container. The driver includes report generation in its whole-process cost.
+
+The `videotoolbox` workflow captures software, hardware-required and automatic cells on hosted macOS, then verifies immutable artifacts with the unchanged pinned Linux oracle. Recognized software unavailability is reported separately; hardware or automatic refusal does not satisfy the smoke. No workflow invokes the judged timing command.
+
+The Python tools under `scripts/encoders/macos` separate hosted `smoke.py capture` and `verify` from physical-host `timing.py gate`, `run` and `report`. `producer.py preflight` captures real native and FFmpeg availability, and `fixtures` retains both encoders' fixture outputs. On trusted Linux, `producer.py analyse` decodes every captured output with both independent decoders, checks their complete pixels and derives bound conformance, integer PSNR, VMAF and SSIM evidence. `timing.py report` independently replays the retained facts before judging. Neither a caller-supplied pass flag nor a successful encoding call satisfies those gates.
+
+Timing still requires a merged clean registration, the exact physical host, a release-reviewed observable macOS baseline build, prepared raw references and complete host gates. A separately pinned cache observer must establish full-file residency before and after every side; reading a file once does not prove that it remains resident on the fixed 8 GB host. Framework worker counts remain uncontrolled, distinct from the registered caller and input-thread controls. No host, tool installation, input preparation or storage allocation is performed by these commands.
+
+`coreav_build.py` captures a clean, isolated offline dist build from the candidate revision on each platform. The committed, reviewed Mac and Linux build records bind the native exporter and independent decoder to their candidate, configuration, pinned toolchain and resulting executable bytes. A merged candidate name alone does not establish executable provenance.
+
+Analysis requires an explicit persistent-storage root and byte budget. Its `--resume` mode binds the registration, captures, tools, model and source bytes, revalidates completed units, and rebuilds only owned incomplete analysis. It never recaptures timed calls or retries a final conformance failure. The [measurement plan](../../../scripts/encoders/macos/videotoolbox-plan.md) gives the post-merge operator sequence and remaining registration prerequisites. This implementation supplies evidence producers, not an acceptance result.
+
 ## Sources
 
 - ITU-T H.264 (08/2024), clauses 7.3.1, 7.3.2, 7.3.3, 7.4 and Annex E: NAL/RBSP syntax, parameter sets, picture-header identity and VUI/HRD.
@@ -116,4 +130,4 @@ All new native declarations, pointer access, packed CoreMedia ABI types, CF owne
 - Apple's public `CoreAudioBaseTypes.h`, `AudioStreamPacketDescription`, and `AudioConverter.h`, `AudioConverterPrimeInfo`.
 - Apple's [AudioStreamPacketDescription](https://developer.apple.com/documentation/coreaudiotypes/audiostreampacketdescription) and [AudioConverterPrimeInfo](https://developer.apple.com/documentation/audiotoolbox/audioconverterprimeinfo) references.
 
-The only native unsafe file is `crates/coreav-backend-apple/src/audiotoolbox/sys.rs`, with its crate lint change registered alongside it in the global unsafe-site inventory. Every other source file retains the crate's `deny` level without an opt-out.
+The native unsafe files are `crates/coreav-backend-apple/src/audiotoolbox/sys.rs` and `crates/coreav-backend-apple/src/videotoolbox/sys.rs`, with their crate lint change registered alongside them in the global unsafe-site inventory. Every other source file retains the crate's `deny` level without an opt-out.
