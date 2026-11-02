@@ -110,11 +110,21 @@ class Api:
                 with self.opener(req, timeout=min(10, remaining)) as response:
                     if method == 'POST' and path != '/graphql' and response.status != 201:
                         raise Unknown('Comment creation was not acknowledged')
+                    if (method == 'GET' or path == '/graphql') and response.status != 200:
+                        raise Unknown('Unexpected API response status')
                     self.date = stamp(response.headers['Date'])
                     self.links = response.headers.get('Link', '')
                     quota = response.headers.get('X-RateLimit-Remaining')
                     if quota is not None and int(quota) < 150:
                         raise Unknown('Rate reserve reached')
+                    declared = response.headers.get('Content-Length')
+                    if declared is not None:
+                        if (not re.fullmatch('[0-9]+', declared)
+                                or response.headers.get('Transfer-Encoding')):
+                            raise Unknown('Ambiguous API response framing')
+                        declared = int(declared)
+                        if declared > 2 * 1024 * 1024:
+                            raise Unknown('API response exceeds limit')
                     chunks, size = [], 0
                     while True:
                         if self.clock() - self.started >= WALL:
@@ -127,6 +137,8 @@ class Api:
                         if size > 2 * 1024 * 1024:
                             raise Unknown('API response exceeds limit')
                     data = b''.join(chunks)
+                    if declared is not None and size != declared:
+                        raise http.client.HTTPException('Incomplete API response')
                     result = json.loads(data)
                     if method == 'POST' and path != '/graphql':
                         positive(result['id'])
@@ -435,7 +447,8 @@ def step(episodes, tick):
                       for name, item in tick['runs'][entry['entry']].items()}
             record = dict(entry, **proof, context=context, run_id=run['id'], attempt=run['run_attempt'], runs=roster)
             record.update(first_seen=old['first_seen'] if old else now,
-                          alerted_at=old['alerted_at'] if old else None)
+                          alerted_at=old['alerted_at'] if old else None,
+                          shadowed_at=old.get('shadowed_at') if old else None)
             if (old is None or old['eligible_since'] is None or now - old['last_clean'] > GAP
                     or old.get('runs') != roster):
                 record.update(eligible_since=now, clean=1)
@@ -523,10 +536,14 @@ def comment_body(records, now):
     return '\n'.join(lines) + '\n'
 
 
-def report(api, state, due, live):
-    groups, summaries = {}, []
+def report(api, state, due, live, summaries=None):
+    groups = {}
+    if summaries is None:
+        summaries = []
     for key in due:
         record = state['episodes'][key]
+        if not live and record.get('shadowed_at') is not None:
+            continue
         groups.setdefault((record['entry'], record['head']), []).append(key)
     for keys in groups.values():
         valid = recheck(api, state, keys)
@@ -545,11 +562,16 @@ def report(api, state, due, live):
             continue
         records = [state['episodes'][key] for key in unpublished]
         body = comment_body(records, api.date)
-        summaries.append(('Published alert' if live else 'Shadow: would publish') + '\n\n' + body)
         if live:
             api.post(body)
             for key in unpublished:
                 state['episodes'][key]['alerted_at'] = api.date
+        else:
+            for key in unpublished:
+                state['episodes'][key]['shadowed_at'] = api.date
+            state['shadow']['would_alert'] = (state['shadow']['would_alert'] +
+                                             [{'date': api.date, 'keys': unpublished}])[-20:]
+        summaries.append(('Published alert' if live else 'Shadow: would publish') + '\n\n' + body)
     return summaries
 
 
@@ -582,6 +604,9 @@ def load_state(path):
             for name in ('eligible_since', 'alerted_at'):
                 if record[name] is not None and (type(record[name]) is not int or record[name] < 0):
                     return empty_state()
+            shadowed_at = record.get('shadowed_at')
+            if shadowed_at is not None and (type(shadowed_at) is not int or shadowed_at < 0):
+                return empty_state()
             positive(record['run_id'])
             positive(record['attempt'])
             if record['context'] not in WORKFLOW_OF or not isinstance(record['runs'], dict):
@@ -682,10 +707,7 @@ def main():
                 summaries.append(f"coreav-dev/coreav#{entry['pr']} PR head `{entry['pr_head']}`, "
                                  f"group `{entry['head']}`: {outcomes}.")
             save_state(args.state, state)
-            summaries.extend(report(api, state, due, args.mode == 'live'))
-            if args.mode == 'shadow' and due:
-                state['shadow']['would_alert'] = (state['shadow']['would_alert'] +
-                                                 [{'date': tick['now'], 'keys': due}])[-20:]
+            report(api, state, due, args.mode == 'live', summaries=summaries)
     except ConfigError as error:
         reset(state['episodes'])
         summaries.append('Configuration unavailable: ' + str(error))

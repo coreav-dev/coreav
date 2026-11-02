@@ -377,6 +377,37 @@ class Evidence(unittest.TestCase):
         self.assertIn('Shadow: would publish', messages[0])
         self.assertFalse(self.api.posted)
 
+    def test_shadow_episode_is_rechecked_once_but_can_still_publish_live(self):
+        due = self.due()
+        self.assertEqual(len(detector.report(self.api, self.state, due, False)), 1)
+        self.assertEqual(len(self.state['shadow']['would_alert']), 1)
+        self.state['shadow']['would_alert'] = [{'date': NOW, 'keys': []}] * 20
+        due = self.tick(1800)[1]
+        calls = self.api.calls
+        self.assertEqual(detector.report(self.api, self.state, due, False), [])
+        self.assertEqual(self.api.calls, calls)
+        self.assertIsNone(self.state['episodes'][due[0]]['alerted_at'])
+        self.api.allow_comments = True
+        detector.report(self.api, self.state, due, True)
+        self.assertEqual(len(self.api.posted), 1)
+
+    def test_a_later_group_failure_preserves_the_completed_shadow_summary(self):
+        self.api.nodes.append(entry('entry2'))
+        due = self.due()
+        summaries = []
+
+        def fail_later(request):
+            if self.state['shadow']['would_alert'] and request.full_url.endswith('/graphql'):
+                raise urllib.error.URLError('late read failure')
+
+        self.api.hook = fail_later
+        with self.assertRaises(detector.Unknown):
+            detector.report(self.api, self.state, due, False, summaries=summaries)
+        self.assertEqual(len(summaries), 1)
+        self.assertIn('Shadow: would publish', summaries[0])
+        self.assertEqual(len(self.state['shadow']['would_alert']), 1)
+        self.assertFalse(self.api.posted)
+
     def test_rules_cache_refreshes_hourly_and_before_a_post(self):
         self.tick()
         self.tick(600)
@@ -397,6 +428,31 @@ class Evidence(unittest.TestCase):
 
 
 class Transport(unittest.TestCase):
+    def test_partial_read_status_cannot_supply_index_evidence(self):
+        api = FakeApi()
+        api.opener = lambda *args, **kwargs: Response({'total_count': 0, 'check_runs': []}, {}, status=206)
+        with self.assertRaises(detector.Unknown):
+            detector.index_rows(api, HEAD, 'ci-report')
+
+    def test_content_length_premature_eof_cannot_become_an_empty_index(self):
+        payload = b'{"total_count":0,"check_runs":[]}'
+
+        class Socket:
+            def makefile(self, *args, **kwargs):
+                header = (f'HTTP/1.1 200 OK\r\nDate: {email.utils.formatdate(NOW, usegmt=True)}\r\n'
+                          f'Content-Length: {len(payload) + 1}\r\n\r\n').encode()
+                return io.BytesIO(header + payload)
+
+        def opened(*args, **kwargs):
+            response = http.client.HTTPResponse(Socket())
+            response.begin()
+            return response
+
+        api = detector.Api('fake', opener=opened, pause=lambda seconds: None)
+        with self.assertRaises(detector.Unknown):
+            detector.index_rows(api, HEAD, 'ci-report')
+        self.assertEqual(api.calls, 3)
+
     def test_partial_http_responses_retry_then_become_unknown(self):
         api, calls = FakeApi(), []
 
@@ -526,6 +582,66 @@ class Transport(unittest.TestCase):
 
 
 class PersistenceAndWorkflow(unittest.TestCase):
+    def test_a_cancelled_recheck_does_not_enter_shadow_alert_history(self):
+        api, state = FakeApi(), detector.empty_state()
+        api.index['ci-report'] = []
+        for seconds in (0, 600):
+            api.now = NOW + seconds
+            tick = detector.observe(api, state)
+            state['episodes'], _ = detector.step(state['episodes'], tick)
+        graphs = []
+
+        def leave_queue(request):
+            if request.full_url.endswith('/graphql'):
+                graphs.append(request.full_url)
+                if len(graphs) == 2:
+                    api.nodes = []
+
+        api.hook = leave_queue
+        api.now = NOW + 1200
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'state.json'
+            detector.save_state(path, state)
+            env = {'GH_TOKEN': 'test', 'GITHUB_REPOSITORY': detector.REPO,
+                   'GITHUB_REF': 'refs/heads/main', 'GITHUB_EVENT_NAME': 'schedule'}
+            with patch.dict(os.environ, env, clear=True), patch.object(detector, 'Api', return_value=api), \
+                    patch('sys.argv', ['queue_detector', '--state', str(path)]), \
+                    patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(detector.main(), 0)
+            saved = detector.load_state(path)
+            self.assertEqual(saved['shadow']['would_alert'], [])
+            self.assertFalse(api.posted)
+
+    def test_premature_eof_resets_an_existing_observation_streak(self):
+        api, state = FakeApi(), detector.empty_state()
+        api.index['ci-report'] = []
+        for seconds in (0, 600):
+            api.now = NOW + seconds
+            tick = detector.observe(api, state)
+            state['episodes'], _ = detector.step(state['episodes'], tick)
+        original = api.open
+
+        def short_response(request, timeout):
+            response = original(request, timeout)
+            response.headers['Content-Length'] = str(len(response.getvalue()) + 1)
+            return response
+
+        api.opener = short_response
+        api.now = NOW + 1200
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'state.json'
+            detector.save_state(path, state)
+            env = {'GH_TOKEN': 'test', 'GITHUB_REPOSITORY': detector.REPO,
+                   'GITHUB_REF': 'refs/heads/main', 'GITHUB_EVENT_NAME': 'schedule'}
+            with patch.dict(os.environ, env, clear=True), patch.object(detector, 'Api', return_value=api), \
+                    patch('sys.argv', ['queue_detector', '--state', str(path)]), \
+                    patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(detector.main(), 0)
+            record = next(iter(detector.load_state(path)['episodes'].values()))
+            self.assertIsNone(record['eligible_since'])
+            self.assertEqual(record['clean'], 0)
+            self.assertFalse(api.posted)
+
     def test_null_api_fields_cannot_preserve_age_through_a_crashed_tick(self):
         api, state = FakeApi(), detector.empty_state()
         api.index['ci-report'] = []
