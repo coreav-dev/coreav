@@ -1,7 +1,7 @@
 # The CommonMark and GFM parser scripts/pr_shape_check.py reads a pull
-# request's body with, to find the sections it keeps and the lines a
-# hard wrap leaves (docs/design/ci-checks.md, "The pull request's shape"),
-# and that parser's one dependency. Both are MIT, which deny.toml allows.
+# request's body with, to find the sections it keeps
+# (docs/design/ci-checks.md, "The pull request's shape"), and that parser's
+# one dependency. Both are MIT, which deny.toml allows.
 # Pinned by version and every artifact's SHA-256, as
 # packages/cli/scripts/zig-requirements.txt is:
 #   pip install --require-hashes -r scripts/pr-text-requirements.txt

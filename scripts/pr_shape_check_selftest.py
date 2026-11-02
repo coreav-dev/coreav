@@ -253,11 +253,16 @@ class Body(unittest.TestCase):
             with self.subTest(section=section):
                 failures = check.body_failures(BODY.replace(f'## {section}', '## Another'))
                 self.assertEqual(len(failures), 1, failures)
-                self.assertIn(f'no `## {section}` section', failures[0])
+                self.assertIn(f'no level-2 heading for its `{section}` section', failures[0])
 
     def test_a_body_with_no_section_at_all(self):
         failures = check.body_failures('A description of the change.')
         self.assertEqual(len(failures), len(check.REQUIRED_SECTIONS), failures)
+
+    def test_a_setext_heading_opens_a_section(self):
+        # `Evidence` over a rule is the level-2 heading GitHub renders, so the
+        # section is there; the template's own syntax is `## Evidence`.
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', 'Evidence\n--------')), [])
 
     def test_a_section_name_in_another_case_is_the_same_section(self):
         self.assertEqual(check.body_failures(BODY.replace('## TL;DR', '## tl;dr')), [])
@@ -266,22 +271,22 @@ class Body(unittest.TestCase):
         # `## Evidence#` is a heading named `Evidence#`, not the Evidence section.
         failures = check.body_failures(BODY.replace('## Evidence', '## Evidence#'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
 
     def test_a_heading_inside_a_quote_is_not_a_section(self):
         failures = check.body_failures(BODY.replace('## Evidence', '> ## Evidence'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
 
     def test_a_heading_inside_a_fence_is_not_a_section(self):
         failures = check.body_failures(BODY.replace('## Evidence', '```text\n## Evidence\n```'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
 
     def test_a_heading_inside_a_comment_is_not_a_section(self):
         failures = check.body_failures(BODY.replace('## Evidence', '<!--\n## Evidence\n-->'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
+        self.assertIn('no level-2 heading for its `Evidence` section', failures[0])
 
     def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
         self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
@@ -329,7 +334,7 @@ class Command(unittest.TestCase):
             body.write_text(BODY.replace('## Decisions', '## Decision'))
             run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
             self.assertEqual(run.returncode, 1)
-            self.assertIn('no `## Decisions` section', run.stdout)
+            self.assertIn('no level-2 heading for its `Decisions` section', run.stdout)
             body.write_text(BODY)
             run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
             self.assertEqual(run.returncode, 0, run.stdout)

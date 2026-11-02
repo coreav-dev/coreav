@@ -106,8 +106,8 @@ def body_failures(body):
     """What is wrong with a pull request's body, each with its fix."""
     headings = scan_body(body)
     normalized = {' '.join(text.split()).casefold() for text, _ in headings}
-    return [f'the body has no `## {section}` section: the template requires one, so write that heading '
-            f'and the section it opens'
+    return [f'the body has no level-2 heading for its `{section}` section: the template requires one, so '
+            f'write `## {section}` and the section it opens'
             for section in REQUIRED_SECTIONS if section.casefold() not in normalized]
 
 
