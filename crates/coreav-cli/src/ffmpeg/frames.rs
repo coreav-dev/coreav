@@ -225,7 +225,8 @@ pub(super) fn write(
     let mut run = Run {
         command,
         encoder,
-        video: &video,
+        pixel_aspect: video.pixel_aspect,
+        quarter_turns: video.quarter_turns,
         times,
         start,
         end,
@@ -312,7 +313,8 @@ pub(super) fn write(
 struct Run<'a> {
     command: &'a Command,
     encoder: VideoEncoder,
-    video: &'a VideoStream,
+    pixel_aspect: Option<(u64, u64)>,
+    quarter_turns: u8,
     times: BTreeMap<i64, Rational>,
     start: Rational,
     end: Option<Rational>,
@@ -367,14 +369,6 @@ impl Run<'_> {
         {
             return Ok(());
         }
-        let input_shape = (frame.width(), frame.height(), frame.format());
-        if self.input_shape.is_some_and(|old| old != input_shape) {
-            return Err(decode_error(coreav_decode::Error::new(
-                coreav_decode::ErrorKind::InvalidData,
-                "video dimensions or pixel format changed",
-            )));
-        }
-        self.input_shape = Some(input_shape);
         if let Some(rate) = self.command.frames.rate {
             let negative = checked(Rational::new(
                 checked(self.start.num.checked_neg())?,
@@ -391,11 +385,19 @@ impl Run<'_> {
                 return Ok(());
             }
         }
+        let input_shape = (frame.width(), frame.height(), frame.format());
+        if self.input_shape.is_some_and(|old| old != input_shape) {
+            return Err(decode_error(coreav_decode::Error::new(
+                coreav_decode::ErrorKind::InvalidData,
+                "video dimensions or pixel format changed",
+            )));
+        }
+        self.input_shape = Some(input_shape);
         let mut picture = frame.to_cpu().map_err(frame_error)?.into_owned();
         let turns = if self.command.noautorotate {
             0
         } else {
-            self.video.quarter_turns
+            self.quarter_turns
         };
         if turns != 0 && self.command.muxer == Muxer::Yuv4mpeg {
             return Err(unsupported(
@@ -581,8 +583,8 @@ impl Run<'_> {
     }
 
     fn aspect(&self) -> Option<(u64, u64)> {
-        self.video.pixel_aspect.map(|(a, b)| {
-            if !self.command.noautorotate && self.video.quarter_turns % 2 != 0 {
+        self.pixel_aspect.map(|(a, b)| {
+            if !self.command.noautorotate && self.quarter_turns % 2 != 0 {
                 (b, a)
             } else {
                 (a, b)
@@ -736,6 +738,49 @@ impl Drop for Continuous {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn geometry_changes_are_checked_only_on_selected_frames() {
+        let command = crate::ffmpeg::args::parse(
+            &"-i input.mp4 -r 1 -f rawvideo -"
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let original_shape = (2, 2, PixelFormat::Rgb24);
+        let mut run = Run {
+            command: &command,
+            encoder: VideoEncoder::Rawvideo,
+            pixel_aspect: None,
+            quarter_turns: 0,
+            times: BTreeMap::from([(0, Rational::from_int(1)), (1, Rational::from_int(2))]),
+            start: Rational::from_int(0),
+            end: None,
+            rate: command.frames.rate,
+            source_duration: Rational::new(1, 5),
+            count: 3,
+            last_time: None,
+            shape: Some(original_shape),
+            input_shape: Some(original_shape),
+            continuous: None,
+        };
+        let mut frame = Frame {
+            pts: Some(0),
+            color: ColorInfo::default(),
+            pixels: Picture::zeroed(2, 1, PixelFormat::Rgb24).unwrap().into(),
+        };
+        assert!(run.take(frame.clone()).is_ok());
+        assert_eq!(run.count, 3);
+        assert_eq!(run.input_shape, Some(original_shape));
+        assert!(run.continuous.is_none());
+        frame.pts = Some(1);
+        assert!(
+            matches!(run.take(frame), Err(Stop::Failed(WriteFailure::Rejected(Failure::VideoDecode(error)))) if error.kind == coreav_decode::ErrorKind::InvalidData)
+        );
+        assert_eq!(run.count, 3);
+    }
 
     #[test]
     fn packet_pacing_bounds_bytes_before_the_packet_count() {
