@@ -38,6 +38,10 @@ pub enum Muxer {
     Mp3,
     /// `segment`, writing MP4 segments.
     Segment,
+    /// `wav` (`.wav`), with signed 16-bit PCM by default.
+    Wav,
+    /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
+    S16le,
 }
 
 /// A stream specifier: of `-map` (input streams) or of a codec option
@@ -68,7 +72,7 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
-    /// Audio encoders supported by the AVI writer.
+    /// Audio encoders supported by the AVI and PCM writers.
     AviAudio(AviAudio),
     /// `copy`.
     Copy,
@@ -79,7 +83,7 @@ pub enum Codec {
     Audio(AudioEncoder),
 }
 
-/// AVI audio output encoders.
+/// AVI and PCM audio output encoders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AviAudio {
     /// The operator's external FFmpeg `libmp3lame` encoder.
@@ -173,6 +177,10 @@ pub struct Command {
     pub codecs: Vec<(Spec, Codec)>,
     /// The encoder options; with no `libx264` codec option there are none.
     pub encoding: Encoding,
+    /// `-ar` after the input, accepted for PCM only at the source rate.
+    pub sample_rate: Option<u32>,
+    /// `-ac` after the input, accepted for PCM only at the source count.
+    pub channels: Option<u16>,
     /// `-noautorotate` before the input.
     pub noautorotate: bool,
     /// `-vn`.
@@ -221,7 +229,9 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 30] = [
+const PER_FILE: [(&str, Arity); 32] = [
+    ("-ar", Arity::Value),
+    ("-ac", Arity::Value),
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -573,6 +583,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         input_until: None,
         output: output.to_owned(),
         muxer: Muxer::Mp4,
+        sample_rate: None,
+        channels: None,
         seek: None,
         duration: None,
         until: None,
@@ -632,6 +644,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut segment_time = None;
     let mut encoders = Vec::new();
     let mut audio_encoders = Vec::new();
+    let mut movflags = false;
     for (option, value) in output_options {
         let text = value.unwrap_or_default();
         if let Some(spec) = codec_option(option) {
@@ -701,6 +714,24 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
+            "-ar" => {
+                command.sample_rate =
+                    Some(text.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        not_native(
+                            option,
+                            Some(text),
+                            "PCM output takes a positive integer source rate",
+                        )
+                    })?)
+            }
+            "-ac" => {
+                command.channels = Some(
+                    text.parse::<u16>()
+                        .ok()
+                        .filter(|n| *n > 0)
+                        .ok_or_else(|| usage("Invalid audio channel count."))?,
+                )
+            }
             "-map" => command.maps.push(parse_map(text)?),
             "-map_metadata" => {
                 let stream = text
@@ -719,7 +750,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     }
                 };
             }
-            "-movflags" if matches!(text, "+faststart" | "faststart") => {}
+            "-movflags" if matches!(text, "+faststart" | "faststart") => movflags = true,
             "-movflags" => {
                 return Err(not_native(
                     option,
@@ -805,14 +836,35 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    if command.muxer != Muxer::Avi
+    if !matches!(command.muxer, Muxer::Avi | Muxer::Wav | Muxer::S16le)
         && command
             .codecs
             .iter()
-            .any(|(_, c)| matches!(c, Codec::AviAudio(_)))
+            .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
     {
         return Err(Refusal::not_native(
-            "PCM encoding to a container other than AVI",
+            "PCM encoding to an unsupported container",
+        ));
+    }
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        if movflags {
+            return Err(not_native(
+                "-movflags",
+                None,
+                "it is not an option of PCM output",
+            ));
+        }
+    } else if command.sample_rate.is_some() {
+        return Err(not_native(
+            "-ar",
+            None,
+            "it is not supported on this output",
+        ));
+    } else if command.channels.is_some() {
+        return Err(not_native(
+            "-ac",
+            None,
+            "it is not supported on this output",
         ));
     }
     if command.muxer == Muxer::Segment {
@@ -904,6 +956,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "m4a" => Some(Muxer::Ipod),
         "mp3" => Some(Muxer::Mp3),
         "avi" => Some(Muxer::Avi),
+        "wav" => Some(Muxer::Wav),
         _ => None,
     }
 }
@@ -914,11 +967,13 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("ipod") => Ok(Muxer::Ipod),
         Some("mp3") => Ok(Muxer::Mp3),
         Some("avi") => Ok(Muxer::Avi),
+        Some("wav") => Ok(Muxer::Wav),
+        Some("s16le") => Ok(Muxer::S16le),
         Some("segment") => Ok(Muxer::Segment),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes mp4, ipod (M4A), mp3 and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),
