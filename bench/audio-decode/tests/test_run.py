@@ -1,0 +1,457 @@
+import importlib.util
+import contextlib
+import io
+import json
+import os
+import pathlib
+import struct
+import sys
+import tempfile
+import types
+import unittest
+import wave
+from unittest.mock import Mock, patch
+
+HERE = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(HERE))
+import capacity
+import oracle
+import receipts
+
+spec = importlib.util.spec_from_file_location('capacity_run', HERE / 'run.py')
+runner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runner)
+
+SECRET = 'credential-marker-not-for-a-receipt'
+
+
+def disagreement():
+    return {'schema': 'opus-oracle/1', 'status': 'ok', 'passed': False,
+            'detail': {'samples': {'ours': 960, 'ref': 960, 'default': 960},
+                       'length_ok': True, 'default_length_ok': True, 'compare_passed': False, 'quality': None},
+            'error': None}
+
+
+def work_result(operation):
+    pcm = {'frames': 960, 'channels': 1, 'sample_rate': 48000, 'sample_width': 2, 'output_bytes': 1964}
+    if operation == 'raw_identity':
+        return {'passed': True, 'packets': 1, 'frames': 960, 'channels': 1}
+    if operation == 'cli_identity':
+        return {'passed': True, **pcm}
+    if operation == 'ffmpeg_cli':
+        return pcm
+    if operation == 'oracle':
+        return disagreement()
+    if operation in ('head_lib', 'base_lib'):
+        return {'samples': 960, 'bytes': 1920}
+    if operation == 'lav_lib':
+        return {'samples': 960, 'bytes': 1920, 'errors': 0}
+    if operation == 'lav_dec':
+        return {'samples': 960, 'packets': 1, 'errors': 0}
+    return {'samples': 960}
+
+
+def write_wave(path, frames=960, channels=1):
+    with wave.open(str(path), 'wb') as output:
+        output.setnchannels(channels)
+        output.setsampwidth(2)
+        output.setframerate(48000)
+        output.writeframes(b'\0' * frames * channels * 2)
+
+
+class RuntimeTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = pathlib.Path(self.directory.name)
+        self.record = {'sha256': 'a' * 64, 'class': 'mp4', 'mode': 'celt', 'file': 'synthetic.mp4',
+                       'channels': 1, 'packets': {'celt/20': 1}}
+        self.binding = {'synthetic': 'bound-by-parent'}
+        self.host = {'cpu': 'Intel Xeon Platinum 8581C', 'smt': False, 'outputs_tmpfs': True,
+                     'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096}
+        self.limits = {'memory_bytes': 1 << 30, 'tmpfs_bytes': 4096, 'per_call_seconds': 5,
+                       'job_seconds': 30, 'concurrency': 1}
+        self.store = runner.Store(self.root / 'checkpoint.json', self.root / 'out.json', self.binding)
+        self.calls = []
+
+    def execute(self, operation, record):
+        self.calls.append(operation)
+        return work_result(operation)
+
+    def run_pass(self, execute=None, rebind=None, **kwargs):
+        return runner.run(self.binding, [self.record], self.host, self.limits, self.store,
+                          execute or self.execute, rebind or (lambda: self.binding), self.root, **kwargs)
+
+    def test_fixed_schedule_has_one_call_per_operation_and_keeps_oracle_disagreement(self):
+        result = self.run_pass()
+        self.assertEqual(self.calls, list(capacity.OPERATIONS))
+        self.assertTrue(result['complete'])
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['inputs'][0]['operations']['oracle']['status'], 'complete')
+        self.assertFalse(result['inputs'][0]['operations']['oracle']['result']['passed'])
+        self.assertEqual(capacity.load(self.root / 'out.json'), result)
+        self.assertFalse(capacity.qualify(result, self.binding))
+        serialized = json.dumps(result)
+        for key in ('"ns"', 'elapsed', 'median', 'speed', 'duration'):
+            self.assertNotIn(key, serialized)
+
+    def test_complete_roster_is_checkpointed_before_first_operation(self):
+        def execute(operation, record):
+            checkpoint = capacity.load(self.root / 'checkpoint.json')
+            slots = checkpoint['inputs'][0]['operations']
+            self.assertEqual(set(slots), set(capacity.OPERATIONS))
+            self.assertEqual(slots[operation]['status'], 'running')
+            return self.execute(operation, record)
+        self.run_pass(execute)
+
+    def test_spot_resume_restarts_only_the_active_pair_and_needs_no_old_outputs(self):
+        def interrupt(operation, record):
+            self.calls.append(operation)
+            if operation == 'cli_identity':
+                raise receipts.CommandFailure(receipts.receipt('capacity.cli.head', 'head_coreav', 'cancelled'))
+            return work_result(operation)
+        first = self.run_pass(interrupt)
+        self.assertEqual(self.calls, ['raw_identity', 'cli_identity'])
+        self.assertEqual(first['inputs'][0]['operations']['cli_identity']['status'], 'interrupted')
+        self.calls.clear()
+        second = self.run_pass(resume=True)
+        self.assertEqual(self.calls, list(capacity.OPERATIONS)[1:])
+        self.assertTrue(second['complete'])
+
+    def test_crashed_running_slot_is_retried_but_completed_failures_are_terminal(self):
+        value = runner.new_receipt(self.binding, [self.record], self.host, False)
+        slots = value['inputs'][0]['operations']
+        slots['raw_identity'].update(status='failed', error=runner.failure('exit').receipt)
+        slots['cli_identity'].update(status='running')
+        self.store.write(value)
+        result = self.run_pass(resume=True)
+        self.assertNotIn('raw_identity', self.calls)
+        self.assertIn('cli_identity', self.calls)
+        for op in ('head_dec', 'base_dec', 'lav_dec'):
+            self.assertNotIn(op, self.calls)
+            self.assertEqual(result['inputs'][0]['operations'][op]['status'], 'pending')
+        self.assertFalse(result['complete'])
+        self.calls.clear()
+        self.run_pass(resume=True)
+        self.assertEqual(self.calls, [])
+
+    def test_binary_failure_does_not_suppress_independent_operations_or_leak_errors(self):
+        def execute(operation, record):
+            self.calls.append(operation)
+            if operation == 'head_lib':
+                raise RuntimeError(SECRET)
+            return work_result(operation)
+        result = self.run_pass(execute)
+        self.assertEqual(self.calls, list(capacity.OPERATIONS))
+        self.assertEqual(result['inputs'][0]['operations']['head_lib']['status'], 'failed')
+        self.assertEqual(result['inputs'][0]['operations']['ffmpeg_cli']['status'], 'complete')
+        self.assertNotIn(SECRET, json.dumps(result))
+        self.calls.clear()
+        self.run_pass(resume=True)
+        self.assertEqual(self.calls, [])
+
+    def test_oracle_failure_is_terminal_but_independent_work_continues(self):
+        def execute(operation, record):
+            if operation == 'oracle':
+                return oracle.failure(receipts.receipt('oracle.compare', 'opus_compare', 'timeout'))
+            return self.execute(operation, record)
+        result = self.run_pass(execute)
+        self.assertEqual(result['inputs'][0]['operations']['oracle']['status'], 'failed')
+        self.assertIn('ffmpeg_cli', self.calls)
+        self.calls.clear()
+        self.run_pass(resume=True)
+        self.assertEqual(self.calls, [])
+
+    def test_bad_counts_and_missing_results_fail_without_suppressing_other_engines(self):
+        for operation, replacement in (('head_dec', {'samples': 1}), ('lav_dec', {'samples': 960, 'packets': 2, 'errors': 0}),
+                                       ('base_lib', {'samples': 960, 'bytes': 1}), ('head_lib', None)):
+            with self.subTest(operation=operation):
+                result = self.run_pass(lambda op, rec: replacement if op == operation else work_result(op))
+                self.assertEqual(result['inputs'][0]['operations'][operation]['status'], 'failed')
+                self.assertEqual(result['inputs'][0]['operations']['ffmpeg_cli']['status'], 'complete')
+
+    def test_binding_drift_before_resume_rejects_all_reuse(self):
+        self.run_pass()
+        self.calls.clear()
+        with self.assertRaises(capacity.Invalid):
+            self.run_pass(rebind=lambda: {'changed': True}, resume=True)
+        self.assertEqual(self.calls, [])
+
+    def test_binding_drift_during_active_operation_is_checkpointed_as_failure(self):
+        calls = 0
+        def rebind():
+            nonlocal calls
+            calls += 1
+            return self.binding if calls <= 2 else {'changed': True}
+        result = self.run_pass(rebind=rebind)
+        self.assertEqual(self.calls, ['raw_identity'])
+        self.assertEqual(result['inputs'][0]['operations']['raw_identity']['status'], 'failed')
+        self.assertFalse(result['passed'])
+
+    def test_resume_rejects_unknown_fields_and_timing_in_complete_results(self):
+        value = self.run_pass()
+        value['inputs'][0]['operations']['head_dec']['result']['ns'] = 123
+        self.store.write(value)
+        self.calls.clear()
+        with self.assertRaises(capacity.Invalid):
+            self.run_pass(resume=True)
+        self.assertEqual(self.calls, [])
+
+    def test_smoke_cannot_qualify_even_if_qualifier_is_accidentally_permissive(self):
+        with patch.object(capacity, 'qualify', return_value=True) as qualify:
+            value = self.run_pass(smoke=True)
+        self.assertEqual(value['purpose'], 'smoke')
+        self.assertFalse(value['passed'])
+        qualify.assert_not_called()
+        self.assertFalse(capacity.qualify(value, self.binding))
+
+    def test_tmpfs_shortage_is_closed_and_stops_work(self):
+        with patch.object(runner.os, 'statvfs', return_value=types.SimpleNamespace(f_bavail=0, f_frsize=4096)):
+            result = self.run_pass()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(result['inputs'][0]['operations']['raw_identity']['status'], 'failed')
+        self.assertFalse(result['complete'])
+
+    def test_store_failure_prevents_starting_the_next_operation(self):
+        original = self.store.write
+        writes = 0
+        def write(value):
+            nonlocal writes
+            writes += 1
+            if writes == 3:
+                raise capacity.Invalid('checkpoint_store')
+            original(value)
+        with patch.object(self.store, 'write', side_effect=write), self.assertRaises(capacity.Invalid):
+            self.run_pass()
+        self.assertEqual(self.calls, ['raw_identity'])
+
+    def test_job_deadline_leaves_unstarted_work_pending(self):
+        value = runner.run(self.binding, [self.record], self.host, self.limits, self.store,
+                           self.execute, lambda: self.binding, self.root, deadline=0)
+        self.assertEqual(self.calls, [])
+        self.assertFalse(value['complete'])
+        self.assertTrue(all(slot['status'] == 'pending' for slot in value['inputs'][0]['operations'].values()))
+
+    def test_six_long_synthetic_cells_qualify_but_smoke_and_short_work_do_not(self):
+        records = []
+        for index, (mode, container) in enumerate((mode, cls) for mode in ('celt', 'hybrid', 'silk')
+                                                 for cls in ('mp4', 'matroska')):
+            records.append(dict(self.record, sha256=f'{index:064x}', mode=mode, **{'class': container},
+                                packets={mode + '/20': capacity.MIN_FULL_FRAMES // 960}))
+        binding = {'schema': 'opus-capacity-binding/1', 'scope': 'spent',
+                   'inputs': [{key: value for key, value in row.items() if key != 'file'} for row in records],
+                   'tools': {role: 'b' * 64 for role in capacity.TOOLS},
+                   'judging': {name: 'c' * 64 for name in capacity.JUDGING_INPUTS},
+                   'runtime': {'python': '3.12', 'numpy': '2.0.0'}, 'operations': list(capacity.OPERATIONS),
+                   'minimum_full_frames': capacity.MIN_FULL_FRAMES, 'limits': self.limits}
+        value = runner.new_receipt(binding, records, self.host, False)
+        for row in value['inputs']:
+            for operation, slot in row['operations'].items():
+                result = work_result(operation)
+                for key in ('frames', 'samples'):
+                    if key in result:
+                        result[key] = capacity.MIN_FULL_FRAMES
+                if 'packets' in result:
+                    result['packets'] = capacity.MIN_FULL_FRAMES // 960
+                if 'bytes' in result:
+                    result['bytes'] = capacity.MIN_FULL_FRAMES * 2
+                if 'output_bytes' in result:
+                    result['output_bytes'] = capacity.MIN_FULL_FRAMES * 2 + 44
+                if operation == 'oracle':
+                    result['detail']['samples'] = dict.fromkeys(('ours', 'ref', 'default'), capacity.MIN_FULL_FRAMES)
+                slot.update(status='complete', result=result)
+        value['complete'] = True
+        self.assertTrue(capacity.qualify(value, binding))
+        value['purpose'] = 'smoke'
+        self.assertFalse(capacity.qualify(value, binding))
+        value['purpose'] = 'full'
+        value['inputs'][-1]['operations']['raw_identity']['result']['frames'] -= 1
+        self.assertFalse(capacity.qualify(value, binding))
+
+
+class BoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = pathlib.Path(self.directory.name)
+        self.limits = {'memory_bytes': 1 << 30, 'tmpfs_bytes': 4096}
+
+    def host(self, filesystem='tmpfs', memory_kib=4 << 20, siblings='0', cpu='8581C'):
+        def text(path, *args, **kwargs):
+            if str(path) == '/proc/self/mountinfo':
+                device = self.root.stat().st_dev
+                return f'1 0 {os.major(device)}:{os.minor(device)} / / rw - {filesystem} none rw\n'
+            if str(path) == '/proc/meminfo':
+                return f'MemAvailable: {memory_kib} kB\n'
+            if str(path) == '/proc/cpuinfo':
+                return f'model name : Intel(R) Xeon(R) Platinum {cpu}\n'
+            return siblings
+        sibling = self.root / 'thread_siblings_list'
+        with patch.object(pathlib.Path, 'read_text', text), patch.object(pathlib.Path, 'glob', return_value=[sibling]), \
+                patch.object(runner.resource, 'setrlimit') as limit, patch.dict(os.environ):
+            host = runner.host_setup(self.root, self.limits)
+            limit.assert_called_once_with(runner.resource.RLIMIT_AS, (1 << 30, 1 << 30))
+            self.assertEqual(os.environ['OMP_NUM_THREADS'], '1')
+            self.assertEqual(os.environ['OPENBLAS_NUM_THREADS'], '1')
+            return host
+
+    def test_host_enforces_inherited_address_space_and_verified_tmpfs(self):
+        host = self.host()
+        self.assertEqual(host, {'cpu': 'Intel Xeon Platinum 8581C', 'smt': False, 'outputs_tmpfs': True,
+                                'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096})
+
+    def test_wrong_filesystem_memory_shortage_and_smt_are_closed_failures(self):
+        for kwargs in ({'filesystem': 'ext4'}, {'memory_kib': 1}, {'siblings': '0,1'}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(capacity.Invalid):
+                self.host(**kwargs)
+
+    def test_wrong_cpu_is_refused_before_any_capacity_work(self):
+        with self.assertRaises(capacity.Invalid) as caught:
+            self.host(cpu='unknown')
+        self.assertEqual(caught.exception.code, 'cpu_mismatch')
+
+    def test_cli_cannot_bind_a_different_tree_than_the_running_judge(self):
+        args = []
+        for name in ('inputs', 'media', 'tools', 'limits', 'repo', 'work', 'checkpoint', 'out'):
+            args += ['--' + name, str(self.root)]
+        output = io.StringIO()
+        with patch.object(capacity, 'load') as load, contextlib.redirect_stdout(output):
+            self.assertEqual(runner.main(args), 1)
+        load.assert_not_called()
+        error = json.loads(output.getvalue())
+        self.assertEqual(error['schema'], 'opus-capacity-error/1')
+        self.assertTrue(receipts.validate(error['error']))
+        self.assertNotIn(str(self.root), output.getvalue())
+
+    def test_optional_r2_store_uses_bound_key_and_uploads_before_returning(self):
+        client = Mock()
+        sdk = types.SimpleNamespace(client=Mock(return_value=client))
+        env = {name: 'synthetic' for name in ('R2_ENDPOINT', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY')}
+        with patch.dict(sys.modules, boto3=sdk), patch.dict(os.environ, env):
+            store = runner.Store(self.root / 'checkpoint', self.root / 'out', {'safe': True}, 'capacity/test')
+        store.write({'safe': True})
+        kwargs = client.put_object.call_args.kwargs
+        self.assertEqual(kwargs['Key'], 'capacity/test/' + capacity.canonical({'safe': True}) + '.json')
+        self.assertEqual(json.loads(kwargs['Body']), {'safe': True})
+        self.assertEqual(capacity.load(store.checkpoint), {'safe': True})
+        client.put_object.side_effect = OSError(SECRET)
+        with self.assertRaises(capacity.Invalid) as caught:
+            store.write({'safe': True})
+        self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_r2_resume_refuses_duplicate_keys_and_never_emits_store_errors(self):
+        store = runner.Store(self.root / 'absent', self.root / 'out', {})
+        store.client, store.bucket, store.key = Mock(), 'synthetic', 'synthetic'
+        store.client.get_object.return_value = {'Body': io.BytesIO(b'{"safe":true,"safe":false}')}
+        with self.assertRaises(capacity.Invalid):
+            store.read()
+        store.client.get_object.side_effect = RuntimeError(SECRET)
+        with self.assertRaises(capacity.Invalid) as caught:
+            store.read()
+        self.assertNotIn(SECRET, str(caught.exception))
+
+    def test_cli_parse_errors_never_echo_supplied_arguments(self):
+        output, errors = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            code = runner.main(['--' + SECRET, SECRET])
+        self.assertEqual(code, 1)
+        self.assertNotIn(SECRET, output.getvalue() + errors.getvalue())
+        value = json.loads(output.getvalue())
+        self.assertTrue(receipts.validate(value['error']))
+        self.assertEqual(errors.getvalue(), '')
+
+
+class OutputTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = pathlib.Path(self.directory.name)
+        self.tools = {role: role for role in capacity.TOOLS}
+        self.record = {'file': 'synthetic.mp4', 'sha256': 'a' * 64, 'channels': 1, 'packets': {'celt/20': 1}}
+        self.executor = runner.Executor(HERE.parents[1], self.root, self.root, self.tools,
+                                        {'per_call_seconds': 5}, float('inf'))
+
+    def test_wave_parser_refuses_missing_empty_and_truncated_outputs(self):
+        path = self.root / 'synthetic.wav'
+        with self.assertRaises(receipts.CommandFailure):
+            runner.wav_info(path, 1)
+        write_wave(path, frames=0)
+        with self.assertRaises(receipts.CommandFailure):
+            runner.wav_info(path, 1)
+        write_wave(path)
+        path.write_bytes(path.read_bytes()[:-2])
+        with self.assertRaises(receipts.CommandFailure):
+            runner.wav_info(path, 1)
+
+    def test_subprocess_counters_drop_ns_warnings_and_arbitrary_fields(self):
+        script = self.root / 'stub'
+        script.write_text('#!' + sys.executable + '\nimport json\nprint(json.dumps(' + repr(
+            {'ok': True, 'ns': SECRET, 'samples': 960, 'bytes': 1920, 'warnings': SECRET, 'error': SECRET}) + '))\n')
+        script.chmod(0o700)
+        self.executor.tools['head_abench'] = script
+        with patch.object(self.executor, 'selected_stream', return_value=3):
+            result = self.executor('head_lib', self.record)
+        self.assertEqual(result, {'samples': 960, 'bytes': 1920})
+        self.assertNotIn(SECRET, json.dumps(result))
+        self.assertEqual(list(self.root.glob('capacity-*')), [])
+
+    def test_all_commands_use_same_checked_stream_and_pairs_clean_their_outputs(self):
+        calls = []
+        def invoke(operation, role, argv, timeout=None, stdout_path=None):
+            calls.append((operation, role, [str(value) for value in argv]))
+            summary = {'ok': True, 'ns': SECRET, 'samples': 960, 'packets': 1, 'bytes': 1920, 'errors': 0}
+            if role == 'ffprobe':
+                summary = {'streams': [{'codec_name': 'aac', 'index': 0, 'channels': 1},
+                                       {'codec_name': 'opus', 'index': 3, 'channels': 1}]}
+            elif operation.startswith('capacity.raw.'):
+                pathlib.Path(argv[-1]).write_bytes(struct.pack('<5Q', 1, 0, 960, 1, 960) + b'\0' * 3840)
+            elif operation.startswith('capacity.cli.') or operation == 'capacity.ffmpeg':
+                write_wave(argv[-1])
+            return types.SimpleNamespace(stdout=json.dumps(summary).encode())
+        with patch.object(self.executor, 'invoke', side_effect=invoke), patch.object(oracle, 'judge', return_value=disagreement()) as judge:
+            for operation in capacity.OPERATIONS:
+                result = self.executor(operation, self.record)
+                self.assertTrue(capacity.result_valid(operation, result), operation)
+                self.assertNotIn(SECRET, json.dumps(result))
+                self.assertEqual(list(self.root.glob('capacity-*')), [])
+        self.assertEqual(sum(role == 'ffprobe' for _, role, _ in calls), 1)
+        self.assertEqual(judge.call_args.args[0]['selected_stream'], {'index': 3, 'channels': 1})
+        for operation, role, argv in calls:
+            if role == 'ffprobe':
+                continue
+            if operation.startswith('capacity.cli.'):
+                self.assertEqual(argv[argv.index('--stream') + 1], '3')
+            elif operation == 'capacity.ffmpeg':
+                self.assertEqual(argv[argv.index('-map') + 1], '0:3')
+                at = argv.index('-i')
+                self.assertEqual(argv[at - len(runner.AUDIO_DECODE_INPUT):at], list(runner.AUDIO_DECODE_INPUT))
+            else:
+                self.assertEqual(argv[3], '3')
+
+    def test_second_half_pair_failure_cleans_both_outputs(self):
+        def invoke(operation, role, argv, timeout=None, stdout_path=None):
+            write_wave(argv[-1])
+            if role == 'head_coreav':
+                raise runner.failure('exit')
+            return types.SimpleNamespace(stdout=b'{}')
+        with patch.object(self.executor, 'selected_stream', return_value=0), patch.object(self.executor, 'invoke', side_effect=invoke):
+            with self.assertRaises(receipts.CommandFailure):
+                self.executor('cli_identity', self.record)
+        self.assertEqual(list(self.root.glob('capacity-*')), [])
+
+    def test_failed_probe_is_not_silently_retried_for_each_operation(self):
+        with patch.object(self.executor, 'invoke', side_effect=runner.failure('exit')) as invoke:
+            for operation in capacity.OPERATIONS:
+                with self.assertRaises(receipts.CommandFailure):
+                    self.executor(operation, self.record)
+        self.assertEqual(invoke.call_count, 1)
+
+    def test_expired_job_never_launches_a_child(self):
+        self.executor.deadline = 0
+        with patch.object(receipts, 'invoke') as invoke, self.assertRaises(receipts.CommandFailure):
+            self.executor.invoke('capacity.lib.head', 'head_abench', ['unused'])
+        invoke.assert_not_called()
+
+
+if __name__ == '__main__':
+    unittest.main()
