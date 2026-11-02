@@ -223,23 +223,14 @@ and a line after it
 """
 
 
-PARAGRAPH = [line for line in BODY.split('\n') if line.startswith('A fragmented file names')][0]
-
-
-def with_paragraph(text):
-    """`BODY` with its Background paragraph, one line, replaced by `text`."""
-    return BODY.replace(PARAGRAPH, text)
-
-
 class Body(unittest.TestCase):
-    def assert_passes(self, text):
-        """`text`, which may span lines, as the paragraph the body holds."""
-        self.assertEqual(check.body_failures(with_paragraph(text)), [])
-
     def test_a_body_of_the_template_passes(self):
         self.assertEqual(check.body_failures(BODY), [])
 
-    def test_every_exempt_construct_passes(self):
+    def test_every_other_block_keeps_the_sections_it_holds(self):
+        # The constructs a body carries around its sections are the parser's
+        # blocks, not text this check reads: none of them hides a heading or
+        # invents one.
         self.assertEqual(check.body_failures(EXEMPT), [])
 
     def test_the_template_and_the_required_sections_agree(self):
@@ -248,7 +239,7 @@ class Body(unittest.TestCase):
         # an optional section.
         template = (HERE.parent / '.github' / 'pull_request_template.md').read_text(encoding='utf-8')
         lines = template.split('\n')
-        headings = check.scan_body(template)[0]
+        headings = check.scan_body(template)
         required, optional = [], []
         for index, (text, line) in enumerate(headings):
             ends = headings[index + 1][1] - 1 if index + 1 < len(headings) else len(lines)
@@ -256,67 +247,6 @@ class Body(unittest.TestCase):
             (optional if 'delete this section' in comment else required).append(text)
         self.assertEqual(required, list(check.REQUIRED_SECTIONS))
         self.assertEqual(optional, list(check.OPTIONAL_SECTIONS))
-
-    def test_a_fence_inside_a_nested_list_item_passes(self):
-        # Four document-relative spaces are none relative to the child item.
-        self.assert_passes('- Parent\n  - Child\n    ```text\n    code line one\n    code line two\n    ```')
-
-    def test_a_footer_of_inline_html_is_not_prose(self):
-        # A tool's footer: two lines of inline HTML, which no one joins.
-        self.assert_passes('<a href="x">Read more</a>\n<sup>Need help? Tag <code>@bot</code>.</sup>')
-
-    def test_prose_that_opens_with_a_tag_is_still_a_line_break(self):
-        failures = check.body_failures(with_paragraph('<b>First</b> line\nsecond line'))
-        self.assertEqual(len(failures), 1, failures)
-
-    def test_inline_html_does_not_hide_the_heading_after_it(self):
-        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<a href="x">Read more</a>\n## Evidence')), [])
-
-    def test_a_heading_inside_a_quote_is_not_a_section(self):
-        failures = check.body_failures(BODY.replace('## Evidence', '> ## Evidence'))
-        self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
-
-    def test_a_table_without_pipes_at_its_edges_passes(self):
-        self.assert_passes('Name | Result\n--- | ---\nunit | pass\nfixture | pass')
-
-    def test_a_comment_ends_at_its_terminator_not_at_a_blank_line(self):
-        self.assert_passes('<!--\nA comment\nwith a blank line inside\n\nand a line after it\n-->')
-
-    def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
-        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
-
-    def test_a_table_keeps_its_rows_whatever_their_edges(self):
-        self.assert_passes('| Name | Result |\n| --- | --- |\n| unit | pass |\nfixture | pass\nsmoke | pass')
-
-    def test_a_fence_closes_only_at_its_own_marker(self):
-        # GFM: the same character, at least as long, and only spaces after it.
-        for lines in (['```text', '```not a closing fence', 'code line one', 'code line two', '```'],
-                      ['````text', '```', 'code line one', 'code line two', '````'],
-                      ['~~~text', '```', 'code line one', 'code line two', '~~~']):
-            with self.subTest(opening=lines[0]):
-                self.assert_passes('\n'.join(lines))
-
-    def test_a_paragraph_before_a_thematic_break_is_still_a_line_break(self):
-        # `***` is a rule, not a setext underline: the two lines stay two lines.
-        failures = check.body_failures(with_paragraph('First line\nsecond line\n***'))
-        self.assertEqual(len(failures), 1, failures)
-        self.assertIn('lines 8 and 9', failures[0])
-
-    def test_a_setext_heading_is_not_a_line_break(self):
-        self.assert_passes('Setext heading\n===')
-
-    def test_a_pre_block_ends_at_its_closing_tag(self):
-        self.assert_passes('<pre>\ncode line one\ncode line two\n</pre>')
-
-    def test_a_hash_attached_to_a_heading_is_not_a_closing_sequence(self):
-        # `## Evidence#` is a heading named `Evidence#`, not the Evidence section.
-        failures = check.body_failures(BODY.replace('## Evidence', '## Evidence#'))
-        self.assertEqual(len(failures), 1, failures)
-        self.assertIn('no `## Evidence` section', failures[0])
-
-    def test_a_lazy_continuation_of_a_quote_passes(self):
-        self.assert_passes('> A quoted paragraph\nwith a lazy continuation\nand another quoted line.')
 
     def test_a_missing_section(self):
         for section in check.REQUIRED_SECTIONS:
@@ -332,27 +262,32 @@ class Body(unittest.TestCase):
     def test_a_section_name_in_another_case_is_the_same_section(self):
         self.assertEqual(check.body_failures(BODY.replace('## TL;DR', '## tl;dr')), [])
 
-    def test_a_paragraph_over_two_lines(self):
-        # coreav-dev/coreav#174 as merged: two lines GitHub shows as one paragraph.
-        failures = check.body_failures(with_paragraph('Before: the slow probe.\nAfter: the fast probe.'))
+    def test_a_hash_attached_to_a_heading_is_not_a_closing_sequence(self):
+        # `## Evidence#` is a heading named `Evidence#`, not the Evidence section.
+        failures = check.body_failures(BODY.replace('## Evidence', '## Evidence#'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('lines 8 and 9', failures[0])
-        self.assertIn('join them into one line', failures[0])
+        self.assertIn('no `## Evidence` section', failures[0])
 
-    def test_a_list_item_over_two_lines(self):
-        failures = check.body_failures(BODY.replace('- Not covered: non-fragmented files, and the thumbnail path.',
-                                                   '- Not covered: non-fragmented files, and the thumbnail path,\n  which the next change reads.'))
+    def test_a_heading_inside_a_quote_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '> ## Evidence'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('lines 17 and 18', failures[0])
+        self.assertIn('no `## Evidence` section', failures[0])
 
-    def test_an_indented_line_continuing_a_paragraph_is_still_a_line_break(self):
-        # Indented code cannot start inside a paragraph, so this is a wrap.
-        failures = check.body_failures(with_paragraph('A fragmented file names\n    and an indented continuation'))
+    def test_a_heading_inside_a_fence_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '```text\n## Evidence\n```'))
         self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no `## Evidence` section', failures[0])
 
-    def test_one_failure_per_broken_block(self):
-        failures = check.body_failures(with_paragraph('a\nb\nc\nd'))
+    def test_a_heading_inside_a_comment_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '<!--\n## Evidence\n-->'))
         self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no `## Evidence` section', failures[0])
+
+    def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
+
+    def test_inline_html_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<a href="x">Read more</a>\n## Evidence')), [])
 
 
 class Command(unittest.TestCase):

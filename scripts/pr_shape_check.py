@@ -14,11 +14,9 @@ Fails on:
   longer than 72 characters;
 - a commit list that is not in the form below: none of it is checked;
 - a body without a level-2 heading for one of the template's required
-  sections, or with a paragraph or list item broken across two lines
-  (a hard wrap). Both come from markdown-it-py's tokens, so the block
-  structure is GitHub's own: a code fence, a table, an HTML block and a
-  setext heading keep their line breaks, and only a paragraph token that
-  spans more than one source line is reported.
+  sections. The headings come from markdown-it-py's tokens, so a `## ` line
+  inside a code fence, a table, an HTML block or a block quote is not one
+  of them: those are the parser's blocks, not the body's sections.
 
     pr_shape_check.py --event EVENT.json [--commits FILE]
     pr_shape_check.py --title TITLE [--body-file BODY.md] [--commits FILE]
@@ -106,31 +104,18 @@ def commit_failures(log):
 
 def body_failures(body):
     """What is wrong with a pull request's body, each with its fix."""
-    headings, wraps = scan_body(body)
+    headings = scan_body(body)
     normalized = {' '.join(text.split()).casefold() for text, _ in headings}
-    out = []
-    for section in REQUIRED_SECTIONS:
-        if section.casefold() not in normalized:
-            out.append(f'the body has no `## {section}` section: the template requires one, so write that heading '
-                       f'and the section it opens')
-    for start, end in wraps:
-        out.append(f'the body breaks a paragraph or list item across lines {start} and {end}: join them into one '
-                   'line, and use a blank line where a new paragraph starts')
-    return out
-
-
-def html_paragraph(lines, start, end):
-    """Whether a paragraph's every line opens with inline HTML: a pasted
-    element, such as a tool's footer, rather than prose to be joined."""
-    return all(lines[number].lstrip().startswith('<') for number in range(start, end))
+    return [f'the body has no `## {section}` section: the template requires one, so write that heading '
+            f'and the section it opens'
+            for section in REQUIRED_SECTIONS if section.casefold() not in normalized]
 
 
 def scan_body(body):
-    """(heading text, line) of each level-2 heading outside a quote, and the
-    first two lines of each paragraph or list item a line break runs
-    through."""
-    lines = body.split('\n')
-    headings, wraps = [], []
+    """(heading text, line) of each level-2 heading the body states, a
+    heading inside a block quote excluded: a quote's heading is quoted text,
+    not one of the sections."""
+    headings = []
     quote = 0       # how deep the tokens under way are inside a block quote
     heading = None  # the heading_open whose text has not been read yet
     for token in PARSER.parse(body):
@@ -143,17 +128,10 @@ def scan_body(body):
         elif token.type == 'heading_close':
             heading = None
         elif token.type == 'inline' and heading is not None:
-            # A quote's heading is quoted text, not one of the sections.
             if not quote and heading.tag == 'h2' and heading.map:
                 headings.append((token.content, heading.map[0] + 1))
             heading = None
-        elif token.type == 'paragraph_open' and not quote and token.map:
-            # A quote's paragraph is quoted text, whose lazy continuation
-            # lines have no marker of their own.
-            start, end = token.map
-            if end - start > 1 and not html_paragraph(lines, start, end):
-                wraps.append((start + 1, start + 2))
-    return headings, wraps
+    return headings
 
 
 def main():
