@@ -82,6 +82,8 @@ Raw output keeps the decoder's pixel format. `-pix_fmt` must name that format; i
 
 [The frame-output design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/frame-output.md) records the correctness bars and limits.
 
+Decoder calls use the default 60-second timeout, without a whole-command deadline. Total decoded samples remain limited to 4 GiB. A failed binary-stdout write or final flush fails the command; a closed pipe exits with status 141.
+
 ## Examples
 
 ```sh

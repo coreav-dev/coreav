@@ -9,7 +9,7 @@
 )]
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 struct Fixture {
     dir: PathBuf,
@@ -201,6 +201,69 @@ fn image_names_limits_seeking_and_update_are_codec_independent() {
             f.decode(&format!("seek.{extension}"), "rgb24")
         );
     }
+}
+
+#[test]
+fn raw_stdout_keeps_the_closed_pipe_exit_status() {
+    let Some(f) = fixture("closed-pipe") else {
+        return;
+    };
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(["--strict-safe", "ffmpeg", "-i"])
+        .arg(&f.input)
+        .args(["-frames:v", "1", "-f", "rawvideo", "-"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(141));
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn raw_stdout_reports_a_final_flush_failure() {
+    let Some(f) = fixture("flush-failure") else {
+        return;
+    };
+    checked(
+        Command::new(&f.oracle)
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=black:size=8x8:rate=1:duration=1",
+                "-c:v",
+                "libx264",
+                "-threads",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&f.input),
+    );
+    let reference = f.decode("input.mp4", "yuv420p");
+    assert_eq!(reference.len(), 96);
+    assert!(!reference.contains(&b'\n'));
+    let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(["--strict-safe", "ffmpeg", "-i"])
+        .arg(&f.input)
+        .args(["-frames:v", "1", "-f", "rawvideo", "-"])
+        .stdout(
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open("/dev/full")
+                .unwrap(),
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    assert!(!output.stderr.is_empty());
 }
 
 #[test]

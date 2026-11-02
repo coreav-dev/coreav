@@ -164,7 +164,6 @@ pub(super) fn write(
     report: &Report,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let deadline = Instant::now() + Duration::from_secs(60);
     let mut source = BufferedSource::new(
         FileSource::open(Path::new(&command.input)).map_err(WriteFailure::from)?,
     );
@@ -215,7 +214,6 @@ pub(super) fn write(
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     let backends = crate::thumbnail::backends(this.as_deref(), threads, false, strict_safe);
-    options.decode_limits.timeout = deadline.saturating_duration_since(Instant::now());
     let opened = coreav_decode::open(
         &video.stream,
         &options.policy,
@@ -249,12 +247,6 @@ pub(super) fn write(
         if run.complete() {
             break;
         }
-        if Instant::now() >= deadline {
-            return Err(decode_error(coreav_decode::Error::new(
-                coreav_decode::ErrorKind::Timeout,
-                "frame output timed out",
-            )));
-        }
         while pending.full() && !run.complete() {
             match decoder.receive_frame().map_err(decode_error)? {
                 Some(frame) => {
@@ -267,12 +259,6 @@ pub(super) fn write(
                     progress = Instant::now();
                 }
                 None => std::thread::sleep(Duration::from_millis(1)),
-            }
-            if Instant::now() >= deadline {
-                return Err(decode_error(coreav_decode::Error::new(
-                    coreav_decode::ErrorKind::Timeout,
-                    "frame output timed out",
-                )));
             }
         }
         if run.complete() {
@@ -638,10 +624,15 @@ fn pixel_name(format: PixelFormat) -> String {
 }
 
 struct Continuous {
-    file: Option<BufWriter<File>>,
+    writer: Option<Sink>,
     temporary: PathBuf,
     path: PathBuf,
     force: bool,
+}
+
+enum Sink {
+    File(BufWriter<File>),
+    Stdout(BufWriter<Box<dyn Write>>),
 }
 
 struct PacketQueue {
@@ -681,7 +672,7 @@ impl Continuous {
         let path = PathBuf::from(&command.output);
         if command.output == "-" {
             return Ok(Self {
-                file: None,
+                writer: Some(Sink::Stdout(output::media_stdout())),
                 temporary: PathBuf::new(),
                 path,
                 force: false,
@@ -695,7 +686,7 @@ impl Continuous {
             .open(&temporary)
             .map_err(|e| WriteFailure::output(&e))?;
         Ok(Self {
-            file: Some(BufWriter::new(file)),
+            writer: Some(Sink::File(BufWriter::new(file))),
             temporary,
             path,
             force,
@@ -703,19 +694,31 @@ impl Continuous {
     }
 
     fn write(&mut self, bytes: &[u8]) -> Result<(), Stop> {
-        match &mut self.file {
-            Some(file) => file.write_all(bytes),
-            None => std::io::stdout().lock().write_all(bytes),
+        match &mut self.writer {
+            Some(Sink::File(file)) => file
+                .write_all(bytes)
+                .map_err(|e| Stop::Failed(WriteFailure::output(&e))),
+            Some(Sink::Stdout(out)) => out
+                .write_all(bytes)
+                .map_err(|e| Stop::Failed(WriteFailure::Rejected(Failure::io(e)))),
+            None => Err(Stop::Failed(WriteFailure::Rejected(Failure::Invalid(
+                "output already closed",
+            )))),
         }
-        .map_err(|e| Stop::Failed(WriteFailure::output(&e)))
     }
 
     fn finish(mut self) -> Result<(), Stop> {
-        if let Some(mut file) = self.file.take() {
-            file.flush().map_err(|e| WriteFailure::output(&e))?;
-            drop(file);
-            output::place(&self.temporary, &self.path, self.force)
-                .map_err(|e| WriteFailure::output(&e))?;
+        match self.writer.take() {
+            Some(Sink::File(mut file)) => {
+                file.flush().map_err(|e| WriteFailure::output(&e))?;
+                drop(file);
+                output::place(&self.temporary, &self.path, self.force)
+                    .map_err(|e| WriteFailure::output(&e))?;
+            }
+            Some(Sink::Stdout(mut out)) => out
+                .flush()
+                .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?,
+            None => {}
         }
         Ok(())
     }
@@ -723,7 +726,7 @@ impl Continuous {
 
 impl Drop for Continuous {
     fn drop(&mut self) {
-        self.file.take();
+        self.writer.take();
         if !self.temporary.as_os_str().is_empty() {
             let _ = std::fs::remove_file(&self.temporary);
         }

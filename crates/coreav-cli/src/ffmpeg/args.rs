@@ -268,7 +268,7 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 32] = [
+const PER_FILE: [(&str, Arity); 36] = [
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
     ("-frames:v", Arity::Value),
@@ -771,10 +771,37 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                         .ok()
                         .zip(d.parse::<u64>().ok())
                         .and_then(|(n, d)| Rational::new(n, d)),
-                    None => crate::clip::parse_time(text),
-                }
-                .filter(|r| r.num > 0)
-                .ok_or_else(|| usage("Invalid output frame rate"))?;
+                    None if !text.contains(':') => crate::clip::parse_time(text),
+                    None => None,
+                };
+                let rate = match rate {
+                    Some(rate) if rate.num > 0 => rate,
+                    Some(_) => return Err(usage("Invalid output frame rate")),
+                    None if matches!(
+                        text,
+                        "ntsc" | "ntsc-film" | "pal" | "film" | "qntsc" | "qpal" | "sntsc" | "spal"
+                    ) || text.parse::<f64>().is_ok_and(|r| r.is_finite() && r > 0.0)
+                        || text.split_once(['/', ':']).is_some_and(|(n, d)| {
+                            n.parse::<f64>()
+                                .ok()
+                                .zip(d.parse::<f64>().ok())
+                                .is_some_and(|(n, d)| {
+                                    d != 0.0 && (n / d).is_finite() && n / d > 0.0
+                                })
+                        })
+                        || (text.parse::<f64>().is_err()
+                            && !text.ends_with("/0")
+                            && text.contains(['(', '+', '*', '^'])
+                            && text.bytes().any(|b| b.is_ascii_digit())) =>
+                    {
+                        return Err(not_native(
+                            option,
+                            Some(text),
+                            "a frame-rate name or expression outside the native integer-ratio and decimal syntax",
+                        ));
+                    }
+                    None => return Err(usage("Invalid output frame rate")),
+                };
                 command.frames.rate = Some(rate);
             }
             "-ss" => command.seek = Some(time(option, text)?),
@@ -1106,6 +1133,44 @@ mod tests {
             "-i in.mp4 -f image2 -",
         ] {
             assert!(parse(&args(text)).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn unsupported_rate_syntax_can_fall_back_but_invalid_rates_fail_usage() {
+        for rate in [
+            "ntsc",
+            "ntsc-film",
+            "pal",
+            "film",
+            "qntsc",
+            "qpal",
+            "sntsc",
+            "spal",
+            "1e1",
+            "+1",
+            "2.5/1",
+            "25/1.0",
+            "1e1/2",
+            "1:2",
+            "1+1",
+        ] {
+            assert!(
+                matches!(
+                    parse(&args(&format!("-i in.mp4 -r {rate} out.png"))),
+                    Err(Refusal::NotNative(_))
+                ),
+                "{rate}"
+            );
+        }
+        for rate in ["bogus", "0", "+0", "-1", "1/0", "nan", "inf"] {
+            assert!(
+                matches!(
+                    parse(&args(&format!("-i in.mp4 -r {rate} out.png"))),
+                    Err(Refusal::Usage(_))
+                ),
+                "{rate}"
+            );
         }
     }
 
