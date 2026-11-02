@@ -170,9 +170,20 @@ jobs:
           persist-credentials: false
       # No build cache: the binaries are built from the lock file alone, as the
       # release builds them (.github/workflows/release.yml).
+      - name: Read the distribution compiler pin
+        id: rust
+        run: |
+          if [ -f scripts/rust-dist.env ]; then
+            . scripts/rust-dist.env
+          else
+            RUST_DIST_TOOLCHAIN=stable
+          fi
+          echo "version=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.rust.outputs.version }}
+          components: rust-src
           targets: ${{ env.TARGET }}
       - name: Install zig (the musl C compiler of the Linux builds)
         run: |
