@@ -72,7 +72,9 @@ class EncoderBackends(unittest.TestCase):
             self.assertIn('Hosted CI does not exercise the software encode path.', document)
 
     def test_hosted_software_exemption_is_passed_only_to_software_capture_and_verification(self):
-        workflow = workflow_check.workflow_yaml((ROOT / '.github/workflows/videotoolbox.yml').read_text())
+        workflow = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', 'puts JSON.generate(Psych.load_file(ARGV[0]))',
+             str(ROOT / '.github/workflows/videotoolbox.yml')], text=True, timeout=10))
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             bindir = root / 'bin'
