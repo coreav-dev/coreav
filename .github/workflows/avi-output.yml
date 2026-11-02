@@ -39,10 +39,11 @@ jobs:
       - name: Install the pinned oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Build commands and run packet tests
+        id: build
         run: |
           cargo test --locked -p coreav-avi
           cargo test --locked -p coreav-transcode mp3::
-          cargo build --locked -p coreav-cli -p coreav-oracle --features coreav-cli/native-h264,coreav-cli/aac
+          cargo build --locked -p coreav-cli --features native-h264,aac
           cargo test --locked -p coreav-cli --features native-h264,aac --test ffmpeg \
             --no-run --message-format=json > "$RUNNER_TEMP/avi-build.jsonl"
       - name: Compare generated AVI output
@@ -51,6 +52,8 @@ jobs:
             --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
             --work "$RUNNER_TEMP/avi"
       - name: Generate the registered V2 fixtures
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        id: fixtures
         run: |
           set -euo pipefail
           export PATH="$RUNNER_TEMP/oracle:$PATH"
@@ -60,6 +63,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends nasm
           scripts/install-x264.sh "$RUNNER_TEMP/x264"
       - name: Evaluate registered AVI command rows
+        if: ${{ !cancelled() && steps.fixtures.outcome == 'success' }}
         run: |
           python3 scripts/avi_v2_check.py --coreav target/debug/coreav \
             --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \

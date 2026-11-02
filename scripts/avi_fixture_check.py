@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,11 +23,41 @@ def run(argv, env):
     return result.stdout
 
 
-def video_equal(candidate, reference, ffmpeg, ffprobe, env, scratch):
+def riff_layout(path):
+    data = path.read_bytes()
+    result = []
+    def walk(start, end, parent):
+        at = start
+        while at + 8 <= end:
+            kind = data[at:at + 4].decode('ascii')
+            size, = struct.unpack_from('<I', data, at + 4)
+            stop = at + 8 + size
+            assert stop <= end, (kind, size)
+            name = parent + '/' + kind
+            if kind == 'LIST':
+                name += ':' + data[at + 8:at + 12].decode('ascii')
+                walk(at + 12, stop, name)
+            elif kind in ('avih', 'strh', 'idx1'):
+                result.append({'name': name, 'offset': at, 'size': size,
+                               'words': list(struct.unpack_from('<' + 'I' * (size // 4), data, at + 8))})
+            elif kind == 'strf':
+                result.append({'name': name, 'offset': at, 'size': size, 'hex': data[at + 8:stop].hex()})
+            elif '/LIST:movi/' in name:
+                result.append({'name': name, 'offset': at, 'size': size})
+            at = stop + size % 2
+    assert data[:4] == b'RIFF' and data[8:12] == b'AVI '
+    walk(12, len(data), 'AVI')
+    return result
+
+
+def video_equal(candidate, reference, ffmpeg, ffprobe, env, scratch, record):
     documents = [decoded_output.probe(p, ffprobe, env) for p in (candidate, reference)]
     if any(d is None for d in documents):
         raise AssertionError('AVI video probe failed')
     left, right = documents
+    record.update(candidate_probe=left, reference_probe=right,
+                  candidate_layout=riff_layout(candidate), reference_layout=riff_layout(reference))
+    print(json.dumps(record), flush=True)
     assert len(left['streams']) == len(right['streams']) == 1
     assert decoded_output.metadata(left['streams'][0], right['streams'][0]), (left, right)
     timelines = []
@@ -82,8 +113,10 @@ def main():
         run([opts.coreav, 'ffmpeg', *args, candidate], env)
         scratch = directory / 'decode'
         scratch.mkdir()
-        video_equal(candidate, reference, opts.ffmpeg, opts.ffprobe, env, scratch)
-        records.append({'codec': 'h264-copy', 'verdict': 'exact pixels, fields and timing'})
+        record = {'codec': 'h264-copy', 'verdict': 'pending'}
+        records.append(record)
+        video_equal(candidate, reference, opts.ffmpeg, opts.ffprobe, env, scratch, record)
+        record['verdict'] = 'exact pixels, fields and timing'
         existing = directory / 'existing.avi'
         existing.write_bytes(b'preserved')
         for args in (['-i', source, '-c:v', 'huffyuv'], ['-i', source], ['-i', source, '-c', 'copy', '-ss', '0.1']):

@@ -7,10 +7,12 @@ The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
+  .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
 Builds with a decoder backend also encode the video with -c:v libx264.
+AVI audio encodes with -c:a pcm_s16le, pcm_u8 or libmp3lame (external).
 Prints nothing on success.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
