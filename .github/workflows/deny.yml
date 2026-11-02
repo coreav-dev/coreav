@@ -46,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          persist-credentials: false
           # Full history and every branch, so the DCO step can list the
           # PR's commits and skip those already on main.
           fetch-depth: 0
