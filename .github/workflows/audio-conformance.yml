@@ -23,7 +23,7 @@ on:
       swr_wave:
         description: Synthetic capture wave
         type: choice
-        options: [initial, confirmation]
+        options: [initial, confirmation, raw-confirmation]
         default: initial
 
 permissions:
