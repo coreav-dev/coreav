@@ -171,7 +171,7 @@ Phase 2's capability smoke must submit frames, drain, and independently decode t
 - [Apple's hardware-enable control](https://developer.apple.com/documentation/videotoolbox/kvtvideoencoderspecification_enablehardwareacceleratedvideoencoder), [hardware requirement](https://developer.apple.com/documentation/videotoolbox/kvtvideoencoderspecification_requirehardwareacceleratedvideoencoder), and [selected implementation query](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_usinghardwareacceleratedvideoencoder).
 - [GitHub-hosted runner descriptions](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
-Research used documentation, licences and release notes. Search results exposed build-file code and a short encoder-code snippet. Those source pages were not opened, the snippets were not used, and no encoder implementation source was read. The throwaway experiment compiles upstream releases without examining their source.
+Research used documentation, licences and release notes. Search results exposed build-file code and a short encoder-code snippet. Those source pages were not opened, the snippets were not used, and no encoder implementation source file was opened. The throwaway experiment compiles upstream releases without examining their source.
 
 ## Static-link size experiment
 
@@ -180,3 +180,36 @@ This experiment measures linked code, not encoding speed or the size of a finish
 Build the current `coreav-cli` with `release-default`, `--profile dist`, `x86_64-unknown-linux-musl`, fat LTO, one codegen unit, and stripped symbols. Build a pinned SVT-AV1 release as a static musl library with release optimization and no applications or tests. Relink the same CLI with that archive and explicit linker roots for the documented encoder lifecycle, configuration, input, output, and version functions. Do not add an encoder implementation or invoke those functions. Keep section garbage collection enabled.
 
 Record the base and linked executable sizes in bytes, their difference, the static archive size, ELF dependency checks, the SVT-AV1 archive hash, compiler versions, build flags, and retained API symbols before stripping. Also record an all-sections-retained link and a matching base with section garbage collection disabled, so that retained CoreAV sections do not masquerade as an SVT increment. A symbol root must survive into executable code or the experiment fails. Neither result includes the future Rust wrapper, worker protocol, or notices. The final backend must repeat the packaged-size measurement.
+
+### Measured linked-code footprint
+
+The completed throwaway build on 2026-11-02 adds **6,940,608 bytes, or 6.62 MiB**, to the stripped static musl CLI when the encoder API is retained. This is 45.49% over its matched base. It is a linked-code estimate, not the size of a finished encoder feature, its runtime memory, or a compressed release archive. No encoding or quality measurement was performed.
+
+| Link mode | Base executable, bytes | With SVT-AV1, bytes | Increment, bytes |
+|---|---:|---:|---:|
+| Encoder API roots, section garbage collection enabled | 15,257,312 | 22,197,920 | 6,940,608 |
+| Whole archive retained, section garbage collection disabled on both sides | 15,290,112 | 22,399,840 | 7,109,728 |
+
+The static `libSvtAv1Enc.a` is 10,628,794 bytes. Its object-file and LTO representation is not an executable-size estimate. The second pair is a conservative comparison for this build configuration, not an upper bound on future wrapper or worker code.
+
+The source snapshot is `ab6646b0022e093e042e11e73488e7fe79eb7c40`. Only documentation distinguishes that snapshot from its product-code base. The host was Debian 13 x86-64 on a GCP `c4-standard-8`. The CLI used Rust 1.99.1, compiler commit `58cf8f9c35b355199727627d07ae34a4e2846d67`, `release-default`, fat LTO and one codegen unit from the `dist` profile. The C compiler was `musl-gcc` backed by GCC 14.2.0. The existing codec build script supplied static dav1d, libvpx and libopus. This is release-style linkage, not a packaged release build. In particular, the C compiler for ring was musl-gcc rather than the packaging script's zig, and notice generation and path remapping were not run. Both sides use the same choices.
+
+SVT-AV1 was the upstream `v4.2.0` tarball, SHA-256 `c7b13c4a84bd3751aa35fcc72be13e6875467e7c2216879251a486e5b1e4e740`. CMake used `Release`, `BUILD_SHARED_LIBS=OFF`, `BUILD_APPS=OFF`, `BUILD_TESTING=OFF`, `NATIVE=OFF`, `SVT_AV1_LTO=ON`, PGO off, and C release flags `-O3 -DNDEBUG -ffunction-sections -fdata-sections`. The source was compiled without being inspected and removed after installation.
+
+The base command was:
+
+```sh
+cargo rustc --locked -p coreav-cli --bin coreav --profile dist \
+  --target x86_64-unknown-linux-musl --features release-default
+```
+
+The rooted link adds rustc's `-L native=PREFIX/lib -l static=SvtAv1Enc` and one `-C link-arg=-Wl,-u,NAME` per API root. The roots are `svt_av1_enc_init_handle`, `svt_av1_enc_set_parameter`, `svt_av1_enc_init`, `svt_av1_enc_send_picture`, `svt_av1_enc_get_packet`, `svt_av1_enc_release_out_buffer`, `svt_av1_enc_deinit`, `svt_av1_enc_deinit_handle`, and `svt_av1_get_version`. All nine appear as executable text symbols before stripping, including two localized by LTO. No wrapper calls them. The whole-archive control instead uses `-l static:+whole-archive=SvtAv1Enc` and `-C link-arg=-Wl,--no-gc-sections`, with that last flag also on its base.
+
+All four files were stripped with `strip --strip-all`, have no ELF `NEEDED` entry or `INTERP` segment, and successfully print `coreav 0.0.1` with `--version`. Executable SHA-256 hashes are:
+
+| Executable | SHA-256 |
+|---|---|
+| Base, garbage collection enabled | `60223e6c8ca2f5f09a35df7ada3e0aec8d16675520e57f74583d8d0fe293c714` |
+| API-rooted SVT-AV1 | `168e4d63ab16a0906e38df56cdfefd7e2211af89ded56eca0cbfb872b5f2c458` |
+| Base, garbage collection disabled | `d5faaeb929a6f01bd1f2dc70491b49fc1d61cf1f3d1b7b5c8dfb9dc2a500f595` |
+| Whole-archive SVT-AV1 | `623bc85c851c41daa6bc5026e136e1300885153bd78da85d25428155bbc19fbc` |
