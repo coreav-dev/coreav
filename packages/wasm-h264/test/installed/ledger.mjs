@@ -4,18 +4,20 @@ const hash = value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const natural = value => Number.isSafeInteger(value) && value >= 0;
 const positive = value => natural(value) && value > 0;
 const reasons = new WeakMap();
-const fail = reason => {
+const fail = (reason, details = {}) => {
   const error = new Error(`thumbnail capture invalid: ${reason}`);
-  reasons.set(error, reason);
+  reasons.set(error, { reason: reason.replaceAll(" ", "_"), ...details });
   throw error;
 };
+const outcomes = new Set(["success", "runtime", "limit", "io", "decode", "unsupported_feature", "codec_not_allowed", "invalid_structure", "out_of_range", "invalid_argument"]);
+const failureTypes = new Set(["none", "wasm_trap", "type_error", "range_error", "coreav", "source_not_found", "request_limit", "abort", "dom_exception", "error", "other"]);
 const stages = new Set(["install", "installed-files", "fixture-server", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
 
 export function failureRecord(stage, item, error) {
   return {
     stage: stages.has(stage) ? stage : "unexpected",
     item: natural(item) ? item : 0,
-    reason: reasons.get(error)?.replaceAll(" ", "_") ?? "unexpected",
+    ...(reasons.get(error) ?? { reason: "unexpected" }),
   };
 }
 
@@ -29,7 +31,11 @@ export function validateParity(actual, native, expected) {
   if (!actual || !native || actual.complete !== true || native.complete !== true || actual.runtimeExit !== false || native.runtimeExit !== false) fail("incomplete output or runtime exit");
   if (!hash(actual.inputSha256) || actual.inputSha256 !== native.inputSha256 || actual.inputSha256 !== expected.inputSha256) fail("input identity");
   if (!hash(actual.optionsSha256) || actual.optionsSha256 !== native.optionsSha256 || actual.optionsSha256 !== optionsSha256(expected.options)) fail("options identity");
-  if (actual.outcome !== native.outcome) fail("outcome parity");
+  if (actual.outcome !== native.outcome) fail("outcome parity", {
+    actual: outcomes.has(actual.outcome) ? actual.outcome : "other",
+    native: outcomes.has(native.outcome) ? native.outcome : "other",
+    ...(actual.failureType !== undefined && { type: failureTypes.has(actual.failureType) ? actual.failureType : "other", cause: failureTypes.has(actual.causeType) ? actual.causeType : "other" }),
+  });
   if (expected.expectation !== actual.outcome) fail("unexpected outcome");
   if (actual.outcome === "success") {
     if (actual.summary?.schema !== "coreav.thumbnail/1" || native.summary?.schema !== "coreav.thumbnail/1" || !actual.summary.packet || !actual.summary.time || !actual.summary.output || !actual.summary.decoder) fail("summary missing");

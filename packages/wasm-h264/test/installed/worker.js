@@ -31,6 +31,27 @@ async function drain(output) {
   return output.summary;
 }
 
+function failureType(error) {
+  if (error == null) return "none";
+  try {
+    if (error instanceof WebAssembly.RuntimeError) return "wasm_trap";
+    if (error instanceof TypeError) return "type_error";
+    if (error instanceof RangeError) return "range_error";
+    if (typeof api.CoreAVError === "function" && error instanceof api.CoreAVError) return "coreav";
+    if (typeof api.SourceNotFoundError === "function" && error instanceof api.SourceNotFoundError) return "source_not_found";
+    if (typeof api.RequestLimitError === "function" && error instanceof api.RequestLimitError) return "request_limit";
+    if (error instanceof DOMException) return error.name === "AbortError" ? "abort" : "dom_exception";
+    if (error instanceof Error) return "error";
+  } catch {}
+  return "other";
+}
+
+function failureTypes(error) {
+  let cause;
+  try { cause = error?.cause; } catch {}
+  return { failureType: failureType(error), causeType: failureType(cause) };
+}
+
 async function admission(env, args) {
   let notify, release;
   const entered = new Promise(resolve => { notify = resolve; });
@@ -108,13 +129,13 @@ export default {
       const finished = output.summary.then(summary => {
         results.set(args.requestId, { outcome: "success", complete: true, summary, operationId: diagnostics().host.requestId });
       }, error => {
-        results.set(args.requestId, { outcome: error.document?.kind ?? "runtime", complete: false, error: error.document ?? null });
+        results.set(args.requestId, { outcome: error.document?.kind ?? "runtime", complete: false, error: error.document ?? null, ...failureTypes(error) });
       });
       ctx.waitUntil(tracker.defer(finished));
       if (diagnostics().lease.acquired !== before.lease.acquired + 1) throw new Error("operation identity unavailable");
       return tracker.track(new Response(output.body, { headers: { "content-type": output.contentType } }), complete);
     } catch (error) {
-      results.set(args.requestId, { outcome: error.document?.kind ?? "runtime", complete: true, error: error.document ?? null, operationId: diagnostics().host.requestId });
+      results.set(args.requestId, { outcome: error.document?.kind ?? "runtime", complete: true, error: error.document ?? null, operationId: diagnostics().host.requestId, ...failureTypes(error) });
       return tracker.track(Response.json({ refused: true }, { status: error.document ? 422 : 500 }), complete);
     }
   },

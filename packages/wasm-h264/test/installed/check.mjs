@@ -311,7 +311,7 @@ try {
 } catch (error) {
   failure = failureRecord(stage, item, error);
   writeFileSync(join(output, "capture-error.txt"), String(error.stack ?? error));
-  console.error(`thumbnail preflight: failed stage=${failure.stage} item=${failure.item} reason=${failure.reason}; inspect private verdict and captures`);
+  console.error(`thumbnail preflight: failed stage=${failure.stage} item=${failure.item} reason=${failure.reason} actual=${failure.actual ?? "not_applicable"} native=${failure.native ?? "not_applicable"} type=${failure.type ?? "not_applicable"} cause=${failure.cause ?? "not_applicable"}; inspect private verdict and captures`);
   process.exitCode = 1;
 } finally {
   const verdict = ledger.finish();

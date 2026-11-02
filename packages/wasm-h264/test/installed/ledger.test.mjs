@@ -26,6 +26,19 @@ test("failure labels expose only owned reasons, closed phases and numeric ordina
   assert.deepEqual(failureRecord("private-marker", "private-marker", untrusted), { stage: "unexpected", item: 0, reason: "unexpected" });
 });
 
+test("outcome parity failures retain only closed native and WASM outcomes", () => {
+  const options = {}, expected = { options, inputSha256: hash, expectation: "success" };
+  const base = { complete: true, runtimeExit: false, inputSha256: hash, optionsSha256: optionsSha256(options) };
+  for (const [outcome, label] of [["io", "io"], ["runtime", "runtime"], ["private-marker", "other"]]) {
+    let failed;
+    try { validateParity({ ...base, outcome }, { ...base, outcome: "success" }, expected); } catch (error) { failed = error; }
+    assert.deepEqual(failureRecord("parity", 2, failed), { stage: "parity", item: 2, reason: "outcome_parity", actual: label, native: "success" });
+  }
+  let failed;
+  try { validateParity({ ...base, outcome: "io", failureType: "private-marker", causeType: "private-marker" }, { ...base, outcome: "success" }, expected); } catch (error) { failed = error; }
+  assert.deepEqual(failureRecord("parity", 2, failed), { stage: "parity", item: 2, reason: "outcome_parity", actual: "io", native: "success", type: "other", cause: "other" });
+});
+
 test("the registered eleven gates have the complete deterministic request roster", () => {
   assert.equal(bars.size, 11); assert.equal(fixtureRoster().length, 52);
   assert.equal(groups.get("thumbnail-warm").length, 312);
