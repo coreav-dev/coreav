@@ -1,0 +1,85 @@
+name: svt-av1-native
+
+# workflow-check: not required
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/encoders/svt-av1/**
+      - scripts/tests/test_svt_native_workflow.py
+      - .github/workflows/svt-av1-native.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - scripts/encoders/svt-av1/**
+      - scripts/tests/test_svt_native_workflow.py
+      - .github/workflows/svt-av1-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  svt-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+          - target: aarch64-apple-darwin
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y cmake make musl-tools g++ binutils
+          if [[ "$TARGET" == x86_64-* ]]; then
+            sudo apt-get install -y nasm
+          fi
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install cmake
+          if [[ "$TARGET" == x86_64-* ]]; then
+            brew install nasm
+          fi
+      - name: Build and verify the native static library
+        id: native-build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/svt-native-logs"
+          python3 -m unittest discover -s scripts/encoders/svt-av1 -p 'test_*.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/tests.log"
+          python3 scripts/encoders/svt-av1/build.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" --jobs 2 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/build.log"
+          "$RUNNER_TEMP/svt-av1/bin/svt-av1-version" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/version.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: svt-native-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/svt-av1/manifest.json
+            ${{ runner.temp }}/svt-native-logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
