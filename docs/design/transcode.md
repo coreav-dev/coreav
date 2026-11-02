@@ -794,23 +794,6 @@ runners vary in CPU model between jobs, so no claim is made from it.
 
 ## AAC audio
 
-### Audio-only output bars
-
-Audio-only encoding uses the same decoded samples and checked encoder
-output as a video transcode. It does not create or decode a video stream.
-The output writer consumes one encoded audio track, so the encode is
-independent of its output container.
-
-Before comparing audio-only outputs with the pinned FFmpeg, correctness
-requires the output codec, profile, sample rate, channel count, start time
-and presentation duration to agree for the same supported command.
-The output must decode without errors. Source trimming is applied once,
-and output encoder delay and padding are removed once. AAC sources run
-only with the `aac` feature; unsupported sources, channels, settings and
-missing encoder programs fail before output publication. No size or speed
-claim is made, and lossy output does not have a bit-identity bar.
-
-
 `coreav transcode --audio aac [--audio-bitrate KBPS]` encodes one audio
 stream to AAC-LC with FFmpeg's built-in `aac` encoder, run as an
 operator-provided program under policy record 0042, point 5, as
@@ -937,6 +920,51 @@ each at three rates (the encoder's default, 64 and 192 kbit/s), 18 inputs.
 
 Speed is reported for information only, from the same shared runner (the
 wall time of each arm's whole command, median of three), as for Opus.
+
+## Audio-only output
+
+Audio-only encoding uses the same decoded samples and checked encoder
+output as a video transcode. It does not create or decode a video stream.
+The public `audio::encode` returns an opaque `EncodedAudio`; its
+`write_mp4` method writes one audio track with the encoder's sample entry,
+packets, roll groups and presentation edits. Encoding does not select a
+container. This writer supports MP4 and M4A; other containers need their
+own writer adapter.
+
+`coreav ffmpeg -i INPUT -vn -c:a aac OUTPUT.mp4` and
+`coreav ffmpeg -i INPUT -map a -c:a aac OUTPUT.m4a` use this path.
+`-map 0:a:0` selects one audio stream explicitly. Opus uses
+`-c:a libopus` and an MP4 output in a `libopus` build. `-b:a` and
+encoder defaults are the same as for video transcodes. The standalone
+`coreav transcode` command still requires video.
+
+Commands selecting other streams beside the encoded audio, multiple audio
+streams, video encoder settings, trim options, chapters or source metadata
+that this writer does not preserve are refused before encoding. M4A accepts
+AAC only. `-map_metadata -1` on M4A discards source tags. Encoder-generated
+container tags, file sizes and compressed bit rates need not be identical
+to FFmpeg's, since CoreAV writes the container and decodes the source.
+Missing encoder programs and unsupported sources leave no published output.
+
+### Audio-only output bars
+
+Fixed before the first audio-only comparison: correctness requires the
+output codec, profile, sample rate, channel count, start time and
+presentation duration to agree with the pinned FFmpeg for the same
+supported command. The output must decode without errors. Source trimming
+is applied once, and output encoder delay and padding are removed once.
+AAC sources run only with the `aac` feature. No size or speed claim is
+made, and lossy output does not have a bit-identity bar.
+
+`ffmpeg_audio_only_encodes_match_the_oracle_timeline` runs FLAC and AAC in
+MP4, and MP3 and Opus in Matroska, through AAC in MP4 and M4A and Opus in
+MP4. It also checks channel layouts, time bases, the output stream count
+and clean audio decoding. Its source video is MPEG-4 Part 2, which need
+not have a decoder in the build. The AAC-disabled build refuses AAC
+sources rather than silently decoding them through FFmpeg. The companion
+refusal test checks that unsupported options, a missing encoder and
+strict-safe AAC encoding publish nothing. Both tests run in CI's whole
+transcode fixture target with and without `aac`.
 
 ## Through `coreav ffmpeg`
 

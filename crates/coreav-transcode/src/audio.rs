@@ -81,7 +81,7 @@ pub struct OpusAudio {
 }
 
 /// The encoder of one audio stream, and its settings.
-pub(crate) enum Encode<'a> {
+pub enum Encode<'a> {
     /// libopus, in the encoder process [`OpusAudio::program`] runs.
     Opus(&'a OpusAudio),
     /// FFmpeg's `aac` encoder, by this `ffmpeg` program.
@@ -142,7 +142,7 @@ pub struct AudioSummary {
 }
 
 /// The encoded audio, ready for the MP4 writer.
-pub(crate) struct EncodedAudio {
+pub struct EncodedAudio {
     pub(crate) summary: AudioSummary,
     /// The `Opus` or `mp4a` sample entry.
     pub(crate) entry: Vec<u8>,
@@ -159,11 +159,113 @@ pub(crate) struct EncodedAudio {
     pub(crate) spool: Spool,
 }
 
+impl EncodedAudio {
+    /// Writes this checked stream alone as MP4 or M4A, without opening
+    /// the source again. `file_type` selects the brands. The edit list
+    /// presents exactly the submitted samples after any leading silence.
+    /// A partial output must be discarded if writing fails.
+    pub fn write_mp4<W: Write + ?Sized>(
+        &self,
+        file_type: coreav_isobmff_write::mux::FileType,
+        limits: &coreav_isobmff::Limits,
+        deadline: Instant,
+        mut out: &mut W,
+    ) -> Result<(), Error> {
+        use coreav_isobmff_write::mux::{
+            Edit, MovieHeader, Muxer, Sample, TrackHeader, TrackMedia,
+        };
+        let writer = |error: coreav_isobmff::Error| Error::Remux(error.into());
+        let mut muxer = Muxer::new(
+            file_type,
+            MovieHeader {
+                timescale: self.timescale,
+                creation_time: 0,
+                boxes: Vec::new(),
+            },
+            limits,
+        )
+        .map_err(writer)?;
+        let mut edits = Vec::new();
+        if self.start > 0 {
+            edits.push(Edit {
+                duration: self.start,
+                media_time: -1,
+                rate: Edit::UNIT_RATE,
+            });
+        }
+        edits.push(Edit {
+            duration: self.summary.samples,
+            media_time: i64::from(self.summary.pre_skip),
+            rate: Edit::UNIT_RATE,
+        });
+        let count = u32::try_from(self.samples.len())
+            .map_err(|_| encoder_error("more than 2^32 - 1 encoded audio packets".into()))?;
+        let track = muxer
+            .add_track(TrackHeader {
+                media: TrackMedia::Audio { volume: 0x100 },
+                timescale: self.timescale,
+                language: *b"und",
+                creation_time: 0,
+                media_creation_time: 0,
+                flags: 3,
+                layer: 0,
+                alternate_group: 1,
+                edits,
+                duration: None,
+                media_duration: None,
+                sample_entry: self.entry.clone(),
+                sample_table_boxes: coreav_isobmff_write::roll_boxes(count, self.roll),
+                boxes: Vec::new(),
+            })
+            .map_err(writer)?;
+        for sample in &self.samples {
+            if Instant::now() >= deadline {
+                return Err(Error::Decode(coreav_decode::Error::new(
+                    ErrorKind::Timeout,
+                    "the audio encode took longer than its timeout",
+                )));
+            }
+            muxer
+                .push_sample(
+                    track,
+                    Sample {
+                        size: sample.size,
+                        duration: sample.duration,
+                        sync: true,
+                        composition_offset: 0,
+                    },
+                )
+                .map_err(writer)?;
+        }
+        muxer.write_head(&mut out).map_err(Error::Remux)?;
+        let mut data =
+            BufferedSource::new(FileSource::from_file(self.spool.handle()?).map_err(spool_read)?);
+        let mut offset = 0u64;
+        let mut bytes = Vec::new();
+        for sample in &self.samples {
+            if Instant::now() >= deadline {
+                return Err(Error::Decode(coreav_decode::Error::new(
+                    ErrorKind::Timeout,
+                    "the audio encode took longer than its timeout",
+                )));
+            }
+            bytes.resize(usize::try_from(sample.size).unwrap_or(usize::MAX), 0);
+            data.read_exact_at(offset, &mut bytes).map_err(spool_read)?;
+            out.write_all(&bytes)
+                .map_err(|e| Error::Remux(coreav_isobmff_write::ExtractError::Write(e.kind())))?;
+            offset = offset
+                .checked_add(u64::from(sample.size))
+                .ok_or_else(|| encoder_error("encoded audio size overflow".into()))?;
+        }
+        Ok(())
+    }
+}
+
 /// Decodes the stream `encode` names from `source` and encodes it. The
 /// encoder runs through `launcher` (or directly when it is `None`; for
 /// tests) and is killed at `deadline`; its packets go to a spool file next
 /// to `output`, at most `max_spool_bytes` of them.
-pub(crate) fn encode<S: Source>(
+pub fn encode<S: Source>(
     source: S,
     encode: &Encode<'_>,
     limits: &coreav_audio::Limits,

@@ -11,6 +11,7 @@
 //! [`NotNative`] refusal, found before any output is written.
 
 pub mod args;
+mod audio;
 #[cfg(feature = "transcode")]
 pub mod encode;
 
@@ -108,6 +109,13 @@ pub enum Job {
     /// or the one audio stream encoded with libopus or aac, as MP4
     /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
     Transcode(TranscodeJob),
+    /// One selected audio stream encoded without a video stream.
+    AudioEncode {
+        /// The source audio stream.
+        stream: usize,
+        /// The output audio encoder.
+        encoder: args::AudioEncoder,
+    },
     /// The files of a concat list, joined in order.
     Join {
         /// The files.
@@ -204,6 +212,10 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     #[cfg(feature = "transcode")]
     if let (Job::Transcode(transcode), Some(encoder)) = (&job, encoder) {
         return encode::write(&command, transcode, encoder, strict_safe);
+    }
+    #[cfg(feature = "transcode")]
+    if let Job::AudioEncode { stream, encoder } = job {
+        return audio::write(&command, stream, encoder, strict_safe);
     }
     write(&command, &job)
 }
@@ -352,15 +364,8 @@ pub fn plan(
         }
         return transcode_job(command, report, &output, &encoded, &audio_encoded, trims);
     }
-    if let Some((_, encoder)) = audio_encoded.first() {
-        return Err(Refusal::not_native(match encoder {
-            args::AudioEncoder::Libopus => {
-                "encoding audio with libopus without encoding the video with libx264"
-            }
-            args::AudioEncoder::Aac => {
-                "encoding audio with aac without encoding the video with libx264"
-            }
-        }));
+    if !audio_encoded.is_empty() {
+        return audio::plan(command, report, &output, &audio_encoded, trims);
     }
     if (args::Encoding {
         threads: None,
@@ -1052,7 +1057,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if let Job::Transcode(_) = job {
+    if matches!(job, Job::Transcode(_) | Job::AudioEncode { .. }) {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
@@ -1137,7 +1142,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Split(_) | Job::Transcode(_) => Ok(serde_json::Value::Null),
+        Job::Split(_) | Job::Transcode(_) | Job::AudioEncode { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),

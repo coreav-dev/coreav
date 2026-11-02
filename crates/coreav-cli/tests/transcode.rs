@@ -1753,6 +1753,127 @@ fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
     )
 }
 
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_encodes_match_the_oracle_timeline() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only");
+    for (source_name, codec) in [
+        ("flac.mp4", "flac"),
+        ("mp3.mkv", "libmp3lame"),
+        ("opus.mkv", "libopus"),
+        ("aac.mp4", "aac"),
+    ] {
+        let source = made(&tools, &dir, source_name, &["-c:a", codec, "-c:v", "mpeg4"]);
+        for (name, encoder, selection, rate) in [
+            ("aac.mp4", "aac", &["-vn"][..], Some("96k")),
+            ("aac.m4a", "aac", &["-map", "a"][..], None),
+            ("opus.mp4", "libopus", &["-map", "0:a:0"][..], Some("96k")),
+        ] {
+            if encoder == "libopus" && !cfg!(feature = "libopus") {
+                continue;
+            }
+            let output = dir.join(format!("{source_name}-{name}"));
+            let oracle = dir.join(format!("oracle-{source_name}-{name}"));
+            let mut args = vec!["-i", source.to_str().unwrap()];
+            args.extend_from_slice(selection);
+            args.extend(["-c:a", encoder]);
+            args.extend(rate.iter().flat_map(|rate| ["-b:a", *rate]));
+            let mut command = Command::new(bin());
+            command
+                .arg("ffmpeg")
+                .args(&args)
+                .arg(&output)
+                .env("COREAV_FFMPEG", &tools.ffmpeg)
+                .env("COREAV_FALLBACK", NO_FALLBACK);
+            let run =
+                bounded::output(&mut command, None, std::time::Duration::from_secs(90)).unwrap();
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            if codec == "aac" && !cfg!(feature = "aac") {
+                assert_eq!(run.status.code(), Some(4), "{source_name} {name}: {stderr}");
+                assert!(!output.exists());
+                continue;
+            }
+            assert!(run.status.success(), "{source_name} {name}: {stderr}");
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error"])
+                .args(&args)
+                .arg(&oracle)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let entries = [
+                "-show_entries",
+                "stream=codec_name,profile,sample_rate,channels,channel_layout,time_base,start_pts,duration_ts:format=nb_streams,start_time,duration",
+            ];
+            let actual = probe_json(&tools, &entries, &output);
+            let expected = probe_json(&tools, &entries, &oracle);
+            assert_eq!(actual, expected, "{source_name} {name}");
+            let (pcm, errors) = decoded_audio(&tools, &output);
+            assert!(errors.is_empty(), "{source_name} {name}: {errors}");
+            assert!(!pcm.is_empty(), "{source_name} {name}");
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_refusals_do_not_publish_output() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-refusals");
+    let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
+    for (name, options, program, strict) in [
+        ("video.mp4", vec![], tools.ffmpeg.as_path(), false),
+        (
+            "trim.mp4",
+            vec!["-vn", "-t", "1"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+        (
+            "filter.mp4",
+            vec!["-vn", "-vf", "scale=80:60"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+        (
+            "missing.mp4",
+            vec!["-vn"],
+            Path::new("/nonexistent/ffmpeg"),
+            false,
+        ),
+        ("safe.mp4", vec!["-vn"], tools.ffmpeg.as_path(), true),
+    ] {
+        let output = dir.join(name);
+        let mut command = Command::new(bin());
+        command
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(options)
+            .args(["-c:a", "aac"])
+            .arg(&output)
+            .env("COREAV_FFMPEG", program)
+            .env("COREAV_FALLBACK", NO_FALLBACK);
+        if strict {
+            command.env("COREAV_STRICT_SAFE", "1");
+        }
+        let run = command.output().unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(4),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!output.exists(), "{name}");
+    }
+    nothing_left(&dir);
+}
+
 #[cfg(feature = "libopus")]
 #[test]
 fn opus_audio_takes_the_place_of_the_source_audio() {

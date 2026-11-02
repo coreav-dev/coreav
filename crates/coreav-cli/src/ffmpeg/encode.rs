@@ -46,7 +46,7 @@ fn kbps(text: &str) -> Option<u32> {
 
 /// `ffmpeg`'s number syntax ([`kbps`]) in bits a second, the fraction of a
 /// bit dropped.
-fn bits(text: &str) -> Option<u128> {
+pub(super) fn bits(text: &str) -> Option<u128> {
     let (number, scale) = match text.char_indices().last()? {
         (i, 'k' | 'K') => (text.get(..i)?, 1_000u128),
         (i, 'M') => (text.get(..i)?, 1_000_000),
@@ -466,7 +466,11 @@ pub fn write(
         let file = FileSource::open(input).map_err(WriteFailure::from)?;
         transcode::make(&request, Some(&this), BufferedSource::new(file), &path, out)
     })
-    .map_err(|failure| match failure {
+    .map_err(|failure| failed(failure, job.audio_encoder))
+}
+
+pub(super) fn failed(failure: WriteFailure, audio_encoder: Option<AudioEncoder>) -> Stop {
+    match failure {
         WriteFailure::Rejected(Failure::StrictSafe(message)) => {
             Stop::Refused(refused_strict(message))
         }
@@ -485,7 +489,7 @@ pub fn write(
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default();
             Stop::Refused(Refusal::NotNative(NotNative {
-                reason: Reason::Property(match job.audio_encoder {
+                reason: Reason::Property(match audio_encoder {
                     Some(AudioEncoder::Aac) => "an audio stream the AAC encode does not take",
                     _ => "an audio stream the Opus encode does not take",
                 }),
@@ -504,7 +508,7 @@ pub fn write(
             }))
         }
         other => other.into(),
-    })
+    }
 }
 
 #[cfg(test)]

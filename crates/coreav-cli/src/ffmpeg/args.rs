@@ -345,6 +345,12 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
     if rest.ends_with('?') {
         return Err(Refusal::not_native("an optional -map (ending in ?)"));
     }
+    if rest == "a" {
+        return Ok(Map {
+            remove,
+            spec: Spec::Kind(Kind2::Audio, None),
+        });
+    }
     let (file, spec) = rest
         .split_once(':')
         .map_or((rest, None), |(f, s)| (f, Some(s)));
