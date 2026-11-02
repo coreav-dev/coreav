@@ -410,6 +410,83 @@ fn malformed_commands_are_usage_errors_and_a_missing_input_is_named() {
 }
 
 #[test]
+fn frame_plans_validate_common_options() {
+    let dir = scratch("ffmpeg-frame-plan-options");
+    let input = movie(&dir);
+    let size = std::fs::metadata(&input).unwrap().len();
+    let mut file = coreav_isobmff::FileSource::open(&input).unwrap();
+    let Ok(probed) = coreav_cli::ffprobe::probe(&mut file, size, &input, None) else {
+        panic!("{input} is rejected");
+    };
+    let report = probed.report;
+    for output in ["out.png", "out.bmp", "out.yuv", "out.y4m"] {
+        let plan = |options: &str| {
+            let args: Vec<String> = ["-i", &input]
+                .into_iter()
+                .chain(options.split_whitespace())
+                .chain([output])
+                .map(str::to_owned)
+                .collect();
+            let command = coreav_cli::ffmpeg::args::parse(&args)?;
+            coreav_cli::ffmpeg::plan(&command, &report, None)
+        };
+        for options in ["", "-threads 1", "-pix_fmt yuv420p"] {
+            assert!(
+                matches!(plan(options), Ok(Job::Frames { .. })),
+                "{output}: {options}"
+            );
+        }
+        for options in [
+            "-map_metadata -1",
+            "-map_metadata 0:s:0",
+            "-map_metadata 0:s:999",
+            "-crf 23",
+            "-b:v 100k",
+            "-preset fast",
+            "-vf scale=32:24",
+            "-s 32x24",
+            "-c:a aac -b:a 64k",
+            "-c:a libmp3lame -q:a 2",
+            "-c:a libmp3lame -qscale:a 2",
+            "-ar 48000",
+            "-ac 2",
+            "-fps_mode passthrough",
+        ] {
+            let result = plan(options);
+            assert!(
+                matches!(result, Err(Refusal::NotNative(_))),
+                "{output}: {options}: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn frame_metadata_refusals_create_no_output() {
+    let dir = scratch("ffmpeg-frame-metadata");
+    let input = movie(&dir);
+    for name in ["out.png", "out.bmp", "out.yuv", "out.y4m"] {
+        let output = dir.join(name);
+        for mapping in ["-1", "0:s:0", "0:s:999"] {
+            let r = ffmpeg(&[
+                "-i",
+                &input,
+                "-map_metadata",
+                mapping,
+                "-frames:v",
+                "1",
+                output.to_str().unwrap(),
+            ]);
+            assert_eq!(r.code, 4, "{name} {mapping}: {}", r.stderr);
+            assert!(r.stderr.contains("-map_metadata"), "{}", r.stderr);
+            assert!(r.stdout.is_empty());
+            assert!(!output.exists());
+        }
+    }
+    assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1);
+}
+
+#[test]
 fn a_concat_list_is_joined() {
     let dir = scratch("ffmpeg-concat");
     let input = movie(&dir);

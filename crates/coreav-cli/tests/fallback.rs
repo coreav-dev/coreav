@@ -106,6 +106,40 @@ fn coreav(args: &[&str], path: &[&Path], env: &[(&str, &str)]) -> Run {
     run(Path::new(bin()), args, path, env, "")
 }
 
+#[test]
+fn frame_metadata_refusals_reach_fallback_before_output() {
+    let dir = tmp("frame-metadata");
+    let input = movie(&dir);
+    for name in ["out.png", "out.bmp", "out.yuv", "out.y4m"] {
+        let output = dir.join(name);
+        for mapping in ["-1", "0:s:0", "0:s:999"] {
+            let r = coreav(
+                &[
+                    "ffmpeg",
+                    "-i",
+                    &input,
+                    "-map_metadata",
+                    mapping,
+                    "-frames:v",
+                    "1",
+                    output.to_str().unwrap(),
+                ],
+                &[stand_in()],
+                &[],
+            );
+            assert_eq!(r.code, 7, "{name} {mapping}: {}", r.stderr);
+            assert!(r.stderr.contains("-map_metadata"), "{}", r.stderr);
+            assert!(
+                r.stdout.contains(&format!("-map_metadata {mapping}")),
+                "{}",
+                r.stdout
+            );
+            assert!(!output.exists());
+        }
+    }
+    assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1);
+}
+
 fn log_lines(path: &Path) -> Vec<Value> {
     std::fs::read_to_string(path)
         .unwrap()
