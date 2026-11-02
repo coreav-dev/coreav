@@ -32,6 +32,8 @@ that ran and whether it was the fallback. The Rust API is
 `coreav_thumbnail::thumbnail(source, &options)`, which returns the image
 bytes and the same facts.
 
+Internally, preparation owns the container plan and selected packet range through decoding, including the native retry. Consuming preparation returns only the selected identity, display geometry, decoded frame and decoder results. The packet tables and configurations are released before rendering, and the decoded frame is released before image encoding. This separates allocation lifetimes without establishing the aggregate allocation bounds required by the [WASM thumbnail plan](wasm-thumbnail-memory-bars.md).
+
 **Which stream.** By default the video stream FFmpeg chooses by default:
 the one with the highest resolution, the first of those on a tie
 (documented `ffmpeg` behaviour); `--stream N` names another.

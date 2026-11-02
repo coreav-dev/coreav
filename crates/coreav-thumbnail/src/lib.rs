@@ -613,7 +613,7 @@ pub fn video_stream<S: Source>(
 /// stands only when the packets left out could not change it; otherwise,
 /// and on any error, every packet is listed and chosen from again, so the
 /// result is always the full listing's (`docs/design/seek.md`).
-fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<(Plan, Choice), Error> {
+fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<Prepared, Error> {
     let mut plan = plan(source, options, None)?;
     let at = plan
         .start
@@ -636,7 +636,80 @@ fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<(Pla
         plan = self::plan(source, &every, None)?;
         choice = choose(source, &plan, at, options.exact);
     }
-    Ok((plan, choice?))
+    Ok(Prepared {
+        plan,
+        choice: choice?,
+    })
+}
+
+struct Prepared {
+    plan: Plan,
+    choice: Choice,
+}
+
+#[derive(Clone, Copy)]
+struct DisplayGeometry {
+    quarter_turns: u8,
+    pixel_aspect: Option<(u64, u64)>,
+}
+
+struct DecodedThumbnail {
+    frame: Frame,
+    display: DisplayGeometry,
+    stream_index: usize,
+    codec: Codec,
+    time: Rational,
+    keyframe: bool,
+    decode_start: Rational,
+    packet: (u64, u64),
+    warnings: Vec<String>,
+    packets_decoded: u32,
+    decoder: DecoderInfo,
+    skipped: Vec<Skipped>,
+}
+
+impl Prepared {
+    fn decode<S: Source>(
+        self,
+        source: &mut S,
+        options: &ThumbnailOptions,
+        backends: &[&dyn Backend],
+    ) -> Result<DecodedThumbnail, Error> {
+        let Self { plan, choice } = self;
+        let (frame, decoder, skipped, packets_decoded) =
+            decode(source, &plan, choice, options, backends)?;
+        let time = plan
+            .samples
+            .get(choice.target)
+            .and_then(|s| s.time)
+            .and_then(|t| t.checked_add(negate(plan.start)?))
+            .unwrap_or(options.at);
+        Ok(DecodedThumbnail {
+            frame,
+            display: DisplayGeometry {
+                quarter_turns: plan.quarter_turns,
+                pixel_aspect: plan.pixel_aspect,
+            },
+            stream_index: plan.stream_index,
+            codec: plan.stream.codec,
+            time,
+            keyframe: choice.start == choice.target,
+            decode_start: plan
+                .samples
+                .get(choice.start)
+                .and_then(|s| s.time)
+                .and_then(|t| t.checked_add(negate(plan.start)?))
+                .unwrap_or(time),
+            packet: plan
+                .packets
+                .get(choice.target)
+                .map_or((0, 0), |p| (p.offset, p.size)),
+            warnings: plan.warnings,
+            packets_decoded,
+            decoder,
+            skipped,
+        })
+    }
 }
 
 /// What [`thumbnail`] would decode, without decoding: for the check that a
@@ -663,7 +736,7 @@ pub fn oracle_choice<S: Source>(
     mut source: S,
     options: &ThumbnailOptions,
 ) -> Result<OracleChoice, Error> {
-    let (plan, choice) = planned(&mut source, options)?;
+    let Prepared { plan, choice } = planned(&mut source, options)?;
     let offset = |i: usize| plan.packets.get(i).map(|p| p.offset).unwrap_or(u64::MAX);
     Ok(OracleChoice {
         start: offset(choice.start),
@@ -739,43 +812,29 @@ pub fn thumbnail<S: Source>(
     options: &ThumbnailOptions,
     backends: &[&dyn Backend],
 ) -> Result<Thumbnail, Error> {
-    let (plan, choice) = planned(&mut source, options)?;
-    let (frame, decoder, skipped, decoded) = decode(&mut source, &plan, choice, options, backends)?;
-    let rgb = render(&frame, &plan, options)?;
+    let decoded = planned(&mut source, options)?.decode(&mut source, options, backends)?;
+    let rgb = render(&decoded.frame, decoded.display, options)?;
+    drop(decoded.frame);
     let encoder = BuiltinEncoder {
         format: options.format,
         quality: options.quality,
     };
     let image = encoder.encode(&rgb)?;
-    let time = plan
-        .samples
-        .get(choice.target)
-        .and_then(|s| s.time)
-        .and_then(|t| t.checked_add(negate(plan.start)?))
-        .unwrap_or(options.at);
     Ok(Thumbnail {
         image,
         format: options.format,
         width: rgb.width(),
         height: rgb.height(),
-        stream_index: plan.stream_index,
-        codec: plan.stream.codec,
-        time,
-        keyframe: choice.start == choice.target,
-        decode_start: plan
-            .samples
-            .get(choice.start)
-            .and_then(|s| s.time)
-            .and_then(|t| t.checked_add(negate(plan.start)?))
-            .unwrap_or(time),
-        packet: plan
-            .packets
-            .get(choice.target)
-            .map_or((0, 0), |p| (p.offset, p.size)),
-        warnings: plan.warnings.clone(),
-        packets_decoded: decoded,
-        decoder,
-        skipped,
+        stream_index: decoded.stream_index,
+        codec: decoded.codec,
+        time: decoded.time,
+        keyframe: decoded.keyframe,
+        decode_start: decoded.decode_start,
+        packet: decoded.packet,
+        warnings: decoded.warnings,
+        packets_decoded: decoded.packets_decoded,
+        decoder: decoded.decoder,
+        skipped: decoded.skipped,
     })
 }
 
@@ -1158,15 +1217,19 @@ fn decode_through<S: Source>(
 }
 
 /// Turns, squares and resizes the frame into an RGB picture.
-fn render(frame: &Frame, plan: &Plan, options: &ThumbnailOptions) -> Result<Picture, Error> {
+fn render(
+    frame: &Frame,
+    display: DisplayGeometry,
+    options: &ThumbnailOptions,
+) -> Result<Picture, Error> {
     let picture = frame.to_cpu()?;
     let (pw, ph) = (u64::from(picture.width()), u64::from(picture.height()));
-    let (dw, dh) = match plan.pixel_aspect {
+    let (dw, dh) = match display.pixel_aspect {
         // Stretch the width to make pixels square.
         Some((h, v)) if h > 0 && v > 0 && h != v => (scale(pw, h, v).max(1), ph),
         _ => (pw, ph),
     };
-    let turned = plan.quarter_turns % 2 == 1;
+    let turned = display.quarter_turns % 2 == 1;
     let (vw, vh) = if turned { (dh, dw) } else { (dw, dh) };
     let (tw, th) = match (options.width, options.height) {
         (Some(w), Some(h)) => (u64::from(w), u64::from(h)),
@@ -1181,7 +1244,7 @@ fn render(frame: &Frame, plan: &Plan, options: &ThumbnailOptions) -> Result<Pict
             .ok_or_else(|| Error::Unsupported(format!("image size {v} outside 1 to {MAX_SIDE}")))
     };
     let (tw, th) = (side(tw)?, side(th)?);
-    let turns = plan.quarter_turns % 4;
+    let turns = display.quarter_turns % 4;
     if turns == 0 {
         return Ok(picture.resize_to_rgb(tw, th, options.filter, &frame.color, options.chroma)?);
     }
@@ -1262,6 +1325,160 @@ mod skip_tests {
         sent: Arc<Mutex<Vec<i64>>>,
         ready: Vec<i64>,
         info: DecoderInfo,
+    }
+
+    fn preparation_plan() -> Plan {
+        Plan {
+            warnings: vec!["retained warning".into()],
+            stream_index: 3,
+            stream: StreamConfig::new(Codec::H264),
+            quarter_turns: 1,
+            pixel_aspect: Some((2, 1)),
+            start: Rational::from_int(5),
+            samples: (0..6)
+                .map(|i| Sample {
+                    time: Some(Rational::from_int(5 + i)),
+                    end: Some(Rational::from_int(6 + i)),
+                    presented: true,
+                    keyframe: i == 0,
+                })
+                .collect(),
+            packets: (0..6)
+                .map(|i| PacketRef {
+                    offset: i as u64,
+                    size: 1,
+                    pts: i,
+                    dts: Some(i),
+                    keyframe: i == 0,
+                })
+                .collect(),
+            prefix: Vec::new(),
+            in_band: InBand::default(),
+            rule: CutRule::Container,
+            stated: vec![true; 6],
+            window: None,
+            first_keyframe: None,
+            container: Container::Mp4,
+            durations: vec![Some(1); 6],
+            time_base: Rational::from_int(1),
+            presentation: Presentation::All,
+        }
+    }
+
+    #[test]
+    fn preparation_keeps_selection_and_display_through_a_retry() {
+        let plan = preparation_plan();
+        let mut options = ThumbnailOptions::at(Rational::from_int(2));
+        options.exact = true;
+        options.skip_disposable = false;
+        let mut source = SliceSource::new(&[0; 6]);
+        let choice = choose(&mut source, &plan, Rational::from_int(7), true).expect("choice");
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let backend = Holding {
+            sent: Arc::clone(&sent),
+            hold: 2,
+        };
+        let decoded = Prepared { plan, choice }
+            .decode(&mut source, &options, &[&backend])
+            .expect("decoded");
+        assert_eq!(decoded.stream_index, 3);
+        assert_eq!(decoded.codec, Codec::H264);
+        assert_eq!(decoded.time, Rational::from_int(2));
+        assert_eq!(decoded.decode_start, Rational::from_int(0));
+        assert!(!decoded.keyframe);
+        assert_eq!(decoded.packet, (2, 1));
+        assert_eq!(decoded.warnings, ["retained warning"]);
+        assert_eq!(decoded.packets_decoded, 8);
+        assert_eq!(decoded.decoder.decoder, "holding");
+        assert_eq!(
+            decoded.skipped,
+            [
+                BackendKind::Nvdec,
+                BackendKind::Native,
+                BackendKind::Dav1d,
+                BackendKind::Libvpx,
+            ]
+            .map(|backend| Skipped {
+                backend,
+                reason: "not available".into(),
+            })
+        );
+        assert_eq!(*sent.lock().expect("lock"), [0, 1, 2, 0, 1, 2, 3, 4]);
+        let rgb = render(&decoded.frame, decoded.display, &options).expect("render");
+        assert_eq!((rgb.width(), rgb.height()), (2, 4));
+    }
+
+    #[test]
+    fn preparation_keeps_unknown_time_fallbacks() {
+        let mut plan = preparation_plan();
+        plan.samples.clear();
+        let options = ThumbnailOptions::at(Rational::from_int(9));
+        let backend = Recorder(Arc::new(Mutex::new(Vec::new())));
+        let decoded = Prepared {
+            plan,
+            choice: Choice {
+                start: 0,
+                target: 0,
+            },
+        }
+        .decode(&mut SliceSource::new(&[0; 6]), &options, &[&backend])
+        .expect("decoded");
+        assert_eq!(decoded.time, options.at);
+        assert_eq!(decoded.decode_start, options.at);
+        assert!(decoded.keyframe);
+        assert_eq!(decoded.packet, (0, 1));
+    }
+
+    #[test]
+    fn preparation_keeps_image_bytes_for_rotation_and_aspect() {
+        for turns in 0..4 {
+            for aspect in [None, Some((2, 1)), Some((1, 2))] {
+                let mut plan = preparation_plan();
+                plan.quarter_turns = turns;
+                plan.pixel_aspect = aspect;
+                let options = ThumbnailOptions::at(Rational::from_int(0));
+                let backend = Recorder(Arc::new(Mutex::new(Vec::new())));
+                let mut source = SliceSource::new(&[0; 6]);
+                let choice = choose(&mut source, &plan, plan.start, false).expect("choice");
+                let mut decoded = Prepared { plan, choice }
+                    .decode(&mut source, &options, &[&backend])
+                    .expect("decoded");
+                assert_eq!(decoded.time, Rational::from_int(0));
+                assert_eq!(decoded.decode_start, Rational::from_int(0));
+                assert!(decoded.keyframe);
+                let mut picture = Picture::zeroed(4, 2, PixelFormat::YUV420P).expect("picture");
+                for y in 0..2 {
+                    for (x, value) in picture.row_mut(0, y).expect("row").iter_mut().enumerate() {
+                        *value = (32 + x * 40 + y * 16) as u8;
+                    }
+                }
+                decoded.frame.pixels = Pixels::Cpu(picture.clone());
+                let (w, h) = match aspect {
+                    Some((2, 1)) => (8, 2),
+                    Some((1, 2)) => (2, 2),
+                    _ => (4, 2),
+                };
+                let (w, h) = if turns % 2 == 1 { (h, w) } else { (w, h) };
+                let expected = picture
+                    .rotate(turns)
+                    .expect("rotate")
+                    .resize_to_rgb(w, h, options.filter, &ColorInfo::default(), options.chroma)
+                    .expect("rgb");
+                let actual = render(&decoded.frame, decoded.display, &options).expect("render");
+                assert_eq!((actual.width(), actual.height()), (w, h));
+                for format in [ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Webp] {
+                    let encoder = BuiltinEncoder {
+                        format,
+                        quality: 91,
+                    };
+                    assert_eq!(
+                        encoder.encode(&actual).expect("actual image"),
+                        encoder.encode(&expected).expect("expected image"),
+                        "turns={turns} aspect={aspect:?} format={format:?}"
+                    );
+                }
+            }
+        }
     }
 
     impl Backend for Recorder {
