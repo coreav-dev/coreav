@@ -19,6 +19,6 @@ It is being built in milestones (`docs/design/vp9.md`, "The plan, in milestones"
 ## How it is built
 
 - **Sans-IO.** It takes packets (one frame, or a superframe) and returns what they show. It opens no files and starts no threads.
-- **Limits everywhere.** Every decoder takes `Limits`; a frame larger than they allow is refused before anything is allocated for it.
+- **Limits everywhere.** Every decoder takes `Limits`; frame dimensions are checked before sample allocation. `max_memory_bytes` caps retained buffer capacities plus all allocation requests in one packet, including work planes, motion history, segment maps and copied outputs. Allocation refusal returns `Limit`, not an allocation abort. The budget excludes borrowed input, outputs retained by callers from earlier calls, inline state and allocator overhead, so it is not an RSS limit. Fixed parse structures are inline, including `Header::Frame`'s header and optional picture; callers no longer dereference boxed fields.
 - **Safe Rust.** The crate is `forbid(unsafe_code)`, and hostile input gives an `Error`, never a panic.
 - **Clean room.** Written from the specification only; the specification's clause numbers are in the code.

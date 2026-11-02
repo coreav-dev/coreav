@@ -15,8 +15,17 @@ msrv = "1.85"
 # The decoder is sans-IO: what it decodes depends on its input and its
 # `Limits` alone, never on the environment.
 disallowed-methods = [
+    { path = "std::vec::Vec::with_capacity", reason = "use Memory::empty so the aggregate budget and allocation failure are checked" },
+    { path = "std::vec::Vec::reserve", reason = "use the fallible Memory allocation owner" },
+    { path = "std::vec::Vec::reserve_exact", reason = "use the fallible Memory allocation owner" },
     { path = "std::env::var", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
     { path = "std::env::var_os", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
     { path = "std::env::vars", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
     { path = "std::env::vars_os", reason = "the decoder reads no environment; a probe belongs in a scratch test, not in the crate" },
+]
+
+disallowed-types = [
+    { path = "std::boxed::Box", reason = "keep fixed state inline; dynamic storage belongs to the fallible Memory owner" },
+    { path = "std::sync::Arc", reason = "use the fixed reference picture pool, not infallible shared allocation" },
+    { path = "std::rc::Rc", reason = "use the fixed reference picture pool, not infallible shared allocation" },
 ]
