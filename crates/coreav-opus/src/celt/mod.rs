@@ -385,10 +385,14 @@ impl Celt {
                 let amplitude = crate::math::exp2((at(energy, band) + mean).min(32.0));
                 bins.iter_mut().for_each(|v| *v *= amplitude);
             }
-            if let Some(above) = row.get_mut(m * edge(BANDS)..) {
+            if let Some(above) = row.get_mut(m * edge(BANDS)..n) {
                 above.fill(0.0);
             }
         }
+        let (x0, x1) = (
+            x0.get_mut(..n).unwrap_or(&mut []),
+            x1.get_mut(..n).unwrap_or(&mut []),
+        );
         if outputs == 2 && coded == 1 {
             x1.copy_from_slice(x0);
         } else if outputs == 1 && coded == 2 {

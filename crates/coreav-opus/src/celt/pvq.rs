@@ -41,6 +41,42 @@ static V: [[u32; MAX_PULSES + 1]; MAX_BAND + 1] = {
     v
 };
 
+/// S(n, k) = (V(n, k) - V(n - 1, k)) / 2, the number of vectors of [`V`]
+/// (n, k) whose first coefficient is above 0 for each sign: the sum of
+/// V(n - 1, j) for j below k.
+#[allow(clippy::indexing_slicing)]
+static S: [[u32; MAX_PULSES + 1]; MAX_BAND + 1] = {
+    let mut s = [[0u32; MAX_PULSES + 1]; MAX_BAND + 1];
+    let mut n = 1;
+    while n <= MAX_BAND {
+        let mut k = 0;
+        while k <= MAX_PULSES {
+            s[n][k] = V[n][k].wrapping_sub(V[n - 1][k]) >> 1;
+            k += 1;
+        }
+        n += 1;
+    }
+    s
+};
+
+/// The inverse of S(3, k) = 2k(k - 1) + 1 for k > 0: the remaining
+/// pulses after a nonzero coefficient in three dimensions. Its index is
+/// below S(3, MAX_PULSES), so the result fits in a byte.
+#[allow(clippy::indexing_slicing)]
+static REMAINING3: [u8; 2 * MAX_PULSES * (MAX_PULSES - 1) + 1] = {
+    let mut remaining = [0u8; 2 * MAX_PULSES * (MAX_PULSES - 1) + 1];
+    let mut k = 0;
+    let mut index = 0;
+    while index < remaining.len() {
+        while S[3][k + 1] <= index as u32 {
+            k += 1;
+        }
+        remaining[index] = k as u8;
+        index += 1;
+    }
+    remaining
+};
+
 /// Decodes a vector of `y.len()` integers whose magnitudes sum to `k`
 /// (4.3.4.2), as `f32`, returning the sum of their squares.
 fn decode_pulses(rd: &mut RangeDecoder<'_>, k: usize, y: &mut [f32]) -> u32 {
@@ -53,12 +89,28 @@ fn decode_pulses(rd: &mut RangeDecoder<'_>, k: usize, y: &mut [f32]) -> u32 {
 
 /// The vector of `y.len()` integers whose magnitudes sum to `k` with
 /// the given index (4.3.4.2), as `f32`, returning the sum of their squares;
-/// every value of `y` is written. The last
+/// every value of `y` is written. One pulse has 2n vectors: the n positive
+/// unit vectors followed by the negative ones in reverse order. With more
+/// pulses, the three-dimensional step inverts S through REMAINING3. The last
 /// two coefficients take their magnitudes in closed form: V(1, j) is 2 for
 /// every j above 0, so the search over the next to last is a division, and
 /// the last takes the pulses left.
 fn pulses(mut index: u32, mut k: usize, y: &mut [f32]) -> u32 {
     let n = y.len();
+    if k == 1 && n > 0 {
+        let index = index as usize;
+        let negative = index >= n;
+        let position = if negative {
+            (2 * n - 1).saturating_sub(index)
+        } else {
+            index
+        };
+        y.fill(0.0);
+        if let Some(out) = y.get_mut(position) {
+            *out = if negative { -1.0 } else { 1.0 };
+        }
+        return 1;
+    }
     let row = |m: usize| V.get(m).unwrap_or(&[0; MAX_PULSES + 1]);
     let mut energy = 0u32;
     let mut put = |out: &mut f32, value: usize, negative: bool| {
@@ -75,21 +127,32 @@ fn pulses(mut index: u32, mut k: usize, y: &mut [f32]) -> u32 {
             tail.fill(0.0);
             return energy;
         }
-        let (upper, lower) = (row(m), row(m - 1));
-        // How many vectors have this coefficient >= 0, then which magnitude.
-        // (V(m, k) + V(m - 1, k)) / 2, without overflowing: the difference
-        // is even.
+        let (sums, lower) = (S.get(m).unwrap_or(&[0; MAX_PULSES + 1]), row(m - 1));
         let below = at(lower, k);
-        let mut p = below.wrapping_add(at(upper, k).wrapping_sub(below) >> 1);
-        let negative = index >= p;
-        index = index.wrapping_sub(p & 0u32.wrapping_sub(u32::from(negative)));
-        let before = k;
-        p = p.wrapping_sub(below);
-        while p > index && k > 0 {
-            k -= 1;
-            p = p.wrapping_sub(at(lower, k));
+        let positive = at(sums, k);
+        let zero = index.wrapping_sub(positive);
+        if zero < below {
+            index = zero;
+            put(out, 0, false);
+            continue;
         }
-        index = index.wrapping_sub(p);
+        let p = below.wrapping_add(positive);
+        let negative = index >= p;
+        let idx = index.wrapping_sub(p & 0u32.wrapping_sub(u32::from(negative)));
+        let before = k;
+        if m == 3 {
+            k = usize::from(at(&REMAINING3, idx as usize)).min(k - 1);
+        } else {
+            let above = |j: usize| usize::from(at(sums, k.wrapping_sub(j)) > idx);
+            let more = above(1) + above(2) + above(3) + above(4);
+            k -= 1 + more;
+            if more == 4 {
+                while k > 0 && at(sums, k) > idx {
+                    k -= 1;
+                }
+            }
+        }
+        index = idx.wrapping_sub(at(sums, k));
         put(out, before - k, negative);
     }
     let (next, last) = match tail {
@@ -112,11 +175,7 @@ fn pulses(mut index: u32, mut k: usize, y: &mut [f32]) -> u32 {
             index -= twice + 1;
         }
         let above = twice - 1;
-        let value = if index >= above {
-            0
-        } else {
-            ((twice - index) / 2).min(k as u32)
-        };
+        let value = (twice.saturating_sub(index) / 2).min(k as u32);
         index = index.saturating_sub(above.saturating_sub(2 * value));
         put(out, value as usize, negative);
         k -= value as usize;
@@ -348,6 +407,21 @@ mod tests {
             index -= p;
             let value = (before - k) as i32;
             *out = if negative { -value } else { value };
+        }
+    }
+
+    #[test]
+    fn a_single_pulse_matches_every_dimension() {
+        for (n, row) in V.iter().enumerate().skip(1) {
+            for index in 0..row[1] {
+                let mut want = vec![0; n];
+                pulses_by_steps(index, 1, &mut want);
+                let mut got = vec![f32::NAN; n];
+                assert_eq!(pulses(index, 1, &mut got), 1);
+                let got: Vec<u32> = got.iter().map(|v| v.to_bits()).collect();
+                let want: Vec<u32> = want.iter().map(|&v| (v as f32).to_bits()).collect();
+                assert_eq!(got, want, "n {n} index {index}");
+            }
         }
     }
 
