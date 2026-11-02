@@ -52,3 +52,6 @@ unimplemented = "deny"
 
 [dev-dependencies]
 coreav-isobmff = { path = "../coreav-isobmff" }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1", default-features = false, features = ["event"] }

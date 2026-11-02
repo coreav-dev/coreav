@@ -8,6 +8,9 @@ import subprocess
 import tempfile
 import unittest
 
+from test_compat_sources import SourceRepo
+from test_registered_candidate import load_workflow
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
@@ -183,9 +186,138 @@ class Evidence(unittest.TestCase):
     def test_measurement_checkouts_do_not_persist_credentials(self):
         workflow = (ROOT / '.github/workflows/compat-0.1.0.yml').read_text()
         checkouts = workflow.split('      - uses: actions/checkout@')[1:]
-        self.assertEqual(len(checkouts), 6)
+        self.assertEqual(len(checkouts), 7)
         for checkout in checkouts:
             self.assertIn('          persist-credentials: false', checkout.split('\n      - ', 1)[0])
+
+
+class SourceSplit(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = load_workflow('compat-0.1.0.yml')
+
+    def assert_sources(self, workflow):
+        jobs = workflow['jobs']
+        build = jobs['compat-build']['steps']
+        checkouts = [(name, step) for name, job in jobs.items() for step in job['steps']
+                     if step.get('uses', '').startswith('actions/checkout@')]
+        candidates = [(name, step) for name, step in checkouts if step['with'].get('path') == 'candidate']
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0][0], 'compat-build')
+        self.assertEqual(candidates[0][1]['with']['ref'], '${{ needs.compat-plan.outputs.commit }}')
+        root = next(step for step in build if step.get('uses', '').startswith('actions/checkout@'))
+        self.assertLess(build.index(root), build.index(candidates[0][1]))
+        self.assertEqual(root['with']['fetch-depth'], 0)
+        for label in ('Build coreav and the R3 harness', 'Record the artifact sources'):
+            step = next(step for step in build if step.get('name') == label)
+            for field in ('COMMIT', 'TOOLING'):
+                self.assertEqual(step['env'][field], '${{ needs.compat-plan.outputs.' + field.lower() + ' }}')
+        for name, step in checkouts:
+            if name != 'compat-plan' and step is not candidates[0][1]:
+                self.assertEqual(step['with']['ref'], '${{ needs.compat-plan.outputs.tooling }}')
+        for name, before in (('compat-measure', "Fetch this shard's files"),
+                             ('compat-r4-rehearsal', "Run the R4 host's job here"),
+                             ('compat-r4-scan', 'Scan the R4 pairs'),
+                             ('compat-report', 'Add up the shards')):
+            steps = jobs[name]['steps']
+            verified = next((step for step in steps if step.get('name') == 'Verify the artifact sources'), None)
+            self.assertIsNotNone(verified)
+            target = next(step for step in steps if step.get('name') == before)
+            self.assertLess(steps.index(verified), steps.index(target))
+            for field in ('COMMIT', 'TOOLING', 'SET'):
+                self.assertEqual(verified['env'][field], '${{ needs.compat-plan.outputs.' + field.lower() + ' }}')
+            self.assertIn('scripts/compat_sources.py verify', verified['run'])
+            self.assertNotIn('inputs.', json.dumps(verified))
+
+    def test_every_consumer_verifies_before_using_the_bundle(self):
+        self.assert_sources(self.workflow)
+
+    def test_source_gates_cannot_be_removed_reordered_or_bypassed(self):
+        import copy
+        for mutation in ('removed', 'late', 'raw-input', 'root-last', 'wrong-ref'):
+            with self.subTest(mutation=mutation):
+                broken = copy.deepcopy(self.workflow)
+                steps = broken['jobs']['compat-measure']['steps']
+                verify = next(step for step in steps if step.get('name') == 'Verify the artifact sources')
+                if mutation == 'removed':
+                    steps.remove(verify)
+                elif mutation == 'late':
+                    steps.remove(verify)
+                    steps.append(verify)
+                elif mutation == 'raw-input':
+                    verify['env']['COMMIT'] = '${{ inputs.commit }}'
+                elif mutation == 'wrong-ref':
+                    steps[0]['with']['ref'] = '${{ needs.compat-plan.outputs.commit }}'
+                else:
+                    build = broken['jobs']['compat-build']['steps']
+                    build[0], build[1] = build[1], build[0]
+                with self.assertRaises(AssertionError):
+                    self.assert_sources(broken)
+
+    def test_both_cargo_calls_build_in_the_registered_checkout_and_record_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            root = directory / 'tooling'
+            root.mkdir()
+            repo = SourceRepo(root)
+            candidate = root / 'candidate'
+            repo.git('worktree', 'add', '--detach', str(candidate), repo.candidate)
+            programs = directory / 'programs'
+            programs.mkdir()
+            cargo = programs / 'cargo'
+            cargo.write_text('#!/usr/bin/env python3\nimport json, os, pathlib, subprocess, sys\n'
+                             'root = pathlib.Path.cwd()\n'
+                             'with open(os.environ["CARGO_LOG"], "a") as log:\n'
+                             '    log.write(json.dumps({"cwd": str(root), "args": sys.argv[1:],\n'
+                             '        "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()}) + "\\n")\n'
+                             'if sys.argv[1] == "build":\n'
+                             '    target = root / "target/dist/coreav"\n'
+                             '    target.parent.mkdir(parents=True, exist_ok=True)\n'
+                             '    target.write_bytes(b"candidate binary")\n'
+                             'else:\n'
+                             '    target = root / "target/release/harness"\n'
+                             '    target.parent.mkdir(parents=True, exist_ok=True)\n'
+                             '    target.write_bytes(b"observer harness")\n'
+                             '    print(json.dumps({"reason": "compiler-artifact", "executable": str(target), "target": {"name": "ffmpeg"}}))\n')
+            cargo.chmod(0o755)
+            rustc = programs / 'rustc'
+            rustc.write_text('#!/bin/sh\necho "rustc fixture"\n')
+            rustc.chmod(0o755)
+            env = {**os.environ, 'RUNNER_TEMP': tmp, 'GITHUB_WORKSPACE': str(root),
+                   'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/main',
+                   'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'SET': 'rehearsal',
+                   'COMMIT': repo.candidate, 'TOOLING': repo.tooling, 'CARGO_LOG': str(directory / 'cargo.log'),
+                   'PATH': str(programs) + ':' + os.environ['PATH']}
+            build = next(step for step in self.workflow['jobs']['compat-build']['steps']
+                         if step.get('name') == 'Build coreav and the R3 harness')
+            for field in ('COMMIT', 'TOOLING'):
+                failed = subprocess.run(['bash', '-c', build['run']], cwd=root / build['working-directory'],
+                                        env={**env, field: 'b' * 40}, capture_output=True, timeout=30)
+                self.assertNotEqual(failed.returncode, 0)
+                self.assertFalse((directory / 'cargo.log').exists())
+            done = subprocess.run(['bash', '-c', build['run']], cwd=root / build['working-directory'],
+                                  env=env, capture_output=True, timeout=30)
+            self.assertEqual(done.returncode, 0, done.stderr.decode())
+            calls = [json.loads(line) for line in (directory / 'cargo.log').read_text().splitlines()]
+            self.assertEqual(len(calls), 2)
+            self.assertEqual([call['args'][0] for call in calls], ['build', 'test'])
+            for call in calls:
+                self.assertEqual(call['cwd'], str(candidate))
+                self.assertEqual(call['commit'], repo.candidate)
+                self.assertIn('--locked', call['args'])
+            done = subprocess.run(['bash', '-c', run_script('Record the artifact sources')], cwd=root,
+                                  env=env, capture_output=True, timeout=30)
+            self.assertEqual(done.returncode, 0, done.stderr.decode())
+            shutil.move(directory / 'dist', directory / 'bin')
+            for occurrence in range(4):
+                done = subprocess.run(['bash', '-c', run_script('Verify the artifact sources', occurrence=occurrence)],
+                                      cwd=root, env=env, capture_output=True, timeout=30)
+                self.assertEqual(done.returncode, 0, done.stderr.decode())
+            manifest = json.loads((directory / 'bin/sources.json').read_text())
+            self.assertEqual(manifest['candidate']['commit'], repo.candidate)
+            self.assertEqual(manifest['tooling']['commit'], repo.tooling)
+            self.assertEqual(manifest['artifacts']['coreav']['built_from'], repo.candidate)
+            self.assertEqual(manifest['artifacts']['r3-harness']['built_from'], repo.candidate)
 
 
 class Shards(unittest.TestCase):
@@ -277,6 +409,10 @@ class Shards(unittest.TestCase):
                     (directory / f'{kind}-summary.json').write_text('{}')
             (d / 'bin').mkdir()
             (d / 'bin' / 'sha256.txt').write_text('abc coreav\n')
+            provenance = {'candidate': {'commit': 'candidate-full-sha'}, 'tooling': {'commit': 'tooling-full-sha'},
+                          'judging': {'registration_sha256': 'judging-digest', 'files': {}},
+                          'artifacts': {'r3-harness': {'sha256': 'harness-digest'}}}
+            (d / 'bin' / 'sources.json').write_text(json.dumps(provenance))
             fake = d / 'merge.py'
             fake.write_text('import json, pathlib, sys\n'
                             'inputs = sys.argv[sys.argv.index("--summaries") + 1:sys.argv.index("--summary")]\n'
@@ -293,6 +429,11 @@ class Shards(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr.decode())
             self.assertTrue((d / 'summary' / 'r2.json').is_file())
             self.assertTrue((d / 'summary' / 'r3.json').is_file())
+            self.assertEqual(json.loads((d / 'summary' / 'sources.json').read_text()), provenance)
+            self.assertIn('tooling-full-sha', (d / 'summary.md').read_text())
+            self.assertIn('candidate-full-sha', (d / 'summary.md').read_text())
+            self.assertIn('harness-digest', (d / 'summary.md').read_text())
+            self.assertIn('judging-digest', (d / 'summary.md').read_text())
 
 
 if __name__ == '__main__':
