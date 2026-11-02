@@ -240,7 +240,9 @@ requests, main pushes and manual runs. Required reports are unchanged.
 
 Each matrix leg installs its build tools, runs the recipe tests, builds into an absent prefix with two jobs, and executes the installed version probe. The recipe owns source pins, architecture and dependency checks, and notice installation. No installed prefix is cached. Logs and the successful installation's manifest are retained for seven days, including logs from a failed build.
 
-The workflow runs on recipe, workflow or workflow-test changes, and by manual dispatch. It is not a required check, so the required-check table is unchanged and no merge-group report is added. Its four matrix checks must all succeed before the native recipe is considered verified on every target. This checks builds and linkage only, not media encoding, distribution clearance or acceptance measurements.
+After a successful build, each leg runs the native licence-gate fixtures and `scripts/svt_av1_licenses.py`. The gate binds the installation's target, version and archive identity to the recipe, checks retained-file integrity, and compares all five notice texts against independent committed fingerprints. Changing a text and its manifest hash together still fails. The scoped exception applies only to the native SVT dependency; Cargo's global allowlist is unchanged. Licence-test and gate logs use the same seven-day retention.
+
+The workflow runs on recipe, licence gate, fingerprint, fixture, workflow or workflow-test changes, and by manual dispatch. It is not a required check, so the required-check table is unchanged and no merge-group report is added. Its four matrix checks must all succeed before the native recipe is considered verified on every target. This checks builds, linkage and retained notices only, not media encoding, distribution clearance or acceptance measurements.
 
 ## The platform jobs
 

@@ -8,12 +8,20 @@ on:
     paths:
       - scripts/encoders/svt-av1/**
       - scripts/tests/test_svt_native_workflow.py
+      - scripts/svt_av1_licenses.py
+      - scripts/svt-av1-notices.json
+      - scripts/tests/test_svt_av1_licenses.py
+      - scripts/tests/fixtures/svt-av1-notices/**
       - .github/workflows/svt-av1-native.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - scripts/encoders/svt-av1/**
       - scripts/tests/test_svt_native_workflow.py
+      - scripts/svt_av1_licenses.py
+      - scripts/svt-av1-notices.json
+      - scripts/tests/test_svt_av1_licenses.py
+      - scripts/tests/fixtures/svt-av1-notices/**
       - .github/workflows/svt-av1-native.yml
   workflow_dispatch:
 
@@ -74,6 +82,13 @@ jobs:
           python3 -m unittest discover -s scripts/encoders/svt-av1 -p 'test_*.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/tests.log"
           python3 scripts/encoders/svt-av1/build.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" --jobs 2 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/build.log"
           "$RUNNER_TEMP/svt-av1/bin/svt-av1-version" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/version.log"
+      - name: Check the scoped native licence and notices
+        id: native-licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p 'test_svt_av1_licenses.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/license-tests.log"
+          python3 -I scripts/svt_av1_licenses.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/licenses.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
