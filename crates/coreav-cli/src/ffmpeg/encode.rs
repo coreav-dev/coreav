@@ -69,21 +69,13 @@ pub(super) fn bits(text: &str) -> Option<u128> {
 
 /// Checks explicitly named encoders before reading the input.
 pub fn preflight(command: &Command, strict_safe: StrictSafe) -> Result<(), Refusal> {
-    if strict_safe.on()
-        && (command.muxer == super::args::Muxer::Mp3
-            || command
-                .codecs
-                .iter()
-                .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Libmp3lame)))
-    {
-        return Err(refused_strict("strict-safe mode never runs the ffmpeg program, so it cannot encode MP3 audio; run without --strict-safe and COREAV_STRICT_SAFE".into()));
+    if command.muxer == super::args::Muxer::Mp3 {
+        authorize_audio(AudioEncoder::Libmp3lame, strict_safe)?;
     }
-    if command
-        .codecs
-        .iter()
-        .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Aac))
-    {
-        check_aac(strict_safe)?;
+    for (_, codec) in &command.codecs {
+        if let Codec::Audio(encoder) = codec {
+            authorize_audio(*encoder, strict_safe)?;
+        }
     }
     if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
         return Ok(());
@@ -105,10 +97,21 @@ fn check_aac(strict_safe: StrictSafe) -> Result<(), Refusal> {
         }))
 }
 
+pub(super) fn authorize_audio(
+    encoder: AudioEncoder,
+    strict_safe: StrictSafe,
+) -> Result<(), Refusal> {
+    match encoder {
+        AudioEncoder::Aac => check_aac(strict_safe),
+        AudioEncoder::Libmp3lame => strict_safe.mp3().map_err(refused_strict),
+        AudioEncoder::Libopus => strict_safe.sandbox().map_err(refused_strict),
+    }
+}
+
 /// Checks the selected encoders, including the muxer's defaults, before decoding.
 pub fn encoder(job: &TranscodeJob, strict_safe: StrictSafe) -> Result<Encoder, Refusal> {
-    if job.audio_encoder == Some(AudioEncoder::Aac) {
-        check_aac(strict_safe)?;
+    if let Some(audio) = job.audio_encoder {
+        authorize_audio(audio, strict_safe)?;
     }
     strict_safe.encoder("auto", None).map_err(refused_strict)
 }
@@ -690,6 +693,22 @@ mod tests {
                 "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
             ))
         );
+    }
+
+    #[test]
+    fn all_audio_encoders_follow_the_strict_safe_policy() {
+        for encoder in [
+            AudioEncoder::Aac,
+            AudioEncoder::Libmp3lame,
+            AudioEncoder::Libopus,
+        ] {
+            assert!(authorize_audio(encoder, StrictSafe::new(false)).is_ok());
+            assert_eq!(
+                authorize_audio(encoder, StrictSafe::new(true)).is_ok(),
+                encoder == AudioEncoder::Libopus && coreav_worker::enforces_memory_limit(),
+                "{encoder:?}"
+            );
+        }
     }
 
     #[test]

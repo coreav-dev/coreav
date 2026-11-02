@@ -1947,6 +1947,56 @@ fn ffmpeg_audio_only_encodes_match_the_oracle_timeline() {
 
 #[cfg(unix)]
 #[test]
+fn ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-strict-policy");
+    let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
+    for flag in [true, false] {
+        for (name, options, extension) in [
+            ("implicit-aac-m4a", vec![], "m4a"),
+            ("implicit-aac-mp4", vec![], "mp4"),
+            ("explicit-aac", vec!["-c:a", "aac"], "m4a"),
+            ("implicit-mp3", vec![], "mp3"),
+            ("explicit-mp3", vec!["-c:a", "libmp3lame"], "mp3"),
+        ] {
+            let marker = dir.join(format!("{name}-{flag}.called"));
+            let renamed = script(
+                &dir,
+                &format!("encoder-{name}-{flag}"),
+                &format!(
+                    "printf '%s\\n' invoked > '{}'\nexec '{}' \"$@\"",
+                    marker.display(),
+                    tools.ffmpeg.display()
+                ),
+            );
+            let output = dir.join(format!("{name}-{flag}.{extension}"));
+            let mut command = Command::new(bin());
+            if flag {
+                command.arg("--strict-safe");
+            }
+            let run = command
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .arg("-vn")
+                .args(options)
+                .arg(&output)
+                .env("COREAV_STRICT_SAFE", if flag { "0" } else { "1" })
+                .env("COREAV_FFMPEG", &renamed)
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .output()
+                .unwrap();
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            assert_eq!(run.status.code(), Some(4), "{name} {flag}: {stderr}");
+            assert!(stderr.contains("strict-safe"), "{name} {flag}: {stderr}");
+            assert!(!marker.exists(), "{name} {flag}: encoder was invoked");
+            assert!(!output.exists(), "{name} {flag}: output was published");
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
 fn ffmpeg_audio_only_refusals_do_not_publish_output() {
     let Some(tools) = tools() else { return };
     let dir = dir("audio-only-refusals");

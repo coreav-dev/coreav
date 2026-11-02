@@ -118,12 +118,7 @@ pub(super) fn write(
     use std::path::Path;
     use std::time::{Duration, Instant};
 
-    strict_safe.sandbox().map_err(|message| {
-        Refusal::NotNative(super::NotNative::property(
-            "audio encoding in strict-safe mode",
-            message,
-        ))
-    })?;
+    super::encode::authorize_audio(encoder, strict_safe)?;
     let this = std::env::current_exe()
         .map_err(|_| Refusal::not_native("encoding without the path of the running program"))?;
     let bitrate = command
@@ -235,4 +230,44 @@ pub(super) fn write(
         Ok(serde_json::Value::Null)
     })
     .map_err(|failure| super::encode::failed(failure, Some(encoder)))
+}
+
+#[cfg(all(test, feature = "transcode"))]
+mod tests {
+    use super::*;
+    use crate::ffmpeg::{Stop, args};
+    use crate::strict_safe::StrictSafe;
+
+    #[test]
+    fn resolved_external_encoders_are_refused_before_discovery() {
+        let report = Report {
+            streams: vec![],
+            time_bases: vec![],
+            format: vec![],
+            format_tags: vec![],
+            chapters: vec![],
+            programs: vec![],
+            setups: vec![],
+            covers: vec![],
+        };
+        for (name, output, encoder) in [
+            ("AAC", "out.m4a", AudioEncoder::Aac),
+            ("MP3", "out.mp3", AudioEncoder::Libmp3lame),
+        ] {
+            let command =
+                args::parse(&["-i", "missing.mp4", "-vn", output].map(String::from)).unwrap();
+            let Err(Stop::Refused(Refusal::NotNative(refusal))) =
+                write(&command, &report, 0, encoder, StrictSafe::new(true))
+            else {
+                panic!("{name}: resolved external encoder was not refused");
+            };
+            assert!(
+                refusal
+                    .message
+                    .contains(&format!("cannot encode {name} audio")),
+                "{name}: {}",
+                refusal.message
+            );
+        }
+    }
 }

@@ -14,8 +14,8 @@
 //! FFmpeg fallback. The hidden entries this program runs as
 //! (`crate::thumbnail::run_worker`) ask it too: the decode worker
 //! [`StrictSafe::worker`], the sandbox launcher [`StrictSafe::program`].
-//! A transcode's AAC encoder, the `ffmpeg` program, asks
-//! [`StrictSafe::aac`].
+//! External audio encoders ask [`StrictSafe::aac`] or [`StrictSafe::mp3`];
+//! the Opus worker asks [`StrictSafe::sandbox`].
 
 #[cfg(feature = "thumbnail")]
 use std::path::Path;
@@ -184,6 +184,18 @@ impl StrictSafe {
             return Err(format!(
                 "strict-safe mode never runs the ffmpeg program, so it cannot encode AAC \
                  audio: {instead}, {OFF}"
+            ));
+        }
+        Ok(())
+    }
+
+    /// MP3 encoding uses the external `ffmpeg` program, even under a different file name.
+    #[cfg(feature = "transcode")]
+    pub fn mp3(self) -> Result<(), String> {
+        if self.on {
+            return Err(format!(
+                "strict-safe mode never runs the ffmpeg program, so it cannot encode MP3 \
+                 audio, {OFF}"
             ));
         }
         Ok(())
