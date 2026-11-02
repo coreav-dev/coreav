@@ -1959,6 +1959,313 @@ fn ffmpeg_audio_only_refuses_unpreserved_source_properties() {
     nothing_left(&dir);
 }
 
+#[cfg(unix)]
+fn audio_floats(tools: &Tools, path: &Path) -> Vec<f32> {
+    let mut command = Command::new(&tools.ffmpeg);
+    command
+        .args(["-nostdin", "-v", "error"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .arg("-i")
+        .arg(path)
+        .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"]);
+    let run = bounded::output(&mut command, None, std::time::Duration::from_secs(30)).unwrap();
+    assert!(
+        run.status.success(),
+        "{}: {}",
+        path.display(),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        run.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(run.stdout.len() % 4, 0);
+    run.stdout
+        .chunks_exact(4)
+        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+        .collect()
+}
+
+#[cfg(unix)]
+fn audio_snr(reference: &[f32], decoded: &[f32]) -> f64 {
+    assert_eq!(reference.len(), decoded.len());
+    let signal: f64 = reference.iter().map(|&v| f64::from(v).powi(2)).sum();
+    let error: f64 = reference
+        .iter()
+        .zip(decoded)
+        .map(|(&a, &b)| (f64::from(a) - f64::from(b)).powi(2))
+        .sum();
+    10.0 * (signal / error).log10()
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_outputs_keep_the_source_samples_and_quality() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-output");
+    for rate in [
+        48000u32, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000,
+    ] {
+        for channels in [1usize, 2] {
+            let source = made(
+                &tools,
+                &dir,
+                &format!("{rate}-{channels}.mp4"),
+                &[
+                    "-ar",
+                    &rate.to_string(),
+                    "-ac",
+                    &channels.to_string(),
+                    "-c:a",
+                    "flac",
+                ],
+            );
+            let reference = audio_floats(&tools, &source);
+            assert_eq!(reference.len(), 2 * rate as usize * channels);
+            for (mode, settings) in [
+                ("default", &[][..]),
+                ("constant", &["-b:a", "128k"][..]),
+                ("quality", &["-qscale:a", "2.5"][..]),
+            ] {
+                let out = dir.join(format!("{rate}-{channels}-{mode}.mp3"));
+                let oracle = dir.join(format!("oracle-{rate}-{channels}-{mode}.mp3"));
+                let mut args = vec!["-i", source.to_str().unwrap()];
+                args.extend_from_slice(settings);
+                let run = Command::new(bin())
+                    .arg("ffmpeg")
+                    .args(&args)
+                    .arg(&out)
+                    .env("COREAV_FFMPEG", &tools.ffmpeg)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{rate} {channels} {mode}: {}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let run = Command::new(&tools.ffmpeg)
+                    .args(["-nostdin", "-v", "error"])
+                    .args(&args)
+                    .arg(&oracle)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let entries = ["-show_streams", "-show_format", "-count_packets"];
+                let mut actual = probe_json(&tools, &entries, &out);
+                let mut expected = probe_json(&tools, &entries, &oracle);
+                for field in ["filename", "size", "bit_rate"] {
+                    actual["format"].as_object_mut().unwrap().remove(field);
+                    expected["format"].as_object_mut().unwrap().remove(field);
+                }
+                let actual_rate = actual["streams"][0]["bit_rate"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                let expected_rate = expected["streams"][0]["bit_rate"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                if mode != "quality" {
+                    assert!(
+                        (0.95..=1.05).contains(&(actual_rate / expected_rate)),
+                        "{rate} {channels} {mode}"
+                    );
+                }
+                actual["streams"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("bit_rate");
+                expected["streams"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("bit_rate");
+                assert_eq!(actual, expected, "{rate} {channels} {mode}");
+                let native = audio_floats(&tools, &out);
+                let external = audio_floats(&tools, &oracle);
+                assert_eq!(native.len(), reference.len(), "{rate} {channels} {mode}");
+                assert_eq!(external.len(), reference.len());
+                let ours = audio_snr(&reference, &native);
+                let theirs = audio_snr(&reference, &external);
+                assert!(
+                    ours >= theirs - 0.5,
+                    "{rate} {channels} {mode}: {ours} vs {theirs}"
+                );
+            }
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_eof_guard_preserves_exact_boundary_lengths() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-boundary");
+    for rate in [48000u32, 22050, 8000] {
+        let frame = if rate >= 32000 { 1152usize } else { 576 };
+        for residue in [1usize, 46, 47] {
+            let samples = frame + residue;
+            let source = dir.join(format!("{rate}-{residue}.mp4"));
+            let out = source.with_extension("mp3");
+            let oracle = dir.join(format!("oracle-{rate}-{residue}.mp3"));
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+                .arg(format!("sine=sample_rate={rate}"))
+                .args([
+                    "-af",
+                    &format!("atrim=end_sample={samples}"),
+                    "-c:a",
+                    "flac",
+                ])
+                .arg(&source)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let run = Command::new(bin())
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .arg(&out)
+                .env("COREAV_FFMPEG", &tools.ffmpeg)
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{rate} {residue}: {}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error", "-i"])
+                .arg(&source)
+                .arg(&oracle)
+                .output()
+                .unwrap();
+            assert!(run.status.success());
+            let native = audio_floats(&tools, &out);
+            let external = audio_floats(&tools, &oracle);
+            assert_eq!(native.len(), samples, "{rate} {residue}");
+            let extra = if residue <= 46 { 47 - residue } else { 0 };
+            assert_eq!(
+                external.len(),
+                samples + extra,
+                "changed or stale clamp predicate: {rate} {residue}"
+            );
+            let probe = probe_json(
+                &tools,
+                &["-show_entries", "stream=duration_ts,sample_rate"],
+                &out,
+            );
+            let ticks = probe["streams"][0]["duration_ts"].as_u64().unwrap();
+            assert_eq!(ticks * u64::from(rate), samples as u64 * 14112000);
+            let reference = audio_floats(&tools, &source);
+            let endpoint = samples.saturating_sub(256);
+            assert!(
+                audio_snr(&reference[endpoint..], &native[endpoint..])
+                    >= audio_snr(&reference[endpoint..], &external[endpoint..samples]) - 0.5,
+                "{rate} {residue}: EOF guard degraded endpoint quality"
+            );
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_sources_and_refusals_are_build_aware() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-sources");
+    for (name, codec, alias) in [
+        ("aac.mp4", "aac", "-c:a"),
+        ("opus.mkv", "libopus", "-acodec"),
+        ("mp3.mkv", "libmp3lame", "-codec:a"),
+    ] {
+        let source = made(&tools, &dir, name, &["-c:a", codec]);
+        let out = dir.join(format!("{name}.mp3"));
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(["-vn", alias, "libmp3lame"])
+            .arg(&out)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        if codec == "aac" && !cfg!(feature = "aac") {
+            assert_eq!(run.status.code(), Some(4));
+            assert!(!out.exists());
+            continue;
+        }
+        assert!(
+            run.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(audio_floats(&tools, &out).len(), 96000, "{name}");
+    }
+    let source = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let no_encoder = script(&dir, "no-mp3-encoder", "exit 0");
+    let invalid = script(
+        &dir,
+        "invalid-mp3",
+        "case \" $* \" in *' -h '*) printf 'Encoder libmp3lame [test]'; exit 0;; esac\ncat > /dev/null\nprintf bad",
+    );
+    let flood = script(
+        &dir,
+        "flood-mp3",
+        "case \" $* \" in *' -h '*) printf 'Encoder libmp3lame [test]'; exit 0;; esac\ncat /dev/zero",
+    );
+    for (name, program, settings, code) in [
+        ("missing", Path::new("/nonexistent/ffmpeg"), vec![], 4),
+        ("absent", no_encoder.as_path(), vec![], 4),
+        ("invalid", invalid.as_path(), vec![], 1),
+        ("flood", flood.as_path(), vec![], 1),
+        ("quality", tools.ffmpeg.as_path(), vec!["-q:a", "NaN"], 2),
+        ("rate", tools.ffmpeg.as_path(), vec!["-b:a", "1k"], 4),
+        ("trim", tools.ffmpeg.as_path(), vec!["-t", "1"], 4),
+    ] {
+        let out = dir.join(format!("refused-{name}.mp3"));
+        let mut command = Command::new(bin());
+        command
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(settings)
+            .arg(&out)
+            .env("COREAV_FFMPEG", program)
+            .env("COREAV_FALLBACK", NO_FALLBACK);
+        let run = bounded::output(&mut command, None, std::time::Duration::from_secs(30)).unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(code),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!out.exists(), "{name}");
+    }
+    let out = dir.join("safe.mp3");
+    let run = Command::new(bin())
+        .args(["--strict-safe", "ffmpeg", "-i", "absent.mp4"])
+        .arg(&out)
+        .env("COREAV_FALLBACK", NO_FALLBACK)
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&run.stderr).contains("strict-safe"));
+    assert!(!out.exists());
+    nothing_left(&dir);
+}
+
 #[cfg(feature = "libopus")]
 #[test]
 fn opus_audio_takes_the_place_of_the_source_audio() {

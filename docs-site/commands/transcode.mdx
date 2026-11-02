@@ -14,7 +14,7 @@ import Help from '/snippets/help/transcode.mdx';
 
 With an H.264 source, the options and the summary ([`coreav.transcode/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/transcode-v1.md)) are stable. With other source codecs, what the command does may change, while its options and summary stay the same ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md)).
 
-For output without video, use [`coreav ffmpeg`](/commands/ffmpeg) with `-vn -c:a aac` for MP4 or M4A, or `-vn -c:a libopus` for MP4 in a `libopus` build. `coreav transcode` itself still requires video.
+For output without video, use [`coreav ffmpeg`](/commands/ffmpeg) with `-vn -c:a aac` for MP4 or M4A, `-vn -c:a libopus` for MP4 in a `libopus` build, or a `.mp3` output for external libmp3lame encoding. `coreav transcode` itself still requires video and does not select MP3.
 
 ## Examples
 

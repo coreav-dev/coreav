@@ -1,11 +1,12 @@
 //! Encoded audio of a transcode (`docs/design/transcode.md`, "Opus audio"
-//! and "AAC audio"; policy record 0042): one audio stream of the source
+//! "AAC audio" and "MP3 audio"; policy record 0042): one audio stream of the source
 //! decoded by `coreav-audio` to 32-bit float samples, encoded by an encoder
-//! process and spooled for the MP4 writer, which writes it in the source
-//! stream's place. The Opus encoder is libopus in a process of its own
+//! process and spooled for a container writer. The Opus encoder is libopus in a process of its own
 //! (`coreav_worker::opus`, through the sandbox launcher), on samples
 //! resampled to 48 kHz; the AAC encoder is the operator's `ffmpeg` program
-//! (`crate::aac`), on samples at the stream's own rate.
+//! (`crate::aac`), on samples at the stream's own rate. MP3 uses the
+//! operator's `ffmpeg -c:a libmp3lame`, with checked Matroska readback and
+//! an explicit EOF zero guard removed by the MP3 writer's gapless tag.
 //!
 //! The audio is encoded before the video, so that a stream CoreAV does not
 //! decode, or one of more than two channels, is refused before the video
@@ -31,6 +32,7 @@ use coreav_worker::{ExecLauncher, HugePages};
 
 use crate::aac::{self, AacAudio};
 use crate::encoder::{EncoderLimits, Process, Sink, command, is_path};
+use crate::mp3::{self, Mp3Audio};
 use crate::pipeline::{Error, Spool, spool_read};
 
 /// The sample rate of every Opus stream (RFC 7845 section 5.1): the
@@ -86,6 +88,8 @@ pub enum Encode<'a> {
     Opus(&'a OpusAudio),
     /// FFmpeg's `aac` encoder, by this `ffmpeg` program.
     Aac(&'a AacAudio, PathBuf),
+    /// FFmpeg's libmp3lame encoder, run as a separate program.
+    Mp3(&'a Mp3Audio, PathBuf),
 }
 
 impl Encode<'_> {
@@ -93,6 +97,7 @@ impl Encode<'_> {
         match self {
             Self::Opus(_) => "Opus",
             Self::Aac(..) => "AAC",
+            Self::Mp3(..) => "MP3",
         }
     }
 
@@ -100,6 +105,7 @@ impl Encode<'_> {
         match self {
             Self::Opus(_) => "the Opus encoder",
             Self::Aac(..) => "the AAC encoder",
+            Self::Mp3(..) => "the MP3 encoder",
         }
     }
 
@@ -107,6 +113,7 @@ impl Encode<'_> {
         match self {
             Self::Opus(settings) => &settings.program,
             Self::Aac(_, program) => program,
+            Self::Mp3(_, program) => program,
         }
     }
 }
@@ -114,8 +121,7 @@ impl Encode<'_> {
 /// The encoded audio stream.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AudioSummary {
-    /// The source stream's position among all of its streams; the output
-    /// keeps its place.
+    /// The source stream's position among all of its streams.
     pub stream_index: usize,
     /// The source stream's codec.
     pub codec: coreav_audio::Codec,
@@ -123,43 +129,71 @@ pub struct AudioSummary {
     pub sample_rate: u32,
     /// The source stream's channels.
     pub source_channels: u16,
-    /// The encoder: `libopus`, or `aac` (FFmpeg's).
+    /// The encoder: `libopus`, `aac`, or `libmp3lame`.
     pub encoder: &'static str,
     /// The output's channels: 1 or 2, the source's.
     pub channels: u8,
     /// The bit rate asked of the encoder, in bits a second; `None` for the
-    /// `aac` encoder's own default.
+    /// external encoder's own default or MP3 quality mode.
     pub bitrate: Option<u32>,
     /// Samples per channel presented, at the output's rate (48 kHz for
-    /// Opus, the source's for AAC): the decoded stream's.
+    /// Opus, the source's for AAC and MP3): the decoded stream's.
     pub samples: u64,
-    /// Packets written: Opus packets of 20 ms, or AAC frames of 1,024
-    /// samples.
+    /// Audio packets written: Opus packets of 20 ms, AAC frames of 1,024
+    /// samples, or MP3 frames of 1,152 or 576 samples.
     pub packets: u64,
-    /// The encoder's delay in samples at the output's rate: not presented
-    /// (the edit's media time).
+    /// The encoded stream's presentation delay in output samples,
+    /// including the MP3 decoder delay, when applicable.
     pub pre_skip: u16,
 }
 
-/// The encoded audio, ready for the MP4 writer.
+/// The checked encoded audio, ready for a container writer.
 pub struct EncodedAudio {
     pub(crate) summary: AudioSummary,
-    /// The `Opus` or `mp4a` sample entry.
-    pub(crate) entry: Vec<u8>,
+    description: Description,
     /// The media timescale: the output's sample rate.
     pub(crate) timescale: u32,
     /// Media ticks of silence before the first presented sample: where a
     /// Matroska source's stream starts ([`matroska_start`]); 0 for an MP4
     /// source, whose leading empty edit the decoder writes as silence.
     pub(crate) start: u64,
-    /// The track's roll distance, in samples of the track.
-    pub(crate) roll: u16,
     /// The packets, back to back in `spool`.
     pub(crate) samples: Vec<AudioSample>,
     pub(crate) spool: Spool,
 }
 
+enum Description {
+    Mp4 { entry: Vec<u8>, roll: u16 },
+    Mp3(mp3::Info),
+}
+
 impl EncodedAudio {
+    pub(crate) fn mp4_description(&self) -> Result<(&[u8], u16), Error> {
+        match &self.description {
+            Description::Mp4 { entry, roll } => Ok((entry, *roll)),
+            Description::Mp3(_) => Err(Error::Unsupported("MP3 audio in MP4 output".into())),
+        }
+    }
+
+    /// Writes ID3v2.4 metadata, a gapless Xing/Info frame and the checked
+    /// Layer III frames. Discard the output if writing fails.
+    pub fn write_mp3<W: Write + ?Sized>(
+        &self,
+        tags: &[(String, String)],
+        deadline: Instant,
+        out: &mut W,
+    ) -> Result<(), Error> {
+        let Description::Mp3(info) = &self.description else {
+            return Err(Error::Unsupported("non-MP3 audio in MP3 output".into()));
+        };
+        let sizes: Vec<_> = self.samples.iter().map(|sample| sample.size).collect();
+        let metadata = mp3::metadata(info, tags).map_err(|e| encoder_error(e.to_string()))?;
+        let frame = mp3::info_frame(info, &sizes).map_err(|e| encoder_error(e.to_string()))?;
+        out.write_all(&metadata)
+            .and_then(|()| out.write_all(&frame))
+            .map_err(|e| Error::Remux(coreav_isobmff_write::ExtractError::Write(e.kind())))?;
+        self.write_packets(deadline, out)
+    }
     /// Writes this checked stream alone as MP4 or M4A, without opening
     /// the source again. `file_type` selects the brands. The edit list
     /// presents exactly the submitted samples after any leading silence.
@@ -174,6 +208,7 @@ impl EncodedAudio {
         use coreav_isobmff_write::mux::{
             Edit, MovieHeader, Muxer, Sample, TrackHeader, TrackMedia,
         };
+        let (entry, roll) = self.mp4_description()?;
         let writer = |error: coreav_isobmff::Error| Error::Remux(error.into());
         let mut muxer = Muxer::new(
             file_type,
@@ -213,8 +248,8 @@ impl EncodedAudio {
                 edits,
                 duration: None,
                 media_duration: None,
-                sample_entry: self.entry.clone(),
-                sample_table_boxes: coreav_isobmff_write::roll_boxes(count, self.roll),
+                sample_entry: entry.to_vec(),
+                sample_table_boxes: coreav_isobmff_write::roll_boxes(count, roll),
                 boxes: Vec::new(),
             })
             .map_err(writer)?;
@@ -238,6 +273,14 @@ impl EncodedAudio {
                 .map_err(writer)?;
         }
         muxer.write_head(&mut out).map_err(Error::Remux)?;
+        self.write_packets(deadline, out)
+    }
+
+    fn write_packets<W: Write + ?Sized>(
+        &self,
+        deadline: Instant,
+        out: &mut W,
+    ) -> Result<(), Error> {
         let mut data =
             BufferedSource::new(FileSource::from_file(self.spool.handle()?).map_err(spool_read)?);
         let mut offset = 0u64;
@@ -277,6 +320,16 @@ pub fn encode<S: Source>(
     let (requested, bitrate, range) = match encode {
         Encode::Opus(s) => (s.stream, s.bitrate, MIN_BITRATE..=MAX_BITRATE),
         Encode::Aac(s, _) => (s.stream, s.bitrate, aac::MIN_BITRATE..=aac::MAX_BITRATE),
+        Encode::Mp3(s, _) => {
+            let bitrate = match s.mode {
+                mp3::Mode::Constant(rate) => rate,
+                mp3::Mode::Quality(q) if q.is_finite() && (0.0..=9.0).contains(&q) => None,
+                mp3::Mode::Quality(_) => {
+                    return Err(Error::Unsupported("MP3 quality outside 0 to 9".into()));
+                }
+            };
+            (s.stream, bitrate, 8_000..=320_000)
+        }
     };
     if bitrate.is_some_and(|b| !range.contains(&b)) {
         return Err(Error::Unsupported(format!(
@@ -294,8 +347,10 @@ pub fn encode<S: Source>(
             program.display()
         )));
     }
-    if let Encode::Aac(_, program) = encode {
-        probe_aac(program, launcher, deadline)?;
+    match encode {
+        Encode::Aac(_, program) => probe_encoder(program, launcher, deadline, "aac")?,
+        Encode::Mp3(_, program) => probe_encoder(program, launcher, deadline, "libmp3lame")?,
+        Encode::Opus(_) => {}
     }
     let mut source = source;
     let options = coreav_audio::Options {
@@ -304,7 +359,7 @@ pub fn encode<S: Source>(
         threads: 1,
         sample_rate: match encode {
             Encode::Opus(_) => Some(SAMPLE_RATE),
-            Encode::Aac(..) => None,
+            Encode::Aac(..) | Encode::Mp3(..) => None,
         },
         channels: None,
     };
@@ -313,12 +368,13 @@ pub fn encode<S: Source>(
         match encode {
             Encode::Opus(_) => "opus",
             Encode::Aac(..) => "aac",
+            Encode::Mp3(..) => "mp3",
         },
     )?;
     // The AAC encoder's Matroska, read back once it has ended.
     let raw = match encode {
         Encode::Opus(_) => None,
-        Encode::Aac(..) => Some(Spool::create(output, "mkv")?),
+        Encode::Aac(..) | Encode::Mp3(..) => Some(Spool::create(output, "mkv")?),
     };
     let mut feed = Feed {
         encode,
@@ -354,14 +410,27 @@ pub fn encode<S: Source>(
     };
     let start_ns = matroska_start(&mut source, Some(summary.stream_index), limits)?;
     let Started {
-        process,
+        mut process,
         channels,
         rate,
         bitrate,
         sent,
     } = started;
     let samples = sent.load(Ordering::SeqCst);
-    let (sizes, pre_skip, entry, roll) = match process.finish().map_err(Error::Encode)? {
+    let guard = if matches!(encode, Encode::Mp3(..)) {
+        let frame = if rate >= 32_000 { 1152u64 } else { 576 };
+        let guard = (frame - samples % frame) % frame;
+        if guard > 0 {
+            sent.fetch_add(guard, Ordering::SeqCst);
+            let bytes = usize::try_from(guard * 4 * u64::from(channels))
+                .map_err(|_| encoder_error("MP3 EOF guard size overflow".into()))?;
+            process.enqueue(vec![0; bytes]).map_err(Error::Encode)?;
+        }
+        u16::try_from(guard).map_err(|_| encoder_error("MP3 EOF guard sample overflow".into()))?
+    } else {
+        0
+    };
+    let (sizes, pre_skip, description, duration) = match process.finish().map_err(Error::Encode)? {
         Output::Opus(Packets {
             reader,
             mut file,
@@ -378,45 +447,107 @@ pub fn encode<S: Source>(
                 )));
             }
             let entry = sample_entry(channels, pre_skip, summary.stream.sample_rate)?;
-            (sizes, pre_skip, entry, ROLL)
+            (
+                sizes,
+                pre_skip,
+                Description::Mp4 { entry, roll: ROLL },
+                FRAME_SAMPLES,
+            )
         }
-        Output::Aac(Stdout { mut file, .. }) => {
+        Output::External(Stdout {
+            mut file, codec, ..
+        }) => {
             file.flush().map_err(|e| Error::Spool(e.kind()))?;
             drop(file);
-            let raw = raw.ok_or_else(|| encoder_error("no AAC spool file".into()))?;
-            let mut written =
-                BufferedSource::new(FileSource::from_file(raw.handle()?).map_err(spool_read)?);
-            let expected = aac::Expected {
-                sample_rate: rate,
-                channels,
-                samples,
+            let raw = raw.ok_or_else(|| encoder_error("no external audio spool file".into()))?;
+            let mut written = TimedSource {
+                source: BufferedSource::new(
+                    FileSource::from_file(raw.handle()?).map_err(spool_read)?,
+                ),
+                deadline,
             };
-            let read = aac::read_output(&mut written, &expected, &limits.matroska)
-                .map_err(|e| encoder_error(e.to_string()))?;
+            let (frames, pre_skip, description, duration) = match codec {
+                External::Aac => {
+                    let expected = aac::Expected {
+                        sample_rate: rate,
+                        channels,
+                        samples,
+                    };
+                    let read = checked_readback(
+                        aac::read_output(&mut written, &expected, &limits.matroska),
+                        deadline,
+                    )?;
+                    let entry = aac_sample_entry(&read.config, rate, channels)?;
+                    (
+                        read.frames
+                            .iter()
+                            .map(|f| (f.offset, f.size))
+                            .collect::<Vec<_>>(),
+                        read.priming,
+                        Description::Mp4 {
+                            entry,
+                            roll: AAC_ROLL,
+                        },
+                        aac::FRAME_SAMPLES,
+                    )
+                }
+                External::Mp3 => {
+                    let expected = mp3::Expected {
+                        sample_rate: rate,
+                        channels,
+                        samples: sent.load(Ordering::SeqCst),
+                        guard,
+                        variable: matches!(
+                            encode,
+                            Encode::Mp3(
+                                Mp3Audio {
+                                    mode: mp3::Mode::Quality(_),
+                                    ..
+                                },
+                                _
+                            )
+                        ),
+                    };
+                    let read = checked_readback(
+                        mp3::read_output(&mut written, &expected, &limits.matroska),
+                        deadline,
+                    )?;
+                    (
+                        read.frames
+                            .iter()
+                            .map(|f| (f.offset, f.size))
+                            .collect::<Vec<_>>(),
+                        read.priming,
+                        Description::Mp3(read.info),
+                        read.frame_samples,
+                    )
+                }
+            };
             let mut file = BufWriter::with_capacity(1 << 16, spool.handle()?);
             let mut frame = Vec::new();
-            for f in &read.frames {
-                frame.resize(usize::try_from(f.size).unwrap_or(usize::MAX), 0);
+            for &(offset, size) in &frames {
+                if Instant::now() >= deadline {
+                    return Err(Error::Decode(coreav_decode::Error::new(
+                        ErrorKind::Timeout,
+                        "the audio encode took longer than its timeout",
+                    )));
+                }
+                frame.resize(usize::try_from(size).unwrap_or(usize::MAX), 0);
                 written
-                    .read_exact_at(f.offset, &mut frame)
+                    .read_exact_at(offset, &mut frame)
                     .map_err(spool_read)?;
                 file.write_all(&frame).map_err(|e| Error::Spool(e.kind()))?;
             }
             file.flush().map_err(|e| Error::Spool(e.kind()))?;
-            let pre_skip = u16::try_from(read.priming)
-                .map_err(|_| encoder_error("an AAC delay above 65535 samples".into()))?;
-            let entry = aac_sample_entry(&read.config, rate, channels)?;
+            let pre_skip = u16::try_from(pre_skip)
+                .map_err(|_| encoder_error("an audio delay above 65535 samples".into()))?;
             (
-                read.frames.iter().map(|f| f.size).collect(),
+                frames.iter().map(|f| f.1).collect(),
                 pre_skip,
-                entry,
-                AAC_ROLL,
+                description,
+                duration,
             )
         }
-    };
-    let duration = match encode {
-        Encode::Opus(_) => FRAME_SAMPLES,
-        Encode::Aac(..) => aac::FRAME_SAMPLES,
     };
     Ok(EncodedAudio {
         summary: AudioSummary {
@@ -427,6 +558,7 @@ pub fn encode<S: Source>(
             encoder: match encode {
                 Encode::Opus(_) => "libopus",
                 Encode::Aac(..) => "aac",
+                Encode::Mp3(..) => "libmp3lame",
             },
             channels,
             bitrate,
@@ -434,10 +566,9 @@ pub fn encode<S: Source>(
             packets: u64::try_from(sizes.len()).unwrap_or(u64::MAX),
             pre_skip,
         },
-        entry,
+        description,
         timescale: rate,
         start: ticks(start_ns, rate),
-        roll,
         samples: sizes
             .into_iter()
             .map(|size| AudioSample { size, duration })
@@ -446,13 +577,14 @@ pub fn encode<S: Source>(
     })
 }
 
-/// Asks the `ffmpeg` program about its `aac` encoder, as it runs as the
+/// Asks the `ffmpeg` program about its requested encoder, as it runs as the
 /// encoder (through `launcher`, killed at `deadline`): one without it is
 /// refused before the source is decoded.
-fn probe_aac(
+fn probe_encoder(
     program: &Path,
     launcher: Option<&ExecLauncher>,
     deadline: Instant,
+    codec: &str,
 ) -> Result<(), Error> {
     struct Answer(Vec<u8>);
     impl Sink for Answer {
@@ -465,14 +597,25 @@ fn probe_aac(
     }
     let command = command(
         program,
-        &aac::probe_args(),
+        &[
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-h",
+            &format!("encoder={codec}"),
+        ]
+        .map(std::ffi::OsString::from),
         HugePages::Kept,
         launcher,
         &EncoderLimits::new(AAC_ENCODER_MEMORY),
         deadline,
     );
     let Answer(answer) = Process::spawn(
-        "the AAC encoder",
+        if codec == "aac" {
+            "the AAC encoder"
+        } else {
+            "the MP3 encoder"
+        },
         "sample blocks",
         command,
         program,
@@ -481,10 +624,9 @@ fn probe_aac(
     )
     .and_then(Process::finish)
     .map_err(Error::Encode)?;
-    if !aac::has_encoder(&answer) {
+    if !answer.starts_with(format!("Encoder {codec} [").as_bytes()) {
         return Err(Error::Unsupported(format!(
-            "the ffmpeg program {} has no aac encoder: AAC audio needs FFmpeg's built-in aac \
-             encoder; name another ffmpeg with --ffmpeg",
+            "the ffmpeg program {} has no {codec} encoder; install FFmpeg with that encoder",
             program.display()
         )));
     }
@@ -594,6 +736,52 @@ fn encoder_error(message: String) -> Error {
     Error::Encode(coreav_decode::Error::new(ErrorKind::Backend, message))
 }
 
+struct TimedSource<S> {
+    source: S,
+    deadline: Instant,
+}
+
+impl<S> TimedSource<S> {
+    fn check(&self) -> Result<(), coreav_isobmff::Error> {
+        if Instant::now() >= self.deadline {
+            return Err(coreav_isobmff::Error::Io(std::io::ErrorKind::TimedOut));
+        }
+        Ok(())
+    }
+}
+
+impl<S: Source> Source for TimedSource<S> {
+    fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+        self.check()?;
+        let len = self.source.len()?;
+        self.check()?;
+        Ok(len)
+    }
+
+    fn read_exact_at(
+        &mut self,
+        offset: u64,
+        bytes: &mut [u8],
+    ) -> Result<(), coreav_isobmff::Error> {
+        self.check()?;
+        self.source.read_exact_at(offset, bytes)?;
+        self.check()
+    }
+}
+
+fn checked_readback<T, E: std::fmt::Display>(
+    result: Result<T, E>,
+    deadline: Instant,
+) -> Result<T, Error> {
+    if Instant::now() >= deadline {
+        return Err(Error::Decode(coreav_decode::Error::new(
+            ErrorKind::Timeout,
+            "the audio encode took longer than its timeout",
+        )));
+    }
+    result.map_err(|error| encoder_error(error.to_string()))
+}
+
 /// The decoded samples' way to the encoder: it starts the encoder once the
 /// decoder names the output's channels and rate.
 struct Feed<'a> {
@@ -678,6 +866,7 @@ impl Feed<'_> {
                     )));
                 }
                 let stdout = Stdout {
+                    codec: External::Aac,
                     sent: Arc::clone(&sent),
                     file,
                     bytes: 0,
@@ -687,7 +876,30 @@ impl Feed<'_> {
                     settings.bitrate,
                     aac::encode_args(rate, channels, settings.bitrate),
                     AAC_ENCODER_MEMORY,
-                    Output::Aac(stdout),
+                    Output::External(stdout),
+                )
+            }
+            Encode::Mp3(settings, _) => {
+                if !mp3::takes_rate(rate) {
+                    return Err(Error::Unsupported(format!(
+                        "MP3 encoding at {rate} Hz without resampling"
+                    )));
+                }
+                let bitrate = match settings.mode {
+                    mp3::Mode::Constant(rate) => rate,
+                    mp3::Mode::Quality(_) => None,
+                };
+                (
+                    bitrate,
+                    mp3::encode_args(rate, channels, settings.mode),
+                    AAC_ENCODER_MEMORY,
+                    Output::External(Stdout {
+                        codec: External::Mp3,
+                        sent: Arc::clone(&sent),
+                        file,
+                        bytes: 0,
+                        max_bytes: self.max_spool_bytes,
+                    }),
                 )
             }
         };
@@ -755,21 +967,26 @@ impl coreav_audio::Sink for Feed<'_> {
 /// The encoder's output on its reader thread.
 enum Output {
     Opus(Packets),
-    Aac(Stdout),
+    External(Stdout),
 }
 
 impl Sink for Output {
     fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_decode::Error> {
         match self {
             Self::Opus(packets) => packets.write(bytes),
-            Self::Aac(stdout) => stdout.write(bytes),
+            Self::External(stdout) => stdout.write(bytes),
         }
     }
 }
 
-/// The AAC encoder's Matroska, into its spool file as it comes: read back
-/// by [`aac::read_output`] once the encoder has ended.
+#[derive(Clone, Copy)]
+enum External {
+    Aac,
+    Mp3,
+}
+
 struct Stdout {
+    codec: External,
     sent: Arc<AtomicU64>,
     file: BufWriter<File>,
     bytes: u64,
@@ -789,10 +1006,14 @@ impl Sink for Stdout {
         }
         // At most what the samples sent so far make: an encoder that
         // writes more is refused before it fills the disk.
-        if self.bytes > aac::most_bytes(self.sent.load(Ordering::SeqCst)) {
+        let most = match self.codec {
+            External::Aac => aac::most_bytes(self.sent.load(Ordering::SeqCst)),
+            External::Mp3 => mp3::most_bytes(self.sent.load(Ordering::SeqCst)),
+        };
+        if self.bytes > most {
             return Err(coreav_decode::Error::new(
                 ErrorKind::Backend,
-                "the AAC encoder wrote more than its samples make",
+                "the audio encoder wrote more than its samples make",
             ));
         }
         self.file.write_all(bytes).map_err(|e| {
@@ -866,6 +1087,65 @@ mod tests {
     use super::*;
     #[cfg(unix)]
     use std::time::Duration;
+
+    #[test]
+    fn readback_checks_the_deadline_inside_parser_reads() {
+        use std::cell::Cell;
+        struct Slow<'a> {
+            source: coreav_isobmff::SliceSource<'a>,
+            reads: &'a Cell<usize>,
+        }
+        impl Source for Slow<'_> {
+            fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+                self.source.len()
+            }
+            fn read_exact_at(
+                &mut self,
+                offset: u64,
+                bytes: &mut [u8],
+            ) -> Result<(), coreav_isobmff::Error> {
+                self.reads.set(self.reads.get() + 1);
+                if self.reads.get() == 1 {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                self.source.read_exact_at(offset, bytes)
+            }
+        }
+        let mut frame = vec![0xff, 0xfb, 0x54, 0xc4];
+        frame.resize(192, 0);
+        let bytes = crate::mp3::tests::fixture(
+            "A_MPEG/L3",
+            23_020_833,
+            &[frame.clone(), frame],
+            &[None, Some(979_167)],
+        );
+        let reads = Cell::new(0);
+        let deadline = Instant::now() + std::time::Duration::from_millis(20);
+        let source = TimedSource {
+            source: Slow {
+                source: coreav_isobmff::SliceSource::new(&bytes),
+                reads: &reads,
+            },
+            deadline,
+        };
+        let expected = mp3::Expected {
+            sample_rate: 48000,
+            channels: 1,
+            samples: 1152,
+            guard: 0,
+            variable: false,
+        };
+        let result = checked_readback(
+            mp3::read_output(source, &expected, &coreav_mkv::Limits::default()),
+            deadline,
+        );
+        assert!(matches!(result, Err(Error::Decode(ref e)) if e.kind == ErrorKind::Timeout));
+        assert!(
+            reads.get() <= 1,
+            "readback continued after the deadline: {} reads",
+            reads.get()
+        );
+    }
 
     /// Writes `body` at `path` as an executable `/bin/sh` script. A child
     /// process writes it, so this process never holds it open for writing:
@@ -1054,7 +1334,7 @@ mod tests {
             ("failing", "echo 'Encoder aac ['; exit 1", Some("exit")),
         ] {
             let (dir, script) = ffmpeg_stand_in(name, body);
-            let result = probe_aac(&script, None, deadline);
+            let result = probe_encoder(&script, None, deadline, "aac");
             std::fs::remove_dir_all(&dir).unwrap();
             match (result, says) {
                 (Ok(()), None) => {}
@@ -1071,7 +1351,8 @@ mod tests {
         let spool = Spool::create(&dir.join("out.mp4"), "mkv").unwrap();
         let start = Instant::now();
         let deadline = start + Duration::from_secs(5);
-        let output = Output::Aac(Stdout {
+        let output = Output::External(Stdout {
+            codec: External::Aac,
             sent: Arc::new(AtomicU64::new(1024)),
             file: BufWriter::new(spool.handle().unwrap()),
             bytes: 0,

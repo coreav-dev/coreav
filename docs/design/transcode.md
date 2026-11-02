@@ -978,7 +978,12 @@ MP3 encoding uses the operator's `ffmpeg -c:a libmp3lame` as a separate
 resource-limited process under policy record 0042. CoreAV supplies decoded
 float PCM, never the input file. The process writes Matroska to a bounded
 spool: RFC 9559's `CodecDelay` and final `DiscardPadding` retain the
-presentation boundaries that a raw MP3 pipe does not. CoreAV's reader
+presentation boundaries that a raw MP3 pipe does not. At EOF, CoreAV adds
+an explicit zero guard to finish a complete codec frame: for N presented
+samples and a frame size F, G = (F - N mod F) mod F. F is 1,152 at
+32, 44.1 and 48 kHz, and 576 at the lower supported rates. The reader
+validates all N + G fed samples, and the writer adds G to its final
+padding field so that the published file presents only N. CoreAV's reader
 checks one uncompressed `A_MPEG/L3` track, rate, channels, every complete
 Layer III frame and the exact decoded sample total before writing output.
 
@@ -1000,6 +1005,16 @@ kept; channels are mono or stereo. Quality selects VBR, with a finite
 value from 0 to 9; absent quality selects the encoder's default or the
 requested constant bit rate. No source-rate conversion, sample-format
 conversion option, cover-art encoding or AVI/FLV writer is added.
+
+**Known boundary difference.** The pinned FFmpeg clamps final discard
+padding when r = N mod F is from 1 to 46, presenting N + (47 - r)
+samples instead of N. CoreAV preserves the original N samples. This
+difference applies to those MP3 boundary lengths only, not to other
+timing differences. Both pinned FFmpeg and ffprobe read CoreAV's seekable
+file at its original length. The boundary regression covers r = 1, 46
+and 47 at 48, 22.05 and 8 kHz, including endpoint quality. The MP3
+timeline comparison uses this exact predicate; it does not admit a
+duration tolerance or change the existing Opus fixture predicate.
 
 ### MP3 correctness bars
 

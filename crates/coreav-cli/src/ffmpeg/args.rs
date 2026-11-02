@@ -32,6 +32,8 @@ pub enum Muxer {
     Mp4,
     /// `ipod` (`.m4a`): an audio-only M4A file.
     Ipod,
+    /// `mp3` (`.mp3`): one Layer III stream.
+    Mp3,
     /// `segment`, writing MP4 segments.
     Segment,
 }
@@ -67,13 +69,11 @@ pub enum Codec {
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
-    /// An audio encoder: one audio stream encoded beside the re-encoded
-    /// video.
+    /// An encoder of one audio stream.
     Audio(AudioEncoder),
 }
 
-/// The audio encoders of `coreav ffmpeg`, each beside a video encoded with
-/// `libx264` (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
+/// The audio encoders of `coreav ffmpeg` (`docs/design/transcode.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AudioEncoder {
     /// `libopus`: Opus (`docs/design/transcode.md`, "Opus audio").
@@ -81,6 +81,8 @@ pub enum AudioEncoder {
     /// `aac`, FFmpeg's built-in encoder: AAC-LC (`docs/design/transcode.md`,
     /// "AAC audio").
     Aac,
+    /// `libmp3lame`, an operator-provided FFmpeg encoder process.
+    Libmp3lame,
 }
 
 /// The encoder options of a command that encodes with `libx264`, as given;
@@ -104,6 +106,8 @@ pub struct Encoding {
     pub pixel_format: Option<String>,
     /// `-b:a`, with `libopus` or `aac`.
     pub audio_bitrate: Option<String>,
+    /// `-q:a` or `-qscale:a` for libmp3lame VBR.
+    pub audio_quality: Option<String>,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
 }
@@ -198,7 +202,7 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 28] = [
+const PER_FILE: [(&str, Arity); 30] = [
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -220,6 +224,8 @@ const PER_FILE: [(&str, Arity); 28] = [
     ("-crf", Arity::Value),
     ("-b:v", Arity::Value),
     ("-b:a", Arity::Value),
+    ("-q:a", Arity::Value),
+    ("-qscale:a", Arity::Value),
     ("-preset", Arity::Value),
     ("-vf", Arity::Value),
     ("-filter:v", Arity::Value),
@@ -598,11 +604,12 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libx264" => Codec::Libx264,
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
+                "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
                 _ => {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus or aac",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus, aac or libmp3lame",
                     ));
                 }
             };
@@ -619,6 +626,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-s" => encoding.size = value,
             "-pix_fmt" => encoding.pixel_format = value,
             "-b:a" => encoding.audio_bitrate = value,
+            "-q:a" | "-qscale:a" => encoding.audio_quality = value,
             "-fps_mode" | "-vsync" => {
                 if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
                     return Err(not_native(
@@ -646,7 +654,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             encoders.push(option);
             continue;
         }
-        if option == "-b:a" {
+        if matches!(option, "-b:a" | "-q:a" | "-qscale:a") {
             audio_encoders.push(option);
             continue;
         }
@@ -720,6 +728,23 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if !local(output, cfg!(windows)) {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
+    command.muxer = muxer(format, output)?;
+    if let Some(option) = audio_encoders
+        .iter()
+        .copied()
+        .find(|option| *option != "-b:a")
+        && command.muxer != Muxer::Mp3
+        && !command
+            .codecs
+            .iter()
+            .any(|(_, codec)| *codec == Codec::Audio(AudioEncoder::Libmp3lame))
+    {
+        return Err(not_native(
+            option,
+            None,
+            "audio quality is supported only with libmp3lame",
+        ));
+    }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
     {
@@ -730,6 +755,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     if let Some(option) = audio_encoders.first()
+        && command.muxer != Muxer::Mp3
         && !command
             .codecs
             .iter()
@@ -738,10 +764,9 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         return Err(not_native(
             option,
             None,
-            "it is an audio encoder option, and coreav ffmpeg encodes audio only with -c:a libopus or aac",
+            "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    command.muxer = muxer(format, output)?;
     if command.muxer == Muxer::Segment {
         let written = match segment_format {
             None => extension_muxer(output),
@@ -818,6 +843,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
     match extension.as_str() {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
+        "mp3" => Some(Muxer::Mp3),
         _ => None,
     }
 }
@@ -826,11 +852,12 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
     match format {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
+        Some("mp3") => Ok(Muxer::Mp3),
         Some("segment") => Ok(Muxer::Segment),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes mp4, ipod (M4A) and segment",
+            "coreav ffmpeg writes mp4, ipod (M4A), mp3 and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an output container other than MP4 or M4A")),
@@ -1114,6 +1141,7 @@ mod tests {
                 pixel_format: text("yuv420p"),
                 passthrough: true,
                 audio_bitrate: None,
+                audio_quality: None,
             }
         );
     }

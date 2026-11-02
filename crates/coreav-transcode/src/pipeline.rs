@@ -567,13 +567,13 @@ pub fn transcode<S: Source, W: Write>(
     let audio_replacement = match &audio {
         Some(encoded) => Some(AudioReplacement {
             stream_index: encoded.summary.stream_index,
-            sample_entry: &encoded.entry,
+            sample_entry: encoded.mp4_description()?.0,
             timescale: encoded.timescale,
             samples: &encoded.samples,
             start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
-            roll: encoded.roll,
+            roll: encoded.mp4_description()?.1,
             data: BufferedSource::new(
                 FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
             ),

@@ -170,6 +170,10 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
 Builds with a decoder backend also encode the video with -c:v libx264.
+They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
+using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
+For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
+Use -vn or -map a to select audio only. Audio encoding needs no video decoder.
 Prints nothing on success.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
@@ -215,7 +219,7 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     }
     #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {
-        return audio::write(&command, stream, encoder, strict_safe);
+        return audio::write(&command, &report, stream, encoder, strict_safe);
     }
     write(&command, &job)
 }
@@ -321,7 +325,7 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if command.muxer != Muxer::Ipod {
+    if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
         match command.map_metadata {
             MapMetadata::Default => {}
             MapMetadata::Strip => {
@@ -366,6 +370,11 @@ pub fn plan(
     }
     if !audio_encoded.is_empty() {
         return audio::plan(command, report, &output, &audio_encoded, trims);
+    }
+    if command.muxer == Muxer::Mp3 {
+        return Err(Refusal::not_native(
+            "MP3 output without libmp3lame encoding",
+        ));
     }
     if (args::Encoding {
         threads: None,
@@ -608,6 +617,12 @@ fn transcode_job(
             "copying a stream other than audio beside the encoded video",
         ));
     }
+    if audio
+        .iter()
+        .any(|(_, encoder)| *encoder == args::AudioEncoder::Libmp3lame)
+    {
+        return Err(Refusal::not_native("MP3 encoding beside video"));
+    }
     let audio_encoder = match (audio, others.as_slice()) {
         ([], _) => None,
         ([(index, encoder)], [(other, stream)]) if index == other => {
@@ -620,12 +635,16 @@ fn transcode_job(
                     "copying audio beside the audio stream libopus encodes"
                 }
                 args::AudioEncoder::Aac => "copying audio beside the audio stream aac encodes",
+                args::AudioEncoder::Libmp3lame => "MP3 encoding beside video",
             }));
         }
         ([(_, encoder), ..], _) => {
             return Err(Refusal::not_native(match encoder {
                 args::AudioEncoder::Libopus => "encoding more than one audio stream with libopus",
                 args::AudioEncoder::Aac => "encoding more than one audio stream with aac",
+                args::AudioEncoder::Libmp3lame => {
+                    "encoding more than one audio stream with libmp3lame"
+                }
             }));
         }
     };
@@ -661,6 +680,8 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
     if codec.and_then(coreav_audio::Codec::from_name).is_none() {
         return Err(Refusal::not_native(if opus {
             "encoding audio with libopus from a codec this build does not decode"
+        } else if encoder == args::AudioEncoder::Libmp3lame {
+            "encoding audio with libmp3lame from a codec this build does not decode"
         } else {
             "encoding audio with aac from a codec this build does not decode"
         }));
@@ -668,6 +689,8 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
     if !(1..=2).contains(&int(stream, "channels")) {
         return Err(Refusal::not_native(if opus {
             "encoding other than mono or stereo with libopus (ffmpeg writes a surround Opus stream)"
+        } else if encoder == args::AudioEncoder::Libmp3lame {
+            "encoding other than mono or stereo with libmp3lame (CoreAV does not downmix)"
         } else {
             "encoding other than mono or stereo with aac (ffmpeg writes a surround AAC stream)"
         }));
@@ -676,7 +699,7 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
         Value::Unit(hz, _) if *k == "sample_rate" => Some(*hz),
         _ => None,
     });
-    if !opus && rate.is_none_or(|hz| !(8_000..=64_000).contains(&hz)) {
+    if encoder == args::AudioEncoder::Aac && rate.is_none_or(|hz| !(8_000..=64_000).contains(&hz)) {
         return Err(Refusal::not_native(
             "encoding audio sampled outside 8 to 64 kHz with aac (CoreAV does not resample it)",
         ));
@@ -689,7 +712,13 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
 /// copy` copies the video). Options name output streams, so a stream
 /// mapped twice is decided once for each place it has.
 fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> {
-    let mut decided = vec![None; output.len()];
+    let mut decided: Vec<_> = output
+        .iter()
+        .map(|(_, stream)| {
+            (command.muxer == Muxer::Mp3 && stream.kind == StreamKind::Audio)
+                .then_some(Codec::Audio(args::AudioEncoder::Libmp3lame))
+        })
+        .collect();
     for (spec, codec) in &command.codecs {
         for position in matching(spec, output) {
             if let Some(slot) = decided.get_mut(position) {
@@ -917,9 +946,11 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
                 })
                 .map(|(i, _)| i)
         };
-        selected.extend(best(StreamKind::Video, &|s| {
-            int(s, "width").saturating_mul(int(s, "height"))
-        }));
+        if command.muxer != Muxer::Mp3 {
+            selected.extend(best(StreamKind::Video, &|s| {
+                int(s, "width").saturating_mul(int(s, "height"))
+            }));
+        }
         selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
         let subtitle = all
             .iter()

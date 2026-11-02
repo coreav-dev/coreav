@@ -73,6 +73,15 @@ pub(super) fn bits(text: &str) -> Option<u128> {
 /// names `aac` is refused in strict-safe mode first: its encoder is the
 /// `ffmpeg` program.
 pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
+    if strict_safe.on()
+        && (command.muxer == super::args::Muxer::Mp3
+            || command
+                .codecs
+                .iter()
+                .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Libmp3lame)))
+    {
+        return Err(refused_strict("strict-safe mode never runs the ffmpeg program, so it cannot encode MP3 audio; run without --strict-safe and COREAV_STRICT_SAFE".into()));
+    }
     if command
         .codecs
         .iter()
@@ -123,7 +132,13 @@ pub fn request(
         pixel_format,
         passthrough: _,
         audio_bitrate,
+        audio_quality,
     } = &command.encoding;
+    if audio_quality.is_some() {
+        return Err(Refusal::not_native(
+            "audio quality options beside video encoding",
+        ));
+    }
     let (opus, aac) = match (audio_encoder, audio.as_slice()) {
         (None, _) => (None, None),
         (Some(encoder), [stream]) => {
@@ -137,6 +152,9 @@ pub fn request(
                     aac::MIN_BITRATE..=aac::MAX_BITRATE,
                     "the AAC bit rate must be from 16k to 512k bits a second",
                 ),
+                AudioEncoder::Libmp3lame => {
+                    return Err(Refusal::not_native("MP3 encoding beside video"));
+                }
             };
             let bitrate = match audio_bitrate {
                 None => None,
@@ -148,12 +166,16 @@ pub fn request(
             match encoder {
                 AudioEncoder::Libopus => (Some(transcode::OpusRequest { stream, bitrate }), None),
                 AudioEncoder::Aac => (None, Some(transcode::AacRequest { stream, bitrate })),
+                AudioEncoder::Libmp3lame => {
+                    return Err(Refusal::not_native("MP3 encoding beside video"));
+                }
             }
         }
         (Some(encoder), _) => {
             return Err(Refusal::not_native(match encoder {
                 AudioEncoder::Libopus => "encoding other than one audio stream with libopus",
                 AudioEncoder::Aac => "encoding other than one audio stream with aac",
+                AudioEncoder::Libmp3lame => "MP3 encoding beside video",
             }));
         }
     };
@@ -491,6 +513,9 @@ pub(super) fn failed(failure: WriteFailure, audio_encoder: Option<AudioEncoder>)
             Stop::Refused(Refusal::NotNative(NotNative {
                 reason: Reason::Property(match audio_encoder {
                     Some(AudioEncoder::Aac) => "an audio stream the AAC encode does not take",
+                    Some(AudioEncoder::Libmp3lame) => {
+                        "an audio stream the MP3 encode does not take"
+                    }
                     _ => "an audio stream the Opus encode does not take",
                 }),
                 message: format!("not supported by coreav ffmpeg: the audio stream: {message}"),

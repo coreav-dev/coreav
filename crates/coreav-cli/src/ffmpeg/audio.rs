@@ -15,6 +15,9 @@ pub(super) fn plan(
             Some(AudioEncoder::Libopus) => {
                 "encoding audio with libopus without encoding the video with libx264"
             }
+            Some(AudioEncoder::Libmp3lame) => {
+                "encoding other than one selected audio stream with libmp3lame"
+            }
             _ => "encoding audio with aac without encoding the video with libx264",
         }));
     };
@@ -35,16 +38,21 @@ pub(super) fn plan(
             "an audio-only encode with a delayed source stream",
         ));
     }
-    if !matches!(command.muxer, Muxer::Mp4 | Muxer::Ipod) {
-        return Err(Refusal::not_native("an audio encode outside MP4 or M4A"));
-    }
-    if command.muxer == Muxer::Ipod && *encoder != AudioEncoder::Aac {
+    if !matches!(
+        (command.muxer, encoder),
+        (Muxer::Mp4, AudioEncoder::Aac | AudioEncoder::Libopus)
+            | (Muxer::Ipod, AudioEncoder::Aac)
+            | (Muxer::Mp3, AudioEncoder::Libmp3lame)
+    ) {
         return Err(Refusal::not_native(
-            "an audio encode to M4A with a codec other than AAC",
+            "the selected audio encoder in this output container",
         ));
     }
     let mut options = command.encoding.clone();
     options.audio_bitrate = None;
+    if *encoder == AudioEncoder::Libmp3lame {
+        options.audio_quality = None;
+    }
     if options != Encoding::default() {
         return Err(Refusal::not_native(
             "video encoder options on an audio-only encode",
@@ -58,16 +66,18 @@ pub(super) fn plan(
             "metadata from a selected stream on an audio-only encode",
         ));
     }
-    if stream
-        .disposition
-        .iter()
-        .any(|(key, value)| *key != "default" && !matches!(value, Value::Int(0)))
+    if command.muxer != Muxer::Mp3
+        && stream
+            .disposition
+            .iter()
+            .any(|(key, value)| *key != "default" && !matches!(value, Value::Int(0)))
     {
         return Err(Refusal::not_native(
             "source dispositions on an audio-only encode",
         ));
     }
-    if command.map_metadata == MapMetadata::Default
+    if command.muxer != Muxer::Mp3
+        && command.map_metadata == MapMetadata::Default
         && (report.format_tags.iter().any(|(key, _)| {
             !matches!(
                 key.as_str(),
@@ -94,6 +104,7 @@ pub(super) fn plan(
 #[cfg(feature = "transcode")]
 pub(super) fn write(
     command: &Command,
+    report: &Report,
     stream: usize,
     encoder: AudioEncoder,
     strict_safe: crate::strict_safe::StrictSafe,
@@ -134,16 +145,41 @@ pub(super) fn write(
         stream: Some(stream),
         bitrate,
     };
+    let mp3 = coreav_transcode::mp3::Mp3Audio {
+        stream: Some(stream),
+        mode: match command.encoding.audio_quality.as_deref() {
+            Some(text) => coreav_transcode::mp3::Mode::Quality(
+                text.parse::<f32>()
+                    .ok()
+                    .filter(|q| q.is_finite() && (0.0..=9.0).contains(q))
+                    .ok_or_else(|| {
+                        Refusal::Usage(format!("Invalid MP3 quality '{text}': use 0 to 9."))
+                    })?,
+            ),
+            None => coreav_transcode::mp3::Mode::Constant(bitrate),
+        },
+    };
     let encode = match encoder {
         AudioEncoder::Libopus => Encode::Opus(&opus),
-        AudioEncoder::Aac => {
-            let program = find_encoder(EncoderChoice::Ffmpeg, None, None).ok_or_else(|| {
-                Refusal::NotNative(super::NotNative::property(
+        external => {
+            let (words, message) = if external == AudioEncoder::Aac {
+                (
                     "no ffmpeg program for AAC audio",
                     "no ffmpeg program for AAC audio: install FFmpeg with its built-in aac encoder",
-                ))
-            })?;
-            Encode::Aac(&aac, program.path().to_path_buf())
+                )
+            } else {
+                (
+                    "no ffmpeg program for MP3 audio",
+                    "no ffmpeg program for MP3 audio: install FFmpeg with libmp3lame",
+                )
+            };
+            let program = find_encoder(EncoderChoice::Ffmpeg, None, None)
+                .ok_or_else(|| Refusal::NotNative(super::NotNative::property(words, message)))?;
+            if external == AudioEncoder::Aac {
+                Encode::Aac(&aac, program.path().to_path_buf())
+            } else {
+                Encode::Mp3(&mp3, program.path().to_path_buf())
+            }
         }
     };
     let input = Path::new(&command.input);
@@ -169,6 +205,17 @@ pub(super) fn write(
             coreav_transcode::pipeline::MAX_SPOOL_BYTES,
         )
         .map_err(crate::transcode::failure)?;
+        if command.muxer == Muxer::Mp3 {
+            let tags = if command.map_metadata == MapMetadata::Strip {
+                &[][..]
+            } else {
+                report.format_tags.as_slice()
+            };
+            encoded
+                .write_mp3(tags, deadline, out)
+                .map_err(crate::transcode::failure)?;
+            return Ok(serde_json::Value::Null);
+        }
         let file_type = if command.muxer == Muxer::Ipod {
             FileType {
                 major: FourCc(*b"M4A "),
