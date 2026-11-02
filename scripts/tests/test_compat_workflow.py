@@ -183,7 +183,7 @@ class Evidence(unittest.TestCase):
     def test_measurement_checkouts_do_not_persist_credentials(self):
         workflow = (ROOT / '.github/workflows/compat-0.1.0.yml').read_text()
         checkouts = workflow.split('      - uses: actions/checkout@')[1:]
-        self.assertEqual(len(checkouts), 5)
+        self.assertEqual(len(checkouts), 6)
         for checkout in checkouts:
             self.assertIn('          persist-credentials: false', checkout.split('\n      - ', 1)[0])
 
