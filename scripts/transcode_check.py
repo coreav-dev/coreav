@@ -1021,6 +1021,8 @@ def check_compat(args, path, key, cls, tmp):
         arm['streams'] = kinds
         src_audio = [audio_origin(args, src, out, a) for a in ai]
         expected = res['baseline'].get('audio_from') if res['baseline']['status'] == 'ok' else None
+        if expected is None and '-an' in shlex.split(COMPAT_COMMANDS[key]):
+            expected = []
         if vi is None or (None in src_audio and expected is None) or \
                 (expected is not None and src_audio != expected):
             arm.update(status='failed', reason='no video stream, or an audio stream not from the source')

@@ -332,18 +332,19 @@ class EncodedAudio(unittest.TestCase):
         self.assertFalse(self.compare(stderr=b'decoder error')['ok'])
         self.assertFalse(self.compare(candidate_hash=hashlib.sha256(b'').hexdigest().encode())['ok'])
 
-    def compat(self, origins, encoded_ok, baseline_ok=True):
+    def compat(self, origins, encoded_ok, baseline_ok=True, key='x01', has_audio=True):
         args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe', coreav='coreav', arms=[('test', [])])
         source = mock.Mock()
         source.streams = [{'index': 0, 'codec_type': 'video'}]
-        kinds = [('video', 'h264'), ('audio', 'aac')]
+        kinds = [('video', 'h264')] + ([('audio', 'aac')] if has_audio else [])
+        audios = [1] if has_audio else []
         judged = {'B1': {'ok': True}, 'B2': {'ok': True}, 'B3': {'ok': True},
                   'video': {'width': 64, 'height': 64, 'bytes': 100}}
         with tempfile.TemporaryDirectory() as temp, mock.patch.object(tc, 'Source', return_value=source), \
                 mock.patch.object(pathlib.Path, 'is_file', return_value=True), \
                 mock.patch.object(tc, 'run', return_value=SimpleNamespace(
                     returncode=0 if baseline_ok else 1, stderr=b'baseline error')), \
-                mock.patch.object(tc, 'written', return_value=(kinds, 0, [1])), \
+                mock.patch.object(tc, 'written', return_value=(kinds, 0, audios)), \
                 mock.patch.object(tc, 'audio_origin', side_effect=origins), \
                 mock.patch.object(tc, 'compat_run', return_value={'status': 'ok'}), \
                 mock.patch.object(tc, 'judge_output', return_value=judged) as judge, \
@@ -352,7 +353,7 @@ class EncodedAudio(unittest.TestCase):
                 mock.patch.object(tc, 'psnr', return_value={'ok': True, 'average': 40}), \
                 mock.patch.object(tc, 'probe_size', return_value=(64, 64)), \
                 mock.patch.object(tc, 'video_bytes_and_rate', return_value=(100, 800)):
-            result = tc.check_compat(args, 'source.mp4', 'x01', 'h264', pathlib.Path(temp))
+            result = tc.check_compat(args, 'source.mp4', key, 'h264', pathlib.Path(temp))
             return result['arms']['test'], judge.call_args, encoded.call_count
 
     def test_compat_rejects_wrong_encoded_audio(self):
@@ -376,6 +377,21 @@ class EncodedAudio(unittest.TestCase):
         self.assertIsNone(judged.kwargs['expected_audio'])
         self.assertFalse(result['Q1']['ok'])
         self.assertFalse(result['Q2']['ok'])
+
+    def test_failed_baseline_retains_explicit_no_audio_expectation(self):
+        result, judged, calls = self.compat([], False, baseline_ok=False, key='x12', has_audio=False)
+        self.assertEqual(calls, 0)
+        self.assertEqual(judged.args[5], [])
+        self.assertEqual(judged.kwargs['expected_audio'], [])
+        self.assertFalse(result['Q1']['ok'])
+        self.assertFalse(result['Q2']['ok'])
+
+    def test_failed_baseline_cannot_hide_unexpected_audio(self):
+        for origin in [1, None]:
+            result, judged, calls = self.compat([origin], False, baseline_ok=False, key='x12')
+            self.assertEqual(result['status'], 'failed')
+            self.assertIsNone(judged)
+            self.assertEqual(calls, 0)
 
 
 class Summary(unittest.TestCase):
