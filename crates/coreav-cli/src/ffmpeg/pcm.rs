@@ -36,9 +36,12 @@ pub(super) fn plan(
         Value::Str(name) if *key == "codec_name" => Some(name.as_str()),
         _ => None,
     });
-    if codec.and_then(coreav_audio::Codec::from_name).is_none() {
+    if !codec
+        .and_then(coreav_audio::Codec::from_name)
+        .is_some_and(coreav_audio::Codec::is_lossless)
+    {
         return Err(Refusal::not_native(
-            "PCM output from an audio codec this build does not decode",
+            "PCM output requires a decoded lossless source (currently FLAC)",
         ));
     }
     if concat
