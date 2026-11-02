@@ -212,6 +212,45 @@ class CopyMapping(unittest.TestCase):
         self.assertEqual(self.mapping([self.lines[0], '  Stream #0:4 -> #0:1 (copy)']),
                          ((0, 0, 4), (1, 0, 4)))
 
+    def test_mp4_muxer_diagnostics_do_not_replace_or_end_mapping_validation(self):
+        warning = '[mp4 @ 0x55d61386ad80] track 1: codec frame size is not set'
+        self.assertEqual(self.mapping([warning, *self.lines, warning]), ((0, 0, 4), (1, 1, 8)))
+        for lines in ([self.lines[0], warning], [self.lines[0], warning, '  unparsed mapping'],
+                      [*self.lines, warning, self.lines[0]],
+                      [self.lines[0], warning, self.lines[1].replace('(copy)', '(aac -> aac)')],
+                      [*self.lines, '[unrecognized diagnostic]']):
+            with self.subTest(lines=lines):
+                self.assertEqual(self.mapping(lines), ())
+
+    def test_copied_audio_compares_its_complete_rational_frame_timeline(self):
+        for codec in ('aac', 'opus'):
+            stream = {'index': 0, 'codec_type': 'audio', 'codec_name': codec, 'sample_fmt': 'fltp',
+                      'sample_rate': '48000', 'channels': 1, 'time_base': '1/1000', 'start_pts': 0}
+            frames = [{'stream_index': 0, 'best_effort_timestamp': pts, 'duration': 20, 'nb_samples': 960}
+                      for pts in (0, 20, 40)]
+            reference = {'streams': [stream], 'frames': frames}
+            mutations = [frames[:2] + [{**frames[2], 'best_effort_timestamp': 1040}],
+                         [frames[0], {**frames[1], 'duration': 19}, frames[2]], frames[:-1], [],
+                         [frames[0], {**frames[1], 'best_effort_timestamp': 'invalid'}, frames[2]],
+                         [frames[0], {**frames[1], 'nb_samples': 959}, frames[2]],
+                         [frames[0], {**frames[1], 'best_effort_timestamp': None}, frames[2]],
+                         [frames[0], {**frames[1], 'nb_samples': 0}, frames[2]]]
+            scaled = [{**f, 'best_effort_timestamp': f['best_effort_timestamp'] * 48,
+                       'duration': f['duration'] * 48} for f in frames]
+            cases = [(reference, 'verified'),
+                     ({'streams': [{**stream, 'time_base': '1/48000'}], 'frames': scaled}, 'verified')]
+            cases += [({'streams': [stream], 'frames': changed}, 'failed') for changed in mutations]
+            for actual, status in cases:
+                with self.subTest(codec=codec, actual=actual), tempfile.TemporaryDirectory() as tmp:
+                    def decode(argv, env, output):
+                        output.write_bytes(struct.pack('<d', 0.25) * 2880)
+                        return 0, b'', b''
+                    with mock.patch.object(decoded_output, 'probe', side_effect=[reference, actual]), \
+                            mock.patch.object(decoded_output, 'invoke', side_effect=decode):
+                        result = decoded_output.compare('candidate', 'reference', 'ffmpeg', 'ffprobe', {},
+                                                        pathlib.Path(tmp), copied_streams=(0,))
+                    self.assertEqual(result[0], status, result)
+
     def test_incomplete_or_noncopy_mapping_never_qualifies(self):
         changes = [[], self.lines[:1], self.lines + self.lines[:1],
                    self.lines + ['  unparsed mapping'],
@@ -351,7 +390,8 @@ class PinnedOracle(unittest.TestCase):
                 bindings = self.copy_sources(work, video, audio)
                 for args in [*commands, matroska]:
                     with self.subTest(args=args):
-                        self.assertEqual(self.copy_case(work, args, bindings)[0], 'verified')
+                        result = self.copy_case(work, args, bindings)
+                        self.assertEqual(result[0], 'verified', result)
                 changed_container = matroska[:-1] + ['-metadata', 'title=different container bytes', 'OUTPUT']
                 self.assertEqual(self.copy_case(work, matroska, bindings, changed_container)[0], 'verified')
                 for maps in (['0:1', '0:0'], ['0:0'], ['0:0', '0:1', '0:2']):
@@ -369,7 +409,8 @@ class PinnedOracle(unittest.TestCase):
                     for stream in (0, 1):
                         args = ['-i', 'INPUT', '-i', 'INPUT2', '-map', f'1:{stream}',
                                 '-c', 'copy', '-f', form, 'OUTPUT']
-                        self.assertEqual(self.copy_case(work, args, bindings)[0], 'verified')
+                        result = self.copy_case(work, args, bindings)
+                        self.assertEqual(result[0], 'verified', result)
                         for wrong in (f'0:{stream}', f'1:{stream + 2}'):
                             candidate = [wrong if a == f'1:{stream}' else a for a in args]
                             with self.subTest(form=form, stream=stream, wrong=wrong):
@@ -389,6 +430,42 @@ class PinnedOracle(unittest.TestCase):
             self.wav(left, [1, 2, 4], junk=True)
             self.assertEqual(decoded_output.compare(left, right, self.ffmpeg, self.ffprobe, self.env, work),
                              ('failed', 'decoded samples'))
+
+    def test_copied_audio_with_only_an_interior_timestamp_change_fails(self):
+        for video, audio in (('libx264', 'aac'), ('libvpx-vp9', 'libopus')):
+            with self.subTest(audio=audio), tempfile.TemporaryDirectory() as tmp:
+                work = pathlib.Path(tmp)
+                bindings = self.copy_sources(work, video, audio)
+                candidate, reference, scratch = (work / n for n in ('candidate', 'reference', 'scratch'))
+                for directory in (candidate, reference, scratch):
+                    directory.mkdir()
+                args = ['-i', 'INPUT', '-map', '0:1', '-c', 'copy', '-f', 'matroska', 'OUTPUT']
+                shift = 'setts=pts=PTS+if(eq(N\\,4)\\,1\\,0):dts=DTS+if(eq(N\\,4)\\,1\\,0)'
+                changed = args[:-1] + ['-bsf:a', shift, 'OUTPUT']
+                argv = [str(candidate / 'output.mp4') if a == 'OUTPUT' else
+                        str(bindings[a]) if a in bindings else a for a in changed]
+                code, _, err = decoded_output.invoke([self.ffmpeg, '-nostdin', '-v', 'error', *argv], self.env)
+                self.assertEqual(code, 0, err)
+                self.assertEqual(current_ci.verify(args, bindings, candidate, reference, self.env,
+                                                    self.ffmpeg, self.ffprobe, scratch),
+                                 ('failed', 'audio frame timing or count'))
+                listings, samples = [], []
+                for directory in (candidate, reference):
+                    path = directory / 'output.mp4'
+                    listing = decoded_output.probe(path, self.ffprobe, self.env)
+                    self.assertIsNotNone(listing)
+                    self.assertNotIn('duration_ts', listing['streams'][0])
+                    listings.append(listing)
+                    code, data, err = decoded_output.invoke(
+                        [self.ffmpeg, '-nostdin', '-v', 'error', *decoded_output.AUDIO_DECODE_INPUT,
+                         '-i', str(path), '-map', '0:0', '-c:a', 'pcm_f64le', '-f', 'f64le', '-'], self.env)
+                    self.assertEqual((code, err), (0, b''))
+                    self.assertTrue(data)
+                    samples.append(data)
+                self.assertTrue(decoded_output.metadata(listings[0]['streams'][0], listings[1]['streams'][0]))
+                self.assertNotEqual([f['best_effort_timestamp'] for f in listings[0]['frames']],
+                                    [f['best_effort_timestamp'] for f in listings[1]['frames']])
+                self.assertEqual(samples[0], samples[1])
 
     def test_raw_audio_success_is_verified_but_one_wrong_sample_fails(self):
         for channels in (1, 2):

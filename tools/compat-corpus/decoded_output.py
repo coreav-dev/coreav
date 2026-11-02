@@ -194,6 +194,26 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
             return 'failed', 'stream fields or timing'
         kind = theirs['codec_type']
         if kind == 'audio':
+            if index in copied_streams:
+                try:
+                    timelines = []
+                    for document, stream in ((actual, ours), (expected, theirs)):
+                        frames = [f for f in document.get('frames', []) if f.get('stream_index') == index]
+                        if not frames:
+                            return 'failed', 'no audio frames'
+                        timeline = []
+                        for frame in frames:
+                            clock = {**frame, 'time_base': stream['time_base']}
+                            pts, duration = time(clock, 'best_effort_timestamp'), time(clock, 'duration')
+                            samples = int(frame['nb_samples'])
+                            if pts is None or samples <= 0 or (duration is not None and duration < 0):
+                                return 'failed', 'invalid audio timing'
+                            timeline.append((pts, duration, samples))
+                        timelines.append(timeline)
+                    if timelines[0] != timelines[1]:
+                        return 'failed', 'audio frame timing or count'
+                except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                    return 'failed', 'invalid audio timing'
             floating = theirs['sample_fmt'].startswith(('flt', 'dbl')) or theirs['codec_name'] == 'mp3'
             codec, form, size = ('pcm_f64le', 'f64le', 8) if floating else ('pcm_s32le', 's32le', 4)
             decoded = ['-c:a', codec, '-f', form]

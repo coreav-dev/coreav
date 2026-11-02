@@ -43,6 +43,8 @@ def copy_mapping(stderr, sources, reference):
             break
         if not line.strip():
             continue
+        if re.fullmatch(r'\[mp4 @ 0x[0-9a-fA-F]+\] track \d+: codec frame size is not set', line):
+            continue
         match = re.fullmatch(r'\s+Stream #(\d+):(\d+)(?:\[[^]\r\n]*\])? -> #(\d+):(\d+) \(copy\)', line)
         if not match:
             return ()
