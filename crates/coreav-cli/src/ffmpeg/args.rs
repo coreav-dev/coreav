@@ -57,6 +57,8 @@ pub enum Spec {
 /// One `-map`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Map {
+    /// Which input file, starting at zero.
+    pub file: usize,
     /// `-map -0:a`: removes from what the earlier `-map` options selected.
     pub remove: bool,
     /// Which streams of the input.
@@ -144,6 +146,8 @@ pub enum Overwrite {
 pub struct Command {
     /// The input file.
     pub input: String,
+    /// The remaining input files, in command-line order.
+    pub more_inputs: Vec<String>,
     /// `-f` before `-i`.
     pub demuxer: Option<Demuxer>,
     /// `-ss` before `-i`: input seeking.
@@ -369,17 +373,16 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
     if rest == "a" {
         return Ok(Map {
             remove,
+            file: 0,
             spec: Spec::Kind(Kind2::Audio, None),
         });
     }
     let (file, spec) = rest
         .split_once(':')
         .map_or((rest, None), |(f, s)| (f, Some(s)));
-    match file.parse::<usize>() {
-        Ok(0) => {}
-        Ok(_) => return Err(usage(format!("Invalid input file index: {file}."))),
-        Err(_) => return Err(usage(format!("Invalid stream specifier: {text}."))),
-    }
+    let file = file
+        .parse::<usize>()
+        .map_err(|_| usage(format!("Invalid stream specifier: {text}.")))?;
     let spec = match spec {
         None => Spec::All,
         Some(metadata) if metadata.starts_with("m:") => {
@@ -397,7 +400,7 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
             Refusal::not_native("a -map stream specifier other than a type, an index or language")
         })?,
     };
-    Ok(Map { remove, spec })
+    Ok(Map { file, remove, spec })
 }
 
 /// A time in `ffmpeg`'s duration syntax, exactly: `[HH:]MM:SS[.m...]`
@@ -534,11 +537,28 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         (false, true) => Overwrite::No,
         (false, false) => Overwrite::Ask,
     };
-    let (input, input_options) = match inputs.as_slice() {
-        [] => return Err(usage("No input file: give one with -i INPUT.")),
-        [one] => one.clone(),
-        _ => return Err(Refusal::not_native("a command with several inputs")),
-    };
+    if inputs.len() > coreav_isobmff_write::MAX_REMUX_INPUTS {
+        return Err(Refusal::not_native("more than sixteen input files"));
+    }
+    if inputs.len() > 1 && inputs.iter().any(|(_, group)| !group.is_empty()) {
+        return Err(Refusal::not_native("input options with several inputs"));
+    }
+    let (input, input_options) = inputs
+        .first()
+        .cloned()
+        .ok_or_else(|| usage("No input file: give one with -i INPUT."))?;
+    let more_inputs: Vec<String> = inputs
+        .iter()
+        .skip(1)
+        .map(|(path, _)| path.to_string())
+        .collect();
+    for path in &more_inputs {
+        if path == "-" || path.starts_with("pipe:") || !local(path, cfg!(windows)) {
+            return Err(Refusal::not_native(
+                "an input named with a protocol or pipe",
+            ));
+        }
+    }
     let (output, output_options) = match outputs.as_slice() {
         [] => return Err(usage("At least one output file must be specified")),
         [one] => one.clone(),
@@ -546,6 +566,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     };
     let mut command = Command {
         input: input.to_owned(),
+        more_inputs,
         demuxer: None,
         input_seek: None,
         input_duration: None,
@@ -820,6 +841,17 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
+    for map in &command.maps {
+        if map.file >= inputs.len() {
+            return Err(usage(format!("Invalid input file index: {}.", map.file)));
+        }
+    }
+    if !command.more_inputs.is_empty() && command.maps.is_empty() {
+        return Err(Refusal::NotNative(NotNative::property(
+            "a command with several inputs",
+            "not supported by coreav ffmpeg: automatic stream selection across several inputs; give explicit -map options",
+        )));
+    }
     Ok(command)
 }
 
@@ -1001,7 +1033,11 @@ mod tests {
             "-i in.mkv -map 0 -map -0:a:2 -map 0:1 -map -0:m:language:eng -map 0:m:language -c copy out.mp4",
         ))
         .unwrap();
-        let map = |remove, spec| Map { remove, spec };
+        let map = |remove, spec| Map {
+            file: 0,
+            remove,
+            spec,
+        };
         assert_eq!(
             c.maps,
             vec![
@@ -1012,6 +1048,35 @@ mod tests {
                 map(false, Spec::Language(None)),
             ]
         );
+    }
+
+    #[test]
+    fn mapped_inputs_are_bounded_and_validate_file_indexes() {
+        let command = parse(&args(
+            "-i first.mp4 -i second.mp4 -map 1:a -map -0:a -c copy out.mp4",
+        ))
+        .unwrap();
+        assert_eq!(command.more_inputs, ["second.mp4"]);
+        assert_eq!(
+            command.maps.iter().map(|map| map.file).collect::<Vec<_>>(),
+            [1, 0]
+        );
+        assert!(matches!(
+            parse(&args("-i first.mp4 -i second.mp4 -map 2:a -c copy out.mp4")),
+            Err(Refusal::Usage(_))
+        ));
+        assert!(matches!(
+            parse(&args(
+                "-i first.mp4 -i https://example.invalid/second.mp4 -map 0 -c copy out.mp4"
+            )),
+            Err(Refusal::NotNative(_))
+        ));
+        let mut many = Vec::new();
+        for _ in 0..=coreav_isobmff_write::MAX_REMUX_INPUTS {
+            many.extend(["-i".to_owned(), "in.mp4".to_owned()]);
+        }
+        many.extend(["-map", "0", "-c", "copy", "out.mp4"].map(String::from));
+        assert!(matches!(parse(&many), Err(Refusal::NotNative(_))));
     }
 
     #[test]

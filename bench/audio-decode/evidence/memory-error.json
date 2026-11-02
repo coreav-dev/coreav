@@ -1,0 +1,97 @@
+{
+ "binding": {
+  "inputs": [
+   {
+    "channels": 2,
+    "class": "matroska",
+    "mode": "celt",
+    "packets": {
+     "celt/5": 352118
+    },
+    "sha256": "9dbeb1ac6119352e29e03e7e66d0c4f02f6c00f7d2af83712831b6fa8b0c20af"
+   },
+   {
+    "channels": 2,
+    "class": "mp4",
+    "mode": "celt",
+    "packets": {
+     "celt/10": 170693
+    },
+    "sha256": "a8ef6eb3b0658ee306b87aa5b0d64d477cf7272d810cdc36e342f734594827b6"
+   }
+  ],
+  "judging": {
+   "bench/audio-decode/agreement.py": "32f312ad10962d654568c85b6962041ae8cce82ccd74272dfddb3b0656ac0818",
+   "bench/audio-decode/capacity.py": "5f3dfc6cf2a96c4753145ff0a483c698c31cf09a88c15b49d7a1d096ef4f8e57",
+   "bench/audio-decode/oracle.py": "6999bc89af9f0ffb4dade872e30b2b0ba7342648b32e22aaeeca50936316b32a",
+   "bench/audio-decode/receipts.py": "7688ce9df26cdb48098056622a7d640190d9a327993835760b76127a5e425f65",
+   "bench/audio-decode/run.py": "3dbeb015e7abb5c5e2bdae05e5e72f1fb583253a9d80440c244f181c02886892",
+   "docs/known-divergences-decode-audio.json": "9b776384b90f23bad4c50d9613661f95fc2ccfb8da195e3bb76da00ea2d30a18",
+   "scripts/decode_audio_check.py": "05277f5e3c9d17a352088d003b703705f6738354bf6dbf81be3620802dd448e2",
+   "scripts/opus_identity.py": "c87a89900823e43b09bbf06a2ead35cd9390e9e7cd59b13ff075637b6e1fd987",
+   "scripts/oracle-audio-args.txt": "52720de7a4d973d387c1c7bffd770f40120b7315dcf307625841d04d5e000586",
+   "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+   "scripts/oracle_audio.py": "3173e64ae15100a0bb4de8e5a19a86c0c563174384c3eb9fd11b797a89ad3c14",
+   "scripts/oracle_kd.py": "255f193b6bc6e2f67f32f7fe40bd5f91179ce13c91ce462a6514ecd4b0f50d52",
+   "scripts/oracle_kd_ts.py": "a837051ee8900c860973e0e91bacfed14eb21be99b07260938cf1d409d322d31"
+  },
+  "limits": {
+   "concurrency": 1,
+   "job_seconds": 3600,
+   "memory_bytes": 3221225472,
+   "per_call_seconds": 900,
+   "tmpfs_bytes": 4294967296
+  },
+  "minimum_full_frames": 43200000,
+  "operations": [
+   "raw_identity",
+   "cli_identity",
+   "oracle",
+   "head_lib",
+   "base_lib",
+   "lav_lib",
+   "head_dec",
+   "base_dec",
+   "lav_dec",
+   "ffmpeg_cli"
+  ],
+  "runtime": {
+   "numpy": "2.5.4",
+   "python": "3.13"
+  },
+  "schema": "opus-capacity-binding/1",
+  "scope": "spent",
+  "tools": {
+   "base_abench": "db72836a6082adaa763c1b3fd413d57498655568e505c7dccb02678b3a9f5723",
+   "base_coreav": "4ad1bdc9f49b19235ac6ffa79565fef45d5471fb1f2f213c8a4134883770d0ad",
+   "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+   "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+   "head_abench": "ae275febfdee1d1444f2f315656529c395605c083f78437a19fb1ba7be2c93cd",
+   "head_coreav": "547d8f859ae69616abe79c96831e9bf0f586ebd38de4e8b4297dcf252b5c7c8f",
+   "lav": "664dd1743ca923de6c92c30bef874e0ad8df382c0c558952315710e87df33ed0",
+   "opus_compare": "1c05462421badc2b7e1a8fb2ea30ec14de302529004eaaa02f406079bcf8334d"
+  }
+ },
+ "memory_as_bytes": 3221225472,
+ "receipt": {
+  "detail": null,
+  "error": {
+   "diagnostics": {
+    "bytes": 15,
+    "dts": 0,
+    "lines": 1,
+    "truncated": false,
+    "unknown": 1
+   },
+   "exit_code": 1,
+   "operation": "oracle.compare",
+   "outcome": "out_of_memory",
+   "signal": null,
+   "tool": "opus_compare"
+  },
+  "passed": null,
+  "schema": "opus-oracle/1",
+  "status": "error"
+ },
+ "schema": "opus-capacity-memory-diagnostic/1"
+}

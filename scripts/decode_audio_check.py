@@ -688,13 +688,15 @@ def coreav_args(tools, path, ref):
     return [tools.coreav, 'decode-audio', '--format', ref['format'], path, '-']
 
 
-def reference(path, tools):
+def reference(path, tools, executor=None):
     """What the independent reader and `ffprobe` give of the first audio
     stream, or None when either cannot read it."""
     facts = oracle_kd().read_facts(path.parent, path.name)
-    done = subprocess.run([str(a) for a in (tools.ffprobe, '-v', 'error', '-select_streams', 'a:0',
-                                            '-show_entries', 'stream=index,id,codec_name,sample_rate,channels',
-                                            '-of', 'json', path)], capture_output=True, timeout=TIMEOUT)
+    args = [str(a) for a in (tools.ffprobe, '-v', 'error', '-select_streams', 'a:0',
+                            '-show_entries', 'stream=index,id,codec_name,sample_rate,channels',
+                            '-of', 'json', path)]
+    done = executor(args) if executor is not None else subprocess.run(
+        args, capture_output=True, timeout=TIMEOUT)
     streams = json.loads(done.stdout or b'{}').get('streams', []) if done.returncode == 0 else []
     if facts is None or not streams:
         return None
