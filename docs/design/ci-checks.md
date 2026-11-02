@@ -292,10 +292,10 @@ The sole historical-extraction exception is `training-identity`: `docs/measureme
 
 ## The fixture jobs
 
-`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:
+`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its checks now run in separate jobs, with the same commands, bars and thresholds:
 
 - `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters, and the text known-divergence audit. It generates its own fixtures on every run, as before, so every run exercises generation. Its artifact is `oracle-output`.
-- `isobmff-fixture-set`: the one set of fixtures that the three jobs below check, an artifact of the run. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so jobs, and B9 shards, that generated their own would check different bytes, and `--merge` refuses shards whose fixtures differ.
+- `ci-changes` publishes `isobmff-fixture-set`, the one fixture artifact that the three jobs below check, before starting the fan-out. The local `ci-fixtures` action restores the exact generated-fixture cache or generates once on a miss. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so independent generation in consumers would check different bytes, and B9's `--merge` refuses shards whose fixtures differ. The artifact, not a mutable cache lookup in each consumer, binds the bytes for the run. Moving this short preparation into the existing gate removes a separate producer's runner queue and its additional scheduling level. A cold miss delays all gate-dependent jobs while generating, rather than just the consumers; the gate has a 15-minute limit for that path. `isobmff-fixtures` still generates independently on every full run.
 - `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
 - `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
 - `b9-shard`, three legs, and `b9`: bar B9 of `docs/design/transcode.md`.
@@ -371,13 +371,13 @@ On a proven tree, `python-report` and `npm-report` retain their changes and repo
 
 - `ci-changes` and the report itself, so the evidence and all maintenance outcomes remain visible.
 - `bench-guard` against the committed baseline, and `conformance-arm64` when its paths changed. The queue checks neither of these main-only comparisons.
-- `isobmff-fixture-set`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
+- Fixture preparation inside `ci-changes`, which updates main's generated-fixture cache, and a build-only `main-cache` job using `isobmff-fixtures`' shared Rust-cache key. The latter warms the oracle/CLI dependencies and fallback builds without rerunning tests. When evidence is missing, the ordinary fixture jobs run and warm those caches instead.
 
 The other job-specific caches are refreshed by full fallback/manual runs rather than by every merge. A reused main push records no second copy of the queue's oracle results; its summary names the run holding them. Main-only maintenance and fallback checks continue in their original run, even when later pushes arrive or older gates finish late.
 
 ### Load measurements
 
-A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 11 jobs for the ordinary Rust case and 12 for the full case; the documentation case is 8 lightweight jobs. These after counts are tested job plans, not production observations. The sanitized cohorts and a recomputation command are retained in [the load sample](../measurements/ci-main-load/README.md).
+A six-merge convenience sample of completed, successful main-push cohorts across the four required workflows started 7–34 jobs per merge, excluding skipped jobs: three ordinary Rust changes each started 28, an AAC/transcode change started 34, and two documentation changes started 7. Evaluating the actual workflow conditions with successful same-tree evidence gives 10 jobs for the ordinary Rust case and 11 for the full case after fixture preparation moved into `ci-changes`; the documentation case is 8 lightweight jobs. These after counts are tested job plans, not production observations. The sanitized cohorts and a recomputation command are retained in [the load sample](../measurements/ci-main-load/README.md).
 
 For one merge-group cohort, first actual job starts were 9m45s–15m03s after workflow creation, with `ci` at 15m03s. In a later cohort Python started at 12m50s, while the other three workflows were still queued after at least 15m07s at observation. Queued jobs' placeholder `started_at` values are not starts. A post-change production wait has not yet been observed; cancellation of old runs also changes the queue, so these snapshots cannot establish a causal wait-time improvement.
 
@@ -394,7 +394,7 @@ key is one entry per job id, toolchain and `Cargo.lock`.
   `isobmff-fixtures` runs on main only, after its checks, so that its entry
   keeps holding it: one entry for the four jobs instead of a new one for
   `target/fallback`, with the repository already at its 10 GB.
-- **`isobmff-fixture-set` keeps its fixtures between runs**, saved on main
+- **`ci-changes` keeps the shared fixtures between runs**, saved on main
   only, under a key of everything that generates them:
   `scripts/gen-fixtures.sh`, every file of `scripts/` it runs (found in the
   script itself, so a new helper joins the key without an edit here) and
