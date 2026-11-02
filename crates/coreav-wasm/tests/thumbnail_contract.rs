@@ -458,7 +458,7 @@ fn hostile() -> Vec<Case> {
             id: "many-slices",
             bytes: file(many_slices),
             options: options(),
-            kind: "decode",
+            kind: "limit",
         },
         Case {
             id: "recovery-non-idr",
