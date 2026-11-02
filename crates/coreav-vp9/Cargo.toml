@@ -10,10 +10,13 @@ readme = "README.md"
 publish = false
 
 [dependencies]
+coreav-kernels-vp9 = { path = "../coreav-kernels-vp9" }
 
 [dev-dependencies]
 # The test vector manifest (tests/data/vectors.json); tests only.
 serde_json.workspace = true
+# The MD5 of each decoded frame, against the vectors' lists; tests only.
+md-5 = "0.10"
 
 [lints]
 workspace = true

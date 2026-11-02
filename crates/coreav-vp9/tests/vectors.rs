@@ -16,7 +16,8 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use coreav_vp9::{Decoder, Header, Limits};
+use coreav_vp9::{Decoder, Header, Limits, Picture, Samples};
+use md5::{Digest, Md5};
 use serde_json::Value;
 
 fn manifest() -> Vec<(String, String)> {
@@ -209,6 +210,11 @@ fn check(dir: &Path, name: &str) -> Option<String> {
         .filter(|l| !l.trim().is_empty())
         .map(|l| overridden.or_else(|| entry_size(l.split_whitespace().nth(1).unwrap())))
         .collect();
+    let hashes: Vec<&str> = list
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.split_whitespace().next().unwrap())
+        .collect();
     let packets = if data.starts_with(b"DKIF") {
         ivf_packets(&data)
     } else {
@@ -216,19 +222,25 @@ fn check(dir: &Path, name: &str) -> Option<String> {
     };
     let mut decoder = Decoder::new(SPEC_LIMITS);
     let mut shown = Vec::new();
+    let mut shown_hashes = Vec::new();
     for (i, packet) in packets.iter().enumerate() {
         let headers = match decoder.read_headers(packet) {
             Ok(headers) => headers,
             Err(error) => return Some(format!("packet {i}: {error}")),
         };
         let mut in_packet = Vec::new();
+        let mut hashes = Vec::new();
         for header in headers {
             match header {
-                Header::ShowExisting { width, height, .. } => in_packet.push((width, height)),
+                Header::ShowExisting { width, height, .. } => {
+                    in_packet.push((width, height));
+                    hashes.push(None);
+                }
                 Header::Frame {
                     header: h,
                     compressed,
                     tiles_end_cleanly,
+                    picture,
                 } => {
                     if h.is_intra() {
                         let unclean = name == UNCLEAN_TILE.0;
@@ -252,6 +264,10 @@ fn check(dir: &Path, name: &str) -> Option<String> {
                     }
                     if h.show_frame {
                         in_packet.push((h.width, h.height));
+                        hashes.push(
+                            (h.is_intra() && h.loop_filter.level == 0)
+                                .then(|| md5(&picture.expect("an intra frame is decoded"))),
+                        );
                     }
                 }
             }
@@ -264,6 +280,7 @@ fn check(dir: &Path, name: &str) -> Option<String> {
             return Some(format!("packet {i} shows {} frames", in_packet.len()));
         }
         shown.extend(in_packet.last());
+        shown_hashes.extend(hashes.pop());
     }
     if shown.len() != expected.len() {
         return Some(format!(
@@ -272,14 +289,42 @@ fn check(dir: &Path, name: &str) -> Option<String> {
             expected.len()
         ));
     }
-    let wrong = shown
+    if let Some(wrong) = shown
         .iter()
         .zip(&expected)
-        .position(|(s, e)| *e != Some(*s))?;
+        .position(|(s, e)| *e != Some(*s))
+    {
+        return Some(format!(
+            "frame {wrong} is {:?}, the list says {:?}",
+            shown[wrong], expected[wrong]
+        ));
+    }
+    let wrong = shown_hashes
+        .iter()
+        .zip(&hashes)
+        .position(|(ours, theirs)| ours.as_ref().is_some_and(|ours| ours != theirs))?;
     Some(format!(
-        "frame {wrong} is {:?}, the list says {:?}",
-        shown[wrong], expected[wrong]
+        "intra frame {wrong} without the loop filter has MD5 {}, the list says {}",
+        shown_hashes[wrong].as_ref().unwrap(),
+        hashes[wrong]
     ))
+}
+
+/// The MD5 of a frame's planes packed without padding, samples above 8 bits
+/// as 16-bit little-endian values: the layout of the vectors' lists.
+fn md5(picture: &Picture) -> String {
+    let mut hasher = Md5::new();
+    for plane in &picture.planes {
+        match plane {
+            Samples::Eight(samples) => hasher.update(samples),
+            Samples::High(samples) => {
+                for s in samples {
+                    hasher.update(s.to_le_bytes());
+                }
+            }
+        }
+    }
+    format!("{:x}", hasher.finalize())
 }
 
 #[test]
@@ -301,4 +346,45 @@ fn every_vector_shows_the_frames_of_its_md5_list() {
         println!("{failure}");
     }
     assert!(failures.is_empty(), "{} vectors disagree", failures.len());
+}
+
+/// A vector whose key frame the padding check below changes, the MD5 its
+/// list gives that frame, and the MD5 FFmpeg 9.0.2's own VP9 decoder gives
+/// it with its last 16 bytes cut off.
+const UNPADDED: (&str, &str, &str) = (
+    "vp90-2-09-subpixel-00.ivf",
+    "50233551e96b74ebfdaabbc8a154303c",
+    "7a066ac188870b10f7a4e5dd4603d184",
+);
+
+/// A frame whose tile does not end as clause 9.2.3 requires is decoded as
+/// FFmpeg 9.0.2's own VP9 decoder decodes it, not refused
+/// (`docs/design/vp9.md`, "Specification and the clean room"): nonzero bytes after its last block
+/// change nothing, and bits read past its end are 0.
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn a_frame_that_does_not_end_cleanly_is_decoded_as_ffmpeg_decodes_it() {
+    let dir = std::env::var_os("COREAV_VP9_VECTORS").expect("COREAV_VP9_VECTORS");
+    let (name, published, cut_md5) = UNPADDED;
+    let data = std::fs::read(Path::new(&dir).join(name)).unwrap();
+    let key = ivf_packets(&data)[0];
+    let decode = |packet: &[u8]| {
+        let headers = Decoder::new(SPEC_LIMITS).read_headers(packet).unwrap();
+        let [
+            Header::Frame {
+                tiles_end_cleanly,
+                picture: Some(picture),
+                ..
+            },
+        ] = headers.as_slice()
+        else {
+            panic!("one decoded frame");
+        };
+        (*tiles_end_cleanly, md5(picture))
+    };
+    assert_eq!(decode(key), (Some(true), published.to_owned()));
+    let padded = [key, &[0xa5; 16]].concat();
+    assert_eq!(decode(&padded), (Some(false), published.to_owned()));
+    let cut = &key[..key.len() - 16];
+    assert_eq!(decode(cut), (Some(false), cut_md5.to_owned()));
 }
