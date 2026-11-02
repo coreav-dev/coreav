@@ -65,6 +65,14 @@ def slugs(markdown):
 
 
 class DocsSite(unittest.TestCase):
+    def test_frame_output_documents_native_decoder_session_timeout(self):
+        for name in ('docs/design/frame-output.md', 'docs-site/commands/ffmpeg.mdx'):
+            text = (ROOT / name).read_text()
+            with self.subTest(page=name):
+                for fact in ('60-second decoder-session deadline', 'clock-supported', 'slow output'):
+                    self.assertTrue(fact in text, f'{name}: describe the native H.264 session deadline, including time spent writing output')
+                self.assertFalse('per decoder call' in text, f'{name}: the native H.264 deadline is not renewed for each call')
+
     def test_navigation_and_pages_agree(self):
         navigation = listed(json.loads((SITE / 'docs.json').read_text())['navigation'])
         self.assertEqual(sorted(set(navigation)), sorted(navigation), 'docs-site/docs.json lists a page twice')
