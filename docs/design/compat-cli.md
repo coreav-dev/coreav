@@ -48,7 +48,7 @@ What `native` means, option by option. Anything not here is refused.
 | `-show_entries` sections | `format`, `stream`, `packet`, `frame`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `frame_tags`, `chapter_tags`, `program_tags`, `stream_side_data`, `frame_side_data` |
 | Demuxers (`-f`) | `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, `mpegts` |
 
-**`coreav ffmpeg`**, stream copy only
+**`coreav ffmpeg`**, stream-copy vocabulary; the encoding extension is described below.
 
 | | |
 |---|---|
@@ -57,7 +57,6 @@ What `native` means, option by option. Anything not here is refused.
 | Flags | `-y`, `-n`, `-an`, `-vn`, `-sn`, `-dn`, `-hide_banner`, `-nostdin`, `-copyts`, `-start_at_zero`, `-ignore_unknown`, `-shortest` |
 | Demuxers (`-f` before the first `-i`) | `concat`, `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, and the aliases FFmpeg matches against those names: `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`. **Not** `mpegts`: `coreav probe` reads transport streams, no writer of step 1 does |
 | Muxers (`-f` after it) | `mp4`, `ipod`, `hls`, `segment` — CoreAV reads more containers than it writes, so `-f matroska` on the way out is refused although Matroska on the way in is read |
-| One input, one output | several inputs means muxing streams together, which is not a step 1 job |
 | Containers written | MP4, M4A, HLS (`.m3u8`), and numbered segments |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 

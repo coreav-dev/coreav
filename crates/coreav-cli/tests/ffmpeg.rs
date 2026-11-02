@@ -225,7 +225,10 @@ fn mapped_inputs_agree_with_the_pinned_ffmpeg() {
                 "-f",
                 "lavfi",
                 "-i",
-                "testsrc2=size=64x64:rate=10:duration=1",
+                &format!(
+                    "testsrc2=size=64x64:rate=10:duration=1,hue=h={}",
+                    index * 45
+                ),
             ])
             .args([
                 "-f",
@@ -254,6 +257,24 @@ fn mapped_inputs_agree_with_the_pinned_ffmpeg() {
         assert!(output.status.success());
         serde_json::from_slice::<Value>(&output.stdout).unwrap()
     };
+    let originals: Vec<Value> = inputs.iter().map(|path| capture(path)).collect();
+    for stream in [0, 1] {
+        let distinct: BTreeSet<Vec<String>> = originals
+            .iter()
+            .map(|document| {
+                let hashes: Vec<String> = document["packets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|packet| packet["stream_index"] == stream)
+                    .map(|packet| packet["data_hash"].as_str().unwrap().to_owned())
+                    .collect();
+                assert!(!hashes.is_empty());
+                hashes
+            })
+            .collect();
+        assert_eq!(distinct.len(), inputs.len(), "stream {stream}");
+    }
     for (name, count, maps) in [
         ("all-and-audio", 2, vec!["0", "1:a"]),
         ("separate-av", 2, vec!["0:v", "1:a"]),
