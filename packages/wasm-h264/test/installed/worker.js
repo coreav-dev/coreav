@@ -5,7 +5,7 @@ import { createTracker } from "./batch.mjs";
 
 const { thumbnail, probe, r2Source, moduleInfo } = api;
 
-const isolate = crypto.randomUUID();
+let isolate;
 const tracker = createTracker({ deadlineMs: 15000 });
 const results = new Map();
 
@@ -78,6 +78,7 @@ async function admission(env, args) {
 
 export default {
   async fetch(request, env, ctx) {
+    isolate ??= crypto.randomUUID();
     const url = new URL(request.url);
     if (url.pathname === "/memory") return Response.json({ ...moduleInfo(), ...await tracker.reading(), isolate, diagnostic: diagnostics() });
     if (url.pathname.startsWith("/result/")) {
