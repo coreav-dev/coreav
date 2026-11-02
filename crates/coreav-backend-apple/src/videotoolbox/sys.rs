@@ -392,10 +392,20 @@ impl Expected {
                 }
                 Self::Real(expected) => {
                     let mut value = 0f64;
-                    CFGetTypeID(actual) == CFNumberGetTypeID()
-                        && CFNumberGetValue(actual, 6, ptr::from_mut(&mut value).cast()) != 0
-                        && value.is_finite()
-                        && value == expected
+                    let kind = CFGetTypeID(actual);
+                    if kind != CFNumberGetTypeID() {
+                        return false;
+                    }
+                    let converted = CFNumberGetValue(actual, 6, ptr::from_mut(&mut value).cast());
+                    #[cfg(test)]
+                    if converted == 0 || !value.is_finite() || value != expected {
+                        eprintln!(
+                            "native numeric readback: expected_bits={:#018x} actual_bits={:#018x} type_id={kind} converted={converted}",
+                            expected.to_bits(),
+                            value.to_bits(),
+                        );
+                    }
+                    converted != 0 && value.is_finite() && value == expected
                 }
                 Self::Boolean(expected) => {
                     CFGetTypeID(actual) == CFBooleanGetTypeID()
