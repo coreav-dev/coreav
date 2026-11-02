@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import select
 import signal
 import shutil
 import subprocess
@@ -418,14 +419,16 @@ class BuildTests(unittest.TestCase):
 
     def test_subprocess_timeout_kills_reaps_and_reports_a_build_error(self):
         process = mock.Mock(pid=1234)
-        process.communicate.side_effect = [subprocess.TimeoutExpired("fake", 7), ("", "")]
+        process.communicate.side_effect = [subprocess.TimeoutExpired("fake", 7), ("", ""),
+                                           ("", "")]
         with mock.patch.object(build.subprocess, "Popen", return_value=process), \
                 mock.patch.object(build.os, "killpg") as kill:
             with self.assertRaisesRegex(build.BuildError, "timed out after 7s"):
                 build.run(["fake"], {}, timeout=7)
-        kill.assert_called_once_with(1234, signal.SIGTERM)
+        self.assertEqual(kill.call_args_list, [mock.call(1234, signal.SIGTERM),
+                                              mock.call(1234, signal.SIGKILL)])
         self.assertEqual(process.communicate.call_args_list,
-                         [mock.call(timeout=7), mock.call(timeout=5)])
+                         [mock.call(timeout=7), mock.call(timeout=5), mock.call()])
 
     def test_real_subprocess_timeout_leaves_no_child(self):
         with mock.patch.object(build.os, "killpg", wraps=os.killpg) as kill:
@@ -435,6 +438,56 @@ class BuildTests(unittest.TestCase):
         pid = kill.call_args_list[0][0][0]
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
+    def test_timeout_kills_a_descendant_after_its_parent_closes_the_pipes(self):
+        child_code = (
+            "import os, signal, sys\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "os.write(int(sys.argv[1]), b'R')\n"
+            "signal.pause()\n"
+        )
+        parent_code = (
+            "import os, signal, subprocess, sys\n"
+            "fd = int(sys.argv[1])\n"
+            "subprocess.Popen([sys.executable, '-c', sys.argv[2], str(fd)],\n"
+            "                 pass_fds=(fd,), stdin=subprocess.DEVNULL,\n"
+            "                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            "os.close(fd)\n"
+            "signal.pause()\n"
+        )
+        spawn = subprocess.Popen
+        processes = []
+        descendant_exited = False
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, "rb", buffering=0) as reader, \
+                os.fdopen(write_fd, "wb", buffering=0) as writer:
+            def launch(*args, **kwargs):
+                process = spawn(*args, pass_fds=(writer.fileno(),), **kwargs)
+                processes.append(process)
+                writer.close()
+                self.assertTrue(select.select([reader], [], [], 5)[0],
+                                "descendant did not install its signal handler")
+                self.assertEqual(reader.read(1), b"R")
+                return process
+
+            try:
+                with mock.patch.object(build.subprocess, "Popen", side_effect=launch):
+                    with self.assertRaisesRegex(build.BuildError, "command timed out"):
+                        build.run([sys.executable, "-c", parent_code, str(write_fd), child_code],
+                                  {}, timeout=0.1)
+                self.assertIsNotNone(processes[0].poll())
+                self.assertTrue(select.select([reader], [], [], 5)[0],
+                                "descendant survived process-group cleanup")
+                self.assertEqual(reader.read(1), b"")
+                descendant_exited = True
+            finally:
+                if processes:
+                    if not descendant_exited:
+                        try:
+                            os.killpg(processes[0].pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    processes[0].wait(timeout=5)
 
 
 if __name__ == "__main__":

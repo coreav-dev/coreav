@@ -127,7 +127,12 @@ def run(command, env, timeout=RUN_TIMEOUT):
         try:
             process.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            pass
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             process.communicate()
         if isinstance(error, subprocess.TimeoutExpired):
             raise BuildError(f"command timed out after {timeout}s: {command[0]}") from error
