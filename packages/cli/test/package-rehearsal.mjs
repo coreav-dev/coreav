@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const artifacts = resolve(process.argv[2]);
+mkdirSync(artifacts, { recursive: true });
 const platform = `${process.platform}-${process.arch}`;
 assert.equal(platform, process.env.PLATFORM);
 const fixture = fileURLToPath(new URL("../../../crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4", import.meta.url));

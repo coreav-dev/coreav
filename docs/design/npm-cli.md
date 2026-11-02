@@ -288,6 +288,10 @@ Native and WASI builds use the compiler version and commit in `scripts/rust-dist
   as a `--policy=` value, output bytes against the native command's, and
   the error object and exit code of a missing file.
 
+## Installed-artifact rehearsal
+
+The optional `package-rehearsal.yml` workflow also installs the native and WASI tarballs on Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64. It checks `--version`, `ffprobe` and `ffmpeg` stream copy on a committed fixture, and loads the installed WASM library in Node for a probe call. It consumes existing build artifacts without publishing; dispatch inputs, artifact expiry and retained failure reports are described in [Installed-artifact rehearsal](release.md#installed-artifact-rehearsal).
+
 ## Speed
 
 ### Where the time goes

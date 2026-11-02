@@ -39,18 +39,20 @@ jobs:
         with:
           node-version: '24.22.1'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.release-build }}
           name: release-dist
           path: artifacts/release
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.npm-build }}
           name: npm-linux-x64
           path: artifacts/npm-main
-      - if: matrix.platform != 'linux-x64'
+      - if: ${{ !cancelled() && matrix.platform != 'linux-x64' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           github-token: ${{ github.token }}
@@ -58,12 +60,14 @@ jobs:
           name: npm-${{ matrix.platform }}
           path: artifacts/npm-native
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.wasm-build }}
           name: wasm-package
           path: artifacts/wasm
       - name: Install and exercise the artifacts
+        if: ${{ !cancelled() }}
         env:
           PLATFORM: ${{ matrix.platform }}
           TARGET: ${{ matrix.target }}
