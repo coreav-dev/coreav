@@ -12,8 +12,9 @@ import { setTimeout as delay } from "node:timers/promises";
 import { registeredBars } from "../../../wasm/examples/test/registry.mjs";
 import { archiveEntries, validateArchive, consumerEnv } from "../../../wasm/scripts/check-package.mjs";
 import { profile } from "../../scripts/profile.mjs";
-import { fixtureRoster, gateRoster, parityRoster, roster, rosterSha256, sha, optionsSha256 } from "./roster.mjs";
+import { fixtureRoster, gateRoster, parityRoster, nodeParityRoster, roster, rosterSha256, sha, optionsSha256 } from "./roster.mjs";
 import { ThumbnailLedger, validateParity, validateHostCases, failureRecord } from "./ledger.mjs";
+import { nodeCases } from "./node.mjs";
 
 let captureOutput;
 async function main() {
@@ -100,6 +101,7 @@ const bars = registeredBars(readFileSync(resolve(repo, "docs/design/wasm-thumbna
 const groups = gateRoster(), ledger = new ThumbnailLedger(bars, artifactSha256, tarballSha256, manifest.fixtures, groups);
 const nativeSha256 = sha(readFileSync(settings["--edge-native"]));
 const hostCasesSha256 = sha(readFileSync(settings["--host-cases"]));
+const nodeDriverSha256 = sha(readFileSync(new URL("./node.mjs", import.meta.url)));
 const consumer = mkdtempSync(join(tmpdir(), "coreav-thumbnail-installed-"));
 const workers = new Set(), runtimeLogs = [];
 let server, comparisons = 0, finished = false, workerNumber = 0;
@@ -266,6 +268,34 @@ try {
     stream.on("error", () => response.destroy()); response.on("close", () => stream.destroy()); stream.pipe(response);
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
+  stage = "node-host";
+  const nodeRows = nodeParityRoster();
+  copyFileSync(new URL("./node.mjs", import.meta.url), join(consumer, "node-check.mjs"));
+  const nodeConfig = join(output, "node-config.json"), nodeResult = join(output, "node-result.json");
+  writeFileSync(nodeConfig, JSON.stringify({ artifactSha256, lifecyclePath: join(fixtureRoot, files.get("360p-cavlc-mp4").path), rows: nodeRows.map(row => ({ ...row, path: join(fixtureRoot, files.get(row.fixture).path), inputSha256: files.get(row.fixture).sha256, optionsSha256: optionsSha256(row.options) })) }));
+  const nodeRun = spawnSync(process.execPath, ["--experimental-wasm-jspi", "--experimental-wasm-exnref", join(consumer, "node-check.mjs"), nodeConfig, nodeResult], { cwd: consumer, env: consumerEnv(), timeout: 180000, maxBuffer: 8 << 20, encoding: "utf8" });
+  writeFileSync(join(output, "node.log"), (nodeRun.stdout ?? "") + (nodeRun.stderr ?? ""));
+  assert.ifError(nodeRun.error); assert.equal(nodeRun.status, 0, "installed Node verification failed");
+  const nodeReport = JSON.parse(readFileSync(nodeResult));
+  assert.equal(nodeReport.artifactSha256, artifactSha256);
+  assert.equal(nodeReport.lifecycle.complete, true);
+  assert.deepEqual(nodeReport.lifecycle.cases, nodeCases);
+  assert.deepEqual(nodeReport.records.map(row => row.id), nodeRows.map(row => row.id));
+  const nodeFormats = new Map(roster.formats.map(format => [format, true]));
+  let nodeFailure;
+  for (const [index, row] of nodeRows.entries()) {
+    item += 1;
+    const actual = nodeReport.records[index], reference = native(row);
+    record({ classification: "node-parity", artifactSha256, tarballSha256, nodeDriverSha256, ...actual, native: reference });
+    try { validateParity(actual, reference, { ...row, inputSha256: files.get(row.fixture).sha256 }); }
+    catch (error) { nodeFailure ??= error; nodeFormats.set(row.options.format, false); }
+  }
+  record({ classification: "node-host-cases", artifactSha256, tarballSha256, nodeDriverSha256, report: nodeReport.lifecycle });
+  if (nodeFailure) {
+    console.error(`thumbnail Node parity: ${roster.formats.map(format => `${format}=${nodeFormats.get(format) ? "match" : "mismatch"}`).join(" ")}`);
+    stage = "node-host";
+    throw nodeFailure;
+  }
   for (const [gate, rows] of groups) {
     const worker = await start();
     stage = "fresh-isolate";
@@ -302,12 +332,13 @@ try {
   assert.equal(sha(readFileSync(settings["--allocation-binary"])), allocationBinarySha256, "allocation witness binary changed during capture");
   assert.equal(sha(readFileSync(settings["--allocation-report"])), allocationReportSha256, "allocation witness report changed during capture");
   assert.equal(sha(readFileSync(settings["--host-cases"])), hostCasesSha256, "host case module changed during capture");
+  assert.equal(sha(readFileSync(new URL("./node.mjs", import.meta.url))), nodeDriverSha256, "Node driver changed during capture");
   assert.equal(sha(readFileSync(workerd)), workerdBinarySha256, "runtime binary changed during capture");
   assert.equal(sha(readFileSync(settings["--package-record"])), sha(packageRecordBytes), "package check record changed during capture");
   stage = "verdict";
   const verdict = ledger.finish(); assert.equal(verdict.state, "passed", "registered thumbnail memory gate failed");
   finished = true;
-  console.log(`thumbnail preflight: ${verdict.gatesPassed} gates, ${verdict.readings} readings, ${comparisons} parity checks passed; Workers envelope unvalidated`);
+  console.log(`thumbnail preflight: ${verdict.gatesPassed} gates, ${verdict.readings} readings, ${comparisons} workerd and ${nodeRows.length} Node parity checks passed; Workers envelope unvalidated`);
 } catch (error) {
   failure = failureRecord(stage, item, error);
   writeFileSync(join(output, "capture-error.txt"), String(error.stack ?? error));
@@ -315,7 +346,7 @@ try {
   process.exitCode = 1;
 } finally {
   const verdict = ledger.finish();
-  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), ...(failure && { failure }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
+  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), ...(failure && { failure }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, nodeDriverSha256, runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
   writeFileSync(join(output, "runtime.log"), runtimeLogs.join(""));
   for (const worker of [...workers]) await stop(worker, false);
   if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });

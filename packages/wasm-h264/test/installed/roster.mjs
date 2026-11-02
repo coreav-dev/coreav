@@ -58,3 +58,10 @@ export function parityRoster() {
   }
   return cases;
 }
+
+export function nodeParityRoster() {
+  return fixtureRoster().filter(row => ["360p", "coded-crop"].includes(row.geometry)).flatMap(fixture => roster.formats.map(format => ({
+    id: `node-${fixture.id}-${format}`, fixture: fixture.id, expectation: "success",
+    options: { at: "1", format, ...(fixture.geometry === "coded-crop" ? { width: 1280, height: 720 } : {}) },
+  })));
+}

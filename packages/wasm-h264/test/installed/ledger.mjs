@@ -11,7 +11,7 @@ const fail = (reason, details = {}) => {
 };
 const outcomes = new Set(["success", "runtime", "limit", "io", "decode", "unsupported_feature", "codec_not_allowed", "invalid_structure", "out_of_range", "invalid_argument"]);
 const failureTypes = new Set(["none", "wasm_trap", "type_error", "range_error", "coreav", "source_not_found", "request_limit", "abort", "dom_exception", "error", "other"]);
-const stages = new Set(["install", "installed-files", "fixture-server", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
+const stages = new Set(["install", "installed-files", "fixture-server", "node-host", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
 
 export function failureRecord(stage, item, error) {
   return {

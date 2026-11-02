@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { registeredBars } from "../../../wasm/examples/test/registry.mjs";
 import { ThumbnailLedger, validateParity, validateAllocation, validateHostCases, failureRecord } from "./ledger.mjs";
-import { fixtureRoster, gateRoster, parityRoster, optionsSha256, roster, sha } from "./roster.mjs";
+import { fixtureRoster, gateRoster, parityRoster, nodeParityRoster, optionsSha256, roster, sha } from "./roster.mjs";
 
 const hash = "a".repeat(64), other = "b".repeat(64);
 const bars = registeredBars(readFileSync(new URL("../../../../docs/design/wasm-thumbnail-memory-bars.md", import.meta.url), "utf8"), "wasm-thumbnail-memory-bars");
@@ -22,6 +22,7 @@ test("failure labels expose only owned reasons, closed phases and numeric ordina
   let owned;
   try { validateParity(null, null, {}); } catch (error) { owned = error; }
   assert.deepEqual(failureRecord("parity", 3, owned), { stage: "parity", item: 3, reason: "incomplete_output_or_runtime_exit" });
+  assert.deepEqual(failureRecord("node-host", 3, owned), { stage: "node-host", item: 3, reason: "incomplete_output_or_runtime_exit" });
   const untrusted = new Proxy(new Error("private-marker"), { get() { throw new Error("private-marker"); } });
   assert.deepEqual(failureRecord("private-marker", "private-marker", untrusted), { stage: "unexpected", item: 0, reason: "unexpected" });
 });
@@ -37,6 +38,19 @@ test("outcome parity failures retain only closed native and WASM outcomes", () =
   let failed;
   try { validateParity({ ...base, outcome: "io", failureType: "private-marker", causeType: "private-marker" }, { ...base, outcome: "success" }, expected); } catch (error) { failed = error; }
   assert.deepEqual(failureRecord("parity", 2, failed), { stage: "parity", item: 2, reason: "outcome_parity", actual: "io", native: "success", type: "other", cause: "other" });
+});
+
+test("installed Node parity covers each format, entropy and container at both sizes", () => {
+  const rows = nodeParityRoster();
+  assert.equal(rows.length, 24);
+  assert.equal(new Set(rows.map(row => row.id)).size, 24);
+  for (const geometry of ["360p", "coded-crop"]) for (const entropy of roster.entropy) for (const container of roster.containers) for (const format of roster.formats) {
+    const fixture = `${geometry}-${entropy}-${container}`;
+    assert.deepEqual(rows.find(row => row.id === `node-${fixture}-${format}`), {
+      id: `node-${fixture}-${format}`, fixture, expectation: "success",
+      options: { at: "1", format, ...(geometry === "coded-crop" ? { width: 1280, height: 720 } : {}) },
+    });
+  }
 });
 
 test("the registered eleven gates have the complete deterministic request roster", () => {

@@ -15,14 +15,19 @@ export function initSync() { return { memory: new WebAssembly.Memory({ initial: 
 export function version() { return "lifecycle"; }
 export function runDocument() { return "{}"; }
 export function runDocumentInMemory() { return "{}"; }
-export async function runStream(_operation, _source, _size, _memory, sink) {
+export async function runStream(_operation, source, _size, _memory, sink) {
+  try {
+    if (source.readInto(0, new Uint8Array(1)) === 0) await source.read(0, 1);
+  } catch {
+    throw JSON.stringify({ schema: "coreav.error/1", kind: "io", limit: null, offset: null, message: "controlled read failure" });
+  }
   for (let index = 0; index < 4; index += 1) await sink.write(new Uint8Array([index]));
-  return "{}";
+  return '{"schema":"coreav.thumbnail/1"}';
 }
 export function runIndexedStream() { throw new Error("unused"); }
 `;
 
-function run(code) {
+function run(code, timeout = 5_000) {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-h264-lifecycle-"));
   try {
     cpSync(fileURLToPath(new URL("../src", import.meta.url)), join(scratch, "src"), { recursive: true });
@@ -32,7 +37,7 @@ function run(code) {
     writeFileSync(join(scratch, "wasm/coreav.js"), bindings);
     const script = join(scratch, "case.mjs");
     writeFileSync(script, 'import assert from "node:assert/strict";\nimport * as api from "./src/node.js";\n' + code);
-    const result = spawnSync(process.execPath, [script], { encoding: "utf8", timeout: 5_000 });
+    const result = spawnSync(process.execPath, [script], { encoding: "utf8", timeout });
     assert.equal(result.error, undefined);
     assert.equal(result.signal, null, result.stderr);
     assert.equal(result.status, 0, result.stderr);
@@ -76,4 +81,12 @@ try {
   await new Promise(resolve => server.close(resolve));
 }
 `);
+});
+
+test("the installed Node lifecycle driver exercises every controlled stage", () => {
+  run(`
+import { lifecycle } from ${JSON.stringify(new URL("./installed/node.mjs", import.meta.url).href)};
+import { boundedOpeners } from "./src/bounded-source.js";
+await lifecycle(api, boundedOpeners, new Uint8Array([1]), 500);
+`, 15_000);
 });
