@@ -31,6 +31,7 @@ mod scan;
 mod schema;
 mod segment;
 mod track;
+pub mod write;
 
 pub use block::{BlockHeader, MAX_LACED_FRAMES, parse_block};
 pub use coreav_isobmff::{
