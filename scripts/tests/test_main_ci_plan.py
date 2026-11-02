@@ -153,8 +153,8 @@ class MainPlan(unittest.TestCase):
                                           'main-cache', 'conformance-arm64', 'bench-guard'})
         self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
-        self.assertEqual(set(plan['deny']), {'deny'})
-        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 11)
+        self.assertEqual(set(plan['deny']), {'deny', 'deny-checks'})
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 12)
 
     def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):
         for event, reused in (('pull_request', False), ('merge_group', False),
@@ -179,17 +179,17 @@ class MainPlan(unittest.TestCase):
             self.assertIn('linux-x86_64', plan['python'])
             self.assertIn('package', plan['npm'])
             self.assertNotIn('main-cache', plan['ci'])
-        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 34)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in main.values()), 35)
         self.assertNotIn('conformance-arm64', group['ci'])
 
-    def test_documentation_only_main_keeps_the_seven_lightweight_jobs(self):
+    def test_documentation_only_main_keeps_the_eight_lightweight_jobs(self):
         plan = self.plan('push', True, code=False, h264=False)
-        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 7)
+        self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 8)
 
-    def test_representative_non_h264_merge_drops_from_28_to_10_jobs(self):
+    def test_representative_non_h264_merge_drops_from_29_to_11_jobs(self):
         counts = [sum(sum(jobs.values()) for jobs in self.plan('push', reused, h264=False).values())
                   for reused in (False, True)]
-        self.assertEqual(counts, [28, 10])
+        self.assertEqual(counts, [29, 11])
 
     def test_concurrency_never_cancels_or_joins_merge_groups(self):
         for name, workflow in self.workflows.items():

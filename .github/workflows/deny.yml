@@ -2,7 +2,9 @@ name: deny
 
 # The licence and advisory checks (cargo-deny, including every fuzz project's
 # own dependency graph), the check that default builds link no
-# still-patented codec, the DCO sign-off check and the workflow check.
+# still-patented codec, the DCO sign-off check and the workflow check, in one
+# job; the required `deny` name is a report job that always runs and fails
+# when that job failed or was cancelled (docs/design/ci-checks.md).
 # Nothing here is filtered, by design: every commit needs a sign-off whatever
 # it touches, a dependency can change in a file ci.yml's filter ignores, and
 # the required-check list has to stay true of the workflows even when a pull
@@ -29,12 +31,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 jobs:
-  deny:
+  deny-checks:
     # One job for the license and advisory checks, the DCO check and the
     # workflow check: each is seconds long, and every job is billed at least
     # a minute.
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # This job runs for 7 to 10 minutes, so the ceiling sits far above that
+    # rather than at it. GitHub cancels a job that reaches its own timeout
+    # and reports the check as cancelled, and nothing starts a newer run to
+    # replace that cancellation; a timeout here is a red `deny` instead,
+    # reported by the job below (docs/design/ci-checks.md, "A job timeout is
+    # not a cancellation").
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -191,3 +199,36 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I scripts/dco_check.py --base "$BASE" --head "$HEAD"
+
+  deny:
+    # The required check. A timeout cancels the job that does the work, and
+    # a cancelled required check has no replacement run, so this job always
+    # runs and fails unless `deny-checks` succeeded
+    # (docs/design/ci-checks.md, "A job timeout is not a cancellation"). It
+    # reports and does nothing else; whether a step here really does no work
+    # is review judgment, since a shell script cannot be read for that.
+    needs: [deny-checks]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless the job above succeeded
+        # `success` and nothing else: nothing here is filtered, so no job of
+        # this workflow has anything to skip, and a required check that a
+        # skipped job passes is not a check at all
+        # (docs/design/ci-checks.md, "A job timeout is not a cancellation").
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          { echo '| job | result |'
+            echo '|---|---|'
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          bad=$(jq -r '[to_entries[]
+            | select(.value.result != "success")
+            | .key] | join(", ")' <<< "$RESULTS")
+          if [ -n "$bad" ]; then
+            echo "::error::did not succeed: $bad"
+            exit 1
+          fi

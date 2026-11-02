@@ -279,7 +279,7 @@ struct ToolArgs {
 }
 
 #[cfg(feature = "transcode")]
-#[derive(Args)]
+#[derive(Args, Clone)]
 #[command(
     about = "Re-encode the video to H.264 in MP4 and copy the audio",
     long_about = "Re-encode the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 \
@@ -298,6 +298,10 @@ struct TranscodeArgs {
     /// Where to write the MP4 file: a new file (not the input; an existing
     /// one only with --force).
     output: PathBuf,
+    /// Output video codec. AV1 is unavailable in this build.
+    #[arg(long, value_name = "CODEC", default_value = "h264",
+          value_parser = ["h264", "av1"])]
+    video: String,
     /// Constant rate factor, 0 to 51 (default 23).
     #[arg(long, value_name = "Q", conflicts_with = "bitrate",
           value_parser = parse_crf)]
@@ -311,6 +315,8 @@ struct TranscodeArgs {
     #[arg(long, value_name = "PRESET", default_value = "medium",
           value_parser = coreav_transcode::encoder::PRESETS)]
     preset: String,
+    #[arg(skip)]
+    preset_explicit: bool,
     /// Output size as FFmpeg's scale filter takes it: W:H, each side in
     /// pixels, -1 (from the other side, keeping the aspect ratio) or -2
     /// (the same, even). Default: the source's size.
@@ -333,10 +339,21 @@ struct TranscodeArgs {
     audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
     /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
-    /// is refused and `auto` is x264 only.
+    /// is refused and `auto` is x264 only. `platform` and `svt-av1` are
+    /// unavailable in this build.
     #[arg(long, value_name = "ENCODER", default_value = "auto",
-          value_parser = ["auto", "x264", "ffmpeg"])]
+          value_parser = ["auto", "x264", "ffmpeg", "platform", "svt-av1"])]
     encoder: String,
+    /// AAC encoder selection (needs --audio aac). `auto` and `ffmpeg`
+    /// use the installed FFmpeg AAC encoder. `platform` is unavailable
+    /// in this build.
+    #[arg(long, value_name = "ENCODER", value_parser = ["auto", "platform", "ffmpeg"])]
+    audio_encoder: Option<String>,
+    /// Require hardware VideoToolbox encoding with --encoder auto or platform.
+    /// Needs the VideoToolbox backend, unavailable in this build; never falls
+    /// back to software or another encoder.
+    #[arg(long)]
+    require_hardware: bool,
     /// The x264 program (default: COREAV_X264, else x264 on PATH).
     #[arg(long, value_name = "PATH")]
     x264: Option<PathBuf>,
@@ -810,11 +827,27 @@ pub(crate) fn main_with(
     // has nothing to do with the command's work (`docs/design/benchmarks.md`).
     let mut command = Cli::command();
     let parsed = match command.try_get_matches_from_mut(args) {
-        Ok(mut matches) => match Cli::from_arg_matches_mut(&mut matches) {
-            Ok(cli) => Ok((cli, matches)),
-            // As the derived parser does: the error names the command.
-            Err(error) => Err(error.format(&mut command)),
-        },
+        Ok(mut matches) => {
+            #[cfg(feature = "transcode")]
+            let preset_explicit = matches.subcommand_matches("transcode").is_some_and(|m| {
+                m.value_source("preset") == Some(clap::parser::ValueSource::CommandLine)
+            });
+            match Cli::from_arg_matches_mut(&mut matches) {
+                Ok(cli) => {
+                    #[cfg(feature = "transcode")]
+                    let cli = {
+                        let mut cli = cli;
+                        if let Command::Transcode(args) = &mut cli.command {
+                            args.0.preset_explicit = preset_explicit;
+                        }
+                        cli
+                    };
+                    Ok((cli, matches))
+                }
+                // As the derived parser does: the error names the command.
+                Err(error) => Err(error.format(&mut command)),
+            }
+        }
         Err(error) => Err(error),
     };
     let code = match parsed {
@@ -984,6 +1017,56 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
 #[cfg(feature = "transcode")]
 fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
+    let selected = if args.video == "av1"
+        || matches!(args.encoder.as_str(), "platform" | "svt-av1")
+        || args.audio_encoder.is_some()
+        || args.require_hardware
+    {
+        let preflight = || -> Result<TranscodeArgs, &'static str> {
+            let selection = coreav_transcode::selection::Selection {
+                video: args.video.parse()?,
+                encoder: args.encoder.parse()?,
+                audio_encoder: args.audio_encoder.as_deref().map(str::parse).transpose()?,
+                require_hardware: args.require_hardware,
+                crf: args.crf,
+                preset: args.preset_explicit.then(|| args.preset.clone()),
+            };
+            let resolved = selection.resolve(
+                args.audio == "aac",
+                strict_safe.on(),
+                args.x264.as_deref(),
+                args.ffmpeg.as_deref(),
+            )?;
+            let mut selected = args.clone();
+            selected.encoder = resolved.video.name().into();
+            match resolved.video {
+                coreav_transcode::encoder::EncoderProgram::X264(path) => {
+                    selected.x264 = Some(path);
+                }
+                coreav_transcode::encoder::EncoderProgram::Ffmpeg(path) => {
+                    selected.ffmpeg = Some(path);
+                }
+            }
+            if let Some(path) = resolved.aac {
+                selected.ffmpeg = Some(path);
+            }
+            Ok(selected)
+        };
+        match preflight() {
+            Ok(selected) => Some(selected),
+            Err(message) => {
+                let _ = writeln!(
+                    std::io::stderr(),
+                    "{}",
+                    Failure::Unsupported(message.into()).to_json()
+                );
+                return ExitCode::from(EXIT_REJECTED);
+            }
+        }
+    } else {
+        None
+    };
+    let args = selected.as_ref().unwrap_or(args);
     let bitrates = match args.audio.as_str() {
         "opus" => Some(6..=510),
         "aac" => Some(16..=512),
