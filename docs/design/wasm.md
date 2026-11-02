@@ -14,6 +14,8 @@ Rust owns parsing, option validation, limits, documents and output writing. The 
 
 The specifiers are explicit, not conditional exports. Common sources and types do not depend on Workers or Node. `api.js`, `engine.js`, `errors.js` and `sources.js` are shared; `r2.js` is re-exported only by the Workers entry.
 
+The [thumbnail plan and registered memory bars](wasm-thumbnail-memory-bars.md) specify a separate H.264 package for servers, followed by a decoder-free browser WebCodecs path in the default package. This is a plan, not current package support; it changes no operation, artifact, publishing or existing gate here.
+
 `init` accepts a compiled `WebAssembly.Module` or its bytes. It initializes once; later calls do not replace the instance. A trap marks the instance unusable for subsequent operations. Recovery needs a new isolate or module instance, not another call to `init`.
 
 The module requires JSPI, exception references and SIMD. Node.js 24 uses `--experimental-wasm-jspi --experimental-wasm-exnref`. The synchronous in-memory document export does not imply that the whole module can initialize without JSPI. Browser loading and browser support are deferred. There is no automatic fallback to WASI.
