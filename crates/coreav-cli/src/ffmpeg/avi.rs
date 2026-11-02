@@ -4,26 +4,32 @@ use std::path::Path;
 use coreav_avi::{Packet, Track};
 use coreav_isobmff::{Allowlist, Budget, BufferedSource, FileSource, Limits, Rational, Source};
 
-use super::args::{AviAudio, Codec, Command, Encoding, MapMetadata, Muxer};
+#[cfg(not(feature = "transcode"))]
+use super::args::Muxer;
+use super::args::{AudioEncoder, AviAudio, Codec, Command, Encoding, MapMetadata};
 use super::{Job, Refusal, Stop};
 use crate::error::Failure;
 use crate::ffprobe::{Report, StreamKind};
 use crate::output::{self, WriteFailure};
+#[cfg(not(feature = "transcode"))]
 use crate::strict_safe::StrictSafe;
 
 const AUDIO_BYTES: usize = 64 << 20;
 const MAX_PACKETS: usize = 1_000_000;
 
+#[cfg(not(feature = "transcode"))]
 pub(super) fn strict(command: &Command, strict: StrictSafe) -> Result<(), Refusal> {
-    if command.muxer == Muxer::Avi && strict.on() {
+    if command.muxer == Muxer::Avi {
         let explicit = command
             .codecs
             .iter()
-            .any(|(_, c)| *c == Codec::AviAudio(AviAudio::Mp3));
+            .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Libmp3lame));
         if explicit {
-            return Err(Refusal::not_native(
-                "MP3 encoding in strict-safe mode (its encoder is the ffmpeg program); use -c:a copy or PCM",
-            ));
+            strict
+                .mp3()
+                .map_err(|_| Refusal::not_native(
+                    "MP3 encoding in strict-safe mode (its encoder is the ffmpeg program); use -c:a copy or PCM",
+                ))?;
         }
     }
     Ok(())
@@ -85,6 +91,9 @@ pub(super) fn job(
                 ));
             }
             (StreamKind::Audio, Some(c @ (Codec::Copy | Codec::AviAudio(_)))) => c,
+            (StreamKind::Audio, Some(Codec::Audio(AudioEncoder::Libmp3lame))) => {
+                Codec::AviAudio(AviAudio::Mp3)
+            }
             (StreamKind::Audio, None) => Codec::AviAudio(AviAudio::Mp3),
             _ => return Err(Refusal::not_native("this AVI stream kind or encoder")),
         };
@@ -464,16 +473,25 @@ fn encoded_audio(
                 .ok_or_else(|| refused("AVI MP3 encoding needs the operator's ffmpeg program"))?;
             let launcher = coreav_worker::ExecLauncher::current_exe()
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?;
-            let encoded = coreav_transcode::mp3::encode(
+            let settings = coreav_transcode::mp3::Mp3Audio {
+                stream: Some(stream),
+                mode: coreav_transcode::mp3::Mode::Constant(bitrate),
+            };
+            let encode = coreav_transcode::audio::Encode::Mp3(&settings, program);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+            let encoded = coreav_transcode::audio::encode_pcm(
                 &samples.data,
-                rate,
-                channels,
-                bitrate,
-                &program,
-                &launcher,
-                std::time::Instant::now() + std::time::Duration::from_secs(120),
+                &summary,
+                &encode,
+                Some(&launcher),
+                deadline,
+                Path::new(&command.output),
+                coreav_transcode::mp3::most_bytes(summary.samples.saturating_add(1152)),
             )
-            .map_err(|e| WriteFailure::Rejected(Failure::Encode(e)))?;
+            .map_err(crate::transcode::failure)?;
+            let encoded = encoded
+                .mp3_packets(deadline, 16 << 20)
+                .map_err(crate::transcode::failure)?;
             if kept.saturating_add(encoded.data.len()) > AUDIO_BYTES {
                 return Err(refused("AVI encoded audio buffers exceed 64 MiB"));
             }

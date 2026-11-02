@@ -36,6 +36,27 @@ It is the shared full-file path: metadata sanitization builds on
 `remux_mp4`, and the Matroska/WebM remux (and any other demuxer) on the
 `mux` module below.
 
+### Mapped streams from several MP4 inputs
+
+`remux_mp4_inputs(inputs, streams, left_out_covers, limits, allowlist, out)`
+copies each `InputStream { input, stream }` in the requested output order,
+including repetitions. It accepts one to sixteen unfragmented sources with
+the same movie timescale. Movie metadata comes from input zero and track
+metadata follows each selected track. Replacements and sanitization remain
+single-input operations.
+
+The existing two-pass listing and interleaved copy are shared with the
+single-input remux. Sample-table, sample-work and retained-metadata budgets
+cover all output tracks together. Each input has its own source handle and
+64 KiB copy window, so an equal offset in two files never shares cached
+bytes. Probing remains bounded per input, with at most sixteen inputs.
+
+The summary's tracks have the same order as `streams` and retain their
+input-local stream indexes. The caller supplies the corresponding input
+identity through `streams`. Dropped-track and dropped-box diagnostics,
+movie metadata and `source_moov_first` describe input zero only. This keeps
+the existing single-input summary contract unchanged.
+
 ## The shared writer (`mux`)
 
 `Muxer` writes an MP4 file whose samples are copied from elsewhere, in two

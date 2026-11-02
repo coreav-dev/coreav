@@ -17,6 +17,13 @@ coreav-mkv = { path = "../../coreav-mkv" }
 coreav-transcode = { path = ".." }
 
 [[bin]]
+name = "mp3_output"
+path = "fuzz_targets/mp3_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "aac_output"
 path = "fuzz_targets/aac_output.rs"
 test = false

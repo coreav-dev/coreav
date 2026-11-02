@@ -356,7 +356,7 @@ pub fn document(summary: &Summary) -> Value {
 }
 
 /// The failure of a transcode.
-fn failure(error: coreav_transcode::Error) -> WriteFailure {
+pub(crate) fn failure(error: coreav_transcode::Error) -> WriteFailure {
     use coreav_transcode::Error as E;
     match error {
         E::Isobmff(e) => WriteFailure::Rejected(Failure::Library(e)),
