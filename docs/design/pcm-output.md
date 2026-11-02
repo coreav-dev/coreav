@@ -8,6 +8,8 @@ The input uses the existing audio decoder for MP4, MOV, Matroska and WebM. Its s
 
 The WAV writer reuses `coreav_audio::WavSink`. Raw output writes the same interleaved sample bytes without a header. Both outputs use the CLI's temporary-file replacement, including `-y`, `-n` and same-file protection. No external encoder runs, including in strict-safe mode.
 
+Output `-threads` is accepted without changing PCM serialization or starting encoder workers. Other encoder options remain unsupported.
+
 Resampling, channel mixing, raw input, multiple outputs, metadata copying, nonzero seeking and PCM in other containers are not covered. `-ar` is accepted only at the source rate. `-ac` is accepted only for an unchanged mono or stereo count. WAV refuses inputs with non-bookkeeping global tags unless `-map_metadata -1` is given, and refuses chapters. Raw output carries no tags. Unsupported commands are refused rather than silently discarding their options. A zero seek and a duration limit that is a whole sample count can select the start of the decoded presentation. The decoder still reads the whole input; this adapter does not add packet seeking or early termination to its API.
 
 The compatibility command does not suppress decoder warnings. An ignored edit list is a compatibility refusal. Other decoder warnings fail the command, and a WAV file beyond the RIFF size limit is refused. Neither case publishes the staged file.

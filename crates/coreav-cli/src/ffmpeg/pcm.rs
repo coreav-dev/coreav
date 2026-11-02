@@ -35,14 +35,17 @@ pub(super) fn plan(
         Value::Str(name) if *key == "codec_name" => Some(name.as_str()),
         _ => None,
     });
-    let decoded = matches!(codec, Some("flac" | "mp3" | "opus"))
-        || cfg!(feature = "aac") && codec == Some("aac");
-    if !decoded {
+    if codec.and_then(coreav_audio::Codec::from_name).is_none() {
         return Err(Refusal::not_native(
             "PCM output from an audio codec this build does not decode",
         ));
     }
-    if concat || command.encoding != Encoding::default() {
+    if concat
+        || (Encoding {
+            threads: None,
+            ..command.encoding.clone()
+        }) != Encoding::default()
+    {
         return Err(Refusal::not_native(
             "PCM output with concat or encoder options",
         ));

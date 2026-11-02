@@ -37,10 +37,12 @@ WAV and raw PCM output use CoreAV's audio decoder and run no external encoder, i
 ```sh
 coreav --strict-safe ffmpeg -i input.mka output.wav
 coreav --strict-safe ffmpeg -i input.mp4 -acodec pcm_s16le -f s16le output.raw
-coreav --strict-safe ffmpeg -ss 0 -t 30 -i input.mka output.wav
+coreav --strict-safe ffmpeg -i input.mka -ss 0 -t 30 output.wav
 ```
 
 The rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, mixing, resampling, raw input, multiple output files and other PCM codecs are not supported.
+
+Output `-threads` is accepted but does not change PCM serialization or start encoder workers.
 
 WAV metadata copying is not supported. Use `-map_metadata -1` for an input with tags other than container bookkeeping or encoder identification. Stream-to-global metadata mapping and WAV chapter copying are refused. Damaged audio, decoder warnings and WAV output beyond the RIFF size limit fail without replacing the destination. A `.raw` or `.pcm` extension alone does not select raw output; use `-f s16le`.
 

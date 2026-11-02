@@ -143,6 +143,33 @@ fn native_wav_and_raw_preserve_the_lossless_samples() {
 }
 
 #[test]
+fn output_threads_does_not_change_pcm_or_allow_other_encoder_options() {
+    let dir = scratch("ffmpeg-pcm-threads");
+    let (input, expected) = fixture(&dir, false);
+    let raw = dir.join("out.raw");
+    for threads in ["0", "auto", "4"] {
+        success(run(
+            &input,
+            &raw,
+            &["-y", "-f", "s16le", "-threads", threads],
+        ));
+        assert_eq!(std::fs::read(&raw).unwrap(), expected);
+    }
+    let wav = dir.join("out.wav");
+    success(run(&input, &wav, &["-threads", "4"]));
+    assert_eq!(&std::fs::read(&wav).unwrap()[44..], expected);
+    for option in ["-crf", "-b:v", "-b:a"] {
+        let result = run(
+            &input,
+            &raw,
+            &["-y", "-f", "s16le", "-threads", "4", option, "20"],
+        );
+        assert_eq!(result.status.code(), Some(4));
+        assert_eq!(std::fs::read(&raw).unwrap(), expected);
+    }
+}
+
+#[test]
 fn refusals_and_damage_never_replace_an_existing_output() {
     let dir = scratch("ffmpeg-pcm-refused");
     let (input, _) = fixture(&dir, false);
