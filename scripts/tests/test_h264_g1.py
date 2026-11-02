@@ -44,7 +44,8 @@ def cells(m, ratio=1.):
             for i, qp in enumerate(g1.QPS):
                 result.append(dict(label=clip['label'], arm=arm, qp=qp, frames=60, conforming=True,
                                    bytes=round((5000 - i*900) * (ratio if arm == 'coreav' else 1)),
-                                   ssimulacra2=90 - i*10, xpsnr_y=50 - i*5))
+                                   ssimulacra2=90 - i*10, ssimulacra2_frames=[90-i*10]*60,
+                                   xpsnr_y=50 - i*5, xpsnr_cb=51-i*5, xpsnr_cr=52-i*5))
     return result
 
 
@@ -135,6 +136,37 @@ class G1(unittest.TestCase):
         self.assertEqual(g1.strip_identifying_sei(sps+sei+idr), sps+idr)
         with self.assertRaises(ValueError):
             g1.strip_identifying_sei(sps+sei.replace(b'\x05', b'\x01')+idr)
+
+    def test_aggregate_mutation_and_missing_metric_detail_fail(self):
+        m = manifest()
+        for mutate in (lambda c: c.update(ssimulacra2=c['ssimulacra2']+1),
+                       lambda c: c['ssimulacra2_frames'].pop(), lambda c: c.pop('xpsnr_cb')):
+            changed = cells(m)
+            mutate(changed[0])
+            with self.assertRaises((ValueError, KeyError)):
+                g1.report(m, changed)
+        with tempfile.TemporaryDirectory() as temp:
+            directory = pathlib.Path(temp)
+            for i in range(60):
+                (directory/f'ssimulacra2-{i:03}.json').write_text(json.dumps(dict(exit_code=0, stdout='-5.0', stderr='')))
+            (directory/'xpsnr.json').write_text(json.dumps(dict(exit_code=0, stdout='XPSNR y: 40 u: 41 v: 42', stderr='')))
+            result = g1.replay_scores(directory)
+            self.assertEqual(result['ssimulacra2'], -5.)
+            self.assertEqual(result['xpsnr_cb'], 41.)
+            changed = dict(result, binding=g1.sha({}), artifacts={p.name: conformance.digest(p) for p in directory.iterdir()}, frames=60, conforming=True, bytes=100, arm='coreav', qp=22)
+            changed['ssimulacra2_frames'] = [100.] * 60
+            changed['ssimulacra2'] = 100.
+            with self.assertRaisesRegex(ValueError, 'raw process output'):
+                g1.verify_cell(changed, directory, {}, {})
+            (directory/'ssimulacra2-000.json').unlink()
+            with self.assertRaises(ValueError):
+                g1.replay_scores(directory)
+
+    def test_zero_exit_with_coreav_decode_diagnostics_is_failure(self):
+        result = subprocess.CompletedProcess(['decoder'], 0, stderr=b'decode: truncated NAL\n')
+        with tempfile.TemporaryDirectory() as temp, patch.object(g1.subprocess, 'run', return_value=result):
+            with self.assertRaisesRegex(ValueError, 'oracle diagnostics'):
+                g1.decode_anchor(pathlib.Path('decoder'), pathlib.Path('stream'), pathlib.Path(temp))
 
 
 if __name__ == '__main__':

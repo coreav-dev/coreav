@@ -348,3 +348,18 @@ fn late_failure_preserves_the_sequence_and_next_idr_identity() {
     encoder.limits.frames = 2;
     assert_eq!(encoder.encode(picture).unwrap_err(), Error::Limit);
 }
+
+#[test]
+fn unspecified_primaries_cannot_signal_derived_colour_matrices() {
+    for matrix in [12, 13] {
+        let mut s = settings(16, 16, 26);
+        s.colour.primaries = 2;
+        s.colour.matrix = matrix;
+        assert!(matches!(
+            Encoder::new(s, Limits::default()),
+            Err(Error::Settings)
+        ));
+        s.colour.primaries = 1;
+        assert!(Encoder::new(s, Limits::default()).is_ok());
+    }
+}

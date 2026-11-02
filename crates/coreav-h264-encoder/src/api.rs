@@ -160,6 +160,7 @@ impl Encoder {
             || !matches!(c.primaries, 1 | 2 | 4..=12 | 22)
             || !matches!(c.transfer, 1 | 2 | 4..=15 | 17)
             || !matches!(c.matrix, 1 | 2 | 4..=14)
+            || (c.primaries == 2 && matches!(c.matrix, 12 | 13))
         {
             return Err(Error::Settings);
         }

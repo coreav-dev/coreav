@@ -169,6 +169,8 @@ def report(manifest, cells):
     indexed = {(c['label'], c['arm'], c['qp']): c for c in cells}
     if len(indexed) != len(cells) or set(indexed) != expected:
         raise ValueError('missing, duplicate or extra measurement cells')
+    for cell in cells:
+        validate_scores(cell)
     results = []
     for clip in manifest['clips']:
         item = {k: clip[k] for k in ('label', 'split', 'class', 'resolution_group')}
@@ -204,9 +206,10 @@ def command(argv, **values):
     return result
 
 
-def child(argv, directory):
+def child(argv, directory, record=None):
     result = subprocess.run(list(map(str, argv)), cwd=directory, capture_output=True, timeout=300)
-    (directory / f'command-{len(list(directory.glob("command-*.json"))):03}.json').write_text(json.dumps({'argv': list(map(str, argv)), 'exit_code': result.returncode, 'stdout': result.stdout.decode(errors='replace'), 'stderr': result.stderr.decode(errors='replace')}, indent=2) + '\n')
+    name = record or f'command-{len(list(directory.glob("command-*.json"))):03}.json'
+    (directory / name).write_text(json.dumps({'argv': list(map(str, argv)), 'exit_code': result.returncode, 'stdout': result.stdout.decode(errors='replace'), 'stderr': result.stderr.decode(errors='replace')}, indent=2) + '\n')
     result.check_returncode()
     return (result.stdout + result.stderr).decode()
 
@@ -229,6 +232,82 @@ def strip_identifying_sei(data):
     return bytes(out)
 
 
+def validate_scores(cell):
+    scores = cell['ssimulacra2_frames']
+    require(len(scores), 60, 'all SSIMULACRA2 frame scores')
+    if not all(math.isfinite(v) for v in scores):
+        raise ValueError('nonfinite SSIMULACRA2 frame score')
+    require(cell['ssimulacra2'], statistics.mean(scores), 'SSIMULACRA2 arithmetic mean')
+    if not all(math.isfinite(cell[k]) for k in ('xpsnr_y', 'xpsnr_cb', 'xpsnr_cr')):
+        raise ValueError('missing or nonfinite XPSNR plane score')
+
+
+def replay_scores(directory):
+    def text(path):
+        record = json.loads(path.read_text())
+        require(record['exit_code'], 0, 'successful metric process')
+        return record['stdout'] + record['stderr']
+    files = sorted(directory.glob('ssimulacra2-*.json'))
+    require([p.name for p in files], [f'ssimulacra2-{i:03}.json' for i in range(60)], 'metric process completeness')
+    scores = [float(text(path).strip()) for path in files]
+    summaries = re.findall(r'XPSNR\s+y:\s*(\S+)\s+u:\s*(\S+)\s+v:\s*(\S+)', text(directory / 'xpsnr.json'))
+    require(len(summaries), 1, 'sequence XPSNR summary')
+    y, cb, cr = map(float, summaries[0])
+    result = {'ssimulacra2': statistics.mean(scores), 'ssimulacra2_frames': scores,
+              'xpsnr_y': y, 'xpsnr_cb': cb, 'xpsnr_cr': cr}
+    validate_scores(result)
+    return result
+
+
+def verify_cell(cell, directory, binding, clip):
+    require(cell['binding'], sha(binding), 'cell binding')
+    files = {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p != directory / 'cell.json'}
+    require(set(cell['artifacts']), files, 'complete checkpoint artifacts')
+    for path, expected in cell['artifacts'].items():
+        require(digest(directory / path), expected, 'checkpoint artifact')
+    for key, value in replay_scores(directory).items():
+        require(cell[key], value, 'metric summary derived from raw process output')
+    require(cell['frames'], 60, 'checkpoint frame count')
+    require(cell['conforming'], True, 'checkpoint conformance')
+    stream = directory / 'output.h264'
+    require(cell['bytes'], stream.stat().st_size, 'checkpoint complete stream byte count')
+    if cell['arm'] == 'coreav':
+        from h264_g1_conformance import inspect
+        inspect(stream.read_bytes(), clip['width'], clip['height'], cell['qp'], 60)
+        same_planes(directory / 'encoder.yuv', directory / 'ffmpeg.yuv', clip['bytes'])
+    else:
+        inspect_anchor(stream.read_bytes(), clip['width'], clip['height'], cell['qp'], 60)
+        require((directory / 'coreav.log').read_bytes(), b'', 'CoreAV oracle diagnostics')
+    for name in ('coreav.yuv', 'jm.yuv'):
+        same_planes(directory / 'ffmpeg.yuv', directory / name, clip['bytes'])
+
+
+def load_cells(manifest, output, freeze, manifest_digest):
+    binding = json.loads((output / 'identity.json').read_text())
+    require(binding['freeze'], freeze, 'report freeze identity')
+    require(binding['manifest'], manifest_digest, 'report manifest identity')
+    require(binding['tools'], {k: v['sha256'] for k, v in manifest['tools'].items()}, 'report tool identities')
+    cells = []
+    for clip in manifest['clips']:
+        for arm in ('coreav', 'x264'):
+            for qp in QPS:
+                directory = output / f'{clip["label"]}-{arm}-q{qp}'
+                cell = json.loads((directory / 'cell.json').read_text())
+                require((cell['label'], cell['arm'], cell['qp']), (clip['label'], arm, qp), 'checkpoint coordinates')
+                verify_cell(cell, directory, binding, clip)
+                cells.append(cell)
+    return cells
+
+
+def decode_anchor(decoder, stream, directory):
+    independent = directory / 'coreav.yuv'
+    with independent.open('wb') as output:
+        process = subprocess.run([str(decoder.resolve()), '--kernels', 'scalar', '--threads', '1', str(stream.resolve())], stdout=output, stderr=subprocess.PIPE, timeout=300, check=True)
+    (directory / 'coreav.log').write_bytes(process.stderr)
+    require(process.stderr, b'', 'CoreAV oracle diagnostics')
+    return independent
+
+
 def measure(args, manifest):
     if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
         raise ValueError('G1 measurement is enabled only in authorized Linux Actions jobs')
@@ -241,6 +320,7 @@ def measure(args, manifest):
     require(digest(args.driver), identity['driver_sha256'], 'committed driver binary')
     require(digest(args.decoder), identity['decoder_sha256'], 'committed independent decoder binary')
     tools = json.loads(args.tools.read_text())
+    require(set(tools), set(manifest['tools']), 'complete frozen tool set')
     tools = {k: str(pathlib.Path(v).resolve()) for k, v in tools.items()}
     for name, pin in manifest['tools'].items():
         require(digest(tools[name]), pin['sha256'], f'{name} executable')
@@ -277,9 +357,8 @@ def measure(args, manifest):
                 checkpoint = directory / 'cell.json'
                 if checkpoint.exists():
                     cell = json.loads(checkpoint.read_text())
-                    require(cell['binding'], sha(binding), 'cell binding')
-                    for path, expected in cell['artifacts'].items():
-                        require(digest(directory / path), expected, 'checkpoint artifact')
+                    require((cell['label'], cell['arm'], cell['qp']), (clip['label'], arm, qp), 'checkpoint coordinates')
+                    verify_cell(cell, directory, binding, clip)
                     cells.append(cell)
                     continue
                 if directory.exists():
@@ -310,10 +389,7 @@ def measure(args, manifest):
                     reference = directory / 'jm.yuv'
                     child([tools['jm'], '-i', stream.resolve(), '-o', reference.resolve()], directory)
                     same_planes(decoded, reference, clip['bytes'])
-                    independent = directory / 'coreav.yuv'
-                    with independent.open('wb') as output:
-                        process = subprocess.run([str(args.decoder.resolve()), '--kernels', 'scalar', '--threads', '1', str(stream.resolve())], stdout=output, stderr=subprocess.PIPE, timeout=300, check=True)
-                    (directory / 'coreav.log').write_bytes(process.stderr)
+                    independent = decode_anchor(args.decoder, stream, directory)
                     same_planes(decoded, independent, clip['bytes'])
                     cell = {'frames': 60, 'bytes': stream.stat().st_size, 'conforming': True}
                 scores = score(manifest, tools, raw, decoded.resolve(), directory, clip)
@@ -336,25 +412,14 @@ def score(manifest, tools, raw, decoded, directory, clip):
     for name, source in (('reference', raw), ('reconstruction', decoded)):
         folder = directory / name
         folder.mkdir()
-        child(command(manifest['commands']['convert'], **values, input=str(source), output=str((folder / '%06d.png').resolve())), directory)
+        child(command(manifest['commands']['convert'], **values, input=str(source), output=str((folder / '%06d.png').resolve())), directory, record=f'convert-{name}.json')
         files = sorted(folder.glob('*.png'))
         require(len(files), 60, 'converted frame count')
         images.append(files)
-    scores = []
-    for reference, reconstruction in zip(*images):
-        text = child(command(manifest['commands']['ssimulacra2'], **values, reference=str(reference.resolve()), reconstruction=str(reconstruction.resolve())), directory).strip()
-        value = float(text)
-        if not math.isfinite(value):
-            raise ValueError('nonfinite SSIMULACRA2')
-        scores.append(value)
-    text = child(command(manifest['commands']['xpsnr'], **values, reference=str(raw), reconstruction=str(decoded)), directory)
-    summaries = re.findall(r'XPSNR\s+y:\s*(\S+)\s+u:\s*(\S+)\s+v:\s*(\S+)', text)
-    require(len(summaries), 1, 'sequence XPSNR summary')
-    y, cb, cr = map(float, summaries[0])
-    if not all(math.isfinite(v) for v in (y, cb, cr)):
-        raise ValueError('nonfinite XPSNR')
-    return {'ssimulacra2': statistics.mean(scores), 'ssimulacra2_frames': scores,
-            'xpsnr_y': y, 'xpsnr_cb': cb, 'xpsnr_cr': cr}
+    for i, (reference, reconstruction) in enumerate(zip(*images)):
+        child(command(manifest['commands']['ssimulacra2'], **values, reference=str(reference.resolve()), reconstruction=str(reconstruction.resolve())), directory, record=f'ssimulacra2-{i:03}.json')
+    child(command(manifest['commands']['xpsnr'], **values, reference=str(raw), reconstruction=str(decoded)), directory, record='xpsnr.json')
+    return replay_scores(directory)
 
 
 def main():
@@ -373,14 +438,15 @@ def main():
     p.add_argument('--inputs', type=pathlib.Path)
     p.add_argument('--metric-fixture', type=pathlib.Path)
     p.add_argument('--output', type=pathlib.Path)
-    p.add_argument('--cells', type=pathlib.Path)
     args = p.parse_args()
     manifest = load_freeze(args.freeze, args.manifest, args.sha256)
     if args.action == 'verify-freeze':
         print('merged freeze and protocol are complete')
         return 0
     if args.action == 'report':
-        result = report(manifest, json.loads(args.cells.read_text()))
+        if not args.output:
+            raise ValueError('report needs the retained output directory')
+        result = report(manifest, load_cells(manifest, args.output, args.freeze, args.sha256))
         print(json.dumps(result, indent=2, allow_nan=False))
         return 0 if result['pass'] else 1
     if not all((args.candidate, args.identity, args.authorize, args.tools, args.driver, args.decoder, args.inputs, args.metric_fixture, args.output)):
