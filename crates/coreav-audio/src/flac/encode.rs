@@ -368,6 +368,13 @@ struct Rice {
     cost: u64,
 }
 
+fn lpc_shift(largest: f64) -> u8 {
+    (0..=15)
+        .rev()
+        .find(|&shift| largest * f64::from(1u32 << shift) <= 16382.0)
+        .unwrap_or(0)
+}
+
 impl Subframe {
     fn plan(input: &[i64], bits: u8) -> Self {
         let wasted = input
@@ -455,7 +462,7 @@ impl Subframe {
             coefficients = next;
             error *= 1.0 - reflection * reflection;
             let largest = coefficients.iter().map(|v| v.abs()).fold(0.0, f64::max);
-            let shift = ((16382.0 / largest).log2().floor() as i32).clamp(0, 15) as u8;
+            let shift = lpc_shift(largest);
             let mut carry = 0.0;
             let quantized: Vec<i16> = coefficients
                 .iter()
@@ -626,6 +633,23 @@ impl Rice {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn linear_coefficient_shifts_respect_exact_power_of_two_boundaries() {
+        for shift in 0..=15u8 {
+            let boundary = 16382.0 / f64::from(1u32 << shift);
+            assert_eq!(lpc_shift(boundary), shift);
+            assert_eq!(lpc_shift(f64::from_bits(boundary.to_bits() - 1)), shift);
+            assert_eq!(
+                lpc_shift(f64::from_bits(boundary.to_bits() + 1)),
+                shift.saturating_sub(1)
+            );
+        }
+        assert_eq!(lpc_shift(0.0), 15);
+        assert_eq!(lpc_shift(f64::MIN_POSITIVE), 15);
+        assert_eq!(lpc_shift(f64::INFINITY), 0);
+        assert_eq!(lpc_shift(f64::NAN), 0);
+    }
 
     #[test]
     fn frame_numbers_use_canonical_utf8_and_its_flac_extension() {
