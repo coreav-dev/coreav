@@ -50,6 +50,7 @@ import json
 import math
 import os
 import pathlib
+import select
 import shutil
 import signal
 import subprocess
@@ -210,14 +211,27 @@ def check_copies(opts, judged, scratch, env):
         with subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
                               start_new_session=True) as child:
             code = None
+            cleanup_group = sys.platform == 'linux'
+            ready = False
             try:
-                code = child.wait(timeout=COPY_CHECK_TIMEOUT)
+                if sys.platform == 'linux':
+                    fd = os.pidfd_open(child.pid)
+                    try:
+                        ready = bool(select.select([fd], [], [], max(
+                            0, COPY_CHECK_TIMEOUT - (time.monotonic() - started)))[0])
+                    finally:
+                        os.close(fd)
+                else:
+                    code = child.wait(timeout=COPY_CHECK_TIMEOUT)
             except subprocess.TimeoutExpired:
-                pass
+                cleanup_group = True
             finally:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(child.pid, signal.SIGKILL)
-                child.wait()
+                if cleanup_group:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(child.pid, signal.SIGKILL)
+                status = child.wait()
+                if ready:
+                    code = status
                 if sys.platform == 'linux':
                     with contextlib.suppress(ChildProcessError):
                         while True:

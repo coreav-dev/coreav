@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
@@ -201,6 +202,11 @@ for r in json.load(open(args['--records'])):
             subprocess.run([sys.executable, '-c', 'import time; time.sleep(1.2)'], timeout=2, check=True)
     counts[r['id']][r['status']] += 1
 json.dump({'counts': counts, 'failures': []}, open(args['--report'], 'w'))
+if os.environ.get('FAKE_CHECK') == 'left-child':
+    child = subprocess.Popen([sys.executable, '-c', 'import os, time; print(os.getpid(), flush=True); time.sleep(60)'], stdout=subprocess.PIPE)
+    pid = int(child.stdout.readline())
+    with open(os.environ['FAKE_PIDS'], 'w') as f:
+        f.write(f'{os.getpid()}\n{pid}\n')
 if os.environ.get('FAKE_CHECK') == 'stuck':
     with open(os.environ['FAKE_PIDS'], 'a') as f:
         f.write(str(os.getpid()) + '\n')
@@ -285,6 +291,69 @@ class Judge(unittest.TestCase):
         self.assertEqual(event['exit'], 0)
         self.assertGreater(event['sequence'], 0)
         self.assertGreaterEqual(event['seconds'], 0)
+
+    @unittest.skipIf(sys.platform == 'linux', 'Non-Linux exit ownership')
+    def test_a_reaped_checker_group_is_never_signalled(self):
+        with mock.patch.object(os, 'killpg') as kill:
+            self.assertEqual(self.judge(['C01']), {('C01', 0): ('passed', None)})
+        kill.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux exit ownership')
+    def test_normal_exit_keeps_the_leader_until_group_cleanup(self):
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+        previous = ctypes.c_int()
+        self.assertEqual(libc.prctl(37, ctypes.addressof(previous), 0, 0, 0), 0)
+        self.addCleanup(libc.prctl, 36, previous.value, 0, 0, 0)
+        killpg = os.killpg
+        observed = []
+        def kill_owned(pid, signum):
+            try:
+                exited = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
+                self.assertIsNotNone(exited)
+                self.assertEqual(exited.si_pid, pid)
+                self.assertEqual(exited.si_status, 0)
+                observed.append(pid)
+            finally:
+                killpg(pid, signum)
+        pids = self.d / 'normal-pids'
+        try:
+            with mock.patch.object(os, 'killpg', side_effect=kill_owned):
+                self.assertEqual(self.judge(['C01'], FAKE_CHECK='left-child', FAKE_PIDS=str(pids)),
+                                 {('C01', 0): ('passed', None)})
+            checker, descendant = map(int, pids.read_text().splitlines())
+            self.assertEqual(observed, [checker])
+            event = json.loads(pathlib.Path(self.opts.log).read_text())
+            self.assertEqual(event['exit'], 0)
+            for pid in (checker, descendant):
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(pid, 0)
+        finally:
+            for pid in map(int, pids.read_text().splitlines() if pids.exists() else []):
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(pid, signal.SIGKILL)
+                with contextlib.suppress(ChildProcessError):
+                    os.waitpid(pid, 0)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux process descriptors')
+    def test_descriptor_failures_clean_the_owned_checker_and_propagate(self):
+        for target, name in ((os, 'pidfd_open'), (r3.select, 'select')):
+            with self.subTest(name=name):
+                children = []
+                popen = subprocess.Popen
+                def launch(*args, **kwargs):
+                    child = popen(*args, **kwargs)
+                    children.append(child)
+                    return child
+                with mock.patch.object(subprocess, 'Popen', side_effect=launch):
+                    with mock.patch.object(target, name, side_effect=OSError('descriptor failure')):
+                        with self.assertRaisesRegex(OSError, 'descriptor failure'):
+                            self.judge(['C01'])
+                self.assertTrue(children)
+                for child in children:
+                    self.assertIsNotNone(child.returncode)
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(child.pid, 0)
 
     def test_a_valid_multi_check_sequence_is_not_cut_short(self):
         deadline = r3.COPY_CHECK_TIMEOUT

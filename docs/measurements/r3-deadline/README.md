@@ -38,3 +38,5 @@ python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_r3.py
 The same tests preserve a valid six-invocation, three-record sequence with the production ratio of total to inner-call budget scaled down. A stopped-check regression requires the checker, its child and its grandchild to be absent after timeout, including no zombies, and requires all pairs to fail even when a passing report was already written. R4 and its reason table are unchanged.
 
 Encode breadth shares the checker entry point, including the deadline, timing events and Linux subreaper. Its regression runs a stopped checker and requires a tooling fault that voids the run, not a CoreAV oracle disagreement.
+
+On Linux, a process-exit descriptor observes completion without reaping the checker. Group cleanup runs while the unreaped leader still reserves its PID, then reaps the leader and its same-group descendants. Descriptor failures clean up and propagate as infrastructure errors. On other platforms, only a timeout signals the group; a successful wait has already released the leader's PID, so normal-exit descendants are not cleaned by this entry point.
