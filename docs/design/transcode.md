@@ -986,6 +986,16 @@ validates all N + G fed samples, and the writer adds G to its final
 padding field so that the published file presents only N. CoreAV's reader
 checks one uncompressed `A_MPEG/L3` track, rate, channels, every complete
 Layer III frame and the exact decoded sample total before writing output.
+The existing Matroska structure audit covers the entire spool, including
+anything after the first segment. Block additions and codec-state changes
+are refused, and frame timestamps and durations must match the sample
+sequence within the container's timestamp quantum. Readback checks the
+encode deadline before and after source reads, including buffered reads;
+a single synchronous source operation cannot be interrupted.
+
+These checks add a bounded structural walk and a clock check at each
+readback source call. Packet listing retains one codec-state flag; no
+throughput or instruction-count improvement is claimed.
 
 The encoded stream's description distinguishes MP4 sample entries from
 MP3 gapless metadata. The MP3 writer emits its own ID3v2.4 header and
