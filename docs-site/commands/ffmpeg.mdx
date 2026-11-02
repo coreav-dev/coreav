@@ -32,7 +32,7 @@ Any other command line is refused in strict-safe mode, and goes to the real `ffm
 
 ## PCM audio output
 
-WAV and raw PCM output use CoreAV's audio decoder and run no external encoder, including in strict-safe mode. The input must be MP4, MOV, Matroska or WebM containing FLAC, MP3 or Opus, or AAC-LC in a build with the `aac` feature. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
+WAV and raw PCM output run natively for FLAC tracks in MP4, MOV or Matroska, including in strict-safe mode. MP3, Opus and AAC sources keep the existing external FFmpeg fallback, or are refused in strict-safe mode. Native PCM and ALAC source decoding is not supported. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
 
 ```sh
 coreav --strict-safe ffmpeg -i input.mka output.wav

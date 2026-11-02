@@ -4,7 +4,9 @@
 
 ## Scope
 
-The input uses the existing audio decoder for MP4, MOV, Matroska and WebM. Its supported codecs and build features are unchanged. Automatic selection chooses one audio stream with the existing disposition and channel-count rules, without selecting video. Explicit maps must select exactly one audio stream. Output uses the source rate and channel layout.
+The input uses the existing audio decoder for FLAC tracks in MP4, MOV and Matroska. Native PCM output accepts only decoded lossless sources, currently FLAC. PCM and ALAC input decoding are not implemented by this audio decoder. MP3's recorded agreement bar permits a floating-point tolerance, so it does not prove exact sample agreement with the pinned oracle. MP3, Opus and AAC sources retain their existing compatibility-command refusal and external FFmpeg fallback; strict-safe mode refuses them. Their `decode-audio` and lossy-transcode support is unchanged.
+
+Automatic selection chooses one audio stream with the existing disposition and channel-count rules, without selecting video. Explicit maps must select exactly one audio stream. Output uses the source rate and channel layout.
 
 The WAV writer reuses `coreav_audio::WavSink`. Raw output writes the same interleaved sample bytes without a header. Both outputs use the CLI's temporary-file replacement, including `-y`, `-n` and same-file protection. No external encoder runs, including in strict-safe mode.
 
@@ -25,6 +27,10 @@ For the same commands, the pinned FFmpeg produces an independent output. Its dec
 Malformed streams, unsupported options, unsupported codecs, an existing output without replacement permission and an input/output alias must never publish a partial output. Unit and CLI tests retain these checks in CI. This change makes no size or speed claim and runs no timing measurement.
 
 ## Decisions
+
+`coreav_audio::Codec::is_lossless` owns the source classification, beside the build-aware `Codec::from_name`. The transcode path intentionally accepts lossy decoded sources under its different agreement bars, so its capability predicate cannot also enforce this PCM contract. PCM has no second codec-name list.
+
+A reproduction of compatibility CI's generated two-second mono Opus fixture differs from the pinned FFmpeg at 19 of 96,000 signed 16-bit samples. Its float output already differs before serialization; each writer correctly quantizes its own decoded floats. The decoder algorithm was unchanged by this PCM implementation. Opus decoder parity is separate work, not a tolerance or exception in the PCM checker. An Opus-to-WAV/raw regression preserves refusal, atomic output handling and the ordinary external FFmpeg fallback.
 
 PCM output is a separate command job, not an external audio encoder beside a video transcode. This keeps it available in builds without video backends and prevents an audio-only output from entering the MP4 transcode pipeline. Container defaults belong to stream selection, while explicit codec options keep their last-match-wins semantics.
 

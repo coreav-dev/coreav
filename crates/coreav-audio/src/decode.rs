@@ -30,6 +30,16 @@ pub enum Codec {
 }
 
 impl Codec {
+    /// Whether the codec preserves its encoded sample values without loss.
+    pub fn is_lossless(self) -> bool {
+        match self {
+            Self::Flac => true,
+            Self::Mp3 | Self::Opus => false,
+            #[cfg(feature = "aac")]
+            Self::Aac => false,
+        }
+    }
+
     /// The codec decoded by this build for its probe name.
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
@@ -765,6 +775,17 @@ fn scale(value: u64, num: u64, den: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decoded_codecs_distinguish_lossless_from_lossy_sources() {
+        assert!(Codec::Flac.is_lossless());
+        assert!(!Codec::Mp3.is_lossless());
+        assert!(!Codec::Opus.is_lossless());
+        #[cfg(feature = "aac")]
+        assert!(!Codec::Aac.is_lossless());
+        assert_eq!(Codec::from_name("pcm_s16le"), None);
+        assert_eq!(Codec::from_name("alac"), None);
+    }
 
     fn pieces(edits: &[(u64, i64)], first_dts: i64) -> Vec<Piece> {
         plan(edits.iter().copied(), first_dts, 1000, 1000, 1000).into()

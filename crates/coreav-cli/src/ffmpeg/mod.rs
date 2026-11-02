@@ -171,7 +171,7 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -ss, -t or -to, before or after -i: a clip
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
-  one audio stream to .wav (or -f wav): pcm_s16le by default
+  one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
 Builds with a decoder backend also encode the video with -c:v libx264.
 Prints nothing on success.
