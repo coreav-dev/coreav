@@ -60,6 +60,7 @@ document. `container.formats` derives `value: "mpegts"` from `/schema`.
 Stream rate reasons point at `/streams/i/scan/bit_rate`. An `unknown`
 reason can point at an absent field, including the structural, verified-size
 and rotation fields listed in [the policy reference](policy-v1.md#mpeg-ts-mapping-and-missing-evidence).
+Unidentified MPEG-TS streams use `/streams/i/codec`, in the order below.
 
 ## Order
 
@@ -71,14 +72,17 @@ byte:
 3. `/duration/max_seconds`;
 4. `/streams/max_count`, then `min_count` and `max_count` of each kind in
    the order `video`, `audio`, `subtitle`, `timecode`, `data`;
-5. each stream in `streams` order: its kind, `codecs`, `max_bit_rate`,
+5. each stream in `streams` order, except MPEG-TS streams whose `codec` is
+   `other`: its kind, `codecs`, `max_bit_rate`,
    `max_width`, `max_height`, `max_pixels`, `rotations`, `max_channels`,
    `max_sample_rate`, `invalid_tables`, `external_data`,
    `multiple_descriptions`;
 6. for Matroska, each stream whose `encoding` is `encrypted` or
    `unsupported`, in `streams` order (`unidentified`, at
    `/streams/i/encoding`);
-7. each dropped stream, in `dropped_streams` order (`unidentified`).
+7. for MPEG-TS, each stream whose `codec` is `other`, in `streams` order
+   (`unidentified`, at `/streams/i/codec`);
+8. each dropped stream, in `dropped_streams` order (`unidentified`).
 
 A file the probe rejects has one `unreadable` reason and nothing else.
 Object keys are printed in sorted order, as in the example below.
