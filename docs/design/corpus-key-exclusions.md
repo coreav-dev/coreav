@@ -73,9 +73,10 @@ last packet of the track on both sides, and checks equal packet counts and
 agreement of every other packet. The packet summary comes from the
 captured listings, not a claim in CoreAV's output. No stream search or
 reordering is introduced.
-ISO and Matroska files with eligible byte evidence
-build an extra packet summary; audit replay scans it again for each mutation. That work is outside timed
-commands and does not change the performance bars.
+ISO and Matroska files with eligible byte evidence build an extra packet
+summary. Section-only attacks reuse the baseline summary. Packet attacks
+build a new summary from the transformed listing. That work is outside
+timed commands and does not change the performance bars.
 
 `Pair(value, None)` never certifies absence. An unproven deletion, a missing
 oracle value, an explicit null or any other KD's missing value remains
@@ -128,8 +129,9 @@ comparison and audit, outside timed commands. AV1 binding adds a complete
 block walk per eligible track; an oversized or unreadable block refuses
 that track's evidence. The registered performance work and bars do not
 change. Retained run identities include the four reader digests beside
-the tooling commit. Reusing evidence between comparison and audit and
-bounded caching of packet parsing remain separate work.
+the tooling commit. Comparison and audit share one prepared evidence
+object within a manifest row. The independent readers and their frozen
+digests do not change.
 
 The accumulator visits every reference-listed leaf, including differences
 after the first saved example. A file/key row is excluded only when it
@@ -152,6 +154,54 @@ Coverage that activates on an existing uncovered difference also fails.
 This detects an already-wrong value changed to another wrong value even
 when aggregate mismatch counts stay constant. An audit failure makes the
 report nonpassing and is not permission to change an exclusion or rerun.
+
+### Per-file replay storage
+
+Preparation parses successful packet listings into read-only rows. The
+combined cache has a 512-MiB budget for decoded row objects, their strings,
+proxy wrappers and row references. Admission charges each object's
+`sys.getsizeof` plus 32 bytes per row for container references. A listing
+that exceeds the remaining budget discards its partial cache and streams
+instead. The budget does not bound total process memory, the current input
+line, byte-reader evidence or packet summaries. No packet or leaf is
+truncated when a cache fills.
+
+Prepared evidence belongs to one capture, registry, media path and
+container. Media and registered reader-file digests are taken before
+evidence acquisition and verified afterward, and before and after each
+comparison or audit that reuses preparation. These checks read the complete
+media bytes, including for same-path, same-size replacements. Initially
+unreadable media still supplies no evidence; its later appearance invalidates
+the preparation.
+
+Section documents, capture status, strict coverage, rule records and reader
+bindings must stay unchanged. Their snapshots and packet-listing hashes
+are checked around reuse as well. Changed inputs abort rather than
+returning a judgment from stale rows, summaries or baseline coverage. The
+manifest loop releases preparation before the next file; there is no
+cross-file or cross-binary cache.
+
+Audit computes baseline coverage once, retaining at most 65,536 covered
+paths. Exceeding that limit recomputes baseline coverage during replay.
+Every adapter-reachable attacked occurrence is still checked against the
+attacked section document and packet summary. Baseline coverage is used
+only to detect newly activated coverage, never to certify an attack.
+
+Cached candidate rows have stable object identities. When a transform
+returns the original row at the same packet position, its values and
+presence have not changed. Replay can skip reference leaves outside all
+evidenced rule scopes at that position. Such leaves cannot create a new
+difference or activate coverage. In-scope leaves are always re-evaluated,
+including during section-only attacks. Dropped or duplicated packets still
+shift subsequent rows in listing order and undergo the full comparison.
+Streamed rows use the same replay loop without the identity shortcut.
+
+The differential tests in `test_corpus_replay.py` compare ordered,
+serialized audit results with the original streaming replay on generated
+ISO, Matroska and TS cases, custom transforms and both cache fallbacks.
+Operation-count tests check evidence sharing and packet decoding without
+using wall-clock thresholds. These bounds describe work and storage, not
+completion time for unseen inputs or the unchanged B4 commands.
 
 The raw comparison's blind spots are reported, not credited as catches:
 candidate-only leaves and trailing packets are not reference-listed,
