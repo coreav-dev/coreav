@@ -251,6 +251,23 @@ class CopyMapping(unittest.TestCase):
                                                         pathlib.Path(tmp), copied_streams=(0,))
                     self.assertEqual(result[0], status, result)
 
+    def test_copied_audio_with_unknown_durations_on_both_sides_is_not_verified(self):
+        for codec in ('aac', 'opus'):
+            stream = {'index': 0, 'codec_type': 'audio', 'codec_name': codec, 'sample_fmt': 'fltp',
+                      'sample_rate': '48000', 'channels': 1, 'time_base': '1/1000', 'start_pts': 0}
+            for duration in ({}, {'duration': 'N/A'}, {'duration': None}):
+                frame = {'stream_index': 0, 'best_effort_timestamp': 0, 'nb_samples': 960, **duration}
+                listing = {'streams': [stream], 'frames': [frame]}
+                with self.subTest(codec=codec, duration=duration), tempfile.TemporaryDirectory() as tmp:
+                    def decode(argv, env, output):
+                        output.write_bytes(struct.pack('<d', 0.25) * 960)
+                        return 0, b'', b''
+                    with mock.patch.object(decoded_output, 'probe', return_value=listing), \
+                            mock.patch.object(decoded_output, 'invoke', side_effect=decode):
+                        result = decoded_output.compare('candidate', 'reference', 'ffmpeg', 'ffprobe', {},
+                                                        pathlib.Path(tmp), copied_streams=(0,))
+                    self.assertEqual(result, ('failed', 'invalid audio timing'))
+
     def test_incomplete_or_noncopy_mapping_never_qualifies(self):
         changes = [[], self.lines[:1], self.lines + self.lines[:1],
                    self.lines + ['  unparsed mapping'],
