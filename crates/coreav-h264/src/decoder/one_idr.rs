@@ -240,11 +240,14 @@ impl<K: Kernels> Decoder<K> {
         }
     }
 
-    pub(super) fn one_idr_settled(&self) -> Result<()> {
+    pub(super) fn one_idr_settled(&mut self) -> Result<()> {
         match self.one_idr {
             OneIdrState::Finished => Ok(()),
             OneIdrState::Failed => Err(Error::OneIdr(OneIdrError::Failed)),
-            _ => Err(Error::OneIdr(OneIdrError::AccessUnitRequired)),
+            _ => {
+                self.fail_one_idr();
+                Err(Error::OneIdr(OneIdrError::AccessUnitRequired))
+            }
         }
     }
 

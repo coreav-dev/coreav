@@ -281,10 +281,9 @@ impl<K: Kernels> Decoder<K> {
         }
     }
 
-    /// Decodes only the pictures that need no other picture.
-    ///
-    /// A thumbnail needs one keyframe and nothing else; skipping the rest
-    /// is most of the work of a stream.
+    /// Selects normal streaming, keyframes-only streaming or the bounded
+    /// one-IDR operation. One-IDR requires a fresh decoder, optionally
+    /// with parameter sets already loaded, not earlier slice scratch.
     pub fn with_mode(mut self, mode: Mode) -> Decoder<K> {
         if mode == Mode::OneIdr
             && self.mode != Mode::OneIdr
@@ -621,7 +620,8 @@ impl<K: Kernels> Decoder<K> {
     /// Ends the stream: finishes the picture being decoded and outputs
     /// every picture still held.
     ///
-    /// With one thread this always succeeds: an error finishing the last
+    /// In normal streaming modes with one thread this always succeeds:
+    /// an error finishing the last
     /// picture becomes a [`Warning::PictureIncomplete`], as it always has.
     /// With threads ([`Decoder::with_threads`]) it waits for every picture
     /// to be decoded and returns the first error of a slice not reported

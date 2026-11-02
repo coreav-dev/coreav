@@ -294,6 +294,20 @@ fn framing_and_streaming_cannot_bypass_admission() {
 #[test]
 fn failed_submissions_discard_undrained_output() {
     let data = packet(2, 2, false, false, 0);
+    for flush in [false, true] {
+        let mut codec = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
+        let result = if flush {
+            codec.flush()
+        } else {
+            codec.end_access_unit()
+        };
+        assert!(result.is_err());
+        assert_eq!(
+            codec.decode_one_idr(&data, None),
+            Err(Error::OneIdr(OneIdrError::Failed))
+        );
+        assert!(codec.take_pictures().is_empty());
+    }
     let mut codec = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
     codec.decode_one_idr(&data, None).unwrap();
     assert_eq!(

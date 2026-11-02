@@ -534,9 +534,6 @@ impl Decoder for NativeDecoder {
                 pts: packet.pts,
                 discard: packet.discard,
             });
-            // The frames are collected even when the packet failed, so that a
-            // caller that carries on gets the same frames whatever the thread
-            // count; one that stops at the error never asks for them.
             self.decode_access_unit(packet.data)
         })();
         if self.one_idr && result.is_err() {
