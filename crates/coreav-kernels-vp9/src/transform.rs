@@ -424,7 +424,7 @@ pub fn inverse_transform_add<P: Pixel>(
     }
     for (i, row) in coefs.chunks(n0).take(n0).enumerate() {
         for (p, c) in dst.row_mut(i).iter_mut().zip(row) {
-            *p = P::clip(p.get() + c, bit_depth);
+            *p = P::clip(i64::from(p.get()) + c, bit_depth);
         }
     }
 }
