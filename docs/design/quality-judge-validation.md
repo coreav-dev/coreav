@@ -140,12 +140,12 @@ Pumping calibration uses all eight development clean controls from edges and tex
 
 Development-only structural preflight covers all 20 clean controls across all five detectors and every registered severe positive. The table counts controls with structural source support on every frame, out of four controls per class. Banding, flicker and colour have no source-support predicate; their entries establish only that the predicate is inapplicable, not that a metric returned finite values.
 
-| Detector | Smooth gradients | Dark gradients | Moving edges | Moving texture | Fades with a cut | Severe positives with source support |
+| Detector | Smooth gradients | Dark gradients | Moving edges | Moving texture | Fades with a cut | Severe positives with source support, where applicable |
 | --- | --- | --- | --- | --- | --- | --- |
-| Banding | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 32/32 |
+| Banding | n/a | n/a | n/a | n/a | n/a | n/a |
 | Blocking | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 32/32 |
-| Flicker | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 80/80 |
-| Colour shift | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 80/80 |
+| Flicker | n/a | n/a | n/a | n/a | n/a | n/a |
+| Colour shift | n/a | n/a | n/a | n/a | n/a | n/a |
 | Pumping | 0/4, out of scope | 0/4, out of scope | 4/4 | 4/4 | 0/4, out of scope | 32/32 |
 
 The preflight evaluates the generator's shared scalar at native 1920 by 1080 coordinates for every one of the 120 frame indices. Each supported blocking frame has a grid-aligned flat-bond witness, and each supported pumping frame has a source-gradient witness of at least four. Texture absence on the other three classes follows their row-invariant ramp and adjacent-step bound of at most one. Severe positives share those exact references, so their source support is unchanged by injection strength or local/global scope. This is an existence check, not a sampled metric score, support-count measurement or threshold fit. All 256 severe-positive cases are represented without encoding or decoding full-size clips. Twenty complete 32 by 32 development clips remain byte-identical after extracting the shared scalar from the generator.
