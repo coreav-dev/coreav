@@ -154,15 +154,19 @@ def pixels(data):
 
 
 def probe_sections(value):
+    required = {"streams", "frames"}
+    wrappers = {"programs", "stream_groups"}
+    valid = (type(value) is dict and required <= set(value) <= required | wrappers and
+             all(type(value[key]) is list and not value[key] for key in wrappers & set(value)))
     if type(value) is not dict:
         print("oracle probe shape: object=false", file=sys.stderr)
-    elif set(value) != {"streams", "frames"}:
-        known = {"streams", "frames", "programs", "stream_groups"}
+    elif not valid:
+        known = required | wrappers
         print(f"oracle probe shape: fields={len(value)} streams={'streams' in value} frames={'frames' in value} "
               f"programs_present={'programs' in value} programs_empty={value.get('programs') == []} "
               f"stream_groups_present={'stream_groups' in value} stream_groups_empty={value.get('stream_groups') == []} "
               f"unknown_fields={len(set(value) - known)}", file=sys.stderr)
-    require(type(value) is dict and set(value) == {"streams", "frames"}, "probe_shape")
+    require(valid, "probe_shape")
 
 
 def probe(value, native):

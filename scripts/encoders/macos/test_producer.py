@@ -192,6 +192,21 @@ class Observability(unittest.TestCase):
             with self.assertRaises(evidence.Invalid):
                 producer.probe_facts(value, item)
 
+    def test_empty_oracle_wrappers_keep_producer_metadata_and_clock_checks(self):
+        item = producer.unit_item()
+        value = probe_document(item)
+        expected = producer.probe_facts(value, item)
+        value.update(programs=[], stream_groups=[])
+        self.assertEqual(producer.probe_facts(value, item), expected)
+        for mutate in (lambda r: r["streams"][0].update(color_range="pc"),
+                       lambda r: r["streams"][0].update(r_frame_rate="29/1"),
+                       lambda r: r["frames"][0].update(duration=0),
+                       lambda r: r["frames"].pop()):
+            changed = copy.deepcopy(value)
+            mutate(changed)
+            with self.assertRaises(evidence.Invalid):
+                producer.probe_facts(changed, item)
+
     def test_only_explicit_identity_and_controls_are_accepted(self):
         item = producer.unit_item()
         good = observed(item)

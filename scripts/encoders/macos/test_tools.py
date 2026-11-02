@@ -230,6 +230,37 @@ class Records(unittest.TestCase):
 
 
 class Smoke(unittest.TestCase):
+    def test_oracle_probe_sections_accept_only_known_empty_wrappers(self):
+        for wrappers in ({}, {"programs": []}, {"stream_groups": []},
+                         {"programs": [], "stream_groups": []}):
+            smoke.probe_sections({"streams": [], "frames": [], **wrappers})
+        invalid = [None, [], {}, {"streams": []}, {"frames": []}]
+        for key in ("programs", "stream_groups"):
+            for value in (None, {}, "", False, 0, [None], [{}]):
+                invalid.append({"streams": [], "frames": [], key: value})
+        invalid.append({"streams": [], "frames": [], "chapters": []})
+        for value in invalid:
+            with self.subTest(value=value), redirect_stderr(io.StringIO()), \
+                    self.assertRaises(evidence.Invalid) as caught:
+                smoke.probe_sections(value)
+            self.assertEqual(caught.exception.code, "probe_shape")
+
+    def test_oracle_empty_wrappers_keep_smoke_metadata_and_frame_checks(self):
+        value = {"programs": [], "stream_groups": [],
+                 "streams": [{"codec_name": "h264", "width": 64, "height": 64,
+                              "pix_fmt": "yuv420p", "color_range": "tv", "color_space": "bt709",
+                              "color_transfer": "bt709", "color_primaries": "bt709"}],
+                 "frames": [{"media_type": "video", "key_frame": int(n == 0), "width": 64,
+                             "height": 64, "pix_fmt": "yuv420p"} for n in range(4)]}
+        smoke.probe(value, native())
+        for mutate in (lambda r: r["streams"][0].update(color_range="pc"),
+                       lambda r: r["frames"][0].update(key_frame=0),
+                       lambda r: r["frames"].pop()):
+            changed = copy.deepcopy(value)
+            mutate(changed)
+            with self.assertRaises(evidence.Invalid):
+                smoke.probe(changed, native())
+
     def test_oracle_probe_shape_diagnostic_never_exposes_unknown_fields(self):
         smoke.probe_sections({"streams": [], "frames": []})
         output = io.StringIO()
