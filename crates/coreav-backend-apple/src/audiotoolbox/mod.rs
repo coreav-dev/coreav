@@ -29,7 +29,7 @@ pub enum Operation {
     GetProperty(u32),
     /// Set a numeric property identifier.
     SetProperty(u32),
-    /// Query a numeric property's size.
+    /// Query a numeric property's size and writability.
     PropertyInfo(u32),
     /// Append input bytes or the EOF marker.
     Append,
@@ -83,6 +83,15 @@ pub enum Error {
         /// Apple's signed OSStatus value.
         status: i32,
     },
+    /// An effective control does not match the required value.
+    Setting {
+        /// Numeric AudioCodec property identifier.
+        property: u32,
+        /// Required value.
+        requested: u32,
+        /// Value reported by the initialized codec.
+        actual: u32,
+    },
     /// Framework output, settings, progress, or counts are invalid.
     Output,
     /// AAC output metadata failed validation.
@@ -95,6 +104,14 @@ impl std::fmt::Display for Error {
             Self::Framework { operation, status } => write!(
                 f,
                 "AudioToolbox failed to {operation} with OSStatus {status}"
+            ),
+            Self::Setting {
+                property,
+                requested,
+                actual,
+            } => write!(
+                f,
+                "AudioToolbox property {property:08x} is {actual}, requested {requested}"
             ),
             Self::Metadata(error) => error.fmt(f),
             _ => f.write_str(match self {

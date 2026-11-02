@@ -229,8 +229,6 @@ impl Instance {
         owner.set(*b"acbf", 0)?;
         owner.set(*b"brat", settings.bitrate)?;
         owner.set(*b"srcq", settings.quality)?;
-        owner.set(*b"prmm", 1)?;
-        owner.set(*b"dmod", 0)?;
         invoke(control, Operation::Initialize, || unsafe {
             AudioCodecInitialize(
                 owner.handle.as_ptr(),
@@ -252,18 +250,44 @@ impl Instance {
         {
             return Err(Error::Output);
         }
-        if owner.u32(*b"brat")? != settings.bitrate
-            || owner.u32(*b"srcq")? != settings.quality
-            || owner.u32(*b"acbf")? != 0
-            || owner.u32(*b"dmod")? != 0
-            || owner.u32(*b"prmm")? != 1
-        {
-            return Err(Error::Output);
+        for (property, expected) in [
+            (*b"brat", settings.bitrate),
+            (*b"srcq", settings.quality),
+            (*b"acbf", 0),
+        ] {
+            let actual = owner.u32(property)?;
+            if actual != expected {
+                return Err(Error::Setting {
+                    property: u32::from_be_bytes(property),
+                    requested: expected,
+                    actual,
+                });
+            }
         }
         Ok(owner)
     }
 
     fn set(&mut self, property: [u8; 4], value: u32) -> Result<(), Error> {
+        let mut size = 0;
+        let mut writable = 0;
+        invoke(
+            &self.control,
+            Operation::PropertyInfo(u32::from_be_bytes(property)),
+            || unsafe {
+                AudioCodecGetPropertyInfo(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(property),
+                    &mut size,
+                    &mut writable,
+                )
+            },
+        )?;
+        if size != 4 {
+            return Err(Error::Output);
+        }
+        if writable == 0 {
+            return Ok(());
+        }
         invoke(
             &self.control,
             Operation::SetProperty(u32::from_be_bytes(property)),
