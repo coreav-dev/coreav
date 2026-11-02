@@ -50,9 +50,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f "$MANIFEST" ]]; then
-            echo "$MANIFEST has not landed yet; no standalone backend to check"
+          if [[ ! -d "${MANIFEST%/*}" ]]; then
+            echo "${MANIFEST%/*} has not landed yet; no standalone backend to check"
             exit 0
+          fi
+          if [[ ! -f "$MANIFEST" ]]; then
+            echo "missing $MANIFEST in an existing backend crate" >&2
+            exit 1
           fi
           cargo test --locked --manifest-path "$MANIFEST"
           cargo clippy --locked --manifest-path "$MANIFEST" --all-targets -- -D warnings
