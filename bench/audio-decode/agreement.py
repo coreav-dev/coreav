@@ -94,7 +94,7 @@ def compare(execute, operation, tool, ref, test, channels, tmp, timeout):
             fails = re.search(r'\bFAILS\b', text) is not None
             if (len(metrics) != 1 or passes == fails or done.returncode not in (0, 1)
                     or (done.returncode == 1 and not fails)):
-                malformed(operation, 'opus_compare')
+                raise receipts.CommandFailure({**done.receipt, 'outcome': 'protocol_error'})
             quality = float(metrics[0])
             if not math.isfinite(quality):
                 malformed(operation, 'opus_compare')

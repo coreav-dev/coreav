@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import select
 import signal
 import struct
 import subprocess
@@ -55,6 +56,17 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(diag['unknown'], 1)
         self.assertEqual(diag['lines'], 2)
         self.assertNotIn('SECRET', json.dumps(diag))
+
+    def test_comparator_allocation_failure_is_not_an_agreement_disagreement(self):
+        with self.assertRaises(receipts.CommandFailure) as caught:
+            self.call(f'import sys; print("Out of memory.",file=sys.stderr); print({SECRET!r},file=sys.stderr); sys.exit(1)',
+                      'opus_compare')
+        value = caught.exception.receipt
+        self.assertEqual(value['outcome'], 'out_of_memory')
+        self.assertEqual(value['exit_code'], 1)
+        self.assertEqual(value['diagnostics']['lines'], 2)
+        self.assertTrue(receipts.validate(value))
+        self.assertNotIn(SECRET, json.dumps(value))
 
     def test_nonzero_signal_and_launch_error_do_not_include_arguments(self):
         commands = [([sys.executable, '-c', f'import sys; sys.exit({SECRET!r})'], 'exit'),
@@ -121,16 +133,15 @@ else:
 
     def assert_child_dead(self):
         pid = int((self.root / 'pid').read_text())
-        for _ in range(100):
-            state = pathlib.Path(f'/proc/{pid}/stat')
-            try:
-                status = state.read_text().split()[2]
-            except FileNotFoundError:
-                return
-            if status == 'Z':
-                return
-            time.sleep(.01)
-        self.fail('descendant survived process-group cleanup')
+        try:
+            descriptor = os.pidfd_open(pid)
+        except ProcessLookupError:
+            return
+        try:
+            ready, _, _ = select.select([descriptor], [], [], 1)
+            self.assertTrue(ready, 'descendant survived process-group cleanup')
+        finally:
+            os.close(descriptor)
 
     def test_timeout_kills_descendant_after_pipes_close(self):
         with self.assertRaises(receipts.CommandFailure) as caught:
@@ -212,6 +223,9 @@ elif tool == 'coreav':
     sys.stdout.buffer.write(b'RIFF' + struct.pack('<I', 36+len(data)) + b'WAVEfmt ' + struct.pack('<IHHIIHH',16,1,1,48000,96000,2,16) + b'data' + struct.pack('<I',len(data)) + data)
     print(json.dumps({'warnings': ['credential-marker-do-not-publish']}),file=sys.stderr)
 else:
+    if config.get('compare_memory'):
+        print('Out of memory.',file=sys.stderr)
+        sys.exit(1)
     if config.get('compare_crash'):
         os.kill(os.getpid(), signal.SIGKILL)
     if config.get('compare_malformed'):
@@ -328,6 +342,19 @@ class OracleTests(unittest.TestCase):
                 value = self.judge(config)
                 self.assertEqual(value['status'], 'error')
                 self.assertEqual(value['error']['operation'], 'oracle.compare')
+
+    def test_comparator_protocol_failure_retains_exit_and_diagnostic_counts(self):
+        value = self.judge({'compare_malformed': True})
+        self.assertEqual(value['error']['outcome'], 'protocol_error')
+        self.assertEqual(value['error']['exit_code'], 0)
+        self.assertEqual(value['error']['diagnostics']['unknown'], 1)
+        self.assertNotIn(SECRET, json.dumps(value))
+
+    def test_comparator_memory_failure_retains_its_leaf_and_explicit_category(self):
+        value = self.judge({'compare_memory': True})
+        self.assertEqual(value['error']['outcome'], 'out_of_memory')
+        self.assertEqual(value['error']['operation'], 'oracle.compare')
+        self.assertEqual(value['error']['exit_code'], 1)
 
     def test_truncated_capture_and_bad_wav_are_failures_at_their_leaf(self):
         for config, stage in (({'truncated': 'reference'}, 'reference_decode'),

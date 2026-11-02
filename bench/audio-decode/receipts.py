@@ -25,7 +25,7 @@ OPERATIONS = frozenset({
 TOOLS = frozenset({'harness', 'coreav', 'base_coreav', 'head_coreav', 'ffmpeg', 'ffprobe',
                    'opus_compare', 'lav', 'base_abench', 'head_abench'})
 OUTCOMES = frozenset({'ok', 'disagree', 'exit', 'signal', 'timeout', 'cancelled',
-                     'launch_error', 'io_error', 'protocol_error', 'internal_error', 'output_limit'})
+                     'launch_error', 'io_error', 'protocol_error', 'internal_error', 'output_limit', 'out_of_memory'})
 
 
 def receipt(operation, tool, outcome, exit_code=None, signum=None, diagnostics=None):
@@ -63,6 +63,8 @@ def _validate(value):
         codes_ok = codes_ok and value['exit_code'] in (0, 1)
     if value['outcome'] == 'exit':
         codes_ok = codes_ok and value['exit_code'] is not None and value['exit_code'] > 0
+    if value['outcome'] == 'out_of_memory':
+        codes_ok = codes_ok and value['tool'] == 'opus_compare' and value['exit_code'] == 1
     return (codes_ok and isinstance(diag, dict) and set(diag) == {'bytes', 'lines', 'dts', 'unknown', 'truncated'}
             and all(type(diag[k]) is int and 0 <= diag[k] <= COUNT_LIMIT for k in ('bytes', 'lines', 'dts', 'unknown'))
             and type(diag['truncated']) is bool)
@@ -112,8 +114,10 @@ class Diagnostics:
         self.value = {'bytes': 0, 'lines': 0, 'dts': 0, 'unknown': 0, 'truncated': False}
         self.pending = b''
         self.long_line = False
+        self.out_of_memory = False
 
     def line(self):
+        self.out_of_memory |= self.pending.strip().lower() == b'out of memory.'
         label = 'dts' if b'non monotonically increasing dts' in self.pending.lower() else 'unknown'
         self.value['lines'] = min(COUNT_LIMIT, self.value['lines'] + 1)
         self.value[label] = min(COUNT_LIMIT, self.value[label] + 1)
@@ -205,6 +209,8 @@ def invoke(operation, tool_role, argv, timeout, stdout_path=None):
             if tool_role == 'opus_compare':
                 if code in (0, 1):
                     outcome = 'ok' if code == 0 else 'disagree'
+                if code == 1 and diagnostics.out_of_memory:
+                    outcome = 'out_of_memory'
                 if diag['truncated']:
                     outcome = 'output_limit'
             elif tool_role in ('ffmpeg', 'ffprobe') and diag['bytes'] and outcome == 'ok':

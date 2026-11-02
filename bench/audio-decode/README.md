@@ -34,7 +34,7 @@ The limits document contains exactly these positive integer fields:
   "per_call_seconds": 900,
   "job_seconds": 3600,
   "concurrency": 1,
-  "memory_bytes": 3221225472,
+  "memory_bytes": 8589934592,
   "tmpfs_bytes": 4294967296
 }
 ```
@@ -71,7 +71,7 @@ The validator recomputes qualification; it does not trust `passed`. Only a compl
 
 `oracle.py` maintains the independent presentation and agreement model used by the preflight. It uses the existing presentation reader through an injected executor, without replacing global subprocess functions. `judge` returns an `opus-oracle/1` envelope with either a normal agreement result or a closed error receipt.
 
-An error identifies the leaf operation and tool, exit or signal status, and bounded diagnostic counts. For example, a reference decode failure remains `oracle.reference_decode` / `ffmpeg`, rather than becoming an undifferentiated outer worker failure. A recognized nonmonotonic-DTS diagnostic has a count; unknown lines have counts only. FFmpeg and ffprobe error diagnostics fail the operation even when the process exits zero. Subprocess groups are killed and reaped on timeout or cancellation, including descendants that outlive their parent.
+An error identifies the leaf operation and tool, exit or signal status, and bounded diagnostic counts. For example, a reference decode failure remains `oracle.reference_decode` / `ffmpeg`, rather than becoming an undifferentiated outer worker failure. The comparator's explicit `Out of memory.` diagnostic at exit 1 becomes `out_of_memory`, never an ordinary disagreement; a signal alone cannot establish that cause. A recognized nonmonotonic-DTS diagnostic has a count; unknown lines have counts only. FFmpeg and ffprobe error diagnostics fail the operation even when the process exits zero. Subprocess groups are killed and reaped on timeout or cancellation, including descendants that outlive their parent.
 
 No receipt contains command arguments, paths, stdout, stderr, PCM or arbitrary exception text. The same closed result schema governs runtime checkpoints and independent validation. Private subprocess buffers are bounded and excluded from their result representation.
 
