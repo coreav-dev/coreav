@@ -32,6 +32,15 @@ pub(crate) fn rbsp<'a>(nal: &[u8], out: &'a mut [u8]) -> &'a [u8] {
     out.get(..len).unwrap_or_default()
 }
 
+pub(crate) fn with_parameter_set_rbsp<T>(nal: &[u8], read: impl FnOnce(&[u8]) -> T) -> T {
+    if nal.len() <= 64 {
+        let mut scratch = [0; 64];
+        return read(rbsp(nal, &mut scratch));
+    }
+    let mut scratch = [0; 4096];
+    read(rbsp(nal, &mut scratch))
+}
+
 /// The video signal type a parameter set or sequence header describes:
 /// color range and the ITU-T H.273 code points as stored.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -53,7 +62,7 @@ pub(crate) fn hevc_full_range(hvcc: &[u8]) -> Option<bool> {
 /// be read.
 pub(crate) fn hevc_signal(hvcc: &[u8]) -> Option<Signal> {
     // Skip the two-byte NAL unit header.
-    hevc_sps_signal(rbsp(hevc_first_sps(hvcc)?.get(2..)?, &mut [0; 4096]))
+    with_parameter_set_rbsp(hevc_first_sps(hvcc)?.get(2..)?, hevc_sps_signal)
 }
 
 pub(crate) fn profile_tier_level(bits: &mut Bits<'_>, max_sub_layers_minus1: u32) -> Option<()> {
@@ -346,9 +355,7 @@ fn with_avc_sps<T>(avcc: &[u8], read: impl FnOnce(&mut Bits<'_>) -> Option<T>) -
     if nal.first()? & 0x1f != 7 {
         return None;
     }
-    let mut scratch = [0; 4096];
-    let sps = rbsp(nal.get(1..)?, &mut scratch);
-    read(&mut Bits::new(sps))
+    with_parameter_set_rbsp(nal.get(1..)?, |sps| read(&mut Bits::new(sps)))
 }
 
 /// Reads a sequence parameter set (ITU-T H.264 7.3.2.1.1) up to
@@ -822,6 +829,19 @@ mod tests {
     #[test]
     fn emulation_prevention_is_removed() {
         assert_eq!(rbsp(&[0, 0, 3, 1, 0, 0, 3], &mut [0; 16]), [0, 0, 1, 0, 0]);
+    }
+
+    #[test]
+    fn parameter_set_scratch_keeps_the_same_prefix_across_both_sizes() {
+        for length in [0, 1, 63, 64, 65, 4095, 4096, 4097, 8192] {
+            let input: Vec<_> = [0, 0, 3, 1].into_iter().cycle().take(length).collect();
+            let expected: Vec<_> = (0..length)
+                .filter(|position| position % 4 != 2)
+                .map(|position| u8::from(position % 4 == 3))
+                .take(4096)
+                .collect();
+            with_parameter_set_rbsp(&input, |bytes| assert_eq!(bytes, expected));
+        }
     }
 
     #[test]

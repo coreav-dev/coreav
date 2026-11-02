@@ -20,6 +20,16 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROSTER = ROOT / "packages/wasm-h264/test/installed/roster.json"
 
 
+class GenerationFailure(ValueError):
+    def __init__(self, stage, item):
+        self.stage = stage if stage in {
+            "commands", "pattern", "encode", "inspect-sps", "mux", "variant", "remove-pattern",
+            "probe", "codec", "frame-count", "keyframes", "rotation", "geometry", "external", "manifest",
+        } else "unexpected"
+        self.item = item if type(item) is int and item >= 0 else 0
+        super().__init__(self.stage, self.item)
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -213,10 +223,12 @@ def generate(oracle, x264, output, hostile_manifest=None):
                 "binaries": {name: digest(path.read_bytes()) for name, path in
                              [("ffmpeg", oracle / "ffmpeg"), ("ffprobe", oracle / "ffprobe"), ("x264", x264)]},
                 "fixtures": [], "hostile": [], "boundary": []}
+    stage, item = "commands", 0
     try:
         plan = list(commands(oracle, x264, output))
         grids = {}
-        for command in plan:
+        for item, command in enumerate(plan, 1):
+            stage = command["kind"]
             if command["kind"] == "remove-pattern":
                 pathlib.Path(command["path"]).unlink()
             else:
@@ -235,29 +247,36 @@ def generate(oracle, x264, output, hostile_manifest=None):
                     grids[(command["geometry"], command["entropy"])] = (
                         16 * (fields["pic_width_in_mbs_minus1"] + 1),
                         16 * (fields["pic_height_in_map_units_minus1"] + 1))
-        for row in fixture_rows():
+        for item, row in enumerate(fixture_rows(), 1):
+            stage = "geometry"
             extension = "mp4" if row["container"] == "mp4" else "mkv"
             path = output / f"{row['id']}.{extension}"
             if row["geometry"] == "4k-small-container":
                 original = output / f"4k-{row['entropy']}-{row['container']}.{extension}"
                 path.write_bytes(patch_dimensions(original.read_bytes(), row["container"]))
+            stage = "probe"
             probe = execute([str(oracle / "ffprobe"), "-v", "error", "-select_streams", "v", "-show_streams",
                              "-show_packets", "-show_entries", "stream=index,codec_name,width,height,pix_fmt,sample_aspect_ratio:stream_side_data:packet=stream_index,pts_time,flags",
                              "-of", "json", str(path)], logs, 30)
             description = json.loads(probe)
             streams = description.get("streams", [])
+            stage = "codec"
             if not streams or any(stream.get("codec_name") != "h264" or stream.get("pix_fmt") != "yuv420p" for stream in streams):
                 raise ValueError("generated fixture codec or pixel format drifted")
+            stage = "frame-count"
             if len(description.get("packets", [])) != 50 * len(streams):
                 raise ValueError("generated fixture does not have fifty frames per stream")
+            stage = "keyframes"
             for stream in streams:
                 packets = [p for p in description["packets"] if p["stream_index"] == stream["index"]]
                 if [i for i, packet in enumerate(packets) if "K" in packet["flags"]] != [0, 25]:
                     raise ValueError("generated fixture keyframe cadence drifted")
+            stage = "rotation"
             if row["geometry"].startswith("rotate"):
                 angles = [item.get("rotation") for stream in streams for item in stream.get("side_data_list", [])]
                 if not any(isinstance(angle, (int, float)) and angle % 360 == int(row["geometry"][6:]) % 360 for angle in angles):
                     raise ValueError("generated rotation was not retained by the pinned muxer")
+            stage = "geometry"
             geometry = row["geometry"]
             original = "4k" if geometry == "4k-small-container" else geometry
             if original in registry()["variants"] and original != "sar":
@@ -268,7 +287,8 @@ def generate(oracle, x264, output, hostile_manifest=None):
                                          "codedWidth": width, "codedHeight": height,
                                          "visibleWidth": streams[0]["width"], "visibleHeight": streams[0]["height"],
                                          "probe": description})
-        for row in external:
+        stage = "external"
+        for item, row in enumerate(external, 1):
             source = (hostile_manifest.parent / row["path"]).resolve()
             data = source.read_bytes()
             if digest(data) != row["sha256"]:
@@ -277,8 +297,11 @@ def generate(oracle, x264, output, hostile_manifest=None):
             target.write_bytes(data)
             kind = "boundary" if row["id"] in registry()["boundaries"] else "hostile"
             manifest[kind].append({**row, "path": target.name})
+        stage = "manifest"
         manifest["generationSha256"] = digest((json.dumps({"commands": logs}, sort_keys=True, indent=2) + "\n").encode())
         (output / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
+    except (ValueError, OSError, subprocess.SubprocessError, KeyError, TypeError, OverflowError, struct.error) as error:
+        raise GenerationFailure(stage, item) from error
     finally:
         (output / "generation.json").write_text(json.dumps({"commands": logs}, sort_keys=True, indent=2) + "\n")
     return len(manifest["fixtures"])
@@ -297,6 +320,9 @@ def main():
         return
     try:
         count = generate(args.oracle_bin.resolve(), args.x264.resolve(), args.output, args.hostile_manifest)
+    except GenerationFailure as failure:
+        print(f"thumbnail fixtures: failed stage={failure.stage} item={failure.item}; inspect private generation records", file=sys.stderr)
+        raise SystemExit(1) from None
     except (ValueError, OSError, subprocess.SubprocessError, KeyError, TypeError, OverflowError, struct.error):
         print("thumbnail fixtures: failed; inspect private generation records", file=sys.stderr)
         raise SystemExit(1) from None

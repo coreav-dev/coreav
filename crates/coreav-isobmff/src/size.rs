@@ -8,13 +8,8 @@
 //! in samples. Every read is bounded by the bytes given; a parameter set
 //! that cannot be read gives `None`, never an error.
 
-use crate::bitstream::{leb128, profile_tier_level, rbsp, uvlc};
+use crate::bitstream::{leb128, profile_tier_level, uvlc, with_parameter_set_rbsp};
 use crate::bytes::{Bits, be_u16_at};
-
-/// Most bytes of one parameter set that are read. Sizes come early in each
-/// structure; scaling lists and the operating points are the only long
-/// parts before them.
-const MAX_PARAMETER_SET: usize = 4096;
 
 /// A picture size in luma samples.
 pub type Size = (u32, u32);
@@ -143,100 +138,100 @@ fn avc_sps_geometry(nal: &[u8]) -> Option<Geometry> {
     if nal.first()? & 0x1f != 7 {
         return None;
     }
-    let mut scratch = [0; MAX_PARAMETER_SET];
-    let sps = rbsp(nal.get(1..)?, &mut scratch);
-    let mut bits = Bits::new(sps);
-    let profile_idc = bits.bits(8)?;
-    bits.skip(16)?;
-    if bits.ue()? > 31 {
-        return None;
-    }
-    let mut chroma_array_type = 1u32;
-    if matches!(
-        profile_idc,
-        100 | 110 | 122 | 244 | 44 | 83 | 86 | 118 | 128 | 138 | 139 | 134 | 135
-    ) {
-        let chroma_format_idc = bits.ue()?;
-        if chroma_format_idc > 3 {
+    with_parameter_set_rbsp(nal.get(1..)?, |sps| {
+        let mut bits = Bits::new(sps);
+        let profile_idc = bits.bits(8)?;
+        bits.skip(16)?;
+        if bits.ue()? > 31 {
             return None;
         }
-        chroma_array_type = chroma_format_idc;
-        if chroma_format_idc == 3 && bits.flag()? {
-            // separate_colour_plane_flag
-            chroma_array_type = 0;
-        }
-        bits.ue()?;
-        bits.ue()?;
-        bits.skip(1)?;
-        if bits.flag()? {
-            let lists = if chroma_format_idc == 3 { 12 } else { 8 };
-            for i in 0..lists {
-                if bits.flag()? {
-                    // scaling_list (7.3.2.1.1.1): 16 or 64 coefficients.
-                    let size = if i < 6 { 16 } else { 64 };
-                    let (mut last, mut next) = (8i64, 8i64);
-                    for _ in 0..size {
-                        if next != 0 {
-                            next = (last + bits.se()? + 256).rem_euclid(256);
-                        }
-                        if next != 0 {
-                            last = next;
+        let mut chroma_array_type = 1u32;
+        if matches!(
+            profile_idc,
+            100 | 110 | 122 | 244 | 44 | 83 | 86 | 118 | 128 | 138 | 139 | 134 | 135
+        ) {
+            let chroma_format_idc = bits.ue()?;
+            if chroma_format_idc > 3 {
+                return None;
+            }
+            chroma_array_type = chroma_format_idc;
+            if chroma_format_idc == 3 && bits.flag()? {
+                // separate_colour_plane_flag
+                chroma_array_type = 0;
+            }
+            bits.ue()?;
+            bits.ue()?;
+            bits.skip(1)?;
+            if bits.flag()? {
+                let lists = if chroma_format_idc == 3 { 12 } else { 8 };
+                for i in 0..lists {
+                    if bits.flag()? {
+                        // scaling_list (7.3.2.1.1.1): 16 or 64 coefficients.
+                        let size = if i < 6 { 16 } else { 64 };
+                        let (mut last, mut next) = (8i64, 8i64);
+                        for _ in 0..size {
+                            if next != 0 {
+                                next = (last + bits.se()? + 256).rem_euclid(256);
+                            }
+                            if next != 0 {
+                                last = next;
+                            }
                         }
                     }
                 }
             }
         }
-    }
-    bits.ue()?;
-    match bits.ue()? {
-        0 => {
-            bits.ue()?;
-        }
-        1 => {
-            bits.skip(1)?;
-            bits.se()?;
-            bits.se()?;
-            let cycle = bits.ue()?;
-            if cycle > 255 {
-                return None;
+        bits.ue()?;
+        match bits.ue()? {
+            0 => {
+                bits.ue()?;
             }
-            for _ in 0..cycle {
+            1 => {
+                bits.skip(1)?;
                 bits.se()?;
+                bits.se()?;
+                let cycle = bits.ue()?;
+                if cycle > 255 {
+                    return None;
+                }
+                for _ in 0..cycle {
+                    bits.se()?;
+                }
             }
+            2 => {}
+            _ => return None,
         }
-        2 => {}
-        _ => return None,
-    }
-    bits.ue()?;
-    bits.skip(1)?;
-    let width_mbs = u64::from(bits.ue()?).checked_add(1)?;
-    let height_map_units = u64::from(bits.ue()?).checked_add(1)?;
-    let frame_mbs_only = bits.flag()?;
-    if !frame_mbs_only {
+        bits.ue()?;
         bits.skip(1)?;
-    }
-    bits.skip(1)?;
-    let crop = if bits.flag()? {
-        (bits.ue()?, bits.ue()?, bits.ue()?, bits.ue()?)
-    } else {
-        (0, 0, 0, 0)
-    };
-    // 7.4.2.1.1: frame height in macroblocks, crop units.
-    let field_factor = if frame_mbs_only { 1 } else { 2 };
-    let width = width_mbs.checked_mul(16)?;
-    let height = height_map_units
-        .checked_mul(16)?
-        .checked_mul(field_factor)?;
-    let (sub_width, sub_height) = chroma_subsampling(chroma_array_type);
-    let (unit_x, unit_y) = if chroma_array_type == 0 {
-        (1, field_factor)
-    } else {
-        (sub_width, sub_height.checked_mul(field_factor)?)
-    };
-    Some(Geometry {
-        size: (width, height),
-        unit: (unit_x, unit_y),
-        crop,
+        let width_mbs = u64::from(bits.ue()?).checked_add(1)?;
+        let height_map_units = u64::from(bits.ue()?).checked_add(1)?;
+        let frame_mbs_only = bits.flag()?;
+        if !frame_mbs_only {
+            bits.skip(1)?;
+        }
+        bits.skip(1)?;
+        let crop = if bits.flag()? {
+            (bits.ue()?, bits.ue()?, bits.ue()?, bits.ue()?)
+        } else {
+            (0, 0, 0, 0)
+        };
+        // 7.4.2.1.1: frame height in macroblocks, crop units.
+        let field_factor = if frame_mbs_only { 1 } else { 2 };
+        let width = width_mbs.checked_mul(16)?;
+        let height = height_map_units
+            .checked_mul(16)?
+            .checked_mul(field_factor)?;
+        let (sub_width, sub_height) = chroma_subsampling(chroma_array_type);
+        let (unit_x, unit_y) = if chroma_array_type == 0 {
+            (1, field_factor)
+        } else {
+            (sub_width, sub_height.checked_mul(field_factor)?)
+        };
+        Some(Geometry {
+            size: (width, height),
+            unit: (unit_x, unit_y),
+            crop,
+        })
     })
 }
 
@@ -257,39 +252,39 @@ fn hevc_sps_geometry(nal: &[u8]) -> Option<Geometry> {
     if (nal.first()? >> 1) & 0x3f != 33 {
         return None;
     }
-    let mut scratch = [0; MAX_PARAMETER_SET];
-    let sps = rbsp(nal.get(2..)?, &mut scratch);
-    let mut bits = Bits::new(sps);
-    bits.skip(4)?;
-    let max_sub_layers_minus1 = bits.bits(3)?;
-    if max_sub_layers_minus1 > 6 {
-        return None;
-    }
-    bits.skip(1)?;
-    profile_tier_level(&mut bits, max_sub_layers_minus1)?;
-    if bits.ue()? > 15 {
-        return None;
-    }
-    let chroma_format_idc = bits.ue()?;
-    if chroma_format_idc > 3 {
-        return None;
-    }
-    let mut chroma_array_type = chroma_format_idc;
-    if chroma_format_idc == 3 && bits.flag()? {
-        chroma_array_type = 0;
-    }
-    let width = u64::from(bits.ue()?);
-    let height = u64::from(bits.ue()?);
-    let window = if bits.flag()? {
-        (bits.ue()?, bits.ue()?, bits.ue()?, bits.ue()?)
-    } else {
-        (0, 0, 0, 0)
-    };
-    let (unit_x, unit_y) = chroma_subsampling(chroma_array_type);
-    Some(Geometry {
-        size: (width, height),
-        unit: (unit_x, unit_y),
-        crop: window,
+    with_parameter_set_rbsp(nal.get(2..)?, |sps| {
+        let mut bits = Bits::new(sps);
+        bits.skip(4)?;
+        let max_sub_layers_minus1 = bits.bits(3)?;
+        if max_sub_layers_minus1 > 6 {
+            return None;
+        }
+        bits.skip(1)?;
+        profile_tier_level(&mut bits, max_sub_layers_minus1)?;
+        if bits.ue()? > 15 {
+            return None;
+        }
+        let chroma_format_idc = bits.ue()?;
+        if chroma_format_idc > 3 {
+            return None;
+        }
+        let mut chroma_array_type = chroma_format_idc;
+        if chroma_format_idc == 3 && bits.flag()? {
+            chroma_array_type = 0;
+        }
+        let width = u64::from(bits.ue()?);
+        let height = u64::from(bits.ue()?);
+        let window = if bits.flag()? {
+            (bits.ue()?, bits.ue()?, bits.ue()?, bits.ue()?)
+        } else {
+            (0, 0, 0, 0)
+        };
+        let (unit_x, unit_y) = chroma_subsampling(chroma_array_type);
+        Some(Geometry {
+            size: (width, height),
+            unit: (unit_x, unit_y),
+            crop: window,
+        })
     })
 }
 

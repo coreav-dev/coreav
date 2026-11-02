@@ -1,6 +1,8 @@
 """Synthetic command and container-field contracts; never generate media here."""
 
+import contextlib
 import importlib.util
+import io
 import json
 import pathlib
 import struct
@@ -17,6 +19,37 @@ SPEC.loader.exec_module(FIXTURES)
 
 
 class FixtureContracts(unittest.TestCase):
+    def test_generation_keeps_the_failed_command_stage_and_private_cause(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            for name in ("ffmpeg", "ffprobe", "x264"):
+                (root / name).write_bytes(b"tool marker, never executed")
+            cause = ValueError("private-marker")
+            with mock.patch.object(FIXTURES.sys, "platform", "linux"), \
+                 mock.patch.object(FIXTURES, "hostile_rows", return_value=[]), \
+                 mock.patch.object(FIXTURES.oracle_pin, "verify_bin", return_value=[]), \
+                 mock.patch.object(FIXTURES.oracle_pin, "load", return_value={"X264_COMMIT": "1234567"}), \
+                 mock.patch.object(FIXTURES, "commands", return_value=[{"kind": "inspect-sps", "argv": ["tool"]}]), \
+                 mock.patch.object(FIXTURES, "execute", side_effect=[b"x264 1234567", cause]):
+                with self.assertRaises(FIXTURES.GenerationFailure) as raised:
+                    FIXTURES.generate(root, root / "x264", root / "output")
+            self.assertEqual((raised.exception.stage, raised.exception.item), ("inspect-sps", 1))
+            self.assertIs(raised.exception.__cause__, cause)
+            self.assertTrue((root / "output/generation.json").is_file())
+
+    def test_failure_reports_only_closed_stage_and_ordinal(self):
+        for stage, expected in [("rotation", "rotation"), ("private-marker", "unexpected")]:
+            with self.subTest(stage=stage):
+                failure = FIXTURES.GenerationFailure(stage, 7)
+                output = io.StringIO()
+                with mock.patch.object(sys, "argv", ["fixtures", "--oracle-bin", "/oracle", "--x264", "/x264", "--output", "/output"]), \
+                     mock.patch.object(FIXTURES, "generate", side_effect=failure), contextlib.redirect_stderr(output):
+                    with self.assertRaises(SystemExit) as raised:
+                        FIXTURES.main()
+                self.assertEqual(raised.exception.code, 1)
+                self.assertIn(f"stage={expected} item=7", output.getvalue())
+                self.assertNotIn("private-marker", output.getvalue())
+
     def test_roster_and_commands_are_complete_without_running_a_binary(self):
         rows = list(FIXTURES.fixture_rows())
         self.assertEqual(len(rows), 52)
