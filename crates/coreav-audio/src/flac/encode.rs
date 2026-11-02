@@ -47,7 +47,7 @@ impl<W: Write> FlacSink<W> {
         }
     }
 
-    /// Writes the final frame and returns the 42-byte header to patch at zero.
+    /// Writes the final frame and returns the file header to patch at zero.
     pub fn finish(mut self) -> Result<Vec<u8>, Error> {
         let State::Encoding(mut stream) = std::mem::replace(&mut self.state, State::Failed) else {
             return Err(Error::Invalid("FLAC encoder is not encoding"));
@@ -250,7 +250,9 @@ impl Stream {
 }
 
 fn header(format: &OutputFormat, samples: u64, min: u32, max: u32, md5: [u8; 16]) -> Vec<u8> {
-    let mut bytes = b"fLaC\x80\0\0\x22".to_vec();
+    let needs_mask = matches!(format.channels, 5 | 6);
+    let mut bytes = b"fLaC".to_vec();
+    bytes.extend_from_slice(&[if needs_mask { 0 } else { 0x80 }, 0, 0, 34]);
     bytes.extend_from_slice(&(BLOCK as u16).to_be_bytes());
     bytes.extend_from_slice(&(BLOCK as u16).to_be_bytes());
     for size in [min, max] {
@@ -262,6 +264,21 @@ fn header(format: &OutputFormat, samples: u64, min: u32, max: u32, md5: [u8; 16]
         | samples;
     bytes.extend_from_slice(&description.to_be_bytes());
     bytes.extend_from_slice(&md5);
+    if needs_mask {
+        let vendor = b"CoreAV";
+        let field = format!(
+            "WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x{:04X}",
+            format.channel_mask
+        );
+        let size = 12 + vendor.len() + field.len();
+        bytes.push(0x84);
+        bytes.extend((size as u32).to_be_bytes().into_iter().skip(1));
+        bytes.extend_from_slice(&(vendor.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(vendor);
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&(field.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(field.as_bytes());
+    }
     bytes
 }
 

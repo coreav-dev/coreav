@@ -87,6 +87,10 @@ class FlacCorrectness(unittest.TestCase):
                     return check.verify_native("ffmpeg", "ffprobe", "source", output, samples, 16, 1, [])
 
             self.assertEqual(verify(), (fields, 1))
+            chained = bytearray(encoded[:42])
+            chained[4] = 0
+            chained.extend(b"\x84\0\0\x08" + bytes(8) + encoded[42:])
+            self.assertEqual(verify(data=chained), (fields, 1))
             mutations = []
             for offset, value in [(0, 0), (8, 0), (10, 0), (25, 2), (26, 0),
                                   (42, 0), (43, 0xF9), (44, 0), (46, 1), (48, 1)]:
@@ -94,6 +98,10 @@ class FlacCorrectness(unittest.TestCase):
                 bad[offset] = value
                 mutations.append(bad)
             mutations.append(encoded[:42])
+            mutations.append(chained[:45])
+            bad = bytearray(chained)
+            bad[45] = 255
+            mutations.append(bad)
             for data in mutations:
                 with self.subTest(data=data.hex()), self.assertRaises(AssertionError):
                     verify(data=data)

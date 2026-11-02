@@ -32,7 +32,14 @@ fn encode(format: OutputFormat, samples: &[u8]) -> Vec<u8> {
         sink.write(chunk).unwrap();
     }
     let header = sink.finish().unwrap();
-    assert_eq!(header.len(), 42);
+    assert_eq!(
+        header.len(),
+        if matches!(format.channels, 5 | 6) {
+            104
+        } else {
+            42
+        }
+    );
     bytes[..header.len()].copy_from_slice(&header);
     bytes
 }
@@ -90,6 +97,30 @@ fn complete_roundtrips_include_all_channels_widths_and_block_tails() {
                 assert_eq!(decoded.first, values[..values.len().min(64)]);
                 assert_eq!(decoded.frames, frames.div_ceil(4096) as u64);
             }
+        }
+    }
+}
+
+#[test]
+fn back_surround_layouts_have_an_explicit_rfc_channel_mask() {
+    for (channels, field) in [
+        (5, b"WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x0037"),
+        (6, b"WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x003F"),
+    ] {
+        for count in [0, 1, 4097] {
+            let samples = vec![0; count * usize::from(channels) * 2];
+            let bytes = encode(format(channels, 16, 48000), &samples);
+            assert_eq!(&bytes[..8], b"fLaC\0\0\0\x22");
+            assert_eq!(&bytes[42..46], b"\x84\0\0\x3a");
+            assert_eq!(&bytes[46..50], &6u32.to_le_bytes());
+            assert_eq!(&bytes[50..56], b"CoreAV");
+            assert_eq!(&bytes[56..60], &1u32.to_le_bytes());
+            assert_eq!(&bytes[60..64], &40u32.to_le_bytes());
+            assert_eq!(&bytes[64..104], field);
+            let decoded = support::decode_raw(&bytes).unwrap();
+            assert_eq!(decoded.samples, count as u64);
+            assert_eq!(decoded.md5, support::md5(&samples));
+            assert_eq!(decoded.crc_failures, 0);
         }
     }
 }

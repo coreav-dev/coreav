@@ -79,15 +79,26 @@ def verify_native(ffmpeg, ffprobe, source, output, samples, bits, channels, opti
     if decoded != samples:
         raise AssertionError(f"decoded native samples differ from source: {output.name}")
     encoded = output.read_bytes()
-    if encoded[:8] != b"fLaC\x80\0\0\x22" or encoded[26:42] != hashlib.md5(samples).digest():
+    if (encoded[:4] != b"fLaC" or len(encoded) < 42 or encoded[4] & 0x7F != 0
+            or encoded[5:8] != b"\0\0\x22" or encoded[26:42] != hashlib.md5(samples).digest()):
         raise AssertionError(f"STREAMINFO MD5 mismatch: {output.name}")
     if int.from_bytes(encoded[18:26], "big") & ((1 << 36) - 1) != count:
         raise AssertionError(f"STREAMINFO sample count mismatch: {output.name}")
     minimum, maximum = (int.from_bytes(encoded[i:i + 2], "big") for i in (8, 10))
     if not 16 <= minimum <= maximum <= 65535:
         raise AssertionError(f"invalid STREAMINFO block bounds: {output.name}")
+    at = 4
+    while True:
+        block = encoded[at:at + 4]
+        if len(block) != 4:
+            raise AssertionError(f"truncated FLAC metadata header: {output.name}")
+        at += 4 + int.from_bytes(block[1:4], "big")
+        if at > len(encoded):
+            raise AssertionError(f"truncated FLAC metadata body: {output.name}")
+        if block[0] & 0x80:
+            break
     if tiny_reference_options(count):
-        frame = encoded[42:]
+        frame = encoded[at:]
         if len(frame) < 9 or frame[:2] != b"\xff\xf8" or frame[4] != 0:
             raise AssertionError(f"invalid tiny fixed-block frame header: {output.name}")
         code = frame[2] >> 4
@@ -152,6 +163,13 @@ def check(coreav, oracle, root):
             label = f"{bits}-{channels}-{rate}"
             source = make_source(ffmpeg, root, bits, channels, rate, samples, label)
             compare(source, samples, bits, channels, label)
+
+            if channels in (5, 6):
+                for count in (1, 15, 16):
+                    short = pcm(bits, channels, count, "impulse")
+                    short_label = f"back-surround-{bits}-{channels}-{count}"
+                    short_source = make_source(ffmpeg, root, bits, channels, rate, short, short_label)
+                    compare(short_source, short, bits, channels, short_label)
 
     for bits in (16, 24):
         for frames in range(2, 18):
