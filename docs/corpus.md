@@ -27,7 +27,7 @@ never committed to the repository.
 | [v1](#corpus-v1) | the oracles and the speed measurements in general | 1,351 | 407 |
 | [v1-fmp4-large](#top-up-v1-fmp4-large) | adaptive routing of large fragmented MP4 | 21 | 6 |
 | [v1-ts-audio](#top-up-v1-ts-audio) | the MPEG-TS demux, the audio containers | per family, below | per family |
-| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | 40, 46, 46, 52, 37 and 300 | all |
+| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | per draw, below | all |
 | [mediarecorder-v1](#mediarecorder-recordings) | the Matroska and WebM run | 41 (synthetic) | none |
 | [commands-v1](#command-coverage-set-commands-v1) | the compatibility command | 1,147 commands | none |
 
