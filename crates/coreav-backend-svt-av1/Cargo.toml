@@ -1,0 +1,25 @@
+[package]
+name = "coreav-backend-svt-av1"
+description = "Checked AV1 output framing for CoreAV's SVT-AV1 backend"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/coreav-dev/coreav"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
