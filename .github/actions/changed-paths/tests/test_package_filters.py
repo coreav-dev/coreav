@@ -91,11 +91,61 @@ class PackageFilters(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selected([path]), dict.fromkeys(self.filters, True))
 
+    def test_wasm_triggers_cover_crates_and_registered_memory_bars(self):
+        inputs = ['docs/design/wasm-memory-bars.md', 'tools/edge-native/src/main.rs',
+                  '.github/scripts/wasm-memory-failure.cjs']
+        inputs.extend(str(path.parent.relative_to(ROOT) / 'src/lib.rs')
+                      for path in (ROOT / 'crates').glob('*/Cargo.toml'))
+        self.assertGreater(len(inputs), 1)
+        filters = workflow_check.trigger_filters(
+            (ROOT / '.github/workflows/wasm.yml').read_text())
+        self.assertTrue({'push', 'pull_request'} <= {event for event, _, _ in filters})
+        for event, key, patterns in filters:
+            for path in inputs:
+                with self.subTest(event=event, path=path):
+                    selected, _ = cp.decide([path], patterns if key == 'paths' else [],
+                                            patterns if key == 'paths-ignore' else [])
+                    self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
+
     def test_wasm_crate_and_other_rust_inputs_still_run_rust_ci(self):
         for path in ('crates/coreav-wasm/src/bindings.rs', 'crates/coreav-isobmff/src/source.rs',
                      'Cargo.toml', 'rust-toolchain.toml'):
             with self.subTest(path=path):
                 self.assertTrue(self.selected([path])['ci'])
+
+    def test_wasm_reports_installed_package_and_memory_failures(self):
+        script = ('puts JSON.generate(Psych.load_file(ARGV[0])'
+                  '["jobs"]["wasm-module"]["steps"])')
+        steps = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', script,
+             str(ROOT / '.github/workflows/wasm.yml')], text=True))
+        installed = next(step for step in steps
+                         if step.get('name') == 'Verify the installed package')
+        examples = next(step for step in steps
+                        if step.get('name') == 'Judge the registered memory gates')
+        reporter = next(step for step in steps
+                        if step.get('name') == 'Record a release-blocking failure')
+        evaluate = '''
+const assert = require('node:assert/strict');
+const config = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const condition = new Function('steps', 'failure', `return (${config.condition});`);
+for (const [name, installed, examples, failed, expected] of [
+  ['failed package with skipped memory must report', 'failure', 'skipped', true, true],
+  ['failed memory must report', 'success', 'failure', true, true],
+  ['successful checks must not report', 'success', 'success', false, false],
+  ['earlier failure with both checks skipped must not report', 'skipped', 'skipped', true, false],
+  ['cancellation still requires manual reporting', 'cancelled', 'skipped', false, false]
+]) {
+  const steps = { [config.installed]: { outcome: installed }, [config.examples]: { outcome: examples } };
+  assert.equal(condition(steps, () => failed), expected, name);
+}
+'''
+        result = subprocess.run(['node', '-e', evaluate], input=json.dumps({
+            'condition': reporter['if'],
+            'installed': installed.get('id', 'unidentified_installed'),
+            'examples': examples['id'],
+        }), text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_mixed_changes_and_renames_keep_native_validation(self):
         for paths in (['packages/wasm/src/node.js', 'packages/cli/lib/main.js'],
