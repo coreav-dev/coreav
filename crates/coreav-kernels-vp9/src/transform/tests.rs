@@ -228,6 +228,9 @@ fn values_outside_the_domains_are_refused() {
                 "{v} at {depth:?}"
             );
         }
+        let mut values = [i64::MAX, i64::MIN, limit, -limit - 1, 5];
+        Coefficients::clamped(&mut values, depth);
+        assert_eq!(values, [limit - 1, -limit, limit - 1, -limit, 5]);
     }
 }
 

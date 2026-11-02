@@ -568,7 +568,9 @@ impl<P: Sample> Tiles<'_, P> {
     /// The reconstruct process (clause 8.6.2): dequantizes the transform
     /// block just read and adds its inverse transform at (`x`, `y`). A
     /// dequantized coefficient outside `8 + BitDepth` bits breaks the
-    /// clause's requirement, which the transforms rely on, and is refused.
+    /// clause's requirement, which the transforms rely on, and is clamped
+    /// into that range (`docs/design/vp9.md`, "Specification and the clean
+    /// room").
     fn reconstruct(
         &mut self,
         plane: usize,
@@ -634,9 +636,7 @@ impl<P: Sample> Tiles<'_, P> {
             DCT_DCT => TxType::DctDct,
             _ => TxType::AdstAdst,
         };
-        let coefs = Coefficients::new(coefs, bit_depth).ok_or(Error::Invalid(
-            "a dequantized coefficient outside 8 + BitDepth bits (clause 8.6.2)",
-        ))?;
+        let coefs = Coefficients::clamped(coefs, bit_depth);
         let Some(p) = self.frame.planes.get_mut(plane) else {
             return Ok(());
         };

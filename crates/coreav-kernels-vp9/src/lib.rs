@@ -111,11 +111,26 @@ pub struct Coefficients<'a> {
 impl<'a> Coefficients<'a> {
     /// `values` at `bit_depth`, or `None` when one is outside the domain.
     pub fn new(values: &'a mut [i64], bit_depth: BitDepth) -> Option<Self> {
-        let limit = 1i64 << (7 + bit_depth.bits());
+        let (min, max) = Self::domain(bit_depth);
         values
             .iter()
-            .all(|v| (-limit..limit).contains(v))
+            .all(|v| (min..=max).contains(v))
             .then_some(Coefficients { values, bit_depth })
+    }
+
+    /// `values` at `bit_depth`, each clamped into the domain first.
+    pub fn clamped(values: &'a mut [i64], bit_depth: BitDepth) -> Self {
+        let (min, max) = Self::domain(bit_depth);
+        for v in values.iter_mut() {
+            *v = (*v).clamp(min, max);
+        }
+        Coefficients { values, bit_depth }
+    }
+
+    /// The least and greatest coefficient at `bit_depth`.
+    fn domain(bit_depth: BitDepth) -> (i64, i64) {
+        let limit = 1i64 << (7 + bit_depth.bits());
+        (-limit, limit - 1)
     }
 }
 
