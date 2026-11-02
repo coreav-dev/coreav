@@ -37,6 +37,29 @@ pub fn run<W: Write>(
     )?)
 }
 
+/// Copies mapped streams from several MP4/MOV files.
+pub fn run_inputs<W: Write>(
+    paths: &[&Path],
+    streams: &[coreav_isobmff_write::InputStream],
+    left_out_covers: &[u64],
+    allowlist: &Allowlist,
+    out: W,
+) -> Result<RemuxSummary, ClipFailure> {
+    let inputs = paths
+        .iter()
+        .map(|path| FileSource::open(path).map(BufferedSource::new))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ClipFailure::Rejected(Failure::library(e)))?;
+    Ok(coreav_isobmff_write::remux_mp4_inputs(
+        inputs,
+        streams,
+        left_out_covers,
+        &Limits::default(),
+        allowlist,
+        out,
+    )?)
+}
+
 /// Remuxes bytes already in memory, as [`run`] does for a file.
 pub fn run_slice<W: Write>(
     data: &[u8],

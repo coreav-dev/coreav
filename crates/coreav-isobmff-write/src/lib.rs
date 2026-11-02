@@ -61,7 +61,7 @@ pub use matroska::{
     MatroskaRemuxOptions, MatroskaRemuxSummary, MatroskaRemuxTrack, remux_matroska,
     remux_matroska_replacing,
 };
-pub use remux::{remux_mp4, remux_mp4_replacing, sanitize_mp4};
+pub use remux::{remux_mp4, remux_mp4_inputs, remux_mp4_replacing, sanitize_mp4};
 pub use replace::{AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements};
 pub use split::split_mp4;
 
@@ -283,6 +283,18 @@ pub struct RemuxOptions {
     /// no item list, so it ignores this.
     pub left_out_covers: Vec<u64>,
 }
+
+/// A stream of one source in [`remux_mp4_inputs`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InputStream {
+    /// Position of the source in the input list.
+    pub input: usize,
+    /// Position of the stream in that source.
+    pub stream: usize,
+}
+
+/// The most source files accepted by [`remux_mp4_inputs`].
+pub const MAX_REMUX_INPUTS: usize = 16;
 
 /// What [`remux_mp4`] does with metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

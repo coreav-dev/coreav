@@ -23,8 +23,9 @@ use crate::replace::{
 use crate::sanitize::{AUDIO_KEPT, EntryBox, Removed, VISUAL_KEPT, describe, entry_box, rewrite};
 use crate::scan::{FileScan, MAX_PATH, Path, Skipped, TrakScan, read_elst, scan};
 use crate::{
-    BoxDropReason, Cleared, ClearedField, DroppedBox, DroppedTrack, ExtractError, Keep, Metadata,
-    MetadataKind, OnUnsupported, RemuxOptions, RemuxSummary, RemuxTrack, TrackDropReason,
+    BoxDropReason, Cleared, ClearedField, DroppedBox, DroppedTrack, ExtractError, InputStream,
+    Keep, MAX_REMUX_INPUTS, Metadata, MetadataKind, OnUnsupported, RemuxOptions, RemuxSummary,
+    RemuxTrack, TrackDropReason,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -79,7 +80,49 @@ pub fn remux_mp4<S: Source, W: Write>(
         video: None,
         audio: None,
     };
-    remux(source, limits, allowlist, options, none, out)
+    let streams = options.streams.as_ref().map(|streams| {
+        streams
+            .iter()
+            .map(|stream| InputStream {
+                input: 0,
+                stream: *stream,
+            })
+            .collect()
+    });
+    remux(vec![source], streams, limits, allowlist, options, none, out)
+}
+
+/// Copies mapped streams from up to sixteen MP4/MOV sources, in map order.
+/// The sources must be unfragmented and have the same movie timescale.
+/// Movie metadata comes from input zero; track metadata follows its stream.
+/// Summary tracks follow `streams`, with stream indexes local to that input.
+/// Dropped-track and dropped-box reports describe input zero only.
+pub fn remux_mp4_inputs<S: Source, W: Write>(
+    inputs: Vec<S>,
+    streams: &[InputStream],
+    left_out_covers: &[u64],
+    limits: &Limits,
+    allowlist: &Allowlist,
+    out: W,
+) -> Result<RemuxSummary, ExtractError> {
+    let options = RemuxOptions {
+        on_unsupported: OnUnsupported::Fail,
+        left_out_covers: left_out_covers.to_vec(),
+        ..RemuxOptions::default()
+    };
+    let none = Replacements::<SliceSource<'static>> {
+        video: None,
+        audio: None,
+    };
+    remux(
+        inputs,
+        Some(streams.to_vec()),
+        limits,
+        allowlist,
+        &options,
+        none,
+        out,
+    )
 }
 
 /// [`remux_mp4`] with one video stream of the source, one audio stream, or
@@ -138,7 +181,24 @@ pub fn remux_mp4_replacing<S: Source, R: Source, W: Write>(
     replacements: Replacements<'_, R>,
     out: W,
 ) -> Result<RemuxSummary, ExtractError> {
-    remux(source, limits, allowlist, options, replacements, out)
+    let streams = options.streams.as_ref().map(|streams| {
+        streams
+            .iter()
+            .map(|stream| InputStream {
+                input: 0,
+                stream: *stream,
+            })
+            .collect()
+    });
+    remux(
+        vec![source],
+        streams,
+        limits,
+        allowlist,
+        options,
+        replacements,
+        out,
+    )
 }
 
 /// Which replacement a stream's samples are.
@@ -150,13 +210,25 @@ enum Replaced {
 
 /// The full-file remux, with or without replaced streams.
 fn remux<S: Source, R: Source, W: Write>(
-    source: S,
+    inputs: Vec<S>,
+    selected: Option<Vec<InputStream>>,
     limits: &Limits,
     allowlist: &Allowlist,
     options: &RemuxOptions,
     replacements: Replacements<'_, R>,
     mut out: W,
 ) -> Result<RemuxSummary, ExtractError> {
+    if inputs.is_empty() || inputs.len() > MAX_REMUX_INPUTS {
+        return Err(unsupported("a remux needs one to sixteen input sources").into());
+    }
+    let multiple = inputs.len() > 1;
+    if multiple
+        && (replacements.video.is_some()
+            || replacements.audio.is_some()
+            || options.metadata != Metadata::Copy)
+    {
+        return Err(unsupported("replacements or sanitization with several input sources").into());
+    }
     let Replacements {
         video: mut replacement,
         mut audio,
@@ -169,7 +241,11 @@ fn remux<S: Source, R: Source, W: Write>(
         Some(a) => Some(validate_audio(a, limits)?),
         None => None,
     };
-    let mut source = source;
+    let mut inputs = inputs.into_iter();
+    let mut source = inputs
+        .next()
+        .ok_or_else(|| unsupported("no input source"))?;
+    let mut other_sources: Vec<S> = inputs.collect();
     let movie = probe(&mut source, limits, allowlist)?;
     // The boxes this copies are read from the file's movie box, which in a
     // compressed movie holds only the compressed data
@@ -190,7 +266,27 @@ fn remux<S: Source, R: Source, W: Write>(
         }
         .into());
     }
-    if let Some(wanted) = &options.streams {
+    let mut other_movies = Vec::new();
+    let mut other_files = Vec::new();
+    if multiple && movie.has_fragments() {
+        return Err(unsupported("fragmented sources in a multiple-input remux").into());
+    }
+    for source in &mut other_sources {
+        let other = probe(&mut *source, limits, allowlist)?;
+        if other.compressed || other.has_fragments() || other.timescale != movie.timescale {
+            return Err(unsupported(
+                "multiple-input remux needs unfragmented sources with equal movie timescales",
+            )
+            .into());
+        }
+        let scanned = scan(source, limits)?;
+        if scanned.traks.len() != other.tracks.len().saturating_add(other.dropped.len()) {
+            return Err(unsupported("track boxes that probe did not count").into());
+        }
+        other_movies.push(other);
+        other_files.push(scanned);
+    }
+    if let Some(wanted) = &selected {
         if u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(limits.max_tracks) {
             return Err(Error::LimitExceeded {
                 limit: LimitKind::Tracks,
@@ -198,11 +294,22 @@ fn remux<S: Source, R: Source, W: Write>(
             }
             .into());
         }
-        for index in wanted {
-            if *index >= streams {
+        for selected in wanted {
+            let input = if selected.input == 0 {
+                &movie
+            } else {
+                other_movies
+                    .get(selected.input.saturating_sub(1))
+                    .ok_or(Error::NoSuchTrack)?
+            };
+            if selected.stream >= input.tracks.len().saturating_add(input.dropped.len()) {
                 return Err(Error::NoSuchTrack.into());
             }
-            if let Some(d) = movie.dropped.iter().find(|d| d.stream_index == *index) {
+            if let Some(d) = input
+                .dropped
+                .iter()
+                .find(|d| d.stream_index == selected.stream)
+            {
                 return Err(Error::CodecNotAllowed {
                     track_id: d.track_id,
                     fourcc: d.fourcc,
@@ -225,15 +332,17 @@ fn remux<S: Source, R: Source, W: Write>(
     }
     let mut retained = Retained::new(limits);
     let mut dropped_tracks = Vec::new();
-    let drop_unsupported =
-        options.on_unsupported == OnUnsupported::Drop && options.streams.is_none();
+    let drop_unsupported = options.on_unsupported == OnUnsupported::Drop && selected.is_none();
     // The output's tracks, in the order named: a stream named twice is
     // written twice.
-    let order: Vec<&Track> = match &options.streams {
-        None => movie.tracks.iter().collect(),
+    let order: Vec<(usize, &Track)> = match &selected {
+        None => movie.tracks.iter().map(|track| (0, track)).collect(),
         Some(wanted) => {
             for track in &movie.tracks {
-                if !wanted.contains(&track.stream_index) {
+                if !wanted.contains(&InputStream {
+                    input: 0,
+                    stream: track.stream_index,
+                }) {
                     dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
                 }
             }
@@ -248,10 +357,18 @@ fn remux<S: Source, R: Source, W: Write>(
             wanted
                 .iter()
                 .map(|i| {
-                    movie
+                    let input = if i.input == 0 {
+                        &movie
+                    } else {
+                        other_movies
+                            .get(i.input.saturating_sub(1))
+                            .ok_or(Error::NoSuchTrack)?
+                    };
+                    input
                         .tracks
                         .iter()
-                        .find(|t| t.stream_index == *i)
+                        .find(|t| t.stream_index == i.stream)
+                        .map(|track| (i.input, track))
                         .ok_or(Error::NoSuchTrack)
                 })
                 .collect::<Result<_, _>>()?
@@ -260,7 +377,20 @@ fn remux<S: Source, R: Source, W: Write>(
     // What every kept stream needs (its sample entry and edit list) is read
     // first; the optional metadata gets what `max_retained_bytes` leaves.
     let mut plans = Vec::new();
-    for track in order {
+    for (input, track) in order {
+        retained.report = input == 0;
+        let (file, source) = if input == 0 {
+            (&file, &mut source)
+        } else {
+            (
+                other_files
+                    .get(input.saturating_sub(1))
+                    .ok_or_else(overflow)?,
+                other_sources
+                    .get_mut(input.saturating_sub(1))
+                    .ok_or_else(overflow)?,
+            )
+        };
         let trak = file.traks.get(track.stream_index).ok_or_else(overflow)?;
         let before = retained.left;
         let replace = match (&replacement, &audio) {
@@ -279,12 +409,15 @@ fn remux<S: Source, R: Source, W: Write>(
             track,
             trak,
             options.metadata,
-            &mut source,
+            source,
             limits,
             &mut retained,
             replace,
         ) {
-            Ok(plan) => plans.push(plan),
+            Ok(mut plan) => {
+                plan.input = input;
+                plans.push(plan);
+            }
             Err(Error::Unsupported { reason }) if drop_unsupported && replace.is_none() => {
                 retained.left = before;
                 dropped_tracks.push(dropped(track, TrackDropReason::Unsupported { reason }));
@@ -330,6 +463,18 @@ fn remux<S: Source, R: Source, W: Write>(
     let mut budget = Budget::new(limits);
     let mut kept: Vec<Kept<'_>> = Vec::new();
     for plan in plans {
+        let (input_movie, input_source) = if plan.input == 0 {
+            (&movie, &mut source)
+        } else {
+            (
+                other_movies
+                    .get(plan.input.saturating_sub(1))
+                    .ok_or_else(overflow)?,
+                other_sources
+                    .get_mut(plan.input.saturating_sub(1))
+                    .ok_or_else(overflow)?,
+            )
+        };
         let before = budget.used();
         let index = muxer.add_track(plan.header)?;
         let listed = match (plan.replaced, &replacement, &audio) {
@@ -341,13 +486,13 @@ fn remux<S: Source, R: Source, W: Write>(
             }
             (Some(_), _, _) => Err(overflow().into()),
             (None, _, _) => list(
-                &movie,
+                input_movie,
                 plan.track,
                 &plan.edits,
                 plan.declared,
                 &mut muxer,
                 index,
-                &mut source,
+                input_source,
                 limits,
                 &mut budget,
             ),
@@ -363,6 +508,7 @@ fn remux<S: Source, R: Source, W: Write>(
                     _ => plan.track.description.codec,
                 };
                 kept.push(Kept {
+                    input: plan.input,
                     track: plan.track,
                     trak: plan.trak,
                     work: budget.used().saturating_sub(before),
@@ -549,11 +695,19 @@ fn remux<S: Source, R: Source, W: Write>(
     };
     let mut described = file.boxes;
     for (index, k) in kept.iter_mut().enumerate() {
+        retained.report = k.input == 0;
+        let source = if k.input == 0 {
+            &mut source
+        } else {
+            other_sources
+                .get_mut(k.input.saturating_sub(1))
+                .ok_or_else(overflow)?
+        };
         let stream = Some(k.track.stream_index);
         let trak_path = Path::top().with(FourCc(*b"moov")).with(FourCc(*b"trak"));
         if let Some(keep) = sanitize {
             let rewritten = describe(
-                &mut source,
+                &mut *source,
                 limits,
                 keep,
                 &mut described,
@@ -563,7 +717,7 @@ fn remux<S: Source, R: Source, W: Write>(
             )?;
             muxer.set_boxes(index, rewrite(&rewritten)?.into_iter().collect())?;
         } else {
-            let tags = copy_boxes(stream, trak_path, &k.trak.tags, &mut source, &mut retained)?;
+            let tags = copy_boxes(stream, trak_path, &k.trak.tags, &mut *source, &mut retained)?;
             muxer.set_boxes(index, tags)?;
         }
         // Per-sample information stays valid when every sample is copied in
@@ -588,13 +742,14 @@ fn remux<S: Source, R: Source, W: Write>(
                 stream,
                 stbl_path,
                 &k.trak.sample_info,
-                &mut source,
+                &mut *source,
                 &mut retained,
             )?;
             muxer.set_sample_table_boxes(index, info)?;
         }
     }
     let (mut movie_gone, mut movie_more) = (Vec::new(), 0u64);
+    retained.report = true;
     if let Some(keep) = sanitize {
         let rewritten = describe(
             &mut source,
@@ -636,6 +791,7 @@ fn remux<S: Source, R: Source, W: Write>(
     let (dropped_boxes, not_listed) = report(&file, &movie_gone, &kept, &retained);
     let not_listed = kept
         .iter()
+        .filter(|k| k.input == 0)
         .fold(not_listed.saturating_add(movie_more), |n, k| {
             n.saturating_add(k.gone_more)
         });
@@ -644,7 +800,10 @@ fn remux<S: Source, R: Source, W: Write>(
     let head = muxer.write_head(&mut out)?;
 
     // Pass 2: the samples, in the order of the chunks in `mdat`.
-    let shared = RefCell::new(source);
+    let shared: Vec<RefCell<S>> = std::iter::once(source)
+        .chain(other_sources)
+        .map(RefCell::new)
+        .collect();
     let mut budgets: Vec<(Limits, Budget)> = Vec::new();
     budgets
         .try_reserve_exact(kept.len())
@@ -662,7 +821,7 @@ fn remux<S: Source, R: Source, W: Write>(
             &movie,
             &kept,
             &muxer,
-            &shared,
+            shared.first().ok_or_else(overflow)?,
             &mut budgets,
             replacement.map(|r| r.data),
             audio.map(|a| a.data),
@@ -674,12 +833,26 @@ fn remux<S: Source, R: Source, W: Write>(
             .try_reserve_exact(kept.len())
             .map_err(|_| overflow())?;
         for (k, (copy_limits, budget)) in kept.iter().zip(budgets.iter_mut()) {
+            let input_movie = if k.input == 0 {
+                &movie
+            } else {
+                other_movies
+                    .get(k.input.saturating_sub(1))
+                    .ok_or_else(overflow)?
+            };
+            let input_source = shared.get(k.input).ok_or_else(overflow)?;
             cursors.push(Cursor {
-                packets: movie.packets(k.track.index, Shared(&shared), copy_limits, budget)?,
+                input: k.input,
+                packets: input_movie.packets(
+                    k.track.index,
+                    Shared(input_source),
+                    copy_limits,
+                    budget,
+                )?,
                 copied: 0,
             });
         }
-        let mut window = CopyWindow::new();
+        let mut windows: Vec<CopyWindow> = shared.iter().map(|_| CopyWindow::new()).collect();
         muxer.for_each_chunk(|track, samples| -> Result<(), ExtractError> {
             let cursor = cursors.get_mut(track).ok_or_else(overflow)?;
             for _ in 0..samples {
@@ -687,7 +860,14 @@ fn remux<S: Source, R: Source, W: Write>(
                 if muxer.sample_size(track, cursor.copied) != Some(packet.size) {
                     return Err(ExtractError::SourceChanged);
                 }
-                window.copy(&mut Shared(&shared), packet.offset, packet.size, &mut out)?;
+                let window = windows.get_mut(cursor.input).ok_or_else(overflow)?;
+                let input_source = shared.get(cursor.input).ok_or_else(overflow)?;
+                window.copy(
+                    &mut Shared(input_source),
+                    packet.offset,
+                    packet.size,
+                    &mut out,
+                )?;
                 cursor.copied = cursor
                     .copied
                     .checked_add(1)
@@ -700,7 +880,7 @@ fn remux<S: Source, R: Source, W: Write>(
                 return Err(ExtractError::SourceChanged);
             }
         }
-        drop((cursors, window));
+        drop((cursors, windows));
     }
     out.flush()?;
 
@@ -763,6 +943,7 @@ fn dropped(track: &Track, reason: TrackDropReason) -> DroppedTrack {
 
 /// One kept stream's listing in the copy pass.
 struct Cursor<'a, S: Source> {
+    input: usize,
     packets: Packets<'a, Shared<'a, S>>,
     copied: u32,
 }
@@ -808,6 +989,7 @@ fn copy_replaced<S: Source, R: Source, W: Write>(
             None
         } else {
             Some(Cursor {
+                input: 0,
                 packets: movie.packets(k.track.index, Shared(shared), copy_limits, budget)?,
                 copied: 0,
             })
@@ -867,6 +1049,7 @@ fn copy_replaced<S: Source, R: Source, W: Write>(
 
 /// A stream that will be copied, before its samples are listed.
 struct Plan<'m> {
+    input: usize,
     track: &'m Track,
     trak: &'m TrakScan,
     header: TrackHeader,
@@ -935,6 +1118,7 @@ fn note(list: &mut Vec<Gone>, more: &mut u64, gone: Gone) {
 
 /// A stream whose tables are built.
 struct Kept<'m> {
+    input: usize,
     track: &'m Track,
     trak: &'m TrakScan,
     /// Sample work of its listing.
@@ -959,6 +1143,7 @@ struct Kept<'m> {
 /// Metadata bytes kept so far, against `max_retained_bytes`, and the
 /// optional boxes left out for size.
 pub(crate) struct Retained {
+    report: bool,
     left: u64,
     too_large: Vec<(Option<usize>, Skipped)>,
 }
@@ -966,6 +1151,7 @@ pub(crate) struct Retained {
 impl Retained {
     pub(crate) fn new(limits: &Limits) -> Self {
         Self {
+            report: true,
             left: limits.max_retained_bytes,
             too_large: Vec::new(),
         }
@@ -1132,13 +1318,14 @@ pub(crate) fn copy_boxes<S: Source>(
                 kind: header.kind,
                 payload,
             }),
-            None => retained.too_large.push((
+            None if retained.report => retained.too_large.push((
                 stream,
                 Skipped {
                     parent,
                     header: *header,
                 },
             )),
+            None => {}
         }
     }
     Ok(boxes)
@@ -1656,6 +1843,7 @@ fn plan<'m, S: Source>(
         _ => Vec::new(),
     };
     Ok(Plan {
+        input: 0,
         track,
         trak,
         header: TrackHeader {
@@ -2301,7 +2489,7 @@ fn report(
         add(None, s, reason, kind, name);
     }
     let mut sources: Vec<&Kept<'_>> = Vec::new();
-    for k in kept {
+    for k in kept.iter().filter(|k| k.input == 0) {
         if !sources
             .iter()
             .any(|s| s.track.stream_index == k.track.stream_index)
