@@ -88,7 +88,9 @@ impl<K: Kernels> Decoder<K> {
             Err(Error::Limit(LimitKind::NalBytes))
         } else {
             match length_size {
-                Some(size) => self.admit_one_idr(crate::length_prefixed(data, size), admit),
+                Some(size) => {
+                    self.admit_one_idr(crate::nal::strict_length_prefixed(data, size), admit)
+                }
                 None => strict_annex_b(data)
                     .and_then(|()| self.admit_one_idr(crate::annex_b(data).map(Ok), admit)),
             }

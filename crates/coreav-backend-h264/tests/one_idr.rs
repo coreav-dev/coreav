@@ -169,7 +169,10 @@ fn peak_allocations_fit_the_sps_bound_including_output_transfer() {
             .se(0)
             .flag(false)
             .flag(false)
-            .flag(false);
+            .flag(false)
+            .flag(false)
+            .flag(false)
+            .se(0);
         let mut raw = w.finish();
         raw.resize(4096, 0xff);
         data.extend(nal(3, 8, raw));
@@ -260,6 +263,14 @@ fn framing_and_streaming_cannot_bypass_admission() {
             .decode_one_idr(&framed, Some(size))
             .expect("length prefixes");
         assert_eq!(decoder.take_pictures().len(), 1);
+        let mut empty_nal = framed.clone();
+        empty_nal.extend(std::iter::repeat_n(0, size));
+        let mut decoder = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
+        assert_eq!(
+            decoder.decode_one_idr(&empty_nal, Some(size)),
+            Err(Error::Truncated("the NAL unit header"))
+        );
+        assert_eq!(coreav_h264::length_prefixed(&empty_nal, size).count(), 3);
         framed.push(0);
         let mut decoder = Decoder::new(coreav_h264::Limits::default()).with_mode(Mode::OneIdr);
         assert!(decoder.decode_one_idr(&framed, Some(size)).is_err());
