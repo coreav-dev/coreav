@@ -45,7 +45,8 @@ class CurrentPolicy(unittest.TestCase):
         return records[0], failures, verify.call_count
 
     def test_clean_refusal_and_verified_success_pass_on_either_side_of_a_feature_merge(self):
-        for code, err, status in ((4, b'unsupported', 'refused'), (0, b'', 'verified')):
+        for code, err, status in ((1, b'rejected', 'refused'), (2, b'usage', 'refused'),
+                                  (4, b'unsupported', 'refused'), (0, b'', 'verified')):
             record, failures, calls = self.run_policy(code, stderr=err)
             self.assertEqual(record['status'], status)
             self.assertEqual(failures, [])
@@ -62,7 +63,7 @@ class CurrentPolicy(unittest.TestCase):
         self.assertEqual(len(failures), 1)
 
     def test_crashes_and_timeouts_do_not_become_refusals(self):
-        for code in (-11, -6, 101, 134, 139, None):
+        for code in (-11, -6, 3, 101, 134, 139, None):
             record, failures, calls = self.run_policy(code, stderr=b'a diagnostic')
             self.assertEqual(record['status'], 'failed')
             self.assertEqual(len(failures), 1)

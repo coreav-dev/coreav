@@ -98,7 +98,7 @@ def refusals(legacy, opts, files, counts, failures, records, ffmpeg, ffprobe):
             elif row['args'] in legacy.HELP_QUERIES:
                 status, reason = (('help', 'usage') if code == 0 and out == legacy.ffmpeg_usage()
                                   and not err and not wrote and not fallback and not events else ('failed', 'help'))
-            elif code in (1, 4) and not out and err.strip() and not wrote and not fallback:
+            elif code in (1, 2, 4) and not out and err.strip() and not wrote and not fallback:
                 status, reason = 'refused', 'clean refusal'
             elif code == 0 and not fallback and not events and target and (not out or row['args'][-1] in ('-', 'pipe:1')):
                 if row['args'][-1] in ('-', 'pipe:1'):

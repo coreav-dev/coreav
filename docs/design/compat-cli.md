@@ -1537,7 +1537,8 @@ runs continue to use `run.py` and their registered source bytes.
 
 For current CI, a historical out-of-scope `ffmpeg` row must either refuse
 cleanly or produce independently verified native output. A clean refusal
-exits 1 or 4, prints a diagnostic only on standard error, writes no output
+exits 1, 2 or 4 (rejection, usage error or refusal), prints a diagnostic
+only on standard error, writes no output
 and records no fallback program that ran. A crash, timeout, partial output
 or unexplained success fails. Existing bare help queries keep their usage
 check. Every success must have an empty fallback log and pass the pinned
