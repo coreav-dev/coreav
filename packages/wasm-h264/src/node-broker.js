@@ -214,6 +214,7 @@ async function runBoundedBody(admission, options, deps, exec) {
     if (releaseNow) {
       await beginCleanup();
       if (cleanupFailure) throw cleanupFailure;
+      if (stopping) throw stopping;
     }
   }
 }

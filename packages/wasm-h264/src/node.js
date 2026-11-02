@@ -27,7 +27,7 @@ let ready = null;
 let info = null;
 
 function spawn() {
-  const child = new Worker(new URL("./node-worker.js", import.meta.url), { type: "module" });
+  const child = new Worker(new URL("./node-worker.js", import.meta.url), { type: "module", execArgv: [] });
   worker = child;
   ready = new Promise((resolve, reject) => {
     const onMessage = (message) => {
@@ -221,7 +221,7 @@ function onWorker(message, state) {
     return;
   }
   if (message?.type === "chunk") {
-    state.output.push(message.bytes);
+    if (!state.output.push(message.bytes)) return;
     if (!state.output.started) {
       state.output.started = true;
       state.mark();
@@ -234,7 +234,7 @@ function onWorker(message, state) {
   }
   if (message?.type === "done") {
     if (state.output) {
-      state.output.finish(message.summary);
+      if (!state.output.finish(message.summary)) return;
       if (!state.output.started) {
         state.output.started = true;
         state.mark();
@@ -258,6 +258,7 @@ function onWorker(message, state) {
 
 function parentOutput(port) {
   let controller = null;
+  let cancelled = false;
   const queued = [];
   let summaryResolve;
   let summaryReject;
@@ -283,6 +284,8 @@ function parentOutput(port) {
       port.postMessage({ type: "pull" });
     },
     cancel(reason) {
+      cancelled = true;
+      queued.length = 0;
       port.postMessage({ type: "cancel" });
       return completed.then(() => {}, () => {});
     },
@@ -294,15 +297,22 @@ function parentOutput(port) {
     started: false,
     ended: false,
     push(bytes) {
+      if (this.ended || cancelled) return false;
       if (controller) controller.enqueue(bytes);
       else queued.push(bytes);
+      return true;
     },
     finish(value) {
-      if (this.ended) return;
+      if (this.ended) return false;
+      if (cancelled) {
+        this.fail(new DOMException("The output was cancelled", "AbortError"));
+        return false;
+      }
       this.ended = true;
       controller?.close();
       summaryResolve(value);
       completedResolve();
+      return true;
     },
     fail(error) {
       if (this.ended) return;

@@ -6,6 +6,8 @@ The root, Node and Workers entries keep the same initialization and source contr
 
 `@coreav/wasm-h264/node` runs that module on a worker thread. A 5,000 ms wall deadline starts before source opening and stays armed through response completion and source cleanup. An application may pass a lower integer `deadline`, in milliseconds. The deadline or `signal` terminates the worker and closes the source session. Admission remains held until termination and cleanup settle. Abandoning the returned promise does not terminate the worker or release admission. The deadline does not interrupt a synchronous WebAssembly call by racing it; termination discards that instance.
 
+The worker starts without the parent's Node entrypoint flags or preload hooks. Process-wide V8 flags, including JSPI and exception-reference support, still apply. Both missing runtime features are checked inside the worker.
+
 `@coreav/wasm-h264/workers` loads the same module in the isolate. It has no in-isolate watchdog. Build with `npm run build` from this directory, which uses the shared compiler, bindings generator and Binaryen pin and writes the raw module under `target/wasm-h264/` so it does not replace the default module.
 
 The H.264 module uses Rust's `opt-level=z` to meet the unchanged 1,048,576-byte gzip limit. Its notice record captures that flag; the default module and native reference keep their existing optimization. This trades optimization for size, not a measured speed improvement.

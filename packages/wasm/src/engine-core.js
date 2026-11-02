@@ -330,6 +330,7 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
     } finally {
       try {
         await close();
+        if (signal?.aborted) throw abortError(signal);
       } finally {
         signal?.removeEventListener("abort", onAbort);
         release();
@@ -480,11 +481,16 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
       );
       summary = running
         .then(
-          (text) => {
+          async (text) => {
+            const result = JSON.parse(text);
             if (cancelled !== null) throw cancelled;
-            if (cancelled === null) controller.close();
-            return JSON.parse(text);
+            if (exclusive) await close();
+            if (cancelled !== null) throw cancelled;
+            controller.close();
+            return result;
           },
+        )
+        .catch(
           (rejection) => {
             const error = failure(rejection, session, cancelled);
             if (cancelled === null) controller.error(error);

@@ -1,5 +1,5 @@
 import { boundedOpeners } from "./bounded-source.js";
-import { CoreAVError } from "./errors.js";
+import { CoreAVError, SourceNotFoundError } from "./errors.js";
 import { TRUSTED } from "./internal.js";
 
 export function brokerSource(port) {
@@ -79,6 +79,7 @@ export function serializeError(error) {
 }
 
 export function restoreError(error) {
+  if (error?.name === "SourceNotFoundError") return new SourceNotFoundError(error.message);
   if (error?.name === "CoreAVError" && typeof error.documentText === "string") {
     const cause = error.cause ? Object.assign(new Error(error.cause.message), { name: error.cause.name }) : undefined;
     return new CoreAVError(error.documentText, cause ? { cause: cause } : undefined);

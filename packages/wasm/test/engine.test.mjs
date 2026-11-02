@@ -348,3 +348,39 @@ test("failed cleanup during opening also makes the instance unusable", async () 
   );
   await assert.rejects(host.runToText("probe", source(), {}), /cleanup failed/);
 });
+
+test("bounded body EOF and summary both wait for cleanup and reject its failure", async () => {
+  const host = engine();
+  let rejectClose;
+  const closing = new Promise((_, reject) => { rejectClose = reject; });
+  const input = source({ closing });
+  const output = await host.runToStream("thumbnail", input, {});
+  const reader = output.body.getReader();
+  await reader.read();
+  let settled = false;
+  const eof = reader.read();
+  eof.then(() => { settled = true; }, () => { settled = true; });
+  output.summary.catch(() => {});
+  try {
+    await input.closed;
+    await Promise.resolve();
+    assert.equal(settled, false, "body completed before source cleanup");
+  } finally {
+    rejectClose(new Error("cleanup-marker"));
+    await Promise.allSettled([eof, output.summary]);
+  }
+  await assert.rejects(eof, error => error.kind === "io" && error.cause.message === "cleanup-marker");
+  await assert.rejects(output.summary, error => error.kind === "io");
+});
+
+test("a document abort during source cleanup cannot become success", async () => {
+  const host = engine();
+  const closing = deferred();
+  const input = source({ closing: closing.promise });
+  const aborts = new AbortController();
+  const document = host.runToText("probe", input, { signal: aborts.signal });
+  await input.closed;
+  aborts.abort();
+  closing.resolve();
+  await assert.rejects(document, error => error.name === "AbortError");
+});

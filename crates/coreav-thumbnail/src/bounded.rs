@@ -123,14 +123,14 @@ fn no_frame() -> Error {
 
 fn admit_geometry(
     geometry: OneIdrGeometry,
-    _limits: &coreav_decode::Limits,
+    limits: &coreav_decode::Limits,
 ) -> coreav_h264::Result<()> {
     let admitted = |width: u32, height: u32, pixels: u64| {
         width > 0
             && height > 0
-            && width <= 1920
-            && height <= 1920
-            && u64::from(width) * u64::from(height) <= pixels
+            && width <= limits.max_width.min(1920)
+            && height <= limits.max_height.min(1920)
+            && u64::from(width) * u64::from(height) <= limits.max_pixels.min(pixels)
     };
     if !admitted(geometry.coded_width, geometry.coded_height, 2_088_960)
         || !admitted(geometry.visible_width, geometry.visible_height, 2_073_600)
@@ -174,5 +174,22 @@ mod tests {
         assert!(admit_geometry(value, &limits).is_err());
         assert!(admit_geometry(geometry(0, 16), &limits).is_err());
         assert!(admit_geometry(geometry(u32::MAX, u32::MAX), &limits).is_err());
+    }
+
+    #[test]
+    fn caller_geometry_limits_are_applied_by_preallocation_admission() {
+        let mut limits = coreav_decode::Limits::default();
+        limits.max_width = 64;
+        assert!(admit_geometry(geometry(1920, 16), &limits).is_err());
+        limits.max_width = 1920;
+        limits.max_height = 64;
+        assert!(admit_geometry(geometry(16, 1920), &limits).is_err());
+        limits.max_height = 1920;
+        limits.max_pixels = 1024;
+        assert!(admit_geometry(geometry(64, 32), &limits).is_err());
+        assert!(admit_geometry(geometry(32, 32), &limits).is_ok());
+        let mut cropped = geometry(64, 32);
+        cropped.visible_width = 32;
+        assert!(admit_geometry(cropped, &limits).is_err());
     }
 }

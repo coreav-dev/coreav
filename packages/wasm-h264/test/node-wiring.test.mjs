@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, cpSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -45,9 +45,33 @@ test("node wiring keeps admission, causes, cleanup, and an idle process exit", {
   }
 });
 
-function runNode(script, env, timeout) {
+test("a file worker strips both input-type spellings from an eval caller", { timeout: 8_000 }, async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-h264-eval-"));
+  try {
+    const control = join(scratch, "control.json");
+    const inits = join(scratch, "inits.txt");
+    cpSync(join(packageRoot, "src"), join(scratch, "src"), { recursive: true });
+    mkdirSync(join(scratch, "wasm"));
+    writeFileSync(join(scratch, "wasm/coreav_bg.wasm"), Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]));
+    writeFileSync(join(scratch, "wasm/build.js"), 'export const BUILD = "eval-build";\n');
+    writeFileSync(join(scratch, "wasm/coreav.js"), fakeBindings(control, inits));
+    writeFileSync(control, JSON.stringify({ mode: "ok" }));
+    writeFileSync(inits, "");
+    const code = `await import(${JSON.stringify(pathToFileURL(join(scratch, "src/node.js")).href)});`;
+    for (const flags of [["--input-type=module", "--eval"], ["--input-type", "module", "--eval"]]) {
+      const result = await runNode(code, process.env, 3_000, flags);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.killed, false);
+    }
+    assert.equal(readFileSync(inits, "utf8"), "init\ninit\n");
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+function runNode(script, env, timeout, flags = []) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [script], { env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [...flags, script], { env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill(), timeout);

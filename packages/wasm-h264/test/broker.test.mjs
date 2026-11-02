@@ -284,3 +284,35 @@ test("the deadline owner does not use Promise.race", () => {
   const node = readFileSync(fileURLToPath(new URL("../src/node.js", import.meta.url)), "utf8");
   assert.match(node, /return current \? current\.terminate\(\) : Promise\.resolve\(0\)/);
 });
+
+for (const stopping of ["deadline", "abort"]) {
+  test(`a document cannot succeed when ${stopping} occurs during cleanup`, async () => {
+    const admission = createAdmission();
+    const aborts = new AbortController();
+    let fire;
+    let entered;
+    let finish;
+    let terminate;
+    const closing = new Promise(resolve => { finish = resolve; });
+    const closed = new Promise(resolve => { entered = resolve; });
+    let terminated = false;
+    const run = runBounded(admission, { deadline: 100, signal: aborts.signal }, {
+      schedule(_ms, fn) { fire = fn; return {}; },
+      clear() {},
+      terminate() { terminated = true; return new Promise(resolve => { terminate = resolve; }); },
+      async open() { return { close() { entered(); return closing; } }; },
+    }, async io => { await io.open(); return { value: "document" }; });
+    run.catch(() => {});
+    await closed;
+    if (stopping === "deadline") fire();
+    else aborts.abort();
+    assert.equal(terminated, true);
+    assert.equal(admission.held, true);
+    finish();
+    await Promise.resolve();
+    assert.equal(admission.held, true);
+    terminate();
+    await assert.rejects(run, error => stopping === "deadline" ? error.kind === "limit" && error.limit === "timeout" : error.name === "AbortError");
+    assert.equal(admission.held, false);
+  });
+}

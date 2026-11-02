@@ -272,7 +272,13 @@ for (const name of ${JSON.stringify([`${identity.name}/src/engine.js`, `${identi
 }
 `);
   run(process.execPath, [...flags, "deep.mjs"], options);
-  for (const [program, message] of [[[...flags, "--input-type=module", "-e", `delete WebAssembly.Suspending; await import(${JSON.stringify(identity.name + "/node")});`], /JSPI/], [["--experimental-wasm-jspi", "--no-experimental-wasm-exnref", "node.mjs"], /exception references/]]) {
+  const missingJspi = `${common}
+import { readFileSync } from "node:fs";
+const api = await import(${JSON.stringify(identity.name)});
+delete WebAssembly.Suspending;
+api.init(readFileSync(installed + "wasm/coreav_bg.wasm"));
+`;
+  for (const [program, message] of [[[...flags, "--input-type=module", "-e", missingJspi], /JSPI/], [["--experimental-wasm-jspi", "--no-experimental-wasm-exnref", "node.mjs"], /exception references/]]) {
     const refused = spawnSync(process.execPath, program, { ...options, encoding: "utf8", timeout: 30_000 });
     if (refused.error) throw refused.error;
     assert.notEqual(refused.status, 0, "installed Node loader accepted missing runtime support");
