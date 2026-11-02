@@ -71,7 +71,7 @@ themselves: the npm tarballs (`.github/workflows/npm.yml`), the wheel
 
 ## Rust dependency notices
 
-Every native release archive (default and full) and npm platform package also ships `THIRD-PARTY-NOTICES.txt` beside the root licence files. The main npm WASI package and Python wheels keep the notices described above; their Rust dependency notices are not covered by this change.
+Every native release archive (default and full), npm platform package, main npm WASI package and private JavaScript WASM package also ships `THIRD-PARTY-NOTICES.txt` beside the root licence files. Python wheels keep the notices described above; their Rust dependency notices are not covered here.
 
 `scripts/notices/main.mjs` reads the exact package, target, profile and feature selection used by the build. It includes the locked normal Cargo dependency graph, excluding procedural macros, and the pinned Rust standard library's target closure rooted at `std` and `panic_abort`. The latter is a conservative superset of linker-retained code. The generator preserves upstream copyright and licence texts, distinguishes project-graph and toolchain versions of the same crate, checks vendored files against upstream checksums and refuses missing or unsupported texts. No copyright line is synthesized.
 
@@ -79,4 +79,6 @@ The distribution compiler version and commit live in `scripts/rust-dist.env`, an
 
 The build writes a local `THIRD-PARTY-NOTICES.record.json` binding notice and artifact hashes to the selection, pin, manifests, lock, policy and generator inputs. `verify DIRECTORY` checks it with Node filesystem and crypto operations only, so verified pre-generated builds can be packed without a Rust toolchain or raw target directory. The record detects staleness, not forgery or local registry tampering, and is never shipped. CI's `check DIRECTORY` regenerates notices and rechecks artifact evidence; `notices_check.py --third-party` separately checks target and compiler headers in final archives. Its default mode remains compatible with wheels.
 
-These Rust notices are not an inventory or licence audit of every linked C runtime object. They retain the existing dav1d, libvpx and libopus files and include `compiler_builtins`' bundled compiler-rt and math texts, and ring's upstream texts. Coverage of musl, platform CRT or linker-added runtime objects is not established here; the Rust `libc` crate's licence is not the C library's licence. This work adds no permission to publish a distribution.
+The WASI toolchain's `wasip1` archive omits its licence files. A committed row binds its version, manifest repository and published VCS commit to the upstream repository's root licence files. Their Git blob hashes are checked offline before rendering, the notice section names the source commit, and the build record binds those committed inputs. No copyright line is synthesized.
+
+These Rust notices are not an inventory or licence audit of every linked C runtime object. They retain the existing dav1d, libvpx and libopus files and include `compiler_builtins`' bundled compiler-rt and math texts, and ring's upstream texts. Coverage of musl, wasi-libc, platform CRT or linker-added runtime objects is not established here; the Rust `libc` crate's licence is not the C library's licence. This work adds no permission to publish a distribution.

@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
+import { UPSTREAM_LICENSE_FILES } from "./render.mjs";
 
 /** Join Cargo's package-selected normal graph with locked registry metadata. */
 export function selectCrates(metadata, tree, repo) {
@@ -147,6 +149,22 @@ export function vendoredCrates(library, packages, repo, read = (path) => readFil
       if (field(manifest, "name") !== pkg.name || field(manifest, "version") !== pkg.version) throw new Error("manifest identity differs");
       license = field(manifest, "license");
     } catch { throw new Error(`${label}: vendored manifest identity or licence differs`); }
-    return { name: pkg.name, version: pkg.version, dir, license, checksums: checksum.files, origin: "Rust toolchain, crates.io" };
+    const upstream = UPSTREAM_LICENSE_FILES[label];
+    if (!upstream && Object.keys(UPSTREAM_LICENSE_FILES).some(key => key.startsWith(pkg.name + " "))) throw new Error(label + ": add an UPSTREAM_LICENSE_FILES row");
+    if (!upstream) return { name: pkg.name, version: pkg.version, dir, license, checksums: checksum.files, origin: "Rust toolchain, crates.io" };
+    let vcs;
+    try { vcs = JSON.parse(read(join(dir, ".cargo_vcs_info.json"))); }
+    catch { throw new Error(label + ": missing upstream source metadata"); }
+    if (vcs.git?.sha1 !== upstream.commit || vcs.path_in_vcs !== upstream.path || field(manifest, "repository") !== upstream.repository) throw new Error(label + ": upstream source differs from the pinned licence row");
+    const source = join(repo, "scripts/notices/upstream", pkg.name + "-" + pkg.version);
+    const checksums = {};
+    for (const [name, expected] of Object.entries(upstream.files)) {
+      let bytes;
+      try { bytes = read(join(source, name)); }
+      catch { throw new Error(label + ": missing upstream licence " + name); }
+      if (createHash("sha1").update(Buffer.from("blob " + bytes.byteLength + "\0")).update(bytes).digest("hex") !== expected) throw new Error(label + ": upstream git blob differs for " + name);
+      checksums[name] = createHash("sha256").update(bytes).digest("hex");
+    }
+    return { name: pkg.name, version: pkg.version, dir: source, license, checksums, upstream, origin: "Rust toolchain, crates.io" };
   });
 }

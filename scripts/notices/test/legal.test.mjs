@@ -13,6 +13,24 @@ const registry = "registry+https://github.com/rust-lang/crates.io-index";
 const llvmException = readFileSync(new URL("./fixtures/LLVM-exception.txt", import.meta.url), "utf8");
 const record = (name, dependencies = [], source = false) => `[[package]]\nname = "${name}"\nversion = "1.0.0"\n${source ? `source = "${registry}"\nchecksum = "${"a".repeat(64)}"\n` : ""}dependencies = [${dependencies.map((name) => JSON.stringify(name)).join(",")} ]\n`;
 
+test("registry WITH terms retain their exception text and single-term licence coverage", () => {
+  const render = (license, files) => renderNotices([{ name: "exception", version: "1.0.0", license, dir: "/upstream" }], policy, "",
+    () => Object.keys(files).map((name) => ({ name, isFile: () => true, isSymbolicLink: () => false })),
+    (_dir, name) => Buffer.from(files[name]));
+  const expression = "Apache-2.0 WITH LLVM-exception";
+  const permission = "Apache permission\nLLVM exception permission\n" + llvmException;
+  assert.match(render(expression, { LICENSE: permission }), /LLVM exception permission/);
+  const named = { "LICENSE-Apache-2.0_WITH_LLVM-exception": permission };
+  assert.match(render(expression, named), /License: Apache-2.0 WITH LLVM-exception/);
+  assert.match(render(expression + " OR MIT", named), /LLVM exception permission/);
+  assert.match(render(expression + " AND MIT", { ...named, "LICENSE-MIT": "MIT permission\n" }), /MIT permission/);
+  assert.match(render("Apache-2.0\tWITH\nLLVM-exception", { "COPYING.txt": permission }), /LLVM exception permission/);
+  assert.throws(() => render(expression, { "LICENSE-APACHE": "Apache permission\n" }), /missing upstream licence file/);
+  assert.throws(() => render(expression + " AND MIT", { "LICENSE-APACHE": "Apache permission\n", "LICENSE-MIT": "MIT permission\n" }), /missing upstream licence file.*Apache-2.0 WITH LLVM-exception/);
+  assert.throws(() => render(expression + " AND MIT", { LICENSE: permission, "LICENSE-MIT": "MIT permission\n" }), /missing upstream licence file.*Apache-2.0 WITH LLVM-exception/);
+  assert.throws(() => render(expression + " AND MIT", named), /missing upstream licence file.*MIT/);
+});
+
 test("generic compound licence files must contain the exception text", () => {
   const expression = "Apache-2.0 WITH LLVM-exception";
   const base = readFileSync(new URL("../../../LICENSE-APACHE", import.meta.url), "utf8");

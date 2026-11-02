@@ -69,6 +69,18 @@ const CRATE_TERM_FILES = Object.freeze({
 const REPO_NOTICE_TERMS = Object.freeze({
   "jpeg-encoder": { IJG: "This software is based in part on the work of the Independent JPEG Group" },
 });
+export const UPSTREAM_LICENSE_FILES = Object.freeze({
+  "wasip1 1.0.0": {
+    repository: "https://github.com/bytecodealliance/wasi",
+    commit: "e55b3b02fcda2a016f5df14573ff05c5b1e313d6",
+    path: "crates/wasip1",
+    files: {
+      "LICENSE-APACHE": "16fe87b06e802f094b3fbb0894b137bca2b16ef1",
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": "f9d81955f4bcb8f96a025e2ecc46f39ec536d465",
+      "LICENSE-MIT": "31aa79387f27e730e33d871925e152e35e428031",
+    },
+  },
+});
 const LLVM_EXCEPTION = "As an exception, if, as a result of your compiling your source code, portions of this Software are embedded into an Object form of such source code, you may redistribute such embedded portions in such Object form without complying with the conditions of Sections 4(a), 4(b) and 4(d) of the License. In addition, if you combine or link compiled forms of this Software with software that is licensed under the GPLv2 (\"Combined Software\") and if a court of competent jurisdiction determines that the patent provision (Section 3), the indemnity provision (Section 9) or other Section of the License conflicts with the conditions of the GPLv2, you may retroactively and prospectively choose to deem waived or otherwise exclude such Section(s) of the License, but only in their entirety and only with respect to the Combined Software.";
 
 /** Copy upstream texts; missing, empty or unreadable data is never synthesised. */
@@ -124,8 +136,8 @@ export function renderNotices(crates, policy, repoNotice = "", list = dir => rea
       }
     }
     if (!permitted(crate.license, covered)) throw new Error(label + ": missing upstream licence file; add a file rule for " + terms.filter(term => !covered.has(term)).join(", "));
-    sections.push("=== " + label + " (" + (crate.origin ?? "crates.io") + ") ===\nLicense: " + crate.license + "\n" + (pointers.length ? pointers.join("\n") + "\n" : ""));
-    for (const entry of files) sections.push("--- " + entry.name + " ---\n" + texts.get(entry.name));
+    sections.push("=== " + label + " (" + (crate.origin ?? "crates.io") + ") ===\nLicense: " + crate.license + "\n" + (crate.upstream ? "Source: " + crate.upstream.repository + "/tree/" + crate.upstream.commit + "\n" : "") + (pointers.length ? pointers.join("\n") + "\n" : ""));
+    for (const entry of files) sections.push("--- " + (crate.upstream ? "upstream " + crate.upstream.commit + "/" : "") + entry.name + " ---\n" + texts.get(entry.name));
   }
   return sections.join("\n");
 }

@@ -8,6 +8,9 @@ on:
     paths:
       - packages/wasm/**
       - crates/coreav-wasm/**
+      - crates/**/Cargo.toml
+      - tools/*/Cargo.toml
+      - NOTICE
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
@@ -22,13 +25,19 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
-      - scripts/rust-wasm.env
+      - scripts/rust-dist.env
+      - scripts/notices/**
+      - deny.toml
+      - .gitattributes
       - .github/workflows/wasm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - packages/wasm/**
       - crates/coreav-wasm/**
+      - crates/**/Cargo.toml
+      - tools/*/Cargo.toml
+      - NOTICE
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
@@ -43,7 +52,10 @@ on:
       - scripts/oracle-ffmpeg.env
       - scripts/binaryen.env
       - scripts/install-binaryen.sh
-      - scripts/rust-wasm.env
+      - scripts/rust-dist.env
+      - scripts/notices/**
+      - deny.toml
+      - .gitattributes
       - .github/workflows/wasm.yml
   workflow_dispatch:
 
@@ -82,9 +94,9 @@ jobs:
       - name: Read the WASM compiler pin
         id: rust
         run: |
-          . scripts/rust-wasm.env
-          echo "version=$RUST_WASM_TOOLCHAIN" >> "$GITHUB_OUTPUT"
-          echo "RUSTUP_TOOLCHAIN=$RUST_WASM_TOOLCHAIN" >> "$GITHUB_ENV"
+          . scripts/rust-dist.env
+          echo "version=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          echo "RUSTUP_TOOLCHAIN=$RUST_DIST_TOOLCHAIN" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: ${{ steps.rust.outputs.version }}

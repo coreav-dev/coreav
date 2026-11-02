@@ -7,7 +7,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { moduleHash } from "../scripts/fingerprint.mjs";
 import { EXNREF_PROBE } from "../src/internal.js";
-import { renderNotices, selectCrates } from "../scripts/legal.mjs";
+import { renderNotices } from "../../../scripts/notices/render.mjs";
+import { selectCrates } from "../../../scripts/notices/select.mjs";
 import { verifyPackage } from "../scripts/prepack.mjs";
 
 test("the exception-reference probe is a valid type-only module", () => {
@@ -61,27 +62,27 @@ test("dependency notices are deterministic upstream texts and fail closed on gap
   const list = () => Object.keys(files).map((name) => ({ name, isFile: () => true, isSymbolicLink: () => false }));
   const read = (dir, name) => files[name];
   const crates = [{ name: "z", version: "1.0.0", license: "MIT", dir: "/private/home" }, { name: "a", version: "1.0.0", license: "MIT", dir: "/private/other" }];
-  const allowed = new Set(["MIT"]);
-  const text = renderNotices(crates, allowed, list, read);
-  assert.equal(text, renderNotices([...crates].reverse(), allowed, list, read));
+  const allowed = { allowed: new Set(["MIT"]), exceptions: new Map() };
+  const text = renderNotices(crates, allowed, "", list, read);
+  assert.equal(text, renderNotices([...crates].reverse(), allowed, "", list, read));
   assert.ok(text.indexOf("=== a ") < text.indexOf("=== z "));
   assert.match(text, /Upstream permission\n/);
   assert.match(text, /Required notice\n/);
   assert.doesNotMatch(text, /private\/home|private\/other/);
-  assert.throws(() => renderNotices(crates, allowed, () => [], read), /a 1.0.0: no upstream licence file/);
-  assert.throws(() => renderNotices([{ ...crates[0], license: "GPL-3.0" }], allowed, list, read), /unapproved/);
-  assert.throws(() => renderNotices(crates, allowed, list, () => new Uint8Array()), /empty/);
-  assert.throws(() => renderNotices(crates, allowed, list, () => new Uint8Array([255])), /non-UTF-8/);
-  assert.throws(() => renderNotices(crates, allowed, () => { throw new Error("host detail"); }, read), /a 1.0.0: cannot read/);
-  assert.throws(() => renderNotices(crates, allowed, list, () => { throw new Error("host detail"); }), /a 1.0.0: cannot read/);
-  assert.throws(() => renderNotices(crates, allowed, list, () => new Uint8Array(256 * 1024 + 1)), /oversized/);
-  assert.throws(() => renderNotices(crates, allowed, () => [{ name: "LICENSE-MIT", isFile: () => true, isSymbolicLink: () => true }], read), /not a regular file/);
-  assert.match(renderNotices(crates, allowed, list, () => new TextEncoder().encode("permission\r\n\r\n")), /permission\n/);
-  assert.doesNotMatch(renderNotices(crates, allowed, list, () => new TextEncoder().encode("permission\r\n")), /\r/);
+  assert.throws(() => renderNotices(crates, allowed, "", () => [], read), /a 1.0.0: no upstream licence file/);
+  assert.throws(() => renderNotices([{ ...crates[0], license: "GPL-3.0" }], allowed, "", list, read), /unapproved/);
+  assert.throws(() => renderNotices(crates, allowed, "", list, () => new Uint8Array()), /empty/);
+  assert.throws(() => renderNotices(crates, allowed, "", list, () => new Uint8Array([255])), /non-UTF-8/);
+  assert.throws(() => renderNotices(crates, allowed, "", () => { throw new Error("host detail"); }, read), /a 1.0.0: cannot read/);
+  assert.throws(() => renderNotices(crates, allowed, "", list, () => { throw new Error("host detail"); }), /a 1.0.0: cannot read/);
+  assert.throws(() => renderNotices(crates, allowed, "", list, () => new Uint8Array(256 * 1024 + 1)), /oversized/);
+  assert.throws(() => renderNotices(crates, allowed, "", () => [{ name: "LICENSE-MIT", isFile: () => true, isSymbolicLink: () => true }], read), /not a regular file/);
+  assert.match(renderNotices(crates, allowed, "", list, () => new TextEncoder().encode("permission\r\n\r\n")), /permission\n/);
+  assert.doesNotMatch(renderNotices(crates, allowed, "", list, () => new TextEncoder().encode("permission\r\n")), /\r/);
   const alternative = [{ ...crates[0], license: "MIT OR Apache-2.0" }];
-  assert.match(renderNotices(alternative, new Set(["MIT", "Apache-2.0"]), list, read), /Upstream permission/);
-  assert.throws(() => renderNotices([{ ...crates[0], license: "MIT AND Apache-2.0" }], new Set(["MIT", "Apache-2.0"]), list, read), /z 1.0.0: missing.*Apache-2.0/);
-  assert.throws(() => renderNotices([{ ...crates[0], license: "Unknown" }], new Set(["Unknown"]), list, read), /add a file rule for Unknown/);
+  assert.match(renderNotices(alternative, { allowed: new Set(["MIT", "Apache-2.0"]), exceptions: new Map() }, "", list, read), /Upstream permission/);
+  assert.throws(() => renderNotices([{ ...crates[0], license: "MIT AND Apache-2.0" }], { allowed: new Set(["MIT", "Apache-2.0"]), exceptions: new Map() }, "", list, read), /z 1.0.0: missing.*Apache-2.0/);
+  assert.throws(() => renderNotices([{ ...crates[0], license: "Unknown" }], { allowed: new Set(["Unknown"]), exceptions: new Map() }, "", list, read), /add a file rule for Unknown/);
 });
 
 test("dependency selection excludes only workspace members and refuses metadata gaps", () => {

@@ -123,7 +123,7 @@ jobs:
       - name: Install the native distribution compiler
         run: |
           . scripts/rust-dist.env
-          rustup toolchain install "$RUST_DIST_TOOLCHAIN" --profile minimal --component rust-src --target x86_64-unknown-linux-musl
+          rustup toolchain install "$RUST_DIST_TOOLCHAIN" --profile minimal --component rust-src --target x86_64-unknown-linux-musl --target wasm32-wasip1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -211,11 +211,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/packages"
+          node scripts/notices/main.mjs check packages/cli
           node scripts/notices/main.mjs check packages/cli/npm/linux-x64
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/packages")
           (cd packages/cli/npm/linux-x64 && npm pack --pack-destination "$RUNNER_TEMP/packages")
           python3 -I packages/cli/scripts/notices_check.py "$RUNNER_TEMP/packages"/*.tgz
-          python3 -I packages/cli/scripts/notices_check.py --third-party "$RUNNER_TEMP/packages"/coreav-cli-linux-x64-*.tgz
+          python3 -I packages/cli/scripts/notices_check.py --third-party "$RUNNER_TEMP/packages"/*.tgz
           for tarball in "$RUNNER_TEMP/packages"/*.tgz; do npm publish --dry-run --access public "$tarball"; done
       # The smoke tests and the other platforms compare with these.
       - name: Expected outputs

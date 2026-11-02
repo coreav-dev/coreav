@@ -4,4 +4,5 @@ node_modules/
 /LICENSE-APACHE
 /NOTICE
 /THIRD-PARTY-NOTICES.txt
+/THIRD-PARTY-NOTICES.record.json
 *.tgz
