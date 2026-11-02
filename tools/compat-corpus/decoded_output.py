@@ -206,7 +206,7 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
                             clock = {**frame, 'time_base': stream['time_base']}
                             pts, duration = time(clock, 'best_effort_timestamp'), time(clock, 'duration')
                             samples = int(frame['nb_samples'])
-                            if pts is None or duration is None or duration < 0 or samples <= 0:
+                            if pts is None or duration is None or duration <= 0 or samples <= 0:
                                 return 'failed', 'invalid audio timing'
                             timeline.append((pts, duration, samples))
                         timelines.append(timeline)
