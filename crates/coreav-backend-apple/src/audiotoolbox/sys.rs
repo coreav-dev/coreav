@@ -285,6 +285,11 @@ impl Instance {
         if size != 4 {
             return Err(Error::Output);
         }
+        #[cfg(test)]
+        eprintln!(
+            "AudioCodec scalar {:08x}: requested {value}, writable {writable}",
+            u32::from_be_bytes(property)
+        );
         if writable == 0 {
             return Ok(());
         }
@@ -299,7 +304,14 @@ impl Instance {
                     (&value as *const u32).cast(),
                 )
             },
-        )
+        )?;
+        #[cfg(test)]
+        eprintln!(
+            "AudioCodec scalar {:08x}: before initialization {}",
+            u32::from_be_bytes(property),
+            self.u32(property)?
+        );
+        Ok(())
     }
 
     fn set_format(&mut self, property: [u8; 4], value: &Format) -> Result<(), Error> {
