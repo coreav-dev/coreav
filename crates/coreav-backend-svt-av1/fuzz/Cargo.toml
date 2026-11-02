@@ -1,0 +1,25 @@
+[package]
+name = "coreav-backend-svt-av1-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-backend-svt-av1 = { path = ".." }
+
+[[bin]]
+name = "obu"
+path = "fuzz_targets/obu.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"
