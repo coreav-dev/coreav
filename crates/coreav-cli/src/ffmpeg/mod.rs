@@ -15,6 +15,7 @@ mod audio;
 mod avi;
 #[cfg(feature = "transcode")]
 pub mod encode;
+mod pcm;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -24,7 +25,7 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
-use args::{Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
+use args::{AviAudio, Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
@@ -91,6 +92,15 @@ pub enum Job {
         streams: Vec<InputStream>,
         /// Unselected cover pictures from input zero.
         left_out_covers: Vec<u64>,
+    },
+    /// One audio stream decoded to signed 16-bit PCM, as WAV or raw bytes.
+    Pcm {
+        /// The input stream index.
+        stream: usize,
+        /// The duration limit in sample frames, or the whole presentation.
+        samples: Option<u64>,
+        /// The selected stream's reported speaker positions for WAV.
+        mask: Option<u32>,
     },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
@@ -180,6 +190,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -ss, -t or -to, before or after -i: a clip
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
+  one audio stream to .wav (or -f wav): pcm_s16le by default
+  -f s16le: the same PCM samples without a header
 Builds with a decoder backend also encode the video with -c:v libx264.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
@@ -212,7 +224,9 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    encode::preflight(&command, strict_safe)?;
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        encode::preflight(&command, strict_safe)?;
+    }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
@@ -336,6 +350,9 @@ pub fn plan(
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
     }
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        return pcm::plan(command, report, &selected, list.is_some());
+    }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
@@ -402,6 +419,11 @@ pub fn plan(
                 "default AAC encoding of an Opus source (its exact output has not been verified)",
             ));
         }
+    }
+    if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
+        return Err(Refusal::not_native(
+            "pcm_s16le outside WAV or raw s16le output",
+        ));
     }
     let coded = |wanted: Codec| -> Vec<usize> {
         output
@@ -778,6 +800,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
                 Some(Codec::Audio(args::AudioEncoder::Aac))
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
+            (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => Some(Codec::AviAudio(AviAudio::PcmS16)),
             _ => None,
         })
         .collect();
@@ -1020,7 +1043,7 @@ fn select_sources(
                 })
                 .map(|(i, _)| i)
         };
-        if command.muxer != Muxer::Mp3 {
+        if !matches!(command.muxer, Muxer::Mp3 | Muxer::Wav | Muxer::S16le) {
             selected.extend(best(StreamKind::Video, &|s| {
                 int(s, "width").saturating_mul(int(s, "height"))
             }));
@@ -1029,10 +1052,11 @@ fn select_sources(
         let subtitle = all
             .iter()
             .filter(|_| {
-                command
-                    .codecs
-                    .iter()
-                    .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
+                !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+                    && command
+                        .codecs
+                        .iter()
+                        .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
             })
             .find(|(_, s)| s.kind == StreamKind::Subtitle && !disabled(s));
         if let Some((i, s)) = subtitle {
@@ -1273,6 +1297,14 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Avi(streams) = job {
         return avi::write(command, streams);
     }
+    if let Job::Pcm {
+        stream,
+        samples,
+        mask,
+    } = job
+    {
+        return pcm::write(command, *stream, *samples, *mask);
+    }
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -1385,7 +1417,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Avi(_) | Job::Split(_) | Job::Transcode(_) | Job::AudioEncode { .. } => {
+        Job::Avi(_) | Job::Split(_) | Job::Transcode(_) | Job::AudioEncode { .. } | Job::Pcm { .. } => {
             Ok(serde_json::Value::Null)
         }
     });

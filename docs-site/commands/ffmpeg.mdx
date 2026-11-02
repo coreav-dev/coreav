@@ -20,6 +20,8 @@ import Help from '/snippets/help/ffmpeg.mdx';
 | `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip), or for a copy of one audio stream and no video, a clip of that audio alone |
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
+| One audio stream to `.wav` or `-f wav` | Signed 16-bit little-endian PCM, the default codec for WAV |
+| One audio stream with `-f s16le` | The same PCM samples without a header |
 
 In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. In strict-safe mode no `ffmpeg` program runs: the command line needs an `x264` program and a backend other than `ffmpeg-fallback` that decodes the video, and is refused with exit status 4 otherwise ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
@@ -40,6 +42,22 @@ CoreAV preserves the source's presented sample count. The pinned FFmpeg adds sam
 AVI output also accepts `-c:a pcm_s16le` or `pcm_u8` for mono or stereo audio that this build decodes. MP3 encoding (`-c:a libmp3lame`) needs the opt-in `transcode` feature, absent from default builds, and an external `ffmpeg` program with that encoder. Strict-safe mode refuses this external encoder even when the feature is enabled. AVI output is limited to files smaller than 1 GiB, with fixed-rate, non-reordered, zero-based H.264 video. [The AVI design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/avi-write.md) lists the supported clocks and resource limits.
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
+
+## PCM audio output
+
+WAV and raw PCM output use CoreAV's audio decoder and run no external encoder, including in strict-safe mode. The input must be MP4, MOV, Matroska or WebM containing FLAC, MP3 or Opus, or AAC-LC in a build with the `aac` feature. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mka output.wav
+coreav --strict-safe ffmpeg -i input.mp4 -acodec pcm_s16le -f s16le output.raw
+coreav --strict-safe ffmpeg -ss 0 -t 30 -i input.mka output.wav
+```
+
+The rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. The decoder still reads the whole input. Nonzero seeking, mixing, resampling, raw input, multiple output files and other PCM codecs are not supported.
+
+WAV metadata copying is not supported. Use `-map_metadata -1` for an input with tags other than container bookkeeping or encoder identification. Stream-to-global metadata mapping and WAV chapter copying are refused. Damaged audio, decoder warnings and WAV output beyond the RIFF size limit fail without replacing the destination. A `.raw` or `.pcm` extension alone does not select raw output; use `-f s16le`.
+
+The [PCM output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/pcm-output.md) records its correctness bars and limitations.
 
 ## Examples
 
