@@ -54,6 +54,11 @@ pub(super) fn plan(
     {
         return Err(Refusal::not_native("PCM output with a nonzero seek"));
     }
+    if command.input_seek.is_some() && codec != Some("flac") {
+        return Err(Refusal::not_native(
+            "input seeking PCM from a stateful audio codec",
+        ));
+    }
     if matches!(command.map_metadata, MapMetadata::Stream(_)) {
         return Err(Refusal::not_native(
             "PCM output with metadata mapped from a stream",
@@ -92,13 +97,21 @@ pub(super) fn plan(
         return Err(Refusal::not_native("mixing PCM output channels"));
     }
     let mut samples = None;
-    for time in [
-        command.input_duration.or(command.input_until),
-        command.duration.or(command.until),
-    ]
-    .into_iter()
-    .flatten()
-    {
+    for (input, duration, until) in [
+        (true, command.input_duration, command.input_until),
+        (false, command.duration, command.until),
+    ] {
+        let time = match (duration, until) {
+            (Some(time), _) if input && time.num == 0 => continue,
+            (Some(time), _) => time,
+            (None, Some(time)) if time.num == 0 => {
+                return Err(Refusal::Usage(
+                    "-to must be greater than the start time.".to_owned(),
+                ));
+            }
+            (None, Some(time)) => time,
+            (None, None) => continue,
+        };
         let count = rate
             .and_then(|rate| time.num.checked_mul(i128::from(rate)))
             .filter(|count| count % i128::from(time.den) == 0)
