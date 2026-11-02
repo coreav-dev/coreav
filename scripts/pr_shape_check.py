@@ -48,18 +48,71 @@ PARENTS = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})(?: (?:[0-9a-f]{40}|[0-9a-f]
 REQUIRED_SECTIONS = ('TL;DR', 'Background', 'What changes', 'Decisions', 'Evidence')
 OPTIONAL_SECTIONS = ('How it works', 'Needs the maintainer')
 
-# The block structure of a Markdown body, to find a line break inside a
-# paragraph or list item. A line starts a block, exempts itself, or continues
-# the block above it: only a continuation is a hard wrap.
-FENCE = re.compile(r'\A {0,3}(`{3,}|~{3,})(?:[^`~]*)\Z')
+# The block structure of a Markdown body, from CommonMark's and GitHub
+# Flavored Markdown's rules for where a block starts and where it ends: a
+# line break inside a paragraph or list item is the hard wrap this check
+# reports, and every other block keeps its own line breaks. Each constant
+# below names the rule it reads.
+FENCE_OPEN = re.compile(r'\A {0,3}(`{3,}|~{3,})(.*)\Z')
+FENCE_CLOSE = re.compile(r'\A {0,3}(`{3,}|~{3,})[ \t]*\Z')
 HTML_BLOCK = re.compile(r'\A {0,3}(?:<!--|</?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|\Z)|<[!?])')
-HEADING = re.compile(r'\A {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*\Z')
+# CommonMark gives the HTML blocks that start a line their own end markers;
+# the rest, a block-level tag's line among them, end at the next blank line.
+HTML_ENDS = (('<!--', '-->'), ('<![cdata[', ']]>'), ('<?', '?>'), ('<!', '>'),
+             ('<script', '</script>'), ('<pre', '</pre>'), ('<style', '</style>'),
+             ('<textarea', '</textarea>'))
+HEADING = re.compile(r'\A {0,3}(#{1,6})(?:[ \t]+(.*))?\Z')
+HEADING_CLOSE = re.compile(r'[ \t]+#+[ \t]*\Z')
 QUOTE = re.compile(r'\A {0,3}>')
 LIST_ITEM = re.compile(r'\A\s*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|\Z)')
-TABLE_ROW = re.compile(r'\A\s*\|')
-TABLE_DELIMITER = re.compile(r'\A {0,3}[|: \t-]+\Z')
-RULE = re.compile(r'\A {0,3}(?:[=-][ \t]*[=-][ \t=-]*|[*-][ \t]*[*-][ \t*-]*|[_][ \t]*[_][ \t_]*)\Z')
+THEMATIC_BREAK = re.compile(r'\A {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\Z')
+SETEXT_UNDERLINE = re.compile(r'\A {0,3}(?:=+|-+)[ \t]*\Z')
+TABLE_CELL = re.compile(r'[ \t]*:?-+:?[ \t]*')
 INDENTED_CODE = re.compile(r'\A(?: {4}|\t)')
+
+
+def fence_opens(text):
+    """The opening fence of a code block, or None. A backtick fence's info
+    string cannot hold a backtick; a tilde fence's may hold anything."""
+    found = FENCE_OPEN.match(text)
+    if not found or found.group(1)[0] == '`' and '`' in found.group(2):
+        return None
+    return found.group(1)
+
+
+def fence_closes(text, fence):
+    """Whether `text` closes a block opened by `fence`: the same character,
+    at least as long, and nothing but spaces after it."""
+    found = FENCE_CLOSE.match(text)
+    return bool(found) and found.group(1)[0] == fence[0] and len(found.group(1)) >= len(fence)
+
+
+def html_end(text):
+    """Where the HTML block starting at `text` ends: its own marker, or None
+    when only a blank line ends it."""
+    low = text.lstrip().lower()
+    for start, end in HTML_ENDS:
+        if low.startswith(start):
+            return end
+    return None
+
+
+def heading_text(found):
+    """A heading's text, without the closing sequence of `#`s, which has to
+    be preceded by a space and is otherwise the heading's own text."""
+    return HEADING_CLOSE.sub('', found.group(2) or '').strip()
+
+
+def is_table_delimiter(text):
+    """GitHub's delimiter row: cells of dashes with optional alignment
+    colons, separated by pipes, and at least one pipe among them."""
+    body = text.strip()
+    if '|' not in body or '-' not in body:
+        return False
+    body = body[1:] if body.startswith('|') else body
+    body = body[:-1] if body.endswith('|') else body
+    cells = body.split('|')
+    return all(TABLE_CELL.fullmatch(cell) for cell in cells)
 
 
 def conventional(text):
@@ -124,17 +177,18 @@ def scan_body(body):
     """(heading text, line) of each heading, and (line, line) of each paragraph
     or list item a line break runs through."""
     headings, wraps = [], []
-    fence = None    # the opening fence, until its like closes it
-    html = None     # 'comment' until the line holding `-->`, 'blank' until a blank line
-    code = False    # an indented code block, until a line indented less than four
+    fence = None    # the opening fence, until its own marker closes it
+    html = False    # an HTML block, and `ends_at` holds where it ends
+    ends_at = None
+    code = False    # an indented code block, until a line indented less
     table = False   # a table's rows, from its delimiter row to a blank line
     quote = False   # a block quote, whose lazy continuation lines have no marker
-    open_ = None    # the line the prose block under way started at
+    open_ = None    # the line the paragraph under way started at
     broken = None   # (its line, the line that continued it) once one does
 
     def close(exempt):
-        """End the open block, keeping its line break unless the line that
-        ends it exempts the block's own last line (`exempt`)."""
+        """End the paragraph, keeping its line break unless the line that
+        ends it exempts the paragraph's own last line (`exempt`)."""
         nonlocal open_, broken
         if broken and not exempt:
             wraps.append(broken)
@@ -144,16 +198,13 @@ def scan_body(body):
         text = line.rstrip()
         stripped = text.strip()
         if fence:
-            if FENCE.match(text) and stripped.startswith(fence):
+            if fence_closes(text, fence):
                 fence = None
             continue
-        if html == 'comment':
-            if '-->' in text:
-                html = None
-            continue
         if html:
-            if not stripped:
-                html = None
+            ended = not stripped if ends_at is None else ends_at in text
+            if ended:
+                html = False
             continue
         if code:
             if stripped and not INDENTED_CODE.match(text):
@@ -164,44 +215,37 @@ def scan_body(body):
             close(False)
             table = quote = False
             continue
-        found = FENCE.match(text)
+        found = fence_opens(text)
         if found:
             close(False)
-            fence = found.group(1)
+            fence = found
             table = quote = False
             continue
         if HTML_BLOCK.match(text):
             close(False)
+            ends_at = html_end(text)
+            html = ends_at is None or ends_at not in text
             table = quote = False
-            if stripped.startswith('<!--'):
-                html = None if '-->' in text else 'comment'
-            else:
-                html = 'blank'
             continue
         found = HEADING.match(text)
         if found:
             close(False)
             table = quote = False
             if len(found.group(1)) == 2:
-                headings.append((found.group(2), number))
+                headings.append((heading_text(found), number))
             continue
         if QUOTE.match(text):
             close(False)
             table = False
             quote = True
             continue
-        if TABLE_ROW.match(text):
-            close(False)
-            table = bool(TABLE_DELIMITER.match(text))
-            quote = False
-            continue
-        if TABLE_DELIMITER.match(text) and '-' in text:
-            close(True)     # the row above is a table's header
-            table = True
-            quote = False
-            continue
-        if RULE.match(text):
-            close(True)     # the line above is a setext heading, or a blank marker
+        setext = bool(SETEXT_UNDERLINE.match(text))
+        if setext or THEMATIC_BREAK.match(text):
+            # `---` and `===` under a paragraph make a setext heading, whose
+            # text is that paragraph, so a reader sees the lines above it as
+            # one line. A `***` or `___` rule is a break of its own and keeps
+            # them broken.
+            close(setext)
             table = quote = False
             continue
         if LIST_ITEM.match(text):
@@ -211,8 +255,12 @@ def scan_body(body):
             continue
         if table or quote:
             continue        # a table row, or a quote's lazy continuation
+        if is_table_delimiter(text):
+            close(True)     # the delimiter row makes the line above the table's header
+            table, quote = True, False
+            continue
         if open_ is None and INDENTED_CODE.match(text):
-            code = True     # an indented code block, which a paragraph's line cannot start
+            code = True     # indented code, which a paragraph's line cannot start
             continue
         if open_ is None:
             open_ = number

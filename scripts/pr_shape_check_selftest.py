@@ -223,10 +223,18 @@ and a line after it
 """
 
 
+PARAGRAPH = [line for line in BODY.split('\n') if line.startswith('A fragmented file names')][0]
+
+
+def with_paragraph(text):
+    """`BODY` with its Background paragraph, one line, replaced by `text`."""
+    return BODY.replace(PARAGRAPH, text)
+
+
 class Body(unittest.TestCase):
     def assert_passes(self, text):
         """`text`, which may span lines, as the paragraph the body holds."""
-        self.assertEqual(check.body_failures(BODY.replace('A fragmented file names', text)), [])
+        self.assertEqual(check.body_failures(with_paragraph(text)), [])
 
     def test_a_body_of_the_template_passes(self):
         self.assertEqual(check.body_failures(BODY), [])
@@ -268,6 +276,35 @@ class Body(unittest.TestCase):
     def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
         self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
 
+    def test_a_table_keeps_its_rows_whatever_their_edges(self):
+        self.assert_passes('| Name | Result |\n| --- | --- |\n| unit | pass |\nfixture | pass\nsmoke | pass')
+
+    def test_a_fence_closes_only_at_its_own_marker(self):
+        # GFM: the same character, at least as long, and only spaces after it.
+        for lines in (['```text', '```not a closing fence', 'code line one', 'code line two', '```'],
+                      ['````text', '```', 'code line one', 'code line two', '````'],
+                      ['~~~text', '```', 'code line one', 'code line two', '~~~']):
+            with self.subTest(opening=lines[0]):
+                self.assert_passes('\n'.join(lines))
+
+    def test_a_paragraph_before_a_thematic_break_is_still_a_line_break(self):
+        # `***` is a rule, not a setext underline: the two lines stay two lines.
+        failures = check.body_failures(with_paragraph('First line\nsecond line\n***'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('lines 8 and 9', failures[0])
+
+    def test_a_setext_heading_is_not_a_line_break(self):
+        self.assert_passes('Setext heading\n===')
+
+    def test_a_pre_block_ends_at_its_closing_tag(self):
+        self.assert_passes('<pre>\ncode line one\ncode line two\n</pre>')
+
+    def test_a_hash_attached_to_a_heading_is_not_a_closing_sequence(self):
+        # `## Evidence#` is a heading named `Evidence#`, not the Evidence section.
+        failures = check.body_failures(BODY.replace('## Evidence', '## Evidence#'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no `## Evidence` section', failures[0])
+
     def test_a_lazy_continuation_of_a_quote_passes(self):
         self.assert_passes('> A quoted paragraph\nwith a lazy continuation\nand another quoted line.')
 
@@ -287,7 +324,7 @@ class Body(unittest.TestCase):
 
     def test_a_paragraph_over_two_lines(self):
         # coreav-dev/coreav#174 as merged: two lines GitHub shows as one paragraph.
-        failures = check.body_failures(BODY.replace('A fragmented file names', 'Before: the slow probe.\nAfter: the fast probe.'))
+        failures = check.body_failures(with_paragraph('Before: the slow probe.\nAfter: the fast probe.'))
         self.assertEqual(len(failures), 1, failures)
         self.assertIn('lines 8 and 9', failures[0])
         self.assertIn('join them into one line', failures[0])
@@ -300,12 +337,11 @@ class Body(unittest.TestCase):
 
     def test_an_indented_line_continuing_a_paragraph_is_still_a_line_break(self):
         # Indented code cannot start inside a paragraph, so this is a wrap.
-        failures = check.body_failures(BODY.replace('A fragmented file names',
-                                                    'A fragmented file names\n    and an indented continuation'))
+        failures = check.body_failures(with_paragraph('A fragmented file names\n    and an indented continuation'))
         self.assertEqual(len(failures), 1, failures)
 
     def test_one_failure_per_broken_block(self):
-        failures = check.body_failures(BODY.replace('A fragmented file names', 'a\nb\nc\nd'))
+        failures = check.body_failures(with_paragraph('a\nb\nc\nd'))
         self.assertEqual(len(failures), 1, failures)
 
 
