@@ -628,6 +628,20 @@ class KernelExit(unittest.TestCase):
 
 
 class StaticContract(unittest.TestCase):
+    def test_permission_error_is_absence_only_after_reaping_and_a_missing_group(self):
+        child = SimpleNamespace(pid=123, returncode=None)
+        with mock.patch.object(process.os, "killpg", side_effect=[PermissionError(), ProcessLookupError()]) as kill, \
+                mock.patch.object(process.os, "waitpid", return_value=(123, 0)):
+            process.kill_group(child)
+        self.assertEqual(child.returncode, 0)
+        self.assertEqual(kill.call_args_list, [mock.call(123, process.signal.SIGKILL), mock.call(123, 0)])
+        for waited in ((0, 0), (123, 0)):
+            child = SimpleNamespace(pid=123, returncode=None)
+            with mock.patch.object(process.os, "killpg", side_effect=[PermissionError(), None]), \
+                    mock.patch.object(process.os, "waitpid", return_value=waited), \
+                    self.assertRaises(PermissionError):
+                process.kill_group(child)
+
     def test_timer_has_no_polling_or_pipe_capture(self):
         tree = ast.parse(Path(process.__file__).read_text())
         calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]

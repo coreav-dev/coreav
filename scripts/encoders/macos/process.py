@@ -65,6 +65,23 @@ class _SignalScope:
         return False
 
 
+def kill_group(child):
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        pid, status = os.waitpid(child.pid, os.WNOHANG)
+        if pid != child.pid:
+            raise
+        child.returncode = os.waitstatus_to_exitcode(status)
+        try:
+            os.killpg(child.pid, 0)
+        except ProcessLookupError:
+            return
+        raise
+
+
 def register(queue, child):
     event = select.kevent(child.pid, filter=select.KQ_FILTER_PROC,
                           flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT,
@@ -75,13 +92,11 @@ def register(queue, child):
     except OSError as error:
         if error.errno != errno.ESRCH:
             raise
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        pid, status = os.waitpid(child.pid, os.WNOHANG)
-        require(pid == child.pid, "exit_registration")
-        child.returncode = os.waitstatus_to_exitcode(status)
+        kill_group(child)
+        if child.returncode is None:
+            pid, status = os.waitpid(child.pid, os.WNOHANG)
+            require(pid == child.pid, "exit_registration")
+            child.returncode = os.waitstatus_to_exitcode(status)
         return False
 
 
@@ -126,10 +141,7 @@ def _run(command, directory, timeout, stdout, stderr, env, cwd, guard):
             if not exited:
                 raise Invalid("timeout")
             if child.returncode is None:
-                try:
-                    os.killpg(child.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                kill_group(child)
             code = child.wait()
             require(code >= 0, "child_crash")
             require(code == 0, "child_failure")
@@ -141,10 +153,7 @@ def _run(command, directory, timeout, stdout, stderr, env, cwd, guard):
             signal.pthread_sigmask(signal.SIG_BLOCK, WATCHED)
             try:
                 if child is not None and child.returncode is None:
-                    try:
-                        os.killpg(child.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    kill_group(child)
                     child.wait()
             except OSError as error:
                 raise Invalid("cleanup_failed") from OSError(error.errno, "process cleanup")
