@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          persist-credentials: false
           # The pull request's commits, base to head.
           fetch-depth: 0
       # scripts/pr_shape_check.py reads a body with the parser pinned in

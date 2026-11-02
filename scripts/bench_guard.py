@@ -608,10 +608,10 @@ def version(command):
 def compare(name, count, before, tolerance, failed):
     """The change against the baseline's count and the case's status."""
     change = count / before - 1
-    if change > tolerance:
+    if count - before > before * tolerance:
         failed.append(name)
         return change, "SLOWER"
-    if change < -tolerance:
+    if before - count > before * tolerance:
         return change, "faster: the baseline can be lowered"
     return change, "ok"
 
@@ -629,14 +629,14 @@ def compare_case(name, count, before, total, before_startup, tolerance, failed):
     reference = before_startup + before
     total_change = total / reference - 1
     change = count / before - 1
-    if change > tolerance:
+    if count - before > before * tolerance:
         if total - count < before_startup and total <= reference:
             return change, "moved from start-up: the whole command does no more work", total_change
         failed.append(name)
         if total > reference:
             return change, "SLOWER, and so is the whole command", total_change
         return change, "SLOWER", total_change
-    if change < -tolerance:
+    if before - count > before * tolerance:
         return change, "faster: the baseline can be lowered", total_change
     return change, "ok", total_change
 

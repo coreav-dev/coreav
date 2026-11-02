@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       seconds:
-        description: Seconds per target
+        description: Seconds per target (integer, 1 to 900)
         type: number
         default: 900
 
@@ -43,8 +43,28 @@ jobs:
     timeout-minutes: 60
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
+      seconds: ${{ steps.seconds.outputs.seconds }}
     steps:
+      - id: seconds
+        name: Validate the target time budget
+        env:
+          INPUT_SECONDS: ${{ inputs.seconds }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          seconds = '900' if os.environ['EVENT_NAME'] == 'schedule' else os.environ['INPUT_SECONDS']
+          if not re.fullmatch(r'[1-9][0-9]{0,2}', seconds) or int(seconds) > 900:
+              sys.exit('::error::seconds must be an integer from 1 to 900; six targets need 60 minutes left for setup, builds and findings upload within the 150-minute shard timeout')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'seconds={seconds}', file=output)
+          PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - run: scripts/fuzz_run.sh setup
       - id: plan
         run: |
@@ -80,6 +100,8 @@ jobs:
         shard: ${{ fromJSON(needs.fuzz-build.outputs.shards) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - run: scripts/fuzz_run.sh setup
       - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
@@ -97,7 +119,7 @@ jobs:
       - id: fuzz
         name: Run each target
         env:
-          FUZZ_SECONDS: ${{ inputs.seconds || 900 }}
+          FUZZ_SECONDS: ${{ needs.fuzz-build.outputs.seconds }}
           # The fuzz campaign's AddressSanitizer options
           # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
           ASAN_OPTIONS: quarantine_size_mb=64

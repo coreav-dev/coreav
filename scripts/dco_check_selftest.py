@@ -59,6 +59,14 @@ class DcoCheck(unittest.TestCase):
         self.repo.commit('fix: b', signoff='someone <GunwooTerry@Gmail.com>')
         self.assertEqual(self.problems(), [])
 
+    def test_the_authors_sign_off_can_be_first_or_last_among_several(self):
+        author = 'Gunwoo Kim <gunwooterry@gmail.com>'
+        others = ('First reviewer <first@example.com>', 'Second reviewer <second@example.com>')
+        for signoffs in ((author, *others), (*others, author)):
+            with self.subTest(signoffs=signoffs):
+                self.repo.commit('fix: several sign-offs', signoff='\nSigned-off-by: '.join(signoffs))
+                self.assertEqual(self.problems(), [])
+
     def test_a_missing_or_foreign_sign_off_fails_and_names_the_fix(self):
         missing = self.repo.commit('fix: unsigned')
         foreign = self.repo.commit('fix: signed by another', signoff='Gunwoo Kim <other@example.com>')
