@@ -1,6 +1,6 @@
 # VideoToolbox ownership, smoke and speed plan
 
-This plan precedes native implementation and every encoder or timing run of this work unit. The ownership design is in [the macOS note](../../../docs/design/encoders/macos.md). The [encoder contract](../../../docs/design/encoders.md) remains the source of the M1 through M5 acceptance bars. This PR delivers the standalone owner, hosted correctness smoke and measurement tools, not transcode integration or an acceptance result. Judged timing starts only after this plan-and-tools PR merges. Results are a later PR.
+This plan was committed before native implementation and every encoder or timing run of this work unit. It governs the implemented standalone owner and its tools. The ownership design is in [the macOS note](../../../docs/design/encoders/macos.md). The [encoder contract](../../../docs/design/encoders.md) remains the source of the M1 through M5 acceptance bars. This PR delivers the standalone owner, hosted correctness smoke and measurement tools, not transcode integration or an acceptance result. Judged timing starts only after this plan-and-tools PR merges. Results are a later PR.
 
 ## Reference host
 
@@ -38,7 +38,7 @@ Quality is checked before a speed result can pass, separately for every availabl
 
 For each output, all-plane clip PSNR is `10 * log10(255^2 * sum(samples) / sum(squared_error))`, pooling every Y/U/V sample of every presented frame. Retain each frame's integer sample count and squared-error sum. Zero total error is explicitly perfect (positive infinity), not a finite cap; equal-perfect CoreAV/baseline PSNR has delta zero, CoreAV-perfect versus finite is an improvement, and finite versus baseline-perfect fails every finite PSNR floor. Replay recomputes these values from retained frame facts bound to decoded/source bytes. VMAF is the arithmetic mean of per-frame `vmaf_v0.6.1` scores at native resolution; SSIM is the arithmetic mean of the pinned filter's per-frame SSIM All values. No frame is omitted.
 
-Each input's elementary-stream payload-size ratio must be within 0.95 through 1.05. For clips of at least eight seconds, each side's mean payload bitrate must be within 10% of its target. Also record MP4 size when a container is present. Extra bits cannot purchase a quality pass. A standalone elementary-stream result does not establish MP4 indexing or integrated transcode acceptance.
+Each input's elementary-stream payload-size ratio, defined as CoreAV payload bytes divided by FFmpeg payload bytes, must be within 0.95 through 1.05 inclusive. For clips of at least eight seconds, each side's mean payload bitrate must be within 10% of its target. Also record MP4 size when a container is present. Extra bits cannot purchase a quality pass. A standalone elementary-stream result does not establish MP4 indexing or integrated transcode acceptance.
 
 ## Timing method and speed bar
 

@@ -61,6 +61,11 @@ class EncoderBackends(unittest.TestCase):
         self.assertIn('`videotoolbox::Encoder` implements', note)
         self.assertNotIn('## Planned VideoToolbox owner', note)
         self.assertNotIn('native H.264 ownership change before its implementation', note)
+        plan = (ROOT / 'scripts/encoders/macos/videotoolbox-plan.md').read_text()
+        self.assertIn('It governs the implemented standalone owner and its tools.', plan)
+        self.assertNotIn('This plan precedes native implementation', plan)
+        self.assertIn('CoreAV payload bytes divided by FFmpeg payload bytes', plan)
+        self.assertIn('within 0.95 through 1.05 inclusive', plan)
 
     def test_videotoolbox_smoke_tracks_its_rust_build_closure(self):
         workflow = workflow_check.workflow_yaml((ROOT / '.github/workflows/videotoolbox.yml').read_text())
