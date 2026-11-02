@@ -1,11 +1,11 @@
 # 0.1.0 codec coverage: V1 to V3
 
-V1 is incomplete, V2 missed its bar, and V3 reports a share without a bar. This is the judged run of release candidate `4062842fc42babef9e6661a37bbb18f7e375a80c`, not the tools rehearsal. No release verdict follows from workflow success.
+The combined V1–V3 run is void under the registration because 42 V1 files have no final result. V1 is incomplete; V2's observed count is below its threshold, but no registered V2 verdict follows from this void run. V3 reports a descriptive share without a bar. This is the judged run of release candidate `4062842fc42babef9e6661a37bbb18f7e375a80c`, not the tools rehearsal. Workflow success does not establish run validity or a release verdict.
 
 | Measurement | Result | Registered bar | Verdict |
 |---|---|---|---|
 | V1, whole-stream decode agreement | 835 / 1,142 reference-bearing files in the completed portion (73.12%); 42 files unresolved | At least 74% of the final denominator, every frame agreeing | Incomplete; no pass or miss verdict |
-| V2, encode-set command coverage | 24 / 488 (4.92%) | At least 196 / 488 (40% or more) | Missed |
+| V2, encode-set command coverage | 24 / 488 (4.92%) | At least 196 / 488 (40% or more) | Observed shortfall; no registered verdict because the combined run is void |
 | V3, filter-free command coverage | 24 / 630 (3.81%) | None | Reported, not a pass/fail bar |
 
 ## Registration and evidence
@@ -13,6 +13,8 @@ V1 is incomplete, V2 missed its bar, and V3 reports a share without a bar. This 
 The [registered plan](compat-0.1.0/codec-coverage-plan.md) fixes the inputs, stream selection, reference commands, counting rules, time limits and recovery host. The [candidate registration](compat-0.1.0/README.md#the-commit) preceded the run. The [Actions execution](https://github.com/coreav-dev/coreav/actions/runs/41372781795) ran on 2026-11-02, dispatched from main `c569a2dfebbcf5c29247adb1d01fe0047641ceee`, with the explicit candidate above and `set=v1`. That set runs V2 and V3 as well as V1; no second dispatch was made.
 
 The [manifest](compat-0.1.0/codec-coverage/manifest.json) records the candidate, binary hashes, build features, static-library versions, five fixture hashes, evidence-key fingerprint and all hosts. Its `problems` list is empty. That validates the build record, not V1 completion: its shard counts explicitly retain pending files.
+
+The [run-wide validity rule](../design/compat-cli.md#when-they-run-and-what-voids-a-run) voids the combined run when any V1 file has no final result and makes only a nonvoid run final for its commit. The V2/V3 job's own summary has no local void reasons and records `met=false` for V2; those fields describe that job's observations, not a registered verdict for the combined run. They are retained unchanged as evidence.
 
 | Item | Recorded identity |
 |---|---|
@@ -80,7 +82,7 @@ These rows exclude the 42 unresolved files and the 167 without a reference. They
 
 All 307 misses retain the first applicable frozen code. There are no completed `frame_count` or `timeout` misses. Out-of-scope H.264 remains in the denominator; no post-run divergence or file-specific reference adjustment changes a count. The JSON summary retains the full other-codec listing and no-reference breakdown.
 
-## V2: encode coverage missed
+## V2: observed encode coverage shortfall
 
 The reference tries the five registered fixtures in the plan's assignment order for each of the 488 media commands. A counted command must run through CoreAV, agree on output stream kinds and codecs, and pass every registered copy or encoder oracle. An encoder start is allowed; FFmpeg decoding or whole-command fallback is not.
 
@@ -112,4 +114,4 @@ For comparison, the static classifier labels 79 commands native; 22 of those cou
 
 ## Limits of the result
 
-V1 remains incomplete because the registered host-fault recovery was not executed; no substitute host, reduced roster or changed deadline was used. V2's miss is final for this candidate, and V3 is descriptive. No recovery or duplicate run was started after reading the results. The measurements do not change the registered candidate, acceptance rules or release scope, and do not authorize a release.
+V1 remains incomplete because the registered host-fault recovery was not executed; no substitute host, reduced roster or changed deadline was used. Those missing final results void the combined run under the registration, so V2's observed 24/488 shortfall against 196 required is not a final registered verdict. V3 remains descriptive. No recovery or duplicate run was started after reading the results. The measurements do not change the registered candidate, acceptance rules or release scope, and do not authorize a release.

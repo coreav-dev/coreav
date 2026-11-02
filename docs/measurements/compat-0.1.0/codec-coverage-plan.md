@@ -1,6 +1,6 @@
 # 0.1.0 codec coverage: the plan of V1 to V3
 
-Status: [results recorded](../codec-coverage.md). V1 is incomplete, V2 missed its bar, and V3 has no bar. The registration below is unchanged.
+Status: [observations recorded](../codec-coverage.md). The combined run is void because V1 is incomplete; V2 has an observed shortfall, not a registered verdict, and V3 has no bar. The registration below is unchanged.
 
 The bars are registered in
 [`design/compat-cli.md`](../../design/compat-cli.md), "The 0.1.0 codec
