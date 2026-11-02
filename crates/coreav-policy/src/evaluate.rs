@@ -1,6 +1,7 @@
 //! Evaluating a policy over a `coreav.probe/1` document (ISO base media)
-//! or a `coreav.probe-matroska/1` document (Matroska and WebM; the rule
-//! mapping is in `docs/design/policy-matroska.md`).
+//! or a `coreav.probe-matroska/1` document (Matroska and WebM), or
+//! `coreav.probe-mpegts/2` (MPEG-TS). Rule mappings are in
+//! `docs/design/policy-matroska.md` and `docs/design/policy-check.md`.
 
 use crate::exact::Frac;
 use crate::policy::{
@@ -16,14 +17,19 @@ pub const PROBE_SCHEMA: &str = "coreav.probe/1";
 /// The probe schema of Matroska and WebM files.
 pub const MATROSKA_PROBE_SCHEMA: &str = "coreav.probe-matroska/1";
 
+/// The current probe schema of MPEG transport streams.
+pub const MPEGTS_PROBE_SCHEMA: &str = "coreav.probe-mpegts/2";
+
 /// Which probe document a check reads.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Shape {
     Iso,
     Matroska,
+    Mpegts,
 }
 
-/// Checks a `coreav.probe/1` or `coreav.probe-matroska/1` document (the
+/// Checks a `coreav.probe/1`, `coreav.probe-matroska/1` or
+/// `coreav.probe-mpegts/2` document (the
 /// output of `coreav probe`, or of the library's serializer) against a
 /// policy.
 ///
@@ -38,6 +44,7 @@ pub fn evaluate(policy: &Policy, probe: &Value) -> Verdict {
     let shape = match probe.get("schema").and_then(Value::as_str) {
         Some(PROBE_SCHEMA) => Some(Shape::Iso),
         Some(MATROSKA_PROBE_SCHEMA) => Some(Shape::Matroska),
+        Some(MPEGTS_PROBE_SCHEMA) => Some(Shape::Mpegts),
         _ => None,
     };
     if let Some(shape) = shape {
@@ -50,9 +57,10 @@ pub fn evaluate(policy: &Policy, probe: &Value) -> Verdict {
             stream_index: None,
             value: probe.get("schema").cloned().unwrap_or(Value::Null),
             exact: None,
-            limit: json!([PROBE_SCHEMA, MATROSKA_PROBE_SCHEMA]),
+            limit: json!([PROBE_SCHEMA, MATROSKA_PROBE_SCHEMA, MPEGTS_PROBE_SCHEMA]),
             message: format!(
-                "the document is not a {PROBE_SCHEMA} or {MATROSKA_PROBE_SCHEMA} probe output"
+                "the document is not a {PROBE_SCHEMA}, {MATROSKA_PROBE_SCHEMA} or \
+                 {MPEGTS_PROBE_SCHEMA} probe output"
             ),
             error: None,
         });
@@ -177,7 +185,7 @@ impl Check {
             .and_then(Value::as_array)
             .map_or(&[][..], Vec::as_slice);
         let size = doc.pointer("/file/size").and_then(Value::as_u64);
-        let duration = seconds(doc.get("duration"));
+        let duration = seconds(doc.get("duration"), shape);
         // A Matroska file without `Duration` (a live recording): the
         // longest stream, when every stream's duration is known.
         let file_duration = match (shape, &duration) {
@@ -228,7 +236,7 @@ impl Check {
                 }
                 (_, duration) => Some(duration),
             };
-            self.duration(streams, file, max);
+            self.duration(streams, file, max, shape);
         }
         self.maximum_int(
             &At {
@@ -250,6 +258,7 @@ impl Check {
             };
             let count = streams
                 .iter()
+                .filter(|s| !unidentified_ts(s, shape))
                 .filter(|s| policy_kind(s).0 == Some(kind))
                 .count();
             let count = u64::try_from(count).unwrap_or(u64::MAX);
@@ -266,7 +275,9 @@ impl Check {
             self.maximum_int(&at("max_count"), Some(Read::count(count)), rules.max_count);
         }
         for (i, stream) in streams.iter().enumerate() {
-            self.stream(policy, stream, &format!("/streams/{i}"), shape);
+            if !unidentified_ts(stream, shape) {
+                self.stream(policy, stream, &format!("/streams/{i}"), shape);
+            }
         }
         let allowed: &[String] = match &policy.streams.unidentified {
             Unidentified::Ignore => return,
@@ -276,15 +287,38 @@ impl Check {
         if shape == Shape::Matroska {
             self.encodings(streams);
         }
+        for (i, stream) in streams
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| unidentified_ts(s, shape))
+        {
+            let stream_index = stream.get("stream_index").and_then(Value::as_u64);
+            let subject = stream_label(stream_index, None);
+            self.not_allowed(
+                &At {
+                    rule: "/streams/unidentified".to_owned(),
+                    path: Some(format!("/streams/{i}/codec")),
+                    stream_index,
+                    subject: &subject,
+                    what: "codec",
+                    unit: "",
+                },
+                json!("other"),
+                json!(allowed),
+                format!("{subject}: the transport stream codec is unidentified"),
+            );
+        }
         let key = match shape {
             Shape::Iso => "fourcc",
             Shape::Matroska => "codec_id",
+            Shape::Mpegts => "codec",
         };
         for (j, stream) in dropped.iter().enumerate() {
             let fourcc = stream.get(key).cloned().unwrap_or(Value::Null);
-            if fourcc
-                .as_str()
-                .is_some_and(|f| allowed.iter().any(|a| a == f))
+            if shape != Shape::Mpegts
+                && fourcc
+                    .as_str()
+                    .is_some_and(|f| allowed.iter().any(|a| a == f))
             {
                 continue;
             }
@@ -314,7 +348,13 @@ impl Check {
     /// most the limit: one reason, at the longest value (the first of equal
     /// ones), or at the first unknown one. Streams count because a movie
     /// header can understate how long the media lasts.
-    fn duration(&mut self, streams: &[Value], file: Option<Option<Read>>, max: &Seconds) {
+    fn duration(
+        &mut self,
+        streams: &[Value],
+        file: Option<Option<Read>>,
+        max: &Seconds,
+        shape: Shape,
+    ) {
         let limit = Value::Number(max.number.clone());
         // (subject, path, stream_index, value) of the file, then each stream.
         let mut candidates = Vec::new();
@@ -322,13 +362,16 @@ impl Check {
             candidates.push(("file".to_owned(), "/duration".to_owned(), None, file));
         }
         for (i, stream) in streams.iter().enumerate() {
+            if unidentified_ts(stream, shape) {
+                continue;
+            }
             let stream_index = stream.get("stream_index").and_then(Value::as_u64);
             let kind = policy_kind(stream).0;
             candidates.push((
                 stream_label(stream_index, kind),
                 format!("/streams/{i}/duration"),
                 stream_index,
-                seconds(stream.get("duration")),
+                seconds(stream.get("duration"), shape),
             ));
         }
         let mut longest: Option<(usize, Frac)> = None;
@@ -364,10 +407,36 @@ impl Check {
     }
 
     fn container(&mut self, policy: &Policy, doc: &Value, shape: Shape) {
-        if shape == Shape::Matroska {
-            return self.matroska_container(policy, doc);
+        match shape {
+            Shape::Matroska => return self.matroska_container(policy, doc),
+            Shape::Mpegts => {
+                if let Some(formats) = &policy.container.formats {
+                    if !formats.contains(&Format::Mpegts) {
+                        let names: Vec<_> = formats.iter().map(|f| f.name()).collect();
+                        self.not_allowed(
+                            &At {
+                                rule: "/container/formats".to_owned(),
+                                path: Some("/schema".to_owned()),
+                                stream_index: None,
+                                subject: "file",
+                                what: "container format",
+                                unit: "",
+                            },
+                            json!("mpegts"),
+                            json!(names),
+                            "file: container format \"mpegts\" is not allowed".to_owned(),
+                        );
+                    }
+                }
+            }
+            Shape::Iso => {}
         }
-        if let Some(formats) = &policy.container.formats {
+        if let Some(formats) = policy
+            .container
+            .formats
+            .as_ref()
+            .filter(|_| shape == Shape::Iso)
+        {
             let names: Vec<&str> = formats.iter().map(|f| f.name()).collect();
             let at = At {
                 rule: "/container/formats".to_owned(),
@@ -563,11 +632,19 @@ impl Check {
             self.maximum_int(
                 &at(
                     rule("max_bit_rate"),
-                    Some("bit_rate"),
+                    Some(if shape == Shape::Mpegts {
+                        "scan/bit_rate"
+                    } else {
+                        "bit_rate"
+                    }),
                     "bit rate",
                     " bits/s",
                 ),
-                bit_rate(stream.get("bit_rate")),
+                bit_rate(if shape == Shape::Mpegts {
+                    stream.pointer("/scan/bit_rate")
+                } else {
+                    stream.get("bit_rate")
+                }),
                 rules.max_bit_rate,
             );
             let count = |key: &str| stream.pointer(key).and_then(Value::as_u64);
@@ -659,7 +736,7 @@ impl Check {
         }
         if policy.streams.invalid_tables == Action::Reject {
             let (key, what, problem) = match shape {
-                Shape::Iso => (
+                Shape::Iso | Shape::Mpegts => (
                     "tables_valid",
                     "sample table validity",
                     "the sample tables are inconsistent (no packets)",
@@ -747,10 +824,12 @@ impl Check {
 
     fn rotation(&mut self, stream: &Value, shape: Shape, rotations: &[u64], at: &At<'_>) {
         match stream.pointer("/video/rotation") {
+            Some(Value::Null) if shape == Shape::Mpegts => self.unknown(at, json!(rotations)),
             Some(Value::Null) => {
                 let what = match shape {
                     Shape::Iso => "the display matrix",
                     Shape::Matroska => "the projection pose",
+                    Shape::Mpegts => "the rotation",
                 };
                 let message = format!("{}: {what} is not a quarter-turn rotation", at.subject);
                 self.not_allowed(at, Value::Null, json!(rotations), message);
@@ -784,16 +863,18 @@ fn policy_kind(stream: &Value) -> (Option<&str>, &'static str) {
     let family = match stream.get("codec").and_then(Value::as_str) {
         Some(
             "h264" | "hevc" | "av1" | "vp8" | "vp9" | "prores" | "mpeg1video" | "mpeg2video"
-            | "mpeg4" | "theora" | "mjpeg" | "ffv1",
+            | "mpeg4" | "theora" | "mjpeg" | "ffv1" | "vvc",
         ) => Some("video"),
         Some(
             "aac" | "mp3" | "mp2" | "opus" | "vorbis" | "flac" | "ac3" | "eac3" | "dts" | "truehd"
-            | "alac" | "pcm",
+            | "alac" | "pcm" | "aac_latm" | "mpeg_audio" | "bluray_pcm",
         ) => Some("audio"),
-        Some("timed_text" | "subrip" | "ass" | "webvtt" | "pgs" | "vobsub" | "dvbsub") => {
-            Some("subtitle")
-        }
+        Some(
+            "timed_text" | "subrip" | "ass" | "webvtt" | "pgs" | "vobsub" | "dvbsub"
+            | "dvb_subtitle" | "dvb_teletext" | "arib_caption",
+        ) => Some("subtitle"),
         Some("timecode") => Some("timecode"),
+        Some("scte35" | "id3" | "epg") => Some("data"),
         _ => None,
     };
     match family {
@@ -811,13 +892,23 @@ fn stream_label(stream_index: Option<u64>, kind: Option<&str>) -> String {
     }
 }
 
+fn unidentified_ts(stream: &Value, shape: Shape) -> bool {
+    shape == Shape::Mpegts && stream.get("codec").and_then(Value::as_str) == Some("other")
+}
+
 /// A probe time (`ticks`, `timescale`, `seconds`) in exact seconds; the
 /// printed value is its `seconds`.
-fn seconds(time: Option<&Value>) -> Option<Read> {
+fn seconds(time: Option<&Value>, shape: Shape) -> Option<Read> {
     let time = time?;
     let ticks = time.get("ticks")?;
-    let num = u128::from(ticks.get("num")?.as_u64()?);
-    let den = u128::from(ticks.get("den")?.as_u64()?);
+    let (num, den) = if shape == Shape::Mpegts {
+        (u128::from(ticks.as_u64()?), 1)
+    } else {
+        (
+            u128::from(ticks.get("num")?.as_u64()?),
+            u128::from(ticks.get("den")?.as_u64()?),
+        )
+    };
     let timescale = u128::from(time.get("timescale")?.as_u64()?);
     let exact = Frac::new(num, den.checked_mul(timescale)?)?;
     let value = match time.get("seconds") {
@@ -852,7 +943,7 @@ fn bit_rate(rate: Option<&Value>) -> Option<Read> {
 fn longest_stream(streams: &[Value]) -> Option<Read> {
     let mut longest: Option<Read> = None;
     for stream in streams {
-        let read = seconds(stream.get("duration"))?;
+        let read = seconds(stream.get("duration"), Shape::Matroska)?;
         let exact = read.exact?;
         if longest
             .as_ref()

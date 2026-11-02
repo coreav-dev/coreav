@@ -9,6 +9,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -234,6 +235,75 @@ class Checks(unittest.TestCase):
                    {'code': 'not_allowed', 'rule': '/streams/invalid_tables', 'stream_index': 0}]
         self.assertEqual(ref.outcome(reasons, ref.UNOBSERVABLE),
                          [('above_maximum', '/duration/max_seconds', None)])
+
+
+class TransportPolicy(unittest.TestCase):
+    def doc(self):
+        return {
+            'schema': ref.MPEGTS_SCHEMA, 'file': {'size': 1000},
+            'container': {'packet_size': 188},
+            'duration': {'ticks': 900900, 'timescale': 90000, 'seconds': 10.01},
+            'streams': [{'stream_index': 4, 'codec': 'aac', 'kind': 'audio',
+                         'duration': {'ticks': 900900, 'timescale': 90000, 'seconds': 10.01},
+                         'audio': {'channels': 2, 'sample_rate': 48000},
+                         'scan': {'bit_rate': {'exact': {'num': 1000, 'den': 3},
+                                               'bits_per_second': 1000 / 3}}}],
+            'dropped_streams': [],
+        }
+
+    def rules(self):
+        return {'schema': 'coreav.policy/1', 'container': {'formats': ['mpegts']},
+                'streams': {'audio': {}, 'invalid_tables': 'ignore',
+                            'external_data': 'ignore', 'multiple_descriptions': 'ignore'}}
+
+    def test_exact_times_nested_rates_and_format_precision(self):
+        p = self.rules()
+        self.assertEqual(ref.evaluate(p, self.doc()), [])
+        p['duration'] = {'max_seconds': 10.009}
+        p['streams']['audio']['max_bit_rate'] = 333
+        p['container']['formats'] = ['mov']
+        reasons = ref.evaluate(p, self.doc())
+        self.assertEqual([r['path'] for r in reasons],
+                         ['/schema', '/duration', '/streams/0/scan/bit_rate'])
+        self.assertEqual(reasons[1]['exact'], {'num': 1001, 'den': 100})
+        self.assertEqual(reasons[2]['exact'], {'num': 1000, 'den': 3})
+        for reason in reasons:
+            self.assertIsNone(pc.precision(reason, self.doc()))
+
+    def test_default_missing_evidence_and_unidentified_streams(self):
+        p = {'schema': 'coreav.policy/1', 'container': {'fragmented': False},
+             'streams': {'audio': {}}}
+        reasons = ref.evaluate(p, self.doc())
+        self.assertEqual(len(reasons), 4)
+        self.assertTrue(all(r['code'] == 'unknown' for r in reasons))
+        for reason in reasons:
+            self.assertIsNone(pc.precision(reason, self.doc()))
+        doc = self.doc()
+        doc['streams'][0]['codec'] = 'other'
+        p = self.rules()
+        p['streams']['unidentified'] = ['other']
+        reasons = ref.evaluate(p, doc)
+        self.assertEqual(len(reasons), 1)
+        self.assertEqual(reasons[0]['path'], '/streams/0/codec')
+        self.assertIsNone(pc.precision(reasons[0], doc))
+        p['streams']['unidentified'] = 'ignore'
+        self.assertEqual(ref.evaluate(p, doc), [])
+
+    def test_transport_checks_do_not_fabricate_an_iso_oracle_result(self):
+        doc, p = self.doc(), self.rules()
+        calls = []
+        def run(argv, **kwargs):
+            calls.append(argv)
+            output = doc if argv[1] == 'probe' else {
+                'schema': 'coreav.verdict/1', 'verdict': 'accept', 'reasons': []}
+            return type('Run', (), {'returncode': 0, 'stdout': json.dumps(output)})()
+        with tempfile.NamedTemporaryFile() as media, patch.object(pc, 'run', run):
+            records = pc.check_file(pathlib.Path(media.name), [('ts', 'policy.json', p)],
+                                    'coreav', 'ffprobe')
+        self.assertEqual(records[0]['failures'], [])
+        self.assertEqual(records[0]['oracle_unavailable'], 'no MPEG-TS policy adapter')
+        self.assertNotIn('oracle', records[0])
+        self.assertTrue(all(c[0] == 'coreav' for c in calls))
 
 
 class KnownDivergences(unittest.TestCase):

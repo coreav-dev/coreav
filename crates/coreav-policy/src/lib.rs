@@ -6,7 +6,7 @@
 //! maximum file size, duration, bit rates, stream counts, resolution,
 //! channels and sample rate; allowed rotations. [`evaluate`] checks a
 //! `coreav.probe/1` (ISO base media) or `coreav.probe-matroska/1` (Matroska
-//! and WebM) document against it and returns a [`Verdict`] (schema
+//! and WebM) or `coreav.probe-mpegts/2` (MPEG-TS) document against it and returns a [`Verdict`] (schema
 //! `coreav.verdict/1`, `docs/schema/verdict-v1.md`): accept, or reject with
 //! every failed rule as a machine-readable [`Reason`] that points into both
 //! the policy and the probe document.
@@ -51,7 +51,7 @@ mod exact;
 mod policy;
 mod verdict;
 
-pub use evaluate::{MATROSKA_PROBE_SCHEMA, PROBE_SCHEMA, evaluate};
+pub use evaluate::{MATROSKA_PROBE_SCHEMA, MPEGTS_PROBE_SCHEMA, PROBE_SCHEMA, evaluate};
 pub use policy::{
     Action, AudioRules, CODECS, ContainerRules, DurationRules, FileRules, Format, KINDS, KindRules,
     MAX_POLICY_BYTES, Policy, PolicyError, ROTATIONS, SCHEMA as POLICY_SCHEMA, Seconds,

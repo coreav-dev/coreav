@@ -11,10 +11,10 @@ pub const SCHEMA: &str = "coreav.policy/1";
 pub const MAX_POLICY_BYTES: usize = 1 << 20;
 
 /// Codec names a policy may list: the names `coreav probe` prints in
-/// `codec` for ISO base media and Matroska files, except `other` (streams
-/// with that codec are dropped by the probe and governed by
+/// `codec` for ISO base media, Matroska and MPEG-TS files, except `other` (streams
+/// with that codec are governed by
 /// [`StreamRules::unidentified`]).
-pub const CODECS: [&str; 32] = [
+pub const CODECS: [&str; 42] = [
     "h264",
     "hevc",
     "av1",
@@ -47,6 +47,16 @@ pub const CODECS: [&str; 32] = [
     "vobsub",
     "dvbsub",
     "timecode",
+    "vvc",
+    "aac_latm",
+    "mpeg_audio",
+    "bluray_pcm",
+    "scte35",
+    "id3",
+    "dvb_subtitle",
+    "dvb_teletext",
+    "arib_caption",
+    "epg",
 ];
 
 /// Longest `CodecID` a `streams.unidentified` list may name.
@@ -74,16 +84,19 @@ pub enum Format {
     Webm,
     /// Matroska: `DocType` `matroska`.
     Matroska,
+    /// MPEG transport stream: schema `coreav.probe-mpegts/2`.
+    Mpegts,
 }
 
 impl Format {
     /// Every format, in the order of the policy reference.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Mp4,
         Self::Mov,
         Self::ThreeGp,
         Self::Webm,
         Self::Matroska,
+        Self::Mpegts,
     ];
 
     /// The policy's name for the format.
@@ -94,6 +107,7 @@ impl Format {
             Self::ThreeGp => "3gp",
             Self::Webm => "webm",
             Self::Matroska => "matroska",
+            Self::Mpegts => "mpegts",
         }
     }
 
@@ -836,7 +850,8 @@ mod tests {
             "/streams/audio/codecs/1: unknown codec \"wma\"; known: h264, hevc, av1, vp8, vp9, \
              prores, mpeg1video, mpeg2video, mpeg4, theora, mjpeg, ffv1, aac, mp3, mp2, opus, \
              vorbis, flac, ac3, eac3, dts, truehd, alac, pcm, timed_text, subrip, ass, webvtt, \
-             pgs, vobsub, dvbsub, timecode"
+             pgs, vobsub, dvbsub, timecode, vvc, aac_latm, mpeg_audio, bluray_pcm, scte35, id3, \
+             dvb_subtitle, dvb_teletext, arib_caption, epg"
         );
         assert!(
             err(json!({"schema": SCHEMA, "streams": {"data": {"codecs": ["other"]}}}))
@@ -881,7 +896,7 @@ mod tests {
         );
         assert_eq!(
             err(json!({"schema": SCHEMA, "container": {"formats": ["mkv"]}, "streams": {}})),
-            "/container/formats/0: unknown format \"mkv\"; known: mp4, mov, 3gp, webm, matroska"
+            "/container/formats/0: unknown format \"mkv\"; known: mp4, mov, 3gp, webm, matroska, mpegts"
         );
         assert_eq!(
             err(json!({"schema": SCHEMA, "streams": {"a/b~c": 1}})),

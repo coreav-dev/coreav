@@ -16,12 +16,10 @@ every --policy:
   output: every key but `message` and `error`, in order (the overall bit
   rate's convenience `value` within a relative 1e-12, since it is a
   rounded copy of `exact`). A file the probe rejects has exactly one
-  `unreadable` reason whose `error` is the object `coreav probe` printed
-  (for a transport stream, which `coreav check` does not read whatever the
-  probe makes of it, an `unsupported_container` error);
-- precision: every reason's `path` exists in the probe output, and its
+  `unreadable` reason whose `error` is the object `coreav probe` printed;
+- precision: every known reason's `path` exists in the probe output, and its
   `value` is the value there (or the documented derivation of it); an
-  `unknown` reason points at a `null`;
+  `unknown` reason points at a `null` or an absent field;
 - oracle (with --ffprobe, for files both read): the failed rules, as
   `policy_ref.outcome` lists them, equal those the same evaluator finds in
   ffprobe's output (`policy_ref.from_ffprobe`, with --oracle-frames also
@@ -140,7 +138,7 @@ def precision(reason, doc):
     if path is None:
         return None
     found, at = resolve(doc, path)
-    if not found:
+    if not found and code != 'unknown':
         return f'{path} is not in the probe output'
     if rule == '/duration/max_seconds' and isinstance(at, dict):
         at = at.get('seconds') if at.get('ticks') is not None else None
@@ -148,8 +146,10 @@ def precision(reason, doc):
             and isinstance(at, dict):
         at = at.get('bits_per_second') if at.get('exact') is not None else None
     elif rule == '/container/formats' and code != 'unknown' and path != '/container/doc_type':
-        at = policy_ref.container_format(at)
-    elif path.endswith('/codec') and rule and rule.count('/') == 2 and code != 'unknown':
+        at = 'mpegts' if path == '/schema' and at == policy_ref.MPEGTS_SCHEMA \
+            else policy_ref.container_format(at)
+    elif path.endswith('/codec') and rule in {f'/streams/{k}' for k in policy_ref.KINDS} \
+            and code != 'unknown':
         # A kind that is not allowed: the family of the codec at `path`.
         at = policy_ref.FAMILIES.get(at)
     if code == 'unknown':
@@ -202,33 +202,7 @@ def frame_sizes(ffprobe, path):
 
 
 # The probe documents `coreav check` evaluates a policy against.
-CHECKED_SCHEMAS = (policy_ref.PROBE_SCHEMA, policy_ref.MATROSKA_SCHEMA)
-# The packet sizes of a transport stream and the bytes before each packet
-# (ISO/IEC 13818-1 2.4.3.2; the BDAV arrival timestamp of 192-byte
-# packets), as `coreav_mpegts::sniff` reads them.
-TS_LAYOUTS = ((188, 0), (192, 4), (204, 0))
-
-
-def is_mpegts(path):
-    """Whether the file starts with stored transport packets: the sync byte
-    at the start of three consecutive packets of one of the sizes, or of
-    the packets a file too short for three can hold, as the reader's own
-    detection counts them (`coreav_mpegts::detect`)."""
-    with open(path, 'rb') as handle:
-        head = handle.read(4 + 3 * 204)
-    for size, prefix in TS_LAYOUTS:
-        seen = 0
-        for k in range(3):
-            at = prefix + k * size
-            if at + 188 > len(head):
-                break
-            if head[at] != 0x47:
-                seen = 0
-                break
-            seen += 1
-        if seen:
-            return True
-    return False
+CHECKED_SCHEMAS = (policy_ref.PROBE_SCHEMA, policy_ref.MATROSKA_SCHEMA, policy_ref.MPEGTS_SCHEMA)
 
 
 def check_file(path, policies, coreav, ffprobe, oracle_frames=False):
@@ -243,16 +217,14 @@ def check_file(path, policies, coreav, ffprobe, oracle_frames=False):
         doc = json.loads(probed.stdout)
     elif probed is not None and probed.returncode == 1:
         error = json.loads(probed.stderr)
-    # `coreav check` reads ISO base media and Matroska files only
-    # (`coreav-policy`). A transport stream is a container it does not
-    # read, whatever `coreav probe` makes of it, so the reference is the
-    # one `unreadable` reason with an `unsupported_container` error.
-    if doc is not None and doc.get('schema') not in CHECKED_SCHEMAS or is_mpegts(path):
+    if doc is not None and doc.get('schema') not in CHECKED_SCHEMAS:
         doc, error = None, {'kind': 'unsupported_container'}
+    ts = doc is not None and doc.get('schema') == policy_ref.MPEGTS_SCHEMA
     ff = spans = None
-    walked = None if mkv else policy_ref.fragmented(path)
-    headers = policy_ref.matroska_headers(path) if mkv else policy_ref.movie_headers(path)
-    if ffprobe:
+    walked = None if mkv or ts else policy_ref.fragmented(path)
+    headers = None if ts else policy_ref.matroska_headers(path) if mkv \
+        else policy_ref.movie_headers(path)
+    if ffprobe and not ts:
         done = run([ffprobe, '-v', 'error', '-of', 'json', '-show_format', '-show_streams',
                     str(path)], timeout=60)
         if done is not None and done.returncode == 0:
@@ -266,6 +238,8 @@ def check_file(path, policies, coreav, ffprobe, oracle_frames=False):
                 ff = None
     for name, text, policy in policies:
         record = {'file': path.name, 'policy': name, 'failures': []}
+        if ts and ffprobe:
+            record['oracle_unavailable'] = 'no MPEG-TS policy adapter'
         fail = record['failures'].append
         first = run([coreav, 'check', '--policy', text, str(path)])
         second = run([coreav, 'check', '--policy', text, str(path)])
