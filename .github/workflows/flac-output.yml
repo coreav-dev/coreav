@@ -11,6 +11,7 @@ on:
       - scripts/flac_output_check.py
       - scripts/flac_output_measure.py
       - scripts/tests/test_flac_output_measure.py
+      - scripts/tests/test_flac_output_check.py
       - scripts/oracle_audio.py
       - scripts/oracle-audio-args.txt
       - scripts/oracle_pin.py
@@ -58,6 +59,7 @@ jobs:
         run: cargo build --locked -p coreav-cli
       - name: Compare complete output with the independent decoder
         run: |
+          python3 -I -m unittest discover -s scripts/tests -p test_flac_output_check.py
           python3 -I scripts/flac_output_check.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-correctness.json"
       - name: Check the measurement driver without judged inputs

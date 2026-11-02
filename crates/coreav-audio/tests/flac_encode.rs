@@ -95,6 +95,33 @@ fn complete_roundtrips_include_all_channels_widths_and_block_tails() {
 }
 
 #[test]
+fn tiny_final_blocks_keep_legal_streaminfo_bounds_and_their_actual_size() {
+    for bits in [16, 24] {
+        for count in 1..16 {
+            let samples = vec![0; count * usize::from(bits / 8)];
+            let bytes = encode(format(1, bits, 44100), &samples);
+            let minimum = u16::from_be_bytes(bytes[8..10].try_into().unwrap());
+            let maximum = u16::from_be_bytes(bytes[10..12].try_into().unwrap());
+            assert!((16..=65535).contains(&minimum));
+            assert!(minimum <= maximum);
+            assert_eq!((minimum, maximum), (4096, 4096));
+            assert_eq!(&bytes[42..44], b"\xff\xf8");
+            assert_eq!(bytes[44] >> 4, 7);
+            assert_eq!(bytes[46], 0);
+            assert_eq!(
+                u16::from_be_bytes(bytes[47..49].try_into().unwrap()) + 1,
+                count as u16
+            );
+            let decoded = support::decode_raw(&bytes).unwrap();
+            assert_eq!(decoded.frames, 1);
+            assert_eq!(decoded.samples, count as u64);
+            assert_eq!(decoded.crc_failures, 0);
+            assert_eq!(decoded.md5, support::md5(&samples));
+        }
+    }
+}
+
+#[test]
 fn limits_and_invalid_lifecycle_are_terminal() {
     let format = format(2, 16, 44100);
     let mut bytes = Vec::new();

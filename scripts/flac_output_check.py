@@ -20,6 +20,11 @@ FIELDS = ("codec_name", "sample_fmt", "sample_rate", "channels", "channel_layout
           "bits_per_sample", "bits_per_raw_sample", "time_base", "duration_ts", "duration")
 LAYOUTS = {1: "mono", 2: "stereo", 3: "3.0", 4: "quad", 5: "5.0",
            6: "5.1", 7: "6.1", 8: "7.1"}
+ORACLE_MIN_PREFERRED_BLOCK = 16
+
+
+def tiny_reference_options(samples):
+    return ["-frame_size", "4096"] if 0 < samples < ORACLE_MIN_PREFERRED_BLOCK else []
 
 
 def run(args, *, env=None):
@@ -49,7 +54,8 @@ def pcm(bits, channels, frames, kind):
 
 
 def probe(program, path):
-    report = json.loads(run([program, "-v", "error", "-show_streams", "-show_format", "-of", "json", path]))
+    report = json.loads(run([program, "-v", "error", "-select_streams", "a:0",
+                            "-show_streams", "-show_format", "-of", "json", path]))
     [stream] = report["streams"]
     return {"stream": {key: stream.get(key) for key in FIELDS},
             "tags": {key.lower(): value for key, value in report["format"].get("tags", {}).items()
@@ -66,6 +72,55 @@ def make_source(ffmpeg, root, bits, channels, rate, samples, label, container="m
     return source
 
 
+def verify_native(ffmpeg, ffprobe, source, output, samples, bits, channels, options):
+    count = len(samples) // (channels * bits // 8)
+    decoded = run([ffmpeg, "-v", "error", "-xerror", "-err_detect", "crccheck+explode",
+                   *AUDIO_INPUT, "-i", output, "-c:a", f"pcm_s{bits}le", "-f", f"s{bits}le", "-"])
+    if decoded != samples:
+        raise AssertionError(f"decoded native samples differ from source: {output.name}")
+    encoded = output.read_bytes()
+    if encoded[:8] != b"fLaC\x80\0\0\x22" or encoded[26:42] != hashlib.md5(samples).digest():
+        raise AssertionError(f"STREAMINFO MD5 mismatch: {output.name}")
+    if int.from_bytes(encoded[18:26], "big") & ((1 << 36) - 1) != count:
+        raise AssertionError(f"STREAMINFO sample count mismatch: {output.name}")
+    minimum, maximum = (int.from_bytes(encoded[i:i + 2], "big") for i in (8, 10))
+    if not 16 <= minimum <= maximum <= 65535:
+        raise AssertionError(f"invalid STREAMINFO block bounds: {output.name}")
+    if tiny_reference_options(count):
+        frame = encoded[42:]
+        if len(frame) < 9 or frame[:2] != b"\xff\xf8" or frame[4] != 0:
+            raise AssertionError(f"invalid tiny fixed-block frame header: {output.name}")
+        code = frame[2] >> 4
+        size = int.from_bytes(frame[5:5 + (code - 5)], "big") + 1 if code in (6, 7) else None
+        if size != count or size > maximum:
+            raise AssertionError(f"invalid tiny final block size: {output.name}")
+    fields = probe(ffprobe, output)
+    expected = probe(ffprobe, source)
+    rate = int(expected["stream"]["sample_rate"])
+    expected["stream"].update(time_base=f"1/{rate}", duration_ts=count or None,
+                              duration=f"{count * (1 / rate):.6f}" if count else None)
+    if "-map_metadata" in options:
+        expected["tags"] = {}
+    if fields != expected:
+        raise AssertionError(f"native probe differs from source: {output.name}: {fields} != {expected}")
+    return fields, count
+
+
+def encode_reference(ffmpeg, source, output, count, options, before):
+    command = [ffmpeg, "-v", "error", *before, *AUDIO_INPUT, "-i", source, *options]
+    extra = tiny_reference_options(count)
+    if extra:
+        refused = subprocess.run([str(arg) for arg in [*command, output]],
+                                 capture_output=True, timeout=60)
+        diagnostic = f"invalid block size: {count}".encode()
+        if refused.returncode != 234 or not any(line.endswith(diagnostic) for line in refused.stderr.splitlines()):
+            raise AssertionError(f"tiny default-encoder refusal changed: {count}: "
+                                 f"{refused.returncode}: {refused.stderr!r}")
+        output.unlink(missing_ok=True)
+    run([*command, *extra, output])
+    return extra
+
+
 def check(coreav, oracle, root):
     ffmpeg, ffprobe = oracle / "ffmpeg", oracle / "ffprobe"
     env = {**os.environ, "COREAV_STRICT_SAFE": "1", "COREAV_FALLBACK": str(root / "missing-encoder")}
@@ -76,23 +131,17 @@ def check(coreav, oracle, root):
         stdout = run([coreav, "ffmpeg", *before, "-i", source, *options, ours], env=env)
         if stdout:
             raise AssertionError("native FLAC output printed standard output")
-        run([ffmpeg, "-v", "error", *before, *AUDIO_INPUT, "-i", source, *options, reference])
-        fields = probe(ffprobe, ours)
+        fields, count = verify_native(ffmpeg, ffprobe, source, ours, samples, bits, channels, options)
+        extra = encode_reference(ffmpeg, source, reference, count, options, before)
         expected_fields = probe(ffprobe, reference)
         if fields != expected_fields:
             raise AssertionError(f"probe mismatch {label}: {fields} != {expected_fields}")
-        for path in (ours, reference):
-            decoded = run([ffmpeg, "-v", "error", *AUDIO_INPUT, "-i", path,
-                           "-c:a", f"pcm_s{bits}le", "-f", f"s{bits}le", "-"])
-            if decoded != samples:
-                raise AssertionError(f"decoded sample mismatch: {label}/{path.name}")
-        encoded = ours.read_bytes()
-        if encoded[:8] != b"fLaC\x80\0\0\x22" or encoded[26:42] != hashlib.md5(samples).digest():
-            raise AssertionError(f"STREAMINFO MD5 mismatch: {label}")
-        count = int.from_bytes(encoded[18:26], "big") & ((1 << 36) - 1)
-        if count != len(samples) // (channels * bits // 8):
-            raise AssertionError(f"STREAMINFO sample count mismatch: {label}")
-        outcomes.append({"case": label, "samples": count, "fields": fields, "result": "equal"})
+        decoded = run([ffmpeg, "-v", "error", "-xerror", "-err_detect", "crccheck+explode",
+                       *AUDIO_INPUT, "-i", reference, "-c:a", f"pcm_s{bits}le", "-f", f"s{bits}le", "-"])
+        if decoded != samples:
+            raise AssertionError(f"decoded reference sample mismatch: {label}")
+        outcomes.append({"case": label, "samples": count, "fields": fields, "result": "equal",
+                         "reference_options": extra, "default_reference_refused": bool(extra)})
 
     kinds = ("zero", "constant", "ramp", "extremes", "impulse", "noise")
     for bits in (16, 24):
@@ -103,6 +152,13 @@ def check(coreav, oracle, root):
             label = f"{bits}-{channels}-{rate}"
             source = make_source(ffmpeg, root, bits, channels, rate, samples, label)
             compare(source, samples, bits, channels, label)
+
+    for bits in (16, 24):
+        for frames in range(2, 18):
+            samples = pcm(bits, 1, frames, "ramp")
+            label = f"tiny-boundary-{bits}-{frames}"
+            source = make_source(ffmpeg, root, bits, 1, 48000, samples, label)
+            compare(source, samples, bits, 1, label)
 
     for bits in (16, 24):
         tone = pcm(bits, 2, 8243, "tones")
