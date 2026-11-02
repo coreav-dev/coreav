@@ -1119,6 +1119,7 @@ jobs:
           # The memory budget bounds the decoder's allocation on every thread
           # (docs/design/limits.md, bar 5); --nocapture puts the numbers in the log.
           cargo test --locked --release -p coreav-backend-h264 --test memory -- --ignored --nocapture
+          cargo test --locked --release -p coreav-backend-h264 --test one_idr -- --include-ignored --nocapture
           cargo test --locked --release -p coreav-worker --features ffmpeg --test ffmpeg -- --ignored
           cargo test --locked --release -p coreav-backend-dav1d --features dav1d --test decode \
             -- --include-ignored

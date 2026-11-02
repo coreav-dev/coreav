@@ -16,6 +16,8 @@ The specifiers are explicit, not conditional exports. Common sources and types d
 
 The [thumbnail plan and registered memory bars](wasm-thumbnail-memory-bars.md) specify a separate H.264 package for servers, followed by a decoder-free browser WebCodecs path in the default package. This is a plan, not current package support; it changes no operation, artifact, publishing or existing gate here.
 
+The decoder prerequisite is available independently as `Mode::OneIdr` and `NativeH264::one_idr()`. It admits one complete supplied access unit, checks every slice header before picture start, rejects incomplete entropy-decoded coverage before output and enforces its SPS-derived 32 MiB codec allocation ceiling. This adds no WASM operation or package support. See [the decoder modes](h264.md#pictures-that-need-no-other-picture) for ownership and limits.
+
 `init` accepts a compiled `WebAssembly.Module` or its bytes. It initializes once; later calls do not replace the instance. A trap marks the instance unusable for subsequent operations. Recovery needs a new isolate or module instance, not another call to `init`.
 
 The module requires JSPI, exception references and SIMD. Node.js 24 uses `--experimental-wasm-jspi --experimental-wasm-exnref`. The synchronous in-memory document export does not imply that the whole module can initialize without JSPI. Browser loading and browser support are deferred. There is no automatic fallback to WASI.
