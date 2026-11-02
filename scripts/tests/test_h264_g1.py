@@ -368,6 +368,26 @@ g1.publish_json(pathlib.Path(sys.argv[2]),json.loads(sys.argv[4]))
             self.assertEqual(record['stderr'], 'encoding limit exceeded\n')
             self.assertEqual(record['exit_code'], 1)
 
+    def test_both_process_wrappers_retain_timeout_output_and_reraise(self):
+        for wrapper in ('conformance', 'measurement'):
+            for output, stderr in ((b'partial stdout', b'partial stderr'), (None, None)):
+                with self.subTest(wrapper=wrapper, output=output), tempfile.TemporaryDirectory() as temp:
+                    directory = pathlib.Path(temp)
+                    expired = subprocess.TimeoutExpired(['tool'], 180, output=output, stderr=stderr)
+                    with patch.object(conformance.subprocess, 'run', side_effect=expired):
+                        with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                            if wrapper == 'conformance':
+                                conformance.run(['tool'], cwd=directory)
+                            else:
+                                g1.child(['tool'], directory, record='xpsnr.json')
+                    self.assertIs(raised.exception, expired)
+                    path = directory/('process-000.json' if wrapper == 'conformance' else 'xpsnr.json')
+                    record = json.loads(path.read_text())
+                    self.assertTrue(record['timed_out'])
+                    self.assertIsNone(record['exit_code'])
+                    self.assertEqual(record['stdout'], (output or b'').decode())
+                    self.assertEqual(record['stderr'], (stderr or b'').decode())
+
     def test_full_range_native_pixel_format_is_not_converted(self):
         info = dict(width=18, height=22, pix_fmt='yuvj420p', color_range='pc')
         self.assertEqual(conformance.native_format(info, 18, 22, True), '+yuvj420p')

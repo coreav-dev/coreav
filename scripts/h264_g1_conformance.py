@@ -21,19 +21,32 @@ def digest(path):
     return h.hexdigest()
 
 
-def run(command, cwd=None):
-    result = subprocess.run(list(map(str, command)), cwd=cwd, check=False,
-                            capture_output=True, timeout=180)
-    if cwd is not None:
-        path = pathlib.Path(cwd)
-        record = path / f'process-{len(list(path.glob("process-*.json"))):03}.json'
-        record.write_text(json.dumps({'command': list(map(str, command)), 'exit_code': result.returncode,
-                                      'stdout': result.stdout.decode(errors='replace'),
-                                      'stderr': result.stderr.decode(errors='replace')}, indent=2) + '\n')
+def capture(command, cwd, timeout, record=None):
+    command = list(map(str, command))
+    path = pathlib.Path(cwd)
+    result = None
+    timed_out = False
+    try:
+        result = subprocess.run(command, cwd=cwd, check=False, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        result = error
+        timed_out = True
+        raise
+    finally:
+        if result is not None:
+            name = record or f'process-{len(list(path.glob("process-*.json"))):03}.json'
+            (path / name).write_text(json.dumps({'argv': command, 'exit_code': getattr(result, 'returncode', None),
+                                                'timed_out': timed_out,
+                                                'stdout': (result.stdout or b'').decode(errors='replace'),
+                                                'stderr': (result.stderr or b'').decode(errors='replace')}, indent=2) + '\n')
     if result.returncode:
         sys.stderr.write(result.stderr.decode(errors='replace'))
     result.check_returncode()
-    return result.stdout
+    return result
+
+
+def run(command, cwd):
+    return capture(command, cwd, 180).stdout
 
 
 class Bits:
@@ -247,6 +260,11 @@ def main():
     p.add_argument('--output', type=pathlib.Path, required=True)
     p.add_argument('--fixtures', type=pathlib.Path, help='existing generated non-judged fixture directory')
     args = p.parse_args()
+    args.driver = args.driver.resolve()
+    args.ffmpeg = args.ffmpeg.resolve()
+    args.jm = args.jm.resolve()
+    if args.fixtures:
+        args.fixtures = args.fixtures.resolve()
     if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
         raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
     problems = list(oracle_pin.verify_bin(args.ffmpeg.parent))
@@ -268,8 +286,8 @@ def main():
                 raise ValueError('required existing basic.mp4 fixture is missing')
             raw = out / 'existing-fixture.yuv'
             run([args.ffmpeg, '-nostdin', '-v', 'error', '-xerror', '-hwaccel', 'none', '-threads', '1',
-                 '-i', fixture, '-frames:v', '3', '-an', '-pix_fmt', '+yuv420p', '-f', 'rawvideo', raw])
-            probe = json.loads(run([args.ffmpeg.with_name('ffprobe'), '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', fixture]))['streams'][0]
+                 '-i', fixture, '-frames:v', '3', '-an', '-pix_fmt', '+yuv420p', '-f', 'rawvideo', raw], cwd=out)
+            probe = json.loads(run([args.ffmpeg.with_name('ffprobe'), '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', fixture], cwd=out))['streams'][0]
             for qp in (16, 22, 28, 34, 40):
                 report['cells'].append(compare(args.driver.resolve(), args.ffmpeg.resolve(), args.jm.resolve(), raw, out / f'existing-q{qp}', probe['width'], probe['height'], qp, 3))
         raw = out / 'declared-metadata.yuv'

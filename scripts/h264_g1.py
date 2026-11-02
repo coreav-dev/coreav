@@ -13,7 +13,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from h264_g1_conformance import compare, digest, require, same_planes, inspect_anchor
+from h264_g1_conformance import capture, compare, digest, require, same_planes, inspect_anchor
 import oracle_pin
 
 QPS = (16, 22, 28, 34, 40)
@@ -230,10 +230,8 @@ def command(argv, **values):
 
 
 def child(argv, directory, record=None):
-    result = subprocess.run(list(map(str, argv)), cwd=directory, capture_output=True, timeout=300)
     name = record or f'command-{len(list(directory.glob("command-*.json"))):03}.json'
-    (directory / name).write_text(json.dumps({'argv': list(map(str, argv)), 'exit_code': result.returncode, 'stdout': result.stdout.decode(errors='replace'), 'stderr': result.stderr.decode(errors='replace')}, indent=2) + '\n')
-    result.check_returncode()
+    result = capture(argv, directory, 300, record=name)
     return (result.stdout + result.stderr).decode()
 
 

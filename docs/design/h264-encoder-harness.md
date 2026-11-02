@@ -30,4 +30,6 @@ The JM server supplies a chain for a different intermediate than its leaf requir
 
 Each encoder/QP cell retains its elementary stream, reconstruction, conformance output, command records, and frame scores. Both arms receive the same plane bytes and nominal timing. The CoreAV arm must match its own reconstruction in all three decoders. The x264 arm is decoded by CoreAV, FFmpeg, and JM; its syntax is checked for the registered subset and effective slice QP. Only identifying SEI is removed, preserving all other bytes and original Annex B delimiters.
 
+Conformance and measurement commands share process recording. A timeout retains the child's partial stdout and stderr with `timed_out = true` and no successful exit code, then propagates the original timeout. It cannot publish a successful cell or enter a rate-distortion curve.
+
 The report requires exactly 240 cells, all 60 frames, and both metrics at all five QPs. It retains training results separately and judges the sixteen held-out clips only. PCHIP integrates natural log rate over the required common interval without extrapolation or curve repair. Both held-out medians must be at most +30%; either above +60% requests reconsideration. There is no speed verdict. This implementation supplies no judged run workflow or schedule.
