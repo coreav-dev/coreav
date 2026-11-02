@@ -93,8 +93,19 @@ def check(prefix, target, output, runner=None):
                    '-Cpanic=abort', f'-Clinker={tools[native.cc]}',
                    f'-Lnative={prefix / "lib"}', '-lstatic=SvtAv1Enc',
                    f'--remap-path-prefix={work}=/svt-rust-link']
+        unwind_sha256 = None
         if native.system == 'Linux':
-            command += ['-Clink-self-contained=no', '-Crelocation-model=static']
+            target_libdir = Path(run([str(rustc), '--print', 'target-libdir', '--target', target],
+                                    environment, timeout=30).strip())
+            unwind = target_libdir / 'self-contained/libunwind.a'
+            if not target_libdir.is_absolute() or not unwind.is_file() or unwind.is_symlink():
+                raise LinkError('install the pinned Rust target with its bundled libunwind.a')
+            runtime = work / 'runtime'
+            runtime.mkdir()
+            shutil.copyfile(unwind, runtime / 'libunwind.a')
+            unwind_sha256 = recipe['sha256'](runtime / 'libunwind.a')
+            command += ['-Clink-self-contained=no', '-Crelocation-model=static',
+                        f'-Lnative={runtime}']
         for name in API_ROOTS:
             symbol = '_' + name if native.system == 'Darwin' else name
             command.append('-Clink-arg=-Wl,-u,' + symbol)
@@ -139,6 +150,8 @@ def check(prefix, target, output, runner=None):
             'source_sha256': recipe['sha256'](source),
             'probe_sha256': recipe['sha256'](probe),
         }
+        if unwind_sha256 is not None:
+            record['rust_unwind_sha256'] = unwind_sha256
         (stage / 'manifest.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n',
                                              encoding='utf-8')
         recipe['publish'](stage, output)

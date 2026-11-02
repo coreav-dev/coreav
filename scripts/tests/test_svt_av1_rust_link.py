@@ -51,6 +51,9 @@ class RustLink(unittest.TestCase):
             self.tools[name] = str(path)
         self.calls = []
         self.failure = ''
+        self.target_libdir = self.root / 'rust-target'
+        (self.target_libdir / 'self-contained').mkdir(parents=True)
+        (self.target_libdir / 'self-contained/libunwind.a').write_bytes(b'pinned target unwinder')
         self.configure(next(iter(RECIPE['TARGETS'])))
 
     def configure(self, target):
@@ -69,6 +72,8 @@ class RustLink(unittest.TestCase):
             if self.failure == 'rust':
                 commit = '0' * 40
             return f'rustc fixture\nrelease: {version}\ncommit-hash: {commit}\n'
+        if command == [self.tools['rustc'], '--print', 'target-libdir', '--target', self.target]:
+            return str(self.target_libdir) + '\n'
         if command == [self.tools[self.native.cc], '--version']:
             return 'wrong compiler' if self.failure == 'compiler' else self.compiler + '\n'
         if command[0] == self.tools['rustc']:
@@ -121,6 +126,15 @@ class RustLink(unittest.TestCase):
                 self.assertIn('-lstatic=SvtAv1Enc', self.compile_command)
                 self.assertEqual('-Clink-self-contained=no' in self.compile_command,
                                  self.native.system == 'Linux')
+                if self.native.system == 'Linux':
+                    self.assertEqual(result['rust_unwind_sha256'],
+                                     hashlib.sha256(b'pinned target unwinder').hexdigest())
+                    runtime_paths = [value.removeprefix('-Lnative=') for value in self.compile_command
+                                     if value.startswith('-Lnative=')]
+                    self.assertEqual(len(runtime_paths), 2)
+                    self.assertNotIn(str(self.target_libdir / 'self-contained'), runtime_paths)
+                else:
+                    self.assertNotIn('rust_unwind_sha256', result)
                 for name in link.API_ROOTS:
                     symbol = '_' + name if self.native.system == 'Darwin' else name
                     self.assertIn('-Clink-arg=-Wl,-u,' + symbol, self.compile_command)
@@ -176,6 +190,13 @@ class RustLink(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check()
         self.assertFalse(self.calls)
+
+    def test_missing_target_unwinder_never_falls_back_to_the_host(self):
+        (self.target_libdir / 'self-contained/libunwind.a').unlink()
+        with self.assertRaisesRegex(link.LinkError, 'bundled libunwind'):
+            self.check()
+        self.assertFalse(self.output.exists())
+        self.assertFalse(any('-o' in command for command, _, _ in self.calls))
 
     def test_command_refuses_unsupported_target_without_native_calls(self):
         result = subprocess.run(
