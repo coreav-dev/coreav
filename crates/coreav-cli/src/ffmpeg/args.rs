@@ -860,7 +860,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
             "coreav ffmpeg writes mp4, ipod (M4A), mp3 and segment",
         )),
         None => extension_muxer(output)
-            .ok_or_else(|| Refusal::not_native("an output container other than MP4 or M4A")),
+            .ok_or_else(|| Refusal::not_native("an unsupported output container")),
     }
 }
 

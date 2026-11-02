@@ -435,6 +435,88 @@ pub(crate) fn metadata(info: &Info, tags: &[(String, String)]) -> Result<Vec<u8>
     Ok(out)
 }
 
+pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadError> {
+    let original = Header::parse(&info.header.to_be_bytes()).map_err(|e| refused(e.to_string()))?;
+    let side = match (original.version, original.channels()) {
+        (Version::Mpeg1, 1) => 17,
+        (Version::Mpeg1, _) => 32,
+        (_, 1) => 9,
+        _ => 17,
+    };
+    let needed = (4 + side + 120 + 36).max(190);
+    let base = 0xffe0_0000 | (info.header & 0x001e_0cc0) | (1 << 16);
+    let mut selected = None;
+    for index in 1..15u32 {
+        let word = base | (index << 12);
+        let header = Header::parse(&word.to_be_bytes()).map_err(|e| refused(e.to_string()))?;
+        if header.frame_bytes().is_some_and(|size| size >= needed)
+            && header.bit_rate >= original.bit_rate
+        {
+            selected = Some((word, header.frame_bytes().unwrap_or(0)));
+            break;
+        }
+    }
+    let (word, size) = selected.ok_or_else(|| refused("no information frame fits"))?;
+    let frame_count =
+        u32::try_from(sizes.len()).map_err(|_| refused("MP3 frame count overflow"))?;
+    let total = sizes.iter().try_fold(
+        u32::try_from(size).map_err(|_| refused("information frame size overflow"))?,
+        |n, size| {
+            n.checked_add(*size)
+                .ok_or_else(|| refused("MP3 byte count overflow"))
+        },
+    )?;
+    let mut out = word.to_be_bytes().to_vec();
+    out.resize(4 + side, 0);
+    out.extend_from_slice(if info.variable { b"Xing" } else { b"Info" });
+    out.extend_from_slice(&15u32.to_be_bytes());
+    out.extend_from_slice(&frame_count.to_be_bytes());
+    out.extend_from_slice(&total.to_be_bytes());
+    let mut offset = u64::try_from(size).unwrap_or(u64::MAX);
+    let mut frame = 0usize;
+    for percent in 0..100usize {
+        let target = sizes.len().saturating_mul(percent).div_ceil(100);
+        while frame < target {
+            offset += u64::from(
+                *sizes
+                    .get(frame)
+                    .ok_or_else(|| refused("seek table frame overflow"))?,
+            );
+            frame += 1;
+        }
+        out.push(if percent == 0 {
+            0
+        } else {
+            u8::try_from((offset * 256 / u64::from(total)).min(255)).unwrap_or(255)
+        });
+    }
+    out.extend_from_slice(&0u32.to_be_bytes());
+    let encoder = info.encoder.as_bytes();
+    out.extend_from_slice(encoder.get(..encoder.len().min(9)).unwrap_or_default());
+    out.resize(4 + side + 120 + 9, 0);
+    out.extend_from_slice(&[0; 12]);
+    out.extend_from_slice(&[
+        ((info.delay >> 4) & 255) as u8,
+        (((info.delay & 15) << 4) | (info.padding >> 8)) as u8,
+        (info.padding & 255) as u8,
+    ]);
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&total.to_be_bytes());
+    out.extend_from_slice(&info.music_crc.to_be_bytes());
+    let checksum_at = out.len();
+    out.extend_from_slice(&[0, 0]);
+    out.resize(size, 0);
+    let checksum = crc(
+        0,
+        out.get(..190)
+            .ok_or_else(|| refused("short information-frame CRC span"))?,
+    );
+    out.get_mut(checksum_at..checksum_at + 2)
+        .ok_or_else(|| refused("information-frame CRC offset"))?
+        .copy_from_slice(&checksum.to_be_bytes());
+    Ok(out)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -688,86 +770,4 @@ pub(crate) mod tests {
         assert!(metadata(&output.info, &[("title".into(), "bad\0text".into())]).is_err());
         assert!(info_frame(&output.info, &[u32::MAX]).is_err());
     }
-}
-
-pub(crate) fn info_frame(info: &Info, sizes: &[u32]) -> Result<Vec<u8>, ReadError> {
-    let original = Header::parse(&info.header.to_be_bytes()).map_err(|e| refused(e.to_string()))?;
-    let side = match (original.version, original.channels()) {
-        (Version::Mpeg1, 1) => 17,
-        (Version::Mpeg1, _) => 32,
-        (_, 1) => 9,
-        _ => 17,
-    };
-    let needed = (4 + side + 120 + 36).max(190);
-    let base = 0xffe0_0000 | (info.header & 0x001e_0cc0) | (1 << 16);
-    let mut selected = None;
-    for index in 1..15u32 {
-        let word = base | (index << 12);
-        let header = Header::parse(&word.to_be_bytes()).map_err(|e| refused(e.to_string()))?;
-        if header.frame_bytes().is_some_and(|size| size >= needed)
-            && header.bit_rate >= original.bit_rate
-        {
-            selected = Some((word, header.frame_bytes().unwrap_or(0)));
-            break;
-        }
-    }
-    let (word, size) = selected.ok_or_else(|| refused("no information frame fits"))?;
-    let frame_count =
-        u32::try_from(sizes.len()).map_err(|_| refused("MP3 frame count overflow"))?;
-    let total = sizes.iter().try_fold(
-        u32::try_from(size).map_err(|_| refused("information frame size overflow"))?,
-        |n, size| {
-            n.checked_add(*size)
-                .ok_or_else(|| refused("MP3 byte count overflow"))
-        },
-    )?;
-    let mut out = word.to_be_bytes().to_vec();
-    out.resize(4 + side, 0);
-    out.extend_from_slice(if info.variable { b"Xing" } else { b"Info" });
-    out.extend_from_slice(&15u32.to_be_bytes());
-    out.extend_from_slice(&frame_count.to_be_bytes());
-    out.extend_from_slice(&total.to_be_bytes());
-    let mut offset = u64::try_from(size).unwrap_or(u64::MAX);
-    let mut frame = 0usize;
-    for percent in 0..100usize {
-        let target = sizes.len().saturating_mul(percent).div_ceil(100);
-        while frame < target {
-            offset += u64::from(
-                *sizes
-                    .get(frame)
-                    .ok_or_else(|| refused("seek table frame overflow"))?,
-            );
-            frame += 1;
-        }
-        out.push(if percent == 0 {
-            0
-        } else {
-            u8::try_from((offset * 256 / u64::from(total)).min(255)).unwrap_or(255)
-        });
-    }
-    out.extend_from_slice(&0u32.to_be_bytes());
-    let encoder = info.encoder.as_bytes();
-    out.extend_from_slice(encoder.get(..encoder.len().min(9)).unwrap_or_default());
-    out.resize(4 + side + 120 + 9, 0);
-    out.extend_from_slice(&[0; 12]);
-    out.extend_from_slice(&[
-        ((info.delay >> 4) & 255) as u8,
-        (((info.delay & 15) << 4) | (info.padding >> 8)) as u8,
-        (info.padding & 255) as u8,
-    ]);
-    out.extend_from_slice(&[0; 4]);
-    out.extend_from_slice(&total.to_be_bytes());
-    out.extend_from_slice(&info.music_crc.to_be_bytes());
-    let checksum_at = out.len();
-    out.extend_from_slice(&[0, 0]);
-    out.resize(size, 0);
-    let checksum = crc(
-        0,
-        out.get(..190)
-            .ok_or_else(|| refused("short information-frame CRC span"))?,
-    );
-    out.get_mut(checksum_at..checksum_at + 2)
-        .ok_or_else(|| refused("information-frame CRC offset"))?
-        .copy_from_slice(&checksum.to_be_bytes());
-    Ok(out)
 }
