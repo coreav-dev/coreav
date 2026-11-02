@@ -14,6 +14,51 @@ use crate::aac::{self, BatchLimits, Config, PacketBatch, PacketDescription, Trim
 #[cfg(target_os = "macos")]
 mod sys;
 
+/// The closed set of native operations exposed in failure diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Operation {
+    /// Query the instantiated component's description.
+    Describe,
+    /// Query the component version.
+    Version,
+    /// Create a component instance.
+    Create,
+    /// Initialize configured stream formats.
+    Initialize,
+    /// Read a numeric property identifier.
+    GetProperty(u32),
+    /// Set a numeric property identifier.
+    SetProperty(u32),
+    /// Query a numeric property's size.
+    PropertyInfo(u32),
+    /// Append input bytes or the EOF marker.
+    Append,
+    /// Produce encoded output packets.
+    Produce,
+    /// Dispose of the component instance.
+    Dispose,
+}
+
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GetProperty(id) => write!(f, "get property {id:08x}"),
+            Self::SetProperty(id) => write!(f, "set property {id:08x}"),
+            Self::PropertyInfo(id) => write!(f, "query property {id:08x}"),
+            _ => f.write_str(match self {
+                Self::Describe => "describe component",
+                Self::Version => "query component version",
+                Self::Create => "create component",
+                Self::Initialize => "initialize codec",
+                Self::Append => "append input",
+                Self::Produce => "produce output",
+                Self::Dispose => "dispose component",
+                _ => "property operation",
+            }),
+        }
+    }
+}
+
 /// An encoder operation that could not complete safely.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -32,7 +77,12 @@ pub enum Error {
     /// The deadline expired before or after a synchronous call.
     Deadline,
     /// The framework returned an OSStatus error.
-    Framework(i32),
+    Framework {
+        /// The native operation, without untrusted exception text.
+        operation: Operation,
+        /// Apple's signed OSStatus value.
+        status: i32,
+    },
     /// Framework output, settings, progress, or counts are invalid.
     Output,
     /// AAC output metadata failed validation.
@@ -42,7 +92,10 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Framework(status) => write!(f, "AudioToolbox failed with OSStatus {status}"),
+            Self::Framework { operation, status } => write!(
+                f,
+                "AudioToolbox failed to {operation} with OSStatus {status}"
+            ),
             Self::Metadata(error) => error.fmt(f),
             _ => f.write_str(match self {
                 Self::Unavailable => "the Apple AAC encoder is unavailable",

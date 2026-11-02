@@ -147,7 +147,13 @@ fn invalid_input_fails_before_the_framework_and_poison_is_sticky() -> Result<(),
 
 #[test]
 fn errors_cancelled_and_expired_sessions_dispose_once() -> Result<(), Error> {
-    for error in [Error::Framework(-1), Error::Output] {
+    for error in [
+        Error::Framework {
+            operation: Operation::Append,
+            status: -1,
+        },
+        Error::Output,
+    ] {
         let backend = Fake {
             error: Some(error),
             ..Fake::default()
@@ -307,8 +313,17 @@ fn disposal_failure_cannot_be_a_successful_completion() -> Result<(), Error> {
     encoder.append(&[0.0; 2000], 0)?;
     encoder.start_drain()?;
     encoder.pull()?;
-    encoder.backend.error = Some(Error::Framework(-123));
-    assert_eq!(encoder.complete().err(), Some(Error::Framework(-123)));
+    encoder.backend.error = Some(Error::Framework {
+        operation: Operation::Dispose,
+        status: -123,
+    });
+    assert_eq!(
+        encoder.complete().err(),
+        Some(Error::Framework {
+            operation: Operation::Dispose,
+            status: -123
+        })
+    );
     Ok(())
 }
 

@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::ptr::{self, NonNull};
 
-use super::{Control, Error, Identity, RawOutput, Settings};
+use super::{Control, Error, Identity, Operation, RawOutput, Settings};
 use crate::aac::PacketDescription;
 
 const AAC: u32 = u32::from_be_bytes(*b"aac ");
@@ -116,22 +116,22 @@ impl Drop for Instance {
     }
 }
 
-fn checked(status: i32) -> Result<(), Error> {
+fn checked(status: i32, operation: Operation) -> Result<(), Error> {
     if status == 0 {
         Ok(())
     } else {
-        Err(Error::Framework(status))
+        Err(Error::Framework { operation, status })
     }
 }
 
 fn successful_handle(status: i32, handle: *mut c_void) -> Result<NonNull<c_void>, Error> {
-    checked(status)?;
+    checked(status, Operation::Create)?;
     NonNull::new(handle).ok_or(Error::Output)
 }
 
-fn invoke(control: &Control, f: impl FnOnce() -> i32) -> Result<(), Error> {
+fn invoke(control: &Control, operation: Operation, f: impl FnOnce() -> i32) -> Result<(), Error> {
     control.check()?;
-    let result = checked(f());
+    let result = checked(f(), operation);
     control.check()?;
     result
 }
@@ -151,7 +151,7 @@ impl Instance {
             return Err(Error::Unavailable);
         }
         let mut actual = Description::default();
-        invoke(control, || unsafe {
+        invoke(control, Operation::Describe, || unsafe {
             AudioComponentGetDescription(component, &mut actual)
         })?;
         if actual.kind != ENCODER
@@ -162,7 +162,7 @@ impl Instance {
             return Err(Error::Unavailable);
         }
         let mut version = 0;
-        invoke(control, || unsafe {
+        invoke(control, Operation::Version, || unsafe {
             AudioComponentGetVersion(component, &mut version)
         })?;
         let mut handle = ptr::null_mut();
@@ -187,10 +187,10 @@ impl Instance {
         if instantiated.is_null() {
             return Err(Error::Output);
         }
-        invoke(control, || unsafe {
+        invoke(control, Operation::Describe, || unsafe {
             AudioComponentGetDescription(instantiated, &mut actual)
         })?;
-        invoke(control, || unsafe {
+        invoke(control, Operation::Version, || unsafe {
             AudioComponentGetVersion(instantiated, &mut version)
         })?;
         if actual.kind != ENCODER
@@ -206,11 +206,6 @@ impl Instance {
             manufacturer: actual.manufacturer,
             version,
         };
-        owner.set(*b"acbf", 0)?;
-        owner.set(*b"brat", settings.bitrate)?;
-        owner.set(*b"srcq", settings.quality)?;
-        owner.set(*b"prmm", 1)?;
-        owner.set(*b"dmod", 0)?;
         let input = Format {
             rate: f64::from(settings.sample_rate),
             codec: PCM,
@@ -229,8 +224,21 @@ impl Instance {
             channels: owner.channels,
             ..Format::default()
         };
-        invoke(control, || unsafe {
-            AudioCodecInitialize(owner.handle.as_ptr(), &input, &output, ptr::null(), 0)
+        owner.set_format(*b"ifmt", &input)?;
+        owner.set_format(*b"ofmt", &output)?;
+        owner.set(*b"acbf", 0)?;
+        owner.set(*b"brat", settings.bitrate)?;
+        owner.set(*b"srcq", settings.quality)?;
+        owner.set(*b"prmm", 1)?;
+        owner.set(*b"dmod", 0)?;
+        invoke(control, Operation::Initialize, || unsafe {
+            AudioCodecInitialize(
+                owner.handle.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                ptr::null(),
+                0,
+            )
         })?;
         if owner.format(*b"ifmt")? != input {
             return Err(Error::Output);
@@ -256,27 +264,50 @@ impl Instance {
     }
 
     fn set(&mut self, property: [u8; 4], value: u32) -> Result<(), Error> {
-        invoke(&self.control, || unsafe {
-            AudioCodecSetProperty(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(property),
-                4,
-                (&value as *const u32).cast(),
-            )
-        })
+        invoke(
+            &self.control,
+            Operation::SetProperty(u32::from_be_bytes(property)),
+            || unsafe {
+                AudioCodecSetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(property),
+                    4,
+                    (&value as *const u32).cast(),
+                )
+            },
+        )
+    }
+
+    fn set_format(&mut self, property: [u8; 4], value: &Format) -> Result<(), Error> {
+        invoke(
+            &self.control,
+            Operation::SetProperty(u32::from_be_bytes(property)),
+            || unsafe {
+                AudioCodecSetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(property),
+                    40,
+                    (value as *const Format).cast(),
+                )
+            },
+        )
     }
 
     fn format(&mut self, property: [u8; 4]) -> Result<Format, Error> {
         let mut value = Format::default();
         let mut size = 40;
-        invoke(&self.control, || unsafe {
-            AudioCodecGetProperty(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(property),
-                &mut size,
-                (&mut value as *mut Format).cast(),
-            )
-        })?;
+        invoke(
+            &self.control,
+            Operation::GetProperty(u32::from_be_bytes(property)),
+            || unsafe {
+                AudioCodecGetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(property),
+                    &mut size,
+                    (&mut value as *mut Format).cast(),
+                )
+            },
+        )?;
         if size != 40 {
             return Err(Error::Output);
         }
@@ -286,14 +317,18 @@ impl Instance {
     pub(super) fn u32(&mut self, property: [u8; 4]) -> Result<u32, Error> {
         let mut value = 0;
         let mut size = 4;
-        invoke(&self.control, || unsafe {
-            AudioCodecGetProperty(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(property),
-                &mut size,
-                (&mut value as *mut u32).cast(),
-            )
-        })?;
+        invoke(
+            &self.control,
+            Operation::GetProperty(u32::from_be_bytes(property)),
+            || unsafe {
+                AudioCodecGetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(property),
+                    &mut size,
+                    (&mut value as *mut u32).cast(),
+                )
+            },
+        )?;
         if size != 4 {
             return Err(Error::Output);
         }
@@ -310,7 +345,7 @@ impl Instance {
         }
         let status = unsafe { AudioComponentInstanceDispose(self.handle.as_ptr()) };
         self.disposed = true;
-        checked(status)
+        checked(status, Operation::Dispose)
     }
 
     pub(super) fn append(&mut self, samples: &[f32]) -> Result<usize, Error> {
@@ -319,7 +354,7 @@ impl Instance {
         let offered_frames =
             u32::try_from(samples.len() / self.channels as usize).map_err(|_| Error::Limit)?;
         let mut frames = offered_frames;
-        invoke(&self.control, || unsafe {
+        invoke(&self.control, Operation::Append, || unsafe {
             AudioCodecAppendInputData(
                 self.handle.as_ptr(),
                 samples.as_ptr().cast(),
@@ -338,7 +373,7 @@ impl Instance {
         let mut bytes = 0;
         let mut packets = 0;
         let marker = 0_f32;
-        invoke(&self.control, || unsafe {
+        invoke(&self.control, Operation::Append, || unsafe {
             AudioCodecAppendInputData(
                 self.handle.as_ptr(),
                 (&marker as *const f32).cast(),
@@ -362,7 +397,7 @@ impl Instance {
         let mut count = 1;
         let mut description = Packet::default();
         let mut status = 0;
-        invoke(&self.control, || unsafe {
+        invoke(&self.control, Operation::Produce, || unsafe {
             AudioCodecProduceOutputPackets(
                 self.handle.as_ptr(),
                 data.as_mut_ptr().cast(),
@@ -390,14 +425,18 @@ impl Instance {
 
     pub(super) fn cookie(&mut self, limit: usize) -> Result<Vec<u8>, Error> {
         let mut size = 0;
-        invoke(&self.control, || unsafe {
-            AudioCodecGetPropertyInfo(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(*b"kuki"),
-                &mut size,
-                ptr::null_mut(),
-            )
-        })?;
+        invoke(
+            &self.control,
+            Operation::PropertyInfo(u32::from_be_bytes(*b"kuki")),
+            || unsafe {
+                AudioCodecGetPropertyInfo(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(*b"kuki"),
+                    &mut size,
+                    ptr::null_mut(),
+                )
+            },
+        )?;
         let capacity = usize::try_from(size).map_err(|_| Error::Output)?;
         if capacity == 0 || capacity > limit {
             return Err(Error::Limit);
@@ -406,14 +445,18 @@ impl Instance {
         data.try_reserve_exact(capacity)
             .map_err(|_| Error::Allocation)?;
         data.resize(capacity, 0_u8);
-        invoke(&self.control, || unsafe {
-            AudioCodecGetProperty(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(*b"kuki"),
-                &mut size,
-                data.as_mut_ptr().cast(),
-            )
-        })?;
+        invoke(
+            &self.control,
+            Operation::GetProperty(u32::from_be_bytes(*b"kuki")),
+            || unsafe {
+                AudioCodecGetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(*b"kuki"),
+                    &mut size,
+                    data.as_mut_ptr().cast(),
+                )
+            },
+        )?;
         if size as usize > capacity {
             return Err(Error::Output);
         }
@@ -424,14 +467,18 @@ impl Instance {
     pub(super) fn trim(&mut self) -> Result<(u32, u32), Error> {
         let mut prime = Prime::default();
         let mut size = 8;
-        invoke(&self.control, || unsafe {
-            AudioCodecGetProperty(
-                self.handle.as_ptr(),
-                u32::from_be_bytes(*b"prim"),
-                &mut size,
-                (&mut prime as *mut Prime).cast(),
-            )
-        })?;
+        invoke(
+            &self.control,
+            Operation::GetProperty(u32::from_be_bytes(*b"prim")),
+            || unsafe {
+                AudioCodecGetProperty(
+                    self.handle.as_ptr(),
+                    u32::from_be_bytes(*b"prim"),
+                    &mut size,
+                    (&mut prime as *mut Prime).cast(),
+                )
+            },
+        )?;
         if size != 8 {
             return Err(Error::Output);
         }
@@ -450,10 +497,19 @@ mod tests {
     #[test]
     fn a_failed_factory_never_confers_ownership_of_its_output_pointer() {
         let nonnull = NonNull::<u8>::dangling().as_ptr().cast();
-        assert_eq!(successful_handle(-1, nonnull), Err(Error::Framework(-1)));
+        assert_eq!(
+            successful_handle(-1, nonnull),
+            Err(Error::Framework {
+                operation: Operation::Create,
+                status: -1
+            })
+        );
         assert_eq!(
             successful_handle(-1, ptr::null_mut()),
-            Err(Error::Framework(-1))
+            Err(Error::Framework {
+                operation: Operation::Create,
+                status: -1
+            })
         );
         assert_eq!(successful_handle(0, ptr::null_mut()), Err(Error::Output));
         assert_eq!(
@@ -476,7 +532,7 @@ mod tests {
     fn a_cancellation_during_a_synchronous_call_is_observed_afterward() {
         let control = Control::new(std::time::Instant::now() + std::time::Duration::from_secs(30));
         assert_eq!(
-            invoke(&control, || {
+            invoke(&control, Operation::Append, || {
                 control.cancel();
                 0
             }),
@@ -484,7 +540,7 @@ mod tests {
         );
         let mut called = false;
         assert_eq!(
-            invoke(&control, || {
+            invoke(&control, Operation::Append, || {
                 called = true;
                 0
             }),
