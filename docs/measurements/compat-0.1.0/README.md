@@ -14,6 +14,8 @@ the first run of the round is recorded below as a deviation, not edited in.
 
 Release candidate: `4062842fc42babef9e6661a37bbb18f7e375a80c`.
 
+Tooling floor: `93d3b5e221d7844f93231dd164d92c8786cfc621`.
+
 Every bar runs on one commit of `main`, the release candidate. A pull
 request that adds exactly one unindented registration line to this page
 names it, after every prerequisite below has merged and before the first
@@ -163,4 +165,20 @@ draw 6 once each and fit one workflow run.
 
 ## Deviations
 
-None yet.
+**R2 and R3 tooling, registered before any judged run.** The workflow and Python and shell tools come from the dispatched commit of `main`, which must descend from the candidate and the tooling floor above. The floor includes the copy-checker's total deadline (coreav-dev/coreav#206), which was fixed after the candidate was registered. The measured `coreav` and the Rust R3 harness are both still built from the registered candidate. The harness executes CoreAV code, so building it from a newer revision could turn a difference between revisions into a candidate failure under the existing binary/harness byte-agreement rule.
+
+The workflow refuses to build or fetch media unless the oracle pin, its FFmpeg and MediaInfo installers, audio input arguments, command set, file selection and harness driver sources are identical at both commits. Every consumer verifies the artifact source commits and hashes before fetching or judging media. The evidence retains both full source SHAs, both Rust artifact hashes and the compiler version. The candidate, inputs, bars and order are unchanged: R4 runs first, followed by R2 and R3 in one workflow run. Pull requests rehearse this split on spent inputs, with their own tooling head and the registered candidate's Rust artifacts.
+
+The tooling floor has one unindented registration line in the same form as the candidate:
+
+    Tooling floor: `<SHA>`.
+
+The judging tools are registered as well: [judging.json](judging.json) holds the SHA-256 of every file of the R2 and R3 judging code and data, including the complete workflow and source guard. These bytes retain the total-deadline fix and the oracle-audio validator's VP9-only allowlist entry. A tooling commit with different bytes stops before building or fetching media and names the changed file. The build manifest retains the registration's hash and every judging-file hash; each consumer recomputes them.
+
+Changing a registered judging file requires a reviewed registration amendment before the judged run. Commit the code first, then generate the registration from that immutable commit and commit the JSON separately:
+
+```sh
+python3 -I scripts/compat_sources.py register --tooling "$(git rev-parse HEAD)" > docs/measurements/compat-0.1.0/judging.json
+```
+
+The registration does not hash itself, this page or the tests, so recording later results does not require changing the judging state. Re-registering cannot authorize rerunning a missed bar.

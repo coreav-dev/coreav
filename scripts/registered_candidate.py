@@ -15,6 +15,14 @@ def registered(readme):
     return match[1]
 
 
+def tooling_floor(readme):
+    lines = [line for line in readme.splitlines() if line.startswith('Tooling floor:')]
+    match = re.fullmatch(r'Tooling floor: `([0-9a-f]{40})`\.', lines[0]) if len(lines) == 1 else None
+    if match is None:
+        raise ValueError('register exactly one full tooling floor SHA in the round README')
+    return match[1]
+
+
 def allowed(readme, ref, commit):
     if ref != 'refs/heads/main':
         raise ValueError('dispatch measurements from main, where the candidate is registered')

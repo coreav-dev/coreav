@@ -2,10 +2,10 @@ name: compat-0.1.0
 
 # R2 and R3 of the 0.1.0 compatibility round (docs/measurements/compat-0.1.0/README.md,
 # "The bars"; docs/design/compat-cli.md, "The 0.1.0 bars, pre-registered") on
-# GitHub-hosted runners, at the commit given as input:
+# GitHub-hosted runners, using the registered candidate and dispatched tooling:
 #
-# - build: `coreav` with `--profile dist`, as the round names it, and the
-#   coreav-cli `ffmpeg` test executable that tools/compat-corpus/r3.py drives;
+# - build: the registered candidate's `coreav` with `--profile dist` and
+#   its Rust harness; workflow and Python/shell tools use the dispatch SHA;
 # - measure: the set's files, split into shards by position, fetched from the
 #   corpus store with its read-only credentials; per shard `run.py keys --set
 #   0.1.0` (R2) and `r3.py run` (R3) with the pinned FFmpeg of the commit;
@@ -58,6 +58,9 @@ on:
       - .github/workflows/compat-0.1.0.yml
       - scripts/registered_candidate.py
       - scripts/tests/test_registered_candidate.py
+      - scripts/compat_sources.py
+      - scripts/tests/test_compat_sources.py
+      - docs/measurements/compat-0.1.0/judging.json
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
 
@@ -78,38 +81,46 @@ jobs:
     outputs:
       set: ${{ steps.plan.outputs.set }}
       commit: ${{ steps.plan.outputs.commit }}
+      tooling: ${{ steps.candidate.outputs.tooling }}
       creds: ${{ steps.plan.outputs.creds }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: github.event_name != 'pull_request'
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
           sparse-checkout: |
-            scripts/registered_candidate.py
-            docs/measurements/compat-0.1.0/README.md
+            /scripts/
+            /tools/compat-corpus/
+            /tools/oracle/
+            /tools/stage3-report/
+            /docs/known-divergences*.json
+            /docs/measurements/compat-0.1.0/
+            /.github/workflows/compat-0.1.0.yml
           sparse-checkout-cone-mode: false
       - id: candidate
-        if: github.event_name != 'pull_request'
         env:
           COMMIT: ${{ inputs.commit }}
+          EVENT: ${{ github.event_name }}
+          TOOLING: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          commit=$(python3 -I scripts/registered_candidate.py --ref "$GITHUB_REF" --commit "$COMMIT")
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          python3 -I scripts/compat_sources.py plan --event "$EVENT" --ref "$GITHUB_REF" \
+            --commit "$COMMIT" --tooling "$TOOLING" >> "$GITHUB_OUTPUT"
       - id: plan
         env:
           EVENT: ${{ github.event_name }}
           SET: ${{ inputs.set }}
           OPEN: ${{ inputs.open_draw }}
           COMMIT: ${{ steps.candidate.outputs.commit }}
-          SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = pull_request ]; then SET=rehearsal; COMMIT=$SHA; fi
+          if [ "$EVENT" = pull_request ]; then SET=rehearsal; fi
           [ -n "$COMMIT" ] || { echo '::error::no validated measurement commit'; exit 1; }
           if [ "$SET" = draw6 ] && [ "$OPEN" != true ]; then
             echo "::error::draw6 spends the draw: set open_draw as well"
@@ -132,7 +143,14 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ needs.compat-plan.outputs.tooling }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
           ref: ${{ needs.compat-plan.outputs.commit }}
+          path: candidate
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
@@ -140,9 +158,16 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: false
+          workspaces: candidate -> target
       - name: Build coreav and the R3 harness
+        working-directory: candidate
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
         run: |
           set -euo pipefail
+          [ "$(git rev-parse HEAD)" = "$COMMIT" ] || { echo '::error::wrong candidate checkout'; exit 1; }
+          [ "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" = "$TOOLING" ] || { echo '::error::wrong tooling checkout'; exit 1; }
           cargo build --locked --profile dist -p coreav-cli
           HARNESS=$(cargo test --locked --release -p coreav-cli --test ffmpeg --no-run --message-format=json \
             | python3 -I -c 'import json, sys
@@ -150,14 +175,21 @@ jobs:
               d = json.loads(line)
               if d.get("reason") == "compiler-artifact" and d.get("executable") and d["target"]["name"] == "ffmpeg":
                   print(d["executable"])')
-          mkdir -p dist
-          cp target/dist/coreav dist/coreav
-          cp "$HARNESS" dist/r3-harness
-          (cd dist && sha256sum coreav r3-harness) | tee dist/sha256.txt
+          mkdir -p "$RUNNER_TEMP/dist"
+          cp target/dist/coreav "$RUNNER_TEMP/dist/coreav"
+          cp "$HARNESS" "$RUNNER_TEMP/dist/r3-harness"
+      - name: Record the artifact sources
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
+          SET: ${{ needs.compat-plan.outputs.set }}
+        run: |
+          python3 -I scripts/compat_sources.py record --candidate-dir candidate --dist "$RUNNER_TEMP/dist" \
+            --commit "$COMMIT" --tooling "$TOOLING"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: compat-binaries
-          path: dist
+          path: ${{ runner.temp }}/dist
           retention-days: 7
 
   compat-measure:
@@ -171,12 +203,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ needs.compat-plan.outputs.commit }}
+          ref: ${{ needs.compat-plan.outputs.tooling }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: compat-binaries
           path: ${{ runner.temp }}/bin
+      - name: Verify the artifact sources
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
+          SET: ${{ needs.compat-plan.outputs.set }}
+        run: |
+          python3 -I scripts/compat_sources.py verify --dist "$RUNNER_TEMP/bin" \
+            --commit "$COMMIT" --tooling "$TOOLING"
       - name: Cache the pinned FFmpeg and MediaInfo
         id: oracle-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -281,12 +321,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ needs.compat-plan.outputs.commit }}
+          ref: ${{ needs.compat-plan.outputs.tooling }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: compat-binaries
           path: ${{ runner.temp }}/bin
+      - name: Verify the artifact sources
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
+          SET: ${{ needs.compat-plan.outputs.set }}
+        run: |
+          python3 -I scripts/compat_sources.py verify --dist "$RUNNER_TEMP/bin" \
+            --commit "$COMMIT" --tooling "$TOOLING"
       - name: Cache the pinned FFmpeg and MediaInfo
         id: oracle-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -358,12 +406,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ needs.compat-plan.outputs.commit }}
+          ref: ${{ needs.compat-plan.outputs.tooling }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: compat-binaries
           path: ${{ runner.temp }}/bin
+      - name: Verify the artifact sources
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
+          SET: ${{ needs.compat-plan.outputs.set }}
+        run: |
+          python3 -I scripts/compat_sources.py verify --dist "$RUNNER_TEMP/bin" \
+            --commit "$COMMIT" --tooling "$TOOLING"
       - name: Cache the pinned FFmpeg and MediaInfo
         id: oracle-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -456,7 +512,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ needs.compat-plan.outputs.commit }}
+          ref: ${{ needs.compat-plan.outputs.tooling }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -466,6 +522,14 @@ jobs:
         with:
           name: compat-binaries
           path: ${{ runner.temp }}/bin
+      - name: Verify the artifact sources
+        env:
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          TOOLING: ${{ needs.compat-plan.outputs.tooling }}
+          SET: ${{ needs.compat-plan.outputs.set }}
+        run: |
+          python3 -I scripts/compat_sources.py verify --dist "$RUNNER_TEMP/bin" \
+            --commit "$COMMIT" --tooling "$TOOLING"
       - name: Add up the shards
         env:
           SET: ${{ needs.compat-plan.outputs.set }}
@@ -496,7 +560,7 @@ jobs:
           [ "$r3" -le 2 ]
           [ -s "$OUT/r2.json" ]
           [ -s "$OUT/r3.json" ]
-          cp "$RUNNER_TEMP/bin/sha256.txt" "$OUT/"
+          cp "$RUNNER_TEMP/bin/sha256.txt" "$RUNNER_TEMP/bin/sources.json" "$OUT/"
           python3 -I - "$OUT" "$SET" "$COMMIT" "$r2" "$r3" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, pathlib, sys
           out, name, commit = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
@@ -504,7 +568,11 @@ jobs:
           print(f'R2: {verdicts[sys.argv[4]]}. R3: {verdicts[sys.argv[5]]}.\n')
           r2, r3 = (json.loads((out / f).read_text()) for f in ('r2.json', 'r3.json'))
           sha = (out / 'sha256.txt').read_text().split()[0]
-          print(f'## compat-0.1.0: {name} at {commit[:12]}\n')
+          sources = json.loads((out / 'sources.json').read_text())
+          print(f'## compat-0.1.0: {name} at {commit}\n')
+          print(f"Tooling commit `{sources['tooling']['commit']}`. Both Rust artifacts built from `{sources['candidate']['commit']}`.\n")
+          print(f"R3 harness sha256 `{sources['artifacts']['r3-harness']['sha256']}`.\n")
+          print(f"Judging registration sha256 `{sources['judging']['registration_sha256']}` ({len(sources['judging']['files'])} files).\n")
           print(f'coreav (dist) sha256 `{sha}`. Fallback logs: R2 {r2["fallback_log"]}, R3 {r3["fallback_log"]}.\n')
           print('### R2: keys of the set, per family\n')
           print('| Family | Files | Gated rows | Below 98% |')
