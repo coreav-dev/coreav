@@ -1,6 +1,6 @@
 # 0.1.0 codec coverage: the plan of V1 to V3
 
-Status: planned. Nothing of V1, V2 or V3 has run.
+Status: [results recorded](../codec-coverage.md). V1 is incomplete, V2 missed its bar, and V3 has no bar. The registration below is unchanged.
 
 The bars are registered in
 [`design/compat-cli.md`](../../design/compat-cli.md), "The 0.1.0 codec

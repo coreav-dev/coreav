@@ -1,0 +1,124 @@
+{
+ "schema": "coreav.codec-coverage-v1/1",
+ "bar_percent": 74,
+ "files": 1351,
+ "denominator": 1142,
+ "counted": 835,
+ "share": 0.7311733800350263,
+ "meets_bar": null,
+ "groups": {
+  "h264": {
+   "denominator": 692,
+   "counted": 631,
+   "misses": {
+    "not_read": {
+     "files": 17,
+     "sub": {
+      "other": 16,
+      "rejected": 1
+     }
+    },
+    "out_of_scope": {
+     "files": 37,
+     "sub": {
+      "other": 25,
+      "10bit": 10,
+      "chroma": 2
+     }
+    },
+    "md5": {
+     "files": 6,
+     "sub": {}
+    },
+    "decode_error": {
+     "files": 1,
+     "sub": {
+      "invalid_data": 1
+     }
+    }
+   },
+   "share": 0.911849710982659
+  },
+  "av1": {
+   "denominator": 82,
+   "counted": 82,
+   "misses": {},
+   "share": 1.0
+  },
+  "vp9": {
+   "denominator": 73,
+   "counted": 72,
+   "misses": {
+    "decode_error": {
+     "files": 1,
+     "sub": {
+      "invalid_data": 1
+     }
+    }
+   },
+   "share": 0.9863013698630136
+  },
+  "vp8": {
+   "denominator": 50,
+   "counted": 50,
+   "misses": {},
+   "share": 1.0
+  },
+  "other": {
+   "denominator": 245,
+   "counted": 0,
+   "misses": {
+    "codec_not_in_build": {
+     "files": 139,
+     "sub": {
+      "hevc": 116,
+      "prores": 23
+     }
+    },
+    "not_read": {
+     "files": 106,
+     "sub": {
+      "other": 74,
+      "container": 27,
+      "rejected": 5
+     }
+    }
+   },
+   "share": 0.0
+  }
+ },
+ "no_reference": {
+  "av1": {
+   "reference_failed": 7
+  },
+  "h264": {
+   "reference_failed": 1
+  },
+  "none": {
+   "no_stream": 159
+  }
+ },
+ "other_codecs": {
+  "8bps": 1,
+  "dvvideo": 4,
+  "h263": 8,
+  "hevc": 120,
+  "mjpeg": 3,
+  "mpeg2video": 2,
+  "mpeg4": 41,
+  "prores": 23,
+  "qtrle": 2,
+  "svq1": 6,
+  "svq3": 8,
+  "theora": 27
+ },
+ "frames_compared": 8852465,
+ "files_rerun": 0,
+ "void": true,
+ "void_reasons": [
+  {
+   "reason": "no_final_result",
+   "files": 42
+  }
+ ]
+}

@@ -1,0 +1,662 @@
+{
+ "commit": "4062842fc42babef9e6661a37bbb18f7e375a80c",
+ "coreav": {
+  "sha256": "0ce1ca909385c13c3020c8227251ba0a6ad59bc8f7644aff7cdc50742688f1ef",
+  "build": "platform.sh linux-x64 x86_64-unknown-linux-musl full",
+  "features": "release-full",
+  "profile": "dist",
+  "libraries": {
+   "dav1d": "1.5.3",
+   "libvpx": "1.14.1",
+   "libopus": "1.6.1"
+  }
+ },
+ "decode-oracle": {
+  "sha256": "5b50512d46286952ec28920d06f730f0627dbf47bc3d17cc7a8eae1b4f1e8495",
+  "features": "native-h264,dav1d,libvpx",
+  "profile": "dist",
+  "target": "x86_64-unknown-linux-musl"
+ },
+ "x264": {
+  "sha256": "e801671c6161959ce273d9e34e6e60e6d7a3b6cd2e8c0cd4b236b6ee7ae69b21",
+  "commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
+  "version": "x264 0.165.3223 0480cb0"
+ },
+ "ffmpeg-harness": {
+  "sha256": "b56e8781500427071a2108e5fe06fb114800f4402d6caafd36ede6980919348c",
+  "features": "release-full"
+ },
+ "evidence_key_sha256": "91624740d81b03a0b2959f0668d72e84d715c271b98f470fd92dafcb5a217240",
+ "set": "v1",
+ "ffmpeg": {
+  "ffmpeg": {
+   "sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+   "version": "ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers"
+  },
+  "ffprobe": {
+   "sha256": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+   "version": "ffprobe version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2007-2026 the FFmpeg developers"
+  }
+ },
+ "fixtures": {
+  "basic.mp4": "f3cf8aa6050a0043ee056253266a18915ef83a876063d1aa50a0243fac19d6e2",
+  "mkv_h264_aac.mkv": "bb99ec700d47ed4ff4326199bb70af2d725d3fde047373d357464310e0ab5df7",
+  "webm_vp9_opus.webm": "3ef5b8bf9cadc9854cf5d7f8fcb9d8652a945b0d1f9639f1cf27c60baaea8ef1",
+  "ts_h264_aac.ts": "ef978cd992ee0f6d9a1527187bef346e2bd6c6211a3317261c742620f443d728",
+  "audio_aac.m4a": "0c76c6565ec5bcb836114f059fc95184737714dddc64e9745a53950a97e964df"
+ },
+ "hosts": [
+  {
+   "job": "v1-0",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-1",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-10",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-11",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-12",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-13",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-14",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-15",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-16",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367520,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-17",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367528,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-18",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-19",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-2",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-20",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367516,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-21",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367528,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-22",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367520,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-23",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-24",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-25",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-26",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-27",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+   "cores": 4,
+   "memory_kib": 16366500,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-28",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-29",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367516,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-3",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-30",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-31",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+   "cores": 4,
+   "memory_kib": 16366512,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-32",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-33",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-34",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367520,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-35",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-36",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-37",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367520,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-38",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-39",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-4",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-5",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-6",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367520,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-7",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+   "cores": 4,
+   "memory_kib": 16366508,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-8",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v1-9",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  },
+  {
+   "job": "v2-v3",
+   "image": "ubuntu24",
+   "image_version": "20261026.354.1",
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "cores": 4,
+   "memory_kib": 16367524,
+   "kernel": "7.0.0-1017-azure"
+  }
+ ],
+ "v1_shards": [
+  {
+   "shard": 0,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 1,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 2,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 3,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 4,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 5,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 6,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 7,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 8,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 9,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 10,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 11,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 12,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 13,
+   "files": 34,
+   "records": 34,
+   "pending": 3
+  },
+  {
+   "shard": 14,
+   "files": 34,
+   "records": 34,
+   "pending": 4
+  },
+  {
+   "shard": 15,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 16,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 17,
+   "files": 34,
+   "records": 34,
+   "pending": 3
+  },
+  {
+   "shard": 18,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 19,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 20,
+   "files": 34,
+   "records": 34,
+   "pending": 3
+  },
+  {
+   "shard": 21,
+   "files": 34,
+   "records": 34,
+   "pending": 3
+  },
+  {
+   "shard": 22,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 23,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 24,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 25,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 26,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 27,
+   "files": 34,
+   "records": 34,
+   "pending": 2
+  },
+  {
+   "shard": 28,
+   "files": 34,
+   "records": 34,
+   "pending": 3
+  },
+  {
+   "shard": 29,
+   "files": 34,
+   "records": 34,
+   "pending": 0
+  },
+  {
+   "shard": 30,
+   "files": 34,
+   "records": 34,
+   "pending": 1
+  },
+  {
+   "shard": 31,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  },
+  {
+   "shard": 32,
+   "files": 33,
+   "records": 33,
+   "pending": 2
+  },
+  {
+   "shard": 33,
+   "files": 33,
+   "records": 33,
+   "pending": 2
+  },
+  {
+   "shard": 34,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  },
+  {
+   "shard": 35,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  },
+  {
+   "shard": 36,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  },
+  {
+   "shard": 37,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  },
+  {
+   "shard": 38,
+   "files": 33,
+   "records": 33,
+   "pending": 1
+  },
+  {
+   "shard": 39,
+   "files": 33,
+   "records": 33,
+   "pending": 0
+  }
+ ],
+ "problems": []
+}

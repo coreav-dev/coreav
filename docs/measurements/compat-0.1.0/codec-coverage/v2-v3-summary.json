@@ -1,0 +1,274 @@
+{
+ "schema": "coreav.encode-breadth/1",
+ "set": "v3",
+ "records": 630,
+ "void": {
+  "void": false,
+  "reasons": [],
+  "fallback_ran": [],
+  "faults": [],
+  "missing": []
+ },
+ "v2": {
+  "counted": 24,
+  "of": 488,
+  "share": 0.0492,
+  "bar_percent": 40,
+  "needed": 196,
+  "met": false,
+  "per_container": {
+   "ADTS": {
+    "commands": 3,
+    "counted": 0
+   },
+   "ASF": {
+    "commands": 5,
+    "counted": 0
+   },
+   "AVI": {
+    "commands": 25,
+    "counted": 0
+   },
+   "FLAC": {
+    "commands": 5,
+    "counted": 0
+   },
+   "FLV": {
+    "commands": 7,
+    "counted": 0
+   },
+   "GIF": {
+    "commands": 1,
+    "counted": 0
+   },
+   "HLS": {
+    "commands": 2,
+    "counted": 0
+   },
+   "MOV": {
+    "commands": 14,
+    "counted": 0
+   },
+   "MP3": {
+    "commands": 60,
+    "counted": 0
+   },
+   "MP4": {
+    "commands": 217,
+    "counted": 24
+   },
+   "MPEG-PS": {
+    "commands": 5,
+    "counted": 0
+   },
+   "MPEG-TS": {
+    "commands": 14,
+    "counted": 0
+   },
+   "Matroska/WebM": {
+    "commands": 59,
+    "counted": 0
+   },
+   "Ogg": {
+    "commands": 4,
+    "counted": 0
+   },
+   "WAV": {
+    "commands": 5,
+    "counted": 0
+   },
+   "YUV4MPEG": {
+    "commands": 4,
+    "counted": 0
+   },
+   "image": {
+    "commands": 40,
+    "counted": 0
+   },
+   "raw": {
+    "commands": 18,
+    "counted": 0
+   }
+  },
+  "misses": {
+   "no_input": 171,
+   "refused": 293
+  },
+  "refused_options": {
+   "an output container other than MP4 or M4A": 39,
+   "-r": 20,
+   "a command with several inputs": 19,
+   "a selected stream that no -c copy option covers (it would be encoded)": 16,
+   "-ar": 11,
+   "-shortest": 10,
+   "-strict": 8,
+   "-bsf:v": 8,
+   "-async": 7,
+   "-profile:v": 7,
+   "-q:v": 6,
+   "-vframes": 6,
+   "-q:a": 5,
+   "-ac": 5,
+   "-metadata": 5,
+   "-stream_loop": 5,
+   "no video is presented in the clip's range": 4,
+   "-qscale:v": 4,
+   "-ab": 4,
+   "an output to a pipe": 4,
+   "-protocol_whitelist": 4,
+   "-b": 4,
+   "-probesize": 4,
+   "-metadata:s:v:0": 3,
+   "encoding audio other than FLAC or MP3 with aac (CoreAV decodes only those)": 3,
+   "-re": 3,
+   "encoding audio with aac without encoding the video with libx264": 3,
+   "-qscale": 3,
+   "-c:v VALUE": 3,
+   "-bsf:a": 2,
+   "-display_rotation": 2,
+   "-vtag": 2,
+   "-c:v huffyuv": 2,
+   "-analyzeduration": 2,
+   "-codec:a libmp3lame": 2,
+   "-qscale:a": 2,
+   "-update": 2,
+   "-flags": 2,
+   "-itsoffset": 2,
+   "-f mpegts": 2,
+   "-metadata:s:v": 1,
+   "-acodec libmp3lame": 1,
+   "-acodec pcm_s16le": 1,
+   "-f h264": 1,
+   "-c:v libvpx-vp9": 1,
+   "-bsf": 1,
+   "-qp": 1,
+   "-f mov": 1,
+   "-vcodec libvpx": 1,
+   "-reset_timestamps": 1,
+   "-auto-alt-ref": 1,
+   "-force_key_frames": 1,
+   "-c:v rawvideo": 1,
+   "-video_track_timescale": 1,
+   "-sseof": 1,
+   "-dither_method": 1,
+   "-resampler": 1,
+   "-sample_fmt": 1,
+   "-movflags frag_keyframe+empty_moov": 1,
+   "-OPTION": 1,
+   "-disposition:s:0": 1,
+   "-f image2": 1,
+   "-vcodec png": 1,
+   "-avoid_negative_ts": 1,
+   "-c:v wmv2": 1,
+   "-strftime": 1,
+   "-disposition:v:0": 1,
+   "-vcodec mpeg4": 1,
+   "-c:v libvpx": 1,
+   "-find_stream_info": 1,
+   "a clip written as M4A": 1,
+   "-disposition:v:1": 1,
+   "-f mp3": 1,
+   "-pass": 1,
+   "-speed": 1,
+   "-f flac": 1,
+   "-pix_fmt": 1,
+   "-crf": 1,
+   "-x265-params": 1,
+   "-initial_offset": 1,
+   "-write_xing": 1,
+   "-map_chapters": 1,
+   "-vcodec rawvideo": 1,
+   "-metadata:s:s:1": 1,
+   "-c:v png": 1,
+   "-vcodec VALUE": 1,
+   "-preset": 1,
+   "-c:v ffvhuff": 1
+  },
+  "per_encoder": {
+   "x264": {
+    "commands": 72,
+    "counted": 2,
+    "misses": {
+     "refused": 70
+    }
+   },
+   "libopus": {
+    "commands": 6,
+    "counted": 0,
+    "misses": {
+     "refused": 6
+    }
+   },
+   "aac": {
+    "commands": 83,
+    "counted": 0,
+    "misses": {
+     "refused": 83
+    }
+   },
+   "other encoders": {
+    "commands": 127,
+    "counted": 0,
+    "misses": {
+     "refused": 127
+    }
+   },
+   "copy only": {
+    "commands": 104,
+    "counted": 22,
+    "misses": {
+     "refused": 82
+    }
+   }
+  }
+ },
+ "v3": {
+  "counted": 24,
+  "of": 630,
+  "share": 0.0381,
+  "per_class": {
+   "decode-only": {
+    "commands": 12,
+    "counted": 0
+   },
+   "media": {
+    "commands": 488,
+    "counted": 24
+   },
+   "other": {
+    "commands": 29,
+    "counted": 0
+   },
+   "subtitles": {
+    "commands": 8,
+    "counted": 0
+   },
+   "unknown": {
+    "commands": 93,
+    "counted": 0
+   }
+  },
+  "misses": {
+   "no_input": 301,
+   "refused": 305
+  },
+  "native": {
+   "commands": 79,
+   "counted": 22
+  }
+ },
+ "programs": {
+  "coreav": "0ce1ca909385c13c3020c8227251ba0a6ad59bc8f7644aff7cdc50742688f1ef",
+  "harness": "b56e8781500427071a2108e5fe06fb114800f4402d6caafd36ede6980919348c",
+  "ffmpeg": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+  "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb",
+  "x264": "e801671c6161959ce273d9e34e6e60e6d7a3b6cd2e8c0cd4b236b6ee7ae69b21"
+ },
+ "fixtures": {
+  "basic.mp4": "f3cf8aa6050a0043ee056253266a18915ef83a876063d1aa50a0243fac19d6e2",
+  "mkv_h264_aac.mkv": "bb99ec700d47ed4ff4326199bb70af2d725d3fde047373d357464310e0ab5df7",
+  "webm_vp9_opus.webm": "3ef5b8bf9cadc9854cf5d7f8fcb9d8652a945b0d1f9639f1cf27c60baaea8ef1",
+  "ts_h264_aac.ts": "ef978cd992ee0f6d9a1527187bef346e2bd6c6211a3317261c742620f443d728",
+  "audio_aac.m4a": "0c76c6565ec5bcb836114f059fc95184737714dddc64e9745a53950a97e964df"
+ }
+}
