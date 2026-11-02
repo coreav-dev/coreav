@@ -33,7 +33,7 @@ written to stdout, 141 when stdout was closed by its reader.
 | Key | Type | Meaning |
 |---|---|---|
 | `code` | string | `not_allowed` (the value is not one the rule allows), `above_maximum`, `below_minimum`, `unknown` (the rule needs a value the probe output leaves `null`), or `unreadable` (the probe rejected the file). |
-| `rule` | string or `null` | JSON pointer of the rule in the policy, for example `/streams/video/max_width`. For a stream kind that is not allowed, where its object would be (`/streams/subtitle`). `null` for `unreadable`, and for the one `unknown` reason of a document that is neither a `coreav.probe/1` nor a `coreav.probe-matroska/1` output (its `path` is `/schema`, its `limit` the two schema names). |
+| `rule` | string or `null` | JSON pointer of the rule in the policy, for example `/streams/video/max_width`. For a stream kind that is not allowed, where its object would be (`/streams/subtitle`). `null` for `unreadable`, and for the one `unknown` reason of a document whose schema is not `coreav.probe/1`, `coreav.probe-matroska/1` or `coreav.probe-mpegts/2` (its `path` is `/schema`, its `limit` the three schema names). |
 | `path` | string or `null` | JSON pointer of the value the rule read in the file's probe document (`coreav.probe/1`, or `coreav.probe-matroska/1` for Matroska and WebM), for example `/streams/0/video/width`, `/dropped_streams/0/fourcc` or `/dropped_streams/0/codec_id`. `null` when the rule combines several values (the overall bit rate, `max_pixels`, stream counts) and for `unreadable`. For `unknown`, it may point inside an object the probe prints as `null`, such as `/streams/2/video/width` for a video codec under a handler that is not `vide`. |
 | `stream_index` | integer or `null` | For a reason about one stream: its `stream_index` (`ffprobe`'s `index`). |
 | `value` | any | The value compared with the limit, as below; `null` for `unknown` and `unreadable`. |
@@ -55,6 +55,13 @@ written to stdout, 141 when stdout was closed by its reader.
 | `max_pixels` | The larger of the declared and the verified width × height. |
 | counts | The count. |
 
+For MPEG-TS, `path` points into the current `coreav.probe-mpegts/2`
+document. `container.formats` derives `value: "mpegts"` from `/schema`.
+Stream rate reasons point at `/streams/i/scan/bit_rate`. An `unknown`
+reason can point at an absent field, including the structural, verified-size
+and rotation fields listed in [the policy reference](policy-v1.md#mpeg-ts-mapping-and-missing-evidence).
+Unidentified MPEG-TS streams use `/streams/i/codec`, in the order below.
+
 ## Order
 
 Reasons appear in this order, so that two verdicts can be compared byte for
@@ -65,14 +72,17 @@ byte:
 3. `/duration/max_seconds`;
 4. `/streams/max_count`, then `min_count` and `max_count` of each kind in
    the order `video`, `audio`, `subtitle`, `timecode`, `data`;
-5. each stream in `streams` order: its kind, `codecs`, `max_bit_rate`,
+5. each stream in `streams` order, except MPEG-TS streams whose `codec` is
+   `other`: its kind, `codecs`, `max_bit_rate`,
    `max_width`, `max_height`, `max_pixels`, `rotations`, `max_channels`,
    `max_sample_rate`, `invalid_tables`, `external_data`,
    `multiple_descriptions`;
 6. for Matroska, each stream whose `encoding` is `encrypted` or
    `unsupported`, in `streams` order (`unidentified`, at
    `/streams/i/encoding`);
-7. each dropped stream, in `dropped_streams` order (`unidentified`).
+7. for MPEG-TS, each stream whose `codec` is `other`, in `streams` order
+   (`unidentified`, at `/streams/i/codec`);
+8. each dropped stream, in `dropped_streams` order (`unidentified`).
 
 A file the probe rejects has one `unreadable` reason and nothing else.
 Object keys are printed in sorted order, as in the example below.

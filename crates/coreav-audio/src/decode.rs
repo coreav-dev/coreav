@@ -30,6 +30,18 @@ pub enum Codec {
 }
 
 impl Codec {
+    /// The codec decoded by this build for its probe name.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "flac" => Some(Self::Flac),
+            "mp3" => Some(Self::Mp3),
+            "opus" => Some(Self::Opus),
+            #[cfg(feature = "aac")]
+            "aac" => Some(Self::Aac),
+            _ => None,
+        }
+    }
+
     /// The codec's name, as `coreav probe` and `ffprobe` print it.
     pub fn name(self) -> &'static str {
         match self {

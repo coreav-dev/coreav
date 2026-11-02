@@ -307,6 +307,12 @@ class Judge(unittest.TestCase):
         self.addCleanup(libc.prctl, 36, previous.value, 0, 0, 0)
         killpg = os.killpg
         observed = []
+        launched = []
+        popen = subprocess.Popen
+        def launch(*args, **kwargs):
+            child = popen(*args, **kwargs)
+            launched.append(child.pid)
+            return child
         def kill_owned(pid, signum):
             try:
                 exited = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
@@ -318,11 +324,13 @@ class Judge(unittest.TestCase):
                 killpg(pid, signum)
         pids = self.d / 'normal-pids'
         try:
-            with mock.patch.object(os, 'killpg', side_effect=kill_owned):
+            with mock.patch.object(os, 'killpg', side_effect=kill_owned), \
+                 mock.patch.object(subprocess, 'Popen', side_effect=launch):
                 self.assertEqual(self.judge(['C01'], FAKE_CHECK='left-child', FAKE_PIDS=str(pids)),
                                  {('C01', 0): ('passed', None)})
             checker, descendant = map(int, pids.read_text().splitlines())
-            self.assertEqual(observed, [checker])
+            self.assertEqual(observed, launched)
+            self.assertEqual(observed[-1], checker)
             event = json.loads(pathlib.Path(self.opts.log).read_text())
             self.assertEqual(event['exit'], 0)
             for pid in (checker, descendant):

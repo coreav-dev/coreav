@@ -9,8 +9,8 @@ Schemas: [`policy-v1.md`](../schema/policy-v1.md),
 An operator writes a policy: allowed container formats, stream kinds and
 codecs; maximum file size, duration, overall and per-stream bit rate,
 stream counts, resolution, channels and sample rate; allowed rotations. A
-check probes the file with the existing `coreav-isobmff` parser, its limits
-and its allowlist (no decoding; no media sample is read), and returns a
+check probes the file with its container parser, limits
+and allowlist, without decoding, and returns a
 verdict: `accept`,
 or `reject` with every failed rule as a machine-readable reason. This is
 the policy step of upload normalization, and the gate of safe
@@ -133,11 +133,52 @@ Surfaces:
     byte. Reasons are bounded by streams × rules (at most 1,024 tracks by
     the probe's limits, 13 rules each).
 
+## MPEG transport streams
+
+`coreav check` also evaluates the current
+[`coreav.probe-mpegts/2`](../schema/probe-mpegts-v2.md) document. The file
+entry opens a buffered source and delegates to the source entry, so one
+dispatch path selects Matroska, then ISO base media, then MPEG-TS only if
+the ISO reader does not recognize the container. A malformed recognized
+container keeps its own error. A file no reader recognizes keeps the
+`unsupported_container` error.
+
+The policy remains `coreav.policy/1`. `mpegts` joins `container.formats`,
+and the transport stream codec names join `codecs`. The schema identifies
+the container; an absent `major_brand` must not classify it as MOV. Times
+use the document's integer ticks at 90 kHz. A per-stream rate rule runs
+the packet listing and reads `/streams/i/scan/bit_rate`; file rate and
+duration rules use the probe's durations, including every identified
+stream's duration. No scan is needed for rules on header values alone.
+
+Missing evidence still rejects as `unknown`, including the default
+`invalid_tables`, `external_data` and `multiple_descriptions` rules.
+MPEG-TS has no corresponding fields in its current document. A caller
+must explicitly set those three rules to `"ignore"` to accept a transport
+stream. `container.fragmented: false` likewise rejects as `unknown`.
+Inferring validity from an empty warning list would claim evidence the
+document does not provide, so these rules are not silently skipped.
+
+The `scan` and `configuration` size sources stay unknown: MPEG-TS exposes
+neither `video.scanned_size` nor `video.parameter_set_size`.
+`size_source: "declared"` reads `video.width` and `video.height`, the first
+parameters the probe found, without claiming a bound over later frames.
+Rotation rules are unknown too. The packet scan is not a validity audit:
+it may retain partial counts and rates after a stop, as its schema says.
+Ignoring the unavailable validity rules deliberately forgoes that check.
+
+The document keeps unidentified codecs as `codec: "other"` in `streams`,
+not just `dropped_streams`. The `unidentified` rule rejects them at
+`/streams/i/codec` unless set to `"ignore"`. A list cannot accept them:
+there is no sample entry type or Matroska `CodecID` to match. They count
+towards the total stream limit but do not receive kind, duration or codec
+rules, as for unidentified streams in the other documents.
+
 ## Resources
 
-A check reads only what the probe reads (box headers, sample tables, and
-fragment headers when needed) under the probe's limits; it
-never reads media samples. Memory is the probe's tables plus the probe
+A check reads the probe's headers and tables under its limits, plus the
+samples, blocks or transport packets a policy-driven scan needs. It does
+not decode media. Memory is the probe's tables plus the probe
 document and the verdict, which are bounded by the stream count. The policy
 document is at most 1 MiB.
 
@@ -160,6 +201,14 @@ document is at most 1 MiB.
   the rules `ffprobe` (with an independent box walk for fragmentation) can
   observe. CI runs it on every fixture and every hostile file with the
   three example policies and a tight test policy; threshold 100%.
+
+The reference also evaluates MPEG-TS documents and checks their verdict
+precision, including unknown values at absent fields. It has no MPEG-TS
+ffprobe-policy adapter, so these files explicitly report oracle comparison
+as unavailable rather than passing through the ISO adapter. Generated
+transport fixtures cover local, source and range-URL checks, all stored
+packet sizes, leading bytes, exact duration and rate limits, unidentified
+streams, scan selection and unavailable evidence.
 
 ### Corpus v1 run: bars fixed before the run (2026-10-19)
 

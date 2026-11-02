@@ -4,6 +4,7 @@ import json
 import math
 import pathlib
 import re
+import shlex
 import subprocess
 import unittest
 
@@ -43,6 +44,18 @@ class MainPlan(unittest.TestCase):
         pieces = re.split(r'(\$\{\{.*?\}\})', setting['group'])
         key = ''.join(str(evaluate(piece, context)) if piece.startswith('${{') else piece for piece in pieces)
         return key, bool(evaluate(setting['cancel-in-progress'], context))
+
+    def test_aac_source_build_runs_the_whole_transcode_target(self):
+        steps = self.workflows['ci']['jobs']['isobmff-decode']['steps']
+        step, = [s for s in steps if s.get('name') == 'coreav transcode on the fixtures, with both encoders']
+        commands = [shlex.split(line) for line in step['run'].replace('\\\n', '').splitlines()
+                    if line.lstrip().startswith('cargo test')]
+        aac, = [c for c in commands if '--features' in c and 'aac' in c[c.index('--features') + 1].split(',')]
+        self.assertEqual(aac, [
+            'cargo', 'test', '--locked', '--release', '-p', 'coreav-cli',
+            '--features', 'ffmpeg-fallback,dav1d,libvpx,libopus,aac', '--test', 'transcode',
+            '--target-dir', 'target/fallback',
+        ], 'Run the complete transcode target with AAC enabled; remove test-name filters')
 
     def test_docs_push_never_drops_an_earlier_source_pushs_main_obligations(self):
         for old_reused, new_reused in ((True, True), (False, False), (True, False), (False, True)):

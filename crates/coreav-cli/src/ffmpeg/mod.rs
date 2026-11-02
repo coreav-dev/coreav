@@ -638,7 +638,7 @@ fn transcode_job(
 
 /// The refusals of an audio stream to encode with `encoder` where the
 /// pipeline would not encode it as `ffmpeg` does: audio CoreAV does not
-/// decode (it decodes FLAC and MP3), more than two channels (`ffmpeg`
+/// decode in this build, more than two channels (`ffmpeg`
 /// writes a surround stream), a build without libopus, or for aac a sample
 /// rate outside 8 to 64 kHz (the pipeline encodes AAC at the source's rate
 /// and does not resample; `ffmpeg` encodes 88.2 and 96 kHz as they are).
@@ -653,11 +653,11 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
         Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
         _ => None,
     });
-    if !matches!(codec, Some("flac" | "mp3")) {
+    if codec.and_then(coreav_audio::Codec::from_name).is_none() {
         return Err(Refusal::not_native(if opus {
-            "encoding audio other than FLAC or MP3 with libopus (CoreAV decodes only those)"
+            "encoding audio with libopus from a codec this build does not decode"
         } else {
-            "encoding audio other than FLAC or MP3 with aac (CoreAV decodes only those)"
+            "encoding audio with aac from a codec this build does not decode"
         }));
     }
     if !(1..=2).contains(&int(stream, "channels")) {
@@ -1226,10 +1226,8 @@ mod tests {
         (tenths(start), end.map(tenths))
     }
 
-    /// The audio streams `-c:a aac` encodes: FLAC or MP3, mono or stereo,
-    /// sampled at 8 to 64 kHz.
     #[test]
-    fn aac_takes_flac_or_mp3_mono_or_stereo_at_8_to_64_khz() {
+    fn aac_takes_decoded_mono_or_stereo_at_8_to_64_khz() {
         use crate::ffprobe::model::Unit;
         let stream = |codec: &str, channels: i64, rate: i64| Stream {
             kind: StreamKind::Audio,
@@ -1256,12 +1254,13 @@ mod tests {
             ("flac", 1, 8_000),
             ("mp3", 2, 44_100),
             ("flac", 2, 64_000),
+            ("opus", 2, 48_000),
         ] {
             assert_eq!(refusal(codec, channels, rate), None, "{codec} {rate}");
         }
+        assert_eq!(refusal("aac", 2, 48_000).is_none(), cfg!(feature = "aac"));
         for (codec, channels, rate, says) in [
-            ("aac", 2, 48_000, "other than FLAC or MP3 with aac"),
-            ("opus", 2, 48_000, "other than FLAC or MP3 with aac"),
+            ("pcm_s16le", 2, 48_000, "codec this build does not decode"),
             ("flac", 6, 48_000, "other than mono or stereo with aac"),
             ("flac", 2, 96_000, "outside 8 to 64 kHz with aac"),
             ("flac", 2, 88_200, "outside 8 to 64 kHz with aac"),

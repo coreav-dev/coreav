@@ -6,7 +6,9 @@ description: "Check a file against an upload policy and print the verdict as JSO
 
 import Help from '/snippets/help/check.mdx';
 
-`coreav check --policy POLICY FILE` checks an MP4, MOV, Matroska or WebM file against an upload policy and prints the verdict ([`coreav.verdict/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/verdict-v1.md)) on standard output. A policy is a [`coreav.policy/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-v1.md) JSON file that sets limits on codecs, resolution, duration, size and more.
+`coreav check --policy POLICY FILE` checks an MP4, MOV, Matroska, WebM or MPEG-TS file against an upload policy and prints the verdict ([`coreav.verdict/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/verdict-v1.md)) on standard output. A policy is a [`coreav.policy/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-v1.md) JSON file that sets limits on codecs, resolution, duration, size and more.
+
+MPEG-TS uses `coreav.probe-mpegts/2`. Its missing validity, data-location and sample-description fields reject under the default rules as `unknown`, not `unreadable`. To allow MPEG-TS, a policy must explicitly ignore those checks; resolution rules need `size_source: "declared"` because the document has no verified size bound. See [MPEG-TS policy mapping and missing evidence](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-v1.md#mpeg-ts-mapping-and-missing-evidence) before using it as an upload gate.
 
 | Exit status | Meaning |
 |---|---|

@@ -1,0 +1,721 @@
+{
+  "all_null_upper99_at_most_005": true,
+  "bootstrap_draws": 999,
+  "bootstrap_seed": 0,
+  "diagnostic_confidence": 0.95,
+  "files_per_container": 8,
+  "gate_confidence": 0.995,
+  "numpy": "1.24.4",
+  "pairs_per_resampling_block": 4,
+  "point_estimator": "exp(median(mean(log(A/B) within each two-pair crossover)))",
+  "results": [
+    {
+      "bias_results": [
+        {
+          "either_wilson99": [
+            0,
+            0.002698644825077056
+          ],
+          "multiplicative_bias": 0.0,
+          "rates": {
+            "aa": 0.0,
+            "either": 0.0,
+            "null": 0.0
+          },
+          "rejections": {
+            "aa": 0,
+            "either": 0,
+            "null": 0
+          },
+          "wilson99": {
+            "aa": [
+              0,
+              0.002698644825077056
+            ],
+            "either": [
+              0,
+              0.002698644825077056
+            ],
+            "null": [
+              0,
+              0.002698644825077056
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.005,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": -0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        }
+      ],
+      "median_ci_width": [
+        0.0,
+        0.0
+      ],
+      "scenario": "nearly_noiseless_position"
+    },
+    {
+      "bias_results": [
+        {
+          "either_wilson99": [
+            0,
+            0.002698644825077056
+          ],
+          "multiplicative_bias": 0.0,
+          "rates": {
+            "aa": 0.0,
+            "either": 0.0,
+            "null": 0.0
+          },
+          "rejections": {
+            "aa": 0,
+            "either": 0,
+            "null": 0
+          },
+          "wilson99": {
+            "aa": [
+              0,
+              0.002698644825077056
+            ],
+            "either": [
+              0,
+              0.002698644825077056
+            ],
+            "null": [
+              0,
+              0.002698644825077056
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.005,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": -0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        }
+      ],
+      "median_ci_width": [
+        0.002569418058691375,
+        0.003308248102993294
+      ],
+      "scenario": "recorded_shape"
+    },
+    {
+      "bias_results": [
+        {
+          "either_wilson99": [
+            0.0009215733505351922,
+            0.006763578250416479
+          ],
+          "multiplicative_bias": 0.0,
+          "rates": {
+            "aa": 0.0015,
+            "either": 0.0025,
+            "null": 0.001
+          },
+          "rejections": {
+            "aa": 3,
+            "either": 5,
+            "null": 2
+          },
+          "wilson99": {
+            "aa": [
+              0.0004262542676383035,
+              0.005264294622963522
+            ],
+            "either": [
+              0.0009215733505351922,
+              0.006763578250416479
+            ],
+            "null": [
+              0.00022310269364266347,
+              0.004470144841784238
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.988439345975341,
+            0.996894392937483
+          ],
+          "multiplicative_bias": 0.005,
+          "rates": {
+            "aa": 0.981,
+            "either": 0.994,
+            "null": 0.9795
+          },
+          "rejections": {
+            "aa": 1962,
+            "either": 1988,
+            "null": 1959
+          },
+          "wilson99": {
+            "aa": [
+              0.9724918915118919,
+              0.9869120121663841
+            ],
+            "either": [
+              0.988439345975341,
+              0.996894392937483
+            ],
+            "null": [
+              0.970731874444339,
+              0.9856801251684124
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": -0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        }
+      ],
+      "median_ci_width": [
+        0.004482956275431993,
+        0.004971084796361491
+      ],
+      "scenario": "serial_drift"
+    },
+    {
+      "bias_results": [
+        {
+          "either_wilson99": [
+            0.0024358038519089204,
+            0.010235854524917366
+          ],
+          "multiplicative_bias": 0.0,
+          "rates": {
+            "aa": 0.003,
+            "either": 0.005,
+            "null": 0.002
+          },
+          "rejections": {
+            "aa": 6,
+            "either": 10,
+            "null": 4
+          },
+          "wilson99": {
+            "aa": [
+              0.0011994856967028175,
+              0.007482967259423776
+            ],
+            "either": [
+              0.0024358038519089204,
+              0.010235854524917366
+            ],
+            "null": [
+              0.0006620172559428416,
+              0.006025832989833906
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.8378253292350248,
+            0.8742478383598702
+          ],
+          "multiplicative_bias": 0.005,
+          "rates": {
+            "aa": 0.712,
+            "either": 0.857,
+            "null": 0.5595
+          },
+          "rejections": {
+            "aa": 1424,
+            "either": 1714,
+            "null": 1119
+          },
+          "wilson99": {
+            "aa": [
+              0.687897043151668,
+              0.7349587314424992
+            ],
+            "either": [
+              0.8378253292350248,
+              0.8742478383598702
+            ],
+            "null": [
+              0.5335492559253001,
+              0.5851296053405157
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": -0.02,
+          "rates": {
+            "aa": 1.0,
+            "either": 1.0,
+            "null": 1.0
+          },
+          "rejections": {
+            "aa": 2000,
+            "either": 2000,
+            "null": 2000
+          },
+          "wilson99": {
+            "aa": [
+              0.997301355174923,
+              1
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.997301355174923,
+              1
+            ]
+          }
+        }
+      ],
+      "median_ci_width": [
+        0.008280743136444335,
+        0.009344756639530327
+      ],
+      "scenario": "double_noise"
+    },
+    {
+      "bias_results": [
+        {
+          "either_wilson99": [
+            0.005613530214056521,
+            0.016033840359344072
+          ],
+          "multiplicative_bias": 0.0,
+          "rates": {
+            "aa": 0.0055,
+            "either": 0.0095,
+            "null": 0.004
+          },
+          "rejections": {
+            "aa": 11,
+            "either": 19,
+            "null": 8
+          },
+          "wilson99": {
+            "aa": [
+              0.0027673249581164428,
+              0.010901634773884766
+            ],
+            "either": [
+              0.005613530214056521,
+              0.016033840359344072
+            ],
+            "null": [
+              0.001796909877633692,
+              0.008880145788842747
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.9149923381424908,
+            0.9416895259527681
+          ],
+          "multiplicative_bias": 0.005,
+          "rates": {
+            "aa": 0.8135,
+            "either": 0.9295,
+            "null": 0.7585
+          },
+          "rejections": {
+            "aa": 1627,
+            "either": 1859,
+            "null": 1517
+          },
+          "wilson99": {
+            "aa": [
+              0.7924018618842728,
+              0.832906087810404
+            ],
+            "either": [
+              0.9149923381424908,
+              0.9416895259527681
+            ],
+            "null": [
+              0.7355578879011033,
+              0.7800469127243317
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.997301355174923,
+            1
+          ],
+          "multiplicative_bias": 0.02,
+          "rates": {
+            "aa": 0.9995,
+            "either": 1.0,
+            "null": 0.999
+          },
+          "rejections": {
+            "aa": 1999,
+            "either": 2000,
+            "null": 1998
+          },
+          "wilson99": {
+            "aa": [
+              0.9963727913428297,
+              0.9999312624769185
+            ],
+            "either": [
+              0.997301355174923,
+              1
+            ],
+            "null": [
+              0.9955298551582159,
+              0.9997768973063574
+            ]
+          }
+        },
+        {
+          "either_wilson99": [
+            0.9947357053770366,
+            0.9995737457323618
+          ],
+          "multiplicative_bias": -0.02,
+          "rates": {
+            "aa": 0.9965,
+            "either": 0.9985,
+            "null": 0.998
+          },
+          "rejections": {
+            "aa": 1993,
+            "either": 1997,
+            "null": 1996
+          },
+          "wilson99": {
+            "aa": [
+              0.9918123669869282,
+              0.9985078787017704
+            ],
+            "either": [
+              0.9947357053770366,
+              0.9995737457323618
+            ],
+            "null": [
+              0.9939741670101662,
+              0.9993379827440573
+            ]
+          }
+        }
+      ],
+      "median_ci_width": [
+        0.007293584068848669,
+        0.007889445834596609
+      ],
+      "scenario": "shared_shocks"
+    }
+  ],
+  "scenarios": {
+    "double_noise": {
+      "drift": 0.1,
+      "file_bias": 0.005,
+      "outliers": false,
+      "rho": 0.5,
+      "scale": 2.0
+    },
+    "nearly_noiseless_position": {
+      "drift": 0.0,
+      "file_bias": 0.0,
+      "outliers": false,
+      "rho": 0.0,
+      "scale": 0.0
+    },
+    "recorded_shape": {
+      "drift": 0.0,
+      "file_bias": 0.0,
+      "outliers": false,
+      "rho": 0.0,
+      "scale": 1.0
+    },
+    "serial_drift": {
+      "drift": 0.05,
+      "file_bias": 0.002,
+      "outliers": false,
+      "rho": 0.8,
+      "scale": 1.0
+    },
+    "shared_shocks": {
+      "drift": 0.1,
+      "file_bias": 0.005,
+      "outliers": true,
+      "rho": 0.8,
+      "scale": 1.0
+    }
+  },
+  "schema": "b4-calibration-design-simulation-v1",
+  "script_sha256": "8dc71ad690327dbfbe8b4c32c8966b5edeb7ee2e490df33eb455e384ef6a70c6",
+  "seed": 35612,
+  "synchronized_global_blocks": true,
+  "timed_pairs_per_case": 16,
+  "trials_per_scenario": 2000
+}

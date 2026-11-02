@@ -14,9 +14,13 @@ media and QuickTime files, `coreav.probe-matroska/1`
 ([`probe-matroska-v1.md`](probe-matroska-v1.md)) for Matroska and WebM
 files, which `coreav check` probes with every codec CoreAV names allowed
 (`--allow` listing them all). The verdict names that value by its JSON
-pointer. One policy serves both containers; where a rule reads a different
+pointer. One policy serves these containers; where a rule reads a different
 key in the Matroska document, the tables below say so, and the full mapping
 is in [`../design/policy-matroska.md`](../design/policy-matroska.md).
+
+MPEG transport streams use the current
+[`coreav.probe-mpegts/2`](probe-mpegts-v2.md) document. The same policy
+applies, with the mappings and missing values described below.
 
 A stream's kind, for the policy, is the family of its codec: `h264`,
 `hevc`, `av1`, `vp8`, `vp9`, `prores`, `mpeg1video`, `mpeg2video`,
@@ -60,7 +64,7 @@ its blocks the same way.
 - A key given twice in one object is read as its last value, as the JSON
   parser keeps it; JSON (RFC 8259) leaves duplicate names undefined, so do
   not rely on them.
-- A rule whose value the probe output leaves `null` rejects the file with
+- A rule whose value the probe output leaves `null` or does not provide rejects the file with
   the reason `unknown`: a check never accepts what it could not verify.
 - Adding a key or a name keeps `/1`. Removing or renaming one, or changing a
   meaning or a default, makes `/2`.
@@ -87,7 +91,7 @@ its blocks the same way.
 
 | Key | Type | Probe value | Rule |
 |---|---|---|---|
-| `formats` | array of strings | `container.major_brand`; Matroska: `container.doc_type` | The container format must be listed: `mov` for the major brand `qt  ` or no `ftyp` box (`null`), `3gp` for a major brand starting with `3g` (3GPP and 3GPP2), `mp4` for every other major brand; `webm` and `matroska` for a Matroska file of that `DocType`. Every other file (AVI and others) is rejected as `unreadable` with the probe's `unsupported_container` error. |
+| `formats` | array of strings | `container.major_brand`; Matroska: `container.doc_type`; MPEG-TS: `schema` | The container format must be listed: `mov` for the major brand `qt  ` or no `ftyp` box (`null`), `3gp` for a major brand starting with `3g` (3GPP and 3GPP2), `mp4` for every other major brand; `webm` and `matroska` for a Matroska file of that `DocType`; `mpegts` for `coreav.probe-mpegts/2`. Every other file (AVI and others) is rejected as `unreadable` with the probe's `unsupported_container` error. |
 | `fragmented` | boolean | `container.fragmented`; Matroska: `container.live` | `false`: fragmented files are rejected, and so are live Matroska recordings (a Segment of unknown size, written while recording). Default `true`. |
 
 ## `duration`
@@ -138,6 +142,53 @@ the rule rejects.
 |---|---|---|---|
 | `max_channels` | integer | `streams[i].audio.channels` | At most this many channels. |
 | `max_sample_rate` | integer | `streams[i].audio.sample_rate` | At most this many hertz. A Matroska `SamplingFrequency` that is not a whole number gives `null`, so `unknown`. |
+
+## MPEG-TS mapping and missing evidence
+
+`container.formats` accepts `mpegts`, identified by the probe's `/schema`
+value, not by a major brand. `file.size`, the file and stream durations,
+stream counts, kinds, codecs and audio parameters use the same paths as
+above. MPEG-TS times have integer `ticks` at `timescale: 90000` rather than
+rational ticks. A missing file duration is unknown; it does not use the
+Matroska live-recording fallback.
+
+A per-kind `max_bit_rate` reads `/streams/i/scan/bit_rate`; `check` runs
+the packet listing when any such rule is present. Other rules do not
+require a packet scan. The rate is the listed access-unit bytes × 8 ÷ the
+stream's duration, not its scan span. A stopped listing can retain partial
+counts and rates; it does not establish whole-file validity.
+
+The following fields are absent from the current MPEG-TS document and
+reject as `unknown` when their rule applies:
+
+| Rule | Missing probe field |
+|---|---|
+| `container.fragmented: false` | `/container/fragmented` |
+| `streams.invalid_tables: "reject"` (default) | `/streams/i/tables_valid` |
+| `streams.external_data: "reject"` (default) | `/streams/i/external_data` |
+| `streams.multiple_descriptions: "reject"` (default) | `/streams/i/sample_descriptions` |
+| Resolution with `size_source: "scan"` (default) | `/streams/i/video/scanned_size` |
+| Resolution with `size_source: "configuration"` | `/streams/i/video/parameter_set_size` |
+| `rotations` | `/streams/i/video/rotation` |
+
+To accept MPEG-TS, explicitly set the three stream-level actions above to
+`"ignore"` and leave `fragmented` at its default `true`. That policy does
+not verify those properties. Resolution rules can use
+`size_source: "declared"`, which reads `video.width` and `video.height`
+from the initial codec headers, without a verified bound over later frames.
+
+The additional `codecs` names are exactly those the MPEG-TS probe prints:
+`vvc` (video); `aac_latm`, `mpeg_audio`, `bluray_pcm` (audio);
+`dvb_subtitle`, `dvb_teletext`, `arib_caption` (subtitle); `scte35`, `id3`,
+`epg` (data). They use their codec family even if `kind` says otherwise.
+`mpeg_audio` is not renamed to `mp2` or `mp3`.
+
+An unidentified MPEG-TS stream remains in `streams` with `codec: "other"`.
+It counts towards the total stream limit, but is otherwise unchecked when
+`unidentified` is `"ignore"`. The default rejects it at `/streams/i/codec`;
+an allowlist also rejects it, because it has no sample entry type or
+Matroska `CodecID` to match. Unidentified streams do not count towards
+per-kind counts or duration checks.
 
 ## Example
 

@@ -204,7 +204,7 @@ enum Command {
     /// re-encoding. Together the segments hold every packet of the kept
     /// streams exactly once.
     Split(Deferred<SplitArgs>),
-    /// Check an MP4, MOV, Matroska or WebM file against an upload policy
+    /// Check an MP4, MOV, Matroska, WebM or MPEG-TS file against an upload policy
     /// and print the verdict as JSON.
     Check(Deferred<CheckArgs>),
     /// Copy the AAC audio track of an MP4/MOV file into an M4A file,
@@ -324,8 +324,9 @@ struct TranscodeArgs {
     scale: Option<String>,
     /// `copy` every audio stream MP4 can carry (the others are dropped and
     /// listed), `none`, `opus` or `aac`: the first audio stream CoreAV
-    /// decodes (FLAC or MP3, mono or stereo) encoded, the others dropped and
-    /// listed. `opus` is Opus by libopus, and needs a coreav built with the
+    /// decodes (FLAC, MP3, Opus, or AAC with the aac feature; mono or stereo)
+    /// encoded, the others dropped and listed. `opus` is Opus by libopus,
+    /// and needs a coreav built with the
     /// opt-in libopus feature; other builds refuse it. `aac` is AAC-LC by
     /// the ffmpeg program's built-in aac encoder (--ffmpeg), at the stream's
     /// own rate, 8 to 64 kHz; --strict-safe refuses it.
