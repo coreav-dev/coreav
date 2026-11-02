@@ -4,7 +4,8 @@ Status: planned. Nothing of V1, V2 or V3 has run.
 
 The bars are registered in
 [`design/compat-cli.md`](../../design/compat-cli.md), "The 0.1.0 codec
-coverage bars", and this page does not change them. It fixes, before any
+coverage bars". V2 is reported without a release bar under the
+2026-11-02 amendment below. This page fixes, before any
 run, what the note leaves to the run: the builds and the record of them,
 how each denominator is built, the agreement rule and the oracle of each
 job, how failures, timeouts and oracle failures are counted, the reasons a
@@ -15,7 +16,7 @@ not edited in.
 | | Bar, as registered |
 |---|---|
 | V1 | at least 74% of the denominator below decode, every frame agreeing |
-| V2 | at least 40% of the 488 commands of the encode set count, so at least 196 |
+| V2 | the observed count and share of the fixed 488 commands of the encode set; no release bar |
 | V3 | the share of the 630 filter-free usable commands that count by V2's rules; no bar |
 
 ## The run manifest
@@ -292,7 +293,16 @@ An `ffmpeg` start is an encoder start only when its one input is raw audio
 samples on standard input (`-f` a raw sample format, `-i pipe:0` or `-i
 -`) and its one output is one audio stream encoded with `-c:a aac`. The
 tools pull request tests this rule on the arguments that the merged AAC
-encode passes. Every other `ffmpeg` start makes the command `ffmpeg_job`.
+encode passes. This AAC invocation rule is unchanged.
+
+An MP3 encoder start has the same one raw standard-input stream and one
+output stream, with `-c:a libmp3lame`. It may specify the raw input's rate
+and channel count, audio-only maps, `-b:a`, `-q:a`, `-qscale:a` or `-aq`,
+and an MP3 output format. It may not read a media file, filter, decode a
+compressed input, copy a stream, or write another stream. The tools test
+the complete invocation, including option placement and argument counts,
+not the presence of encoder tokens. Every other `ffmpeg` start makes the
+command `ffmpeg_job`.
 
 ### The oracles of the jobs
 
@@ -314,7 +324,9 @@ order in both outputs.
 | `libx264` | an `x264` start in CoreAV's program log, then B1, B2, B3 and B4 of `design/transcode.md` as B9 defines them for a `coreav ffmpeg` encode, applied to this command: CoreAV's output against the pinned `ffmpeg` running the same command line, B4 with Q1 at least −0.50 dB and Q2 at least 30 dB. The checks are `transcode_check.py`'s own functions, called on this command's outputs, not its fixed list of B9 command lines |
 | `libopus` | CoreAV's stream is not a packet copy of a source stream (equal in count and data: an encode cannot reproduce the source's packets), then O1 to O4 of `design/transcode.md`, "Opus bars", for one output, with the pinned `ffmpeg`'s output of the same command as the FFmpeg arm: O1 as written; O2 with that output in place of the summary (`start_pts` 0, `initial_padding` equal to its, `duration_ts` within 48 samples of its); O3's bound for one input, 0.85 to 1.15 (its median is over a set and does not apply to one command); O4 as written, 1.0 dB, for the sources below |
 | `aac` | an encoder start in CoreAV's program log, then A1 to A4 of `design/transcode.md`, "AAC bars", for one output in the same way: A1 as written; A2 with the FFmpeg arm's output in place of the summary, exactly; A3's bound for one input, 0.95 to 1.05; A4 as written, 0.5 dB, for the sources below |
-| any other encoder, image encoders included | none registered at this plan's commit |
+| the linear PCM formats below, `flac`, `png`, `bmp`, `rawvideo`, `ffv1`, `huffyuv` | the exact decoded-output predicate below, within its stated formats and input eligibility |
+| `libmp3lame` | an MP3 encoder-only start in the program log, then the external MP3 predicate below |
+| any other encoder, JPEG included | none registered at this plan's commit |
 
 **R3's oracle for a copy command.** `copy_check.py` judges a written
 output by CoreAV's own job (remux, clip, split, join or extraction) and
@@ -345,10 +357,113 @@ decoded by the pinned `ffmpeg` to 48 kHz float with the command's own
 timing options (`-ss`, `-t`, `-to`, `-sseof`, `-itsoffset`), and both arms
 are compared with it over the presented samples.
 
-If a design note registers an oracle for another job (CoreAV's JPEG and
-PNG images, for example) before the release candidate, this page is
-amended before any run to name it, and the tools implement it. Otherwise
-that job's commands miss as `no_oracle`.
+### Exact decoded-output predicate
+
+This registration applies only to future runs using the implementing
+tools. It changes no earlier record, command, input assignment or copy
+predicate. The reference is the pinned FFmpeg 9.0.2 output of the same
+command on the same assigned inputs. Both `ffmpeg` and `ffprobe` are
+verified against `scripts/oracle-ffmpeg.env` before use. Encoded file
+bytes, encoded packet hashes, compression ratios and file sizes are not
+pass predicates for these jobs.
+
+**Eligibility.** Linear PCM and FLAC are judged as lossless audio. The
+PCM encoders are `pcm_u8`, `pcm_s8`, and `pcm_` followed by `u16`, `s16`,
+`u24`, `s24`, `u32`, `s32`, `f32` or `f64` and `le` or `be`. Companded
+PCM and integer PCM above 32 bits have no oracle here. PNG, BMP,
+rawvideo, FFV1 and HuffYUV are judged as lossless video. This registers
+an oracle, not an encoder implementation or a claim that a command
+passes. Eligibility is decided from the registered command, its selected
+source stream and the pinned output, before reading CoreAV's output.
+An unsupported reference sample or pixel format, an unresolved raw-output
+description, or an unmodelled reference output shape is `no_oracle`, never
+a pass. A CoreAV output with the wrong shape or format, or one that fails
+to probe or decode, is `oracle`.
+
+This is an exact end-to-end command-compatibility predicate. It does not
+isolate encoder correctness from source decoding, conversion, resampling
+or remixing. Differences in those earlier stages can cause a miss even
+when the encoder preserves its own input exactly. The result identifies
+the failed comparison, not an inferred encoder defect. Apart from the
+PNG and BMP conversion exclusion below, there is no allowance for those
+differences. No new decoder or conversion tolerance is implied.
+
+PNG and BMP are eligible only when the selected source frames are RGB
+and no YUV-to-RGB conversion is needed. PNG and BMP from YUV sources are
+`no_oracle`, even when their stream fields match. Lossless compression of
+CoreAV's own RGB frames and agreement of its colour conversion with
+FFmpeg are different questions. The matrix and range do not fix the
+chroma reconstruction filter or its rounding. No conversion tolerance is
+registered here. These cases wait for a separate registration supported
+by conversion evidence, including maximum absolute error, the share of
+differing pixels and PSNR, before a run can count them. This amendment
+does not change the converter or require a pre-encode capture interface.
+
+**Audio equality.** The pinned FFmpeg decodes each corresponding output
+stream completely, with `oracle_audio.INPUT_ARGS`, without resampling,
+remixing or trimming. Integer PCM of at most 32 bits and FLAC are decoded
+to interleaved signed 32-bit little-endian samples. Floating-point PCM
+of at most 64 bits is decoded to interleaved 64-bit little-endian values.
+The representation must preserve the output format's precision. Both
+decodes must succeed without errors, contain at least one complete
+sample per channel, have the same sample count and agree exactly at every
+sample in channel order. Nonfinite floating-point values fail. No SNR tolerance, alignment search, prefix-only
+comparison or allowance for dropped or extra samples applies.
+
+**Pixel equality.** The pinned FFmpeg decodes every frame of each
+corresponding output, in presentation order, with autorotation and
+automatic scaling disabled and no frame-rate conversion. Each arm is
+decoded to its shared native pixel format, preserving bit depth, chroma
+subsampling and alpha. A conversion to RGB or to a lower bit depth is not
+a comparison shortcut. Both decodes must succeed without errors, contain
+at least one frame and have the same frame count. Packed active samples,
+without row padding, agree exactly for every plane of every frame. One
+wrong pixel, a missing alpha plane or a missing final frame fails.
+
+**Probe agreement.** Stream kinds, codecs and stream order agree for
+every output. Audio requires equal `sample_fmt`, `sample_rate`,
+`channels`, and equal channel layouts and significant bit depth when
+reported. Video requires equal `width`, `height`, `pix_fmt`, and equal
+sample aspect ratio, colour range, colour matrix, transfer, primaries,
+chroma location and field order when reported. Unknown or absent
+optional fields on both sides agree. A known value on only one side
+does not. Required format fields must be present and valid on both sides.
+When reported, stream start times and durations, and video frame
+timestamps and durations, agree as exact rational times using each stream's time base,
+not floating-point rounding or an arbitrary time tolerance. Decoded
+sample and frame counts still apply when the container omits timing.
+Audio packet and decode-block boundaries are not compared.
+Encoder tags, packet sizes, bit rates and container compression metadata
+are not compared.
+
+**Output shapes.** A numbered image sequence has the same numeric file
+indices on both sides, with each corresponding image checked in full.
+Missing, extra or duplicated indices fail. Captured standard output is
+checked as an output file, not discarded. For headerless raw PCM or
+rawvideo, the tools supply the same explicit format, rate, channel layout
+or frame geometry and pixel format to both probes and decoders. Those
+values must follow unambiguously from the registered command and the
+selected source stream, never from the candidate's output length or a
+guessed geometry. Otherwise the job is `no_oracle`. Self-describing
+YUV4MPEG2 outputs use their headers. Streams copied beside these encodes
+retain B3's existing packet and timestamp check.
+
+### External MP3 predicate
+
+`libmp3lame` is an external lossy encoder, not a CoreAV lossless encoder.
+The encoder-only invocation rule above still applies. The operator's
+program version and binary SHA-256 are recorded, separately from the
+pinned reference program. Neither encoded MP3 bytes nor their hashes
+are compared. Both output streams are decoded by the pinned FFmpeg to
+interleaved 64-bit floating-point samples at their native rate and channel
+count, with the shared audio input options. The complete presented
+samples and their count must agree exactly with the same-command pinned
+reference, and the audio probe and timing checks above apply. This is a
+conservative decoded-equivalence rule, not a quality tolerance. A
+different operator build that changes decoded samples fails this
+predicate even if its sound is acceptable. A future quality-based oracle
+needs its own evidence and registration before use. No build-dependent
+output hash or unexplained numeric tolerance is a substitute.
 
 ### Counted, and misses by reason
 
@@ -368,7 +483,7 @@ gets the first code that applies:
 | 5 | `failed` | any other nonzero exit, a signal the runner did not send, or exit 0 with no output | the status and the last line of standard error |
 | 6 | `ffmpeg_job` | a start in the program log that is not an encoder start | |
 | 7 | `no_oracle` | an output stream whose job has no registered oracle | the job |
-| 8 | `oracle` | a check of an oracle fails | the first check that failed (`binary_differs`, `copy_check`, `B1` to `B4`, `O1` to `O4`, `A1` to `A4`) |
+| 8 | `oracle` | a check of an oracle fails | the first check that failed (`binary_differs`, `copy_check`, `B1` to `B4`, `O1` to `O4`, `A1` to `A4`, or the decoded-output shape, probe, timing, sample or pixel check) |
 | 9 | `streams_differ` | the stream listing differs from the pinned `ffmpeg`'s | |
 
 A fallback log line whose `ran` is not null voids the run, as the note
@@ -376,8 +491,9 @@ says.
 
 ### The result
 
-- The share: counted commands over 488, with both numbers, against 40%
-  (196).
+- The observed share: counted commands over 488, with both numbers. There
+  is no required count or pass verdict. Release 0.1.0 publishes this
+  coverage and the misses, rather than requiring a coverage threshold.
 - The count per output container (the file's `container`).
 - Misses by code.
 - **Unhandled options.** The `refused` commands per logged `reason`, by
@@ -449,13 +565,14 @@ container CoreAV does not read). It reads no corpus file.
    run that is not void is final for its commit, and a miss is never a
    reason to repeat it.
 6. **The record.** `docs/measurements/compat-0.1.0.md`, as the note says:
-   V1, V2 and V3 with their verdicts, the manifest above and the
+   V1 with its verdict, V2 and V3 with their observed coverage, the manifest above and the
    breakdowns, with the public summaries beside it in this directory.
 
 ## Amendments
 
-Changes made before any run of the rehearsal, each in the pull request
-that adds the tools.
+The first amendment was made before any run of the rehearsal, in the
+pull request that added the tools. Later registrations are dated and
+apply only to subsequent runs using their implementing tools.
 
 1. The reference gains the no-conversion pin ("The reference"). A check
    of CoreAV's decoder on one file found that the registered command
@@ -463,6 +580,19 @@ that adds the tools.
    BT.709 at the change, so that their MD5s were the converted samples'
    rather than the decoded ones'. Relabelling those frames alone made every
    frame of the file agree. No bar, code or count rule changes.
+
+2. **V2 registration, 2026-11-02.** V2 is no longer a 0.1.0 release
+   bar. The fixed 488-command set, input assignment and miss accounting
+   are retained. Release 0.1.0 publishes the observed coverage, and
+   coverage work continues until the cutoff. The exact decoded-output
+   and external MP3 predicates above are registered before any run that
+   uses them. Their implementing tools merge in a separate pull request
+   after this registration, remove the V2 threshold verdict from the
+   summary, and add regressions for byte-different but decode-identical
+   outputs and for a wrong sample or pixel. No implementation, judged
+   run or newly passing command is claimed here. V1, V3, R1 to R4,
+   earlier records, held-out inputs and known-divergence scopes do not
+   change. This registration does not authorize repeating a missed bar.
 
 ## Deviations
 

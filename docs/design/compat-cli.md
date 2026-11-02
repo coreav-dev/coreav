@@ -685,14 +685,16 @@ site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` command
 
 Release 0.1.0 also widens what CoreAV decodes and encodes without FFmpeg,
 so that `coreav transcode` and `coreav ffmpeg` cover more codecs
-(maintainer decision, 2026-10-31). Two bars measure that breadth and a
-third number is reported beside them. This section is written before any
-run of them; nothing registered above changes.
+(maintainer decision, 2026-10-31). V1 gates decode breadth. V2 and V3
+report coverage without a release bar. V2 is no longer a 0.1.0 bar
+(maintainer decision, 2026-11-02). Release 0.1.0 publishes its observed
+V2 coverage, and work to increase coverage continues until the release
+cutoff. Nothing registered above changes.
 
 | | Bar |
 |---|---|
 | **V1 Decode breadth** | at least **74%** of the corpus v1 `real` files with a video stream decode in the full build without the FFmpeg fallback, every frame agreeing with the pinned FFmpeg's |
-| **V2 Encode breadth** | at least **40%** of the 488 commands of the encode set run to completion in the full build, every option handled by CoreAV and every output passing the oracle of its job |
+| **V2 Encode breadth** | reported, with no bar: the share of the 488 commands of the encode set that run to completion in the full build, every option handled by CoreAV and every output passing the oracle of its job |
 | **V3 Native share** | reported, with no bar: the share of all 630 filter-free usable `ffmpeg` commands that count by V2's rules |
 
 **The build.** Two release builds are decided: a default build, which links
@@ -806,7 +808,7 @@ build's decoders take must decode and agree.
 - **Programs.** The operator's encoders, run as `transcode.md` ("The encoder
   program") runs them: the `x264` program `scripts/install-x264.sh` builds,
   for H.264, and the pinned FFmpeg 9.x that `scripts/install-oracle-ffmpeg.sh`
-  installs, as `ffmpeg`, for AAC (`-c:a aac`). Each is named to CoreAV
+  installs, as `ffmpeg`, for AAC (`-c:a aac`) and MP3 (`-c:a libmp3lame`). Each is named to CoreAV
   through a wrapper that appends the arguments of each start to the run's
   program log and then runs the program. The runner's own runs of the
   pinned `ffmpeg` (the reference and the choice of inputs) do not go
@@ -832,17 +834,22 @@ build's decoders take must decode and agree.
   - the fallback log has no line for it;
   - every program the program log shows it started is an encoder: `x264`,
     or an `ffmpeg` whose only input is raw samples on its standard input
-    and whose only output is one AAC stream. Any other `ffmpeg` start,
+    and whose only output is one AAC or MP3 stream, using the registered
+    encoder-only invocation. Any other `ffmpeg` start,
     such as the full build's FFmpeg decoder backend taking a stream, is
     FFmpeg doing the job: the command does not count;
   - the output passes the oracles of what the command does: a command that
     only copies, as R3 checks it; an H.264 encode, as `transcode.md`'s B9
     checks a `coreav ffmpeg` encode against the pinned `ffmpeg` running the
     same command line (B1, B2, B3 for the streams it copies, and B4 with Q1
-    at least −0.50 dB and Q2 at least 30 dB); an AAC encode, or an image
-    CoreAV's JPEG or PNG encoder writes, as the oracle its own design note
-    registers before the run, which also says how the streams copied
-    beside it are checked;
+    at least −0.50 dB and Q2 at least 30 dB); AAC and Opus as the
+    [codec coverage plan](../measurements/compat-0.1.0/codec-coverage-plan.md)
+    registers them; PCM, FLAC, PNG, BMP, rawvideo, FFV1, HuffYUV and
+    external MP3 as that plan's decoded-output oracle registers them.
+    Encoded output hashes never judge these newly registered jobs.
+    PNG and BMP from a YUV source remain `no_oracle` until a separate
+    registration covers colour conversion. JPEG has no registered oracle.
+    Every stream copied beside an encode retains its registered copy check;
   - the output lists the same streams, by kind and codec, in the same
     order, as the pinned `ffmpeg`'s output of the same command.
 
@@ -855,7 +862,7 @@ build's decoders take must decode and agree.
 - **Result.** The share of the 488, the count per output container, and the
   misses by reason.
 
-**The ceiling.** The bar needs 196 commands. `coverage_set.py` estimates
+**The ceiling.** There is no required count. `coverage_set.py` estimates
 from encoder availability alone how many could count: an output in MP4 or
 HLS, or a JPEG or PNG image, whose every stream is copied or encoded by an
 encoder of the stage. Each input is taken to hold video and audio, an

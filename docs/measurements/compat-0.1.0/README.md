@@ -10,6 +10,14 @@ This page fixes, before any run, what each bar runs on, the order of the
 runs, the hosts and the tools the round still needs. A change to it after
 the first run of the round is recorded below as a deviation, not edited in.
 
+V2 encode breadth is reported, not a 0.1.0 release bar. Release 0.1.0
+publishes the observed count and share of the fixed 488-command encode
+set, with the misses by reason. Coverage work continues until the release
+cutoff. The [codec coverage plan](codec-coverage-plan.md) registers the
+output predicates before any run that uses them. This amendment changes
+neither R1 to R4 nor V1 or V3, and does not rejudge earlier records or
+authorize a rerun of a missed bar.
+
 ## The commit
 
 Release candidate: `4062842fc42babef9e6661a37bbb18f7e375a80c`.
