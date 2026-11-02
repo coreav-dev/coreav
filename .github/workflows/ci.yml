@@ -37,8 +37,12 @@ name: ci
 # workflow would keep the new run waiting until the old run's `ci-report`,
 # which `always()` runs in a cancelled run too, had found a runner and
 # ended. `ci-changes` has a group as well, so a superseded PR gate can be
-# cancelled before dispatching old jobs. Main pushes, manual runs and merge
-# groups each get independent run-id groups, so none is dropped
+# cancelled before dispatching old jobs. An old PR run's job cancelling a
+# newer run is unlikely, not impossible: an old `ci-changes` can end just
+# before the new run is created, then its jobs can join their groups after
+# the new run's jobs. A cancelled job leaves `ci-report` red, so this race
+# fails closed. Main pushes, manual runs and merge groups each get
+# independent run-id groups, so none is dropped
 # (docs/design/ci-checks.md, "Concurrency").
 on:
   push:
