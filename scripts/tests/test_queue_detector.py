@@ -581,6 +581,148 @@ class Transport(unittest.TestCase):
         self.assertEqual(api.calls, detector.CALL_CAP)
 
 
+class Diagnostics(unittest.TestCase):
+    def probe_output(self, api):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'state.json'
+            summary = pathlib.Path(directory) / 'summary.md'
+            env = {'GH_TOKEN': api.token, 'GITHUB_REPOSITORY': detector.REPO,
+                   'GITHUB_REF': 'refs/heads/main', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+                   'GITHUB_STEP_SUMMARY': str(summary)}
+            with patch.dict(os.environ, env, clear=True), patch.object(detector, 'Api', return_value=api), \
+                    patch('sys.argv', ['queue_detector', '--state', str(path), '--mode', 'probe']), \
+                    patch('sys.stdout', new_callable=io.StringIO) as output, \
+                    patch('sys.stderr', new_callable=io.StringIO) as errors:
+                code = detector.main()
+            text = output.getvalue() + errors.getvalue() + summary.read_text() + path.read_text()
+            lines = output.getvalue().splitlines()
+            diagnostics = [json.loads(line.split(': ', 1)[1]) for line in lines
+                           if line.startswith('API diagnostic (last request): ')]
+        self.assertNotIn(api.token, text)
+        self.assertNotIn('private-body-marker', text)
+        return code, diagnostics
+
+    def test_graphql_error_fields_cannot_carry_body_or_token_text(self):
+        api = FakeApi()
+        hostile_paths = ([api.token], ['private-body-marker'], [True, 1.5, -1, 100, {}],
+                         ['repository'] * 1000, {'private-body-marker': api.token}, None)
+        for kind in (api.token, 'FORBIDDEN private-body-marker', [], 'FORBIDDEN'):
+            for path in hostile_paths:
+                with self.subTest(kind=kind, path_type=type(path).__name__):
+                    api = FakeApi()
+                    errors = [{'type': 'FORBIDDEN', 'path': ['repository', 'mergeQueue']},
+                              {'type': kind, 'path': path, 'message': api.token + ' private-body-marker',
+                               'extensions': {'private-body-marker': api.token}}, api.token]
+                    api.opener = lambda *args, **kwargs: Response({'errors': errors}, {
+                        'Date': email.utils.formatdate(NOW, usegmt=True),
+                        'X-RateLimit-Remaining': '999', 'X-RateLimit-Resource': 'graphql',
+                        'Set-Cookie': api.token, 'X-GitHub-Request-Id': 'private-body-marker'})
+                    code, diagnostics = self.probe_output(api)
+                    self.assertEqual(code, 1)
+                    self.assertEqual(api.calls, 1)
+                    self.assertEqual(len(diagnostics), 1)
+                    record = diagnostics[0]
+                    self.assertEqual(record['failure_class'], 'GRAPHQL_ERROR')
+                    self.assertEqual(record['endpoint'], 'POST /graphql')
+                    self.assertEqual(record['status'], 200)
+                    self.assertEqual(record['graphql_errors'][0],
+                                     {'type': 'FORBIDDEN', 'path': ['repository', 'mergeQueue']})
+                    self.assertNotIn('Set-Cookie', record['rate_limit'])
+                    self.assertNotIn('X-GitHub-Request-Id', record['rate_limit'])
+
+    def test_malformed_graphql_errors_and_details_are_bounded(self):
+        for errors in ('private-body-marker', [{'type': 'NOT_FOUND', 'path': ['repository']}] * 100):
+            with self.subTest(errors_type=type(errors).__name__):
+                api = FakeApi()
+                api.opener = lambda *args, **kwargs: Response({'errors': errors}, {
+                    'Date': email.utils.formatdate(NOW, usegmt=True)})
+                code, diagnostics = self.probe_output(api)
+                self.assertEqual(code, 1)
+                if isinstance(errors, list):
+                    self.assertEqual(len(diagnostics[0]['graphql_errors']), 5)
+                else:
+                    self.assertEqual(diagnostics[0]['graphql_errors'], 'malformed')
+
+    def test_http_refusals_never_log_reason_body_or_unapproved_headers(self):
+        for status, kind, calls in ((401, 'AUTHENTICATION', 1), (403, 'PERMISSION', 1),
+                                    (429, 'RATE_LIMIT', 1), (500, 'REQUEST_FAILED', 3)):
+            with self.subTest(status=status):
+                api = FakeApi()
+
+                def refused(request, timeout):
+                    headers = {'X-RateLimit-Limit': '1000', 'X-RateLimit-Remaining': '999',
+                               'X-RateLimit-Used': '1', 'X-RateLimit-Reset': '1793580000',
+                               'X-RateLimit-Resource': 'graphql', 'Server': api.token,
+                               'WWW-Authenticate': 'private-body-marker'}
+                    raise urllib.error.HTTPError(request.full_url, status, api.token, headers,
+                        io.BytesIO(b'private-body-marker'))
+
+                api.opener = refused
+                code, diagnostics = self.probe_output(api)
+                self.assertEqual(code, 1)
+                self.assertEqual(api.calls, calls)
+                self.assertEqual(diagnostics[0]['failure_class'], kind)
+                self.assertEqual(diagnostics[0]['status'], status)
+                self.assertEqual(set(diagnostics[0]['rate_limit']), {
+                    'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Used',
+                    'X-RateLimit-Reset', 'X-RateLimit-Resource'})
+
+    def test_rate_headers_reject_noncanonical_values(self):
+        api = FakeApi()
+        api.headers = {'X-RateLimit-Limit': api.token, 'X-RateLimit-Remaining': '149',
+                       'X-RateLimit-Used': '١٤٩', 'X-RateLimit-Reset': '1e9 private-body-marker',
+                       'X-RateLimit-Resource': api.token, 'Retry-After': email.utils.formatdate(NOW, usegmt=True),
+                       'Authorization': api.token, 'X-GitHub-Request-Id': 'private-body-marker'}
+        code, diagnostics = self.probe_output(api)
+        self.assertEqual(code, 1)
+        self.assertEqual(diagnostics[0]['failure_class'], 'RATE_RESERVE')
+        self.assertEqual(diagnostics[0]['rate_limit'], {
+            'X-RateLimit-Limit': 'invalid', 'X-RateLimit-Remaining': '149', 'X-RateLimit-Used': 'invalid',
+            'X-RateLimit-Reset': 'invalid', 'X-RateLimit-Resource': 'other', 'Retry-After': 'invalid'})
+
+    def test_raw_exception_arguments_are_never_rendered(self):
+        for error_type in (detector.Unknown, detector.ConfigError, OSError, ValueError, KeyError,
+                           TypeError, AttributeError):
+            with self.subTest(error_type=error_type):
+                api = FakeApi()
+                with patch.object(detector, 'probe', side_effect=error_type(api.token + ' private-body-marker')):
+                    code, diagnostics = self.probe_output(api)
+                self.assertEqual(code, 1)
+                self.assertEqual(diagnostics[0], {'failure_class': error_type.__name__})
+
+    def test_retry_diagnostic_drops_the_previous_attempts_status_and_headers(self):
+        api = FakeApi()
+
+        def broken(request, timeout):
+            if api.calls == 1:
+                raise urllib.error.HTTPError(request.full_url, 500, api.token,
+                                             {'X-RateLimit-Remaining': '999'}, None)
+            raise TimeoutError(api.token + ' private-body-marker')
+
+        api.opener = broken
+        code, diagnostics = self.probe_output(api)
+        self.assertEqual(code, 1)
+        self.assertEqual(api.calls, 3)
+        self.assertEqual(diagnostics[0], {'failure_class': 'REQUEST_FAILED', 'endpoint': 'POST /graphql'})
+
+    def test_probe_routes_are_labelled_without_echoing_identifiers_or_query_values(self):
+        api, labels = FakeApi(), []
+        original = api.request
+
+        def traced(*args, **kwargs):
+            result = original(*args, **kwargs)
+            labels.append(api.trace['endpoint'])
+            return result
+
+        api.request = traced
+        detector.probe(api)
+        self.assertNotIn('other', labels)
+        self.assertEqual(len(labels), 9)
+        self.assertEqual(detector.endpoint('GET', BASE + '/actions/runs?token=' + api.token), 'GET runs')
+        self.assertEqual(detector.endpoint('GET', BASE + '/unknown/' + api.token), 'other')
+        self.assertEqual(detector.response_facts(api.token, None), {})
+
+
 class PersistenceAndWorkflow(unittest.TestCase):
     def test_a_cancelled_recheck_does_not_enter_shadow_alert_history(self):
         api, state = FakeApi(), detector.empty_state()

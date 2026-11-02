@@ -311,9 +311,11 @@ fn a_worker_that_never_reads_cannot_hang_the_parent() {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn the_backends_children_end_with_the_worker() {
-    // The worker starts a child of its own (as the FFmpeg backend does),
-    // then hangs; the deadline must end both.
+    use rustix::event::{PollFd, PollFlags, Timespec, poll};
+    use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
+
     let dir = std::env::temp_dir().join(format!("coreav-hostile-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("dir");
     let pid_file = dir.join("pid");
@@ -329,22 +331,34 @@ fn the_backends_children_end_with_the_worker() {
             .into(),
         ],
     };
-    assert_eq!(session(command), Err(ErrorKind::Timeout));
+    let mut decoder = SandboxedDecoder::open(
+        &options(command),
+        WorkerBackend::Ffmpeg,
+        &stream(),
+        &limits(),
+    )
+    .expect("open");
     let pid = std::fs::read_to_string(&pid_file).expect("pid");
-    let stat = std::path::Path::new("/proc").join(pid.trim()).join("stat");
-    let until = Instant::now() + Duration::from_secs(2);
-    // Gone, or a zombie waiting for init to reap it.
-    let alive = || {
-        std::fs::read_to_string(&stat).is_ok_and(|s| {
-            s.rsplit_once(") ")
-                .is_some_and(|(_, rest)| !rest.starts_with('Z'))
-        })
-    };
-    while alive() && Instant::now() < until {
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    assert!(!alive(), "the worker's child outlived it");
+    let pid = Pid::from_raw(pid.trim().parse().expect("numeric pid")).expect("positive pid");
+    let child = pidfd_open(pid, PidfdFlags::empty()).expect("child pidfd");
+    let mut events = [PollFd::new(&child, PollFlags::IN)];
+    assert_eq!(
+        poll(&mut events, Some(&Timespec::default())).expect("live child"),
+        0,
+        "the worker's child must be alive before the timeout"
+    );
+    decoder.send_eof().expect("eof");
+    assert!(matches!(
+        decoder.receive_frame().map_err(|e| e.kind),
+        Err(ErrorKind::Timeout)
+    ));
+    drop(decoder);
+    let timeout = Timespec::try_from(Duration::from_secs(2)).expect("timeout");
+    let ended = poll(&mut events, Some(&timeout)).expect("child exit");
+    let _ = pidfd_send_signal(&child, Signal::KILL);
     let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(ended, 1, "the worker's child outlived it");
+    assert!(events[0].revents().contains(PollFlags::IN));
 }
 
 #[test]
