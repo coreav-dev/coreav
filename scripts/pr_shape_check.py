@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""A pull request's title and commits keep the Conventional Commits shape
-the pull request template states (docs/design/ci-checks.md, "The pull
-request's shape"): what review kept checking by hand. Run by
+"""A pull request's title, body and commits keep the shape the pull
+request template states (docs/design/ci-checks.md, "The pull request's
+shape"): what review kept checking by hand. Run by
 .github/workflows/pr-text.yml on every pull request event, and by hand
 before opening one.
 
@@ -12,10 +12,13 @@ Fails on:
   72 characters or more;
 - a commit whose subject is not of that form (merge commits excepted) or is
   longer than 72 characters;
-- a commit list that is not in the form below: none of it is checked.
+- a commit list that is not in the form below: none of it is checked;
+- a body without a level-2 heading for one of the template's required
+  sections, or with a paragraph or list item broken across two lines
+  (a hard wrap).
 
     pr_shape_check.py --event EVENT.json [--commits FILE]
-    pr_shape_check.py --title TITLE [--commits FILE]
+    pr_shape_check.py --title TITLE [--body-file BODY.md] [--commits FILE]
 
 FILE holds the commits as `git log --format='%H%x00%P%x00%B%x00' BASE..HEAD`
 writes them: NUL, which Git does not allow in a commit message, ends each
@@ -36,6 +39,27 @@ TITLE_LIMIT = 72
 SUBJECT_MAX = 72
 SHA = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 PARENTS = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})(?: (?:[0-9a-f]{40}|[0-9a-f]{64}))*|')
+
+# The sections .github/pull_request_template.md opens with `## `, split by
+# whether it tells the author to keep them. Two of its sections are deleted
+# when they do not apply, and the template says so in their comments, so only
+# the rest are required. A test reads the template and fails when these two
+# lists no longer hold its level-2 headings.
+REQUIRED_SECTIONS = ('TL;DR', 'Background', 'What changes', 'Decisions', 'Evidence')
+OPTIONAL_SECTIONS = ('How it works', 'Needs the maintainer')
+
+# The block structure of a Markdown body, to find a line break inside a
+# paragraph or list item. A line starts a block, exempts itself, or continues
+# the block above it: only a continuation is a hard wrap.
+FENCE = re.compile(r'\A {0,3}(`{3,}|~{3,})(?:[^`~]*)\Z')
+HTML_BLOCK = re.compile(r'\A {0,3}(?:<!--|</?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|\Z)|<[!?])')
+HEADING = re.compile(r'\A {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*\Z')
+QUOTE = re.compile(r'\A {0,3}>')
+LIST_ITEM = re.compile(r'\A\s*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|\Z)')
+TABLE_ROW = re.compile(r'\A\s*\|')
+TABLE_DELIMITER = re.compile(r'\A {0,3}[|: \t-]+\Z')
+RULE = re.compile(r'\A {0,3}(?:[=-][ \t]*[=-][ \t=-]*|[*-][ \t]*[*-][ \t*-]*|[_][ \t]*[_][ \t_]*)\Z')
+INDENTED_CODE = re.compile(r'\A(?: {4}|\t)')
 
 
 def conventional(text):
@@ -81,20 +105,117 @@ def commit_failures(log):
     return out
 
 
+def body_failures(body):
+    """What is wrong with a pull request's body, each with its fix."""
+    headings, wraps = scan_body(body)
+    normalized = {' '.join(text.split()).casefold() for text, _ in headings}
+    out = []
+    for section in REQUIRED_SECTIONS:
+        if section.casefold() not in normalized:
+            out.append(f'the body has no `## {section}` section: the template requires one, so write that heading '
+                       f'and the section it opens')
+    for start, end in wraps:
+        out.append(f'the body breaks a paragraph or list item across lines {start} and {end}: join them into one '
+                   'line, and use a blank line where a new paragraph starts')
+    return out
+
+
+def scan_body(body):
+    """(heading text, line) of each heading, and (line, line) of each paragraph
+    or list item a line break runs through."""
+    headings, wraps = [], []
+    fence = None
+    html = False
+    code = False
+    open_ = None    # the line the prose block under way started at
+    broken = None   # (its line, the line that continued it) once one does
+
+    def close(exempt):
+        """End the open block, keeping its line break unless the line that
+        ends it exempts the block's own last line (`exempt`)."""
+        nonlocal open_, broken
+        if broken and not exempt:
+            wraps.append(broken)
+        open_ = broken = None
+
+    for number, line in enumerate(body.split('\n'), 1):
+        text = line.rstrip()
+        stripped = text.strip()
+        if fence:
+            if FENCE.match(text) and stripped.startswith(fence):
+                fence = None
+            continue
+        if html:
+            if not stripped:
+                html = False
+            continue
+        if code:
+            if stripped and not INDENTED_CODE.match(text):
+                code = False
+            else:
+                continue
+        if not stripped:
+            close(False)
+            continue
+        found = FENCE.match(text)
+        if found:
+            close(False)
+            fence = found.group(1)
+            continue
+        if HTML_BLOCK.match(text):
+            close(False)
+            html = True
+            continue
+        found = HEADING.match(text)
+        if found:
+            close(False)
+            if len(found.group(1)) == 2:
+                headings.append((found.group(2), number))
+            continue
+        if QUOTE.match(text) or TABLE_ROW.match(text):
+            close(bool(TABLE_DELIMITER.match(text)))
+            continue
+        if TABLE_DELIMITER.match(text) and '-' in text:
+            close(True)     # the row above is a table's header
+            continue
+        if RULE.match(text):
+            close(True)     # the line above is a setext heading, or a blank marker
+            continue
+        if LIST_ITEM.match(text):
+            close(False)
+            open_ = number
+            continue
+        if open_ is None and INDENTED_CODE.match(text):
+            code = True     # an indented code block, which a paragraph's line cannot start
+            continue
+        if open_ is None:
+            open_ = number
+        elif broken is None:
+            broken = (open_, number)
+    close(False)
+    return headings, wraps
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--event', help='a GitHub pull_request event file')
     ap.add_argument('--title', help="the pull request's title")
+    ap.add_argument('--body-file', help="a file holding the pull request's body")
     ap.add_argument('--commits', help="the pull request's commits (see above)")
     a = ap.parse_args()
     if a.event:
         with open(a.event, encoding='utf-8') as f:
-            title = (json.load(f).get('pull_request') or {}).get('title') or ''
+            pr = json.load(f).get('pull_request') or {}
     elif a.title is not None:
-        title = a.title
+        try:
+            with open(a.body_file, encoding='utf-8') as f:
+                body = f.read()
+        except OSError as e:
+            sys.exit(f'pr-shape: cannot read {a.body_file}: {e.strerror}')
+        pr = {'title': a.title, 'body': body}
     else:
         sys.exit('pr-shape: give --event, or --title')
-    failures = title_failures(title)
+    failures = title_failures(pr.get('title') or '') + body_failures(pr.get('body') or '')
     if a.commits:
         try:
             with open(a.commits, encoding='utf-8') as f:
@@ -103,7 +224,8 @@ def main():
             sys.exit(f'pr-shape: cannot read {a.commits}: {e.strerror}')
     for failure in failures:
         print(failure)
-    print(f'pr-shape: {len(failures)} failure(s)' if failures else 'pr-shape: the title and commits keep their shape')
+    print(f'pr-shape: {len(failures)} failure(s)' if failures
+          else 'pr-shape: the title, body and commits keep their shape')
     sys.exit(1 if failures else 0)
 
 

@@ -4,8 +4,9 @@ name: pr-text
 # "The pull request's shape"): scripts/pr_text_check.py without the private
 # list (Korean text, a run identifier, spend details), and
 # scripts/pr_shape_check.py (Conventional Commits titles and commit
-# subjects, and their lengths). It runs again when the
-# title or body is edited. Read-only token, no secret: the private list
+# subjects and their lengths; a body without the template's sections, or
+# with a line break inside a paragraph or list item). It runs again when
+# the title or body is edited. Read-only token, no secret: the private list
 # stays on the agent's machine ("Before opening a pull request"). Not a
 # required check, so the ruleset is unchanged; a failure still shows on the
 # pull request.

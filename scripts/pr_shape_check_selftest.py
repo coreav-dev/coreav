@@ -97,6 +97,171 @@ class Commits(unittest.TestCase):
             'perf(mpegts): parse a PES header once per packet\n\nThe code of #9 stays.\n\nSigned-off-by: A <a@b.c>')), [])
 
 
+BODY = """## TL;DR
+
+- A probe of a fragmented file reads each `moof` once, so a clip of 500 fragments probes faster.
+- Nothing outside the probe path changes.
+
+## Background
+
+A fragmented file names its samples in every fragment, and the probe read all of them before this change. coreav-dev/coreav#12 records the slow probe, and the fix reads each fragment header once.
+
+## What changes
+
+**What changes for users of the library or CLI?** A probe of a fragmented file is faster, and its output is unchanged.
+
+**What does this cover, and what nearby areas did it deliberately leave alone?**
+
+- Covered: the fragment walk in `coreav-isobmff`, with a fixture of 500 fragments.
+- Not covered: non-fragmented files, and the thumbnail path.
+
+**What must a person do after merging?** None.
+
+## How it works
+
+<details><summary>Probe a fragmented file</summary>
+
+```mermaid
+sequenceDiagram
+  participant C as coreav CLI
+  participant L as library API
+  C->>L: probe(path)
+  Note over C,L: Changed: previously every fragment was read
+```
+
+</details>
+
+## Decisions
+
+- Read the headers in one pass rather than caching the walk, so a caller that stops early stops reading.
+
+## Evidence
+
+**Verification run**: `cargo test -p coreav-isobmff` passed.
+
+- [x] Every commit is signed off (`git commit -s`, DCO).
+"""
+
+EXEMPT = """## TL;DR
+
+-
+- A bullet, on one line.
+
+## Background
+
+A paragraph, on one line.
+
+Another paragraph, on one line.
+
+> A quote
+> that runs over two lines.
+
+| a | b |
+|---|---|
+| 1 | 2 |
+| 3 | 4 |
+
+a | b
+--- | ---
+
+```text
+a code block
+  whose lines
+  wrap
+```
+
+```mermaid
+sequenceDiagram
+  A->>B: a message
+```
+
+    An indented code block
+      whose lines
+      wrap
+
+<!--
+a comment
+over two lines
+-->
+
+<a href="a">
+  <img src="b">
+</a>
+
+***
+
+Setext heading
+==============
+
+## What changes
+
+- Covered: one
+  - a nested item
+- Not covered: two
+
+## Decisions
+
+A paragraph.
+
+## Evidence
+
+Text.
+"""
+
+
+class Body(unittest.TestCase):
+    def test_a_body_of_the_template_passes(self):
+        self.assertEqual(check.body_failures(BODY), [])
+
+    def test_every_exempt_construct_passes(self):
+        self.assertEqual(check.body_failures(EXEMPT), [])
+
+    def test_the_template_and_the_required_sections_agree(self):
+        # The template owns the section list: a section added to it, or one
+        # it stops requiring, has to appear above.
+        template = (HERE.parent / '.github' / 'pull_request_template.md').read_text(encoding='utf-8')
+        headings = [text.strip() for text, _ in check.scan_body(template)[0]]
+        self.assertEqual(sorted(headings),
+                         sorted(check.REQUIRED_SECTIONS + check.OPTIONAL_SECTIONS), headings)
+
+    def test_a_missing_section(self):
+        for section in check.REQUIRED_SECTIONS:
+            with self.subTest(section=section):
+                failures = check.body_failures(BODY.replace(f'## {section}', '## Another'))
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(f'no `## {section}` section', failures[0])
+
+    def test_a_body_with_no_section_at_all(self):
+        failures = check.body_failures('A description of the change.')
+        self.assertEqual(len(failures), len(check.REQUIRED_SECTIONS), failures)
+
+    def test_a_section_name_in_another_case_is_the_same_section(self):
+        self.assertEqual(check.body_failures(BODY.replace('## TL;DR', '## tl;dr')), [])
+
+    def test_a_paragraph_over_two_lines(self):
+        # coreav-dev/coreav#174 as merged: two lines GitHub shows as one paragraph.
+        failures = check.body_failures(BODY.replace('A fragmented file names', 'Before: the slow probe.\nAfter: the fast probe.'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('lines 8 and 9', failures[0])
+        self.assertIn('join them into one line', failures[0])
+
+    def test_a_list_item_over_two_lines(self):
+        failures = check.body_failures(BODY.replace('- Not covered: non-fragmented files, and the thumbnail path.',
+                                                   '- Not covered: non-fragmented files, and the thumbnail path,\n  which the next change reads.'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('lines 17 and 18', failures[0])
+
+    def test_an_indented_line_continuing_a_paragraph_is_still_a_line_break(self):
+        # Indented code cannot start inside a paragraph, so this is a wrap.
+        failures = check.body_failures(BODY.replace('A fragmented file names',
+                                                    'A fragmented file names\n    and an indented continuation'))
+        self.assertEqual(len(failures), 1, failures)
+
+    def test_one_failure_per_broken_block(self):
+        failures = check.body_failures(BODY.replace('A fragmented file names', 'a\nb\nc\nd'))
+        self.assertEqual(len(failures), 1, failures)
+
+
 class Command(unittest.TestCase):
     def run_check(self, *args):
         return subprocess.run([sys.executable, '-I', str(HERE / 'pr_shape_check.py'), *args],
@@ -106,7 +271,7 @@ class Command(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             event = pathlib.Path(d) / 'event.json'
             commits = pathlib.Path(d) / 'commits'
-            event.write_text(json.dumps({'pull_request': {'title': 'ci: fine', 'body': None}}))
+            event.write_text(json.dumps({'pull_request': {'title': 'ci: fine', 'body': BODY}}))
             commits.write_text(log('ci: fine\n\nSigned-off-by: A <a@b.c>'))
             run = self.run_check('--event', str(event), '--commits', str(commits))
             self.assertEqual(run.returncode, 0, run.stdout)
@@ -119,6 +284,20 @@ class Command(unittest.TestCase):
             self.assertEqual(run.returncode, 1)
             self.assertIn('no commit was checked', run.stdout)
             run = self.run_check('--event', str(event), '--commits', str(pathlib.Path(d) / 'nope'))
+            self.assertEqual(run.returncode, 1)
+            self.assertIn('pr-shape: cannot read', run.stderr)
+
+    def test_title_and_body_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            body = pathlib.Path(d) / 'body.md'
+            body.write_text(BODY.replace('## Decisions', '## Decision'))
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
+            self.assertEqual(run.returncode, 1)
+            self.assertIn('no `## Decisions` section', run.stdout)
+            body.write_text(BODY)
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(body))
+            self.assertEqual(run.returncode, 0, run.stdout)
+            run = self.run_check('--title', 'ci: fine', '--body-file', str(pathlib.Path(d) / 'nope'))
             self.assertEqual(run.returncode, 1)
             self.assertIn('pr-shape: cannot read', run.stderr)
 
