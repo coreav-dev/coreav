@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::ptr::{self, NonNull};
 
-use super::{Control, Error, Identity, Operation, RawOutput, Settings};
+use super::{Control, Error, Identity, Limits, Operation, RawOutput, Settings};
 use crate::aac::PacketDescription;
 
 const AAC: u32 = u32::from_be_bytes(*b"aac ");
@@ -106,6 +106,60 @@ pub(super) struct Instance {
     identity: Identity,
     control: Control,
     disposed: bool,
+    source_frames: u64,
+    max_trim_frames: u32,
+    drain: Option<Drain>,
+}
+
+#[derive(Clone, Copy)]
+struct Drain {
+    remaining: u32,
+    prime: (u32, u32),
+    trailing: u32,
+    eof: bool,
+}
+
+impl Drain {
+    fn new(source: u64, prime: (u32, u32), limit: u32) -> Result<Self, Error> {
+        if prime.0 > limit || prime.1 > limit {
+            return Err(Error::Limit);
+        }
+        let total = source
+            .checked_add(u64::from(prime.0))
+            .and_then(|n| n.checked_add(u64::from(prime.1)))
+            .ok_or(Error::Limit)?;
+        let alignment = (1024 - total % 1024) % 1024;
+        let trailing = u32::try_from(u64::from(prime.1) + alignment).map_err(|_| Error::Limit)?;
+        if trailing > limit {
+            return Err(Error::Limit);
+        }
+        let remaining = prime.0.checked_add(trailing).ok_or(Error::Limit)?;
+        Ok(Self {
+            remaining,
+            prime,
+            trailing,
+            eof: false,
+        })
+    }
+
+    fn consume(&mut self, frames: usize) -> Result<(), Error> {
+        if self.eof {
+            return Err(Error::State);
+        }
+        self.remaining = self
+            .remaining
+            .checked_sub(u32::try_from(frames).map_err(|_| Error::Output)?)
+            .ok_or(Error::Output)?;
+        Ok(())
+    }
+
+    fn mark_eof(&mut self) -> Result<(), Error> {
+        if self.remaining != 0 || self.eof {
+            return Err(Error::State);
+        }
+        self.eof = true;
+        Ok(())
+    }
 }
 
 impl Drop for Instance {
@@ -137,7 +191,11 @@ fn invoke(control: &Control, operation: Operation, f: impl FnOnce() -> i32) -> R
 }
 
 impl Instance {
-    pub(super) fn new(settings: Settings, control: &Control) -> Result<Self, Error> {
+    pub(super) fn new(
+        settings: Settings,
+        limits: Limits,
+        control: &Control,
+    ) -> Result<Self, Error> {
         let requested = Description {
             kind: ENCODER,
             subtype: AAC,
@@ -180,6 +238,9 @@ impl Instance {
             },
             control: control.clone(),
             disposed: false,
+            source_frames: 0,
+            max_trim_frames: limits.max_trim_frames,
+            drain: None,
         };
         control.check()?;
         let instantiated = unsafe { AudioComponentInstanceGetComponent(owner.handle.as_ptr()) };
@@ -385,6 +446,18 @@ impl Instance {
     }
 
     pub(super) fn append(&mut self, samples: &[f32]) -> Result<usize, Error> {
+        if self.drain.is_some() {
+            return Err(Error::State);
+        }
+        let consumed = self.append_pcm(samples)?;
+        self.source_frames = self
+            .source_frames
+            .checked_add(consumed as u64)
+            .ok_or(Error::Limit)?;
+        Ok(consumed)
+    }
+
+    fn append_pcm(&mut self, samples: &[f32]) -> Result<usize, Error> {
         let offered = u32::try_from(std::mem::size_of_val(samples)).map_err(|_| Error::Limit)?;
         let mut bytes = offered;
         let offered_frames =
@@ -408,6 +481,18 @@ impl Instance {
     }
 
     pub(super) fn eof(&mut self) -> Result<(), Error> {
+        if self.drain.is_some() {
+            return Err(Error::State);
+        }
+        self.drain = Some(Drain::new(
+            self.source_frames,
+            self.priming()?,
+            self.max_trim_frames,
+        )?);
+        Ok(())
+    }
+
+    fn signal_eof(&mut self) -> Result<(), Error> {
         let mut bytes = 0;
         let mut packets = 0;
         let marker = 0_f32;
@@ -429,6 +514,24 @@ impl Instance {
     }
 
     pub(super) fn produce(&mut self, capacity: usize) -> Result<RawOutput, Error> {
+        if let Some(mut drain) = self.drain {
+            if !drain.eof {
+                if drain.remaining != 0 {
+                    let zeros = [0.0_f32; 2048];
+                    let frames = drain.remaining.min(1024);
+                    let samples = zeros
+                        .get(..(frames * self.channels) as usize)
+                        .ok_or(Error::Output)?;
+                    let consumed = self.append_pcm(samples)?;
+                    drain.consume(consumed)?;
+                }
+                if drain.remaining == 0 {
+                    self.signal_eof()?;
+                    drain.mark_eof()?;
+                }
+                self.drain = Some(drain);
+            }
+        }
         let mut bytes = u32::try_from(capacity).map_err(|_| Error::Limit)?;
         let mut data = Vec::new();
         data.try_reserve_exact(capacity)
@@ -452,14 +555,13 @@ impl Instance {
             "AudioCodec output: status {status}, bytes {bytes}/{capacity}, packets {count}, offset {}, packet bytes {}, frames {}",
             description.offset, description.bytes, description.frames
         );
-        #[cfg(test)]
-        if status == 4 {
-            eprintln!("AudioCodec exhausted-input trim: {:?}", self.trim());
-        }
         if bytes as usize > data.len() || count > 1 {
             return Err(Error::Output);
         }
         data.truncate(bytes as usize);
+        if status == 4 && count == 0 && self.drain.is_some_and(|drain| drain.eof) {
+            status = 5;
+        }
         Ok(RawOutput {
             data,
             count,
@@ -513,7 +615,7 @@ impl Instance {
         Ok(data)
     }
 
-    pub(super) fn trim(&mut self) -> Result<(u32, u32), Error> {
+    fn priming(&mut self) -> Result<(u32, u32), Error> {
         let mut prime = Prime::default();
         let mut size = 8;
         invoke(
@@ -531,17 +633,102 @@ impl Instance {
         if size != 8 {
             return Err(Error::Output);
         }
-        let trailing = prime
-            .trailing
-            .checked_add(self.u32(*b"pad0")?)
-            .ok_or(Error::Output)?;
-        Ok((prime.leading, trailing))
+        Ok((prime.leading, prime.trailing))
+    }
+
+    pub(super) fn trim(&mut self) -> Result<(u32, u32), Error> {
+        let drain = self.drain.filter(|drain| drain.eof).ok_or(Error::State)?;
+        if self.priming()? != drain.prime || self.u32(*b"pad0")? != 0 {
+            return Err(Error::Output);
+        }
+        Ok((drain.prime.0, drain.trailing))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drain_padding_accounts_for_delay_and_packet_alignment() -> Result<(), Error> {
+        for (source, prime, remaining, trailing) in [
+            (5000, (2112, 0), 2168, 56),
+            (0, (2112, 0), 3072, 960),
+            (1024, (0, 0), 0, 0),
+            (1023, (0, 0), 1, 1),
+            (5000, (100, 20), 120, 20),
+        ] {
+            let drain = Drain::new(source, prime, 4096)?;
+            assert_eq!(drain.remaining, remaining);
+            assert_eq!(drain.trailing, trailing);
+            assert_eq!(drain.prime, prime);
+            assert!(!drain.eof);
+            assert_eq!((source + u64::from(drain.remaining)) % 1024, 0);
+            assert_eq!(
+                source + u64::from(drain.remaining)
+                    - u64::from(prime.0)
+                    - u64::from(drain.trailing),
+                source
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn drain_padding_refuses_excess_trim_and_overflow() {
+        for (source, prime, limit) in [
+            (5000, (2112, 0), 2111),
+            (5000, (0, 20), 19),
+            (1023, (0, 0), 0),
+            (u64::MAX, (1, 0), 4096),
+            (0, (u32::MAX, u32::MAX), u32::MAX),
+        ] {
+            assert_eq!(Drain::new(source, prime, limit).err(), Some(Error::Limit));
+        }
+    }
+
+    #[test]
+    fn tail_progress_is_partial_and_eof_is_once() -> Result<(), Error> {
+        let mut drain = Drain::new(5000, (2112, 0), 4096)?;
+        drain.consume(0)?;
+        assert_eq!(drain.remaining, 2168);
+        drain.consume(120)?;
+        assert_eq!(drain.remaining, 2048);
+        assert_eq!(drain.mark_eof(), Err(Error::State));
+        assert_eq!(drain.consume(2049), Err(Error::Output));
+        assert_eq!(drain.remaining, 2048);
+        drain.consume(1024)?;
+        drain.consume(1024)?;
+        drain.mark_eof()?;
+        assert_eq!(drain.mark_eof(), Err(Error::State));
+        assert_eq!(drain.consume(0), Err(Error::State));
+        Ok(())
+    }
+
+    #[test]
+    fn a_cancelled_tail_does_not_consume_padding_or_send_eof() -> Result<(), Error> {
+        use std::time::{Duration, Instant};
+
+        let control = Control::new(Instant::now() + Duration::from_secs(30));
+        let limits = Limits {
+            max_chunk_frames: 8192,
+            max_total_frames: 32768,
+            max_output_bytes: 65536,
+            max_packets: 64,
+            max_packet_bytes: 4096,
+            max_cookie_bytes: 256,
+            max_trim_frames: 4096,
+        };
+        let mut codec = Instance::new(Settings::new(44_100, 1, 128_000, 96)?, limits, &control)?;
+        codec.eof()?;
+        let before = codec.drain.ok_or(Error::State)?.remaining;
+        control.cancel();
+        assert_eq!(codec.produce(4096).err(), Some(Error::Cancelled));
+        let after = codec.drain.ok_or(Error::State)?;
+        assert_eq!(after.remaining, before);
+        assert!(!after.eof);
+        Ok(())
+    }
 
     #[test]
     fn a_failed_factory_never_confers_ownership_of_its_output_pointer() {

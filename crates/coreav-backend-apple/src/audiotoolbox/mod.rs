@@ -531,7 +531,7 @@ impl Encoder {
     pub fn new(settings: Settings, limits: Limits, control: Control) -> Result<Self, Error> {
         control.check()?;
         limits.check()?;
-        let backend = sys::Instance::new(settings, &control)?;
+        let backend = sys::Instance::new(settings, limits, &control)?;
         control.check()?;
         let mut session = Session::new(backend, settings, limits, control)?;
         let maximum = session.call(|backend| backend.u32(*b"pakb"))?;
