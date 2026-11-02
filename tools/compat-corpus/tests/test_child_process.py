@@ -1,11 +1,13 @@
 """Launcher capture and ownership regressions with generated Python children."""
 import json
+import ctypes
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
@@ -14,6 +16,33 @@ import encode_breadth as eb  # noqa: E402
 
 
 class Capture(unittest.TestCase):
+    def test_reaping_bounds_missing_child_lists_and_unfinished_children(self):
+        for available in (False, True):
+            with self.subTest(available=available):
+                def enabled(option, pointer, *args):
+                    ctypes.cast(pointer, ctypes.POINTER(ctypes.c_int))[0] = 1
+                    return 0
+                def entries(path):
+                    return iter([pathlib.Path('/proc/101') if str(path) == '/proc'
+                                 else pathlib.Path('/proc/self/task/100')])
+                libc = mock.Mock()
+                libc.prctl.side_effect = enabled
+                with mock.patch.object(r3.ctypes, 'CDLL', return_value=libc), \
+                     mock.patch.object(pathlib.Path, 'iterdir', entries), \
+                     mock.patch.object(pathlib.Path, 'read_text', return_value='101',
+                                       side_effect=None if available else FileNotFoundError()), \
+                     mock.patch.object(os, 'getpgid', return_value=100), \
+                     mock.patch.object(os, 'waitid', create=True), \
+                     mock.patch.object(os, 'waitpid', return_value=(0, 0)) as wait, \
+                     mock.patch.object(r3.time, 'monotonic', side_effect=[0, 0.1, 0.2]), \
+                     mock.patch.object(r3.time, 'sleep'):
+                    with self.assertRaisesRegex(TimeoutError, r'group 100.*101'):
+                        r3.reap_group(100, timeout=0.15)
+                if available:
+                    wait.assert_called_once_with(101, os.WNOHANG)
+                else:
+                    wait.assert_not_called()
+
     def test_capture_drains_both_pipes_and_bounds_a_busy_writer(self):
         code = ('import os\n'
                 'for _ in range(64):\n'

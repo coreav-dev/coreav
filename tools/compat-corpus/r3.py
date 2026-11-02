@@ -82,7 +82,8 @@ def media_files(opts):
     return [p for p in out if release_round.family(p)]
 
 
-def reap_group(pgid):
+def reap_group(pgid, timeout=10):
+    deadline = time.monotonic() + timeout
     libc = ctypes.CDLL(None, use_errno=True)
     enabled = ctypes.c_int()
     libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
@@ -92,7 +93,7 @@ def reap_group(pgid):
         raise OSError(error, os.strerror(error))
     if not enabled.value:
         return
-    os.waitid(os.P_PID, pgid, os.WEXITED | os.WNOWAIT)
+    os.waitid(os.P_PID, pgid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
     while True:
         members = []
         for entry in pathlib.Path('/proc').iterdir():
@@ -105,6 +106,8 @@ def reap_group(pgid):
                 continue
         if not members:
             return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f'process group {pgid} cleanup could not reap remaining members {members}')
         adopted = set()
         for task in pathlib.Path('/proc/self/task').iterdir():
             try:
@@ -115,8 +118,8 @@ def reap_group(pgid):
         for pid in adopted - {pgid}:
             try:
                 if os.getpgid(pid) == pgid:
-                    os.waitpid(pid, 0)
-                    reaped = True
+                    waited, _ = os.waitpid(pid, os.WNOHANG)
+                    reaped |= waited == pid
             except (ProcessLookupError, ChildProcessError):
                 pass
         if not reaped:
