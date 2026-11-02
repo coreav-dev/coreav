@@ -141,6 +141,9 @@ class Comparisons(unittest.TestCase):
         self.assertLess(prefix.index('-copyts'), prefix.index('-i'))
         self.assertEqual(prefix[prefix.index('-enc_time_base') + 1], 'demux')
         self.assertEqual(prefix[prefix.index('-c:v') + 1], 'vp9')
+        for selected in (command, prefix):
+            self.assertEqual(selected.count('-map'), 1)
+            self.assertEqual(selected[selected.index('-map') + 1], '0:v:0')
 
     def test_oracle_capture_requires_its_clock_and_md5_headers(self):
         path = self.root / 'oracle'
