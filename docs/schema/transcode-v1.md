@@ -79,7 +79,7 @@ or 3 for an I/O error, and leaves no output and no spool file. Besides the
 probe's kinds: `unsupported_feature` for refusals by design (a pixel format
 the encoder does not take, an odd size without `--scale`, an edit list
 outside the simple model, no encoder program; with `--audio opus` or `aac`,
-audio other than FLAC or MP3, or more than two channels; with `--audio
+audio the build does not decode, or more than two channels; with `--audio
 opus`, a build without the `libopus` feature; with `--audio aac`, a rate
 outside 8 to 64 kHz, no `ffmpeg` program, or an `ffmpeg` without the `aac`
 encoder), `decode` (the decoder failed

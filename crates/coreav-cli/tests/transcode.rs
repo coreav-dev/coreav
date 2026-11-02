@@ -1857,9 +1857,227 @@ fn opus_audio_takes_the_place_of_the_source_audio() {
     nothing_left(&dir);
 }
 
+#[cfg(unix)]
+fn opus_mp4_padding_pair(
+    codec: &str,
+    container: &str,
+    mode: &str,
+    presented: u64,
+    oracle: u64,
+) -> bool {
+    codec == "opus"
+        && container == "mp4"
+        && matches!(mode, "aac" | "opus")
+        && presented == 96_000
+        && oracle == 96_648
+}
+
+#[cfg(unix)]
+#[test]
+fn the_opus_mp4_padding_exception_is_exact_and_cannot_become_stale() {
+    for mode in ["aac", "opus"] {
+        assert!(opus_mp4_padding_pair("opus", "mp4", mode, 96_000, 96_648));
+        for (codec, container, output, presented, oracle) in [
+            ("aac", "mp4", mode, 96_000, 96_648),
+            ("opus", "mkv", mode, 96_000, 96_648),
+            ("opus", "mp4", "mp3", 96_000, 96_648),
+            ("opus", "mp4", mode, 96_001, 96_648),
+            ("opus", "mp4", mode, 96_000, 96_647),
+            ("opus", "mp4", mode, 96_000, 96_000),
+        ] {
+            assert!(!opus_mp4_padding_pair(
+                codec, container, output, presented, oracle
+            ));
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn audio_encodes_preserve_the_decoders_presented_samples() {
+    struct Samples(Vec<u8>);
+    impl coreav_audio::Sink for Samples {
+        fn start(&mut self, _: &coreav_audio::OutputFormat) -> Result<(), coreav_audio::Error> {
+            Ok(())
+        }
+        fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_audio::Error> {
+            self.0.extend_from_slice(bytes);
+            Ok(())
+        }
+    }
+    let Some(tools) = tools() else { return };
+    let dir = dir("decoded-audio-sources");
+    let mut mismatches = Vec::new();
+    for codec in ["opus", "aac"] {
+        if codec == "aac" && !cfg!(feature = "aac") {
+            continue;
+        }
+        for container in ["mp4", "mkv"] {
+            let source = made(
+                &tools,
+                &dir,
+                &format!("{codec}.{container}"),
+                &["-c:a", if codec == "opus" { "libopus" } else { "aac" }],
+            );
+            if codec == "opus" && container == "mp4" {
+                let source_fields = probe_json(
+                    &tools,
+                    &[
+                        "-select_streams",
+                        "a",
+                        "-show_entries",
+                        "stream=codec_name,sample_rate,start_pts,duration_ts,initial_padding",
+                    ],
+                    &source,
+                );
+                assert_eq!(
+                    source_fields["streams"][0],
+                    serde_json::json!({
+                        "codec_name": "opus", "sample_rate": "48000", "start_pts": 0,
+                        "duration_ts": 96_000, "initial_padding": 312,
+                    })
+                );
+                let movie = coreav_isobmff::probe(
+                    coreav_isobmff::FileSource::open(&source).unwrap(),
+                    &coreav_isobmff::Limits::default(),
+                    &coreav_isobmff::Allowlist::new(&[coreav_isobmff::Codec::Opus]),
+                )
+                .unwrap();
+                let audio = movie
+                    .tracks
+                    .iter()
+                    .find(|t| t.description.codec == coreav_isobmff::Codec::Opus)
+                    .unwrap();
+                assert_eq!(movie.timescale, 48_000);
+                assert_eq!(audio.timescale, 48_000);
+                assert_eq!(audio.edits.len(), 1);
+                assert_eq!(audio.edits[0].media_time, 312);
+                assert_eq!(audio.edits[0].segment_duration, 96_000);
+                assert_eq!(audio.edits[0].media_rate, 1 << 16);
+                assert_eq!(
+                    audio.description.codec_config.as_ref().unwrap().data,
+                    [0, 1, 1, 56, 0, 0, 187, 128, 0, 0, 0]
+                );
+            }
+            let mut expected = Samples(Vec::new());
+            let decoded = coreav_audio::decode(
+                coreav_isobmff::FileSource::open(&source).unwrap(),
+                &coreav_audio::Options {
+                    format: coreav_audio::SampleFormat::F32,
+                    ..Default::default()
+                },
+                &coreav_audio::Limits::default(),
+                &mut expected,
+            )
+            .unwrap();
+            assert!(!expected.0.is_empty());
+            let capture = dir.join("samples.f32");
+            std::fs::write(&capture, &expected.0).unwrap();
+            let wrapper = script(
+                &dir,
+                "capture-ffmpeg",
+                &format!(
+                    "case \" $* \" in *' -h '*) exec '{}' \"$@\";; esac\n/usr/bin/cmp - '{}' || exit 1\nexec '{}' \"$@\" < '{}'",
+                    tools.ffmpeg.display(),
+                    capture.display(),
+                    tools.ffmpeg.display(),
+                    capture.display()
+                ),
+            );
+            let mut modes = vec![("aac", "aac")];
+            if cfg!(feature = "libopus") {
+                modes.push(("opus", "libopus"));
+            }
+            for (mode, encoder) in modes {
+                let out = dir.join(format!("{codec}-{container}-{mode}.mp4"));
+                let run = transcode(
+                    Some(&tools),
+                    &[
+                        source.to_str().unwrap(),
+                        out.to_str().unwrap(),
+                        "--audio",
+                        mode,
+                        "--encoder",
+                        "x264",
+                        "--x264",
+                        tools.x264.to_str().unwrap(),
+                        "--ffmpeg",
+                        wrapper.to_str().unwrap(),
+                    ],
+                );
+                assert_eq!(run.code, 0, "{codec} {container} {mode}: {}", run.stderr);
+                let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+                assert_eq!(summary["encoded_audio"]["codec"], codec);
+                assert_eq!(summary["encoded_audio"]["samples"], decoded.samples);
+                let streams = probe_json(
+                    &tools,
+                    &[
+                        "-select_streams",
+                        "a",
+                        "-show_entries",
+                        "stream=codec_name,profile,channels,sample_rate,start_pts,duration_ts",
+                    ],
+                    &out,
+                );
+                let stream = &streams["streams"][0];
+                assert_eq!(
+                    stream["codec_name"],
+                    if mode == "opus" { "opus" } else { "aac" }
+                );
+                assert_eq!(stream["channels"], decoded.output.channels);
+                assert_eq!(stream["sample_rate"], "48000");
+                assert_eq!(stream["start_pts"], 0);
+                assert_eq!(stream["duration_ts"], decoded.samples);
+                let oracle = dir.join("oracle.mp4");
+                let status = Command::new(&tools.ffmpeg)
+                    .args(["-nostdin", "-v", "error", "-y"])
+                    .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                    .arg("-i")
+                    .arg(&source)
+                    .args(["-c:v", "libx264", "-c:a", encoder])
+                    .arg(&oracle)
+                    .status()
+                    .unwrap();
+                assert!(status.success());
+                let mut oracle = probe_json(
+                    &tools,
+                    &[
+                        "-select_streams",
+                        "a",
+                        "-show_entries",
+                        "stream=codec_name,profile,channels,sample_rate,start_pts,duration_ts",
+                    ],
+                    &oracle,
+                );
+                if codec == "opus" && container == "mp4" {
+                    assert!(
+                        opus_mp4_padding_pair(
+                            codec,
+                            container,
+                            mode,
+                            decoded.samples,
+                            oracle["streams"][0]["duration_ts"].as_u64().unwrap()
+                        ),
+                        "changed or stale Opus MP4 padding exception: {oracle}"
+                    );
+                    oracle["streams"][0]["duration_ts"] = serde_json::json!(decoded.samples);
+                }
+                if streams != oracle {
+                    mismatches.push(format!(
+                        "{codec} {container} {mode}: CoreAV {streams}, FFmpeg {oracle}"
+                    ));
+                }
+                decodes_cleanly(&tools, &out);
+            }
+        }
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+    nothing_left(&dir);
+}
+
 #[cfg(feature = "libopus")]
 #[test]
-fn the_opus_encode_passes_over_aac_for_the_flac_after_it() {
+fn the_opus_encode_selects_the_first_decoded_stream_before_flac() {
     let Some(tools) = tools() else { return };
     let dir = dir("opus-after-aac");
     let source = made(
@@ -1881,12 +2099,85 @@ fn the_opus_encode_passes_over_aac_for_the_flac_after_it() {
     let run = transcode(Some(&tools), &args);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let summary: Value = serde_json::from_str(&run.stdout).unwrap();
-    assert_eq!(summary["encoded_audio"]["stream_index"], 2, "{summary}");
-    assert_eq!(summary["encoded_audio"]["codec"], "flac", "{summary}");
+    assert_eq!(
+        summary["encoded_audio"]["stream_index"],
+        if cfg!(feature = "aac") { 1 } else { 2 },
+        "{summary}"
+    );
+    assert_eq!(
+        summary["encoded_audio"]["codec"],
+        if cfg!(feature = "aac") { "aac" } else { "flac" },
+        "{summary}"
+    );
     nothing_left(&dir);
 }
 
-fn the_flac_after_an_opus_stream_is_taken(audio: &str) {
+#[test]
+fn ffmpeg_aac_sources_use_the_build_decoder() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-aac-source");
+    let source = made(&tools, &dir, "source.mp4", &["-ar", "44100", "-c:a", "aac"]);
+    for (index, options) in [
+        &["-vcodec", "libx264", "-acodec", "aac"][..],
+        &["-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart"],
+        &["-c:v", "libx264", "-c:a", "aac"],
+        &[
+            "-map", "0:v", "-map", "0:a:0", "-c:v", "libx264", "-c:a", "aac",
+        ],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let output = dir.join(format!("out-{index}.mp4"));
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(options)
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        if !cfg!(feature = "aac") {
+            assert_eq!(run.status.code(), Some(4));
+            assert!(
+                String::from_utf8_lossy(&run.stderr).contains("codec this build does not decode")
+            );
+            assert!(!output.exists());
+            continue;
+        }
+        assert!(
+            run.status.success(),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let oracle = dir.join(format!("oracle-{index}.mp4"));
+        let run = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
+            .arg(&source)
+            .args(options)
+            .arg(&oracle)
+            .status()
+            .unwrap();
+        assert!(run.success());
+        let fields = [
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=codec_name,profile,sample_rate,channels,start_pts,duration_ts",
+        ];
+        assert_eq!(
+            probe_json(&tools, &fields, &output),
+            probe_json(&tools, &fields, &oracle)
+        );
+    }
+    nothing_left(&dir);
+}
+
+fn the_opus_before_a_flac_stream_is_taken(audio: &str) {
     let Some(tools) = tools() else { return };
     let dir = dir(&format!("{audio}-after-opus"));
     let source = made(
@@ -1909,20 +2200,20 @@ fn the_flac_after_an_opus_stream_is_taken(audio: &str) {
     let run = transcode(Some(&tools), &args);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let summary: Value = serde_json::from_str(&run.stdout).unwrap();
-    assert_eq!(summary["encoded_audio"]["stream_index"], 2, "{summary}");
-    assert_eq!(summary["encoded_audio"]["codec"], "flac", "{summary}");
+    assert_eq!(summary["encoded_audio"]["stream_index"], 1, "{summary}");
+    assert_eq!(summary["encoded_audio"]["codec"], "opus", "{summary}");
     nothing_left(&dir);
 }
 
 #[test]
-fn the_aac_encode_takes_the_flac_after_an_opus_stream() {
-    the_flac_after_an_opus_stream_is_taken("aac");
+fn the_aac_encode_takes_opus_before_a_flac_stream() {
+    the_opus_before_a_flac_stream_is_taken("aac");
 }
 
 #[cfg(feature = "libopus")]
 #[test]
-fn the_opus_encode_takes_the_flac_after_an_opus_stream() {
-    the_flac_after_an_opus_stream_is_taken("opus");
+fn the_opus_encode_takes_opus_before_a_flac_stream() {
+    the_opus_before_a_flac_stream_is_taken("opus");
 }
 
 #[cfg(feature = "libopus")]
@@ -1932,14 +2223,9 @@ fn audio_the_opus_encode_does_not_take_is_refused_first() {
     let dir = dir("opus-refused");
     let x264 = ["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()];
     for (name, audio, says) in [
-        // The Opus encode takes no AAC, in a build that decodes it too.
+        #[cfg(not(feature = "aac"))]
         ("aac.mp4", &["-c:a", "aac"][..], "aac is not decoded"),
-        // Nor Opus, which every build decodes.
-        (
-            "opus.mp4",
-            &["-c:a", "opus", "-strict", "-2"][..],
-            "opus is not decoded",
-        ),
+        ("pcm.mkv", &["-c:a", "pcm_s16le"][..], "pcm is not decoded"),
         (
             "six.mkv",
             &[
@@ -2103,19 +2389,12 @@ fn audio_the_aac_encode_does_not_take_is_refused_first() {
     );
     let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
     for (name, source, ffmpeg, says) in [
-        // The AAC encode takes no AAC, in a build that decodes it too.
+        #[cfg(not(feature = "aac"))]
         (
             "aac",
             made(&tools, &dir, "aac.mp4", &["-c:a", "aac"]),
             None,
             "aac is not decoded",
-        ),
-        // Nor Opus, which every build decodes.
-        (
-            "opus",
-            made(&tools, &dir, "opus.mp4", &["-c:a", "opus", "-strict", "-2"]),
-            None,
-            "opus is not decoded",
         ),
         (
             "six",
@@ -2370,6 +2649,7 @@ fn ffmpeg_aac_lines_encode_the_audio() {
         lines[0]["reason"],
         "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
     );
+    #[cfg(not(feature = "aac"))]
     let aac = made(&tools, &dir, "aac.mp4", &["-c:a", "aac"]);
     let fast = made(&tools, &dir, "96k.mkv", &["-ar", "96000", "-c:a", "flac"]);
     let two = made(
@@ -2407,10 +2687,11 @@ fn ffmpeg_aac_lines_encode_the_audio() {
             tools.ffmpeg.as_path(),
             "-ar",
         ),
+        #[cfg(not(feature = "aac"))]
         (
             line(&aac, &encoded),
             tools.ffmpeg.as_path(),
-            "encoding audio other than FLAC or MP3 with aac",
+            "codec this build does not decode",
         ),
         (
             line(&fast, &encoded),
