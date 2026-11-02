@@ -367,8 +367,9 @@ fn native_four_cells_drain_and_decode_with_the_independent_rust_decoder()
         }
         let mut accepted = 0;
         let mut packets = Vec::new();
+        let mut flow = Flow::NeedInput;
         for _ in 0..128 {
-            if accepted < 5000 {
+            if flow == Flow::NeedInput && accepted < 5000 {
                 let remaining = pcm
                     .get(accepted * usize::from(channels)..)
                     .ok_or(Error::Input)?;
@@ -376,11 +377,13 @@ fn native_four_cells_drain_and_decode_with_the_independent_rust_decoder()
             }
             let output = encoder.pull()?;
             packets.extend(output.packets.packets().map(<[u8]>::to_vec));
-            if accepted == 5000 {
+            flow = output.flow;
+            if accepted == 5000 && flow == Flow::NeedInput {
                 break;
             }
         }
         assert_eq!(accepted, 5000);
+        assert_eq!(flow, Flow::NeedInput);
         encoder.start_drain()?;
         let mut drained = false;
         for _ in 0..128 {
