@@ -190,7 +190,8 @@ pub struct Limits {
     /// space): the worker, and each process it starts. A backend fits its
     /// work to it (fewer threads) or refuses a stream it cannot fit with
     /// `Limit`. Where the sandbox enforces the address-space limit, running
-    /// into it fails with `Limit`, never an out-of-memory kill of the host.
+    /// into it fails with `Limit`. This does not prevent system-wide
+    /// out-of-memory handling.
     /// On macOS the budget is advisory: no process-wide memory cap is
     /// enforced, and a decoder can use more. Strict-safe mode refuses
     /// sandboxed work there.
