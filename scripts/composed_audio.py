@@ -378,7 +378,7 @@ def decimal(value, name):
     return integer(value, name)
 
 
-def read_aac_timing(ffprobe, path, index, frames, env):
+def read_aac_timing(ffprobe, path, index, frames, env, *, artifact):
     output, _ = bounded([ffprobe, '-v', 'error', '-ignore_editlist', '1', '-select_streams', str(index),
                          '-show_packets', '-show_streams', '-show_data_hash', 'sha256', '-show_entries',
                          'packet=pts,dts,duration,pos,size,data_hash:'
@@ -417,7 +417,19 @@ def read_aac_timing(ffprobe, path, index, frames, env):
     if edits.channels != stream['channels']:
         raise Invalid('AAC sample entry and decoder channel counts differ')
     timing = edits, normalized
-    sample_map(*timing, frames)
+    try:
+        sample_map(*timing, frames)
+    except Invalid as error:
+        duration, media_time, _, _ = edits.entries[-1]
+        samples = Fraction(duration * edits.media_scale, edits.movie_scale)
+        context = {'artifact': artifact, 'track_id': edits.track_id,
+                   'edit_media_time': media_time, 'edit_segment_duration': duration,
+                   'movie_timescale': edits.movie_scale, 'media_timescale': edits.media_scale,
+                   'priming_samples': media_time,
+                   'sample_count': {'numerator': samples.numerator, 'denominator': samples.denominator},
+                   'packet_duration_samples': sum(packet['duration'] for packet in normalized),
+                   'packet_count': len(normalized), 'captured_sample_count': frames}
+        raise Invalid(str(error) + '; timing=' + json.dumps(context, sort_keys=True)) from error
     return timing, {'configuration': configuration.lower(), 'packets': hashes, 'channels': stream['channels']}
 
 
@@ -545,9 +557,12 @@ def compare(args, directory, source, output, output_index, baseline, baseline_in
         with pcm.open('rb') as data:
             bounded([args.ffmpeg, *expected[:at], *AUDIO_DECODE_INPUT, '-i', 'pipe:0',
                      *expected[at + 2:-3], '-f', 'mp4', '-y', reference], env, stdin=data)
-        candidate_timing, candidate_data = read_aac_timing(args.ffprobe, output, output_index, frames, env)
-        baseline_timing, _ = read_aac_timing(args.ffprobe, baseline, baseline_index, frames, env)
-        reference_timing, reference_data = read_aac_timing(args.ffprobe, reference, 0, frames, env)
+        candidate_timing, candidate_data = read_aac_timing(args.ffprobe, output, output_index, frames, env,
+                                                         artifact='candidate')
+        baseline_timing, _ = read_aac_timing(args.ffprobe, baseline, baseline_index, frames, env,
+                                            artifact='AAC baseline')
+        reference_timing, reference_data = read_aac_timing(args.ffprobe, reference, 0, frames, env,
+                                                         artifact='reference readback')
         if candidate_data != reference_data:
             raise Invalid('AAC packets or configuration differ from the exact supplied PCM reference')
         properties = legacy_compare(args, output, output_index, baseline, baseline_index)

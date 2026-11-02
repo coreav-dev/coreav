@@ -339,10 +339,20 @@ class Mapping(unittest.TestCase):
             packet['pos'], packet['size'] = str(packet['pos']), str(packet['size'])
         with mock.patch.object(composed, 'bounded', return_value=(json.dumps({'streams': [stream], 'packets': packets}).encode(), b'')) as command, \
                 mock.patch.object(composed, 'read_edits', return_value=edits) as read:
-            _, hashes = composed.read_aac_timing('ffprobe', 'file', 1, 4800, {})
+            _, hashes = composed.read_aac_timing('ffprobe', 'file', 1, 4800, {}, artifact='candidate')
             self.assertEqual(hashes['channels'], 1)
             self.assertIn('-ignore_editlist', command.call_args.args[0])
             read.assert_called_once_with('file', 7)
+            for artifact in ('candidate', 'AAC baseline', 'reference readback'):
+                with self.assertRaises(composed.Invalid) as failure:
+                    composed.read_aac_timing('ffprobe', 'file', 1, 4799, {}, artifact=artifact)
+                reason, raw = str(failure.exception).split('; timing=', 1)
+                self.assertEqual(reason, 'edit does not describe the exact captured sample grid')
+                self.assertEqual(json.loads(raw), {
+                    'artifact': artifact, 'track_id': 7, 'edit_media_time': 1024,
+                    'edit_segment_duration': 100, 'movie_timescale': 1000, 'media_timescale': 48000,
+                    'priming_samples': 1024, 'sample_count': {'numerator': 4800, 'denominator': 1},
+                    'packet_duration_samples': 6144, 'packet_count': 6, 'captured_sample_count': 4799})
 
 
 class SourcePresentation(unittest.TestCase):
