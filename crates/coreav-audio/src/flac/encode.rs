@@ -391,13 +391,23 @@ impl Subframe {
             best.consider(coefficients, 0, Predictor::Fixed(order as u8), overhead);
         }
         let max_order = 8.min(best.samples.len().saturating_sub(1));
+        let last = best.samples.len().saturating_sub(1) as f64;
+        let windowed: Vec<f64> = best
+            .samples
+            .iter()
+            .enumerate()
+            .map(|(index, sample)| {
+                let position = 2.0 * index as f64 / last - 1.0;
+                *sample as f64 * (1.0 - position * position)
+            })
+            .collect();
         let correlation: Vec<f64> = (0..=max_order)
             .map(|lag| {
-                best.samples
+                windowed
                     .iter()
                     .skip(lag)
-                    .zip(&best.samples)
-                    .map(|(a, b)| (*a as f64) * (*b as f64))
+                    .zip(&windowed)
+                    .map(|(a, b)| a * b)
                     .sum()
             })
             .collect();

@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -35,7 +36,7 @@ def pcm(bits, channels, frames, kind):
     for frame in range(frames):
         for channel in range(channels):
             random = (random * 1664525 + 1013904223) & 0xFFFFFFFF
-            value = {
+            value = round(bound * (0.61 * math.sin(frame * 0.13) + 0.23 * math.sin(frame * 0.31 + channel * 0.07))) if kind == "tones" else {
                 "zero": 0,
                 "constant": -bound,
                 "ramp": ((frame * 17 + channel * 11) % (2 * bound)) - bound,
@@ -104,6 +105,9 @@ def check(coreav, oracle, root):
             compare(source, samples, bits, channels, label)
 
     for bits in (16, 24):
+        tone = pcm(bits, 2, 8243, "tones")
+        tone_source = make_source(ffmpeg, root, bits, 2, 48000, tone, f"tones-{bits}")
+        compare(tone_source, tone, bits, 2, f"tones-{bits}")
         samples = pcm(bits, 2, 8243, "ramp")
         source = make_source(ffmpeg, root, bits, 2, 48000, samples, f"options-{bits}")
         for number, options in enumerate([

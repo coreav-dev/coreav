@@ -50,8 +50,7 @@ jobs:
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Check native frames and failure states
         run: |
-          cargo test --locked -p coreav-audio --lib flac::
-          cargo test --locked -p coreav-audio --test flac_encode
+          cargo test --locked --no-fail-fast -p coreav-audio --lib --test flac_encode
       - name: Build the native compatibility command
         run: cargo build --locked -p coreav-cli
       - name: Compare complete output with the independent decoder
