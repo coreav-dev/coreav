@@ -412,6 +412,14 @@ class Workflow(unittest.TestCase):
                 with self.subTest(event=event, path=path):
                     self.assertTrue(any(fnmatchcase(path, pattern) for pattern in triggers[event]['paths']))
 
+    def test_oracle_tool_helpers_start_both_workflow_events(self):
+        triggers = self.workflow.get('on', self.workflow.get('true'))
+        for event in ('push', 'pull_request'):
+            for path in ('scripts/oracle_pin.py', 'scripts/oracle_from_r2.py'):
+                with self.subTest(event=event, path=path):
+                    self.assertTrue(any(fnmatchcase(path, pattern) for pattern in triggers[event]['paths']),
+                                    f'add {path} to the {event} paths of vp9-corpus.yml')
+
     def test_only_sealed_evidence_and_closed_summary_paths_are_uploaded(self):
         steps = self.workflow['jobs']['corpus']['steps']
         uploads = [s['with']['path'] for s in steps if 'upload-artifact@' in s.get('uses', '')]

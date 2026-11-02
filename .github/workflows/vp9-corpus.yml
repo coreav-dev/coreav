@@ -3,10 +3,10 @@ name: vp9-corpus
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "crates/coreav-isobmff/**", "tools/vp9-corpus-oracle/**", "scripts/vp9_corpus.py", "scripts/tests/test_vp9_corpus*.py", "docs/measurements/vp9-native/**", "tools/compat-corpus/round_files.py", "tools/compat-corpus/release_round.py", "tools/compat-corpus/evidence-public.pem", "tools/stage3-report/r2pool.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-corpus.yml"]
   schedule:
     - cron: '11 6 * * 1'
   workflow_dispatch:
