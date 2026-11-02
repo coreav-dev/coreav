@@ -12,7 +12,7 @@ Nothing here is legal advice. Deciding whether you may use this decoder is yours
 
 ## What it does today
 
-It is being built in milestones (`docs/design/vp9.md`, "The plan, in milestones"). Today it reads every frame's uncompressed header (clause 6.2) and, through the boolean decoder (clause 9.2), its compressed header with the probabilities it updates (clause 6.3). It splits superframes (Annex B) and keeps the reference slots' sizes and the four saved probability contexts, so it can say which frames a stream shows and at what size. It decodes no samples yet. Its constant tables are read from the specification by `tools/gen_tables.py`.
+It is being built in milestones (`docs/design/vp9.md`, "The plan, in milestones"). Today it reads every frame's uncompressed header (clause 6.2) and, through the boolean decoder (clause 9.2), its compressed header with the probabilities it updates (clause 6.3). It splits superframes (Annex B) and keeps the reference slots' sizes and the four saved probability contexts, so it can say which frames a stream shows and at what size. It reads the tiles of intra frames (clause 6.4) and reconstructs them (clauses 8.5.1, 8.6 and 8.7, through `coreav-kernels-vp9`): each intra frame comes with its decoded picture, before the loop filter, which a later milestone adds. Inter frames are not decoded yet. Its constant tables are read from the specification by `tools/gen_tables.py`.
 
 ## How it is built
 

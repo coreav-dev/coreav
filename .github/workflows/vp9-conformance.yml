@@ -1,11 +1,13 @@
 name: vp9-conformance
 
-# Gate G1 of docs/design/vp9.md: every test vector of
+# Gates G1 and G2 of docs/design/vp9.md: every test vector of
 # crates/coreav-vp9/tests/data/vectors.json, fetched from the WebM project's
 # bucket and checked against the SHA-256 the manifest pins, through the
-# crate's header reader. Also checks that crates/coreav-vp9/src/tables.rs is
-# what crates/coreav-vp9/tools/gen_tables.py reads from the specification.
-# Runs when the crate or this workflow changes, and weekly.
+# crate's header reader, and the MD5 of every intra frame without the loop
+# filter (gate G2). Also checks that crates/coreav-vp9/src/tables.rs and
+# crates/coreav-kernels-vp9/src/tables.rs are what
+# crates/coreav-vp9/tools/gen_tables.py reads from the specification.
+# Runs when either crate or this workflow changes, and weekly.
 
 on:
   push:

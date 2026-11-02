@@ -9,11 +9,12 @@
 //!
 //! The decoder is sans-IO: it takes packets (a frame, or a superframe) and
 //! reads no files. Every decoder takes [`Limits`]; hostile input produces
-//! an [`Error`], never a panic. Today it reads headers only: each frame's
+//! an [`Error`], never a panic. It reads each frame's
 //! uncompressed header (clause 6.2) and compressed header (clause 6.3),
 //! the superframe index (Annex B), the reference slots' sizes and the saved
 //! probability contexts, so it can say which frames a stream shows and at
-//! what size.
+//! what size. It reads the tiles of intra frames and reconstructs them, so
+//! each intra frame comes with its [`Picture`], before the loop filter.
 //!
 //! ```
 //! use coreav_vp9::{Decoder, Header, Limits};

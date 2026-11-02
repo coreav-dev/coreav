@@ -6,22 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 publish = false
 
 [dependencies]
 
-# A kernel crate may use `unsafe` for SIMD intrinsics (milestone 6 of
-# docs/design/vp9.md), so it copies the workspace lint table with
-# `unsafe_code` denied instead of forbidden. No module allows it yet.
-[lints.rust]
-unsafe_code = "deny"
-missing_docs = "warn"
-
-[lints.clippy]
-all = { level = "warn", priority = -1 }
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-indexing_slicing = "deny"
-todo = "deny"
-unimplemented = "deny"
+[lints]
+workspace = true

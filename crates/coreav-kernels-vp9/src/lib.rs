@@ -21,6 +21,8 @@
 //! assert_eq!(plane, [101u8; 16]);
 //! ```
 
+#![forbid(unsafe_code)]
+
 mod intra;
 mod tables;
 mod transform;

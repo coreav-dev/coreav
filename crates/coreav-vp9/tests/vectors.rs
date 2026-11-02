@@ -347,3 +347,44 @@ fn every_vector_shows_the_frames_of_its_md5_list() {
     }
     assert!(failures.is_empty(), "{} vectors disagree", failures.len());
 }
+
+/// A vector whose key frame the padding check below changes, the MD5 its
+/// list gives that frame, and the MD5 FFmpeg 9.0.2's own VP9 decoder gives
+/// it with its last 16 bytes cut off.
+const UNPADDED: (&str, &str, &str) = (
+    "vp90-2-09-subpixel-00.ivf",
+    "50233551e96b74ebfdaabbc8a154303c",
+    "7a066ac188870b10f7a4e5dd4603d184",
+);
+
+/// A frame whose tile does not end as clause 9.2.3 requires is decoded as
+/// FFmpeg 9.0.2's own VP9 decoder decodes it, not refused
+/// (`docs/design/vp9.md`, "Specification and the clean room"): nonzero bytes after its last block
+/// change nothing, and bits read past its end are 0.
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn a_frame_that_does_not_end_cleanly_is_decoded_as_ffmpeg_decodes_it() {
+    let dir = std::env::var_os("COREAV_VP9_VECTORS").expect("COREAV_VP9_VECTORS");
+    let (name, published, cut_md5) = UNPADDED;
+    let data = std::fs::read(Path::new(&dir).join(name)).unwrap();
+    let key = ivf_packets(&data)[0];
+    let decode = |packet: &[u8]| {
+        let headers = Decoder::new(SPEC_LIMITS).read_headers(packet).unwrap();
+        let [
+            Header::Frame {
+                tiles_end_cleanly,
+                picture: Some(picture),
+                ..
+            },
+        ] = headers.as_slice()
+        else {
+            panic!("one decoded frame");
+        };
+        (*tiles_end_cleanly, md5(picture))
+    };
+    assert_eq!(decode(key), (Some(true), published.to_owned()));
+    let padded = [key, &[0xa5; 16]].concat();
+    assert_eq!(decode(&padded), (Some(false), published.to_owned()));
+    let cut = &key[..key.len() - 16];
+    assert_eq!(decode(cut), (Some(false), cut_md5.to_owned()));
+}
