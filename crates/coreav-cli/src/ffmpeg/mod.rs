@@ -1065,7 +1065,9 @@ fn select_sources(
                 Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
                 _ => None,
             });
-            if codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c)) {
+            if matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+                || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
+            {
                 selected.push(*i);
             }
         }

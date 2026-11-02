@@ -836,14 +836,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    if command.muxer != Muxer::Avi
-        && command.codecs.iter().any(|(_, c)| match c {
-            Codec::AviAudio(AviAudio::PcmS16) => {
-                !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
-            }
-            Codec::AviAudio(_) => true,
-            _ => false,
-        })
+    if !matches!(command.muxer, Muxer::Avi | Muxer::Wav | Muxer::S16le)
+        && command
+            .codecs
+            .iter()
+            .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
     {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",

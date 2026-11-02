@@ -135,6 +135,13 @@ def check(coreav, oracle, root):
     expected = (root / "source-2-44100.s16le").read_bytes()
     compare("metadata", 0, tagged, [], ["-map_metadata", "-1"], "wav", expected, 44100, 2)
     compare("metadata", 1, tagged, [], ["-f", "s16le"], "raw", expected, 44100, 2)
+    for number, (kind, form) in enumerate((("wav", "wav"), ("raw", "s16le"))):
+        for indexed in (False, True):
+            options = ["-c:a:1", "pcm_u8", "-c:a:0", "pcm_s16le"] if indexed else [
+                "-c:a", "pcm_u8", "-c:a", "pcm_s16le",
+            ]
+            compare("effective-codec", number * 2 + int(indexed), root / "input-2-44100-mka.mka",
+                    [], [*options, "-f", form], kind, expected, 44100, 2)
     subtitles = root / "subtitles.srt"
     subtitles.write_text("1\n00:00:00,000 --> 00:00:00,020\nPCM subtitle check\n")
     subtitled = root / "subtitled.mka"
