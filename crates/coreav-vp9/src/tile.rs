@@ -3,7 +3,7 @@
 //! probabilities of clause 9.3.
 
 use coreav_kernels_vp9::{
-    BlockMut, Edges, IntraMode, TxType, inverse_transform_add, predict_intra,
+    BlockMut, Edges, IntraMode, TxSize, TxType, inverse_transform_add, predict_intra,
 };
 
 use crate::bool::BoolDecoder;
@@ -554,7 +554,8 @@ impl<P: Sample> Tiles<'_, P> {
         }
         let (Some(mode), Some(dst)) = (
             IntraMode::from_value(mode),
-            BlockMut::new(&mut p.samples, y * stride + x, stride, size),
+            TxSize::from_value(tx_size)
+                .and_then(|t| BlockMut::new(&mut p.samples, y * stride + x, stride, t)),
         ) else {
             return;
         };
@@ -627,9 +628,9 @@ impl<P: Sample> Tiles<'_, P> {
             return;
         };
         let stride = p.stride;
-        if let Some(dst) =
-            BlockMut::new(&mut p.samples, y as usize * stride + x as usize, stride, n0)
-        {
+        if let Some(dst) = TxSize::from_value(tx_size).and_then(|t| {
+            BlockMut::new(&mut p.samples, y as usize * stride + x as usize, stride, t)
+        }) {
             inverse_transform_add(dst, coefs, tx_type, q.lossless(), h.color.bit_depth);
         }
     }

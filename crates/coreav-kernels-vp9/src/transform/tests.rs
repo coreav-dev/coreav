@@ -121,12 +121,18 @@ fn the_four_point_inverse_adst_is_its_sine_sum() {
 /// same amount, at every size.
 #[test]
 fn a_dc_only_block_adds_a_constant() {
-    for size in [4usize, 8, 16, 32] {
+    for tx_size in [
+        TxSize::Tx4x4,
+        TxSize::Tx8x8,
+        TxSize::Tx16x16,
+        TxSize::Tx32x32,
+    ] {
+        let size = tx_size.samples();
         for dc in [-4096i64, -64, 64, 1000] {
             let mut plane = vec![128u8; size * size];
             let mut coefs = vec![0i64; size * size];
             coefs[0] = dc;
-            let block = BlockMut::new(&mut plane, 0, size, size).unwrap();
+            let block = BlockMut::new(&mut plane, 0, size, tx_size).unwrap();
             inverse_transform_add(block, &mut coefs, TxType::DctDct, false, 8);
             assert!(plane.iter().all(|&p| p == plane[0]), "size {size} dc {dc}");
         }
@@ -136,8 +142,47 @@ fn a_dc_only_block_adds_a_constant() {
 #[test]
 fn a_block_that_does_not_fit_is_refused() {
     let mut plane = vec![0u8; 63];
-    assert!(BlockMut::new(&mut plane, 0, 8, 8).is_none());
-    assert!(BlockMut::new(&mut plane, 0, 4, 8).is_none());
-    assert!(BlockMut::new(&mut plane, 0, 8, 7).is_some());
-    assert!(BlockMut::new(&mut plane, usize::MAX, 8, 8).is_none());
+    assert!(BlockMut::new(&mut plane, 0, 8, TxSize::Tx8x8).is_none());
+    assert!(BlockMut::new(&mut plane, 0, 4, TxSize::Tx8x8).is_none());
+    assert!(BlockMut::new(&mut plane, 0, 9, TxSize::Tx4x4).is_some());
+    assert!(BlockMut::new(&mut plane, 0, 20, TxSize::Tx4x4).is_none());
+    assert!(BlockMut::new(&mut plane, usize::MAX, 8, TxSize::Tx8x8).is_none());
+}
+
+/// A 32x32 block takes the DCT whatever its type says, and a lossless
+/// block larger than 4x4 is not given the WHT: every combination the types
+/// allow is defined.
+#[test]
+fn every_size_type_and_mode_is_defined() {
+    let types = [
+        TxType::DctDct,
+        TxType::AdstDct,
+        TxType::DctAdst,
+        TxType::AdstAdst,
+    ];
+    let sizes = [
+        TxSize::Tx4x4,
+        TxSize::Tx8x8,
+        TxSize::Tx16x16,
+        TxSize::Tx32x32,
+    ];
+    for tx_size in sizes {
+        let size = tx_size.samples();
+        let coefs = inputs(size as u64, size * size, 64);
+        let out = |tx_type, lossless| {
+            let mut plane = vec![128u8; size * size];
+            let mut c = coefs.clone();
+            let block = BlockMut::new(&mut plane, 0, size, tx_size).unwrap();
+            inverse_transform_add(block, &mut c, tx_type, lossless, 8);
+            plane
+        };
+        for tx_type in types {
+            if tx_size == TxSize::Tx32x32 {
+                assert_eq!(out(tx_type, false), out(TxType::DctDct, false));
+            }
+            if tx_size != TxSize::Tx4x4 {
+                assert_eq!(out(tx_type, true), out(tx_type, false));
+            }
+        }
+    }
 }

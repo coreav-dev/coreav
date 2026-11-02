@@ -10,10 +10,10 @@
 //! compared with them bit for bit (`docs/design/vp9.md`, milestone 6).
 //!
 //! ```
-//! use coreav_kernels_vp9::{BlockMut, TxType, inverse_transform_add};
+//! use coreav_kernels_vp9::{BlockMut, TxSize, TxType, inverse_transform_add};
 //!
 //! let mut plane = vec![100u8; 4 * 4];
-//! let block = BlockMut::new(&mut plane, 0, 4, 4).expect("in range");
+//! let block = BlockMut::new(&mut plane, 0, 4, TxSize::Tx4x4).expect("in range");
 //! let mut coefs = [0i64; 16];
 //! coefs[0] = 32;
 //! // A 4x4 DCT whose only coefficient is a DC of 32 raises every sample by 1.
@@ -58,37 +58,83 @@ impl Pixel for u16 {
     }
 }
 
-/// A square block of `size` by `size` samples in a plane whose rows are
-/// `stride` samples apart.
+/// The size of a transform block, `tx_size` (clause 7.4.8, `TX_4X4` to
+/// `TX_32X32`): the only sizes the kernels take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TxSize {
+    /// 4 by 4 samples.
+    Tx4x4,
+    /// 8 by 8 samples.
+    Tx8x8,
+    /// 16 by 16 samples.
+    Tx16x16,
+    /// 32 by 32 samples.
+    Tx32x32,
+}
+
+impl TxSize {
+    /// The size a `tx_size` of 0 to 3 names, or `None`.
+    pub fn from_value(value: u8) -> Option<Self> {
+        Some(match value {
+            0 => TxSize::Tx4x4,
+            1 => TxSize::Tx8x8,
+            2 => TxSize::Tx16x16,
+            3 => TxSize::Tx32x32,
+            _ => return None,
+        })
+    }
+
+    /// The base 2 logarithm of its width, `log2Size` (2 to 5).
+    pub fn log2(self) -> u32 {
+        2 + self as u32
+    }
+
+    /// Its width and height in samples.
+    pub fn samples(self) -> usize {
+        1 << self.log2()
+    }
+}
+
+/// A square transform block in a plane whose rows are `stride` samples
+/// apart.
 #[derive(Debug)]
 pub struct BlockMut<'a, P> {
     data: &'a mut [P],
     stride: usize,
-    size: usize,
+    tx_size: TxSize,
 }
 
 impl<'a, P: Pixel> BlockMut<'a, P> {
-    /// The block whose top left sample is `plane[offset]`, or `None` when
-    /// its rows would not fit in `plane` or would overlap.
-    pub fn new(plane: &'a mut [P], offset: usize, stride: usize, size: usize) -> Option<Self> {
-        if size == 0 || stride < size {
+    /// The block of `tx_size` whose top left sample is `plane[offset]`, or
+    /// `None` when its rows would not fit in `plane` or would overlap.
+    pub fn new(plane: &'a mut [P], offset: usize, stride: usize, tx_size: TxSize) -> Option<Self> {
+        let size = tx_size.samples();
+        if stride < size {
             return None;
         }
         let end = offset.checked_add((size - 1).checked_mul(stride)?.checked_add(size)?)?;
         let data = plane.get_mut(offset..end)?;
-        Some(BlockMut { data, stride, size })
+        Some(BlockMut {
+            data,
+            stride,
+            tx_size,
+        })
+    }
+
+    /// Its size.
+    pub fn tx_size(&self) -> TxSize {
+        self.tx_size
     }
 
     /// Its width and height in samples.
     pub fn size(&self) -> usize {
-        self.size
+        self.tx_size.samples()
     }
 
     fn row_mut(&mut self, i: usize) -> &mut [P] {
         let start = i * self.stride;
-        self.data
-            .get_mut(start..start + self.size)
-            .unwrap_or_default()
+        let size = self.size();
+        self.data.get_mut(start..start + size).unwrap_or_default()
     }
 }
 

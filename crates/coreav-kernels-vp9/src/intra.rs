@@ -84,7 +84,7 @@ pub fn predict_intra<P: Pixel>(
     bit_depth: u8,
 ) {
     let size = dst.size();
-    let log2 = size.trailing_zeros();
+    let log2 = dst.tx_size().log2();
     let above = |i: isize| -> i64 {
         usize::try_from(i + 1)
             .ok()

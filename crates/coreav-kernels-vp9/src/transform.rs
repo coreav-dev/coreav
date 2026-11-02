@@ -2,7 +2,7 @@
 //! prediction (step 4 of clause 8.6.2).
 
 use crate::tables::{COS64_LOOKUP, SINPI_1_9, SINPI_2_9, SINPI_3_9, SINPI_4_9};
-use crate::{BlockMut, Pixel, round2};
+use crate::{BlockMut, Pixel, TxSize, round2};
 
 /// `TxType`: the 1D transform of the columns, then of the rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -356,9 +356,11 @@ fn brev(num_bits: u32, x: usize) -> usize {
 /// The 2D inverse transform (clause 8.7.2) of `coefs`, the dequantized
 /// coefficients of a block of `dst.size()` by `dst.size()` in raster
 /// order (`Dequant`), added to the prediction in `dst` with `Clip1`
-/// (step 4 of clause 8.6.2). `dst.size()` is 4, 8, 16 or 32, and 4 when
-/// `lossless`; an ADST is 4, 8 or 16 wide. `coefs` holds the transform's
-/// output afterwards.
+/// (step 4 of clause 8.6.2). `coefs` holds the transform's output
+/// afterwards. A 32x32 block takes the DCT whatever `tx_type` says, since
+/// `get_scan` (clause 6.4.25) gives it `DCT_DCT` only; the WHT of a
+/// `lossless` frame applies to 4x4 blocks, its only size (`tx_mode` is
+/// `ONLY_4X4`), and a larger block takes the DCT or ADST instead.
 pub fn inverse_transform_add<P: Pixel>(
     mut dst: BlockMut<'_, P>,
     coefs: &mut [i64],
@@ -366,10 +368,13 @@ pub fn inverse_transform_add<P: Pixel>(
     lossless: bool,
     bit_depth: u8,
 ) {
-    let n0 = dst.size();
-    let n = n0.trailing_zeros();
-    let row_adst = matches!(tx_type, TxType::DctAdst | TxType::AdstAdst);
-    let col_adst = matches!(tx_type, TxType::AdstDct | TxType::AdstAdst);
+    let tx_size = dst.tx_size();
+    let n0 = tx_size.samples();
+    let n = tx_size.log2();
+    let lossless = lossless && tx_size == TxSize::Tx4x4;
+    let adst = tx_size != TxSize::Tx32x32;
+    let row_adst = adst && matches!(tx_type, TxType::DctAdst | TxType::AdstAdst);
+    let col_adst = adst && matches!(tx_type, TxType::AdstDct | TxType::AdstAdst);
     let mut a = Arrays {
         t: [0; 32],
         s: [0; 32],
