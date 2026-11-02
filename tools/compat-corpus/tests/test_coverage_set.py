@@ -59,7 +59,7 @@ class CoverageSet(unittest.TestCase):
         d, classes = self.derived, self.derived['classes']
         media = classes['media']
         expected = [
-            f'at least **40%** of the {media} commands of the encode set',
+            f'reported, with no bar: the share of the {media} commands of the encode set',
             f'{d["filter_free"]} of {d["usable"]}, and of those the {media} whose output',
             f'The other {d["filter_free"] - media} are {classes["unknown"]} whose container',
             f'{classes["decode-only"]} that only decode',
@@ -72,7 +72,7 @@ class CoverageSet(unittest.TestCase):
         copies, x264, aac, images = (f'{n} ({100 * n / media:.1f}%)'
                                      for n in coverage_set.ceilings(d))
         expected += [
-            f'The bar needs {-(-40 * media // 100)} commands.',
+            'There is no required count.',
             f'Copies alone reach {copies.split()[0]} of the {media} ({copies.split()[1][1:-1]})',
             f'with H.264 through `x264` {x264}',
             f'with AAC {aac}',
