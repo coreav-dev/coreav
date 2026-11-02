@@ -154,6 +154,31 @@ class RustLink(unittest.TestCase):
                 self.assertEqual((self.prefix / 'manifest.json').read_bytes(), baseline)
                 self.assertFalse(list(self.root.glob('.svt-rust-link-*')))
 
+    def test_rustup_symlink_keeps_its_command_dispatch_name(self):
+        dispatcher = self.root / 'rustup-init'
+        dispatcher.write_text(
+            f'#!{sys.executable}\n'
+            'import sys\n'
+            'from pathlib import Path\n'
+            'if Path(sys.argv[0]).name != "rustup":\n'
+            '    sys.exit("unexpected installer invocation")\n'
+            f'print({self.tools["rustc"]!r})\n'
+        )
+        dispatcher.chmod(0o755)
+        rustup = Path(self.tools['rustup'])
+        rustup.unlink()
+        rustup.symlink_to(dispatcher)
+        original_runner = self.runner
+
+        def run(command, environment, timeout):
+            if command[1:2] == ['which']:
+                return RECIPE['run'](command, environment, timeout=timeout)
+            return original_runner(command, environment, timeout)
+
+        with patch.object(self, 'runner', side_effect=run):
+            self.check()
+        self.assertTrue((self.output / 'manifest.json').is_file())
+
     def test_macos_refuses_wrong_architecture_and_non_system_dependencies(self):
         self.configure('aarch64-apple-darwin')
         for failure in ('architecture', 'dynamic', 'symbol', 'run'):

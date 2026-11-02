@@ -58,7 +58,7 @@ def check(prefix, target, output, runner=None):
         found = shutil.which(name)
         if found is None:
             raise LinkError(f'install the required Rust link tool: {name}')
-        tools[name] = str(Path(found).resolve())
+        tools[name] = str(Path(found).absolute())
     version, commit = rust_pin()
     run = recipe['run'] if runner is None else runner
     environment = {key: os.environ[key] for key in ('PATH', 'HOME', 'RUSTUP_HOME', 'CARGO_HOME')
