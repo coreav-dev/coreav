@@ -293,7 +293,9 @@ class Record:
         (stream `bit_rate`); the container is the last one the paragraph
         names before the key. Keys joined by a comma or "and" share the
         figures that follow them, up to the next key or the parenthesis
-        that closes around them. In a sentence that says "below 98%",
+        that closes around them. Unmeasured parenthetical code does not
+        end the outer group; a new key with a figure does.
+        In a sentence that says "below 98%",
         `<container> N of M` (or `development`, `held out` after it) is the
         count of the container's keys below the bar, and `round K: N` that
         count in round K."""
@@ -356,6 +358,8 @@ class Record:
                 group.append((k, container))
                 last_key = t.end()
             elif group and not t.group('skip'):
+                scopes = [(outer_group if outer_key == last_key else [], outer_key)
+                          for outer_group, outer_key in scopes]
                 for k, c in group:
                     if t.group('rate'):
                         compare(t.start(), t.group('rate'), k, c, n, 'rate')

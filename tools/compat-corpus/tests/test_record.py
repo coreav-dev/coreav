@@ -97,6 +97,24 @@ class PastMistakes(unittest.TestCase):
                     self.assertEqual(check(text), [
                         f'{NAME}:3: round 6, ISO base media, `{key}`: {detail}'])
 
+    def test_a_measured_parenthetical_key_ends_the_outer_group(self):
+        for key in ('streams.duration', 'streams.duraton'):
+            for aside in (f'while `{key}` is 97.81%', f'while (`{key}` is 97.81%)'):
+                with self.subTest(key=key, aside=aside):
+                    text = ('## Round 6\n\nISO base media `format.duration` is 97.71% '
+                            f'({aside}), and overall agreement is 100%.\n')
+                    expected = [] if key == 'streams.duration' else [
+                        f'{NAME}:3: round 6, ISO base media, `{key}`: the text quotes 97.81% '
+                        'for round 6, where there is no b3a-round6.json or no such key']
+                    self.assertEqual(check(text), expected)
+
+    def test_an_outer_keys_parenthetical_figure_does_not_end_its_group(self):
+        text = ('## Round 6\n\nISO base media `format.duration` '
+                '(97.71%) is now 97.81%.\n')
+        self.assertEqual(check(text), [
+            f'{NAME}:3: round 6, ISO base media, `format.duration`: the text says 97.81%, '
+            'b3a-round6.json has 1025/1049 = 97.71%'])
+
     def test_a_table_cell_that_contradicts_the_evidence(self):
         text, line = replace_once(
             RECORD.read_text(),
