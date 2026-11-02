@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 import pathlib
 import subprocess
 import sys
@@ -167,6 +168,53 @@ class G1(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch.object(g1.subprocess, 'run', return_value=result):
             with self.assertRaisesRegex(ValueError, 'oracle diagnostics'):
                 g1.decode_anchor(pathlib.Path('decoder'), pathlib.Path('stream'), pathlib.Path(temp))
+
+    def test_jm_archive_fetch_requires_pinned_and_root_verified_intermediate(self):
+        installer = pathlib.Path(__file__).resolve().parents[1] / 'install-jm-decoder.sh'
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            log = root/'calls'
+            roots = root/'roots.pem'
+            roots.write_text('existing trusted roots\n')
+            commands = {
+                'curl': '''#!/bin/bash
+echo "curl $*" >> "$CALLS"
+if [[ "$*" == *jm19.0.zip* ]]; then exit 42; fi
+while [[ "$1" != -o ]]; do shift; done
+printf certificate > "$2"
+''',
+                'openssl': '''#!/bin/bash
+echo "openssl $*" >> "$CALLS"
+if [[ "$1" == verify ]]; then exit "${VERIFY_EXIT:-0}"; fi
+while [[ "$1" != -out ]]; do shift; done
+printf der-certificate > "$2"
+''',
+                'sha256sum': '''#!/bin/bash
+echo "sha256sum $*" >> "$CALLS"
+cat >> "$CALLS"
+exit "${HASH_EXIT:-0}"
+'''}
+            for name, text in commands.items():
+                path = root/name
+                path.write_text(text)
+                path.chmod(0o755)
+            env = dict(os.environ, PATH=str(root)+os.pathsep+os.environ['PATH'], CALLS=str(log), SSL_CERT_FILE=str(roots))
+            for key, code in [(None, 42), ('VERIFY_EXIT', 31), ('HASH_EXIT', 32)]:
+                log.write_text('')
+                current = dict(env)
+                if key:
+                    current[key] = str(code)
+                run = subprocess.run(['bash', str(installer), str(root/'bin')], env=current, capture_output=True, timeout=10)
+                self.assertEqual(run.returncode, code, run.stderr.decode())
+                calls = log.read_text()
+                self.assertNotIn('--insecure', calls)
+                if key is None:
+                    self.assertIn('openssl verify -CAfile '+str(roots), calls)
+                    self.assertIn('--cacert ', calls)
+                    self.assertLess(calls.index('sha256sum'), calls.index('openssl verify'))
+                    self.assertLess(calls.index('openssl verify'), calls.index('jm19.0.zip'))
+                else:
+                    self.assertNotIn('jm19.0.zip', calls)
 
 
 if __name__ == '__main__':
