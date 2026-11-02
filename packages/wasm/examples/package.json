@@ -7,7 +7,7 @@
   "dependencies": { "@coreav/wasm": "file:.." },
   "devDependencies": { "esbuild": "0.28.2", "workerd": "1.20261101.1" },
   "scripts": {
-    "test": "node --test test/unit/*.test.mjs",
+    "test": "node --check test/check.mjs && node --check test/harness.js && node --test test/unit/*.test.mjs",
     "check": "node test/check.mjs"
   }
 }
