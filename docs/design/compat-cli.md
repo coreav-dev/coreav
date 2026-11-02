@@ -333,6 +333,15 @@ prevent a clean B4 verdict. The versioned result format rejects historical
 unversioned results rather than re-scoring them. The R4 runner and its
 historical reporting rules are unchanged.
 
+The future [B4 round 10 plan](../measurements/compat-ffprobe/round10-plan.md)
+registers a separate [counterbalanced calibration](b4-calibration.md),
+outside-timer telemetry and committed synthetic coverage checks. It
+explicitly changes calibration files, repetitions, point statistic and
+interval confidence, plus conditioning and execution order. The product
+bars, predicates, command/input selection, estimator, 95% intervals and
+whole-process timing stay unchanged. The paragraphs above remain the
+round 9 method, not an algorithm for re-scoring it.
+
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
 `ffprobe` listings and the `ffmpeg -c copy` jobs, as **`commands-0.1.0`**, and
