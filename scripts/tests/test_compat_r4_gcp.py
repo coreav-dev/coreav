@@ -228,6 +228,8 @@ class Credentials(unittest.TestCase):
         self.assert_no_credentials()
 
     def test_local_job_cleans_scratch_after_exit_and_launch_failure(self):
+        handlers = {s: signal.getsignal(s) for s in compat_r4_gcp.TERMINATION_SIGNALS}
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, [])
         for cmd, code in (([sys.executable, '-I', '-c', 'pass'], 0),
                           ([sys.executable, '-I', '-c', 'raise SystemExit(23)'], 23),
                           ([str(self.root / 'missing')], None)):
@@ -243,6 +245,8 @@ class Credentials(unittest.TestCase):
                         self.assertEqual(compat_r4_gcp.local_job(cmd, self.root, log, 10), code)
                 self.assertFalse((self.root / 'data').exists())
                 self.assertFalse((self.root / 'scratch').exists())
+                self.assertEqual({s: signal.getsignal(s) for s in handlers}, handlers)
+                self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), mask)
 
     def test_remote_execution_exceptions_remove_credentials(self):
         for error in (OSError('launch failed'), KeyboardInterrupt()):
@@ -402,6 +406,70 @@ class Credentials(unittest.TestCase):
                 self.assertEqual(self.run_main(), 4)
         self.assertEqual(signal.getsignal(signal.SIGHUP), signal.SIG_IGN)
         self.assert_no_credentials()
+
+
+class LocalGroup(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux adopted-child status')
+    def test_timeouts_and_signals_stop_real_descendants_before_cleanup(self):
+        for signum in (None, signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+            with self.subTest(signum=signum), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                child = ('import os, pathlib, subprocess, sys, time\n'
+                         'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
+                         f'root = pathlib.Path({str(root)!r})\n'
+                         'for name in ("data", "scratch"):\n'
+                         '    (root / name).mkdir()\n'
+                         '    (root / name / "partial").write_text("temporary")\n'
+                         '(root / "ready").write_text(f"{os.getpid()} {p.pid}")\n'
+                         'time.sleep(60)\n')
+                driver = f'''
+import os, signal, sys
+sys.path.insert(0, {str(pathlib.Path(compat_r4_gcp.__file__).parent)!r})
+import compat_r4_gcp as driver
+for signum in driver.TERMINATION_SIGNALS:
+    signal.signal(signum, signal.SIG_DFL)
+with driver.staged_credentials({str(root)!r}), open(os.devnull, 'w') as log:
+    try:
+        driver.local_job([sys.executable, '-c', {child!r}], {str(root)!r}, log, 2)
+    except driver.subprocess.TimeoutExpired:
+        assert {signum is None!r}
+'''
+                supervisor = f'''
+import contextlib, ctypes, os, pathlib, signal, subprocess, sys, time
+assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
+root = pathlib.Path({str(root)!r})
+process = subprocess.Popen([sys.executable, '-I', '-c', {driver!r}],
+                           env={{**os.environ, **{{k: 'test-only' for k in {compat_r4_gcp.CREDENTIALS!r}}}}})
+try:
+    end = time.monotonic() + 5
+    while not (root / 'ready').exists():
+        assert time.monotonic() < end, 'local descendants did not become ready'
+        time.sleep(0.01)
+    leader, descendant = map(int, (root / 'ready').read_text().split())
+    if {signum is not None!r}:
+        process.send_signal({int(signum or 0)})
+    assert process.wait(timeout=10) == {-(signum or 0)}
+    assert os.waitpid(descendant, 0)[1] == signal.SIGKILL
+    for name in ('data', 'scratch', 'r2.env'):
+        assert not (root / name).exists(), name
+    try:
+        os.kill(leader, 0)
+    except ProcessLookupError:
+        pass
+    else:
+        raise AssertionError('local leader was not reaped')
+finally:
+    if (root / 'ready').exists():
+        for pid in map(int, (root / 'ready').read_text().split()):
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+            with contextlib.suppress(ChildProcessError):
+                os.waitpid(pid, 0)
+    process.kill()
+    process.wait()
+'''
+                done = subprocess.run([sys.executable, '-I', '-c', supervisor], capture_output=True, timeout=20)
+                self.assertEqual(done.returncode, 0, done.stderr.decode())
 
 
 class Job(unittest.TestCase):

@@ -48,6 +48,7 @@ import hashlib
 import json
 import math
 import os
+import select
 import shlex
 import shutil
 import signal
@@ -172,19 +173,85 @@ def read(path):
 
 
 def local_job(cmd, up, log, timeout):
-    try:
-        with subprocess.Popen(cmd, cwd=up, stdout=log, stderr=subprocess.STDOUT,
-                              start_new_session=True) as child:
-            try:
-                return child.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError):
+    previous = {s: signal.getsignal(s) for s in TERMINATION_SIGNALS}
+    mask = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+    child = None
+    stopped = False
+    pending = None
+
+    def finish():
+        nonlocal stopped
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, TERMINATION_SIGNALS)
+        try:
+            if child is not None and not stopped:
+                try:
                     os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except PermissionError:
+                    if sys.platform != 'darwin':
+                        raise
                 child.wait()
+                stopped = True
+            for name in ('data', 'scratch'):
+                shutil.rmtree(os.path.join(up, name), ignore_errors=True)
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+
+    def stop(signum, frame):
+        nonlocal pending
+        if child is None:
+            pending = pending or signum
+            return
+        finish()
+        signal.signal(signum, previous[signum])
+        os.kill(os.getpid(), signum)
+
+    try:
+        for signum, handler in previous.items():
+            if handler != signal.SIG_IGN:
+                signal.signal(signum, stop)
+        child = subprocess.Popen(cmd, cwd=up, stdout=log, stderr=subprocess.STDOUT,
+                                 start_new_session=True)
+        if pending is not None:
+            stop(pending, None)
+        if sys.platform == 'linux':
+            try:
+                fd = os.pidfd_open(child.pid)
+            except ProcessLookupError:
+                if stopped:
+                    return child.returncode
                 raise
+            try:
+                ready = bool(select.select([fd], [], [], timeout)[0])
+            finally:
+                os.close(fd)
+        else:
+            with contextlib.closing(select.kqueue()) as queue:
+                event = select.kevent(child.pid, filter=select.KQ_FILTER_PROC,
+                                      flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT,
+                                      fflags=select.KQ_NOTE_EXIT)
+                try:
+                    events = queue.control([event], 1, timeout)
+                    for event in events:
+                        if event.flags & select.KQ_EV_ERROR and event.data:
+                            raise OSError(event.data, os.strerror(event.data))
+                    ready = bool(events)
+                except ProcessLookupError:
+                    ready = True
+        if not ready:
+            raise subprocess.TimeoutExpired(cmd, timeout)
     finally:
-        for name in ('data', 'scratch'):
-            shutil.rmtree(os.path.join(up, name), ignore_errors=True)
+        signal.pthread_sigmask(signal.SIG_BLOCK, TERMINATION_SIGNALS)
+        try:
+            finish()
+        finally:
+            for signum, handler in previous.items():
+                signal.signal(signum, handler)
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+            if child is None and pending is not None:
+                os.kill(os.getpid(), pending)
+    return child.returncode
 
 
 def judge(out, rc, run):
