@@ -633,7 +633,7 @@ def checks(cx, out, ref, listing):
     if encoded['libx264']:
         yield 'x264_start', any(s['program'] == 'x264' for s in cx.starts)
     if encoded['aac']:
-        yield 'aac_start', any(s['program'] == 'ffmpeg' and s['encoder'] for s in cx.starts)
+        yield 'aac_start', any(s['program'] == 'ffmpeg' and aac_encoder_start(s['args']) for s in cx.starts)
     if encoded['libx264']:
         yield from video_checks(cx, encoded['libx264'][0], out, ref, listing)
     else:
@@ -859,6 +859,8 @@ def cmd_run(opts):
 
 def oracle_programs(opts):
     directory = pathlib.Path(opts.ffmpeg).resolve().parent
+    if pathlib.Path(opts.ffmpeg).resolve() != (directory / 'ffmpeg').resolve():
+        raise ValueError('ffmpeg must be the pinned installation executable')
     if pathlib.Path(opts.ffprobe).resolve() != (directory / 'ffprobe').resolve():
         raise ValueError('ffprobe must be installed beside the pinned ffmpeg')
     problems = list(oracle_pin.verify_bin(directory))

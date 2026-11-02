@@ -807,11 +807,18 @@ class VideoChecks(unittest.TestCase):
 
 
 class Order(unittest.TestCase):
+    def test_an_mp3_start_cannot_satisfy_the_aac_invocation_gate(self):
+        mp3 = ['-f', 's16le', '-i', 'pipe:0', '-c:a', 'libmp3lame', '-f', 'mp3', '-']
+        cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'aac')], starts=[])
+        for args, accepted in ((mp3, False), (AAC_START, True), (DECODE_START, False)):
+            cx.starts = [{'program': 'ffmpeg', 'encoder': eb.encoder_start('ffmpeg', args), 'args': args}]
+            self.assertEqual(next(eb.checks(cx, '/o', '/r', [])), ('aac_start', accepted))
+
     def test_the_start_comes_first_then_the_video_then_audio_and_a_stream_beside_an_encode_is_b3(self):
         cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'libx264'), eb.Job(1, 0, 1, 'libopus'),
                                          eb.Job(2, 0, 2, 'aac')],
                                    starts=[{'program': 'x264', 'encoder': True},
-                                           {'program': 'ffmpeg', 'encoder': True}])
+                                           {'program': 'ffmpeg', 'encoder': True, 'args': AAC_START}])
         with mock.patch.object(eb, 'video_checks', lambda *a: iter([('B1', True)])), \
                 mock.patch.object(eb, 'audio_checks', lambda cx_, job, *a: iter([(job.kind, True)])):
             self.assertEqual([n for n, _ in eb.checks(cx, '/o', '/r', [])],
@@ -824,7 +831,7 @@ class Order(unittest.TestCase):
 
     def test_a_copy_beside_audio_encodes_is_judged_by_b3_without_a_video_encode(self):
         cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'copy'), eb.Job(1, 0, 1, 'aac')],
-                                   starts=[{'program': 'ffmpeg', 'encoder': True}])
+                                   starts=[{'program': 'ffmpeg', 'encoder': True, 'args': AAC_START}])
         copies = []
         with mock.patch.object(eb, 'copied', lambda cx_, job, out: copies.append(job.output) or True), \
                 mock.patch.object(eb, 'audio_checks', lambda *a: iter([('A1', True)])):
@@ -935,6 +942,31 @@ class Result(unittest.TestCase):
 
 
 class Cli(Stubs):
+    def pinned_stand_ins(self):
+        build = eb.oracle_pin.load()['BUILD']
+        for name in ('ffmpeg', 'ffprobe'):
+            pathlib.Path(getattr(self.opts, name)).write_text(
+                f'#!{sys.executable}\nprint({name + " version " + build!r})\n')
+
+    def test_preflight_records_the_supplied_pinned_executables(self):
+        self.pinned_stand_ins()
+        programs = eb.oracle_programs(self.opts)
+        for name in ('ffmpeg', 'ffprobe'):
+            self.assertEqual(programs[name], {'version': name + ' version ' + eb.oracle_pin.load()['BUILD'],
+                                              'sha256': eb.sha256(getattr(self.opts, name))})
+
+    def test_an_unpinned_supplied_ffmpeg_beside_pinned_tools_stops_before_commands(self):
+        self.pinned_stand_ins()
+        other = self.dir / 'other-ffmpeg'
+        other.write_text(f'#!{sys.executable}\nprint("ffmpeg version 0.0.0")\n')
+        other.chmod(0o755)
+        self.opts.ffmpeg = str(other)
+        with self.assertRaises(ValueError):
+            eb.oracle_programs(self.opts)
+        with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(eb.cmd_run(self.opts), 2)
+        evaluate.assert_not_called()
+
     def test_run_writes_a_record_a_command_and_a_summary_with_the_programs_hashes(self):
         small = [(0, entry(['-i', 'INPUT', '-c', 'copy', 'OUTPUT'])), (1, entry(['-i', 'INPUT', 'OUTPUT'], cls='other',
                                                                               container=None))]
