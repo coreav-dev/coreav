@@ -141,9 +141,10 @@ import threading
 import time
 from fractions import Fraction
 
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
-HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 MANIFEST = ROOT / 'corpus' / 'v1' / 'manifest.json'
 
@@ -1033,7 +1034,8 @@ def check_compat(args, path, key, cls, tmp):
         encoded = [compare_encoded_audio(args, out, output, base, reference)
                    for output, reference, source in zip(ai, ba, src_audio) if source is None]
         arm.update(judge_output(args, src, out, copy_layout, video, [source for _, source in copied], tmp,
-                                expected_audio=[a for a in expected or [] if a is not None],
+                                expected_audio=(None if expected is None else
+                                                [a for a in expected if a is not None]),
                                 extra_audio=len(encoded)))
         arm['layout'] = layout
         if encoded:

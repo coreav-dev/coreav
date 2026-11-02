@@ -332,7 +332,7 @@ class EncodedAudio(unittest.TestCase):
         self.assertFalse(self.compare(stderr=b'decoder error')['ok'])
         self.assertFalse(self.compare(candidate_hash=hashlib.sha256(b'').hexdigest().encode())['ok'])
 
-    def compat(self, origins, encoded_ok):
+    def compat(self, origins, encoded_ok, baseline_ok=True):
         args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe', coreav='coreav', arms=[('test', [])])
         source = mock.Mock()
         source.streams = [{'index': 0, 'codec_type': 'video'}]
@@ -341,7 +341,8 @@ class EncodedAudio(unittest.TestCase):
                   'video': {'width': 64, 'height': 64, 'bytes': 100}}
         with tempfile.TemporaryDirectory() as temp, mock.patch.object(tc, 'Source', return_value=source), \
                 mock.patch.object(pathlib.Path, 'is_file', return_value=True), \
-                mock.patch.object(tc, 'run', return_value=SimpleNamespace(returncode=0)), \
+                mock.patch.object(tc, 'run', return_value=SimpleNamespace(
+                    returncode=0 if baseline_ok else 1, stderr=b'baseline error')), \
                 mock.patch.object(tc, 'written', return_value=(kinds, 0, [1])), \
                 mock.patch.object(tc, 'audio_origin', side_effect=origins), \
                 mock.patch.object(tc, 'compat_run', return_value={'status': 'ok'}), \
@@ -367,6 +368,14 @@ class EncodedAudio(unittest.TestCase):
         self.assertEqual(judged.args[5], [1])
         self.assertEqual(judged.kwargs['expected_audio'], [1])
         self.assertEqual(judged.kwargs['extra_audio'], 0)
+
+    def test_failed_baseline_retains_remux_audio_expectation(self):
+        result, judged, calls = self.compat([1], False, baseline_ok=False)
+        self.assertEqual(calls, 0)
+        self.assertEqual(judged.args[5], [1])
+        self.assertIsNone(judged.kwargs['expected_audio'])
+        self.assertFalse(result['Q1']['ok'])
+        self.assertFalse(result['Q2']['ok'])
 
 
 class Summary(unittest.TestCase):
