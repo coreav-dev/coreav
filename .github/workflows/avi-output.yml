@@ -1,0 +1,75 @@
+name: avi-output
+
+# workflow-check: not required
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - crates/coreav-avi/**
+      - crates/coreav-cli/src/ffmpeg/**
+      - crates/coreav-cli/tests/avi.rs
+      - crates/coreav-transcode/src/mp3.rs
+      - scripts/avi_fixture_check.py
+      - scripts/avi_v2_check.py
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
+      - .github/workflows/avi-output.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  avi:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Install the pinned oracle
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Build commands and run packet tests
+        run: |
+          cargo test --locked -p coreav-avi
+          cargo test --locked -p coreav-transcode mp3::
+          cargo build --locked -p coreav-cli -p coreav-oracle --features coreav-cli/native-h264,coreav-cli/aac
+          cargo test --locked -p coreav-cli --features native-h264,aac --test ffmpeg \
+            --no-run --message-format=json > "$RUNNER_TEMP/avi-build.jsonl"
+      - name: Compare generated AVI output
+        run: |
+          python3 scripts/avi_fixture_check.py --coreav target/debug/coreav \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --work "$RUNNER_TEMP/avi"
+      - name: Generate the registered V2 fixtures
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/avi-fixtures"
+          scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/avi-fixtures"
+          scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/avi-fixtures"
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/x264"
+      - name: Evaluate registered AVI command rows
+        run: |
+          python3 scripts/avi_v2_check.py --coreav target/debug/coreav \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --x264 "$RUNNER_TEMP/x264/x264" --build-log "$RUNNER_TEMP/avi-build.jsonl" \
+            --fixtures "$RUNNER_TEMP/avi-fixtures" --work "$RUNNER_TEMP/avi-v2"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: avi-output
+          path: |
+            ${{ runner.temp }}/avi/results.json
+            ${{ runner.temp }}/avi-v2/v2.json
+          if-no-files-found: ignore
