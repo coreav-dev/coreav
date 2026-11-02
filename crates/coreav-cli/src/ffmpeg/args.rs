@@ -34,6 +34,10 @@ pub enum Muxer {
     Ipod,
     /// `segment`, writing MP4 segments.
     Segment,
+    /// `wav` (`.wav`), with signed 16-bit PCM by default.
+    Wav,
+    /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
+    S16le,
 }
 
 /// A stream specifier: of `-map` (input streams) or of a codec option
@@ -67,6 +71,8 @@ pub enum Codec {
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
+    /// Signed 16-bit little-endian PCM for WAV or raw audio output.
+    PcmS16le,
     /// An audio encoder: one audio stream encoded beside the re-encoded
     /// video.
     Audio(AudioEncoder),
@@ -150,6 +156,10 @@ pub struct Command {
     pub codecs: Vec<(Spec, Codec)>,
     /// The encoder options; with no `libx264` codec option there are none.
     pub encoding: Encoding,
+    /// `-ar` after the input, accepted for PCM only at the source rate.
+    pub sample_rate: Option<u32>,
+    /// `-ac` after the input, accepted for PCM only at the source count.
+    pub channels: Option<u16>,
     /// `-noautorotate` before the input.
     pub noautorotate: bool,
     /// `-vn`.
@@ -198,7 +208,9 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 28] = [
+const PER_FILE: [(&str, Arity); 30] = [
+    ("-ar", Arity::Value),
+    ("-ac", Arity::Value),
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -525,6 +537,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         input_until: None,
         output: output.to_owned(),
         muxer: Muxer::Mp4,
+        sample_rate: None,
+        channels: None,
         seek: None,
         duration: None,
         until: None,
@@ -584,12 +598,14 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut segment_time = None;
     let mut encoders = Vec::new();
     let mut audio_encoders = Vec::new();
+    let mut movflags = false;
     for (option, value) in output_options {
         let text = value.unwrap_or_default();
         if let Some(spec) = codec_option(option) {
             let codec = match text {
                 "copy" => Codec::Copy,
                 "libx264" => Codec::Libx264,
+                "pcm_s16le" => Codec::PcmS16le,
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
                 _ => {
@@ -649,6 +665,24 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
+            "-ar" => {
+                command.sample_rate =
+                    Some(text.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        not_native(
+                            option,
+                            Some(text),
+                            "PCM output takes a positive integer source rate",
+                        )
+                    })?)
+            }
+            "-ac" => {
+                command.channels = Some(
+                    text.parse::<u16>()
+                        .ok()
+                        .filter(|n| *n > 0)
+                        .ok_or_else(|| usage("Invalid audio channel count."))?,
+                )
+            }
             "-map" => command.maps.push(parse_map(text)?),
             "-map_metadata" => {
                 let stream = text
@@ -667,7 +701,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     }
                 };
             }
-            "-movflags" if matches!(text, "+faststart" | "faststart") => {}
+            "-movflags" if matches!(text, "+faststart" | "faststart") => movflags = true,
             "-movflags" => {
                 return Err(not_native(
                     option,
@@ -736,6 +770,27 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     command.muxer = muxer(format, output)?;
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        if movflags {
+            return Err(not_native(
+                "-movflags",
+                None,
+                "it is not an option of PCM output",
+            ));
+        }
+    } else if command.sample_rate.is_some() {
+        return Err(not_native(
+            "-ar",
+            None,
+            "it is not supported on this output",
+        ));
+    } else if command.channels.is_some() {
+        return Err(not_native(
+            "-ac",
+            None,
+            "it is not supported on this output",
+        ));
+    }
     if command.muxer == Muxer::Segment {
         let written = match segment_format {
             None => extension_muxer(output),
@@ -812,6 +867,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
     match extension.as_str() {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
+        "wav" => Some(Muxer::Wav),
         _ => None,
     }
 }
@@ -820,11 +876,13 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
     match format {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
+        Some("wav") => Ok(Muxer::Wav),
+        Some("s16le") => Ok(Muxer::S16le),
         Some("segment") => Ok(Muxer::Segment),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes mp4, ipod (M4A) and segment",
+            "coreav ffmpeg writes mp4, ipod (M4A), wav, s16le and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an output container other than MP4 or M4A")),

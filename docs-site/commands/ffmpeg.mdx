@@ -19,6 +19,8 @@ import Help from '/snippets/help/ffmpeg.mdx';
 | `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip), or for a copy of one audio stream and no video, a clip of that audio alone |
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
+| One audio stream to `.wav` or `-f wav` | Signed 16-bit little-endian PCM, the default codec for WAV |
+| One audio stream with `-f s16le` | The same PCM samples without a header |
 
 In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. In strict-safe mode no `ffmpeg` program runs: the command line needs an `x264` program and a backend other than `ffmpeg-fallback` that decodes the video, and is refused with exit status 4 otherwise ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
@@ -27,6 +29,24 @@ In a build with the `libopus` feature, such a command line can also encode one a
 In every build with a decoder backend, such a command line can also encode one audio stream this build decodes, mono or stereo, sampled at an AAC rate from 8 to 64 kHz, with `-c:a aac` (or `-acodec aac`), at the bit rate `-b:a` gives (16k to 512k; without it, the encoder's default), through [`coreav transcode --audio aac`](/commands/transcode). Sources can be FLAC, MP3, Opus, or AAC-LC with the `aac` feature. The encoder is FFmpeg's built-in `aac` encoder, run as a separate process: the `ffmpeg` program `COREAV_FFMPEG` names, else the one on `PATH`. A command line is refused with exit status 4 when no `ffmpeg` program is found or it has no `aac` encoder. Strict-safe mode never runs an `ffmpeg` program, so it refuses every `-c:a aac` command line with exit status 4 and nothing runs.
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
+
+## PCM audio output
+
+WAV and raw PCM output use CoreAV's audio decoder and run no external encoder, including in strict-safe mode. The input must be MP4, MOV, Matroska or WebM containing FLAC, MP3 or Opus, or AAC-LC in a build with the `aac` feature. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mka output.wav
+coreav --strict-safe ffmpeg -i input.mp4 -acodec pcm_s16le -f s16le output.raw
+coreav --strict-safe ffmpeg -i input.mka -ss 0 -t 30 output.wav
+```
+
+The rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, mixing, resampling, raw input, multiple output files and other PCM codecs are not supported.
+
+Output `-threads` is accepted but does not change PCM serialization or start encoder workers.
+
+WAV metadata copying is not supported. Use `-map_metadata -1` for an input with tags other than container bookkeeping or encoder identification. Stream-to-global metadata mapping and WAV chapter copying are refused. Damaged audio, decoder warnings and WAV output beyond the RIFF size limit fail without replacing the destination. A `.raw` or `.pcm` extension alone does not select raw output; use `-f s16le`.
+
+The [PCM output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/pcm-output.md) records its correctness bars and limitations.
 
 ## Examples
 

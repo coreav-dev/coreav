@@ -13,6 +13,7 @@
 pub mod args;
 #[cfg(feature = "transcode")]
 pub mod encode;
+mod pcm;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -81,6 +82,15 @@ impl From<WriteFailure> for Stop {
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
+    /// One audio stream decoded to signed 16-bit PCM, as WAV or raw bytes.
+    Pcm {
+        /// The input stream index.
+        stream: usize,
+        /// The duration limit in sample frames, or the whole presentation.
+        samples: Option<u64>,
+        /// The selected stream's reported speaker positions for WAV.
+        mask: Option<u32>,
+    },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
         /// The tracks, in the output's order, a stream mapped twice twice.
@@ -161,6 +171,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -ss, -t or -to, before or after -i: a clip
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
+  one audio stream to .wav (or -f wav): pcm_s16le by default
+  -f s16le: the same PCM samples without a header
 Builds with a decoder backend also encode the video with -c:v libx264.
 Prints nothing on success.
 
@@ -183,7 +195,11 @@ See docs/design/compat-cli.md.
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     #[cfg(feature = "transcode")]
-    let encoder = encode::encoder(&command, strict_safe)?;
+    let encoder = if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        None
+    } else {
+        encode::encoder(&command, strict_safe)?
+    };
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
@@ -277,6 +293,9 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+        return pcm::plan(command, report, &selected, list.is_some());
+    }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
@@ -329,6 +348,11 @@ pub fn plan(
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
     let decided = codecs(command, &output);
+    if decided.contains(&Some(Codec::PcmS16le)) {
+        return Err(Refusal::not_native(
+            "pcm_s16le outside WAV or raw s16le output",
+        ));
+    }
     let coded = |wanted: Codec| -> Vec<usize> {
         output
             .iter()
@@ -684,7 +708,8 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
 /// copy` copies the video). Options name output streams, so a stream
 /// mapped twice is decided once for each place it has.
 fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> {
-    let mut decided = vec![None; output.len()];
+    let default = matches!(command.muxer, Muxer::Wav | Muxer::S16le).then_some(Codec::PcmS16le);
+    let mut decided = vec![default; output.len()];
     for (spec, codec) in &command.codecs {
         for position in matching(spec, output) {
             if let Some(slot) = decided.get_mut(position) {
@@ -888,7 +913,7 @@ const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "w
 /// often as the maps name it, or the automatic selection (the video, then
 /// the audio stream, each with the default disposition first, then the
 /// largest picture or the most channels, the first of equals), less the
-/// disabled types. Each must be covered by a `copy` codec option.
+/// disabled types, with the codecs resolved against the output positions.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
@@ -912,17 +937,20 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
                 })
                 .map(|(i, _)| i)
         };
-        selected.extend(best(StreamKind::Video, &|s| {
-            int(s, "width").saturating_mul(int(s, "height"))
-        }));
+        if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+            selected.extend(best(StreamKind::Video, &|s| {
+                int(s, "width").saturating_mul(int(s, "height"))
+            }));
+        }
         selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
         let subtitle = all
             .iter()
             .filter(|_| {
-                command
-                    .codecs
-                    .iter()
-                    .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
+                !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+                    && command
+                        .codecs
+                        .iter()
+                        .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
             })
             .find(|(_, s)| s.kind == StreamKind::Subtitle && !disabled(s));
         if let Some((i, s)) = subtitle {
@@ -1045,6 +1073,14 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 /// moved into place only once the whole job succeeded. A transcode is
 /// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+    if let Job::Pcm {
+        stream,
+        samples,
+        mask,
+    } = job
+    {
+        return pcm::write(command, *stream, *samples, *mask);
+    }
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -1137,7 +1173,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Split(_) | Job::Transcode(_) => Ok(serde_json::Value::Null),
+        Job::Split(_) | Job::Transcode(_) | Job::Pcm { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),
