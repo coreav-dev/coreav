@@ -141,6 +141,8 @@ import threading
 import time
 from fractions import Fraction
 
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 MANIFEST = ROOT / 'corpus' / 'v1' / 'manifest.json'
@@ -961,6 +963,35 @@ def audio_origin(args, src, out, index):
     return None
 
 
+def compare_encoded_audio(args, out, index, baseline, baseline_index):
+    """Exact ffprobe properties and decoded float samples against the pinned encoder's output."""
+    fields = ('codec_name,profile,sample_fmt,sample_rate,channels,channel_layout,'
+              'time_base,start_pts,duration_ts')
+    properties = []
+    hashes = []
+    for path, stream in ((out, index), (baseline, baseline_index)):
+        result, document = jrun([args.ffprobe, '-v', 'error', '-select_streams', str(stream),
+                                 '-show_entries', 'stream=' + fields, '-of', 'json', path])
+        rows = (document or {}).get('streams', [])
+        required = ('codec_name', 'sample_fmt', 'sample_rate', 'channels', 'time_base',
+                    'start_pts', 'duration_ts')
+        if result.returncode != 0 or len(rows) != 1 or any(k not in rows[0] for k in required):
+            return {'ok': False, 'reason': 'encoded audio properties not read'}
+        properties.append(rows[0])
+        decoded = run([args.ffmpeg, '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT,
+                       '-i', path, '-map', f'0:{stream}', '-c:a', 'pcm_f32le',
+                       '-f', 'hash', '-hash', 'sha256', '-'])
+        digest = decoded.stdout.strip()
+        if decoded.returncode != 0 or decoded.stderr.strip() or \
+                re.fullmatch(rb'SHA256=[0-9a-f]{64}', digest) is None or \
+                digest == b'SHA256=' + hashlib.sha256(b'').hexdigest().encode():
+            return {'ok': False, 'reason': 'encoded audio samples not decoded'}
+        hashes.append(digest)
+    return {'ok': properties[0] == properties[1] and hashes[0] == hashes[1],
+            'properties_equal': properties[0] == properties[1],
+            'decoded_samples_equal': hashes[0] == hashes[1]}
+
+
 def check_compat(args, path, key, cls, tmp):
     """B9: one `coreav ffmpeg` command line on one fixture, each arm against FFmpeg running the same line."""
     src = Source(args, path)
@@ -969,6 +1000,7 @@ def check_compat(args, path, key, cls, tmp):
            'b2_known_miss': os.path.basename(path) in B2_KNOWN_MISSES}
     base = tmp / 'baseline.mp4'
     cmd = [args.ffmpeg, '-nostdin'] + compat_words(key, path, base)
+    ba = []
     t = time.monotonic()
     r = run(cmd)
     res['baseline'] = {'exit': r.returncode, 'seconds': round(time.monotonic() - t, 3),
@@ -987,16 +1019,26 @@ def check_compat(args, path, key, cls, tmp):
         kinds, vi, ai = written(args, out)
         arm['streams'] = kinds
         src_audio = [audio_origin(args, src, out, a) for a in ai]
-        if vi is None or None in src_audio:
+        expected = res['baseline'].get('audio_from') if res['baseline']['status'] == 'ok' else None
+        if vi is None or (None in src_audio and expected is None) or \
+                (expected is not None and src_audio != expected):
             arm.update(status='failed', reason='no video stream, or an audio stream not from the source')
             out.unlink(missing_ok=True)
             continue
         layout = {'video': vi, 'audio': ai, 'videos': sum(1 for k, _ in kinds if k == 'video'),
                   'streams': len(kinds)}
         video = default_video(src.streams)['index']
-        expected = res['baseline'].get('audio_from') if res['baseline']['status'] == 'ok' else None
-        arm.update(judge_output(args, src, out, layout, video, src_audio, tmp,
-                                expected_audio=expected if expected is not None else []))
+        copied = [(output, source) for output, source in zip(ai, src_audio) if source is not None]
+        copy_layout = dict(layout, audio=[output for output, _ in copied])
+        encoded = [compare_encoded_audio(args, out, output, base, reference)
+                   for output, reference, source in zip(ai, ba, src_audio) if source is None]
+        arm.update(judge_output(args, src, out, copy_layout, video, [source for _, source in copied], tmp,
+                                expected_audio=[a for a in expected or [] if a is not None],
+                                extra_audio=len(encoded)))
+        arm['layout'] = layout
+        if encoded:
+            arm['B3'] = dict(arm.get('B3', {'ok': True}), encoded_streams=encoded,
+                             ok=arm.get('B3', {}).get('ok', True) and all(a['ok'] for a in encoded))
         if res['baseline']['status'] == 'ok' and kinds != res['baseline']['streams']:
             arm['B1'] = dict(arm['B1'], ok=False, reason='the streams written differ from FFmpeg\'s')
         elif res['baseline']['status'] == 'ok' and (display_matrix(args, out, vi)
