@@ -19,6 +19,27 @@ release_set = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release_set)
 
 
+class InstructionTolerance(unittest.TestCase):
+    def test_exact_boundary_and_adjacent_counts(self):
+        for name in ("start-up", "decoder", "case"):
+            for count, expected in ((94_999, "faster: the baseline can be lowered"),
+                                    (95_000, "ok"), (95_001, "ok"),
+                                    (104_999, "ok"), (105_000, "ok"),
+                                    (105_001, "SLOWER")):
+                with self.subTest(case=name, count=count):
+                    failed = []
+                    if name == "start-up":
+                        _, status = bench_guard.compare(name, count, 100_000, 0.05, failed)
+                    else:
+                        before_startup = 20_000 if name == "case" else None
+                        _, status, _ = bench_guard.compare_case(name, count, 100_000,
+                                                               count + (before_startup or 0),
+                                                               before_startup, 0.05, failed)
+                    self.assertEqual(status, "SLOWER, and so is the whole command"
+                                     if expected == "SLOWER" and name == "case" else expected)
+                    self.assertEqual(failed, [name] if expected == "SLOWER" else [])
+
+
 class FfmpegGuard(unittest.TestCase):
     def test_every_selected_ffmpeg_shape_has_its_own_case(self):
         entries = {e["id"]: e for e in json.loads(release_set.OUT.read_text())["entries"] if e["tool"] == "ffmpeg"}
