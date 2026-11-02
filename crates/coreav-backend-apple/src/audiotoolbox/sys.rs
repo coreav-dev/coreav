@@ -452,6 +452,10 @@ impl Instance {
             "AudioCodec output: status {status}, bytes {bytes}/{capacity}, packets {count}, offset {}, packet bytes {}, frames {}",
             description.offset, description.bytes, description.frames
         );
+        #[cfg(test)]
+        if status == 4 {
+            eprintln!("AudioCodec exhausted-input trim: {:?}", self.trim());
+        }
         if bytes as usize > data.len() || count > 1 {
             return Err(Error::Output);
         }
