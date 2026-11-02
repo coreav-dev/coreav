@@ -1,0 +1,15 @@
+# The CommonMark and GFM parser scripts/pr_shape_check.py reads a pull
+# request's body with, to find the sections it keeps and the lines a
+# hard wrap leaves (docs/design/ci-checks.md, "The pull request's shape"),
+# and that parser's one dependency. Both are MIT, which deny.toml allows.
+# Pinned by version and every artifact's SHA-256, as
+# packages/cli/scripts/zig-requirements.txt is:
+#   pip install --require-hashes -r scripts/pr-text-requirements.txt
+# markdown-it-py 4 needs Python 3.10, and the agents' own python3 is 3.9 on
+# macOS, so the pin stays on the 3.x line that runs on 3.8 and later.
+markdown-it-py==3.0.0 \
+  --hash=sha256:355216845c60bd96232cd8d8c40e8f9765cc86f46880e43a8fd22dc1a1a8cab1 \
+  --hash=sha256:e3f60a94fa066dc52ec76661e37c851cb232d92f9886b15cb560aaada2df8feb
+mdurl==0.1.2 \
+  --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \
+  --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba

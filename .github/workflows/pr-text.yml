@@ -5,8 +5,9 @@ name: pr-text
 # list (Korean text, a run identifier, spend details), and
 # scripts/pr_shape_check.py (Conventional Commits titles and commit
 # subjects and their lengths; a body without the template's sections, or
-# with a line break inside a paragraph or list item). It runs again when
-# the title or body is edited. Read-only token, no secret: the private list
+# with a line break inside a paragraph or list item, read with the parser
+# pinned in scripts/pr-text-requirements.txt). It runs again when the title
+# or body is edited. Read-only token, no secret: the private list
 # stays on the agent's machine ("Before opening a pull request"). Not a
 # required check, so the ruleset is unchanged; a failure still shows on the
 # pull request.
@@ -32,6 +33,18 @@ jobs:
         with:
           # The pull request's commits, base to head.
           fetch-depth: 0
+      # scripts/pr_shape_check.py reads a body with the parser pinned in
+      # scripts/pr-text-requirements.txt: a virtual environment keeps the
+      # runner's own Python untouched, and $GITHUB_PATH makes `python3` in the
+      # step below this one.
+      - name: Install the parser the body check reads with
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/parser"
+          "$RUNNER_TEMP/parser/bin/pip" install --quiet --require-hashes -r scripts/pr-text-requirements.txt
+          echo "$RUNNER_TEMP/parser/bin" >> "$GITHUB_PATH"
       - name: Check the title, the body and the commits
         env:
           BASE: ${{ github.event.pull_request.base.sha }}

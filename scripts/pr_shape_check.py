@@ -15,7 +15,10 @@ Fails on:
 - a commit list that is not in the form below: none of it is checked;
 - a body without a level-2 heading for one of the template's required
   sections, or with a paragraph or list item broken across two lines
-  (a hard wrap).
+  (a hard wrap). Both come from markdown-it-py's tokens, so the block
+  structure is GitHub's own: a code fence, a table, an HTML block and a
+  setext heading keep their line breaks, and only a paragraph token that
+  spans more than one source line is reported.
 
     pr_shape_check.py --event EVENT.json [--commits FILE]
     pr_shape_check.py --title TITLE [--body-file BODY.md] [--commits FILE]
@@ -23,13 +26,16 @@ Fails on:
 FILE holds the commits as `git log --format='%H%x00%P%x00%B%x00' BASE..HEAD`
 writes them: NUL, which Git does not allow in a commit message, ends each
 field (sha, parents, message). Prints each failure with what to do
-instead. Exit status 0 when nothing fails, 1 otherwise. Python standard
-library only.
+instead. Exit status 0 when nothing fails, 1 otherwise. Python 3.8 or
+later, with markdown-it-py and mdurl from scripts/pr-text-requirements.txt
+installed first: `pip install --require-hashes -r` that file.
 """
 import argparse
 import json
 import re
 import sys
+
+from markdown_it import MarkdownIt
 
 TYPES = ('feat', 'fix', 'docs', 'test', 'chore', 'refactor', 'perf', 'ci')
 CONVENTIONAL = re.compile(r'\A(?P<type>[a-z]+)(?:\([A-Za-z0-9][A-Za-z0-9._/-]*\))?!?: (?P<summary>\S.*)\Z')
@@ -48,71 +54,11 @@ PARENTS = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})(?: (?:[0-9a-f]{40}|[0-9a-f]
 REQUIRED_SECTIONS = ('TL;DR', 'Background', 'What changes', 'Decisions', 'Evidence')
 OPTIONAL_SECTIONS = ('How it works', 'Needs the maintainer')
 
-# The block structure of a Markdown body, from CommonMark's and GitHub
-# Flavored Markdown's rules for where a block starts and where it ends: a
-# line break inside a paragraph or list item is the hard wrap this check
-# reports, and every other block keeps its own line breaks. Each constant
-# below names the rule it reads.
-FENCE_OPEN = re.compile(r'\A {0,3}(`{3,}|~{3,})(.*)\Z')
-FENCE_CLOSE = re.compile(r'\A {0,3}(`{3,}|~{3,})[ \t]*\Z')
-HTML_BLOCK = re.compile(r'\A {0,3}(?:<!--|</?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|\Z)|<[!?])')
-# CommonMark gives the HTML blocks that start a line their own end markers;
-# the rest, a block-level tag's line among them, end at the next blank line.
-HTML_ENDS = (('<!--', '-->'), ('<![cdata[', ']]>'), ('<?', '?>'), ('<!', '>'),
-             ('<script', '</script>'), ('<pre', '</pre>'), ('<style', '</style>'),
-             ('<textarea', '</textarea>'))
-HEADING = re.compile(r'\A {0,3}(#{1,6})(?:[ \t]+(.*))?\Z')
-HEADING_CLOSE = re.compile(r'[ \t]+#+[ \t]*\Z')
-QUOTE = re.compile(r'\A {0,3}>')
-LIST_ITEM = re.compile(r'\A\s*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|\Z)')
-THEMATIC_BREAK = re.compile(r'\A {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\Z')
-SETEXT_UNDERLINE = re.compile(r'\A {0,3}(?:=+|-+)[ \t]*\Z')
-TABLE_CELL = re.compile(r'[ \t]*:?-+:?[ \t]*')
-INDENTED_CODE = re.compile(r'\A(?: {4}|\t)')
-
-
-def fence_opens(text):
-    """The opening fence of a code block, or None. A backtick fence's info
-    string cannot hold a backtick; a tilde fence's may hold anything."""
-    found = FENCE_OPEN.match(text)
-    if not found or found.group(1)[0] == '`' and '`' in found.group(2):
-        return None
-    return found.group(1)
-
-
-def fence_closes(text, fence):
-    """Whether `text` closes a block opened by `fence`: the same character,
-    at least as long, and nothing but spaces after it."""
-    found = FENCE_CLOSE.match(text)
-    return bool(found) and found.group(1)[0] == fence[0] and len(found.group(1)) >= len(fence)
-
-
-def html_end(text):
-    """Where the HTML block starting at `text` ends: its own marker, or None
-    when only a blank line ends it."""
-    low = text.lstrip().lower()
-    for start, end in HTML_ENDS:
-        if low.startswith(start):
-            return end
-    return None
-
-
-def heading_text(found):
-    """A heading's text, without the closing sequence of `#`s, which has to
-    be preceded by a space and is otherwise the heading's own text."""
-    return HEADING_CLOSE.sub('', found.group(2) or '').strip()
-
-
-def is_table_delimiter(text):
-    """GitHub's delimiter row: cells of dashes with optional alignment
-    colons, separated by pipes, and at least one pipe among them."""
-    body = text.strip()
-    if '|' not in body or '-' not in body:
-        return False
-    body = body[1:] if body.startswith('|') else body
-    body = body[:-1] if body.endswith('|') else body
-    cells = body.split('|')
-    return all(TABLE_CELL.fullmatch(cell) for cell in cells)
+# The parser the body is read with: markdown-it's own preset, which carries
+# GitHub's table and strikethrough rules, with raw HTML read as the block
+# it is rather than as text. Its tokens say where every block starts and
+# ends, so a block's extent is the parser's answer, never this file's.
+PARSER = MarkdownIt('js-default', {'html': True})
 
 
 def conventional(text):
@@ -173,100 +119,40 @@ def body_failures(body):
     return out
 
 
+def html_paragraph(lines, start, end):
+    """Whether a paragraph's every line opens with inline HTML: a pasted
+    element, such as a tool's footer, rather than prose to be joined."""
+    return all(lines[number].lstrip().startswith('<') for number in range(start, end))
+
+
 def scan_body(body):
-    """(heading text, line) of each heading, and (line, line) of each paragraph
-    or list item a line break runs through."""
+    """(heading text, line) of each level-2 heading outside a quote, and the
+    first two lines of each paragraph or list item a line break runs
+    through."""
+    lines = body.split('\n')
     headings, wraps = [], []
-    fence = None    # the opening fence, until its own marker closes it
-    html = False    # an HTML block, and `ends_at` holds where it ends
-    ends_at = None
-    code = False    # an indented code block, until a line indented less
-    table = False   # a table's rows, from its delimiter row to a blank line
-    quote = False   # a block quote, whose lazy continuation lines have no marker
-    open_ = None    # the line the paragraph under way started at
-    broken = None   # (its line, the line that continued it) once one does
-
-    def close(exempt):
-        """End the paragraph, keeping its line break unless the line that
-        ends it exempts the paragraph's own last line (`exempt`)."""
-        nonlocal open_, broken
-        if broken and not exempt:
-            wraps.append(broken)
-        open_ = broken = None
-
-    for number, line in enumerate(body.split('\n'), 1):
-        text = line.rstrip()
-        stripped = text.strip()
-        if fence:
-            if fence_closes(text, fence):
-                fence = None
-            continue
-        if html:
-            ended = not stripped if ends_at is None else ends_at in text
-            if ended:
-                html = False
-            continue
-        if code:
-            if stripped and not INDENTED_CODE.match(text):
-                code = False
-            else:
-                continue
-        if not stripped:
-            close(False)
-            table = quote = False
-            continue
-        found = fence_opens(text)
-        if found:
-            close(False)
-            fence = found
-            table = quote = False
-            continue
-        if HTML_BLOCK.match(text):
-            close(False)
-            ends_at = html_end(text)
-            html = ends_at is None or ends_at not in text
-            table = quote = False
-            continue
-        found = HEADING.match(text)
-        if found:
-            close(False)
-            table = quote = False
-            if len(found.group(1)) == 2:
-                headings.append((heading_text(found), number))
-            continue
-        if QUOTE.match(text):
-            close(False)
-            table = False
-            quote = True
-            continue
-        setext = bool(SETEXT_UNDERLINE.match(text))
-        if setext or THEMATIC_BREAK.match(text):
-            # `---` and `===` under a paragraph make a setext heading, whose
-            # text is that paragraph, so a reader sees the lines above it as
-            # one line. A `***` or `___` rule is a break of its own and keeps
-            # them broken.
-            close(setext)
-            table = quote = False
-            continue
-        if LIST_ITEM.match(text):
-            close(False)
-            table = quote = False
-            open_ = number
-            continue
-        if table or quote:
-            continue        # a table row, or a quote's lazy continuation
-        if is_table_delimiter(text):
-            close(True)     # the delimiter row makes the line above the table's header
-            table, quote = True, False
-            continue
-        if open_ is None and INDENTED_CODE.match(text):
-            code = True     # indented code, which a paragraph's line cannot start
-            continue
-        if open_ is None:
-            open_ = number
-        elif broken is None:
-            broken = (open_, number)
-    close(False)
+    quote = 0       # how deep the tokens under way are inside a block quote
+    heading = None  # the heading_open whose text has not been read yet
+    for token in PARSER.parse(body):
+        if token.type == 'blockquote_open':
+            quote += 1
+        elif token.type == 'blockquote_close':
+            quote -= 1
+        elif token.type == 'heading_open':
+            heading = token
+        elif token.type == 'heading_close':
+            heading = None
+        elif token.type == 'inline' and heading is not None:
+            # A quote's heading is quoted text, not one of the sections.
+            if not quote and heading.tag == 'h2' and heading.map:
+                headings.append((token.content, heading.map[0] + 1))
+            heading = None
+        elif token.type == 'paragraph_open' and not quote and token.map:
+            # A quote's paragraph is quoted text, whose lazy continuation
+            # lines have no marker of their own.
+            start, end = token.map
+            if end - start > 1 and not html_paragraph(lines, start, end):
+                wraps.append((start + 1, start + 2))
     return headings, wraps
 
 

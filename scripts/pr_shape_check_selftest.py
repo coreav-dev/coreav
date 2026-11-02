@@ -243,29 +243,39 @@ class Body(unittest.TestCase):
         self.assertEqual(check.body_failures(EXEMPT), [])
 
     def test_the_template_and_the_required_sections_agree(self):
-        # The template owns the section list, and its own comment marks the
-        # sections an author may delete: one of those is an optional section.
+        # The template owns the section list, and the comment under a
+        # heading marks the sections an author may delete: one of those is
+        # an optional section.
         template = (HERE.parent / '.github' / 'pull_request_template.md').read_text(encoding='utf-8')
-        required, optional, comment, collecting, pending = [], [], '', False, None
-
-        def classify():
-            (optional if 'delete this section' in comment.casefold() else required).append(pending)
-
-        for line in template.split('\n'):
-            found = check.HEADING.match(line)
-            if found and len(found.group(1)) == 2:
-                if pending is not None:
-                    classify()
-                pending, comment, collecting = found.group(2), '', False
-                continue
-            collecting = collecting or '<!--' in line
-            if collecting:
-                comment += line + '\n'
-                collecting = '-->' not in line.split('<!--', 1)[-1]
-        if pending is not None:
-            classify()
+        lines = template.split('\n')
+        headings = check.scan_body(template)[0]
+        required, optional = [], []
+        for index, (text, line) in enumerate(headings):
+            ends = headings[index + 1][1] - 1 if index + 1 < len(headings) else len(lines)
+            comment = '\n'.join(lines[line:ends]).casefold()
+            (optional if 'delete this section' in comment else required).append(text)
         self.assertEqual(required, list(check.REQUIRED_SECTIONS))
         self.assertEqual(optional, list(check.OPTIONAL_SECTIONS))
+
+    def test_a_fence_inside_a_nested_list_item_passes(self):
+        # Four document-relative spaces are none relative to the child item.
+        self.assert_passes('- Parent\n  - Child\n    ```text\n    code line one\n    code line two\n    ```')
+
+    def test_a_footer_of_inline_html_is_not_prose(self):
+        # A tool's footer: two lines of inline HTML, which no one joins.
+        self.assert_passes('<a href="x">Read more</a>\n<sup>Need help? Tag <code>@bot</code>.</sup>')
+
+    def test_prose_that_opens_with_a_tag_is_still_a_line_break(self):
+        failures = check.body_failures(with_paragraph('<b>First</b> line\nsecond line'))
+        self.assertEqual(len(failures), 1, failures)
+
+    def test_inline_html_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<a href="x">Read more</a>\n## Evidence')), [])
+
+    def test_a_heading_inside_a_quote_is_not_a_section(self):
+        failures = check.body_failures(BODY.replace('## Evidence', '> ## Evidence'))
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn('no `## Evidence` section', failures[0])
 
     def test_a_table_without_pipes_at_its_edges_passes(self):
         self.assert_passes('Name | Result\n--- | ---\nunit | pass\nfixture | pass')
