@@ -172,3 +172,13 @@ The workflow refuses to build or fetch media unless the oracle pin, its FFmpeg a
 The tooling floor has one unindented registration line in the same form as the candidate:
 
     Tooling floor: `<SHA>`.
+
+The judging tools are registered as well: [judging.json](judging.json) holds the SHA-256 of every file of the R2 and R3 judging code and data, including the complete workflow and source guard. These bytes retain the total-deadline fix and the oracle-audio validator's VP9-only allowlist entry. A tooling commit with different bytes stops before building or fetching media and names the changed file. The build manifest retains the registration's hash and every judging-file hash; each consumer recomputes them.
+
+Changing a registered judging file requires a reviewed registration amendment before the judged run. Commit the code first, then generate the registration from that immutable commit and commit the JSON separately:
+
+```sh
+python3 -I scripts/compat_sources.py register --tooling "$(git rev-parse HEAD)" > docs/measurements/compat-0.1.0/judging.json
+```
+
+The registration does not hash itself, this page or the tests, so recording later results does not require changing the judging state. Re-registering cannot authorize rerunning a missed bar.

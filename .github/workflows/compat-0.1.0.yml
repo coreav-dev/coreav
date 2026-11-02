@@ -60,6 +60,7 @@ on:
       - scripts/tests/test_registered_candidate.py
       - scripts/compat_sources.py
       - scripts/tests/test_compat_sources.py
+      - docs/measurements/compat-0.1.0/judging.json
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
 
@@ -90,9 +91,13 @@ jobs:
           filter: blob:none
           persist-credentials: false
           sparse-checkout: |
-            scripts/registered_candidate.py
-            scripts/compat_sources.py
-            docs/measurements/compat-0.1.0/README.md
+            /scripts/
+            /tools/compat-corpus/
+            /tools/oracle/
+            /tools/stage3-report/
+            /docs/known-divergences*.json
+            /docs/measurements/compat-0.1.0/
+            /.github/workflows/compat-0.1.0.yml
           sparse-checkout-cone-mode: false
       - id: candidate
         env:
@@ -567,6 +572,7 @@ jobs:
           print(f'## compat-0.1.0: {name} at {commit}\n')
           print(f"Tooling commit `{sources['tooling']['commit']}`. Both Rust artifacts built from `{sources['candidate']['commit']}`.\n")
           print(f"R3 harness sha256 `{sources['artifacts']['r3-harness']['sha256']}`.\n")
+          print(f"Judging registration sha256 `{sources['judging']['registration_sha256']}` ({len(sources['judging']['files'])} files).\n")
           print(f'coreav (dist) sha256 `{sha}`. Fallback logs: R2 {r2["fallback_log"]}, R3 {r3["fallback_log"]}.\n')
           print('### R2: keys of the set, per family\n')
           print('| Family | Files | Gated rows | Below 98% |')

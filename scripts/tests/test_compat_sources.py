@@ -1,5 +1,7 @@
 """Exercise source planning and artifact custody without media or network access."""
 import copy
+import ast
+import fnmatch
 import json
 from pathlib import Path
 import re
@@ -21,6 +23,8 @@ class SourceRepo:
         self.git('symbolic-ref', 'HEAD', 'refs/heads/main')
         for path in sources.FROZEN:
             self.write(path, path + '\n')
+        for path in sources.JUDGING:
+            self.write(path, path + '\n')
         for name in ('compat_sources.py', 'registered_candidate.py'):
             self.write('scripts/' + name, (ROOT / 'scripts' / name).read_text())
         self.write(sources.README, '')
@@ -29,6 +33,8 @@ class SourceRepo:
         self.floor = self.save()
         self.registration = f'Release candidate: `{self.candidate}`.\nTooling floor: `{self.floor}`.\n'
         self.write(sources.README, self.registration)
+        registered = self.save()
+        self.write(sources.JUDGING_REGISTRATION, sources.register(root, registered))
         self.tooling = self.save()
         self.git('update-ref', 'refs/remotes/origin/main', self.tooling)
 
@@ -164,7 +170,8 @@ class Sources(unittest.TestCase):
         _, dist, original = self.bundle()
         mutations = [('schema',), ('candidate', 'commit'), ('candidate', 'registration'), ('tooling', 'commit'),
                      ('tooling', 'floor'), ('tooling', 'on_main'), ('run', 'id'), ('run', 'event'),
-                     ('run', 'ref'), ('run', 'set'), ('frozen',), ('artifacts',)]
+                     ('run', 'ref'), ('run', 'set'), ('frozen',), ('artifacts',), ('judging',),
+                     ('judging', 'registration_sha256'), ('judging', 'files', sources.JUDGING[0])]
         mutations += [('artifacts', name, field) for name in sources.ARTIFACTS
                       for field in ('role', 'built_from', 'sha256')]
         for path in mutations:
@@ -223,6 +230,110 @@ class Sources(unittest.TestCase):
             path = (driver.parent / module).resolve()
             self.assertTrue(any(path == ROOT / frozen or path.is_relative_to(ROOT / frozen)
                                 for frozen in sources.FROZEN), module)
+
+    def test_each_judging_file_drift_and_deletion_names_the_file(self):
+        base = self.repo.tooling
+        for path in sources.JUDGING:
+            with self.subTest(path=path):
+                self.repo.git('reset', '--hard', base)
+                self.repo.write(path, (self.root / path).read_text() + '\n')
+                changed = self.repo.save()
+                self.repo.git('update-ref', 'refs/remotes/origin/main', changed)
+                with self.assertRaisesRegex(ValueError, re.escape(path)):
+                    self.plan(tooling=changed)
+        self.repo.git('reset', '--hard', base)
+        (self.root / 'tools/compat-corpus/r3.py').unlink()
+        with self.assertRaisesRegex(ValueError, 'tools/compat-corpus/r3.py'):
+            sources.judging(self.root, self.repo.save())
+
+    def test_judging_hashes_use_committed_bytes_and_reregistration_is_explicit(self):
+        before = sources.judging(self.root, self.repo.tooling)
+        registration = sources.register(self.root, self.repo.tooling)
+        self.assertEqual(registration, sources.register(self.root, self.repo.tooling))
+        self.repo.write('tools/compat-corpus/r3.py', 'changed judge\n')
+        self.assertEqual(sources.judging(self.root, self.repo.tooling), before)
+        changed = self.repo.save()
+        with self.assertRaisesRegex(ValueError, 'tools/compat-corpus/r3.py'):
+            self.plan(tooling=changed, event='pull_request')
+        self.repo.write(sources.JUDGING_REGISTRATION, sources.register(self.root, changed))
+        self.repo.tooling = self.repo.save()
+        revised = self.plan(event='pull_request')
+        self.assertNotEqual(revised['judging'], before)
+        self.assertEqual(revised['judging']['registration_sha256'],
+                         sources.digest(self.root / sources.JUDGING_REGISTRATION))
+
+    def test_judging_registration_refuses_malformed_or_incomplete_rosters(self):
+        base = self.repo.tooling
+        original = json.loads(sources.register(self.root, base))
+        invalid = ['', '[]', '{', json.dumps({**original, 'schema': 'old'}),
+                   json.dumps({**original, 'extra': {}})]
+        for extra in (sources.README, sources.JUDGING_REGISTRATION, sources.FROZEN[0], 'unknown.py'):
+            invalid.append(json.dumps({**original, 'files': {**original['files'], extra: 'a' * 64}}))
+        for hash_value in ('A' * 64, 'a' * 63, None):
+            invalid.append(json.dumps({**original, 'files': {**original['files'], sources.JUDGING[0]: hash_value}}))
+        invalid.append(json.dumps({**original, 'files': dict(list(original['files'].items())[1:])}))
+        for text in invalid:
+            with self.subTest(text=text[:70]):
+                self.repo.git('reset', '--hard', base)
+                self.repo.write(sources.JUDGING_REGISTRATION, text)
+                with self.assertRaises(ValueError):
+                    sources.judging(self.root, self.repo.save())
+        self.repo.git('reset', '--hard', base)
+        (self.root / sources.JUDGING_REGISTRATION).unlink()
+        with self.assertRaisesRegex(ValueError, re.escape(sources.JUDGING_REGISTRATION)):
+            sources.judging(self.root, self.repo.save())
+
+
+class JudgingRoster(unittest.TestCase):
+    def assert_imports_frozen(self, root, roster):
+        owned = set(roster) | set(sources.FROZEN)
+        search = ('scripts', 'tools/compat-corpus', 'tools/oracle', 'tools/stage3-report')
+        for path in sorted(owned):
+            if not path.endswith('.py'):
+                continue
+            for node in ast.walk(ast.parse((root / path).read_text())):
+                names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else \
+                    [node.module] if isinstance(node, ast.ImportFrom) and node.module else []
+                for name in names:
+                    for directory in search:
+                        imported = f'{directory}/{name.split(".")[0]}.py'
+                        if (root / imported).is_file():
+                            self.assertIn(imported, owned, f'{path} imports {imported}; add it to JUDGING, then register')
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and \
+                        re.fullmatch(r'(?:docs/)?known-divergences(?:-[a-z-]+)?\.json|ffmpeg9\.json', node.value):
+                    data = node.value if node.value.startswith('docs/') else \
+                        'tools/compat-corpus/ffmpeg9.json' if node.value == 'ffmpeg9.json' else 'docs/' + node.value
+                    self.assertIn(data, owned, f'{path} reads {data}; add it to JUDGING, then register')
+
+    def test_judging_imports_data_and_dynamic_entry_points_are_frozen(self):
+        self.assert_imports_frozen(ROOT, sources.JUDGING)
+        for path in ('tools/compat-corpus/copy_check.py', 'scripts/oracle_kd.py'):
+            self.assertIn(path, sources.JUDGING)
+        with self.assertRaises(AssertionError):
+            self.assert_imports_frozen(ROOT, set(sources.JUDGING) - {'scripts/clip_check.py'})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'scripts').mkdir()
+            (root / 'scripts/entry.py').write_text('import new_helper\n')
+            (root / 'scripts/new_helper.py').write_text('')
+            with self.assertRaisesRegex(AssertionError, 'scripts/new_helper.py'):
+                self.assert_imports_frozen(root, {'scripts/entry.py'})
+
+    def test_registration_structure_and_sparse_checkout_cover_the_roster(self):
+        from test_registered_candidate import load_workflow
+        workflow = load_workflow('compat-0.1.0.yml')
+        patterns = workflow['jobs']['compat-plan']['steps'][0]['with']['sparse-checkout'].splitlines()
+        for path in (*sources.JUDGING, sources.JUDGING_REGISTRATION):
+            self.assertTrue(any(fnmatch.fnmatch(path, pattern.lstrip('/') + ('*' if pattern.endswith('/') else ''))
+                                for pattern in patterns), path)
+        self.assertEqual(len(sources.JUDGING), len(set(sources.JUDGING)))
+        self.assertFalse(set(sources.JUDGING) & set(sources.FROZEN))
+        self.assertNotIn(sources.README, sources.JUDGING)
+        self.assertNotIn(sources.JUDGING_REGISTRATION, sources.JUDGING)
+        self.assertFalse(any('/tests/' in path for path in sources.JUDGING))
+        registration = json.loads((ROOT / sources.JUDGING_REGISTRATION).read_text())
+        self.assertEqual(registration['schema'], sources.JUDGING_SCHEMA)
+        self.assertEqual(set(registration['files']), set(sources.JUDGING))
 
 
 if __name__ == '__main__':
