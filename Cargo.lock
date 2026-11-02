@@ -472,8 +472,10 @@ dependencies = [
 name = "coreav-thumbnail"
 version = "0.0.1"
 dependencies = [
+ "coreav-backend-h264",
  "coreav-decode",
  "coreav-frame",
+ "coreav-h264",
  "coreav-isobmff",
  "coreav-mkv",
  "image-webp",
@@ -538,13 +540,17 @@ name = "coreav-wasm"
 version = "0.0.1"
 dependencies = [
  "coreav-cli",
+ "coreav-counting-alloc",
+ "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",
  "coreav-mkv",
  "coreav-policy",
  "coreav-text",
+ "coreav-thumbnail",
  "serde",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
 ]
 

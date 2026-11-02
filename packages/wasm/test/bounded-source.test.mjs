@@ -77,6 +77,26 @@ function sourceFor(input, options) {
   return adapterRangeSource(input.fetch.bind(input), options);
 }
 
+test("abort reaches a bounded range request before opening settles", async () => {
+  const entered = deferred();
+  let requestSignal;
+  const source = adapterRangeSource(({ signal }) => {
+    requestSignal = signal;
+    entered.resolve();
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    });
+  });
+  const aborts = new AbortController();
+  const opening = boundedOpeners.get(source)({ signal: aborts.signal });
+  await entered.promise;
+  aborts.abort();
+  assert.equal(requestSignal.aborted, true);
+  await assert.rejects(opening, (error) => error.name === "AbortError");
+  assert.equal(source.lastStats.requests, 1);
+  assert.equal(source.lastStats.maxBackingBytes, 0);
+});
+
 test("bounded reads use owned BYOB buffers and one response", async () => {
   const input = object(8 * MiB);
   const source = sourceFor(input);

@@ -233,6 +233,23 @@ pub fn read_frame_access<S: Source>(
     walk(format, source, offset, len, charge, true)
 }
 
+/// [`read_frame_access`] with sticky planning-failure propagation and stack-only scratch.
+pub fn read_frame_access_with_planning<S: Source>(
+    format: AccessFormat,
+    source: &mut S,
+    offset: u64,
+    len: u64,
+    charge: &mut dyn FnMut() -> Result<(), Error>,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<FrameAccess>, Error> {
+    if let Some(planning) = planning {
+        planning
+            .charge(0)
+            .map_err(|_| crate::planning::limit(offset))?;
+    }
+    read_frame_access(format, source, offset, len, charge)
+}
+
 /// [`FrameAccess::starts_decoding`] of the frame of `len` bytes at
 /// `offset`, read as [`read_frame_access`] reads it, `Ok(None)` when it
 /// cannot be walked. SEI messages are read only for a frame without an IDR
@@ -259,6 +276,24 @@ pub fn read_starts_decoding<S: Source>(
     }
     Ok(walk(format, source, offset, len, charge, true)?
         .map(|frame| frame.starts_decoding(max_num_ref_frames)))
+}
+
+/// [`read_starts_decoding`] with sticky planning-failure propagation and stack-only scratch.
+pub fn read_starts_decoding_with_planning<S: Source>(
+    format: AccessFormat,
+    source: &mut S,
+    offset: u64,
+    len: u64,
+    max_num_ref_frames: Option<u32>,
+    charge: &mut dyn FnMut() -> Result<(), Error>,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<bool>, Error> {
+    if let Some(planning) = planning {
+        planning
+            .charge(0)
+            .map_err(|_| crate::planning::limit(offset))?;
+    }
+    read_starts_decoding(format, source, offset, len, max_num_ref_frames, charge)
 }
 
 /// AV1 OBU types (AV1 specification 6.2.2).
@@ -290,6 +325,22 @@ pub fn read_av1_sync<S: Source>(
         read_av1_frame_start(source, offset, len, &mut reduced, charge)?
             .map(|start| start.sequence_header && start.key_frame == Some(true)),
     )
+}
+
+/// [`read_av1_sync`] with sticky planning-failure propagation and stack-only scratch.
+pub fn read_av1_sync_with_planning<S: Source>(
+    source: &mut S,
+    offset: u64,
+    len: u64,
+    charge: &mut dyn FnMut() -> Result<(), Error>,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<bool>, Error> {
+    if let Some(planning) = planning {
+        planning
+            .charge(0)
+            .map_err(|_| crate::planning::limit(offset))?;
+    }
+    read_av1_sync(source, offset, len, charge)
 }
 
 /// The first frame of an AV1 sample, as [`read_av1_frame_start`] reads it.
@@ -568,6 +619,18 @@ pub fn annex_b_frame_access(frame: &[u8], complete: bool) -> Option<FrameAccess>
     }
 }
 
+/// [`annex_b_frame_access`] with sticky planning-failure propagation and stack-only scratch.
+pub fn annex_b_frame_access_with_planning(
+    frame: &[u8],
+    complete: bool,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<FrameAccess>, crate::PlanningLimit> {
+    if let Some(planning) = planning {
+        planning.charge(0)?;
+    }
+    Ok(annex_b_frame_access(frame, complete))
+}
+
 /// The next start code (`00 00 01`) at or after `from`, as the offset of
 /// its first zero byte.
 ///
@@ -628,7 +691,7 @@ fn walk<S: Source>(
     let end = offset.checked_add(len).ok_or(Error::Overflow { offset })?;
     let length_size = u64::from(length_size);
     let mut units = Units::new();
-    let (mut stack, mut heap) = ([0u8; STACK_BYTES], Vec::new());
+    let (mut stack, mut heap) = ([0u8; MAX_SEI_BYTES as usize], Vec::new());
     let mut at = offset;
     while at < end {
         charge()?;
@@ -685,8 +748,9 @@ fn walk<S: Source>(
 /// `slice_type` of a slice header (ITU-T H.264 7.3.3), the NAL unit header
 /// byte removed: after `first_mb_in_slice`, 0 to 9.
 fn slice_type(payload: &[u8]) -> Option<u32> {
-    let data = rbsp(payload, usize::try_from(SLICE_HEADER_BYTES).ok()?);
-    let mut bits = Bits::new(&data);
+    let mut scratch = [0; SLICE_HEADER_BYTES as usize];
+    let data = rbsp(payload, &mut scratch);
+    let mut bits = Bits::new(data);
     bits.ue()?;
     bits.ue().filter(|t| *t <= 9)
 }
@@ -696,12 +760,13 @@ fn slice_type(payload: &[u8]) -> Option<u32> {
 /// and whether it is exact (`exact_match_flag` 1);
 /// `None` when it holds none, or its messages run past the bytes read.
 fn recovery_point(payload: &[u8]) -> Option<(u32, bool)> {
-    let data = rbsp(payload, payload.len());
+    let mut scratch = [0; MAX_SEI_BYTES as usize];
+    let data = rbsp(payload, &mut scratch);
     let mut at = 0usize;
     // More data while the rest is not the RBSP trailing bits (0x80).
     while data.get(at).is_some_and(|b| *b != 0x80) {
-        let kind = sei_value(&data, &mut at)?;
-        let size = usize::try_from(sei_value(&data, &mut at)?).ok()?;
+        let kind = sei_value(data, &mut at)?;
+        let size = usize::try_from(sei_value(data, &mut at)?).ok()?;
         let body = data.get(at..at.checked_add(size)?)?;
         if kind == SEI_RECOVERY_POINT {
             let mut bits = Bits::new(body);

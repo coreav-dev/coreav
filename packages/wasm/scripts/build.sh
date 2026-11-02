@@ -2,7 +2,37 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"
-out="$here/wasm"
+choice="default"
+if [ "$#" -gt 0 ]; then
+  choice="$1"
+  shift
+fi
+if [ "$#" -ne 0 ]; then
+  echo "error: usage: build.sh [default|h264]" >&2
+  exit 1
+fi
+case "$choice" in
+  default)
+    package_dir="$here"
+    raw="$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm"
+    cargo_target=()
+    cargo_features=()
+    feature_json="[]"
+    ;;
+  h264)
+    package_dir="$root/packages/wasm-h264"
+    raw="$root/target/wasm-h264/wasm32-unknown-unknown/edge/coreav_wasm.wasm"
+    cargo_target=(--target-dir "$root/target/wasm-h264")
+    cargo_features=(--features native-h264)
+    feature_json='["native-h264"]'
+    node "$package_dir/scripts/sync-sources.mjs"
+    ;;
+  *)
+    echo "error: selection must be default or h264" >&2
+    exit 1
+    ;;
+esac
+out="$package_dir/wasm"
 . "$root/scripts/rust-dist.env"
 export RUSTUP_TOOLCHAIN="$RUST_DIST_TOOLCHAIN"
 pin="$(sed -n 's/^wasm-bindgen = "=\(.*\)"$/\1/p' "$root/crates/coreav-wasm/Cargo.toml")"
@@ -17,15 +47,18 @@ if [ "$have" != "$want" ]; then
   exit 1
 fi
 selection=(-p coreav-wasm --profile edge --target wasm32-unknown-unknown)
+if [ "${#cargo_features[@]}" -gt 0 ]; then
+  selection+=("${cargo_features[@]}")
+fi
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+simd128"
 CARGO_ENCODED_RUSTFLAGS="$(node "$root/scripts/notices/main.mjs" prepare -- "${selection[@]}")"
 export CARGO_ENCODED_RUSTFLAGS
 unset RUSTFLAGS
-cargo build --locked --manifest-path "$root/Cargo.toml" "${selection[@]}"
+cargo build --locked --manifest-path "$root/Cargo.toml" "${cargo_target[@]}" "${selection[@]}"
 rm -rf "$out"
 wasm-bindgen --target web --remove-name-section --remove-producers-section \
   --out-dir "$out" --out-name coreav \
-  "$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm"
+  "$raw"
 opt="${WASM_OPT:-$(command -v wasm-opt || true)}"
 opt_version=""
 simd=""
@@ -48,14 +81,14 @@ if [ -n "$opt" ] && [ -x "$dis" ]; then
     exit 1
   fi
   echo "SIMD instructions: $simd"
-elif ! grep -qa 'simd128' "$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm"; then
+elif ! grep -qa 'simd128' "$raw"; then
   echo "error: the module was not compiled with simd128" >&2
   exit 1
 else
   echo "SIMD: simd128 among the compiled module's target features (no wasm-dis to count instructions)"
 fi
-node "$here/scripts/fingerprint.mjs" "$here"
-WASM_OPT_VERSION="$opt_version" WASM_SIMD_COUNT="$simd" BINDGEN_VERSION="$pin" node --input-type=module - "$here" <<'JS'
+node "$here/scripts/fingerprint.mjs" "$package_dir"
+WASM_OPT_VERSION="$opt_version" WASM_SIMD_COUNT="$simd" BINDGEN_VERSION="$pin" FEATURES_JSON="$feature_json" node --input-type=module - "$package_dir" <<'JS'
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -68,12 +101,13 @@ writeFileSync(join(directory, "wasm/provenance.json"), JSON.stringify({
   wasmOpt: process.env.WASM_OPT_VERSION || null,
   rustc: execFileSync("rustc", ["-V"], { encoding: "utf8" }).trim(),
   profile: "edge", target: "wasm32-unknown-unknown",
+  features: JSON.parse(process.env.FEATURES_JSON),
   simdInstructions: process.env.WASM_SIMD_COUNT ? Number(process.env.WASM_SIMD_COUNT) : null
 }, null, 2) + "\n");
 JS
-node "$root/scripts/notices/main.mjs" generate --out "$here" --artifact "$out/coreav_bg.wasm" \
-  --raw "$root/target/wasm32-unknown-unknown/edge/coreav_wasm.wasm" -- "${selection[@]}"
-cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$here/"
+node "$root/scripts/notices/main.mjs" generate --out "$package_dir" --artifact "$out/coreav_bg.wasm" \
+  --raw "$raw" -- "${selection[@]}"
+cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$package_dir/"
 cd "$out"
 shasum -a 256 coreav_bg.wasm coreav.js
 echo "coreav_bg.wasm: $(wc -c < coreav_bg.wasm) bytes, gzip -9 $(gzip -9 -n -c coreav_bg.wasm | wc -c) bytes"

@@ -6,6 +6,8 @@ use core::fmt;
 /// Which limit of [`crate::Limits`] a file exceeded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitKind {
+    /// Aggregate allocation admission for a bounded planning operation.
+    PlanningBytes,
     /// `max_elements`.
     Elements,
     /// `max_element_bytes`.
@@ -169,13 +171,5 @@ impl fmt::Display for Warning {
             Self::NoCues => "no Cues; seeking scans clusters",
             Self::InvalidCuePoint => "an invalid cue point was ignored",
         })
-    }
-}
-
-/// Records a warning once, so file-controlled repetition cannot grow the
-/// list.
-pub(crate) fn warn(warnings: &mut Vec<Warning>, warning: Warning) {
-    if !warnings.contains(&warning) {
-        warnings.push(warning);
     }
 }

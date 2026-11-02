@@ -42,6 +42,7 @@ native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
 # of `coreav transcode`) to every build with a decoder backend, the native
 # H.264 decoder alone included.
 thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker"]
+thumbnail-summary = ["dep:coreav-thumbnail"]
 # `coreav transcode` (docs/design/transcode.md, experimental): the video
 # re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
 # program runs under the sandbox launcher `thumbnail` brings. A decoder

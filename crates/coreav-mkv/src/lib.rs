@@ -26,6 +26,7 @@ mod inflate;
 mod limits;
 mod meta;
 mod packets;
+mod planning;
 mod reader;
 mod scan;
 mod schema;
@@ -44,7 +45,7 @@ pub use limits::Limits;
 pub use meta::{Chapter, Edition, MAX_NESTING, SimpleTag, Tag};
 pub use packets::{Packet, Packets};
 pub use scan::{Scan, TrackScan};
-pub use segment::{Attachment, DocType, Segment, probe, probe_with_metadata};
+pub use segment::{Attachment, DocType, Segment, probe, probe_with_metadata, probe_with_planning};
 pub use track::{Allowlist, Audio, Codec, DroppedTrack, Encoding, Track, TrackKind, Video};
 
 /// The first four bytes of every Matroska and WebM file: the EBML header

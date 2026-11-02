@@ -4,8 +4,12 @@
 //! specification suggests, 12.8). Its input is CoreAV's own pixels.
 
 use coreav_frame::{Picture, PixelFormat};
+#[cfg(any(feature = "native-h264", test))]
+use std::io::Write;
 
 use crate::Error;
+#[cfg(any(feature = "native-h264", test))]
+use crate::image::{BoundedOutput, output_limit};
 
 const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -15,14 +19,29 @@ const LEVEL: u8 = 3;
 
 /// Encodes an [`PixelFormat::Rgb24`] picture as PNG.
 pub fn encode(picture: &Picture) -> Result<Vec<u8>, Error> {
+    let filtered = filtered(picture)?;
+    let (w, h) = (picture.width(), picture.height());
+    let compressed = miniz_oxide::deflate::compress_to_vec_zlib(&filtered, LEVEL);
+    let mut out = Vec::with_capacity(compressed.len() + 64);
+    out.extend_from_slice(&SIGNATURE);
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &compressed);
+    chunk(&mut out, b"IEND", &[]);
+    Ok(out)
+}
+
+fn filtered(picture: &Picture) -> Result<Vec<u8>, Error> {
     if picture.format() != PixelFormat::Rgb24 {
         return Err(Error::Encode("PNG input must be RGB".into()));
     }
-    let (w, h) = (picture.width(), picture.height());
     let row_bytes = picture.plane_rows(0).map_or(0, |(_, b)| b);
     let mut filtered = Vec::new();
     filtered
-        .try_reserve(
+        .try_reserve_exact(
             picture
                 .packed_len()
                 .saturating_add(picture.plane_rows(0).map_or(0, |r| r.0)),
@@ -51,17 +70,67 @@ pub fn encode(picture: &Picture) -> Result<Vec<u8>, Error> {
         filtered.extend_from_slice(&best);
         previous = row;
     }
-    let compressed = miniz_oxide::deflate::compress_to_vec_zlib(&filtered, LEVEL);
-    let mut out = Vec::with_capacity(compressed.len() + 64);
-    out.extend_from_slice(&SIGNATURE);
-    let mut ihdr = Vec::with_capacity(13);
-    ihdr.extend_from_slice(&w.to_be_bytes());
-    ihdr.extend_from_slice(&h.to_be_bytes());
-    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
-    chunk(&mut out, b"IHDR", &ihdr);
-    chunk(&mut out, b"IDAT", &compressed);
-    chunk(&mut out, b"IEND", &[]);
-    Ok(out)
+    Ok(filtered)
+}
+
+#[cfg(any(feature = "native-h264", test))]
+pub(crate) fn encode_bounded(picture: &Picture, out: &mut BoundedOutput) -> Result<(), Error> {
+    use miniz_oxide::deflate::core::{
+        CompressorOxide, TDEFLFlush, TDEFLStatus, compress, create_comp_flags_from_zip_params,
+    };
+
+    let capacity = out.remaining().checked_sub(57).ok_or_else(output_limit)?;
+    let filtered = filtered(picture)?;
+    let mut compressed = Vec::new();
+    compressed
+        .try_reserve_exact(capacity)
+        .map_err(|_| output_limit())?;
+    compressed.resize(capacity, 0);
+    let mut compressor =
+        CompressorOxide::new(create_comp_flags_from_zip_params(i32::from(LEVEL), 1, 0));
+    let (status, consumed, written) = compress(
+        &mut compressor,
+        &filtered,
+        &mut compressed,
+        TDEFLFlush::Finish,
+    );
+    if status != TDEFLStatus::Done || consumed != filtered.len() {
+        return Err(output_limit());
+    }
+    compressed.truncate(written);
+    drop(compressor);
+    drop(filtered);
+    let mut ihdr = [0u8; 13];
+    for (slot, byte) in ihdr.iter_mut().zip(
+        picture
+            .width()
+            .to_be_bytes()
+            .into_iter()
+            .chain(picture.height().to_be_bytes())
+            .chain([8, 2, 0, 0, 0]),
+    ) {
+        *slot = byte;
+    }
+    let io = |e: std::io::Error| Error::Encode(format!("PNG: {e}"));
+    out.write_all(&SIGNATURE).map_err(io)?;
+    write_chunk(out, b"IHDR", &ihdr).map_err(io)?;
+    write_chunk(out, b"IDAT", &compressed).map_err(io)?;
+    write_chunk(out, b"IEND", &[]).map_err(io)?;
+    Ok(())
+}
+
+#[cfg(any(feature = "native-h264", test))]
+fn write_chunk(out: &mut impl Write, kind: &[u8; 4], data: &[u8]) -> std::io::Result<()> {
+    let len =
+        u32::try_from(data.len()).map_err(|_| std::io::Error::other("PNG chunk is too large"))?;
+    out.write_all(&len.to_be_bytes())?;
+    out.write_all(kind)?;
+    out.write_all(data)?;
+    let mut crc = 0xFFFF_FFFFu32;
+    for byte in kind.iter().chain(data) {
+        crc = crc_byte(crc, *byte);
+    }
+    out.write_all(&(!crc).to_be_bytes())
 }
 
 trait AbsI8 {
@@ -127,16 +196,21 @@ fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for b in data {
-        crc ^= u32::from(*b);
-        for _ in 0..8 {
-            crc = if crc & 1 != 0 {
-                (crc >> 1) ^ 0xEDB8_8320
-            } else {
-                crc >> 1
-            };
-        }
+        crc = crc_byte(crc, *b);
     }
     !crc
+}
+
+fn crc_byte(mut crc: u32, byte: u8) -> u32 {
+    crc ^= u32::from(byte);
+    for _ in 0..8 {
+        crc = if crc & 1 != 0 {
+            (crc >> 1) ^ 0xEDB8_8320
+        } else {
+            crc >> 1
+        };
+    }
+    crc
 }
 
 #[cfg(test)]

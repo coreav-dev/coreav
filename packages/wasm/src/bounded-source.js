@@ -90,6 +90,7 @@ export function boundedMemorySession(bytes) {
       bytesReceived: 0,
       maxBackingBytes: capacity,
       maxChargedBytes: capacity,
+      liveBackingBytes: closed ? 0 : capacity,
     }),
     close() {
       closed = true;
@@ -168,17 +169,27 @@ export class BackingBudget {
   }
 
   stats() {
-    return { maxBackingBytes: this.peak, maxChargedBytes: this.chargedPeak };
+    const unique = new Map();
+    for (const [token, bytes] of this.buffers) unique.set(token.view.buffer, bytes);
+    return {
+      maxBackingBytes: this.peak,
+      maxChargedBytes: this.chargedPeak,
+      liveBackingBytes: [...unique.values()].reduce((a, b) => a + b, 0),
+    };
   }
 }
 
 export class BoundedRangeSession {
-  constructor(fetchRange, settings, report) {
+  constructor(fetchRange, settings, report, signal = undefined) {
     this.fetchRange = fetchRange;
     this.settings = settings;
     this.report = report;
     this.budget = new BackingBudget();
     this.aborts = new AbortController();
+    this.signal = signal;
+    this.onAbort = () => {
+      this.close().catch(() => {});
+    };
     this.response = null;
     this.pending = null;
     this.reading = null;
@@ -196,6 +207,11 @@ export class BoundedRangeSession {
 
   async start() {
     try {
+      this.signal?.addEventListener("abort", this.onAbort, { once: true });
+      if (this.signal?.aborted) {
+        await this.close();
+        throw new DOMException("The operation was aborted", "AbortError");
+      }
       await this.request(0, PARTITION);
       return this;
     } catch (error) {
@@ -372,6 +388,7 @@ export class BoundedRangeSession {
   close() {
     if (this.closing !== null) return this.closing;
     this.closed = true;
+    this.signal?.removeEventListener("abort", this.onAbort);
     const response = this.response;
     this.response = null;
     const cancelled = this.cancel(response?.reader);

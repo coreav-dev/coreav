@@ -106,6 +106,7 @@ jobs:
             .context/**
             docs/spikes/**
             packages/wasm/**
+            packages/wasm-h264/**
       # The code that differs between Linux, macOS and Windows (the sandbox,
       # the processes it starts, positioned file reads, code that differs by
       # target architecture), the backends the

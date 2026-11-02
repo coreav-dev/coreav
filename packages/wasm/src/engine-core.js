@@ -24,16 +24,48 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
   let cleanupError = null;
 
   let active = false;
+  const lease = { acquired: 0, released: 0, rejected: 0, sourceOpens: 0 };
+  let observedSession = null;
+  let outputLive = 0;
+  let host = null;
+
+  function noteHost() {
+    if (!exclusive || host === null) return;
+    const stats = observedSession?.stats?.();
+    host.maxBackingBytes = Math.max(host.maxBackingBytes, (stats?.maxBackingBytes ?? 0) + host.maxOutputBackingBytes);
+    host.maxChargedBytes = Math.max(host.maxChargedBytes, (stats?.maxChargedBytes ?? 0) + host.maxOutputChargedBytes);
+    host.liveBytes = (stats?.liveBackingBytes ?? 0) + outputLive;
+  }
+
+  function diagnostics() {
+    noteHost();
+    return {
+      lease: { active, ...lease },
+      host: host === null ? null : { ...host },
+      settled: !active && outputLive === 0 && observedSession === null,
+    };
+  }
 
   function acquire() {
-    if (exclusive && active)
+    if (exclusive && active) {
+      lease.rejected += 1;
       throw new TypeError("the CoreAV module already has an active operation");
-    if (exclusive) active = true;
+    }
+    if (exclusive) {
+      active = true;
+      lease.acquired += 1;
+      host = { requestId: lease.acquired, maxBackingBytes: 0, maxChargedBytes: 0, maxOutputBackingBytes: 0, maxOutputChargedBytes: 0, liveBytes: 0 };
+    }
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      if (exclusive) active = false;
+      if (exclusive) {
+        noteHost();
+        observedSession = null;
+        active = false;
+        lease.released += 1;
+      }
     };
   }
 
@@ -97,6 +129,7 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
   async function closeSession(session) {
     try {
       await session?.close();
+      noteHost();
     } catch (cause) {
       if (!exclusive) throw cause;
       cleanupError = cause;
@@ -130,7 +163,9 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
     }
     let session;
     try {
+      if (exclusive) lease.sourceOpens += 1;
       session = await opener.call(source, open);
+      if (exclusive) observedSession = session;
     } catch (error) {
       if (error instanceof SourceNotFoundError) throw error;
       if (exclusive && error instanceof SourceCleanupError)
@@ -233,6 +268,7 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
 
   /** The error for a rejection of the module, given what failed around it. */
   function failure(rejection, session, sinkError) {
+    if (sinkError?.name === "AbortError") return sinkError;
     if (typeof rejection !== "string") {
       if (rejection instanceof WebAssembly.RuntimeError) trapped = rejection;
       return rejection;
@@ -248,24 +284,54 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
     return new CoreAVError(rejection);
   }
 
+  function abortError(signal) {
+    const error = new DOMException("The operation was aborted", "AbortError");
+    if (signal?.reason !== undefined)
+      Object.defineProperty(error, "cause", { value: signal.reason });
+    return error;
+  }
+
+  function requestOptions(options, open) {
+    const { signal, ...plain } = options ?? {};
+    if (signal !== undefined && !(signal instanceof AbortSignal))
+      throw new TypeError("signal must be an AbortSignal");
+    if (signal?.aborted) throw abortError(signal);
+    return {
+      signal,
+      json: JSON.stringify(plain),
+      open: signal === undefined ? open : { ...open, signal },
+    };
+  }
+
   /** Runs an operation that returns a document; resolves to its JSON text. */
   async function runToText(operation, source, options, open = undefined) {
     ready();
     const release = acquire();
     let session;
+    let closing;
+    let signal;
+    const close = () => session === undefined ? Promise.resolve() : (closing ??= closeSession(session));
+    const onAbort = () => { close().catch(() => {}); };
     try {
-      const json = JSON.stringify(options);
-      session = await openSession(source, open);
+      const request = requestOptions(options, open);
+      signal = request.signal;
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const json = request.json;
+      session = await openSession(source, request.open);
+      if (signal?.aborted) throw abortError(signal);
       const text = session.inMemory
         ? runDocumentInMemory(operation, session, session.size, json)
         : await runDocument(operation, session, session.size, false, json);
+      if (signal?.aborted) throw abortError(signal);
       return text;
     } catch (rejection) {
+      if (signal?.aborted) throw abortError(signal);
       throw failure(rejection, session, null);
     } finally {
       try {
-        await closeSession(session);
+        await close();
       } finally {
+        signal?.removeEventListener("abort", onAbort);
         release();
       }
     }
@@ -295,13 +361,28 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
     const release = acquire();
     let session;
     let closing;
-    const close = () => (closing ??= closeSession(session));
+    let signal;
+    let controller;
+    let waiter = null;
+    let cancelled = null;
+    const close = () => session === undefined ? Promise.resolve() : (closing ??= closeSession(session));
+    const onAbort = () => {
+      cancelled ??= abortError(signal);
+      controller?.error(cancelled);
+      if (waiter !== null) {
+        const { reject } = waiter;
+        waiter = null;
+        reject(cancelled);
+      }
+      close().catch(() => {});
+    };
     try {
-      const json = JSON.stringify(options);
-      session = await openSession(source, open);
-      let controller;
-      let waiter = null;
-      let cancelled = null;
+      const request = requestOptions(options, open);
+      signal = request.signal;
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const json = request.json;
+      session = await openSession(source, request.open);
+      if (signal?.aborted) throw abortError(signal);
       let summary;
       const body = new ReadableStream(
         {
@@ -349,15 +430,32 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
               "the CoreAV module wrote more than 256 KiB at once",
             );
           }
-          controller.enqueue(view.slice());
+          const charge = exclusive ? view.byteLength : 0;
+          if (exclusive && outputLive + charge > QUEUED_BYTES + 256 * 1024)
+            throw hostLimit("the output exceeded its host buffer partition");
+          outputLive += charge;
+          if (exclusive) {
+            host.maxOutputChargedBytes = Math.max(host.maxOutputChargedBytes, outputLive);
+            host.maxOutputBackingBytes = Math.max(host.maxOutputBackingBytes, outputLive);
+            noteHost();
+          }
+          try {
+            controller.enqueue(view.slice());
+          } catch (error) {
+            outputLive -= charge;
+            throw error;
+          }
           wrote();
-          if (controller.desiredSize > 0) return undefined;
+          if (controller.desiredSize > 0) {
+            outputLive -= charge;
+            return undefined;
+          }
           return new Promise((resolve, reject) => {
             waiter = {
               resolve: resolve,
               reject: reject,
             };
-          });
+          }).finally(() => { outputLive -= charge; noteHost(); });
         },
       };
       const running = Promise.resolve().then(() =>
@@ -383,6 +481,7 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
       summary = running
         .then(
           (text) => {
+            if (cancelled !== null) throw cancelled;
             if (cancelled === null) controller.close();
             return JSON.parse(text);
           },
@@ -396,6 +495,7 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
           try {
             await close();
           } finally {
+            signal?.removeEventListener("abort", onAbort);
             release();
           }
         });
@@ -409,11 +509,13 @@ export function createEngine(bindings, build, { exclusive = false } = {}) {
       try {
         await close();
       } finally {
+        signal?.removeEventListener("abort", onAbort);
         release();
       }
+      if (signal?.aborted) throw abortError(signal);
       throw error;
     }
   }
 
-  return { init, moduleInfo, runToText, runToStream };
+  return { init, moduleInfo, runToText, runToStream, diagnostics };
 }

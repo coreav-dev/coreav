@@ -2,16 +2,16 @@
 //! and 11).
 
 use crate::audit::Audit;
-use crate::block::{BlockHeader, parse_block};
+use crate::block::{BlockHeader, parse_block_with_planning};
 use crate::ebml::{self, ElementHeader, Parsed};
-use crate::error::{LimitKind, Warning, warn};
+use crate::error::{LimitKind, Warning};
 use crate::ids;
 use crate::inflate::{FRAME_CHARGE, Failure, Inflater};
+use crate::planning;
 use crate::reader::{read_data, read_header};
 use crate::segment::Segment;
 use crate::track::{Encoding, Track};
 use crate::{Error, Limits, Source};
-use std::collections::VecDeque;
 
 /// Block header bytes read before the lacing is known.
 const FIRST_BLOCK_READ: u64 = 64;
@@ -136,8 +136,10 @@ pub struct Packets<'a, S> {
     audit: Option<Audit>,
     at: u64,
     cluster: Option<Cluster>,
-    pending: VecDeque<Packet>,
+    pending: Vec<Packet>,
+    pending_at: usize,
     done: bool,
+    planning_error_reported: bool,
     warnings: Vec<Warning>,
 }
 
@@ -153,8 +155,10 @@ impl<'a, S: Source> Packets<'a, S> {
             audit: None,
             at: start.unwrap_or(segment.end),
             cluster: None,
-            pending: VecDeque::new(),
+            pending: Vec::new(),
+            pending_at: 0,
             done: start.is_none(),
+            planning_error_reported: false,
             warnings: Vec::new(),
         }
     }
@@ -225,6 +229,12 @@ impl<'a, S: Source> Packets<'a, S> {
         self.source
     }
 
+    fn pop_pending(&mut self) -> Option<Packet> {
+        let packet = self.pending.get(self.pending_at).copied()?;
+        self.pending_at += 1;
+        Some(packet)
+    }
+
     fn count(&mut self, offset: u64) -> Result<(), Error> {
         if self.work >= self.limits.max_block_work {
             return Err(Error::LimitExceeded {
@@ -238,6 +248,9 @@ impl<'a, S: Source> Packets<'a, S> {
 
     /// Reads elements until a block yields frames or the segment ends.
     fn advance(&mut self) -> Result<(), Error> {
+        planning::check(self.segment.planning.as_ref(), self.at)?;
+        self.pending.clear();
+        self.pending_at = 0;
         let len = match self.len {
             Some(len) => len,
             None => {
@@ -301,7 +314,13 @@ impl<'a, S: Source> Packets<'a, S> {
             }
             match h.id {
                 ids::TIMESTAMP => {
-                    let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                    let data = read_data(
+                        &mut self.source,
+                        &h,
+                        8,
+                        LimitKind::ElementBytes,
+                        self.segment.planning.as_ref(),
+                    )?;
                     let timestamp = ebml::uint(&data, &h)?;
                     if let Some(cluster) = self.cluster.as_mut() {
                         cluster.timestamp = Some(timestamp);
@@ -383,7 +402,13 @@ impl<'a, S: Source> Packets<'a, S> {
                                 reason: "element runs past its BlockMore",
                             })?;
                     if h.id == ids::BLOCK_ADD_ID {
-                        let value = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                        let value = read_data(
+                            &mut self.source,
+                            &h,
+                            8,
+                            LimitKind::ElementBytes,
+                            self.segment.planning.as_ref(),
+                        )?;
                         id = ebml::uint(&value, &h)?;
                     } else if h.id == ids::BLOCK_ADDITIONAL {
                         data = true;
@@ -420,13 +445,26 @@ impl<'a, S: Source> Packets<'a, S> {
                 // them, but a source that failed to read stops the listing.
                 ids::BLOCK if block.is_none() => {
                     let header = self.block_header(&h);
-                    if let Err(error @ Error::Io(_)) = header {
+                    if let Err(
+                        error @ (Error::Io(_)
+                        | Error::LimitExceeded {
+                            limit: LimitKind::PlanningBytes,
+                            ..
+                        }),
+                    ) = header
+                    {
                         return Err(error);
                     }
                     block = Some((h, header));
                 }
                 ids::BLOCK_DURATION => {
-                    let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                    let data = read_data(
+                        &mut self.source,
+                        &h,
+                        8,
+                        LimitKind::ElementBytes,
+                        self.segment.planning.as_ref(),
+                    )?;
                     extra.duration = Some(ebml::uint(&data, &h)?);
                 }
                 ids::REFERENCE_BLOCK => extra.referenced = true,
@@ -440,7 +478,7 @@ impl<'a, S: Source> Packets<'a, S> {
                         Err(
                             error @ (Error::Io(_)
                             | Error::LimitExceeded {
-                                limit: LimitKind::BlockWork,
+                                limit: LimitKind::BlockWork | LimitKind::PlanningBytes,
                                 ..
                             }),
                         ) => return Err(error),
@@ -448,7 +486,13 @@ impl<'a, S: Source> Packets<'a, S> {
                     };
                 }
                 ids::DISCARD_PADDING => {
-                    let data = read_data(&mut self.source, &h, 8, LimitKind::ElementBytes)?;
+                    let data = read_data(
+                        &mut self.source,
+                        &h,
+                        8,
+                        LimitKind::ElementBytes,
+                        self.segment.planning.as_ref(),
+                    )?;
                     extra.discard_padding = Some(ebml::int(&data, &h)?);
                 }
                 _ => {}
@@ -488,11 +532,17 @@ impl<'a, S: Source> Packets<'a, S> {
                 }
                 None => {
                     heap.clear();
-                    self.source.read_append(offset, len, &mut heap)?;
+                    planning::exact(self.segment.planning.as_ref(), &mut heap, len, offset)?;
+                    if self.segment.planning.is_some() {
+                        heap.resize(len, 0);
+                        self.source.read_exact_at(offset, &mut heap)?;
+                    } else {
+                        self.source.read_append(offset, len, &mut heap)?;
+                    }
                     &heap
                 }
             };
-            match parse_block(buf, size, offset)? {
+            match parse_block_with_planning(buf, size, offset, self.segment.planning.as_ref())? {
                 Parsed::Done(header) => return Ok(header),
                 Parsed::NeedMore(n) => want = (n as u64).max(want.saturating_mul(2)).min(size),
             }
@@ -511,7 +561,12 @@ impl<'a, S: Source> Packets<'a, S> {
         let segment = self.segment;
         let Some(track) = segment.tracks.iter().find(|t| t.number == header.track) else {
             if !segment.dropped.iter().any(|d| d.number == header.track) {
-                warn(&mut self.warnings, Warning::UnknownTrackNumber);
+                planning::warn(
+                    self.segment.planning.as_ref(),
+                    &mut self.warnings,
+                    Warning::UnknownTrackNumber,
+                    self.at,
+                )?;
             }
             return Ok(());
         };
@@ -551,6 +606,12 @@ impl<'a, S: Source> Packets<'a, S> {
         let mut inflated_sizes = Vec::new();
         if let (Encoding::Zlib, Some((inflater, used))) = (&track.encoding, self.inflater.as_mut())
         {
+            planning::exact(
+                self.segment.planning.as_ref(),
+                &mut inflated_sizes,
+                header.frames.len(),
+                offset,
+            )?;
             for (frame_offset, frame_size) in &header.frames {
                 let budget = self
                     .limits
@@ -576,11 +637,17 @@ impl<'a, S: Source> Packets<'a, S> {
             }
         }
         let timing = Timing::new(track, segment.timestamp_scale);
+        planning::reserve(
+            self.segment.planning.as_ref(),
+            &mut self.pending,
+            header.frames.len(),
+            offset,
+        )?;
         for (lace, (frame_offset, frame_size)) in header.frames.iter().enumerate() {
             let lace = u16::try_from(lace).unwrap_or(u16::MAX);
             let pts = timing.pts(block_timestamp, lace);
             let unlaced = frames_in_block == 1;
-            self.pending.push_back(Packet {
+            self.pending.push(Packet {
                 track: track.index,
                 offset: offset.saturating_add(*frame_offset),
                 stored_size: *frame_size,
@@ -686,18 +753,29 @@ impl<S: Source> Iterator for Packets<'_, S> {
     type Item = Result<Packet, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(packet) = self.pending.pop_front() {
+        if let Err(error) = planning::check(self.segment.planning.as_ref(), self.at) {
+            if self.planning_error_reported {
+                return None;
+            }
+            self.done = true;
+            self.planning_error_reported = true;
+            self.pending.clear();
+            return Some(Err(error));
+        }
+        if let Some(packet) = self.pop_pending() {
             return Some(Ok(packet));
         }
         if !self.done {
             match self.advance() {
                 Ok(()) => {
-                    if let Some(packet) = self.pending.pop_front() {
+                    if let Some(packet) = self.pop_pending() {
                         return Some(Ok(packet));
                     }
                 }
                 Err(error) => {
                     self.done = true;
+                    self.planning_error_reported =
+                        self.segment.planning.as_ref().is_some_and(|p| p.failed());
                     return Some(Err(self.audit_error(error)));
                 }
             }

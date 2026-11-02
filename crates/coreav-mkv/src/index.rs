@@ -2,8 +2,9 @@
 //! cluster scan otherwise.
 
 use crate::ebml::{self, ElementHeader};
-use crate::error::{LimitKind, Warning, warn};
+use crate::error::{LimitKind, Warning};
 use crate::ids;
+use crate::planning;
 use crate::reader::{Children, Counter, read_data, read_header};
 use crate::segment::Segment;
 use crate::{Error, Limits, Source};
@@ -66,6 +67,7 @@ impl Segment {
     /// Builds the seek index: the `Cues` when present and readable, else a
     /// cluster scan (with a warning when `Cues` exist but cannot be read).
     pub fn index<S: Source>(&self, mut source: S, limits: &Limits) -> Result<Index, Error> {
+        planning::check(self.planning.as_ref(), self.offset)?;
         let mut warnings = Vec::new();
         match self.cue_points(&mut source, limits, &mut warnings) {
             Ok(Some(points)) if !points.is_empty() => {
@@ -76,10 +78,26 @@ impl Segment {
                 });
             }
             Ok(Some(_)) => {}
-            Ok(None) => warn(&mut warnings, Warning::NoCues),
+            Ok(None) => planning::warn(
+                self.planning.as_ref(),
+                &mut warnings,
+                Warning::NoCues,
+                self.offset,
+            )?,
             Err(Error::Io(kind)) => return Err(Error::Io(kind)),
+            Err(
+                error @ Error::LimitExceeded {
+                    limit: LimitKind::PlanningBytes,
+                    ..
+                },
+            ) => return Err(error),
             // Unreadable Cues: the clusters still give an index.
-            Err(_) => warn(&mut warnings, Warning::InvalidCuePoint),
+            Err(_) => planning::warn(
+                self.planning.as_ref(),
+                &mut warnings,
+                Warning::InvalidCuePoint,
+                self.offset,
+            )?,
         }
         let points = self.scan_clusters(&mut source, limits)?;
         Ok(Index {
@@ -124,6 +142,7 @@ impl Segment {
                     &h,
                     limits.max_element_bytes,
                     LimitKind::ElementBytes,
+                    self.planning.as_ref(),
                 )?;
                 self.cue_point(&data, &h, &counter, &mut points, limits, warnings)?;
             }
@@ -147,12 +166,20 @@ impl Segment {
             let (c, d) = child?;
             match c.id {
                 ids::CUE_TIME => time = Some(ebml::uint(d, &c)?),
-                ids::CUE_TRACK_POSITIONS => positions.push((c, d)),
+                ids::CUE_TRACK_POSITIONS => {
+                    planning::reserve(self.planning.as_ref(), &mut positions, 1, c.offset)?;
+                    positions.push((c, d));
+                }
                 _ => {}
             }
         }
         let Some(time) = time else {
-            warn(warnings, Warning::InvalidCuePoint);
+            planning::warn(
+                self.planning.as_ref(),
+                warnings,
+                Warning::InvalidCuePoint,
+                self.offset,
+            )?;
             return Ok(());
         };
         for (c, d) in positions {
@@ -170,7 +197,12 @@ impl Segment {
                 .and_then(|p| self.data_offset.checked_add(p))
                 .filter(|p| *p < self.end);
             let (Some(track), Some(cluster)) = (track, cluster) else {
-                warn(warnings, Warning::InvalidCuePoint);
+                planning::warn(
+                    self.planning.as_ref(),
+                    warnings,
+                    Warning::InvalidCuePoint,
+                    self.offset,
+                )?;
                 continue;
             };
             let used = (points.len() as u64 + 1).saturating_mul(POINT_BYTES);
@@ -180,6 +212,7 @@ impl Segment {
                     offset: h.offset,
                 });
             }
+            planning::reserve(self.planning.as_ref(), points, 1, h.offset)?;
             points.push(SeekPoint {
                 time,
                 track: Some(track),
@@ -266,7 +299,13 @@ impl Segment {
                     });
                 };
                 if c.id == ids::TIMESTAMP && timestamp.is_none() {
-                    let data = read_data(source, &c, 8, LimitKind::ElementBytes)?;
+                    let data = read_data(
+                        source,
+                        &c,
+                        8,
+                        LimitKind::ElementBytes,
+                        self.planning.as_ref(),
+                    )?;
                     timestamp = Some(ebml::uint(&data, &c)?);
                     if h.size.is_some() {
                         break;
@@ -282,6 +321,7 @@ impl Segment {
                         offset: at,
                     });
                 }
+                planning::reserve(self.planning.as_ref(), &mut points, 1, at)?;
                 points.push(SeekPoint {
                     time,
                     track: None,

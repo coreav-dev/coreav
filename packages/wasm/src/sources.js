@@ -197,11 +197,11 @@ function ranged(fetchRange, options, bounded) {
     }
   };
   if (bounded) {
-    boundedOpeners.set(source, () => new BoundedRangeSession(fetchRange, {
+    boundedOpeners.set(source, ({ signal } = {}) => new BoundedRangeSession(fetchRange, {
       ...settings, maxRequests: Math.min(settings.maxRequests, RANGE_DEFAULTS.maxRequests),
     }, stats => {
       source.lastStats = stats;
-    }).start());
+    }, signal).start());
   }
   return source;
 }

@@ -68,6 +68,83 @@ function source({ opening, closing } = {}) {
   return result;
 }
 
+test("signals are not serialized into Rust options", async () => {
+  const aborts = new AbortController();
+  const instance = engine(true, {
+    async runDocument(_op, _source, _size, _memory, options) {
+      assert.deepEqual(JSON.parse(options), { at: "0" });
+      return "{}";
+    },
+  });
+  await instance.runToText("probe", source(), { signal: aborts.signal, at: "0" });
+});
+
+test("abort during opening retains admission until close settles", async () => {
+  const instance = engine();
+  const gate = deferred();
+  const closing = deferred();
+  const aborts = new AbortController();
+  const input = source({ opening: gate.promise, closing: closing.promise });
+  let signal;
+  boundedOpeners.set(input, (options) => {
+    signal = options.signal;
+    return input.open();
+  });
+  const running = instance.runToText("probe", input, { signal: aborts.signal });
+  aborts.abort(new Error("private abort marker"));
+  assert.equal(signal.aborted, true);
+  await assert.rejects(instance.runToText("probe", source(), {}), /active operation/);
+  gate.resolve();
+  await input.closed;
+  await assert.rejects(instance.runToText("probe", source(), {}), /active operation/);
+  closing.resolve();
+  await assert.rejects(running, (error) => error.name === "AbortError" && !error.message.includes("private abort marker") && error.cause === aborts.signal.reason);
+  assert.equal(input.closes, 1);
+  await instance.runToText("probe", source(), {});
+});
+
+test("abort unblocks output backpressure but awaits cleanup", async () => {
+  const instance = engine();
+  const closing = deferred();
+  const input = source({ closing: closing.promise });
+  const aborts = new AbortController();
+  const output = await instance.runToStream("thumbnail", input, { signal: aborts.signal });
+  aborts.abort();
+  await input.closed;
+  await assert.rejects(instance.runToText("probe", source(), {}), /active operation/);
+  await assert.rejects(output.body.getReader().read(), (error) => error.name === "AbortError");
+  closing.resolve();
+  await assert.rejects(output.summary, (error) => error.name === "AbortError");
+  assert.equal(input.closes, 1);
+  await instance.runToText("probe", source(), {});
+});
+
+test("private diagnostics bind the real lease and output capacities", async () => {
+  const instance = engine();
+  const input = source();
+  const output = await instance.runToStream("thumbnail", input, {});
+  const held = instance.diagnostics();
+  assert.deepEqual(held.lease, { active: true, acquired: 1, released: 0, rejected: 0, sourceOpens: 1 });
+  assert.equal(held.settled, false);
+  assert.equal(held.host.requestId, 1);
+  assert.equal(held.host.maxOutputBackingBytes, 3);
+  assert.equal(held.host.maxOutputChargedBytes, 3);
+  assert.equal(held.host.liveBytes, 3);
+  await assert.rejects(instance.runToText("probe", source(), {}), /active operation/);
+  assert.equal(instance.diagnostics().lease.rejected, 1);
+  assert.equal(instance.diagnostics().lease.sourceOpens, 1);
+  const reader = output.body.getReader();
+  assert.deepEqual((await reader.read()).value, new Uint8Array([1, 2, 3]));
+  assert.equal((await reader.read()).done, true);
+  await output.summary;
+  const settled = instance.diagnostics();
+  assert.equal(settled.settled, true);
+  assert.equal(settled.host.liveBytes, 0);
+  assert.equal(settled.lease.released, 1);
+  await instance.runToText("probe", source(), {});
+  assert.equal(instance.diagnostics().host.requestId, 2);
+});
+
 test("engine construction does not initialize another artifact", () => {
   let initialized = 0;
   const unloaded = createEngine(

@@ -11,6 +11,16 @@ use crate::Error;
 /// Encodes an [`PixelFormat::Rgb24`] picture as a baseline JFIF JPEG at
 /// `quality` (1 to 100).
 pub fn encode(picture: &Picture, quality: u8) -> Result<Vec<u8>, Error> {
+    let mut out = Vec::new();
+    encode_into(picture, quality, &mut out)?;
+    Ok(out)
+}
+
+pub(crate) fn encode_into(
+    picture: &Picture,
+    quality: u8,
+    out: impl std::io::Write,
+) -> Result<(), Error> {
     if picture.format() != PixelFormat::Rgb24 {
         return Err(Error::Encode("JPEG input must be RGB".into()));
     }
@@ -20,13 +30,12 @@ pub fn encode(picture: &Picture, quality: u8) -> Result<Vec<u8>, Error> {
     );
     let mut rgb = Vec::new();
     picture.write_packed(&mut rgb)?;
-    let mut out = Vec::new();
-    let mut encoder = jpeg_encoder::Encoder::new(&mut out, quality.clamp(1, 100));
+    let mut encoder = jpeg_encoder::Encoder::new(out, quality.clamp(1, 100));
     encoder.set_sampling_factor(jpeg_encoder::SamplingFactor::F_2_2);
     encoder
         .encode(&rgb, w, h, jpeg_encoder::ColorType::Rgb)
         .map_err(|e| Error::Encode(format!("JPEG: {e}")))?;
-    Ok(out)
+    Ok(())
 }
 
 #[cfg(test)]

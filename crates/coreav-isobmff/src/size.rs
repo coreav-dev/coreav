@@ -143,8 +143,9 @@ fn avc_sps_geometry(nal: &[u8]) -> Option<Geometry> {
     if nal.first()? & 0x1f != 7 {
         return None;
     }
-    let sps = rbsp(nal.get(1..)?, MAX_PARAMETER_SET);
-    let mut bits = Bits::new(&sps);
+    let mut scratch = [0; MAX_PARAMETER_SET];
+    let sps = rbsp(nal.get(1..)?, &mut scratch);
+    let mut bits = Bits::new(sps);
     let profile_idc = bits.bits(8)?;
     bits.skip(16)?;
     if bits.ue()? > 31 {
@@ -256,8 +257,9 @@ fn hevc_sps_geometry(nal: &[u8]) -> Option<Geometry> {
     if (nal.first()? >> 1) & 0x3f != 33 {
         return None;
     }
-    let sps = rbsp(nal.get(2..)?, MAX_PARAMETER_SET);
-    let mut bits = Bits::new(&sps);
+    let mut scratch = [0; MAX_PARAMETER_SET];
+    let sps = rbsp(nal.get(2..)?, &mut scratch);
+    let mut bits = Bits::new(sps);
     bits.skip(4)?;
     let max_sub_layers_minus1 = bits.bits(3)?;
     if max_sub_layers_minus1 > 6 {

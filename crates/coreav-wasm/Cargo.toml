@@ -13,7 +13,12 @@ publish = false
 # same operations (tests, the measurement's reference engine) link it.
 crate-type = ["cdylib", "rlib"]
 
+[features]
+native-h264 = ["dep:coreav-thumbnail", "coreav-thumbnail/native-h264", "dep:coreav-frame", "coreav-cli/thumbnail-summary"]
+
 [dependencies]
+coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
+coreav-frame = { path = "../coreav-frame", optional = true }
 coreav-isobmff = { path = "../coreav-isobmff" }
 coreav-isobmff-write = { path = "../coreav-isobmff-write" }
 coreav-cli = { path = "../coreav-cli", default-features = false }
@@ -30,3 +35,7 @@ wasm-bindgen = "=0.2.129"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
+sha2 = "0.10"

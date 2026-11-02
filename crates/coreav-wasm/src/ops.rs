@@ -32,6 +32,9 @@ pub const WRITE_CHUNK: usize = 256 << 10;
 /// The operations, by the name the bindings receive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
+    /// One offered H.264 IDR through the bounded thumbnail profile.
+    #[cfg(feature = "native-h264")]
+    Thumbnail,
     /// `probe`: the `coreav.probe/1` document (or `coreav.probe-matroska/1`
     /// for Matroska and WebM).
     Probe,
@@ -66,6 +69,8 @@ impl Operation {
     /// The operation called `name`.
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
+            #[cfg(feature = "native-h264")]
+            "thumbnail" => Some(Self::Thumbnail),
             "probe" => Some(Self::Probe),
             "ffprobe" => Some(Self::Ffprobe),
             "check" => Some(Self::Check),
@@ -415,6 +420,8 @@ pub fn run_stream<S: Source, W: Write>(
     out: W,
 ) -> Result<String, Failure> {
     let summary = match Operation::from_name(name) {
+        #[cfg(feature = "native-h264")]
+        Some(Operation::Thumbnail) => crate::thumbnail::run(source, options, out)?,
         Some(Operation::ExtractAudio) => extract_document(source, &parse(options)?, out)?,
         Some(Operation::Clip) => clip_document(source, &parse(options)?, out)?,
         Some(Operation::HlsIndex) => hls_index_document(source, &parse(options)?, out)?,

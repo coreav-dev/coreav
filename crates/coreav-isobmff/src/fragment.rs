@@ -272,6 +272,29 @@ impl Fragment {
         all_trex: &[Trex],
         boxes: &Cell<u64>,
     ) -> Result<Self, Error> {
+        Self::parse_with_planning(
+            payload,
+            moof_offset,
+            payload_offset,
+            file_len,
+            trex,
+            all_trex,
+            boxes,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn parse_with_planning(
+        payload: Vec<u8>,
+        moof_offset: u64,
+        payload_offset: u64,
+        file_len: u64,
+        trex: Trex,
+        all_trex: &[Trex],
+        boxes: &Cell<u64>,
+        planning: Option<&crate::PlanningBudget>,
+    ) -> Result<Self, Error> {
         let mut runs = Vec::new();
         // End of the data of the preceding track fragment (ISO/IEC 14496-12
         // 8.8.7): `None` before the first `traf`, `Some(None)` when it could
@@ -411,6 +434,7 @@ impl Fragment {
                                 }
                                 let entries_at = body_index
                                     .saturating_add(body.len().saturating_sub(b.remaining()));
+                                crate::planning::reserve(planning, &mut traf_runs, 1, body_offset)?;
                                 traf_runs.push(Run {
                                     at: body_offset,
                                     entries_at,
@@ -441,6 +465,7 @@ impl Fragment {
                     if let Some(first) = traf_runs.first_mut() {
                         first.tfdt = tfdt;
                     }
+                    crate::planning::reserve(planning, &mut runs, traf_runs.len(), traf_offset)?;
                     runs.extend(traf_runs);
                 }
                 Ok(())

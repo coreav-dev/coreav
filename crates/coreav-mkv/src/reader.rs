@@ -5,6 +5,7 @@ use crate::ebml::{ElementHeader, MAX_HEADER_LEN, Parsed, parse_element_header};
 use crate::error::LimitKind;
 use crate::{Error, Source};
 use core::cell::Cell;
+use coreav_isobmff::PlanningBudget;
 
 /// Reads the element header at `at`; `end` bounds the enclosing element or
 /// the file. A header that does not fit before `end` is truncated.
@@ -32,6 +33,7 @@ pub(crate) fn read_data<S: Source>(
     header: &ElementHeader,
     max: u64,
     limit: LimitKind,
+    planning: Option<&PlanningBudget>,
 ) -> Result<Vec<u8>, Error> {
     let size = header.size.ok_or(Error::InvalidElement {
         offset: header.offset,
@@ -49,13 +51,23 @@ pub(crate) fn read_data<S: Source>(
         offset: header.offset,
     })?;
     let mut data = Vec::new();
-    data.try_reserve_exact(len)
-        .map_err(|_| Error::LimitExceeded {
-            limit,
-            offset: header.offset,
-        })?;
-    // Read into the reserved capacity, without zeroing it first.
-    source.read_append(header.data_offset(), len, &mut data)?;
+    if let Some(planning) = planning {
+        planning
+            .reserve_exact(&mut data, len)
+            .map_err(|_| crate::planning::limit(header.offset))?;
+    } else {
+        data.try_reserve_exact(len)
+            .map_err(|_| Error::LimitExceeded {
+                limit,
+                offset: header.offset,
+            })?;
+    }
+    if planning.is_some() {
+        data.resize(len, 0);
+        source.read_exact_at(header.data_offset(), &mut data)?;
+    } else {
+        source.read_append(header.data_offset(), len, &mut data)?;
+    }
     Ok(data)
 }
 
@@ -65,6 +77,7 @@ pub(crate) fn read_data<S: Source>(
 pub(crate) struct Counter {
     used: Cell<u32>,
     max: u32,
+    pub(crate) planning: Option<PlanningBudget>,
 }
 
 impl Counter {
@@ -72,6 +85,7 @@ impl Counter {
         Self {
             used: Cell::new(0),
             max,
+            planning: None,
         }
     }
 
@@ -153,5 +167,42 @@ impl<'a> Children<'a, '_> {
         self.data = self.data.get(end..).unwrap_or_default();
         self.base = header.end().ok_or(Error::Overflow { offset })?;
         Ok((header, data))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct NoReads;
+
+    impl Source for NoReads {
+        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+            Ok(100)
+        }
+        fn read_exact_at(&mut self, _: u64, _: &mut [u8]) -> Result<(), coreav_isobmff::Error> {
+            panic!("a rejected element must not read its payload")
+        }
+    }
+
+    #[test]
+    fn element_refuses_its_payload_before_reading_or_owning_capacity() {
+        let header = ElementHeader {
+            id: 0xec,
+            offset: 10,
+            header_len: 2,
+            size: Some(4),
+        };
+        let planning = PlanningBudget::new(3);
+        let result = read_data(
+            &mut NoReads,
+            &header,
+            4,
+            LimitKind::ElementBytes,
+            Some(&planning),
+        );
+        assert_eq!(result, Err(crate::planning::limit(10)));
+        assert_eq!(planning.used(), 0);
+        assert!(planning.failed());
     }
 }

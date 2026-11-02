@@ -8,7 +8,12 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[features]
+native-h264 = ["dep:coreav-backend-h264", "dep:coreav-h264"]
+
 [dependencies]
+coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
+coreav-h264 = { path = "../coreav-h264", optional = true }
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame" }
 coreav-isobmff = { path = "../coreav-isobmff" }

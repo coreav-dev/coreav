@@ -26,6 +26,8 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "native-h264")]
+mod bounded;
 mod color;
 mod image;
 mod jpeg;
@@ -35,16 +37,27 @@ mod png;
 mod select;
 mod skip;
 
+#[cfg(test)]
+#[path = "../../coreav-isobmff/tests/common/mod.rs"]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+mod planning_mp4_fixture;
+
+#[cfg(test)]
+#[path = "../../coreav-mkv/tests/common/mod.rs"]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+mod planning_mkv_fixture;
+
 use core::fmt;
-use std::collections::BTreeMap;
 
 use coreav_decode::{
     Backend, Codec, CodecConfig, ConfigKind, Decoder, DecoderInfo, Packet, Policy, Skipped,
     StreamConfig,
 };
 use coreav_frame::{ChromaUpsampling, Filter, Frame, FrameError, Picture};
-use coreav_isobmff::{Rational, Source};
+use coreav_isobmff::{PlanningBudget, Rational, Source};
 
+#[cfg(feature = "native-h264")]
+pub use bounded::{thumbnail_bounded, thumbnail_bounded_with_budgets};
 pub use image::{BuiltinEncoder, ImageEncoder, ImageFormat};
 use select::{Choice, Sample};
 
@@ -243,15 +256,17 @@ pub(crate) struct InBand {
     /// Parameter sets as NAL units, each after its length.
     pub sets: Vec<Vec<u8>>,
     /// Packet index, and the position in `sets` of what goes before it.
-    pub before: BTreeMap<usize, usize>,
+    pub before: Vec<(usize, usize)>,
 }
 
 impl InBand {
     /// The bytes that go before packet `index`, empty for most.
     fn prefix(&self, index: usize) -> &[u8] {
         self.before
-            .get(&index)
-            .and_then(|&set| self.sets.get(set))
+            .binary_search_by_key(&index, |&(packet, _)| packet)
+            .ok()
+            .and_then(|position| self.before.get(position))
+            .and_then(|&(_, set)| self.sets.get(set))
             .map_or(&[], Vec::as_slice)
     }
 }
@@ -350,6 +365,58 @@ fn plan<S: Source>(
     options: &ThumbnailOptions,
     first: Option<usize>,
 ) -> Result<Plan, Error> {
+    plan_with_planning(source, options, first, None, options.seek)
+}
+
+fn planning_limit() -> Error {
+    Error::Isobmff(coreav_isobmff::Error::LimitExceeded {
+        limit: coreav_isobmff::LimitKind::PlanningBytes,
+        offset: 0,
+    })
+}
+
+fn planning_check(planning: Option<&PlanningBudget>) -> Result<(), Error> {
+    if let Some(planning) = planning {
+        planning.charge(0).map_err(|_| planning_limit())?;
+    }
+    Ok(())
+}
+
+fn reserve<T>(
+    planning: Option<&PlanningBudget>,
+    vector: &mut Vec<T>,
+    additional: usize,
+) -> Result<(), Error> {
+    match planning {
+        Some(planning) => planning
+            .reserve(vector, additional)
+            .map_err(|_| planning_limit()),
+        None => vector.try_reserve(additional).map_err(|_| planning_limit()),
+    }
+}
+
+fn copy<T: Copy>(planning: Option<&PlanningBudget>, data: &[T]) -> Result<Vec<T>, Error> {
+    let mut out = Vec::new();
+    match planning {
+        Some(planning) => planning
+            .reserve_exact(&mut out, data.len())
+            .map_err(|_| planning_limit())?,
+        None => out
+            .try_reserve_exact(data.len())
+            .map_err(|_| planning_limit())?,
+    }
+    out.extend_from_slice(data);
+    Ok(out)
+}
+
+fn plan_with_planning<S: Source>(
+    source: &mut S,
+    options: &ThumbnailOptions,
+    first: Option<usize>,
+    planning: Option<&PlanningBudget>,
+    seek: bool,
+) -> Result<Plan, Error> {
+    planning_check(planning)?;
     let mut magic = [0u8; 4];
     let len = source.len()?;
     let matroska = len >= 4 && {
@@ -357,9 +424,9 @@ fn plan<S: Source>(
         coreav_mkv::sniff(&magic)
     };
     let mut plan = if matroska {
-        mkv::plan(source, options, first)?
+        mkv::plan(source, options, first, planning)?
     } else {
-        mp4::plan(source, options, first)?
+        mp4::plan(source, options, first, planning, seek)?
     };
     if let Some(CodecConfig {
         kind: ConfigKind::Hvcc,
@@ -373,18 +440,24 @@ fn plan<S: Source>(
     }
     // The colour a decoder applies: the coded data's or the container's,
     // per codec, as FFmpeg's decoders do.
-    let header = first_keyframe_header(source, &plan)?;
-    plan.stream.color = color::applied(
+    let header = first_keyframe_header(source, &plan, planning)?;
+    plan.stream.color = color::applied_with_planning(
         plan.stream.codec,
         plan.stream.config.as_ref(),
         &header,
         plan.stream.color,
-    );
+        planning,
+    )?;
+    planning_check(planning)?;
     Ok(plan)
 }
 
 /// The first bytes of the stream's first keyframe (empty without one).
-fn first_keyframe_header<S: Source>(source: &mut S, plan: &Plan) -> Result<Vec<u8>, Error> {
+fn first_keyframe_header<S: Source>(
+    source: &mut S,
+    plan: &Plan,
+    planning: Option<&PlanningBudget>,
+) -> Result<Vec<u8>, Error> {
     let Some(packet) = plan
         .first_keyframe
         .as_ref()
@@ -392,11 +465,20 @@ fn first_keyframe_header<S: Source>(source: &mut S, plan: &Plan) -> Result<Vec<u
     else {
         return Ok(Vec::new());
     };
-    let mut out = plan.prefix.clone();
-    out.truncate(color::HEADER_BYTES);
+    let mut out = copy(
+        planning,
+        plan.prefix
+            .get(..color::HEADER_BYTES)
+            .unwrap_or(&plan.prefix),
+    )?;
     let want = color::HEADER_BYTES.saturating_sub(out.len());
     let len = usize::try_from(packet.size).unwrap_or(usize::MAX).min(want);
-    source.read_append(packet.offset, len, &mut out)?;
+    reserve(planning, &mut out, len)?;
+    let begin = out.len();
+    out.resize(begin + len, 0);
+    if let Some(bytes) = out.get_mut(begin..) {
+        source.read_exact_at(packet.offset, bytes)?;
+    }
     Ok(out)
 }
 
@@ -614,12 +696,30 @@ pub fn video_stream<S: Source>(
 /// and on any error, every packet is listed and chosen from again, so the
 /// result is always the full listing's (`docs/design/seek.md`).
 fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<Prepared, Error> {
-    let mut plan = plan(source, options, None)?;
+    planned_inner(source, options, None)
+}
+
+#[cfg(any(test, feature = "native-h264"))]
+pub(crate) fn planned_with_planning<S: Source>(
+    source: &mut S,
+    options: &ThumbnailOptions,
+    planning: &PlanningBudget,
+) -> Result<Prepared, Error> {
+    planned_inner(source, options, Some(planning))
+}
+
+fn planned_inner<S: Source>(
+    source: &mut S,
+    options: &ThumbnailOptions,
+    planning: Option<&PlanningBudget>,
+) -> Result<Prepared, Error> {
+    let mut plan = plan_with_planning(source, options, None, planning, options.seek)?;
     let at = plan
         .start
         .checked_add(options.at)
         .ok_or_else(|| Error::Unsupported("time out of range".into()))?;
-    let mut choice = choose(source, &plan, at, options.exact);
+    let mut choice = choose_with_planning(source, &plan, at, options.exact, planning);
+    planning_check(planning)?;
     // A source that fails to read fails the plan; the full listing below
     // is for a window that cannot choose, not for a failed read.
     if let Err(error @ Error::Isobmff(coreav_isobmff::Error::Io(_))) = choice {
@@ -629,12 +729,9 @@ fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<Prep
         .as_ref()
         .is_ok_and(|c| window_holds(&plan, *c, at, options.exact));
     if !holds && plan.window.is_some() {
-        let every = ThumbnailOptions {
-            seek: false,
-            ..options.clone()
-        };
-        plan = self::plan(source, &every, None)?;
-        choice = choose(source, &plan, at, options.exact);
+        plan = plan_with_planning(source, options, None, planning, false)?;
+        choice = choose_with_planning(source, &plan, at, options.exact, planning);
+        planning_check(planning)?;
     }
     Ok(Prepared {
         plan,
@@ -642,9 +739,9 @@ fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<Prep
     })
 }
 
-struct Prepared {
-    plan: Plan,
-    choice: Choice,
+pub(crate) struct Prepared {
+    pub(crate) plan: Plan,
+    pub(crate) choice: Choice,
 }
 
 #[derive(Clone, Copy)]
@@ -753,13 +850,25 @@ pub fn oracle_choice<S: Source>(
 }
 
 /// The packets `at` asks for (`select`).
+#[cfg(test)]
 fn choose<S: Source>(
     source: &mut S,
     plan: &Plan,
     at: Rational,
     exact: bool,
 ) -> Result<Choice, Error> {
-    let mut cut_point = |index: usize| cut_point(source, plan, index);
+    choose_with_planning(source, plan, at, exact, None)
+}
+
+fn choose_with_planning<S: Source>(
+    source: &mut S,
+    plan: &Plan,
+    at: Rational,
+    exact: bool,
+    planning: Option<&PlanningBudget>,
+) -> Result<Choice, Error> {
+    planning_check(planning)?;
+    let mut cut_point = |index: usize| cut_point(source, plan, index, planning);
     // The first cut point after the frame is a last resort, taken only
     // from a listing of every packet: a packet before a window might be a
     // cut point, and `planned` lists every packet when a window's choice
@@ -767,8 +876,10 @@ fn choose<S: Source>(
     let forward = plan.window.is_none();
     if exact {
         select::exact(&plan.samples, at, forward, &mut cut_point)
-    } else {
+    } else if planning.is_none() {
         select::keyframe(&plan.samples, at, forward, &mut cut_point)
+    } else {
+        select::keyframe_with_planning(&plan.samples, at, forward, &mut cut_point, planning)
     }
 }
 
@@ -887,24 +998,31 @@ fn read_bytes<S: Source>(
 }
 
 /// Whether sync sample `index` starts decoding.
-fn cut_point<S: Source>(source: &mut S, plan: &Plan, index: usize) -> Result<bool, Error> {
+fn cut_point<S: Source>(
+    source: &mut S,
+    plan: &Plan,
+    index: usize,
+    planning: Option<&PlanningBudget>,
+) -> Result<bool, Error> {
     let stated = plan.stated.get(index).copied().unwrap_or(true);
     let Some(packet) = plan.packets.get(index) else {
         return Ok(false);
     };
-    starts_decoding(source, plan.rule, &plan.prefix, packet, stated)
+    starts_decoding_with_planning(source, plan.rule, &plan.prefix, packet, stated, planning)
 }
 
 /// Whether the frame of `packet` starts decoding under `rule`
 /// (`docs/design/cut-points.md`); `stated` is the container's word, which
 /// a frame whose coded data cannot be read keeps.
-pub(crate) fn starts_decoding<S: Source>(
+pub(crate) fn starts_decoding_with_planning<S: Source>(
     source: &mut S,
     rule: CutRule,
     prefix: &[u8],
     packet: &PacketRef,
     stated: bool,
+    planning: Option<&PlanningBudget>,
 ) -> Result<bool, Error> {
+    planning_check(planning)?;
     let mut work = 0u32;
     let mut charge = || {
         work += 1;
@@ -930,9 +1048,21 @@ pub(crate) fn starts_decoding<S: Source>(
             // point; an IDR picture and an exact recovery point are, and
             // both are in those bytes.
             let size = packet.size.min(BYTE_STREAM_BYTES);
-            let data = read_bytes(source, packet.offset, size, prefix, u64::MAX)?;
-            coreav_isobmff::access::annex_b_frame_access(&data, size == packet.size)
-                .map(|frame| frame.starts_decoding(None))
+            let mut data = copy(planning, prefix)?;
+            let size_usize = usize::try_from(size).map_err(|_| planning_limit())?;
+            reserve(planning, &mut data, size_usize)?;
+            let begin = data.len();
+            data.resize(begin + size_usize, 0);
+            if let Some(bytes) = data.get_mut(begin..) {
+                source.read_exact_at(packet.offset, bytes)?;
+            }
+            coreav_isobmff::access::annex_b_frame_access_with_planning(
+                &data,
+                size == packet.size,
+                planning,
+            )
+            .map_err(|_| planning_limit())?
+            .map(|frame| frame.starts_decoding(None))
         }
         // The stored packet lacks the bytes the source holds (Matroska
         // header stripping), so the frame cannot be walked through it.
@@ -940,17 +1070,22 @@ pub(crate) fn starts_decoding<S: Source>(
         CutRule::H264 {
             format,
             max_num_ref_frames,
-        } => coreav_isobmff::access::read_starts_decoding(
+        } => coreav_isobmff::access::read_starts_decoding_with_planning(
             format,
             source,
             packet.offset,
             packet.size,
             max_num_ref_frames,
             &mut charge,
+            planning,
         )?,
-        CutRule::Av1 => {
-            coreav_isobmff::access::read_av1_sync(source, packet.offset, packet.size, &mut charge)?
-        }
+        CutRule::Av1 => coreav_isobmff::access::read_av1_sync_with_planning(
+            source,
+            packet.offset,
+            packet.size,
+            &mut charge,
+            planning,
+        )?,
         CutRule::Hevc { length_size } => hevc_irap(source, packet, length_size)?,
         CutRule::Container => return Ok(true),
     };
@@ -1222,6 +1357,24 @@ fn render(
     display: DisplayGeometry,
     options: &ThumbnailOptions,
 ) -> Result<Picture, Error> {
+    render_profile(frame, display, options, false)
+}
+
+#[cfg(feature = "native-h264")]
+fn render_bounded(
+    frame: &Frame,
+    display: DisplayGeometry,
+    options: &ThumbnailOptions,
+) -> Result<Picture, Error> {
+    render_profile(frame, display, options, true)
+}
+
+fn render_profile(
+    frame: &Frame,
+    display: DisplayGeometry,
+    options: &ThumbnailOptions,
+    bounded: bool,
+) -> Result<Picture, Error> {
     let picture = frame.to_cpu()?;
     let (pw, ph) = (u64::from(picture.width()), u64::from(picture.height()));
     let (dw, dh) = match display.pixel_aspect {
@@ -1231,12 +1384,28 @@ fn render(
     };
     let turned = display.quarter_turns % 2 == 1;
     let (vw, vh) = if turned { (dh, dw) } else { (dw, dh) };
-    let (tw, th) = match (options.width, options.height) {
+    let requested = match (options.width, options.height) {
+        (None, None) if bounded => (Some(320), None),
+        requested => requested,
+    };
+    let (tw, th) = match requested {
         (Some(w), Some(h)) => (u64::from(w), u64::from(h)),
         (Some(w), None) => (u64::from(w), scale(u64::from(w), vh, vw).max(1)),
         (None, Some(h)) => (scale(u64::from(h), vw, vh).max(1), u64::from(h)),
         (None, None) => (vw, vh),
     };
+    if bounded
+        && (tw == 0
+            || th == 0
+            || tw > 1280
+            || th > 1280
+            || u128::from(tw) * u128::from(th) > 921_600)
+    {
+        return Err(Error::Decode(coreav_decode::Error::new(
+            coreav_decode::ErrorKind::Limit,
+            "thumbnail dimensions exceed the bounded output profile",
+        )));
+    }
     let side = |v: u64| {
         u32::try_from(v)
             .ok()
@@ -1244,9 +1413,22 @@ fn render(
             .ok_or_else(|| Error::Unsupported(format!("image size {v} outside 1 to {MAX_SIDE}")))
     };
     let (tw, th) = (side(tw)?, side(th)?);
+    let resize = |picture: &Picture, width, height| {
+        if bounded {
+            picture.resize_to_rgb_single_thread(
+                width,
+                height,
+                options.filter,
+                &frame.color,
+                options.chroma,
+            )
+        } else {
+            picture.resize_to_rgb(width, height, options.filter, &frame.color, options.chroma)
+        }
+    };
     let turns = display.quarter_turns % 4;
     if turns == 0 {
-        return Ok(picture.resize_to_rgb(tw, th, options.filter, &frame.color, options.chroma)?);
+        return Ok(resize(&picture, tw, th)?);
     }
     // Turn the decoded picture first, as FFmpeg's autorotation does, so
     // that chroma is resampled in the image's own orientation; a quarter
@@ -1260,17 +1442,10 @@ fn render(
         Err(FrameError::Unsupported("convert first"))
     };
     match rotated {
-        Ok(turned_picture) => Ok(turned_picture.resize_to_rgb(
-            tw,
-            th,
-            options.filter,
-            &frame.color,
-            options.chroma,
-        )?),
+        Ok(turned_picture) => Ok(resize(&turned_picture, tw, th)?),
         Err(FrameError::Unsupported(_)) => {
             let (rw, rh) = if turned { (th, tw) } else { (tw, th) };
-            let rgb =
-                picture.resize_to_rgb(rw, rh, options.filter, &frame.color, options.chroma)?;
+            let rgb = resize(&picture, rw, rh)?;
             Ok(rgb.rotate(turns)?)
         }
         Err(e) => Err(e.into()),
@@ -1301,6 +1476,136 @@ mod tests {
         assert_eq!(scale(256, 1 << 58, 64), 1 << 60);
         assert_eq!(scale(u64::MAX, u64::MAX, 1), u64::MAX);
         assert_eq!(scale(7, 3, 0), 21);
+    }
+}
+
+#[cfg(test)]
+mod planning_tests {
+    use super::*;
+    use coreav_isobmff::SliceSource;
+
+    fn identity(prepared: &Prepared) -> (usize, Choice, PacketRef, Option<Rational>) {
+        let target = prepared.choice.target;
+        (
+            prepared.plan.stream_index,
+            prepared.choice,
+            prepared.plan.packets[target],
+            prepared.plan.samples[target].time,
+        )
+    }
+
+    #[test]
+    fn aggregate_planning_keeps_native_mp4_choice() {
+        let data = planning_mp4_fixture::movie(&planning_mp4_fixture::Spec {
+            sizes: vec![8; 100],
+            composition: Vec::new(),
+            ctts: Some(Vec::new()),
+            sync: vec![1, 26, 51, 76],
+            elst: None,
+            ..planning_mp4_fixture::Spec::default()
+        });
+        for seek in [true, false] {
+            let mut options = ThumbnailOptions::at(Rational::from_int(2));
+            options.seek = seek;
+            let native = planned(&mut SliceSource::new(&data), &options).expect("native");
+            let planning = PlanningBudget::new(4 * 1024 * 1024);
+            let bounded = planned_with_planning(&mut SliceSource::new(&data), &options, &planning)
+                .expect("bounded");
+            assert_eq!(identity(&native), identity(&bounded));
+            assert_eq!(native.plan.window, bounded.plan.window);
+            assert!(planning.used() > 0);
+            let tiny = PlanningBudget::new(planning.used() - 1);
+            assert!(planned_with_planning(&mut SliceSource::new(&data), &options, &tiny).is_err());
+            assert!(tiny.failed());
+        }
+    }
+
+    #[test]
+    fn aggregate_matroska_fallback_keeps_native_choice() {
+        use planning_mkv_fixture::{
+            TRACKS, cluster, el, file, info, simple_block, uint, video_track,
+        };
+        let track = video_track(1, "V_MPEG4/ISO/AVC", 320, 240, &uint(0x23_E383, 40_000_000));
+        let blocks = [
+            simple_block(1, 0, true, &[0, 0, 1, 0x61, 0xc0]),
+            simple_block(1, 40, true, &[0, 0, 1, 0x61, 0xc0]),
+            simple_block(1, 80, true, &[0, 0, 1, 0x65, 0xb8]),
+        ];
+        let data = file(
+            "matroska",
+            &[info(Some(120.0)), el(TRACKS, &track), cluster(0, &blocks)],
+        );
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        let native = planned(&mut SliceSource::new(&data), &options).expect("native fallback");
+        assert_eq!(native.choice.target, 2);
+        let planning = PlanningBudget::new(4 * 1024 * 1024);
+        let bounded = planned_with_planning(&mut SliceSource::new(&data), &options, &planning)
+            .expect("bounded fallback");
+        assert_eq!(identity(&native), identity(&bounded));
+        let tiny = PlanningBudget::new(planning.used() - 1);
+        assert!(planned_with_planning(&mut SliceSource::new(&data), &options, &tiny).is_err());
+        assert!(tiny.failed());
+        let used = tiny.used();
+        assert!(planned_with_planning(&mut SliceSource::new(&data), &options, &tiny).is_err());
+        assert_eq!(tiny.used(), used);
+    }
+
+    #[test]
+    fn failed_planning_never_starts_another_source_attempt() {
+        struct NoReads;
+        impl Source for NoReads {
+            fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+                panic!("closed account read")
+            }
+            fn read_exact_at(&mut self, _: u64, _: &mut [u8]) -> Result<(), coreav_isobmff::Error> {
+                panic!("closed account read")
+            }
+        }
+        let planning = PlanningBudget::new(0);
+        assert!(planning.charge(1).is_err());
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        assert!(matches!(
+            planned_with_planning(&mut NoReads, &options, &planning),
+            Err(Error::Isobmff(coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::PlanningBytes,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn bounded_default_stream_selection_keeps_higher_resolution_other_codecs() {
+        use planning_mkv_fixture::{
+            TRACKS, cat, cluster, el, file, info, simple_block, uint, video_track,
+        };
+        let tracks = el(
+            TRACKS,
+            &cat(&[
+                video_track(1, "V_MPEG4/ISO/AVC", 320, 240, &uint(0x23_E383, 40_000_000)),
+                video_track(2, "V_VP9", 640, 480, &uint(0x23_E383, 40_000_000)),
+            ]),
+        );
+        let data = file(
+            "matroska",
+            &[
+                info(Some(40.0)),
+                tracks,
+                cluster(
+                    0,
+                    &[
+                        simple_block(1, 0, true, &[0, 0, 1, 0x65, 0xb8]),
+                        simple_block(2, 0, true, &[0x82, 0x49, 0x83, 0x42, 0]),
+                    ],
+                ),
+            ],
+        );
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        let native = planned(&mut SliceSource::new(&data), &options).expect("native");
+        let planning = PlanningBudget::new(4 * 1024 * 1024);
+        let bounded = planned_with_planning(&mut SliceSource::new(&data), &options, &planning)
+            .expect("bounded");
+        assert_eq!(bounded.plan.stream.codec, Codec::Vp9);
+        assert_eq!(identity(&native), identity(&bounded));
     }
 }
 

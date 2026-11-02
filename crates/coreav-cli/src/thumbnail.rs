@@ -11,10 +11,10 @@ use coreav_decode::Codec;
 use coreav_isobmff::Rational;
 #[cfg(feature = "thumbnail")]
 use coreav_isobmff::Source;
-#[cfg(feature = "thumbnail")]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
 use serde_json::Value;
 
-#[cfg(feature = "thumbnail")]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
 use crate::output::WriteFailure;
 
 /// The argument after which the `coreav` binary runs as a decode worker.
@@ -278,8 +278,9 @@ pub(crate) fn backends(
 }
 
 /// The summary document.
-#[cfg(feature = "thumbnail")]
-fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Value {
+#[doc(hidden)]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
+pub fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Value {
     use crate::native::rational;
     use crate::time::to_f64;
     serde_json::json!({
@@ -322,8 +323,9 @@ fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Val
 }
 
 /// The failure of a thumbnail.
-#[cfg(feature = "thumbnail")]
-fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
+#[doc(hidden)]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
+pub fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
     use crate::error::Failure;
     use coreav_thumbnail::Error;
     let failure = match error {
