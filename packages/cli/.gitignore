@@ -5,5 +5,7 @@
 /LICENSE-MIT
 /LICENSE-APACHE
 /NOTICE
+/THIRD-PARTY-NOTICES.txt
+/THIRD-PARTY-NOTICES.record.json
 node_modules/
 *.tgz

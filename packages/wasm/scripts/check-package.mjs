@@ -7,8 +7,9 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { allowedLicenses, packageNotices, permitted } from "./legal.mjs";
-import { noticeSections, validateEvidence } from "./module-evidence.mjs";
+import { licensePolicy, permitted } from "../../../scripts/notices/render.mjs";
+import { checkNotices } from "../../../scripts/notices/main.mjs";
+import { noticeSections, validateEvidence } from "../../../scripts/notices/evidence.mjs";
 
 export const PACKED = Object.freeze([
   "package/LICENSE-APACHE", "package/LICENSE-MIT", "package/NOTICE", "package/README.md",
@@ -130,8 +131,8 @@ export function validateProvenance(provenance, wasm, fingerprint, pins) {
   assert.equal(provenance.target, "wasm32-unknown-unknown", "build for wasm32-unknown-unknown");
   assert.ok(Number.isSafeInteger(provenance.simdInstructions) && provenance.simdInstructions > 0, "build with wasm-dis beside the pinned wasm-opt to verify SIMD instructions");
   assert.match(provenance.rustc, /^rustc \S+ .+$/, "missing rustc build provenance");
-  assert.match(provenance.rawWasmSha256, /^[a-f0-9]{64}$/, "missing raw module build provenance");
-  assert.ok(Array.isArray(provenance.rustflags) && provenance.rustflags.every((flag) => typeof flag === "string" && !flag.startsWith("--remap-path-prefix")) && provenance.rustflags.some((flag, index) => flag === "-C" && provenance.rustflags[index + 1] === "target-feature=+simd128"), "missing SIMD build flags in provenance");
+  assert.match(pins.notices.raw.sha256, /^[a-f0-9]{64}$/, "missing raw module build provenance");
+  assert.ok(Array.isArray(pins.notices.distribution.rustflags) && pins.notices.distribution.rustflags.every((flag) => typeof flag === "string" && !flag.startsWith("--remap-path-prefix")) && pins.notices.distribution.rustflags.some((flag, index) => flag === "-C" && pins.notices.distribution.rustflags[index + 1] === "target-feature=+simd128"), "missing SIMD build flags in provenance");
   assert.ok(provenance.rustc.startsWith(`rustc ${pins.rust} `), "build with the pinned WASM Rust toolchain");
   return hash;
 }
@@ -320,7 +321,7 @@ export async function main(args = process.argv.slice(2)) {
     const files = validateArchive(archiveEntries(compressed));
     const checkedTarball = join(scratch, "checked.tgz");
     writeFileSync(checkedTarball, compressed);
-    const allowed = allowedLicenses(repo);
+    const allowed = licensePolicy(repo).allowed;
     const manifest = JSON.parse(files.get("package/package.json"));
     validateManifest(manifest, allowed);
     scanPaths(files, { home: homedir(), repo });
@@ -330,8 +331,8 @@ export async function main(args = process.argv.slice(2)) {
     const bindgen = /^wasm-bindgen = "=([^"]+)"$/m.exec(readFileSync(join(repo, "crates/coreav-wasm/Cargo.toml"), "utf8"));
     assert.ok(binaryen && bindgen, "missing tool pins");
     const provenance = JSON.parse(readFileSync(join(packageRoot, "wasm/provenance.json"), "utf8"));
-    const expected = packageNotices(packageRoot, repo);
-    const hash = validateProvenance(provenance, wasm, files.get("package/wasm/build.js"), { binaryen: binaryen[1], bindgen: bindgen[1], rust: expected.tc.version });
+    const expected = checkNotices(packageRoot, repo);
+    const hash = validateProvenance(provenance, wasm, files.get("package/wasm/build.js"), { binaryen: binaryen[1], bindgen: bindgen[1], rust: expected.tc.version, notices: expected.record });
     for (const name of ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"]) assert.deepEqual(files.get(`package/${name}`), readFileSync(join(repo, name)), `run npm run build: ${name} differs from the repository`);
     const notices = files.get("package/THIRD-PARTY-NOTICES.txt").toString("utf8");
     const sections = noticeSections(notices);
@@ -341,7 +342,6 @@ export async function main(args = process.argv.slice(2)) {
     const wasmGzip = gzip(wasm);
     validateCompressedSize(wasm.length, wasmGzip);
     await checkConsumer(consumer, checkedTarball, files, manifest, hash, npm);
-    const { rustflags, ...publicProvenance } = provenance;
     const evidence = Object.fromEntries(Object.entries(expected.evidence).map(([name, value]) => [name, value instanceof Map ? [...value].map(([crate, versions]) => ({ name: crate, versions: [...versions].sort() })) : [...value].sort()]));
     const record = {
       wasmBytes: wasm.length, wasmGzipBytes: wasmGzip, glueBytes: glue.length, glueGzipBytes: gzip(glue),
@@ -350,7 +350,7 @@ export async function main(args = process.argv.slice(2)) {
       sha256: Object.fromEntries([...files].map(([path, bytes]) => [path.slice(8), sha(bytes)])),
       noticeBytes: Buffer.byteLength(notices), noticeGzipBytes: gzip(Buffer.from(notices)),
       noticeSections: Object.fromEntries(["crates.io", "Rust toolchain", "Rust toolchain, crates.io"].map((origin) => [origin, [...sections.values()].filter((section) => section.origin === origin).length])), evidence,
-      node: process.versions.node, npm: run(process.execPath, [npm, "--version"], { env }).trim(), provenance: publicProvenance,
+      node: process.versions.node, npm: run(process.execPath, [npm, "--version"], { env }).trim(), provenance,
     };
     console.log(JSON.stringify(record));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Installed WASM package\n\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`);

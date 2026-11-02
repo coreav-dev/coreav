@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
-import { allowedLicenses, permitted } from "../scripts/legal.mjs";
+import { licensePolicy, permitted } from "../../../scripts/notices/render.mjs";
 import { fileURLToPath } from "node:url";
 import {
   archiveEntries, consumerEnv, PACKED, scanPaths, SIZE_BAR, validateArchive,
@@ -13,7 +13,7 @@ import {
 const allowed = new Set(["MIT", "Apache-2.0"]);
 
 test("locked package verification tools satisfy the repository licence policy", () => {
-  const policy = allowedLicenses(fileURLToPath(new URL("../../..", import.meta.url)));
+  const policy = licensePolicy(fileURLToPath(new URL("../../..", import.meta.url))).allowed;
   const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url)));
   for (const [name, entry] of Object.entries(lock.packages)) assert.ok(permitted(entry.license, policy), `${name || "package"}: unapproved licence`);
 });
@@ -136,14 +136,18 @@ test("provenance and fingerprint describe the exact optimized SIMD module", () =
   const fingerprint = Buffer.from(`export const BUILD = "${hash}";\n`);
   const pins = { binaryen: "133", bindgen: "0.2.129", rust: "1.99.1" };
   const provenance = { wasmSha256: hash, rawWasmSha256: hash, rustflags: ["-C", "target-feature=+simd128"], wasmOpt: "wasm-opt version 133 (version_133)", wasmBindgen: pins.bindgen, profile: "edge", target: "wasm32-unknown-unknown", rustc: "rustc 1.99.1 (build date)", simdInstructions: 1 };
-  assert.equal(validateProvenance(provenance, wasm, fingerprint, pins), hash);
-  assert.throws(() => validateProvenance(provenance, Buffer.concat([wasm, Buffer.from([0])]), fingerprint, pins), /fingerprint/);
-  assert.throws(() => validateProvenance({ ...provenance, wasmSha256: "stale" }, wasm, fingerprint, pins), /provenance/);
+  const verify = (data, module, identity, pins) => {
+    const { rawWasmSha256, rustflags, ...provenance } = data;
+    return validateProvenance(provenance, module, identity, { ...pins, notices: { raw: { sha256: rawWasmSha256 }, distribution: { rustflags } } });
+  };
+  assert.equal(verify(provenance, wasm, fingerprint, pins), hash);
+  assert.throws(() => verify(provenance, Buffer.concat([wasm, Buffer.from([0])]), fingerprint, pins), /fingerprint/);
+  assert.throws(() => verify({ ...provenance, wasmSha256: "stale" }, wasm, fingerprint, pins), /provenance/);
   for (const wasmOpt of [null, "wasm-opt version 132", "wasm-opt version 1330", "prefix wasm-opt version 133"]) {
-    assert.throws(() => validateProvenance({ ...provenance, wasmOpt }, wasm, fingerprint, pins), /pinned wasm-opt/);
+    assert.throws(() => verify({ ...provenance, wasmOpt }, wasm, fingerprint, pins), /pinned wasm-opt/);
   }
   for (const [key, value] of [["wasmBindgen", "different"], ["profile", "release"], ["target", "wasm32-wasip1"], ["rustc", ""], ["rustc", "rustc 1.99.0 (build date)"], ["rawWasmSha256", "stale"], ["rustflags", []], ["rustflags", ["-C", "target-feature=+simd128", "--remap-path-prefix=/private=/r"]], ["simdInstructions", null], ["simdInstructions", 0], ["simdInstructions", 1.5]]) {
-    assert.throws(() => validateProvenance({ ...provenance, [key]: value }, wasm, fingerprint, pins));
+    assert.throws(() => verify({ ...provenance, [key]: value }, wasm, fingerprint, pins));
   }
 });
 

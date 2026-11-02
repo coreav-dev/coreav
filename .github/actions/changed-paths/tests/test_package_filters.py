@@ -62,6 +62,26 @@ class PackageFilters(unittest.TestCase):
                                             patterns if key == 'paths-ignore' else [])
                     self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
 
+    def test_wasm_triggers_cover_notice_record_inputs(self):
+        script = ('import { requiredInputs } from "./scripts/notices/record.mjs"; '
+                  'console.log(JSON.stringify(requiredInputs(process.argv[1], '
+                  '{package:"coreav-wasm",target:"wasm32-unknown-unknown",profile:"edge",'
+                  'features:[],defaultFeatures:true})));')
+        inputs = json.loads(subprocess.check_output(
+            ['node', '--input-type=module', '-e', script, str(ROOT)], cwd=ROOT, text=True))
+        self.assertTrue(inputs)
+        filters = workflow_check.trigger_filters(
+            (ROOT / '.github/workflows/wasm.yml').read_text())
+        self.assertIsInstance(filters, list)
+        self.assertTrue({'push', 'pull_request'} <= {event for event, _, _ in filters})
+        for event, key, patterns in filters:
+            self.assertIsNotNone(patterns)
+            for path in inputs:
+                with self.subTest(event=event, path=path):
+                    selected, _ = cp.decide([path], patterns if key == 'paths' else [],
+                                            patterns if key == 'paths-ignore' else [])
+                    self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
+
     def test_cli_package_and_shared_build_inputs_keep_native_validation(self):
         for path in ('packages/cli/package.json', 'packages/cli/scripts/codecs.sh',
                      'packages/cli/test/cli.test.mjs', 'crates/coreav-cli/src/lib.rs',
@@ -101,15 +121,19 @@ class PackageFilters(unittest.TestCase):
                 self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - ' + path + '\n'), 2)
 
     def test_the_wasm_compiler_pin_selects_the_wasm_workflow(self):
-        self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - scripts/rust-wasm.env\n'), 2)
+        self.assertEqual((ROOT / '.github/workflows/wasm.yml').read_text().count('      - scripts/rust-dist.env\n'), 2)
 
-    def test_native_rust_notices_select_npm_only(self):
+    def test_shared_rust_notices_select_npm_and_wasm(self):
         for path in ('scripts/notices/main.mjs', 'scripts/notices/record.mjs',
+                     'scripts/notices/upstream/wasip1-1.0.0/LICENSE-MIT',
                      'scripts/rust-dist.env', 'deny.toml'):
             with self.subTest(path=path):
                 selected = self.selected([path])
                 self.assertTrue(selected['npm'])
                 self.assertFalse(selected['python'])
+        wasm = (ROOT / '.github/workflows/wasm.yml').read_text()
+        for path in ('scripts/notices/**', 'scripts/rust-dist.env', 'deny.toml'):
+            self.assertEqual(wasm.count('      - ' + path + '\n'), 2)
 
     def test_notice_record_inputs_select_npm_validation(self):
         for path in ('NOTICE', 'tools/compat-corpus/Cargo.toml'):

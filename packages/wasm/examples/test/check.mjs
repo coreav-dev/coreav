@@ -14,7 +14,7 @@ import { build, stop as stopBundler } from "esbuild";
 import { fixtures } from "./synth.mjs";
 import { indexIdentity } from "../hls/src/indexes.js";
 import { archiveEntries, validateArchive, validateManifest, consumerEnv } from "../../scripts/check-package.mjs";
-import { allowedLicenses } from "../../scripts/legal.mjs";
+import { licensePolicy } from "../../../../scripts/notices/render.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const platform = process.platform === "win32" ? "windows" : process.platform;
@@ -34,7 +34,7 @@ assert.ok(native && existsSync(native), "build edge-native and pass --edge-nativ
 assert.ok(tarball && existsSync(tarball), "pack the WASM package and pass --tarball PATH");
 const archive = readFileSync(tarball);
 const packed = validateArchive(archiveEntries(archive));
-validateManifest(JSON.parse(packed.get("package/package.json")), allowedLicenses(resolve(root, "../../..")));
+validateManifest(JSON.parse(packed.get("package/package.json")), licensePolicy(resolve(root, "../../..")).allowed);
 const consumer = mkdtempSync(join(tmpdir(), "coreav-wasm-examples-"));
 tarball = join(consumer, "checked.tgz");
 writeFileSync(tarball, archive);

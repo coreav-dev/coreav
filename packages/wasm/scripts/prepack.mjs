@@ -2,7 +2,7 @@ import { accessSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { moduleHash } from "./fingerprint.mjs";
-import { packageLegalFiles } from "./legal.mjs";
+import { verifyRecord } from "../../../scripts/notices/record.mjs";
 
 export function verifyPackage(directory, legalFiles) {
   for (const file of [ "wasm/coreav.js", "wasm/coreav_bg.wasm", "wasm/build.js" ]) {
@@ -22,5 +22,6 @@ export function verifyPackage(directory, legalFiles) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const directory = process.argv[2] ?? fileURLToPath(new URL("..", import.meta.url));
   const repo = resolve(fileURLToPath(new URL("..", import.meta.url)), "../..");
-  verifyPackage(directory, packageLegalFiles(directory, repo));
+  verifyPackage(directory, new Map(["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"].map(name => [name, readFileSync(resolve(repo, name))])));
+  verifyRecord(directory, repo);
 }

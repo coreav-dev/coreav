@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { permitted } from "../../../scripts/legal.mjs";
+import { permitted } from "../../../../../scripts/notices/render.mjs";
 
 test("the fresh example tool lock follows the repository license policy", () => {
   const policy = readFileSync(new URL("../../../../../deny.toml", import.meta.url), "utf8");
