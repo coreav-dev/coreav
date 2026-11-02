@@ -66,6 +66,7 @@ pub struct Sequence {
     pub progressive: bool,
     pub crop: Option<[u32; 4]>,
     pub vui: bool,
+    pub sar: (u16, u16),
     pub reorder: u32,
     pub cpb: u32,
 }
@@ -89,6 +90,7 @@ impl Default for Sequence {
             progressive: true,
             crop: None,
             vui: false,
+            sar: (1, 1),
             reorder: 0,
             cpb: 0,
         }
@@ -145,8 +147,8 @@ impl Sequence {
         if self.vui {
             w.bit(true);
             w.bits(255, 8);
-            w.bits(1, 16);
-            w.bits(1, 16);
+            w.bits(u32::from(self.sar.0), 16);
+            w.bits(u32::from(self.sar.1), 16);
             w.bit(true);
             w.bit(false);
             w.bit(true);

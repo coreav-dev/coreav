@@ -153,11 +153,8 @@ fn vui(r: &mut Bits<'_>, references: u32) -> Result<(), Error> {
     if r.bit()? {
         match r.bits(8)? {
             255 => {
-                let width = r.bits(16)?;
-                let height = r.bits(16)?;
-                if width == 0 || height == 0 {
-                    return Err(Error::Malformed);
-                }
+                r.bits(16)?;
+                r.bits(16)?;
             }
             0..=16 => {}
             _ => return Err(Error::Unsupported),

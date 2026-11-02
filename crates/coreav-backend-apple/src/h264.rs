@@ -259,14 +259,14 @@ impl AccessUnit {
                         return Err(Error::FormatMismatch);
                     }
                 }
-                6 => sei(&rbsp(nal)?)?,
+                6 if slices == 0 => sei(&rbsp(nal)?)?,
                 9 if nals == 1 => {
                     let body = rbsp(nal)?;
                     let mut r = Bits::new(&body)?;
                     delimiter = Some(r.bits(3)?);
                     r.finish()?;
                 }
-                12 => {
+                12 if slices != 0 => {
                     let body = rbsp(nal)?;
                     let Some((&0x80, filler)) = body.split_last() else {
                         return Err(Error::Malformed);

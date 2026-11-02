@@ -82,6 +82,23 @@ fn cropping_vui_hrd_and_pps_extension_are_checked() -> Result<(), Error> {
 }
 
 #[test]
+fn zero_extended_sar_is_unspecified_not_malformed() -> Result<(), Error> {
+    for sar in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+        let sps = Sequence {
+            vui: true,
+            sar,
+            ..Sequence::default()
+        }
+        .nal();
+        let c =
+            Config::from_parameter_sets(&sps, &Picture::default().nal(), dimensions()?, limits())?;
+        assert_eq!(c.sps(), sps);
+        assert_eq!(c.dimensions(), dimensions()?);
+    }
+    Ok(())
+}
+
+#[test]
 fn configuration_refuses_unsupported_tools_and_invalid_ranges() -> Result<(), Error> {
     let pps = Picture::default().nal();
     for sequence in [
@@ -536,6 +553,26 @@ fn auxiliary_nals_have_bounded_known_forms() -> Result<(), Error> {
     );
     assert!(AccessUnit::copy_from(&[0, 0, 0, 0], &c, Sync::Idr, limits()).is_err());
     assert!(AccessUnit::copy_from(&[0xff; 4], &c, Sync::Idr, limits()).is_err());
+    Ok(())
+}
+
+#[test]
+fn auxiliary_nals_stay_in_their_access_unit_positions() -> Result<(), Error> {
+    let c = config()?;
+    let slice = Slice::default().nal();
+    let sei = [6, 5, 1, 0x42, 0x80];
+    let filler = [12, 0xff, 0x80];
+    let bytes = unit(&[&sei, &slice, &filler]);
+    assert_eq!(
+        AccessUnit::copy_from(&bytes, &c, Sync::Idr, limits())?.as_bytes(),
+        bytes
+    );
+    for bytes in [unit(&[&slice, &sei]), unit(&[&filler, &slice])] {
+        assert_eq!(
+            AccessUnit::copy_from(&bytes, &c, Sync::Idr, limits()).err(),
+            Some(Error::Unsupported)
+        );
+    }
     Ok(())
 }
 
