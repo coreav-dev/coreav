@@ -14,6 +14,8 @@ use coreav_isobmff::Rational;
 /// The container family `-f` names before the input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Demuxer {
+    /// Explicit signed-16 little-endian audio with declared rate and channels.
+    S16le(coreav_audio::raw::RawS16Format),
     /// `mov,mp4,m4a,3gp,3g2,mj2` and its aliases.
     Isobmff,
     /// `matroska,webm` and its aliases.
@@ -446,6 +448,55 @@ fn time(option: &str, value: &str) -> Result<Rational, Refusal> {
     })
 }
 
+fn audio_rate(text: &str) -> Option<u32> {
+    let (number, scale) = match text.as_bytes().last() {
+        Some(b'k' | b'K') => (text.get(..text.len() - 1)?, 1_000u128),
+        Some(b'M') => (text.get(..text.len() - 1)?, 1_000_000),
+        Some(b'G') => (text.get(..text.len() - 1)?, 1_000_000_000),
+        _ => (text, 1),
+    };
+    let (whole, fraction) = number.split_once('.').unwrap_or((number, ""));
+    if (whole.is_empty() && fraction.is_empty())
+        || !whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let denominator = 10u128.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+    let whole = if whole.is_empty() {
+        0
+    } else {
+        whole.parse::<u128>().ok()?
+    };
+    let fraction = if fraction.is_empty() {
+        0
+    } else {
+        fraction.parse::<u128>().ok()?
+    };
+    let value = whole
+        .checked_mul(denominator)?
+        .checked_add(fraction)?
+        .checked_mul(scale)?;
+    if value % denominator != 0 {
+        return None;
+    }
+    u32::try_from(value / denominator)
+        .ok()
+        .filter(|rate| *rate > 0)
+}
+
+fn rate(option: &str, text: &str) -> Result<u32, Refusal> {
+    audio_rate(text).ok_or_else(|| {
+        not_native(
+            option,
+            Some(text),
+            "the sample rate must be a positive whole number of Hz",
+        )
+    })
+}
+
 /// The options given for one file, in order.
 type Group<'a> = Vec<(&'a str, Option<&'a str>)>;
 
@@ -554,6 +605,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         segment_time: Rational::from_int(2),
         overwrite,
     };
+    let input_format = input_options
+        .iter()
+        .rev()
+        .find_map(|(option, value)| (*option == "-f").then_some(*value).flatten());
+    let raw = input_format == Some("s16le");
+    let mut input_rate = None;
+    let mut input_channels = None;
     let mut safe = None;
     for (option, value) in input_options {
         let text = value.unwrap_or_default();
@@ -561,7 +619,16 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-ss" => command.input_seek = Some(time(option, text)?),
             "-t" => command.input_duration = Some(time(option, text)?),
             "-to" => command.input_until = Some(time(option, text)?),
-            "-f" => command.demuxer = Some(demuxer(text)?),
+            "-f" => {}
+            "-ar" if raw => input_rate = Some(rate(option, text)?),
+            "-ac" if raw => {
+                input_channels = Some(
+                    text.parse::<u16>()
+                        .ok()
+                        .filter(|n| *n > 0)
+                        .ok_or_else(|| usage("Invalid audio channel count."))?,
+                )
+            }
             "-fflags" if matches!(text, "+genpts" | "genpts") => {}
             "-fflags" => {
                 return Err(not_native(
@@ -582,6 +649,19 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
+    command.demuxer = if raw {
+        let (Some(rate), Some(channels)) = (input_rate, input_channels) else {
+            return Err(Refusal::not_native(
+                "raw PCM input without explicit -ar and -ac",
+            ));
+        };
+        Some(Demuxer::S16le(
+            coreav_audio::raw::RawS16Format::new(rate, channels)
+                .map_err(|error| not_native("-f", Some("s16le"), &error.to_string()))?,
+        ))
+    } else {
+        input_format.map(demuxer).transpose()?
+    };
     match (&mut command.demuxer, safe) {
         (Some(Demuxer::Concat { safe }), Some(given)) => *safe = given,
         (_, Some(_)) => return Err(usage("Option safe not found.")),
@@ -665,16 +745,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
-            "-ar" => {
-                command.sample_rate =
-                    Some(text.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
-                        not_native(
-                            option,
-                            Some(text),
-                            "PCM output takes a positive integer source rate",
-                        )
-                    })?)
-            }
+            "-ar" => command.sample_rate = Some(rate(option, text)?),
             "-ac" => {
                 command.channels = Some(
                     text.parse::<u16>()

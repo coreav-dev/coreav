@@ -215,7 +215,7 @@ fn to_int(v: f32, full: f64) -> i64 {
 /// no float-to-integer conversion is needed and the loop vectorizes. NaN
 /// gives 0.
 #[inline(always)]
-fn to_i16(v: f32) -> i16 {
+pub(crate) fn to_i16(v: f32) -> i16 {
     const ROUND: f32 = 12_582_912.0;
     let scaled = (v * 32_768.0).clamp(-32_768.0, 32_767.0);
     (scaled + ROUND).to_bits().wrapping_sub(0x4B40_0000) as i16

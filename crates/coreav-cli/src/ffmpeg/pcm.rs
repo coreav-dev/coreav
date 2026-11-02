@@ -1,10 +1,11 @@
-use super::args::{Codec, Command, Encoding, MapMetadata, Muxer};
+use super::args::{Codec, Command, Encoding, MapMetadata, Muxer, Spec};
 use super::{Job, Refusal, Stop};
+use crate::ffprobe::args::Kind2;
 use crate::ffprobe::model::{Unit, Value};
 use crate::ffprobe::{Report, StreamKind};
 use crate::output;
 use coreav_audio::{Error, Limits, Options, OutputFormat, Sink, WavSink};
-use coreav_isobmff::{BufferedSource, FileSource};
+use coreav_isobmff::{BufferedSource, FileSource, Source};
 use std::io::Write;
 use std::path::Path;
 
@@ -183,6 +184,100 @@ impl Sink for Output<'_> {
     }
 }
 
+impl Output<'_> {
+    fn patch(self) -> Result<Option<Vec<u8>>, Error> {
+        match self {
+            Self::Raw(_) => Ok(None),
+            Self::Wav(wav) => match wav.header() {
+                Some((header, true)) => Ok(Some(header)),
+                _ => Err(Error::Unsupported(
+                    "PCM output larger than the WAV size fields",
+                )),
+            },
+        }
+    }
+}
+
+pub(super) fn write_raw(
+    command: &Command,
+    format: coreav_audio::raw::RawS16Format,
+) -> Result<serde_json::Value, Stop> {
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+        || command.no_audio
+        || !command.maps.is_empty()
+        || matches!(command.map_metadata, MapMetadata::Stream(_))
+        || [
+            command.input_seek,
+            command.input_duration,
+            command.input_until,
+            command.seek,
+            command.duration,
+            command.until,
+        ]
+        .iter()
+        .any(Option::is_some)
+        || (Encoding {
+            threads: None,
+            ..command.encoding.clone()
+        }) != Encoding::default()
+    {
+        return Err(Refusal::not_native(
+            "raw PCM input with a non-PCM output, mapping, seeking or encoder options",
+        )
+        .into());
+    }
+    if command.codecs.iter().any(|(spec, codec)| {
+        *codec != Codec::PcmS16le
+            || !matches!(
+                spec,
+                Spec::All | Spec::Index(0) | Spec::Kind(Kind2::Audio, None | Some(0))
+            )
+    }) {
+        return Err(
+            Refusal::not_native("raw PCM output with another codec or stream specifier").into(),
+        );
+    }
+    let mut source =
+        FileSource::open(Path::new(&command.input)).map_err(output::WriteFailure::from)?;
+    let bytes = source.len().map_err(output::WriteFailure::from)?;
+    let plan =
+        coreav_audio::raw::RawS16Plan::new(format, command.sample_rate, bytes, &Limits::default())
+            .map_err(|error| match error {
+                Error::Unsupported(reason) => Stop::from(Refusal::not_native(reason)),
+                error => Stop::from(output::WriteFailure::from(error)),
+            })?;
+    if command
+        .channels
+        .is_some_and(|channels| channels != plan.output().channels)
+    {
+        return Err(Refusal::not_native("mixing raw PCM output channels").into());
+    }
+    let output_bytes = plan
+        .output_frames()
+        .checked_mul(u64::from(plan.output().channels) * 2)
+        .ok_or_else(|| Refusal::not_native("raw PCM output size overflows"))?;
+    if command.muxer == Muxer::Wav && !coreav_audio::wav::fits(output_bytes) {
+        return Err(Refusal::not_native("PCM output larger than the WAV size fields").into());
+    }
+    let path = Path::new(&command.output);
+    let force = super::check_output(command, path)?;
+    Ok(output::to_file_patched(path, force, |out| {
+        let mut sink = if command.muxer == Muxer::Wav {
+            Output::Wav(WavSink::new(out))
+        } else {
+            Output::Raw(out)
+        };
+        let summary = plan.run(source, &mut sink)?;
+        let patch = sink.patch()?;
+        Ok((
+            serde_json::json!({"input_frames": summary.input_frames,
+            "output_frames": summary.output_frames, "sample_rate": summary.output.sample_rate,
+            "channels": summary.output.channels}),
+            patch,
+        ))
+    })?)
+}
+
 struct Samples<'a> {
     output: Output<'a>,
     remaining: Option<u64>,
@@ -259,16 +354,12 @@ pub(super) fn write(
                 Error::Invalid("PCM decoding reported damaged or inconsistent input").into(),
             );
         }
-        let patch = match sink.output {
-            Output::Wav(wav) => match wav.header() {
-                Some((header, true)) => Some(header),
-                _ => {
-                    unsupported = Some("PCM output larger than the WAV size fields");
-                    return Err(Error::Unsupported("WAV size").into());
-                }
-            },
-            Output::Raw(_) => None,
-        };
+        let patch = sink.output.patch().map_err(|error| {
+            if let Error::Unsupported(reason) = &error {
+                unsupported = Some(*reason);
+            }
+            output::WriteFailure::from(error)
+        })?;
         Ok((serde_json::Value::Null, patch))
     });
     match (result, unsupported) {

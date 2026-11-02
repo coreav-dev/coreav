@@ -204,6 +204,7 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
     let (list, force) = match command.demuxer {
+        Some(Demuxer::S16le(format)) => return pcm::write_raw(&command, format),
         Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
         Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
         Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),

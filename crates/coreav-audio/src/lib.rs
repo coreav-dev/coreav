@@ -40,6 +40,7 @@ mod limits;
 mod mix;
 pub mod mp3;
 mod pcm;
+pub mod raw;
 mod resample;
 mod stream;
 pub mod wav;
