@@ -1185,9 +1185,8 @@ jobs:
             --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus \
             --test legacy_encoders --target-dir target/fallback
-          # The Opus and AAC encodes pass over AAC in a build that decodes it, and Opus.
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
-            --target-dir target/fallback -- opus_encode aac_encode
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
+            --target-dir target/fallback
       - name: Keep timed-out test process snapshots
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

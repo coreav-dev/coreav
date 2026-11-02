@@ -95,7 +95,7 @@
       ],
       "properties": {
         "stream_index": {"type": "integer", "minimum": 0},
-        "codec": {"enum": ["flac", "mp3"]},
+        "codec": {"enum": ["flac", "mp3", "opus", "aac"]},
         "sample_rate": {"type": "integer", "minimum": 1},
         "encoder": {"enum": ["libopus", "aac"]},
         "channels": {"enum": [1, 2]},
