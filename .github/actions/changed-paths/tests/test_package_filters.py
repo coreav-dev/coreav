@@ -113,6 +113,40 @@ class PackageFilters(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(self.selected([path])['ci'])
 
+    def test_wasm_reports_installed_package_and_memory_failures(self):
+        script = ('puts JSON.generate(Psych.load_file(ARGV[0])'
+                  '["jobs"]["wasm-module"]["steps"])')
+        steps = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', script,
+             str(ROOT / '.github/workflows/wasm.yml')], text=True))
+        installed = next(step for step in steps
+                         if step.get('name') == 'Verify the installed package')
+        examples = next(step for step in steps
+                        if step.get('name') == 'Judge the registered memory gates')
+        reporter = next(step for step in steps
+                        if step.get('name') == 'Record a release-blocking failure')
+        evaluate = '''
+const assert = require('node:assert/strict');
+const config = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const condition = new Function('steps', 'failure', `return (${config.condition});`);
+for (const [name, installed, examples, failed, expected] of [
+  ['failed package with skipped memory must report', 'failure', 'skipped', true, true],
+  ['failed memory must report', 'success', 'failure', true, true],
+  ['successful checks must not report', 'success', 'success', false, false],
+  ['earlier failure with both checks skipped must not report', 'skipped', 'skipped', true, false],
+  ['cancellation still requires manual reporting', 'cancelled', 'skipped', false, false]
+]) {
+  const steps = { [config.installed]: { outcome: installed }, [config.examples]: { outcome: examples } };
+  assert.equal(condition(steps, () => failed), expected, name);
+}
+'''
+        result = subprocess.run(['node', '-e', evaluate], input=json.dumps({
+            'condition': reporter['if'],
+            'installed': installed.get('id', 'unidentified_installed'),
+            'examples': examples['id'],
+        }), text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_mixed_changes_and_renames_keep_native_validation(self):
         for paths in (['packages/wasm/src/node.js', 'packages/cli/lib/main.js'],
                       ['packages/cli/lib/main.js', 'packages/wasm/src/node.js'],

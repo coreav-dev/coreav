@@ -172,6 +172,7 @@ jobs:
       - name: Test the real module
         run: COREAV_FIXTURES="$RUNNER_TEMP/coreav-fixtures" npm run test:module --prefix packages/wasm
       - name: Verify the installed package
+        id: installed
         run: |
           set -euo pipefail
           (cd packages/wasm && npm pack --json --pack-destination "$RUNNER_TEMP") > "$RUNNER_TEMP/wasm-pack.json"
@@ -186,7 +187,7 @@ jobs:
           tarball="$WASM_PACKAGE"
           npm run check --prefix packages/wasm/examples -- --edge-native "$PWD/target/edge/edge-native" --tarball "$tarball"
       - name: Record a release-blocking failure
-        if: failure() && steps.examples.outcome == 'failure'
+        if: failure() && (steps.installed.outcome == 'failure' || steps.examples.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
