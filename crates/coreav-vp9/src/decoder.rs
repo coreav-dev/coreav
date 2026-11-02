@@ -15,16 +15,16 @@ use crate::tile;
 /// Today it reads headers only ([`Decoder::read_headers`]): it splits each
 /// packet into its frames, reads each frame's uncompressed and compressed
 /// headers, and keeps the reference slots' sizes and formats and the saved
-/// probability contexts as decoding the frames would.
+/// header-updated probability contexts. It reconstructs intra frames but
+/// skips inter tiles, so it does not perform backward adaptation. Use
+/// [`crate::FrameDecoder`] for pixel decoding with its own complete state.
 #[derive(Debug)]
 pub struct Decoder {
     limits: Limits,
     slots: [Option<Slot>; 8],
     carried: Carried,
-    /// The saved frame contexts. A frame that adapts its probabilities to
-    /// what its tiles decoded (`refresh_probs()`, clause 6.1.2) saves them
-    /// unadapted until tiles are decoded (`docs/design/vp9.md`, milestone
-    /// 2).
+    /// Inspection's saved contexts, without backward adaptation because
+    /// inspection does not read inter tiles.
     contexts: Contexts,
 }
 
