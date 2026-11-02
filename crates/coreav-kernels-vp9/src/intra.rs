@@ -89,9 +89,9 @@ pub fn predict_intra<P: Pixel>(
         usize::try_from(i + 1)
             .ok()
             .and_then(|i| edges.above.get(i))
-            .map_or(0, |p| p.get())
+            .map_or(0, |p| i64::from(p.get()))
     };
-    let left = |i: usize| edges.left.get(i).map_or(0, |p| p.get());
+    let left = |i: usize| edges.left.get(i).map_or(0, |p| i64::from(p.get()));
     let mut pred = [[0i64; 32]; 32];
     let s = size as isize;
     match mode {
@@ -302,7 +302,7 @@ pub fn predict_intra<P: Pixel>(
             for i in 0..size {
                 for j in 0..size {
                     let v = above(j as isize) + left(i) - above(-1);
-                    put(&mut pred, i, j, P::clip(v, bit_depth).get());
+                    put(&mut pred, i, j, P::clip(v, bit_depth).get().into());
                 }
             }
         }

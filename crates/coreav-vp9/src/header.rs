@@ -337,9 +337,8 @@ pub enum Header {
         /// requires; `None` for a frame whose tiles are not read yet (an
         /// inter frame, until inter prediction lands).
         tiles_end_cleanly: Option<bool>,
-        /// The decoded frame of an intra frame, without the loop filter
-        /// (`docs/design/vp9.md`, milestone 3); `None` for an inter frame,
-        /// until inter prediction lands.
+        /// The decoded frame of an intra frame, loop filter applied; `None`
+        /// for an inter frame, until inter prediction lands.
         picture: Option<Box<Picture>>,
     },
 }

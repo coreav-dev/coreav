@@ -1,13 +1,13 @@
-//! Pixel kernels of CoreAV's VP9 decoder: the inverse transforms and intra
-//! prediction.
+//! Pixel kernels of CoreAV's VP9 decoder: the inverse transforms, intra
+//! prediction and the loop filter's sample filters.
 //!
 //! The kernels are pure arithmetic over samples. They hold no decoder state
-//! and read no bitstream: the decoder hands each one a [`BlockMut`] that
-//! covers exactly the samples the kernel writes, and building it checked
-//! its length and stride. Their other inputs are typed to the domains the
+//! and read no bitstream: the decoder hands each one a [`BlockMut`] or an
+//! [`Edge`] that covers exactly the samples the kernel reads and writes,
+//! and building it checked its bounds. Their other inputs are typed to the domains the
 //! specification gives them ([`TxSize`], [`BitDepth`], [`Coefficients`]),
 //! so no value outside them reaches the arithmetic. These are the scalar reference kernels, written
-//! from clauses 8.5.1 and 8.7 of the VP9 Bitstream & Decoding Process
+//! from clauses 8.5.1, 8.7 and 8.8.5 of the VP9 Bitstream & Decoding Process
 //! Specification (version 0.7); faster implementations come later and are
 //! compared with them bit for bit (`docs/design/vp9.md`, milestone 6).
 //!
@@ -28,10 +28,12 @@
 
 #![forbid(unsafe_code)]
 
+mod filter;
 mod intra;
 mod tables;
 mod transform;
 
+pub use filter::{Edge, FilterSize, Strength, filter_edge};
 pub use intra::{Edges, IntraMode, predict_intra};
 pub use transform::{TxType, inverse_transform_add};
 
@@ -68,18 +70,44 @@ impl BitDepth {
     }
 }
 
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for u8 {}
+    impl Sealed for u16 {}
+}
+
 /// A sample: `u8` for 8-bit video, `u16` for 10 and 12 bits.
-pub trait Pixel: Copy + Default + core::fmt::Debug + PartialEq + 'static {
+///
+/// The trait is sealed: the kernels' arithmetic is bounded for samples of
+/// these two types, so no other type can be one.
+///
+/// ```compile_fail,E0277
+/// use coreav_kernels_vp9::{BitDepth, Pixel};
+///
+/// #[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// struct Wide(i32);
+///
+/// impl Pixel for Wide {
+///     fn get(self) -> i32 {
+///         self.0
+///     }
+///     fn clip(v: i64, _: BitDepth) -> Self {
+///         Wide(v as i32)
+///     }
+/// }
+/// ```
+pub trait Pixel: sealed::Sealed + Copy + Default + core::fmt::Debug + PartialEq + 'static {
     /// The sample's value.
-    fn get(self) -> i64;
+    fn get(self) -> i32;
     /// `Clip1(v)` at `bit_depth`: `v` clamped to 0 and
     /// `(1 << BitDepth) - 1`, and to the type's range.
     fn clip(v: i64, bit_depth: BitDepth) -> Self;
 }
 
 impl Pixel for u8 {
-    fn get(self) -> i64 {
-        i64::from(self)
+    fn get(self) -> i32 {
+        i32::from(self)
     }
 
     fn clip(v: i64, _bit_depth: BitDepth) -> Self {
@@ -88,8 +116,8 @@ impl Pixel for u8 {
 }
 
 impl Pixel for u16 {
-    fn get(self) -> i64 {
-        i64::from(self)
+    fn get(self) -> i32 {
+        i32::from(self)
     }
 
     fn clip(v: i64, bit_depth: BitDepth) -> Self {

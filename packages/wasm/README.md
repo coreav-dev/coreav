@@ -67,6 +67,6 @@ With the package and example development tools installed, `npm run check:package
 
 The artifact check reads source-path identities from the shipped and pre-strip modules and crate-owner symbols from the pre-strip module. Its raw hash must match the build record. Unknown paths, versions, compiler commits or crate roots fail coverage. A crate that leaves neither a path nor a name is covered by the conservative selection, not by this evidence check; raw-to-final hash provenance does not prove the transformation itself.
 
-The [example checks](examples/README.md#local-checks) consume the tarball too. Fresh-operation linear-memory bars apply only to their generated fixtures; warm, mixed, concurrent and HLS observations are diagnostic. They do not establish a production isolate-memory guarantee. Publishing, deployment, real R2 and hostile-input validation are not part of these local checks.
+The [example checks](examples/README.md#local-checks) consume the tarball too. The [registered linear-memory gates](../../docs/design/wasm-memory-bars.md) cover generated fresh, HLS and concurrent-writer scenarios; warm and read-only concurrent observations remain diagnostic. They do not establish a production isolate-memory guarantee, and ordinary passes are not the separately named release-candidate verdict run. Publishing, deployment, real R2 and hostile-input validation are not part of these local checks.
 
 The native npm CLI and its WASI fallback remain separate in `packages/cli`. See [the design note](../../docs/design/wasm.md) for operation coverage and boundaries.

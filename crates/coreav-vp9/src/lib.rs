@@ -13,8 +13,8 @@
 //! uncompressed header (clause 6.2) and compressed header (clause 6.3),
 //! the superframe index (Annex B), the reference slots' sizes and the saved
 //! probability contexts, so it can say which frames a stream shows and at
-//! what size. It reads the tiles of intra frames and reconstructs them, so
-//! each intra frame comes with its [`Picture`], before the loop filter.
+//! what size. It reads the tiles of intra frames, reconstructs them and
+//! applies the loop filter, so each intra frame comes with its [`Picture`].
 //!
 //! ```
 //! use coreav_vp9::{Decoder, Header, Limits};
@@ -40,6 +40,7 @@ mod decoder;
 mod error;
 mod header;
 mod limits;
+mod loop_filter;
 mod picture;
 mod probs;
 mod superframe;
