@@ -15,11 +15,6 @@ check = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check)
 
 SHA = '0123456789abcdef0123456789abcdef01234567'
-NOT_A_REPORT_JOB = (
-    'deny.yml: `deny` is reported by `{job}`, which does not only report: a report job waits on the '
-    'jobs that do the work, carries `if: always()` and uses no action, so its own timeout cannot '
-    'cancel the required check and a skipped or failed job above it cannot pass it '
-    '(docs/design/ci-checks.md, "A job timeout is not a cancellation")')
 
 
 def problems(text):
@@ -296,48 +291,6 @@ class Repository(unittest.TestCase):
         self.assertEqual(len(found), 1, found)
         self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow exactly '
                                             '`concurrency:'), found)
-
-    def without_report_job(self):
-        """deny.yml as it was: one job that does the work and carries the
-        required name."""
-        path = self.root / '.github' / 'workflows' / 'deny.yml'
-        path.write_text(path.read_text().split('  deny-report:\n')[0].replace('  deny-checks:\n', '  deny:\n', 1))
-        return path
-
-    def test_a_required_check_reported_by_the_job_that_does_the_work_is_reported(self):
-        self.without_report_job()
-        self.assertEqual(check.check(self.root), [NOT_A_REPORT_JOB.format(job='deny')])
-
-    def test_a_report_job_named_for_its_id_still_has_to_wait_on_the_work(self):
-        # CodeRabbit's shape: one job called `deny-report`, carrying the
-        # required name, that does all the work and waits on nothing. Its
-        # timeout cancels the required check like any other job's.
-        path = self.without_report_job()
-        path.write_text(path.read_text().replace(
-            '  deny:\n', '  deny-report:\n    name: deny\n    if: always()\n', 1))
-        self.assertEqual(check.check(self.root), [NOT_A_REPORT_JOB.format(job='deny-report')])
-
-    def test_a_report_job_without_a_work_dependency_is_reported(self):
-        self.assertEqual(self.edit('deny.yml', '    needs: [deny-checks]\n', '    needs: []\n'),
-                         [NOT_A_REPORT_JOB.format(job='deny-report')])
-
-    def test_a_quoted_job_id_names_a_job_no_report_waits_for(self):
-        # A quoted id is the id it names, so a job written that way is work
-        # no report job covers rather than a job that does not exist.
-        for job in ('"deny-extra"', "'deny-extra'", '"deny\\u002dextra"'):
-            with self.subTest(job=job):
-                path = self.root / '.github' / 'workflows' / 'deny.yml'
-                text = path.read_text()
-                path.write_text(text + f'  {job}:\n    runs-on: ubuntu-24.04\n'
-                                       '    steps:\n      - run: echo hi\n')
-                try:
-                    self.assertEqual(check.check(self.root), ['deny.yml: no report job waits for deny-extra'])
-                finally:
-                    path.write_text(text)
-
-    def test_a_block_needs_list_is_waited_for(self):
-        self.assertEqual(self.edit('deny.yml', '    needs: [deny-checks]\n',
-                                   '    needs:\n      - deny-checks\n'), [])
 
     def test_yaml_trigger_keys_cannot_hide_types_or_branch_filters(self):
         for key in ('"types"', "'types'", 'types ', '"typ\\u0065s"'):

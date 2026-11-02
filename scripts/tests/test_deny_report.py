@@ -1,7 +1,7 @@
 """The required `deny` check is green only when the job it reports
 succeeded.
 
-`deny-report` is the check a ruleset requires, so a `skipped` result has to
+The `deny` job is the check a ruleset requires, so a `skipped` result has to
 fail it: nothing in `deny.yml` is filtered, no job of it has anything to
 skip, and a required check that a skipped job passes says nothing about the
 commit (docs/design/ci-checks.md, "A job timeout is not a cancellation").

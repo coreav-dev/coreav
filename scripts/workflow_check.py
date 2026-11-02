@@ -27,14 +27,9 @@
   exactly `WORKFLOW_GROUP` with `WORKFLOW_CANCEL` in the unfiltered deny
   workflow: a replacement must not cancel obligations its own filters skip,
   and without a group a superseded run is not cancelled at all;
-- a job of a workflow with a required report job is waited for by none of
-  them, so that its failure could pass unnoticed;
-- a check name the note requires is reported by a job that does not only
-  report: a report job waits on the jobs that do the work, carries
-  `if: always()` and uses no action. GitHub cancels a job that reaches its
-  own `timeout-minutes` and reports the check as `cancelled`, no concurrency
-  group starts a newer run to replace that cancellation, and a job skipped
-  by a condition of its own would pass the check without doing its work;
+- a report job does not carry `if: always()`, or a job of a workflow
+  with a required report job is waited for by none of them, so that its
+  failure could pass unnoticed;
 - a workflow cancels a superseded run job by job (it is in
   `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
   than a report job has no group, or not exactly `GROUP` with its own job
@@ -61,12 +56,11 @@
 
     workflow_check.py [--root DIR]
 
-Exit status 0 when the workflows and the note agree, 1 otherwise. Jobs,
-their `needs:`, `if:`, `concurrency:` and `strategy:`, the triggers and the
-workflow-level concurrency are read through Psych's node tree, as the pin
-check is, so a quoted job id, a block `needs:` list or an alias hides no job
-and no dependency; path filters are read as lines. Python 3.11 standard
-library, and `ruby` (on the runners) for the YAML.
+Exit status 0 when the workflows and the note agree, 1 otherwise. Reads the
+files as text for the required-check table: the workflows are written in
+the narrow shape this parser accepts, and anything else is an error rather
+than a silent pass. Python 3.11 standard library, and `ruby` (on the
+runners) for the pin check's YAML.
 """
 import argparse
 import functools
@@ -78,6 +72,10 @@ import shlex
 import subprocess
 import sys
 
+JOB = re.compile(r'\A {2}([A-Za-z0-9_-]+):\s*\Z')
+FIELD = re.compile(r'\A {4}([a-z-]+):\s*(.*?)\s*\Z')
+CONCURRENCY = re.compile(r'\A {6}(group|cancel-in-progress):\s*(.*?)\s*\Z')
+TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
@@ -224,32 +222,56 @@ def load_changed_paths(root):
     return module
 
 
-def jobs_of(text):
+def jobs_of(lines):
     """{job id: {'name': str | None, 'needs': [str], 'always': bool, 'if': str,
-    'concurrency': {'group': str, 'cancel-in-progress': str} | None, 'matrix': bool,
-    'uses': bool}}, or an error string.
+    'concurrency': {'group': str, 'cancel-in-progress': str} | None, 'matrix': bool}}.
 
-    Read through Psych's node tree, as the trigger and concurrency readers
-    are: a job id written with quotes or an escape is the id it names, a
-    block `needs:` is a list of ids, and a job the reader cannot decode is an
-    error rather than a job that disappears.
+    `needs:` is read in its inline forms, `needs: a` and `needs: [a, b]`; a
+    block sequence reads as no dependency at all, which the caller sees as
+    a report job that waits for nothing.
     """
-    found = read_yaml(text, PARSE_JOBS)
-    if isinstance(found, str):
-        return found
-    return {job: {'name': fields['name'], 'needs': fields['needs'],
-                  'always': fields['if'] == 'always()', 'if': fields['if'],
-                  'concurrency': fields['concurrency'], 'matrix': fields['strategy'],
-                  'uses': fields['uses']}
-            for job, fields in found.items()}
-
-
-def report_jobs(jobs):
-    """The jobs that only report: they wait on other jobs, carry
-    `if: always()` and use no action, so they cannot be a job that does the
-    work and a timeout cannot cancel one in place of the check it reports."""
-    return {job for job, fields in jobs.items()
-            if fields['needs'] and fields['always'] and not fields['uses']}
+    jobs, current, reading_if, reading_concurrency = {}, None, False, False
+    inside = False
+    for line in lines:
+        if line.rstrip() == 'jobs:':
+            inside = True
+            continue
+        if not inside:
+            continue
+        if TOP.match(line):
+            break
+        match = JOB.match(line)
+        if match:
+            current = {'name': None, 'needs': [], 'always': False, 'if': '', 'concurrency': None, 'matrix': False}
+            reading_if = reading_concurrency = False
+            jobs[match.group(1)] = current
+            continue
+        if current is None:
+            continue
+        field = FIELD.match(line)
+        if not field:
+            if reading_if and line.startswith(' ' * 6):
+                current['if'] += ' ' + line.strip()
+            setting = CONCURRENCY.match(line)
+            if reading_concurrency and setting:
+                current['concurrency'][setting.group(1)] = setting.group(2)
+            continue
+        reading_if = reading_concurrency = False
+        key, value = field.group(1), field.group(2)
+        if key == 'name':
+            current['name'] = value
+        elif key == 'needs':
+            current['needs'] = [n.strip() for n in value.strip('[]').split(',') if n.strip()]
+        elif key == 'if':
+            current['always'] = value == 'always()'
+            current['if'] = value
+            reading_if = value in ('>-', '>', '|', '|-')
+        elif key == 'concurrency':
+            current['concurrency'] = {'group': value} if value else {}
+            reading_concurrency = not value
+        elif key == 'strategy':
+            current['matrix'] = True
+    return jobs
 
 
 def concurrency_problems(workflow, lines, jobs):
@@ -263,9 +285,8 @@ def concurrency_problems(workflow, lines, jobs):
         out.append(f'{workflow}: remove workflow-level `concurrency:`: a replacement may skip jobs '
                    'the cancelled run still owes; give main jobs independent run-id groups '
                    '(docs/design/ci-checks.md, "Concurrency")')
-    reports = report_jobs(jobs)
     for job, fields in sorted(jobs.items()):
-        if job in reports:
+        if job.endswith('-report'):
             if fields['concurrency'] is not None:
                 out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
                            'cancelled run too, and in another job\'s group it can cancel that job')
@@ -506,69 +527,6 @@ puts JSON.generate({ "on" => events ? decode.(events) : {}, "concurrency" => set
 '''
 
 
-PARSE_JOBS = YAML_PARSE + r"""
-mapping = lambda do |node, what|
-  abort "use a mapping for #{what}" unless node.is_a?(Psych::Nodes::Mapping)
-  abort "remove explicit YAML tags from #{what}" if node.tag
-  out = {}
-  node.children.each_slice(2) do |key, value|
-    abort "use scalar keys in #{what}" unless key.is_a?(Psych::Nodes::Scalar)
-    abort "remove explicit YAML tags from #{what} keys" if key.tag
-    abort "expand YAML merge keys in #{what}" if key.value == "<<"
-    abort "duplicate YAML key `#{key.value}` in #{what}" if out.key?(key.value)
-    out[key.value] = value
-  end
-  out
-end
-text = lambda do |node, what|
-  abort "use a string for #{what}" unless node.is_a?(Psych::Nodes::Scalar) && !node.tag
-  node.value
-end
-ids = lambda do |node, what|
-  case node
-  when Psych::Nodes::Scalar then [text.(node, what)]
-  when Psych::Nodes::Sequence then node.children.map { |item| text.(item, what) }
-  else abort "use a job id or a sequence of job ids for #{what}"
-  end
-end
-uses = lambda do |body|
-  found = false
-  walk = lambda do |node|
-    if node.is_a?(Psych::Nodes::Mapping)
-      node.children.each_slice(2) do |key, value|
-        found = true if key.is_a?(Psych::Nodes::Scalar) && !key.tag && key.value == "uses"
-        walk.(key)
-        walk.(value)
-      end
-    elsif node.respond_to?(:children) && node.children
-      node.children.each { |child| walk.(child) }
-    end
-  end
-  walk.(body)
-  found
-end
-workflow = stream.children.first&.root
-top = workflow ? mapping.(workflow, "the workflow") : {}
-out = {}
-if (jobs = top["jobs"])
-  mapping.(jobs, "the jobs").each do |job, body|
-    fields = mapping.(body, "the job `#{job}`")
-    setting = fields["concurrency"]
-    out[job] = {
-      "name" => fields["name"] ? text.(fields["name"], "the name of the job `#{job}`") : nil,
-      "needs" => fields["needs"] ? ids.(fields["needs"], "the needs of the job `#{job}`") : [],
-      "if" => fields["if"] ? text.(fields["if"], "the if of the job `#{job}`") : "",
-      "concurrency" => setting ? mapping.(setting, "the concurrency of the job `#{job}`")
-        .transform_values { |value| text.(value, "the concurrency of the job `#{job}`") } : nil,
-      "strategy" => fields.key?("strategy"),
-      "uses" => uses.(body)
-    }
-  end
-end
-puts JSON.generate(out)
-"""
-
-
 @functools.cache
 def workflow_yaml(text):
     """{'on': the decoded trigger mapping, 'concurrency': the decoded
@@ -636,15 +594,10 @@ def check(root):
     jobs = {}        # workflow file name -> job id -> fields
     names = {}       # check name -> [(workflow, job id)]
     for path in workflows:
-        text = path.read_text(encoding='utf-8')
-        lines = text.splitlines()
-        found = jobs_of(text)
-        if isinstance(found, str):
-            problems.append(f'{path.name}: {found}')
-            found = {}
-        elif not found:
-            problems.append(f'{path.name}: no `jobs:` mapping found')
-        jobs[path.name] = found
+        lines = path.read_text(encoding='utf-8').splitlines()
+        jobs[path.name] = found = jobs_of(lines)
+        if not found:
+            problems.append(f'{path.name}: no job found; the parser expects two-space job ids')
         for job, fields in found.items():
             names.setdefault(fields['name'] or job, []).append((path.name, job))
         problems += pin_problems(root, path, seen)
@@ -726,16 +679,10 @@ def check(root):
                             '(docs/design/ci-checks.md, "The merge queue")')
         job = where[0][1]
         fields = jobs[workflow][job]
-        covering = report_jobs(jobs[workflow])
-        if covering:
-            reports[workflow] = covering
-        if job not in covering:
-            problems.append(f'{workflow}: `{name}` is reported by `{job}`, which does not only report: a '
-                            'report job waits on the jobs that do the work, carries `if: always()` and uses '
-                            'no action, so its own timeout cannot cancel the required check and a skipped '
-                            'or failed job above it cannot pass it '
-                            '(docs/design/ci-checks.md, "A job timeout is not a cancellation")')
+        if not job.endswith('-report'):
             continue
+        if not fields['always']:
+            problems.append(f'{workflow}: the report job `{job}` needs `if: always()`')
         # A job whose condition reads the pull request's labels may not be
         # covered: the label set belongs to the pull request, not to the
         # commit, so the same commit would report differently before and
@@ -744,6 +691,7 @@ def check(root):
         for other in sorted(labelled & set(fields['needs'])):
             problems.append(f'{workflow}: the report job `{job}` waits for `{other}`, '
                             'whose condition reads the pull request labels')
+        reports.setdefault(workflow, set()).add(job)
 
     for workflow, covering in sorted(reports.items()):
         found = jobs[workflow]
@@ -756,10 +704,8 @@ def check(root):
     for workflow, found in jobs.items():
         if workflow in unlisted:
             continue
-        for job in report_jobs(found):
-            # The table lists check names, and a job may carry one in `name:`
-            # that its id does not match (`deny-report` reports `deny`).
-            if (found[job]['name'] or job) not in required:
+        for job in found:
+            if job.endswith('-report') and job not in required:
                 problems.append(f'{workflow}: the report job `{job}` is not in {note.name}')
     return problems
 

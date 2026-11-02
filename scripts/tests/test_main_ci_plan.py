@@ -153,7 +153,7 @@ class MainPlan(unittest.TestCase):
                                           'main-cache', 'conformance-arm64', 'bench-guard'})
         self.assertEqual(set(plan['python']), {'python-changes', 'python-report'})
         self.assertEqual(set(plan['npm']), {'npm-changes', 'npm-report'})
-        self.assertEqual(set(plan['deny']), {'deny-checks', 'deny-report'})
+        self.assertEqual(set(plan['deny']), {'deny', 'deny-checks'})
         self.assertEqual(sum(sum(jobs.values()) for jobs in plan.values()), 12)
 
     def test_installer_only_proof_is_reused_without_starting_the_h264_group(self):

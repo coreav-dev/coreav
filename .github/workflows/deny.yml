@@ -187,12 +187,13 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I scripts/dco_check.py --base "$BASE" --head "$HEAD"
 
-  deny-report:
-    # The required `deny` check. A timeout cancels the job that does the
-    # work, and a cancelled required check has no replacement run, so this
-    # job always runs and fails when `deny-checks` failed or was cancelled
-    # (docs/design/ci-checks.md, "A job timeout is not a cancellation").
-    name: deny
+  deny:
+    # The required check. A timeout cancels the job that does the work, and
+    # a cancelled required check has no replacement run, so this job always
+    # runs and fails unless `deny-checks` succeeded
+    # (docs/design/ci-checks.md, "A job timeout is not a cancellation"). It
+    # reports and does nothing else; whether a step here really does no work
+    # is review judgment, since a shell script cannot be read for that.
     needs: [deny-checks]
     if: always()
     runs-on: ubuntu-24.04
