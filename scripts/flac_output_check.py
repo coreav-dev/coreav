@@ -62,7 +62,7 @@ def make_source(ffmpeg, root, bits, channels, rate, samples, label, container="m
     source = root / f"{label}.{container}"
     run([ffmpeg, "-v", "error", "-f", f"s{bits}le", "-sample_rate", str(rate),
          "-ch_layout", LAYOUTS[channels], *AUDIO_INPUT, "-i", raw,
-         "-c:a", "flac", "-strict", "-2", source])
+         "-c:a", "flac", "-frame_size", "4096", "-strict", "-2", source])
     return source
 
 

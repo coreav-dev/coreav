@@ -32,6 +32,8 @@ These criteria precede all comparisons. Generated inputs cover silence, constant
 
 Both the existing native FLAC decoder and the pinned independent FFmpeg decoder must reconstruct every original sample exactly. STREAMINFO's MD5 must match an independent computation. CRCs, frame lengths, sample totals and the complete file must be checked, not only the first decoded frame. Dedicated cases must exercise each representation, a linear predictor, Rice partitioning, stereo decorrelation, wasted bits, uncompressible input and a short final frame.
 
+Source fixtures request a 4,096-sample block size from the oracle encoder, including when the final frame has fewer than 16 samples. This sets a legal preferred block size without changing the original samples or their count. The same-command output reference still uses its default encoder settings.
+
 For supported CLI commands, compare all decoded samples against the pinned FFmpeg output for the same command. Compare ffprobe's `codec_name`, `sample_fmt`, `sample_rate`, `channels`, `channel_layout`, `bits_per_sample`, `bits_per_raw_sample`, `time_base`, `duration_ts` and `duration` where present. Encoder-identification tags, padding, packet boundaries and compressed bytes need not match. A mismatch fails rather than adding a tolerance or an exclusion.
 
 Invalid formats, incomplete sample frames, writes before start, repeated starts, writes after failure, output I/O faults, limits, unsupported commands and an existing destination all have negative tests. CLI refusal tests retain both the destination's bytes and ordinary fallback behavior.
