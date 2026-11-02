@@ -335,26 +335,24 @@ class Record:
                 problems.append(f"{where(offset)}: round {n}, {CONTAINERS[c]}, `{k}`: the text says "
                                 f"{claim}, {name} has {entry['agree']}/{entry['files']} = {share}{of_round}")
 
-        container, group, sentence, depth, group_depth, last_key = None, [], 0, 0, 0, 0
+        container, group, sentence, scopes, last_key = None, [], 0, [], 0
         for t in TOKEN.finditer(text):
             at = bisect.bisect_right(ends, t.start())
             if at != sentence:
-                sentence, group, depth = at, [], 0
+                sentence, group, scopes = at, [], []
             if t.group('container'):
                 container = NAMES[t.group('container')]
             elif t.group('open'):
-                depth += 1
+                scopes.append((list(group), last_key))
             elif t.group('close'):
-                depth -= 1
-                if depth < group_depth:
-                    group = []
+                group, last_key = scopes.pop() if scopes else ([], 0)
             elif t.group('key'):
                 k = t.group('key') if '.' in t.group('key') else f"streams.{t.group('key')}"
                 if not any(k in table for table in doc.values() if isinstance(table, dict)) \
                         and not re.fullmatch(r'[A-Za-z_]\w*(?:\.[^/]+)?', t.group('key')):
                     continue
                 if not group or not JOIN.fullmatch(text[last_key:t.start()]):
-                    group, group_depth = [], depth
+                    group = []
                 group.append((k, container))
                 last_key = t.end()
             elif group and not t.group('skip'):

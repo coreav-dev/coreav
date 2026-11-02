@@ -85,6 +85,18 @@ class PastMistakes(unittest.TestCase):
                 'Tables: `compat-ffprobe/b3a-round6.json`; keys below 98% are listed.\n')
         self.assertEqual(check(text), [])
 
+    def test_parenthetical_code_without_a_figure_preserves_the_outer_key(self):
+        for key in ('format.duration', 'format.duraton'):
+            for aside in ('reported by `ffprobe`', 'reported by (`ffprobe`)'):
+                with self.subTest(key=key, aside=aside):
+                    text = f'## Round 6\n\nISO base media `{key}` ({aside}) is 97.81%.\n'
+                    detail = ('the text says 97.81%, b3a-round6.json has 1025/1049 = 97.71%'
+                              if key == 'format.duration' else
+                              'the text quotes 97.81% for round 6, where there is no '
+                              'b3a-round6.json or no such key')
+                    self.assertEqual(check(text), [
+                        f'{NAME}:3: round 6, ISO base media, `{key}`: {detail}'])
+
     def test_a_table_cell_that_contradicts_the_evidence(self):
         text, line = replace_once(
             RECORD.read_text(),
