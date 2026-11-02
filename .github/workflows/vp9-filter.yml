@@ -1,0 +1,77 @@
+name: vp9-filter
+
+# workflow-check: not required
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+  pull_request:
+    paths: ["scripts/vp9_filter*.py", "scripts/tests/test_vp9_filter*.py", "scripts/vp9_corpus.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "docs/measurements/vp9-filter-coverage/plan.json", "tools/vp9-corpus-oracle/**", "crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-mkv/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-filter.yml"]
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [smoke, measure]
+        default: measure
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  filter-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check the generated-input contract without media
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_vp9_filter*.py' -v
+
+  filter-capture:
+    needs: filter-contract
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'smoke' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build the unpublished scalar adapter
+        run: cargo build --locked --release -p coreav-vp9-corpus-oracle
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: oracle
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned oracle
+        if: steps.oracle.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Capture the registered filter controls
+        env:
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'smoke' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -I scripts/vp9_filter_coverage.py "$MODE" \
+            --native target/release/vp9-corpus-oracle \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --out "$RUNNER_TEMP/filter-report.json"
+          python3 -I scripts/vp9_filter_coverage.py replay --out "$RUNNER_TEMP/filter-report.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-filter-report
+          path: ${{ runner.temp }}/filter-report.json
+          if-no-files-found: error
+          retention-days: 30
