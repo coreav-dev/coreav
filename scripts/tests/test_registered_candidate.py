@@ -160,7 +160,7 @@ class Candidate(unittest.TestCase):
                 self.guard.allowed(REGISTRATION, 'refs/heads/main', commit)
 
     def test_registration_is_unique_and_well_formed(self):
-        for text in ('', REGISTRATION * 2, REGISTRATION.replace(CANDIDATE, CANDIDATE[:12]),
+        for text in ('', CANDIDATE + '\n', REGISTRATION * 2, REGISTRATION.replace(CANDIDATE, CANDIDATE[:12]),
                      REGISTRATION.replace(CANDIDATE, 'A' * 40), REGISTRATION.replace('`.', '`')):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.guard.registered(text)
@@ -172,8 +172,16 @@ class Candidate(unittest.TestCase):
 
     def test_the_round_readme_is_unregistered_or_has_one_exact_candidate(self):
         text = (ROOT / README).read_text()
-        if 'Release candidate:' in text:
+        if any(line.startswith('Release candidate:') for line in text.splitlines()):
             self.guard.registered(text)
+
+    def test_the_documented_registration_format_is_accepted(self):
+        lines = (ROOT / README).read_text().splitlines()
+        examples = [line.strip() for line in lines if line.startswith('    Release candidate:')]
+        self.assertEqual(len(examples), 1)
+        line = examples[0].replace('<SHA>', CANDIDATE)
+        text = '\n'.join(line for line in lines if not line.startswith('Release candidate:'))
+        self.assertEqual(self.guard.registered(text + '\n' + line), CANDIDATE)
 
 
 if __name__ == '__main__':

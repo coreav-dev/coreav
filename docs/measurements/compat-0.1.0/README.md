@@ -13,8 +13,16 @@ the first run of the round is recorded below as a deviation, not edited in.
 ## The commit
 
 Every bar runs on one commit of `main`, the release candidate. A pull
-request that only adds its SHA to this page names it, after every
-prerequisite below has merged and before the first run. The binary is
+request that adds exactly one unindented registration line to this page
+names it, after every prerequisite below has merged and before the first
+run:
+
+    Release candidate: `<SHA>`.
+
+Replace `<SHA>` with exactly 40 lowercase hexadecimal characters. Keep
+the label, backticks and final period. A bare SHA is not a registration.
+
+The binary is
 `coreav` built from that commit with `cargo build --locked --profile dist
 -p coreav-cli` and default features, so no decoder backend is linked;
 its SHA-256 is recorded with the results. Every comparison runs the pinned
