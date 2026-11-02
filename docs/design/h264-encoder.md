@@ -171,7 +171,7 @@ Speed diagnostics, if collected in Actions, report the host, CPU model, compiler
 
 ## Clean-room policy and prerequisites
 
-The encoder-specific permission is the maintainer decision, 2026-11-02. It permits all seven previously pending encoder items under policy record 0037, with the boundaries below. It does not authorize copying, general source reading in implementation contexts, a default-build encoder, or an unsafe G1 implementation.
+Policy record 0037 governs encoder work under the boundaries below. It does not authorize copying, general source reading in implementation contexts, a default-build encoder, or an unsafe G1 implementation.
 
 - Source study of x264, JM, and OpenH264 is allowed only in a separate study session from pinned releases outside the repository. It starts with a specific measured question and compares at least two implementations before recommending a technique. This design must already be committed. A study context, its forks, and anyone receiving an unreviewed study report cannot implement the encoder.
 - Study produces prose in `docs/technique-notes/h264-encoder.md`, not encoder code or pseudocode. Record the technique, specification process, source version and licence, file or function provenance, measured rationale, source-specific constraints, and alternatives to our committed design. An independent reviewer checks the note for copying and mirrored structure before an implementation session receives it.
