@@ -30,6 +30,12 @@ Both sides use High profile, no frame reordering and a maximum keyframe interval
 
 Keep the rational source clock separate from the encoder's `ExpectedFrameRate` optimization hint. Set that hint to the nearest whole frames per second, with half-way cases rounded upward, using integer arithmetic. Require exact integer readback and retain it as `expected_frame_rate_hint` in native settings and the baseline's observed trace. Missing or different baseline hints fail preflight. This does not round, resample or replace the original `rate`, packet timestamps or frame durations: a 30000/1001 source retains that exact clock even when both encoders' cadence hint is 30. Every existing output-clock and timestamp-error gate remains unchanged.
 
+## Hosted software observability
+
+Hosted CI does not exercise the software encode path. Its software-only check records a separate typed refusal only when initial session creation observes an EncoderID, exactly one encoder-list entry matches that ID, and that entry has no hardware flag. Missing IDs, duplicate or unmatched entries, invalid flags, any other missing required field and every other refusal still fail. The refusal is not encoded output, availability, encoder absence or a conformance pass, and it enters no such count or summary.
+
+This hosted-only exemption must fail with an instruction to remove it if hardware status becomes observable. Hardware-required and automatic hosted cells still encode and pass full independent-decoder verification. Judged preflight rejects the hosted refusal even for software, with a regression preventing it from becoming an unavailable cell. Production admission remains fail-closed. Software encode verification is deferred to the post-merge Apple-silicon run; that run still requires observable status and cannot use this exemption.
+
 ## Correctness and quality gates
 
 Every output must decode completely with the pinned FFmpeg H.264 decoder and, within its supported profile, CoreAV's independent decoder. Frame count, dimensions, frame order, colour description and declared times must agree with the reference. Timestamp error is at most half a source tick and A/V start-offset error at most 1 ms where audio exists. Source patterns in synthetic fixtures independently check frame identity; their success is not a substitute for the held-out roster. Parameter sets and sample descriptions must match the decoded stream. Encoded-byte equality is not required.
