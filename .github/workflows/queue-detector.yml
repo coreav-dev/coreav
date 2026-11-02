@@ -1,0 +1,55 @@
+name: queue-detector
+
+# workflow-check: not required
+
+on:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Observe only, probe read permissions, or verify comment permissions
+        type: choice
+        options: [shadow, probe, notice]
+        default: shadow
+
+permissions: {}
+
+concurrency:
+  group: queue-detector
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    if: >-
+      github.repository == 'coreav-dev/coreav' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: .queue-detector
+          key: queue-detector-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: queue-detector-v1-
+      - name: Observe queue required-check discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+          MODE: ${{ github.event_name == 'schedule' && vars.QUEUE_DETECTOR_LIVE == 'true' && 'live' || inputs.mode || 'shadow' }}
+        run: python3 -I scripts/queue_detector.py --state .queue-detector/state.json --mode "$MODE"
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        if: always() && hashFiles('.queue-detector/state.json') != ''
+        with:
+          path: .queue-detector
+          key: queue-detector-v1-${{ github.run_id }}-${{ github.run_attempt }}
