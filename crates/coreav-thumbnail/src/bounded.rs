@@ -125,16 +125,26 @@ fn admit_geometry(
     geometry: OneIdrGeometry,
     limits: &coreav_decode::Limits,
 ) -> coreav_h264::Result<()> {
-    let admitted = |width: u32, height: u32, pixels: u64| {
+    let admitted = |width: u32, height: u32, max_width: u32, max_height: u32, pixels: u64| {
         width > 0
             && height > 0
-            && width <= limits.max_width.min(1920)
-            && height <= limits.max_height.min(1920)
-            && u64::from(width) * u64::from(height) <= limits.max_pixels.min(pixels)
+            && width <= max_width
+            && height <= max_height
+            && u64::from(width) * u64::from(height) <= pixels
     };
-    if !admitted(geometry.coded_width, geometry.coded_height, 2_088_960)
-        || !admitted(geometry.visible_width, geometry.visible_height, 2_073_600)
-    {
+    if !admitted(
+        geometry.coded_width,
+        geometry.coded_height,
+        1920,
+        1920,
+        2_088_960,
+    ) || !admitted(
+        geometry.visible_width,
+        geometry.visible_height,
+        limits.max_width.min(1920),
+        limits.max_height.min(1920),
+        limits.max_pixels.min(2_073_600),
+    ) {
         return Err(coreav_h264::Error::Limit(
             coreav_h264::LimitKind::PictureSize,
         ));
@@ -192,6 +202,19 @@ mod tests {
         assert!(admit_geometry(geometry(32, 32), &limits).is_ok());
         let mut cropped = geometry(64, 32);
         cropped.visible_width = 32;
-        assert!(admit_geometry(cropped, &limits).is_err());
+        assert!(admit_geometry(cropped, &limits).is_ok());
+    }
+
+    #[test]
+    fn caller_visible_limits_allow_macroblock_padding() {
+        let limits = coreav_decode::Limits {
+            max_width: 1920,
+            max_height: 1080,
+            max_pixels: 2_073_600,
+            ..Default::default()
+        };
+        let mut cropped = geometry(1920, 1088);
+        cropped.visible_height = 1080;
+        assert!(admit_geometry(cropped, &limits).is_ok());
     }
 }
