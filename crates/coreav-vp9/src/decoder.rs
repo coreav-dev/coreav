@@ -118,6 +118,7 @@ fn decode_intra<P: Sample>(
         tile::TileContext {
             references: &[],
             previous: None,
+            previous_segments: &[],
             reference_mode: crate::compressed::ReferenceMode::Single,
         },
     )?;
