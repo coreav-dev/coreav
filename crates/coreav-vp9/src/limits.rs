@@ -1,5 +1,7 @@
 //! Resource limits (`docs/design/vp9.md`, "Architecture").
 
+use crate::error::{Error, LimitKind, Result};
+
 /// Bounds on the work and memory of one decoder.
 ///
 /// Every decoder takes a `Limits` value. [`Limits::default`] allows
@@ -31,6 +33,19 @@ impl Default for Limits {
 }
 
 impl Limits {
+    pub(crate) fn check_size(&self, width: u32, height: u32) -> Result<()> {
+        if width > self.max_width {
+            return Err(Error::Limit(LimitKind::Width));
+        }
+        if height > self.max_height {
+            return Err(Error::Limit(LimitKind::Height));
+        }
+        if u64::from(width) * u64::from(height) > self.max_pixels {
+            return Err(Error::Limit(LimitKind::Pixels));
+        }
+        Ok(())
+    }
+
     /// Limits for frames of at most `width` x `height` samples, with the
     /// default packet size.
     pub fn for_size(width: u32, height: u32) -> Self {

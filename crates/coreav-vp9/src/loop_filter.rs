@@ -140,7 +140,7 @@ pub(crate) fn apply<P: Sample>(
                                 && edge % 2 == 1
                                 && x + 8 >= mi_cols * 8;
                             let tx_edge = !chroma_past_the_right && edge % (1 << tx_size) == 0;
-                            if !block_edge && !tx_edge {
+                            if !block_edge && !(tx_edge && (m.ref_frames[0] <= 0 || !m.skip)) {
                                 continue;
                             }
                             let base = if tx_size == TX_4X4 && edge % 8 == 0 {
@@ -160,7 +160,12 @@ pub(crate) fn apply<P: Sample>(
                             };
                             let lvl = levels
                                 .get(usize::from(m.segment_id))
-                                .map_or(0, |by_ref| by_ref[0][0]);
+                                .and_then(|by_ref| by_ref.get(m.ref_frames[0].max(0) as usize))
+                                .and_then(|by_mode| {
+                                    by_mode.get(usize::from(matches!(m.mode, 10 | 11 | 13)))
+                                })
+                                .copied()
+                                .unwrap_or(0);
                             let Some(strength) = strengths.get(usize::from(lvl)).copied().flatten()
                             else {
                                 continue;

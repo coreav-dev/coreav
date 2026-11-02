@@ -16,7 +16,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use coreav_vp9::{Decoder, Header, Limits, Picture, Samples};
+use coreav_vp9::{Decoder, FrameDecoder, Header, Limits, Picture, Samples};
 use md5::{Digest, Md5};
 use serde_json::Value;
 
@@ -367,6 +367,47 @@ fn every_vector_shows_the_frames_of_its_md5_list() {
         println!("{failure}");
     }
     assert!(failures.is_empty(), "{} vectors disagree", failures.len());
+}
+
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn single_reference_inter_frames_match_the_published_md5s() {
+    let dir = vectors_dir();
+    let names = (0..64)
+        .map(|q| format!("vp90-2-00-quantizer-{q:02}.webm"))
+        .chain([
+            "vp90-2-09-subpixel-00.ivf".to_owned(),
+            "vp90-2-03-size-196x198.webm".to_owned(),
+        ]);
+    for name in names {
+        let data = std::fs::read(dir.join(&name)).unwrap();
+        let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
+        let expected: Vec<_> = list
+            .lines()
+            .filter_map(|l| l.split_whitespace().next())
+            .collect();
+        let packets = if data.starts_with(b"DKIF") {
+            ivf_packets(&data)
+        } else {
+            webm_packets(&data)
+        };
+        let mut decoder = FrameDecoder::new(SPEC_LIMITS);
+        let mut shown = 0;
+        for (i, packet) in packets.iter().enumerate() {
+            for picture in decoder
+                .decode(packet)
+                .unwrap_or_else(|e| panic!("{name}, packet {i}: {e}"))
+            {
+                assert_eq!(
+                    md5(&picture),
+                    expected[shown],
+                    "{name}, packet {i}, shown {shown}"
+                );
+                shown += 1;
+            }
+        }
+        assert_eq!(shown, expected.len(), "{name}");
+    }
 }
 
 /// A vector whose key frame the padding check below changes, the MD5 its

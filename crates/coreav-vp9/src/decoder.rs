@@ -63,7 +63,7 @@ impl Decoder {
                 Some(probs),
             ) = (&mut parsed.header, parsed.probs)
             {
-                self.check_size(h.width, h.height)?;
+                self.limits.check_size(h.width, h.height)?;
                 let (mut contexts, probs) = *probs;
                 if h.is_intra() {
                     let tiles = frame
@@ -97,19 +97,6 @@ impl Decoder {
     pub(crate) fn contexts(&self) -> &Contexts {
         &self.contexts
     }
-
-    fn check_size(&self, width: u32, height: u32) -> Result<()> {
-        if width > self.limits.max_width {
-            return Err(Error::Limit(LimitKind::Width));
-        }
-        if height > self.limits.max_height {
-            return Err(Error::Limit(LimitKind::Height));
-        }
-        if u64::from(width) * u64::from(height) > self.limits.max_pixels {
-            return Err(Error::Limit(LimitKind::Pixels));
-        }
-        Ok(())
-    }
 }
 
 /// Decodes the tiles of intra frame `h` and filters the result (clauses
@@ -122,10 +109,21 @@ fn decode_intra<P: Sample>(
 ) -> Result<(bool, Picture)> {
     let c = h.color;
     let mut frame = Planes::<P>::new(h.mi_cols(), h.mi_rows(), c.subsampling_x, c.subsampling_y);
-    let (clean, mi) = tile::read(tiles, h, probs, tx_mode, &mut frame)?;
-    loop_filter::apply(h, &mi, &mut frame)?;
+    let decoded = tile::read(
+        tiles,
+        h,
+        probs,
+        tx_mode,
+        &mut frame,
+        tile::TileContext {
+            references: &[],
+            previous: None,
+            reference_mode: crate::compressed::ReferenceMode::Single,
+        },
+    )?;
+    loop_filter::apply(h, &decoded.modes, &mut frame)?;
     Ok((
-        clean,
+        decoded.clean,
         frame.picture(
             h.width,
             h.height,

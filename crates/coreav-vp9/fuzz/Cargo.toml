@@ -25,3 +25,10 @@ bench = false
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[[bin]]
+name = "frames"
+path = "fuzz_targets/frames.rs"
+test = false
+doc = false
+bench = false
