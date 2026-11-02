@@ -2,19 +2,25 @@
 //! each block's mode info, and its tokens, read with the trees and
 //! probabilities of clause 9.3.
 
+use coreav_kernels_vp9::{
+    BitDepth, BlockMut, Coefficients, Edges, IntraMode, TxSize, TxType, inverse_transform_add,
+    predict_intra,
+};
+
 use crate::bool::BoolDecoder;
 use crate::compressed::TxMode;
 use crate::error::{Error, Result};
 use crate::header::FrameHeader;
+use crate::picture::{Planes, Sample};
 use crate::probs::Probs;
 use crate::tables::{
-    B_HEIGHT_LOG2, B_WIDTH_LOG2, CAT_PROBS, COEFBAND_4X4, COEFBAND_8X8PLUS, COL_SCAN_4X4,
-    COL_SCAN_8X8, COL_SCAN_16X16, COLS_PARTITION_TREE, DEFAULT_SCAN_4X4, DEFAULT_SCAN_8X8,
-    DEFAULT_SCAN_16X16, DEFAULT_SCAN_32X32, ENERGY_CLASS, EXTRA_BITS, INTRA_MODE_TREE,
-    KF_PARTITION_PROBS, KF_UV_MODE_PROBS, KF_Y_MODE_PROBS, MAX_TX_SIZE, MI_WIDTH_LOG2,
-    MODE2TXFM_MAP, NUM_4X4_HIGH, NUM_4X4_WIDE, NUM_8X8_HIGH, NUM_8X8_WIDE, PARETO_TABLE,
-    PARTITION_TREE, ROW_SCAN_4X4, ROW_SCAN_8X8, ROW_SCAN_16X16, ROWS_PARTITION_TREE, SEGMENT_TREE,
-    SS_SIZE, SUBSIZE, TOKEN_TREE, TX_SIZE_8_TREE, TX_SIZE_16_TREE, TX_SIZE_32_TREE,
+    AC_QLOOKUP, B_HEIGHT_LOG2, B_WIDTH_LOG2, CAT_PROBS, COEFBAND_4X4, COEFBAND_8X8PLUS,
+    COL_SCAN_4X4, COL_SCAN_8X8, COL_SCAN_16X16, COLS_PARTITION_TREE, DC_QLOOKUP, DEFAULT_SCAN_4X4,
+    DEFAULT_SCAN_8X8, DEFAULT_SCAN_16X16, DEFAULT_SCAN_32X32, ENERGY_CLASS, EXTRA_BITS,
+    INTRA_MODE_TREE, KF_PARTITION_PROBS, KF_UV_MODE_PROBS, KF_Y_MODE_PROBS, MAX_TX_SIZE,
+    MI_WIDTH_LOG2, MODE2TXFM_MAP, NUM_4X4_HIGH, NUM_4X4_WIDE, NUM_8X8_HIGH, NUM_8X8_WIDE,
+    PARETO_TABLE, PARTITION_TREE, ROW_SCAN_4X4, ROW_SCAN_8X8, ROW_SCAN_16X16, ROWS_PARTITION_TREE,
+    SEGMENT_TREE, SS_SIZE, SUBSIZE, TOKEN_TREE, TX_SIZE_8_TREE, TX_SIZE_16_TREE, TX_SIZE_32_TREE,
 };
 
 const BLOCK_8X8: u8 = 3;
@@ -24,6 +30,7 @@ const PARTITION_HORZ: u8 = 1;
 const PARTITION_VERT: u8 = 2;
 const PARTITION_SPLIT: u8 = 3;
 const DC_PRED: u8 = 0;
+const SEG_LVL_ALT_Q: usize = 0;
 const SEG_LVL_SKIP: usize = 3;
 const DCT_DCT: u8 = 0;
 const ADST_DCT: u8 = 1;
@@ -90,15 +97,20 @@ struct Block {
     row: u32,
     col: u32,
     size: u8,
+    segment_id: u8,
     skip: bool,
     tx_size: u8,
     sub_modes: [u8; 4],
+    uv_mode: u8,
+    avail_u: bool,
+    avail_l: bool,
 }
 
 /// The state of one frame's tiles: the mode info of its 8x8 blocks and the
 /// above and left contexts of clause 7.4.
-struct Tiles<'a> {
+struct Tiles<'a, P> {
     h: &'a FrameHeader,
+    frame: &'a mut Planes<P>,
     probs: &'a Probs,
     tx_mode: TxMode,
     mi_rows: u32,
@@ -110,18 +122,27 @@ struct Tiles<'a> {
     above_nonzero: [Vec<bool>; 3],
     left_nonzero: [[bool; 16]; 3],
     token_cache: Vec<u8>,
+    /// `Tokens` of the transform block being read, in raster order.
+    coefs: Vec<i64>,
 }
 
 /// Reads the tiles of an intra frame (`decode_tiles`, clause 6.4) from
 /// `data`, the frame's bytes after its compressed header, with the
 /// probabilities and transform mode of its compressed header. Returns
 /// whether every tile's boolean decoder ended as clause 9.2.3 requires.
-pub(crate) fn read(data: &[u8], h: &FrameHeader, probs: &Probs, tx_mode: TxMode) -> Result<bool> {
+pub(crate) fn read<P: Sample>(
+    data: &[u8],
+    h: &FrameHeader,
+    probs: &Probs,
+    tx_mode: TxMode,
+    frame: &mut Planes<P>,
+) -> Result<bool> {
     let mi_cols = h.mi_cols();
     let mi_rows = h.mi_rows();
     let sb_cols = (mi_cols as usize).div_ceil(8);
     let mut t = Tiles {
         h,
+        frame,
         probs,
         tx_mode,
         mi_rows,
@@ -133,6 +154,7 @@ pub(crate) fn read(data: &[u8], h: &FrameHeader, probs: &Probs, tx_mode: TxMode)
         above_nonzero: core::array::from_fn(|_| vec![false; sb_cols * 16]),
         left_nonzero: [[false; 16]; 3],
         token_cache: vec![0; 1024],
+        coefs: vec![0; 1024],
     };
     let tile_cols = 1u32 << h.tiles.cols_log2;
     let tile_rows = 1u32 << h.tiles.rows_log2;
@@ -173,7 +195,7 @@ pub(crate) fn read(data: &[u8], h: &FrameHeader, probs: &Probs, tx_mode: TxMode)
     Ok(clean)
 }
 
-impl Tiles<'_> {
+impl<P: Sample> Tiles<'_, P> {
     fn mi_at(&self, row: u32, col: u32) -> ModeInfo {
         get(
             &self.mi,
@@ -332,14 +354,18 @@ impl Tiles<'_> {
             y_mode = mode;
         }
         let uv_probs = get(&KF_UV_MODE_PROBS, y_mode.into());
-        read_tree(d, &INTRA_MODE_TREE, |node| get(&uv_probs, node));
+        let uv_mode = read_tree(d, &INTRA_MODE_TREE, |node| get(&uv_probs, node));
         let block = Block {
             row: r,
             col: c,
             size,
+            segment_id,
             skip,
             tx_size,
             sub_modes,
+            uv_mode,
+            avail_u,
+            avail_l,
         };
         self.residual(d, &block)?;
         let info = ModeInfo {
@@ -407,9 +433,37 @@ impl Tiles<'_> {
                     let start_x = base_x + 4 * x;
                     let start_y = base_y + 4 * y;
                     let mut nonzero = false;
-                    if start_x < max_x && start_y < max_y && !b.skip {
-                        let tx_type = self.tx_type(plane, tx_size, b, block_idx);
-                        nonzero = self.tokens(d, plane, start_x, start_y, tx_size, tx_type)?;
+                    if start_x < max_x && start_y < max_y {
+                        let mode = if plane > 0 {
+                            b.uv_mode
+                        } else if b.size >= BLOCK_8X8 {
+                            b.sub_modes[3]
+                        } else {
+                            get(&b.sub_modes, block_idx)
+                        };
+                        let have = (b.avail_l || x > 0, b.avail_u || y > 0, x + step < w);
+                        self.predict(
+                            plane,
+                            (start_x, start_y),
+                            tx_size,
+                            mode,
+                            have,
+                            (max_x, max_y),
+                        );
+                        if !b.skip {
+                            let tx_type = self.tx_type(plane, tx_size, b, block_idx);
+                            nonzero = self.tokens(d, plane, start_x, start_y, tx_size, tx_type)?;
+                            if nonzero {
+                                self.reconstruct(
+                                    plane,
+                                    start_x,
+                                    start_y,
+                                    tx_size,
+                                    tx_type,
+                                    b.segment_id,
+                                )?;
+                            }
+                        }
                     }
                     for i in 0..step {
                         if let Some(a) = self
@@ -430,6 +484,167 @@ impl Tiles<'_> {
                     block_idx += 1;
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// The intra prediction process (clause 8.5.1) of the transform block at
+    /// `(x, y)` of `plane`: gathers its edges from the frame and predicts
+    /// it. `have` is (`haveLeft`, `haveAbove`, `notOnRight`), `end` the
+    /// plane's width and height in whole 8x8 blocks (`maxX + 1`, `maxY + 1`).
+    fn predict(
+        &mut self,
+        plane: usize,
+        (x, y): (u32, u32),
+        tx_size: u8,
+        mode: u8,
+        have: (bool, bool, bool),
+        end: (u32, u32),
+    ) {
+        let (have_left, have_above, not_on_right) = have;
+        let Some(bit_depth) = BitDepth::from_bits(self.h.color.bit_depth) else {
+            return;
+        };
+        let size = 4usize << tx_size;
+        let base = 1i64 << (bit_depth.bits() - 1);
+        let Some(p) = self.frame.planes.get_mut(plane) else {
+            return;
+        };
+        let stride = p.stride;
+        let (x, y) = (x as usize, y as usize);
+        let (max_x, max_y) = (
+            end.0.saturating_sub(1) as usize,
+            end.1.saturating_sub(1) as usize,
+        );
+        let at = |row: usize, col: usize| {
+            p.samples
+                .get(row * stride + col)
+                .copied()
+                .unwrap_or_default()
+        };
+        let fill = |v: i64| P::clip(v, bit_depth);
+        let mut edges = Edges::<P> {
+            have_above,
+            have_left,
+            ..Edges::default()
+        };
+        for i in 0..2 * size {
+            let v = if !have_above {
+                fill(base - 1)
+            } else if i < size || (not_on_right && tx_size == 0) {
+                at(y - 1, max_x.min(x + i))
+            } else {
+                edges.above.get(size).copied().unwrap_or_default()
+            };
+            if let Some(a) = edges.above.get_mut(i + 1) {
+                *a = v;
+            }
+        }
+        edges.above[0] = match (have_above, have_left) {
+            (true, true) => at(y - 1, max_x.min(x - 1)),
+            (true, false) => fill(base + 1),
+            _ => fill(base - 1),
+        };
+        for i in 0..size {
+            let v = if have_left {
+                at(max_y.min(y + i), x - 1)
+            } else {
+                fill(base + 1)
+            };
+            if let Some(l) = edges.left.get_mut(i) {
+                *l = v;
+            }
+        }
+        let (Some(mode), Some(dst)) = (
+            IntraMode::from_value(mode),
+            TxSize::from_value(tx_size)
+                .and_then(|t| BlockMut::new(&mut p.samples, y * stride + x, stride, t)),
+        ) else {
+            return;
+        };
+        predict_intra(dst, mode, &edges, bit_depth);
+    }
+
+    /// The reconstruct process (clause 8.6.2): dequantizes the transform
+    /// block just read and adds its inverse transform at (`x`, `y`). A
+    /// dequantized coefficient outside `8 + BitDepth` bits breaks the
+    /// clause's requirement, which the transforms rely on, and is clamped
+    /// into that range (`docs/design/vp9.md`, "Specification and the clean
+    /// room").
+    fn reconstruct(
+        &mut self,
+        plane: usize,
+        x: u32,
+        y: u32,
+        tx_size: u8,
+        tx_type: u8,
+        segment_id: u8,
+    ) -> Result<()> {
+        let h = self.h;
+        let q = &h.quantization;
+        let seg = &h.segmentation;
+        let qindex = match seg
+            .features
+            .get(usize::from(segment_id))
+            .and_then(|f| f.get(SEG_LVL_ALT_Q))
+            .copied()
+            .flatten()
+        {
+            Some(data) if seg.enabled => {
+                let data = if seg.abs_or_delta_update {
+                    i32::from(data)
+                } else {
+                    i32::from(q.base_q_idx) + i32::from(data)
+                };
+                data.clamp(0, 255)
+            }
+            _ => i32::from(q.base_q_idx),
+        };
+        let bit_depth = BitDepth::from_bits(h.color.bit_depth).ok_or(Error::Invalid("BitDepth"))?;
+        let depth = match bit_depth {
+            BitDepth::Eight => 0,
+            BitDepth::Ten => 1,
+            BitDepth::Twelve => 2,
+        };
+        let lookup = |table: &[[u16; 256]; 3], b: i32| {
+            i64::from(
+                table
+                    .get(depth)
+                    .and_then(|t| t.get(b.clamp(0, 255) as usize))
+                    .copied()
+                    .unwrap_or(0),
+            )
+        };
+        let (dc_delta, ac_delta) = if plane == 0 {
+            (q.delta_q_y_dc, 0)
+        } else {
+            (q.delta_q_uv_dc, q.delta_q_uv_ac)
+        };
+        let dc = lookup(&DC_QLOOKUP, qindex + i32::from(dc_delta));
+        let ac = lookup(&AC_QLOOKUP, qindex + i32::from(ac_delta));
+        let denom = if tx_size == 3 { 2 } else { 1 };
+        let n0 = 4usize << tx_size;
+        let Some(coefs) = self.coefs.get_mut(..n0 * n0) else {
+            return Ok(());
+        };
+        for (i, c) in coefs.iter_mut().enumerate() {
+            *c = *c * if i == 0 { dc } else { ac } / denom;
+        }
+        let tx_type = match tx_type {
+            ADST_DCT => TxType::AdstDct,
+            DCT_ADST => TxType::DctAdst,
+            DCT_DCT => TxType::DctDct,
+            _ => TxType::AdstAdst,
+        };
+        let coefs = Coefficients::clamped(coefs, bit_depth);
+        let Some(p) = self.frame.planes.get_mut(plane) else {
+            return Ok(());
+        };
+        let stride = p.stride;
+        if let Some(dst) = TxSize::from_value(tx_size).and_then(|t| {
+            BlockMut::new(&mut p.samples, y as usize * stride + x as usize, stride, t)
+        }) {
+            inverse_transform_add(dst, coefs, tx_type, q.lossless());
         }
         Ok(())
     }
@@ -510,6 +725,7 @@ impl Tiles<'_> {
         );
         let probs = get(&probs, 0);
         let bit_depth = u32::from(self.h.color.bit_depth);
+        self.coefs.iter_mut().take(n * n).for_each(|c| *c = 0);
         let mut check_eob = true;
         let mut c = 0;
         while c < seg_eob {
@@ -554,17 +770,23 @@ impl Tiles<'_> {
                 check_eob = false;
             } else {
                 check_eob = true;
-                let [cat, extra, _] = get(&EXTRA_BITS, token.into());
+                let [cat, extra, base] = get(&EXTRA_BITS, token.into());
+                let mut coef = i64::from(base);
                 if token == DCT_VAL_CATEGORY6 {
-                    for _ in 8..bit_depth {
-                        d.read(255);
+                    for e in 0..bit_depth - 8 {
+                        coef += i64::from(d.read(255)) << (5 + bit_depth - e);
                     }
                 }
                 let cat_probs = get(&CAT_PROBS, cat.into());
                 for e in 0..extra {
-                    d.read(get(&cat_probs, e.into()));
+                    coef += i64::from(d.read(get(&cat_probs, e.into()))) << (extra - 1 - e);
                 }
-                d.read(128);
+                if d.read(128) {
+                    coef = -coef;
+                }
+                if let Some(t) = self.coefs.get_mut(pos) {
+                    *t = coef;
+                }
             }
             c += 1;
         }

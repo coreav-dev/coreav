@@ -6,6 +6,7 @@ members = [
     "crates/coreav-isobmff",
     "crates/coreav-isobmff-write",
     "crates/coreav-kernels-h264",
+    "crates/coreav-kernels-vp9",
     "crates/coreav-kernels-audio",
     "crates/coreav-mkv",
     "crates/coreav-mpegts",

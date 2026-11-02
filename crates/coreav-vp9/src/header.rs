@@ -4,6 +4,7 @@
 use crate::bits::BitReader;
 use crate::compressed::{self, CompressedHeader};
 use crate::error::{Error, Result};
+use crate::picture::Picture;
 use crate::probs::{Contexts, Probs};
 
 /// The smallest width of a tile, in superblocks (`MIN_TILE_WIDTH_B64`).
@@ -336,6 +337,10 @@ pub enum Header {
         /// requires; `None` for a frame whose tiles are not read yet (an
         /// inter frame, until inter prediction lands).
         tiles_end_cleanly: Option<bool>,
+        /// The decoded frame of an intra frame, without the loop filter
+        /// (`docs/design/vp9.md`, milestone 3); `None` for an inter frame,
+        /// until inter prediction lands.
+        picture: Option<Box<Picture>>,
     },
 }
 
@@ -551,6 +556,7 @@ pub(crate) fn parse(
             header: Box::new(h),
             compressed,
             tiles_end_cleanly: None,
+            picture: None,
         },
         probs: Some(Box::new((contexts, probs))),
     })
