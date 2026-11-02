@@ -1545,6 +1545,40 @@ FFmpeg).**
 
 ### The measurements, fixed before the runs
 
+**Current fixture CI, registered 2026-11-02.** The ISO base media,
+Matroska and transport-stream fixture jobs use `current_ci.py`, not the
+frozen B1 refusal assertion, for `ffmpeg` rows. The historical
+`commands-v1` labels and derived command sets remain unchanged. Judged
+runs continue to use `run.py` and their registered source bytes.
+
+For current CI, a historical out-of-scope `ffmpeg` row must either refuse
+cleanly or produce independently verified native output. A clean refusal
+exits 1, 2 or 4 (rejection, usage error or refusal), prints a diagnostic
+only on standard error, writes no output
+and records no fallback program that ran. A crash, timeout, partial output
+or unexplained success fails. Existing bare help queries keep their usage
+check. Every success must have an empty fallback log and pass the pinned
+FFmpeg 9.0.2 same-command comparison. A known baseline failure cannot
+suppress a failure of this current policy.
+
+The decoded-output rules registered for V2 in coreav-dev/coreav#259 apply
+to linear PCM, FLAC, PNG, BMP, rawvideo, FFV1, HuffYUV and external MP3.
+The checker compares complete precision-preserving samples or pixels,
+stream fields and exact rational presentation times. It never compares
+encoded output hashes or grants a numeric tolerance. Byte-different
+outputs can pass when their decoded values agree exactly. PNG and BMP
+from YUV sources are unverified `no_oracle` outcomes, not conversion
+parity passes. An output without an implemented oracle also fails as
+unverified. Existing strict-safe mode remains in force, so this policy
+does not permit FFmpeg fallback or an external encoder that strict-safe
+mode forbids.
+
+`current_ci.py` loads a private instance of the legacy fixture reporter
+and replaces only its `ffmpeg` policy for this invocation. The `ffprobe`
+comparisons and baseline reporting are retained. The report adds separate
+refused, verified, unverified and failed counts. These are current-CI
+outcomes, not revised historical B1 verdicts or measured V2 coverage.
+
 **B1, B2 and the writers (CI, every change).**
 `tools/compat-corpus/run.py` runs every `ffprobe` command of `commands-v1`
 with each placeholder filled by every generated fixture (the ISO base media

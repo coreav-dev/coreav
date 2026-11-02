@@ -32,6 +32,7 @@ from fractions import Fraction
 
 PROBE_SCHEMA = 'coreav.probe/1'
 MATROSKA_SCHEMA = 'coreav.probe-matroska/1'
+MPEGTS_SCHEMA = 'coreav.probe-mpegts/2'
 # The codec names `coreav probe` prints for Matroska tracks; `coreav check`
 # allows every one (`coreav probe --allow` with this list reads the same).
 MATROSKA_CODECS = ('h264', 'hevc', 'av1', 'vp8', 'vp9', 'prores', 'mpeg1video', 'mpeg2video',
@@ -61,6 +62,10 @@ FAMILIES.update({c: 'video' for c in ('vp8', 'mpeg1video', 'mpeg2video', 'mpeg4'
 FAMILIES.update({c: 'audio' for c in ('mp2', 'vorbis', 'flac', 'ac3', 'eac3', 'dts', 'truehd',
                                       'alac')})
 FAMILIES.update({c: 'subtitle' for c in ('subrip', 'ass', 'webvtt', 'pgs', 'vobsub', 'dvbsub')})
+FAMILIES.update({'vvc': 'video', 'aac_latm': 'audio', 'mpeg_audio': 'audio',
+                 'bluray_pcm': 'audio', 'scte35': 'data', 'id3': 'data', 'epg': 'data',
+                 'dvb_subtitle': 'subtitle', 'dvb_teletext': 'subtitle',
+                 'arib_caption': 'subtitle'})
 
 
 def policy_kind(stream):
@@ -88,14 +93,18 @@ def _int(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
-def _seconds(time):
+def _seconds(time, transport=False):
     """(exact seconds, printed seconds) of a probe time, or None."""
     if not isinstance(time, dict):
         return None
     ticks = time.get('ticks')
-    if not isinstance(ticks, dict):
-        return None
-    num, den, scale = ticks.get('num'), _int(ticks.get('den')), _int(time.get('timescale'))
+    if transport:
+        num, den = _int(ticks), 1
+    else:
+        if not isinstance(ticks, dict):
+            return None
+        num, den = ticks.get('num'), _int(ticks.get('den'))
+    scale = _int(time.get('timescale'))
     if not isinstance(num, int) or isinstance(num, bool) or num < 0 or not den or not scale:
         return None
     exact = Fraction(num, den * scale)
@@ -166,17 +175,21 @@ def evaluate(policy, doc):
             reason('above_maximum', rule, path, stream_index, printed,
                    exact if is_fraction else None, limit_json)
 
-    if not isinstance(doc, dict) or doc.get('schema') not in (PROBE_SCHEMA, MATROSKA_SCHEMA):
+    schemas = (PROBE_SCHEMA, MATROSKA_SCHEMA, MPEGTS_SCHEMA)
+    if not isinstance(doc, dict) or doc.get('schema') not in schemas:
         schema = doc.get('schema') if isinstance(doc, dict) else None
-        reason('unknown', None, '/schema', None, schema, None, [PROBE_SCHEMA, MATROSKA_SCHEMA])
+        reason('unknown', None, '/schema', None, schema, None, list(schemas))
         return reasons
     mkv = doc['schema'] == MATROSKA_SCHEMA
+    ts = doc['schema'] == MPEGTS_SCHEMA
+    def unidentified_ts(stream):
+        return ts and isinstance(stream, dict) and stream.get('codec') == 'other'
     streams = doc.get('streams') if isinstance(doc.get('streams'), list) else []
     dropped = doc.get('dropped_streams') if isinstance(doc.get('dropped_streams'), list) else []
     rules = policy.get('streams', {})
     files = policy.get('file', {})
     size = _int(_get(doc, '/file/size'))
-    duration = _seconds(doc.get('duration'))
+    duration = _seconds(doc.get('duration'), ts)
     # policy-matroska.md: a Matroska file without Duration (`null`) takes
     # the longest stream duration when every stream has one.
     longest = None
@@ -217,6 +230,10 @@ def evaluate(policy, doc):
             elif live:
                 reason('not_allowed', '/container/fragmented', '/container/live',
                        value=True, limit=False)
+    elif ts:
+        if 'formats' in container and 'mpegts' not in container['formats']:
+            reason('not_allowed', '/container/formats', '/schema',
+                   value='mpegts', limit=container['formats'])
     elif 'formats' in container:
         formats = container['formats']
         brand = _get(doc, '/container')
@@ -240,8 +257,10 @@ def evaluate(policy, doc):
     if max_seconds is not None:
         candidates = [] if longest is not None else [('/duration', None, duration)]
         for i, s in enumerate(streams):
+            if unidentified_ts(s):
+                continue
             index = _int(s.get('stream_index')) if isinstance(s, dict) else None
-            read = _seconds(s.get('duration')) if isinstance(s, dict) else None
+            read = _seconds(s.get('duration'), ts) if isinstance(s, dict) else None
             candidates.append((pointer('streams', i, 'duration'), index, read))
         chosen = next((c for c in candidates if c[2] is None), None)
         if chosen is None and candidates:
@@ -258,7 +277,8 @@ def evaluate(policy, doc):
     for kind in KINDS:
         if kind not in rules:
             continue
-        count = sum(1 for s in streams if isinstance(s, dict) and policy_kind(s)[0] == kind)
+        count = sum(1 for s in streams if isinstance(s, dict) and not unidentified_ts(s)
+                    and policy_kind(s)[0] == kind)
         if 'min_count' in rules[kind] and count < rules[kind]['min_count']:
             reason('below_minimum', pointer('streams', kind, 'min_count'), None, None, count,
                    None, rules[kind]['min_count'])
@@ -268,6 +288,8 @@ def evaluate(policy, doc):
 
     allowed = [k for k in KINDS if k in rules]
     for i, s in enumerate(streams):
+        if unidentified_ts(s):
+            continue
         s = s if isinstance(s, dict) else {}
         base = pointer('streams', i)
         index = _int(s.get('stream_index'))
@@ -289,8 +311,9 @@ def evaluate(policy, doc):
                     reason('not_allowed', rule('codecs'), base + '/codec', index, codec,
                            limit=kind_rules['codecs'])
             if 'max_bit_rate' in kind_rules:
-                maximum(rule('max_bit_rate'), base + '/bit_rate', index,
-                        _bit_rate(s.get('bit_rate')), kind_rules['max_bit_rate'])
+                key = '/scan/bit_rate' if ts else '/bit_rate'
+                maximum(rule('max_bit_rate'), base + key, index,
+                        _bit_rate(_get(s, key)), kind_rules['max_bit_rate'])
             video = s.get('video') if isinstance(s.get('video'), dict) else {}
             audio = s.get('audio') if isinstance(s.get('audio'), dict) else {}
 
@@ -343,7 +366,7 @@ def evaluate(policy, doc):
                     if 'rotation' not in video:
                         reason('unknown', rule('rotations'), base + '/video/rotation', index,
                                limit=rotations)
-                    elif video['rotation'] is None:
+                    elif video['rotation'] is None and not ts:
                         reason('not_allowed', rule('rotations'), base + '/video/rotation', index,
                                None, limit=rotations)
                     elif _int(video['rotation']) is None:
@@ -399,10 +422,14 @@ def evaluate(policy, doc):
                 reason('not_allowed', '/streams/unidentified', pointer('streams', i, 'encoding'),
                        _int(s.get('stream_index')), s.get('encoding'),
                        limit=['none', 'header_stripping'])
-        key = 'codec_id' if mkv else 'fourcc'
+        for i, s in enumerate(streams):
+            if unidentified_ts(s):
+                reason('not_allowed', '/streams/unidentified', pointer('streams', i, 'codec'),
+                       _int(s.get('stream_index')), 'other', limit=listed)
+        key = 'codec' if ts else 'codec_id' if mkv else 'fourcc'
         for j, d in enumerate(dropped):
             d = d if isinstance(d, dict) else {}
-            if d.get(key) in listed:
+            if not ts and d.get(key) in listed:
                 continue
             reason('not_allowed', '/streams/unidentified', pointer('dropped_streams', j, key),
                    _int(d.get('stream_index')), d.get(key), limit=listed)

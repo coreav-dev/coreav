@@ -7,9 +7,9 @@
 //! Matroska one, with the block scan, for a Matroska file).
 #![no_main]
 
-use coreav_cli::{check, matroska, native, probe};
-use coreav_isobmff::{Allowlist, Limits, SliceSource};
-use coreav_policy::{Code, Policy, evaluate};
+use coreav_cli::check;
+use coreav_isobmff::{Limits, SliceSource};
+use coreav_policy::{Code, KindRules, Policy, StreamRules, VideoRules, evaluate};
 use libfuzzer_sys::fuzz_target;
 
 /// Policies used when the input does not start with its own.
@@ -61,15 +61,18 @@ fuzz_target!(|data: &[u8]| {
     assert_eq!(verdict.accepted(), verdict.reasons.is_empty());
     let json = verdict.to_json();
     assert_eq!(serde_json::to_vec(&json).unwrap(), serde_json::to_vec(&verdict.to_json()).unwrap());
-    // Scanning whatever the policy needs gives the same reasons: a rule that
-    // does not need a scanned value does not read one.
-    let document = if coreav_mkv::sniff(media) {
-        matroska::run_source_with(SliceSource::new(media), size, &coreav_mkv::Allowlist::all(), true)
-            .map(|probed| matroska::document(&probed))
-    } else {
-        probe::run_source_limited(SliceSource::new(media), size, &Allowlist::default(), true, true, &limits)
-            .map(|probed| native::document(&probed))
+    let full_scan = Policy {
+        streams: StreamRules {
+            video: Some(VideoRules {
+                max_width: Some(0),
+                common: KindRules { max_bit_rate: Some(0), ..KindRules::default() },
+                ..VideoRules::default()
+            }),
+            ..StreamRules::default()
+        },
+        ..Policy::default()
     };
+    let document = check::probe_source_limited(SliceSource::new(media), size, &full_scan, &limits);
     match document {
         Ok(doc) => {
             assert_eq!(evaluate(&policy, &doc), verdict);

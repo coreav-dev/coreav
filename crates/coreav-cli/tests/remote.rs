@@ -10,6 +10,8 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../coreav-mpegts/tests/common/mod.rs"]
+mod ts;
 
 #[path = "support/http.rs"]
 mod http;
@@ -108,6 +110,45 @@ fn every_command_reads_a_url_as_it_reads_the_file() {
     let a = coreav(&["check", "--policy", policy, local], &[]);
     let b = coreav(&["check", "--policy", policy, url.as_str()], &[]);
     assert_eq!((a.code, a.stdout), (b.code, b.stdout));
+    assert!(server.requests.load(Ordering::SeqCst) > 0);
+}
+
+#[test]
+fn transport_policy_verdicts_match_over_range_reads() {
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x0F, 0x101)]);
+    for n in 0..3 {
+        mux.pes(0x101, 0xC0, 90_000 + n * 1920, &ts::adts(100), true);
+    }
+    let path = temp("remote_check.ts");
+    std::fs::write(&path, &mux.out).unwrap();
+    let policy = temp("remote_check_ts.json");
+    std::fs::write(
+        &policy,
+        br#"{
+        "schema": "coreav.policy/1", "container": {"formats": ["mpegts"]},
+        "streams": {"audio": {"max_bit_rate": 37500}, "invalid_tables": "ignore",
+                    "external_data": "ignore", "multiple_descriptions": "ignore"}
+    }"#,
+    )
+    .unwrap();
+    let server = Server::start(mux.out, Mode::Ranges);
+    let local = coreav(
+        &[
+            "check",
+            "--policy",
+            policy.to_str().unwrap(),
+            path.to_str().unwrap(),
+        ],
+        &[],
+    );
+    let remote = coreav(
+        &["check", "--policy", policy.to_str().unwrap(), &server.url()],
+        &[],
+    );
+    assert_eq!(local.code, Some(0), "{}", local.stderr);
+    assert_eq!((local.code, local.stdout), (remote.code, remote.stdout));
     assert!(server.requests.load(Ordering::SeqCst) > 0);
 }
 

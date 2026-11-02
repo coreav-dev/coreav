@@ -788,7 +788,7 @@ fn coreav_ffmpeg_hands_aac_lines_it_does_not_take_on() {
     for (line, words) in [
         (
             &encoded[..],
-            "encoding audio other than FLAC or MP3 with aac (CoreAV decodes only those)",
+            "encoding audio with aac from a codec this build does not decode",
         ),
         (
             &copied[..],

@@ -25,4 +25,6 @@ coreav transcode --crf 20 --preset slow --scale 1280:-2 input.mkv output.mp4
 
 ## Options
 
+`--audio opus` and `--audio aac` encode the first audio stream this build decodes. Sources can be FLAC, MP3, Opus, or AAC-LC with the `aac` feature. The stream must be mono or stereo. Source priming, decoder delay, and container trimming are applied before encoding. The output edit list removes the new encoder's delay and padding. AAC output keeps the source rate and requires an AAC rate from 8 to 64 kHz.
+
 <Help />

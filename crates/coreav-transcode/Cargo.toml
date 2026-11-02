@@ -19,8 +19,7 @@ coreav-thumbnail = { path = "../coreav-thumbnail" }
 coreav-worker = { path = "../coreav-worker" }
 
 [features]
-# AAC LC decoding in `coreav-audio`, for a build that has it: AAC stays out
-# of the Opus encode all the same (docs/design/transcode.md, "Opus audio").
+# AAC LC decoding in `coreav-audio`, including sources of audio encodes.
 aac = ["coreav-audio/aac"]
 
 [[test]]
