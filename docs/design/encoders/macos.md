@@ -59,9 +59,9 @@ Synthetic tail work has a separate bound, not a source or caller-chunk allowance
 
 Finalization reads the final cookie and codec-specific priming and padding values, checks their arithmetic against the actual accepted PCM and emitted packet totals, and returns validated container configuration only after drain. The final priming values must equal those that planned the tail; the codec must report no additional padded zeros after explicitly aligned input. Leading trim is the codec's reported delay, and trailing trim is the planned tail minus that delay. These are `AudioCodec` properties, not `AudioConverterPrimeInfo` input lookahead. The native fixtures independently decode synthetic AAC with the Rust decoder and check declared trim, channel impulse placement, and all four acceptance formats. They are correctness fixtures, not quality or speed bars against the pinned FFmpeg oracle.
 
-## Planned VideoToolbox owner
+## VideoToolbox ownership
 
-This section specifies the native H.264 ownership change before its implementation. The standalone safe interface remains separate from transcode, CLI selection, schemas and packaging. The existing H.264 readers remain the syntax boundary, not a decoder or a source-frame ledger.
+`videotoolbox::Encoder` implements the native H.264 ownership described here. Its standalone safe interface remains separate from transcode, CLI selection, schemas and packaging. The existing H.264 readers remain the syntax boundary, not a decoder or a source-frame ledger.
 
 ### Input and session ownership
 
@@ -97,11 +97,13 @@ Synchronous framework calls cannot be interrupted. Deadlines are checked before 
 
 ### Actual implementation and hosted smoke
 
+The native `ExpectedFrameRate` control is an optimization hint, not the source clock. `Settings::expected_frame_rate_hint` rounds the source rate to the nearest whole frames per second, with ties upward, and the owner requires exact integer readback. Submitted presentation times and durations still use the original rational rate. Native settings evidence and the reviewed baseline trace retain the hint separately as `expected_frame_rate_hint`; missing or mismatched baseline observations fail preflight. No timestamp or conformance tolerance depends on this hint.
+
 Read the actual session's copied encoder ID and hardware-use property with runtime CF-type checks and bounded string conversion. Candidate-list entries and a requested preference are not proof of the selected implementation. Missing hardware metadata is unknown, not software. A hardware-required request refuses unknown or software results. No reliable encoder semantic-version query is assumed; the driver records OS version and build separately.
 
 Hosted macOS checks exercise synthetic submission, drain, independent decoding, exact frame count/order and source-pattern identity. Software-only availability is established by real submission and drain, not framework presence or session creation alone. Recognized pre-submission unavailability is recorded and refusal cleanup is tested; unsupported settings, unexpected native errors and any failure after accepting a frame cannot become a successful encode or a post-hoc exclusion. Mocked safe-backend tests cover synchronous/reentrant and overlapping callbacks, out-of-order copy completion, early/duplicate/late output, cancellation, partial drain, counter overflow and resource cleanup. Host timing is diagnostic only. The fixed-physical-host speed plan is a separate commit before any run.
 
-All new native declarations, pointer access, packed CoreMedia ABI types, CF ownership and the callback trampoline belong to `src/videotoolbox/sys.rs`. Other files retain safe Rust. The actual site inventory and exact shared-file changes go to the integration owner before the source lands. The source and its integration-owned unsafe-site row ship together; this design is not an empty registration or a safety sign-off.
+Native declarations, pointer access, packed CoreMedia ABI types, CF ownership and the callback trampoline belong to `src/videotoolbox/sys.rs`. Other files retain safe Rust. The source ships with its site inventory in `docs/unsafe-sites.md`. This design note describes the ownership contracts, not a safety sign-off.
 
 ### Standalone tools
 

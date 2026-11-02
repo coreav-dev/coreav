@@ -25,7 +25,7 @@ import judging
 import metrics
 from observations import effective, trace
 from process import run
-from registration import CLASSES, COLOUR, ROOT, clock, git, host_observation, input_hashes, preflight, raw_size, source_registration, validate
+from registration import CLASSES, COLOUR, ROOT, cadence_hint, clock, git, host_observation, input_hashes, preflight, raw_size, source_registration, validate
 import smoke
 import timing
 
@@ -214,6 +214,7 @@ def native_facts(value, item, cell):
     require(type(value["encoder_id"]) is str and
             re.fullmatch(r"[A-Za-z0-9_.-]{1,512}", value["encoder_id"]) is not None, "encoder_identity")
     expected = {"profile": "high", "reordering": False, "realtime": False, "keyframe_seconds": 2,
+                "expected_frame_rate_hint": cadence_hint(item),
                 "keyframe_frames": 2 * item["rate"]["num"] // item["rate"]["den"], "pixel_format": "i420",
                 "native_pixel_format": "420v", "color_range": "limited", "primaries": "bt709",
                 "transfer": "bt709", "matrix": "bt709"}

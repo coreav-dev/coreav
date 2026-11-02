@@ -233,6 +233,14 @@ impl Settings {
     pub fn rate(self) -> (u32, u32) {
         (self.rate_num, self.rate_den)
     }
+    /// Whole-frame cadence hint, rounded to nearest with ties upward.
+    ///
+    /// This optimization hint does not replace the exact source clock in `rate`.
+    pub fn expected_frame_rate_hint(self) -> u32 {
+        let whole = self.rate_num / self.rate_den;
+        let remainder = self.rate_num % self.rate_den;
+        whole + u32::from(2 * u64::from(remainder) >= u64::from(self.rate_den))
+    }
     /// Required average bitrate, not a hard output-byte limit.
     pub fn bitrate(self) -> u32 {
         self.bitrate

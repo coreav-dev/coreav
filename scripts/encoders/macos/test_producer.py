@@ -38,6 +38,7 @@ def observed(item, cell="hardware", bitrate=1000000):
     return {"encoder_id": "actual.fake.encoder", "hardware": cell, "profile": "high", "reordering": False,
             "realtime": False, "bitrate": bitrate, "width": item["width"], "height": item["height"],
             "fps_num": item["rate"]["num"], "fps_den": item["rate"]["den"],
+            "expected_frame_rate_hint": registration.cadence_hint(item),
             "keyframe_frames": 2 * item["rate"]["num"] // item["rate"]["den"], "keyframe_seconds": 2,
             "pixel_format": "yuv420p", "range": "limited", "primaries": "bt709", "transfer": "bt709",
             "matrix": "bt709", "submitted": item["frames"], "status": "encoded"}
@@ -67,6 +68,7 @@ def native_report(item):
             "bitrate": 1000000, "submitted": item["frames"], "access_unit_bytes": len(VIDEO) - len(PARAMETERS),
             "encoder_id": "actual.fake.encoder", "hardware": "hardware", "frames": frames, "avcc": AVCC,
             "settings": {"profile": "high", "reordering": False, "realtime": False, "keyframe_seconds": 2,
+                         "expected_frame_rate_hint": registration.cadence_hint(item),
                          "keyframe_frames": 60, "pixel_format": "i420", "native_pixel_format": "420v",
                          "color_range": "limited", "primaries": "bt709", "transfer": "bt709", "matrix": "bt709"},
             "drain_complete": True}
@@ -143,6 +145,34 @@ class FakeCommands:
 
 
 class Observability(unittest.TestCase):
+    def test_integer_hint_is_observed_separately_from_the_exact_source_clock(self):
+        for num, den, hint in ((30000, 1001, 30), (24000, 1001, 24), (60000, 1001, 60),
+                               (3, 2, 2), (5, 2, 3), (7, 3, 2), (1, 1, 1), (479, 2, 240)):
+            item = producer.unit_item()
+            item["rate"] = {"num": num, "den": den}
+            self.assertEqual(registration.cadence_hint(item), hint)
+            good = observed(item)
+            parsed, _ = observations.trace(trace_bytes(good), spec())
+            observations.effective(parsed, item, "hardware", 1000000)
+            self.assertEqual((parsed["fps_num"], parsed["fps_den"]), (num, den))
+            changed = dict(good)
+            changed.pop("expected_frame_rate_hint")
+            with self.assertRaises(evidence.Invalid):
+                observations.trace(trace_bytes(changed), spec())
+            changed = dict(good, expected_frame_rate_hint=hint + 1)
+            with self.assertRaises(evidence.Invalid):
+                observations.effective(changed, item, "hardware", 1000000)
+            if den != 1:
+                changed = dict(good, fps_num=hint, fps_den=1)
+                with self.assertRaises(evidence.Invalid):
+                    observations.effective(changed, item, "hardware", 1000000)
+        item = producer.unit_item()
+        value = native_report(item)
+        producer.native_facts(value, item, "hardware")
+        value["settings"]["expected_frame_rate_hint"] = 29
+        with self.assertRaises(evidence.Invalid):
+            producer.native_facts(value, item, "hardware")
+
     def test_nondividing_demux_clock_retains_observed_duration(self):
         for rate, ticks in ((144, 8333), (225, 5333)):
             item = producer.unit_item()
@@ -168,7 +198,7 @@ class Observability(unittest.TestCase):
         parsed, retained = observations.trace(trace_bytes(good) + b"input /secret/path\n", spec())
         observations.effective(parsed, item, "hardware", 1000000)
         self.assertNotIn(b"/secret", retained)
-        for field in ("hardware", "encoder_id", "reordering", "bitrate", "submitted", "status"):
+        for field in ("hardware", "encoder_id", "reordering", "bitrate", "submitted", "status", "expected_frame_rate_hint"):
             changed = dict(good)
             changed.pop(field)
             with self.assertRaises(evidence.Invalid):

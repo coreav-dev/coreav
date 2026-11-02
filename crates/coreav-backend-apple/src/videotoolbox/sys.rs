@@ -392,20 +392,10 @@ impl Expected {
                 }
                 Self::Real(expected) => {
                     let mut value = 0f64;
-                    let kind = CFGetTypeID(actual);
-                    if kind != CFNumberGetTypeID() {
-                        return false;
-                    }
-                    let converted = CFNumberGetValue(actual, 6, ptr::from_mut(&mut value).cast());
-                    #[cfg(test)]
-                    if converted == 0 || !value.is_finite() || value != expected {
-                        eprintln!(
-                            "native numeric readback: expected_bits={:#018x} actual_bits={:#018x} type_id={kind} converted={converted}",
-                            expected.to_bits(),
-                            value.to_bits(),
-                        );
-                    }
-                    converted != 0 && value.is_finite() && value == expected
+                    CFGetTypeID(actual) == CFNumberGetTypeID()
+                        && CFNumberGetValue(actual, 6, ptr::from_mut(&mut value).cast()) != 0
+                        && value.is_finite()
+                        && value == expected
                 }
                 Self::Boolean(expected) => {
                     CFGetTypeID(actual) == CFBooleanGetTypeID()
@@ -574,6 +564,8 @@ impl Native {
         let bitrate = i32::try_from(settings.bitrate).map_err(|_| Error::Input)?;
         let interval = u64::from(settings.rate_num) * 2 / u64::from(settings.rate_den);
         let interval = i32::try_from(interval).map_err(|_| Error::Input)?;
+        let cadence_hint =
+            i32::try_from(settings.expected_frame_rate_hint()).map_err(|_| Error::Input)?;
         if bitrate <= 0 || interval <= 0 {
             return Err(Error::Input);
         }
@@ -606,7 +598,7 @@ impl Native {
                 ),
                 (
                     kVTCompressionPropertyKey_ExpectedFrameRate,
-                    Expected::Real(f64::from(settings.rate_num) / f64::from(settings.rate_den)),
+                    Expected::Integer(cadence_hint),
                     "ExpectedFrameRate",
                 ),
                 (

@@ -187,6 +187,7 @@ mod driver {
             "submitted": done.frames, "access_unit_bytes": done.bytes, "encoder_id": encoder_id,
             "hardware": hardware, "frames": frames, "avcc": done.config.as_avcc(),
             "settings": {"profile": "high", "reordering": false, "realtime": false,
+                "expected_frame_rate_hint": settings.expected_frame_rate_hint(),
                 "keyframe_seconds": 2, "keyframe_frames": 2 * u64::from(fps_num) / u64::from(fps_den),
                 "pixel_format": "i420", "native_pixel_format": "420v", "color_range": "limited",
                 "primaries": "bt709", "transfer": "bt709", "matrix": "bt709"},
@@ -385,6 +386,18 @@ mod driver {
             let done = encoder.complete().unwrap();
             assert_eq!(done.frames, 4);
             assert_eq!(records.len(), 4);
+            for (id, record) in records.iter().enumerate() {
+                assert_eq!(record["id"], json!(id));
+                assert_eq!(record["pts_value"], json!(id * 1001));
+                assert_eq!(record["pts_scale"], json!(30_000));
+                assert_eq!(record["duration_value"], json!(1001));
+                assert_eq!(record["duration_scale"], json!(30_000));
+            }
+            let evidence = report(settings, "hardware", records, &done);
+            assert_eq!(evidence["fps_num"], json!(30_000));
+            assert_eq!(evidence["fps_den"], json!(1001));
+            assert_eq!(evidence["settings"]["expected_frame_rate_hint"], json!(30));
+            assert_eq!(evidence["settings"]["keyframe_frames"], json!(59));
             assert_eq!(done.config.dimensions().width(), 32);
             assert_eq!(done.config.dimensions().height(), 30);
             drop(file);

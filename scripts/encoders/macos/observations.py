@@ -4,11 +4,12 @@ import re
 from fractions import Fraction
 
 from evidence import integer, require
+from registration import cadence_hint
 
 FIELDS = {"encoder_id", "hardware", "profile", "reordering", "realtime", "bitrate", "width", "height",
           "fps_num", "fps_den", "keyframe_frames", "keyframe_seconds", "pixel_format", "range",
-          "primaries", "transfer", "matrix", "submitted", "status"}
-NUMBERS = {"bitrate", "width", "height", "fps_num", "fps_den", "keyframe_frames", "keyframe_seconds", "submitted"}
+          "primaries", "transfer", "matrix", "submitted", "status", "expected_frame_rate_hint"}
+NUMBERS = {"bitrate", "width", "height", "fps_num", "fps_den", "keyframe_frames", "keyframe_seconds", "submitted", "expected_frame_rate_hint"}
 
 
 def specification(value):
@@ -82,6 +83,7 @@ def effective(value, item, cell, bitrate):
     expected = {"hardware": cell, "profile": "high", "reordering": False, "realtime": False,
                 "bitrate": bitrate, "width": item["width"], "height": item["height"],
                 "fps_num": item["rate"]["num"], "fps_den": item["rate"]["den"],
+                "expected_frame_rate_hint": cadence_hint(item),
                 "keyframe_frames": 2 * item["rate"]["num"] // item["rate"]["den"],
                 "keyframe_seconds": 2, "pixel_format": "yuv420p", "range": "limited",
                 "primaries": "bt709", "transfer": "bt709", "matrix": "bt709",

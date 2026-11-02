@@ -18,6 +18,7 @@ PLAN = "scripts/encoders/macos/videotoolbox-plan.md"
 CLASSES = ((360, 1000000), (720, 3000000), (1080, 6000000), (2160, 20000000))
 COLOUR = {"primaries": "bt709", "transfer": "bt709", "matrix": "bt709", "range": "limited"}
 SETTINGS = {"profile": "high", "reordering": False, "keyframe_seconds": 2,
+            "cadence_hint": "nearest_whole_fps_ties_up",
             "pixel_format": "yuv420p", "warmups": 1, "pairs": 5,
             "bootstrap_resamples": 10000, "bootstrap_seed": 0,
             "output_storage": "ram", "input_cache": "warm"}
@@ -30,6 +31,11 @@ def clock(value):
     keys(value, "num den")
     return Fraction(integer(value["num"], 1, 2**31 - 1),
                     integer(value["den"], 1, 2**31 - 1))
+
+
+def cadence_hint(item):
+    rate = item["rate"]
+    return (2 * rate["num"] + rate["den"]) // (2 * rate["den"])
 
 
 def revision(value):

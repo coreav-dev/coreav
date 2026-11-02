@@ -56,6 +56,12 @@ def plane_initialization_problems(source):
 
 
 class EncoderBackends(unittest.TestCase):
+    def test_videotoolbox_owner_docs_do_not_describe_it_as_unimplemented(self):
+        note = (ROOT / 'docs/design/encoders/macos.md').read_text()
+        self.assertIn('`videotoolbox::Encoder` implements', note)
+        self.assertNotIn('## Planned VideoToolbox owner', note)
+        self.assertNotIn('native H.264 ownership change before its implementation', note)
+
     def test_videotoolbox_smoke_tracks_its_rust_build_closure(self):
         workflow = workflow_check.workflow_yaml((ROOT / '.github/workflows/videotoolbox.yml').read_text())
         self.assertIsInstance(workflow, dict)

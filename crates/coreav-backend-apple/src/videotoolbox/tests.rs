@@ -448,6 +448,26 @@ fn creation_failure_retires_the_registry_and_unknown_hardware_is_not_software() 
 }
 
 #[test]
+fn cadence_hints_do_not_replace_fractional_source_clocks() {
+    for (num, den, hint) in [
+        (30_000, 1001, 30),
+        (24_000, 1001, 24),
+        (60_000, 1001, 60),
+        (3, 2, 2),
+        (5, 2, 3),
+        (7, 3, 2),
+        (1, 1, 1),
+        (479, 2, 240),
+        (i32::MAX as u32, i32::MAX as u32, 1),
+    ] {
+        let settings =
+            Settings::bt709_limited(32, 30, num, den, 2_000_000, HardwarePolicy::Require).unwrap();
+        assert_eq!(settings.expected_frame_rate_hint(), hint);
+        assert_eq!(settings.rate(), (num, den));
+    }
+}
+
+#[test]
 fn native_fractional_rate_creation_reads_back_the_requested_hint() {
     let _serial = lock(&SERIAL);
     let settings =
