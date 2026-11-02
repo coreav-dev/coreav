@@ -19,6 +19,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROSTER = ROOT / 'docs/measurements/vp9-native/roster.json'
+CONDITION = ROOT / 'docs/measurements/vp9-native/file-condition.json'
 PACKETS = 120
 ORACLE_FRAMES = 8 * PACKETS + 1
 CAPTURE_LIMIT = 64 << 20
@@ -45,6 +46,9 @@ def roster(path=ROSTER):
     development, held, b5 = groups
     require(not set(development) & set(held), 'overlapping registered partitions')
     require(set(b5) <= set(development + held), 'unregistered whole-stream input')
+    condition = read_json(CONDITION)
+    require(condition['sha256'] in development + held and condition['sha256'] not in b5,
+            'truncated-tail input must stay in its registered prefix scope')
     return development + held, set(b5)
 
 
@@ -137,7 +141,7 @@ def child(command, directory, label, timeout):
     return stdout, stderr
 
 
-def native_capture(path, scope):
+def native_capture(path, scope, input_sha=None):
     lines = pathlib.Path(path).read_text().splitlines()
     rows = [json.loads(line, object_pairs_hook=unique_object) for line in lines]
     require(len(rows) >= 2 and all(isinstance(r, dict) for r in rows), 'incomplete native capture')
@@ -164,6 +168,14 @@ def native_capture(path, scope):
     cutoff = footer.get('cutoff')
     require((cutoff is None) == (scope == 'all' or total <= PACKETS), 'invalid cutoff presence')
     require(cutoff is None or integer(cutoff), 'invalid cutoff')
+    condition = read_json(CONDITION)
+    expected_condition = condition['id'] if input_sha == condition['sha256'] else None
+    require(footer.get('file_condition') == expected_condition, 'missing, stale or unregistered file condition')
+    if expected_condition:
+        require(scope == 'first120' and fed == PACKETS and cutoff is not None
+                and cutoff <= condition['partial_pts']
+                and Fraction(*clock) == Fraction(condition['timestamp_scale'], 1_000_000_000),
+                'file condition changed its scope or partial-packet clock')
     by_packet = collections.Counter()
     previous = 0
     for number, frame in enumerate(frames):
@@ -275,14 +287,14 @@ def compare(entry, args, b5, private):
         scope = 'all' if sha in b5 else 'first120'
         timeout = 3600 if scope == 'all' else 900
         capture, _ = child([args.native, path, scope], directory, 'native', timeout)
-        actual_meta, footer, mine = native_capture(capture, scope)
+        actual_meta, footer, mine = native_capture(capture, scope, sha)
         require(actual_meta == meta, 'native stream metadata changed')
         reference, errors = child(ffmpeg_command(args.ffmpeg, path, scope), directory, 'oracle', timeout)
         require(errors.stat().st_size == 0, 'oracle reported an error')
         clock, theirs = oracle_capture(reference)
         frames = judge(meta, footer, mine, clock, theirs)
         result.update(status='agree', frames=frames, fed=footer['fed'], packets=footer['packets'],
-                      coverage=footer['coverage'], scope=scope)
+                      coverage=footer['coverage'], scope=scope, file_condition=footer.get('file_condition'))
         return result
     finally:
         require(digest(path) == sha, 'input bytes changed during comparison')
@@ -322,6 +334,7 @@ def run(args):
             summary[key] = sum(r['status'] == key for r in rows)
         summary['processed'] = len(rows)
         summary['frames'] = sum(r.get('frames', 0) for r in rows)
+        summary['truncated_tail'] = sum(r.get('file_condition') is not None for r in rows)
         summary['b5'] = {key: sum(r['status'] == key and r.get('b5', False) for r in rows)
                          for key in ('agree', 'outside_profile0', 'failed')}
         summary['coverage'] = {k: sum(r.get('coverage', {}).get(k, 0) for r in rows)
@@ -348,7 +361,7 @@ def summarize(args):
         expected = len(names[index::args.shards])
         require(report.get('expected') == expected, 'summary expected count changed')
         require(type(report.get('complete')) is bool, 'invalid completion flag')
-        for key in ('agree', 'outside_profile0', 'failed', 'processed', 'frames'):
+        for key in ('agree', 'outside_profile0', 'failed', 'processed', 'frames', 'truncated_tail'):
             require(integer(report.get(key), 0), 'invalid summary count')
         require(report['agree'] + report['outside_profile0'] + report['failed'] == report['processed']
                 and report['processed'] <= expected, 'inconsistent summary counts')
@@ -363,6 +376,11 @@ def summarize(args):
                 and (not report['complete'] or sum(whole.values()) == expected_whole),
                 'missing whole-stream outcomes')
         require(report['frames'] >= report['agree'], 'empty agreeing stream')
+        has_condition = read_json(CONDITION)['sha256'] in names[index::args.shards]
+        require(report['truncated_tail'] <= int(has_condition)
+                and report['truncated_tail'] <= report['agree']
+                and (not report['complete'] or report['failed'] or report['truncated_tail'] == int(has_condition)),
+                'missing or unregistered truncated-tail outcome')
         observations = report.get('coverage')
         require(isinstance(observations, dict) and all(integer(observations.get(k), 0)
                 for k in ('coded', 'sharpness', 'segment_filter')), 'invalid filter observations')
@@ -370,7 +388,7 @@ def summarize(args):
                 and observations['segment_filter'] <= observations['coded'], 'invalid observation counts')
         reports[index] = report
     result = {k: sum(r[k] for r in reports.values())
-              for k in ('expected', 'agree', 'outside_profile0', 'failed', 'processed', 'frames')}
+              for k in ('expected', 'agree', 'outside_profile0', 'failed', 'processed', 'frames', 'truncated_tail')}
     result['b5'] = {k: sum(r['b5'][k] for r in reports.values())
                     for k in ('agree', 'outside_profile0', 'failed')}
     result['coverage'] = {k: sum(r['coverage'][k] for r in reports.values())

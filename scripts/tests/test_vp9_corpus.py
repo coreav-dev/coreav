@@ -1,4 +1,5 @@
 import copy
+from fnmatch import fnmatchcase
 from fractions import Fraction
 import importlib.util
 import json
@@ -109,6 +110,26 @@ class Comparisons(unittest.TestCase):
             meta = dict(self.meta, **{field: value})
             with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 runner.native_capture(self.capture([meta, *self.mine, self.footer]), 'first120')
+
+    def test_the_one_file_condition_is_sha_bound_scope_bound_and_fails_when_stale(self):
+        condition = runner.read_json(runner.CONDITION)
+        sha = condition['sha256']
+        self.footer.update(packets=121, fed=120, cutoff=20, file_condition=condition['id'])
+        runner.native_capture(self.capture(), 'first120', sha)
+        wrong_clock = dict(self.meta, time_base=[2_000_000, 1_000_000_000])
+        with self.assertRaisesRegex(ValueError, 'clock'):
+            runner.native_capture(self.capture([wrong_clock, *self.mine, self.footer]), 'first120', sha)
+        with self.assertRaisesRegex(ValueError, 'unregistered'):
+            runner.native_capture(self.capture(), 'first120', sha[:-1] + ('0' if sha[-1] != '0' else '1'))
+        for changed in (dict(self.footer, file_condition=None),
+                        dict(self.footer, file_condition='unregistered'),
+                        dict(self.footer, cutoff=condition['partial_pts'] + 1),
+                        dict(self.footer, fed=119)):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                runner.native_capture(self.capture([self.meta, *self.mine, changed]), 'first120', sha)
+        self.footer.update(scope='all', fed=121, cutoff=None)
+        with self.assertRaises(ValueError):
+            runner.native_capture(self.capture(), 'all', sha)
 
     def test_duplicate_json_keys_are_refused(self):
         path = self.capture()
@@ -281,12 +302,14 @@ class Summaries(unittest.TestCase):
         self.root = pathlib.Path(self.temp.name)
         self.args = SimpleNamespace(summaries=self.root, shards=8, out=self.root / 'aggregate.json')
         names, b5 = runner.roster()
+        condition_sha = runner.read_json(runner.CONDITION)['sha256']
         self.reports = []
         for index in range(8):
             count = len(names[index::8])
             whole = sum(name in b5 for name in names[index::8])
             self.reports.append(dict(complete=True, expected=count, processed=count, agree=count,
                                      outside_profile0=0, failed=0, frames=count, shard=[index, 8],
+                                     truncated_tail=int(condition_sha in names[index::8]),
                                      roster_sha256=runner.digest(runner.ROSTER),
                                      b5=dict(agree=whole, outside_profile0=0, failed=0),
                                      coverage=dict(coded=count, sharpness=0, segment_filter=0)))
@@ -304,12 +327,14 @@ class Summaries(unittest.TestCase):
                          (74, 74, 74, 74))
         self.assertEqual(value['b5'], dict(agree=10, outside_profile0=0, failed=0))
         self.assertTrue(value['pass'])
+        self.assertEqual(value['truncated_tail'], 1)
         self.assertNotIn('must-not-escape', self.args.out.read_text())
 
     def test_missing_duplicate_extra_stale_or_malformed_summaries_fail(self):
         control = copy.deepcopy(self.reports)
         for mode in ('missing', 'duplicate', 'extra', 'stale', 'bool count', 'false complete',
-                     'missing b5', 'empty frames', 'bad coverage', 'bad expected'):
+                     'missing b5', 'empty frames', 'bad coverage', 'bad expected', 'missing condition',
+                     'extra condition'):
             self.reports = copy.deepcopy(control)
             for path in self.root.glob('summary-*.json'):
                 path.unlink()
@@ -332,6 +357,10 @@ class Summaries(unittest.TestCase):
                 self.reports[0]['frames'] = 0
             elif mode == 'bad coverage':
                 self.reports[0]['coverage']['sharpness'] = 1000
+            elif mode == 'missing condition':
+                next(r for r in self.reports if r['truncated_tail'])['truncated_tail'] = 0
+            elif mode == 'extra condition':
+                next(r for r in self.reports if not r['truncated_tail'])['truncated_tail'] = 1
             else:
                 self.reports[0]['expected'] += 1
             self.save()
@@ -374,6 +403,14 @@ class Workflow(unittest.TestCase):
                 if any('secrets.' in str(v) for v in step.get('env', {}).values()):
                     self.assertEqual(step['name'], 'Fetch the registered shard')
         self.assertEqual(jobs['corpus']['strategy']['matrix']['shard'], list(range(8)))
+
+    def test_the_compiled_file_condition_starts_both_workflow_events(self):
+        triggers = self.workflow.get('on', self.workflow.get('true'))
+        for event in ('push', 'pull_request'):
+            for path in ('docs/measurements/vp9-native/file-condition.json',
+                         'tools/vp9-corpus-oracle/src/known_tail.rs'):
+                with self.subTest(event=event, path=path):
+                    self.assertTrue(any(fnmatchcase(path, pattern) for pattern in triggers[event]['paths']))
 
     def test_only_sealed_evidence_and_closed_summary_paths_are_uploaded(self):
         steps = self.workflow['jobs']['corpus']['steps']

@@ -13,6 +13,8 @@ use coreav_vp9::{Decoder, FrameDecoder, Header, Picture, Samples};
 use md5::{Digest, Md5};
 use serde_json::{Value, json};
 
+mod known_tail;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Scope {
     Inspect,
@@ -95,8 +97,31 @@ fn measure(path: &Path, scope: Scope, output: &mut impl Write) -> Result<(), Str
     let mut packets = segment.packets(&mut source, &container_limits);
     let mut window = Window::new(scope);
     let mut frames = 0u64;
+    let mut file_condition = None;
     while let Some(packet) = packets.next() {
-        let packet = packet.map_err(|e| e.to_string())?;
+        let packet = match packet {
+            Ok(packet) => packet,
+            Err(error) => {
+                let tail = match (&error, scope, window.fed) {
+                    (coreav_mkv::Error::Truncated { offset }, Scope::First120, 120) => {
+                        known_tail::accept(
+                            path,
+                            *offset,
+                            track.number,
+                            track.codec_delay,
+                            segment.timestamp_scale,
+                        )?
+                    }
+                    _ => None,
+                };
+                let Some(tail) = tail else {
+                    return Err(error.to_string());
+                };
+                window.cutoff = Some(window.cutoff.map_or(tail.pts, |old| old.min(tail.pts)));
+                file_condition = Some(tail.id);
+                break;
+            }
+        };
         if packet.track != track.index {
             continue;
         }
@@ -139,6 +164,7 @@ fn measure(path: &Path, scope: Scope, output: &mut impl Write) -> Result<(), Str
         json!({
             "kind": "complete", "scope": if scope == Scope::All { "all" } else { "first120" },
             "packets": window.selected, "fed": window.fed, "frames": frames, "cutoff": window.cutoff,
+            "file_condition": file_condition,
             "coverage": {
                 "coded": coverage.coded, "sharpness": coverage.sharpness,
                 "segment_filter": coverage.segment_filter,

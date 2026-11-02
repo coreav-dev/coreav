@@ -17,6 +17,8 @@ coreav-mkv = { path = "../../crates/coreav-mkv" }
 coreav-vp9 = { path = "../../crates/coreav-vp9" }
 md-5 = "0.10"
 serde_json.workspace = true
+serde.workspace = true
+sha2 = "0.10"
 
 [lints]
 workspace = true
