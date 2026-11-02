@@ -304,7 +304,10 @@ fn run(bytes: &[u8], options: &Value) -> (Result<Value, Failure>, Vec<u8>) {
 }
 
 fn error(bytes: &[u8], options: &Value) -> Value {
-    let (result, output) = run(bytes, options);
+    refusal(run(bytes, options))
+}
+
+fn refusal((result, output): (Result<Value, Failure>, Vec<u8>)) -> Value {
     assert!(output.is_empty(), "a refusal wrote image bytes");
     match result {
         Err(Failure::Error(value)) => {
@@ -543,15 +546,28 @@ fn synthetic_contract_roster_keeps_expected_outcomes_and_allows_reuse() {
     );
     assert_eq!(cases.len(), expected.len());
     for case in cases {
+        let (result, image) = run(&case.bytes, &case.options);
+        let outcome = match &result {
+            Ok(_) => "success",
+            Err(Failure::Usage(_)) => "usage",
+            Err(Failure::Error(value)) => match value["kind"].as_str() {
+                Some("limit") => "limit",
+                Some("decode") => "decode",
+                Some("unsupported_feature") => "unsupported_feature",
+                Some("io") => "io",
+                _ => "other",
+            },
+        };
+        eprintln!("thumbnail-contract step={} outcome={outcome}", case.id);
         if case.kind == "success" {
-            let (result, image) = run(&case.bytes, &case.options);
             let summary = result.unwrap_or_else(|error| panic!("{}: {error:?}", case.id));
             assert_eq!(summary["packets_decoded"], 1, "{}", case.id);
             assert!(!image.is_empty(), "{}", case.id);
         } else {
-            let refused = error(&case.bytes, &case.options);
+            let refused = refusal((result, image));
             assert_eq!(refused["kind"], case.kind, "{}: {refused}", case.id);
         }
+        eprintln!("thumbnail-contract step={} outcome=benign-reuse", case.id);
         benign_reuse();
     }
 }

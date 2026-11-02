@@ -14,6 +14,8 @@ The account itself has one `ArcInner<State>` allocation: two reference counts pl
 
 The bounded selector uses the unchanged stable-sort comparator only while the pinned standard library uses its 4,096-byte stack scratch. It refuses a larger candidate count before allocating candidates rather than substituting a different order. The threshold is derived from the target's candidate type size, not a new memory bar. Native selection remains unrestricted. This additional planning-work refusal preserves arithmetic-overflow ties and can reject a valid full listing earlier than a lifetime-aware implementation.
 
+Without a planning account, native collection growth stays with the vector's own push or extend operation, and native copies and strings keep their ordinary constructors. Accounting-only preflight does not reserve again on that route. Packet access reads initialize the 32-byte header scratch on every walk; the 4,096-byte SEI scratch is initialized only in the branch that reads SEI. These choices avoid making unrelated native packet listings pay the bounded route's maximum scratch work; the instruction guard still judges their actual cost.
+
 ## Decode consumes the selected plan
 
 The bounded operation makes the native choice, then requires an offered keyframe with `start == target`. It restores that access unit through the shared packet reader, with at most 4 MiB including stripped headers and inserted parameter sets. It neither searches for another IDR nor retries with later packets.

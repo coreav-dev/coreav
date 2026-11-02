@@ -691,7 +691,7 @@ fn walk<S: Source>(
     let end = offset.checked_add(len).ok_or(Error::Overflow { offset })?;
     let length_size = u64::from(length_size);
     let mut units = Units::new();
-    let (mut stack, mut heap) = ([0u8; MAX_SEI_BYTES as usize], Vec::new());
+    let (mut stack, mut heap) = ([0u8; STACK_BYTES], Vec::new());
     let mut at = offset;
     while at < end {
         charge()?;
@@ -729,11 +729,12 @@ fn walk<S: Source>(
                 }
             }
             NAL_SEI if sei && units.wants_sei() => {
+                let mut sei_stack = [0; MAX_SEI_BYTES as usize];
                 let payload = read_head(
                     source,
                     body,
                     nal_len.min(MAX_SEI_BYTES),
-                    &mut stack,
+                    &mut sei_stack,
                     &mut heap,
                 )?;
                 units.sei(payload.get(1..).unwrap_or_default());

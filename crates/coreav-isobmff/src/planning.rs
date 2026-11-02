@@ -178,7 +178,7 @@ pub(crate) fn reserve<T>(
         Some(planning) => planning
             .reserve(vector, additional)
             .map_err(|_| limit(offset)),
-        None => vector.try_reserve(additional).map_err(|_| limit(offset)),
+        None => Ok(()),
     }
 }
 
@@ -203,6 +203,9 @@ pub(crate) fn copy<T: Copy>(
     data: &[T],
     offset: u64,
 ) -> Result<Vec<T>, crate::Error> {
+    if planning.is_none() {
+        return Ok(data.to_vec());
+    }
     let mut out = Vec::new();
     reserve_exact(planning, &mut out, data.len(), offset)?;
     out.extend_from_slice(data);
@@ -215,6 +218,9 @@ pub(crate) fn filled<T: Copy>(
     count: usize,
     offset: u64,
 ) -> Result<Vec<T>, crate::Error> {
+    if planning.is_none() {
+        return Ok(vec![value; count]);
+    }
     let mut out = Vec::new();
     reserve_exact(planning, &mut out, count, offset)?;
     out.resize(count, value);
@@ -263,6 +269,15 @@ mod tests {
 
     #[global_allocator]
     static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+    #[test]
+    fn native_growth_is_owned_by_the_vector_operation() {
+        let mut values = Vec::<u8>::new();
+        reserve(None, &mut values, 64, 0).unwrap();
+        assert_eq!(values.capacity(), 0);
+        values.extend_from_slice(&[1, 2, 3]);
+        assert_eq!(values, [1, 2, 3]);
+    }
 
     #[test]
     fn clones_share_charges_and_sticky_failure() {

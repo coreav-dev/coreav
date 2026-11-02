@@ -25,7 +25,7 @@ pub(crate) fn reserve<T>(
         Some(planning) => planning
             .reserve(vector, additional)
             .map_err(|_| limit(offset)),
-        None => vector.try_reserve(additional).map_err(|_| limit(offset)),
+        None => Ok(()),
     }
 }
 
@@ -50,6 +50,9 @@ pub(crate) fn copy(
     bytes: &[u8],
     offset: u64,
 ) -> Result<Vec<u8>, Error> {
+    if planning.is_none() {
+        return Ok(bytes.to_vec());
+    }
     let mut out = Vec::new();
     exact(planning, &mut out, bytes.len(), offset)?;
     out.extend_from_slice(bytes);
@@ -61,6 +64,9 @@ pub(crate) fn string(
     bytes: &[u8],
     offset: u64,
 ) -> Result<String, Error> {
+    if planning.is_none() {
+        return Ok(crate::ebml::string(bytes));
+    }
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let bytes = bytes.get(..end).unwrap_or_default();
     let length = bytes
@@ -99,6 +105,15 @@ pub(crate) fn warn(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_growth_is_owned_by_the_vector_operation() {
+        let mut values = Vec::<u8>::new();
+        reserve(None, &mut values, 64, 0).unwrap();
+        assert_eq!(values.capacity(), 0);
+        values.extend_from_slice(&[1, 2, 3]);
+        assert_eq!(values, [1, 2, 3]);
+    }
 
     #[test]
     fn refusal_leaves_capacity_unallocated_and_preserves_prior_ownership() {

@@ -178,8 +178,10 @@ mod tests {
 
     #[test]
     fn caller_geometry_limits_are_applied_by_preallocation_admission() {
-        let mut limits = coreav_decode::Limits::default();
-        limits.max_width = 64;
+        let mut limits = coreav_decode::Limits {
+            max_width: 64,
+            ..Default::default()
+        };
         assert!(admit_geometry(geometry(1920, 16), &limits).is_err());
         limits.max_width = 1920;
         limits.max_height = 64;

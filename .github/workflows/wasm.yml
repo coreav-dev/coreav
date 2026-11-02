@@ -233,6 +233,7 @@ jobs:
           if ! "$test_binary" > "$private/native-contract.log" 2>&1; then
             echo 'thumbnail native contract failed'
             grep '^test .*FAILED' "$private/native-contract.log" || true
+            grep '^thumbnail-contract step=' "$private/native-contract.log" | tail -1 || true
             exit 1
           fi
           COREAV_THUMBNAIL_HOSTILE_DIR="$private/hostile" "$test_binary" --ignored --exact export_synthetic_contract_fixtures > "$private/hostile-export.log" 2>&1
