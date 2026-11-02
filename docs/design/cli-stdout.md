@@ -14,7 +14,7 @@ reaches it runs `memrchr` for a newline over the whole buffer, and a write
 that holds a 0x0a byte is split there and flushed. Media are full of 0x0a
 bytes, so `-` paid a scan per write and extra system calls.
 
-Both paths now write through `media_stdout()` in `main.rs`: a
+Both paths now write through `media_stdout()` in `output.rs`, shared with `coreav ffmpeg` frame output: a
 `std::fs::File` on a duplicate of standard output, behind a `BufWriter`
 with std's default 8 KiB, the same buffer a file output has.
 

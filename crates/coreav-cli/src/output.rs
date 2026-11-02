@@ -9,6 +9,51 @@ use serde_json::{Value, json};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+/// Standard output for media bytes (an output written to `-`), buffered.
+///
+/// `std::io::Stdout` is line-buffered whatever it is connected to: every
+/// write runs `memrchr` for a newline over the whole buffer, and a 0x0a
+/// byte in the media flushes there. So the media go through a `File` on a
+/// duplicate of the standard output descriptor (Unix) or handle (Windows),
+/// which the standard library opens without `unsafe`. Where there is no
+/// descriptor to duplicate (WASI, or a Windows process without a standard
+/// output handle) the media go through `Stdout` as before. Rust's own
+/// buffer is flushed first, so that nothing written through `Stdout`
+/// earlier comes after the media; the JSON documents, messages and `--help`
+/// keep using `Stdout`.
+///
+/// The buffer is std's default 8 KiB, as for a file output: a larger one
+/// would copy the sample runs that now go to the kernel straight from the
+/// source's buffer (`docs/design/cli-stdout.md`).
+pub fn media_stdout() -> BufWriter<Box<dyn Write>> {
+    let stdout = std::io::stdout();
+    let _ = stdout.lock().flush();
+    #[cfg(unix)]
+    let duplicate = {
+        use std::os::fd::AsFd;
+        stdout.as_fd().try_clone_to_owned().map(std::fs::File::from)
+    };
+    #[cfg(windows)]
+    let duplicate = {
+        use std::os::windows::io::{AsHandle, AsRawHandle};
+        if stdout.as_raw_handle().is_null() {
+            Err(std::io::ErrorKind::Unsupported.into())
+        } else {
+            stdout
+                .as_handle()
+                .try_clone_to_owned()
+                .map(std::fs::File::from)
+        }
+    };
+    #[cfg(not(any(unix, windows)))]
+    let duplicate: std::io::Result<std::fs::File> = Err(std::io::ErrorKind::Unsupported.into());
+    let inner: Box<dyn Write> = match duplicate {
+        Ok(file) => Box::new(file),
+        Err(_) => Box::new(stdout.lock()),
+    };
+    BufWriter::new(inner)
+}
+
 /// Why a write failed, with the exit code it maps to.
 pub enum WriteFailure {
     /// The source was rejected or cannot be written as asked: exit 1.
