@@ -22,7 +22,7 @@ for (let index = 0; index < args.length; index += 1) {
 assert.ok(packageName.startsWith("@") && packageName.includes("/"), "package name must be a scoped package");
 export function rewritePackage(text, name = packageName) {
   if (name === "@coreav/wasm") return text;
-  return text.replaceAll("@coreav/wasm", name);
+  return text.replace(/(["'])@coreav\/wasm(?=\/|["'])/g, (_, quote) => quote + name);
 }
 const cases = [
   { name: "root-node", fixture: "types.mts", workers: false },
@@ -53,7 +53,7 @@ const cases = [
     name: "invalid-workers",
     workers: true,
     setup: [
-      'import { r2Source } from "@coreav/wasm/workers";'.replaceAll("@coreav/wasm", packageName),
+      rewritePackage('import { r2Source } from "@coreav/wasm/workers";'),
       'declare const kv: KVNamespace;',
       'declare const bucket: R2Bucket;',
     ],

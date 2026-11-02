@@ -18,6 +18,7 @@ case "$choice" in
     cargo_target=()
     cargo_features=()
     feature_json="[]"
+    size_flags=""
     ;;
   h264)
     package_dir="$root/packages/wasm-h264"
@@ -25,6 +26,7 @@ case "$choice" in
     cargo_target=(--target-dir "$root/target/wasm-h264")
     cargo_features=(--features native-h264)
     feature_json='["native-h264"]'
+    size_flags="-C opt-level=z"
     node "$package_dir/scripts/sync-sources.mjs"
     ;;
   *)
@@ -50,7 +52,7 @@ selection=(-p coreav-wasm --profile edge --target wasm32-unknown-unknown)
 if [ "${#cargo_features[@]}" -gt 0 ]; then
   selection+=("${cargo_features[@]}")
 fi
-export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+simd128"
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }${size_flags:+$size_flags }-C target-feature=+simd128"
 CARGO_ENCODED_RUSTFLAGS="$(node "$root/scripts/notices/main.mjs" prepare -- "${selection[@]}")"
 export CARGO_ENCODED_RUSTFLAGS
 unset RUSTFLAGS

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { SIZE_BAR, packageIdentity, validateFeatureClosure, validateManifest } from "../../wasm/scripts/check-package.mjs";
+import { SIZE_BAR, packageIdentity, validateFeatureClosure, validateManifest, validateProvenance } from "../../wasm/scripts/check-package.mjs";
 import { rewritePackage } from "../../wasm/scripts/check-types.mjs";
 import { EXTRA, profile } from "../scripts/profile.mjs";
 import { verifyCopies } from "../scripts/sync-sources.mjs";
@@ -27,6 +28,13 @@ test("the packed manifest stays private and uses the approved script names", () 
   validateManifest(manifest, new Set(["MIT", "Apache-2.0"]), "@coreav/wasm-h264");
   assert.equal(manifest.dependencies, undefined);
   assert.equal(JSON.stringify(manifest).includes("@coreav/wasm\""), false);
+});
+
+test("declaration imports are rewritten once without corrupting an existing package name", () => {
+  const source = 'import { thumbnail } from "@coreav/wasm-h264";\nimport { probe } from "@coreav/wasm";\nimport { thumbnail as nodeThumbnail } from \'@coreav/wasm-h264/node\';\nimport "@coreav/wasm/src/api.js";';
+  const expected = source.replace('from "@coreav/wasm"', 'from "@coreav/wasm-h264"').replace('"@coreav/wasm/src/api.js"', '"@coreav/wasm-h264/src/api.js"');
+  assert.equal(rewritePackage(source, "@coreav/wasm-h264"), expected);
+  assert.equal(rewritePackage(expected, "@coreav/wasm-h264"), expected);
 });
 
 test("the H.264 package keeps the same gzip bar and a separate feature closure", () => {
@@ -63,4 +71,19 @@ test("the shared build accepts only the closed default or h264 selection", () =>
   const extra = spawnSync("bash", [script, "h264", "extra"], { encoding: "utf8" });
   assert.notEqual(extra.status, 0);
   assert.match(extra.stderr, /usage/);
+});
+
+test("the H.264 provenance records its size optimization without relaxing the byte gate", () => {
+  const wasm = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
+  const hash = createHash("sha256").update(wasm).digest("hex");
+  const provenance = { wasmSha256: hash, wasmOpt: "wasm-opt version 133 (version_133)", wasmBindgen: "0.2.129", profile: "edge", target: "wasm32-unknown-unknown", rustc: "rustc 1.99.1 (build date)", simdInstructions: 1 };
+  const flags = ["-C", "opt-level=z", "-C", "target-feature=+simd128"];
+  const verify = rustflags => validateProvenance(provenance, wasm, Buffer.from(`export const BUILD = "${hash}";\n`), {
+    binaryen: "133", bindgen: "0.2.129", rust: "1.99.1",
+    notices: { raw: { sha256: hash }, distribution: { features: ["native-h264"], rustflags } },
+  });
+  assert.equal(verify(flags), hash);
+  for (const invalid of [flags.slice(2), flags.map(flag => flag === "opt-level=z" ? "opt-level=3" : flag), [...flags, "-C", "opt-level=3"]]) {
+    assert.throws(() => verify(invalid), /recorded size optimization/);
+  }
 });

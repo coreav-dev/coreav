@@ -135,6 +135,9 @@ export function validateProvenance(provenance, wasm, fingerprint, pins) {
   assert.match(pins.notices.raw.sha256, /^[a-f0-9]{64}$/, "missing raw module build provenance");
   assert.ok(Array.isArray(pins.notices.distribution.rustflags) && pins.notices.distribution.rustflags.every((flag) => typeof flag === "string" && !flag.startsWith("--remap-path-prefix")) && pins.notices.distribution.rustflags.some((flag, index) => flag === "-C" && pins.notices.distribution.rustflags[index + 1] === "target-feature=+simd128"), "missing SIMD build flags in provenance");
   assert.ok(provenance.rustc.startsWith(`rustc ${pins.rust} `), "build with the pinned WASM Rust toolchain");
+  if (pins.notices.distribution.features?.includes("native-h264")) {
+    assert.deepEqual(pins.notices.distribution.rustflags.slice(-4), ["-C", "opt-level=z", "-C", "target-feature=+simd128"], "build the H.264 module with its recorded size optimization");
+  }
   return hash;
 }
 
