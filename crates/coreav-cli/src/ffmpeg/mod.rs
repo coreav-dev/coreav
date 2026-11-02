@@ -913,7 +913,7 @@ const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "w
 /// often as the maps name it, or the automatic selection (the video, then
 /// the audio stream, each with the default disposition first, then the
 /// largest picture or the most channels, the first of equals), less the
-/// disabled types. Each must be covered by a `copy` codec option.
+/// disabled types, with the codecs resolved against the output positions.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {

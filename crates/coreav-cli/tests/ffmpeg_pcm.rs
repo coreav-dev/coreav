@@ -218,3 +218,49 @@ fn pcm_selection_refuses_video_and_keeps_codec_output_positions() {
     );
     assert!(!out.exists());
 }
+
+#[test]
+fn input_and_output_zero_time_options_keep_their_distinct_meanings() {
+    let dir = scratch("ffmpeg-pcm-zero-time");
+    let (input, expected) = fixture(&dir, false);
+    let out = dir.join("out.wav");
+    for (before, after, code, length) in [
+        (vec!["-t", "0"], vec![], 0, 44 + expected.len()),
+        (vec!["-to", "0"], vec![], 2, 0),
+        (vec![], vec!["-to", "0"], 2, 0),
+        (vec![], vec!["-t", "0"], 0, 44),
+        (vec!["-to", "0", "-t", "0"], vec![], 0, 44 + expected.len()),
+    ] {
+        let _ = std::fs::remove_file(&out);
+        let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(["--strict-safe", "ffmpeg"])
+            .args(&before)
+            .arg("-i")
+            .arg(&input)
+            .args(&after)
+            .arg(&out)
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(code),
+            "{before:?} {after:?}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(
+            std::fs::metadata(&out).map_or(0, |m| m.len()),
+            length as u64
+        );
+    }
+    let input = dir.join("aac.mp4");
+    std::fs::write(&input, common::av_movie_with(common::aac_entry(), false)).unwrap();
+    let _ = std::fs::remove_file(&out);
+    let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(["--strict-safe", "ffmpeg", "-ss", "0", "-i"])
+        .arg(input)
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(4));
+    assert!(!out.exists());
+}

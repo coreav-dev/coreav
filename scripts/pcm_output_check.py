@@ -31,9 +31,15 @@ def run(args, *, env=None):
 def fields(probe, path, raw, rate, channels):
     options = ["-f", "s16le", "-sample_rate", str(rate), "-ch_layout",
                {1: "mono", 2: "stereo", 6: "5.1"}[channels]] if raw else []
-    data = json.loads(run([probe, "-v", "error", *options, "-show_streams", "-of", "json", path]))
+    data = json.loads(run([probe, "-v", "error", *options, "-show_streams", "-show_format", "-of", "json", path]))
     [stream] = data["streams"]
-    return {key: stream.get(key) for key in FIELDS}
+    return {"stream": {key: stream.get(key) for key in FIELDS},
+            "tags": {key.lower(): value for key, value in data["format"].get("tags", {}).items()
+                     if key.lower() != "encoder"}}
+
+
+def native_command(coreav, input_path, output, before=(), after=()):
+    return [str(coreav), "ffmpeg", *before, "-i", str(input_path), *after, str(output)]
 
 
 def check(coreav, oracle, root):
@@ -44,7 +50,7 @@ def check(coreav, oracle, root):
     def compare(case, number, input_path, before, after, kind, expected, rate, channels):
         ours = root / f"ours-{case}-{number}.{kind}"
         theirs = root / f"oracle-{case}-{number}.{kind}"
-        stdout = run([coreav, "ffmpeg", *before, "-i", input_path, *after, ours], env=env)
+        stdout = run(native_command(coreav, input_path, ours, before, after), env=env)
         if stdout:
             raise AssertionError(f"unexpected standard output: {case}/{number}")
         run([ffmpeg, "-v", "error", *before, *AUDIO_DECODE_INPUT, "-i", input_path, *after, theirs])
@@ -85,10 +91,23 @@ def check(coreav, oracle, root):
                 ([], ["-ar", str(rate), *(["-ac", str(channels)] if channels <= 2 else []),
                       "-c:a", "pcm_s16le"], "wav", 4096),
                 ([], ["-map", "0:a:0", "-c:0", "pcm_s16le", "-f", "wav"], "wav", 4096),
+                (["-t", "0"], [], "wav", 4096),
+                (["-t", "0.01"], [], "wav", rate // 100),
+                (["-to", "0.01"], [], "wav", rate // 100),
+                ([], ["-to", "0.01"], "wav", rate // 100),
+                (["-to", "0", "-t", "0"], [], "wav", 4096),
+                ([], ["-t", "0"], "wav", 0),
             ]
             for number, (before, after, kind, count) in enumerate(commands):
                 expected = samples[:count * channels * 2]
                 compare(case, number, input_path, before, after, kind, expected, rate, channels)
+
+            for before, after in [(["-to", "0"], []), ([], ["-to", "0"])]:
+                output = root / f"zero-end-{case}.wav"
+                refused = subprocess.run(native_command(coreav, input_path, output, before, after),
+                                         capture_output=True, timeout=30, env=env)
+                if refused.returncode != 2 or output.exists():
+                    raise AssertionError("an effective zero -to must fail without an output")
 
     mixed = root / "mixed.mka"
     run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", root / "input-2-44100-mka.mka",
@@ -106,7 +125,7 @@ def check(coreav, oracle, root):
     tagged = root / "tagged.mka"
     run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", mixed,
          "-map", "0:a:0", "-c", "copy", "-metadata", "title=PCM check", tagged])
-    refused = subprocess.run([str(coreav), "ffmpeg", "-i", str(tagged), str(root / "refused.wav")],
+    refused = subprocess.run(native_command(coreav, tagged, root / "refused.wav"),
                              capture_output=True, timeout=30, env=env)
     if refused.returncode != 4 or (root / "refused.wav").exists():
         raise AssertionError("default WAV metadata must be refused without an output")

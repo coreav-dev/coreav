@@ -12,6 +12,8 @@ Resampling, channel mixing, raw input, multiple outputs, metadata copying, nonze
 
 The compatibility command does not suppress decoder warnings. An ignored edit list is a compatibility refusal. Other decoder warnings fail the command, and a WAV file beyond the RIFF size limit is refused. Neither case publishes the staged file.
 
+Input seeking is supported only for FLAC at zero. FFmpeg's input `-ss 0` can change AAC priming even though its requested time is zero, so stateful-codec input seeking is refused. Output `-ss 0` keeps the decoded presentation. An input `-t 0` means unlimited input, an output `-t 0` means empty output, and an effective `-to 0` is a usage error. Within each input or output group, `-t` overrides `-to`.
+
 ## Correctness bars
 
 These bars are committed before comparisons run. Generated, deterministic signed 16-bit samples are stored in lossless FLAC tracks in Matroska and MP4. For every supported test command, the raw output and the decoded WAV output must equal the input sample bytes, with no tolerance. The existing decoder's edit-list trimming remains part of the input presentation.
