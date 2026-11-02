@@ -135,8 +135,8 @@ def _run(command, directory, timeout, stdout, stderr, env, cwd, guard):
             require(code == 0, "child_failure")
             require(ended - started <= timeout * 1e9, "timeout")
             return ended - started
-        except OSError:
-            raise Invalid("process_infrastructure") from None
+        except OSError as error:
+            raise Invalid("process_infrastructure") from OSError(error.errno, "process execution")
         finally:
             signal.pthread_sigmask(signal.SIG_BLOCK, WATCHED)
             try:
@@ -145,23 +145,9 @@ def _run(command, directory, timeout, stdout, stderr, env, cwd, guard):
                         os.killpg(child.pid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                    if not exited:
-                        if queue is not None:
-                            if not registered:
-                                registered = register(queue, child)
-                                exited = not registered
-                            if not exited:
-                                events = queue.control([], 1, 10)
-                                require(not events or not events[0].flags & select.KQ_EV_ERROR, "cleanup_failed")
-                                exited = bool(events)
-                        else:
-                            if pidfd is None:
-                                pidfd = os.pidfd_open(child.pid)
-                            exited = bool(select.select([pidfd], [], [], 10)[0])
-                    require(exited, "cleanup_failed")
                     child.wait()
-            except OSError:
-                raise Invalid("cleanup_failed") from None
+            except OSError as error:
+                raise Invalid("cleanup_failed") from OSError(error.errno, "process cleanup")
             finally:
                 if pidfd is not None:
                     os.close(pidfd)

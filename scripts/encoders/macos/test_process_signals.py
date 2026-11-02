@@ -1,6 +1,7 @@
 """Hosted-macOS signal cleanup using only disjoint Python child programs."""
 
 import json
+from contextlib import closing
 import os
 from pathlib import Path
 import select
@@ -18,6 +19,26 @@ import process
 
 @unittest.skipUnless(sys.platform == "darwin", "kernel process-exit checks run on hosted macOS")
 class Signals(unittest.TestCase):
+    def test_exit_registration_failure_still_kills_and_reaps_the_child(self):
+        children = []
+        original = subprocess.Popen
+
+        def launch(*args, **kwargs):
+            child = original(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(process.subprocess, "Popen", side_effect=launch), \
+                mock.patch.object(process, "register", side_effect=OSError(22, "private diagnostic")), \
+                self.assertRaisesRegex(process.Invalid, "process_infrastructure") as caught:
+            process.run([sys.executable, "-c", "import time; time.sleep(60)"], directory, 10)
+        self.assertEqual(len(children), 1)
+        self.assertEqual(children[0].returncode, -signal.SIGKILL)
+        self.assertNotIn("private", str(caught.exception.__cause__))
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(children[0].pid, os.WNOHANG)
+
     def test_signal_during_child_publication_still_reaps_child(self):
         children = []
         original = subprocess.Popen
@@ -47,7 +68,7 @@ class Signals(unittest.TestCase):
 
     def test_term_and_hup_clean_the_group_before_original_termination(self):
         for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGINT):
-            with self.subTest(signal=signum), tempfile.TemporaryDirectory() as temporary, select.kqueue() as queue:
+            with self.subTest(signal=signum), tempfile.TemporaryDirectory() as temporary, closing(select.kqueue()) as queue:
                 root = Path(temporary)
                 child = root / "child.py"
                 child.write_text(

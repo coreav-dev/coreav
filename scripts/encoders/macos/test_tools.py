@@ -1,6 +1,7 @@
 """Synthetic records and fake commands only; never the registered roster."""
 
 import ast
+from contextlib import closing
 import copy
 import math
 import os
@@ -583,7 +584,7 @@ class KernelExit(unittest.TestCase):
             self.assertGreater(elapsed, 0)
 
     def test_timeout_kills_sigterm_ignoring_group_and_reaps_child(self):
-        with tempfile.TemporaryDirectory() as directory, select.kqueue() as queue:
+        with tempfile.TemporaryDirectory() as directory, closing(select.kqueue()) as queue:
             original = process.subprocess.Popen
             children = []
             ready_read, ready_write = os.pipe()

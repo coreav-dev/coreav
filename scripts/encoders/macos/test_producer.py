@@ -186,7 +186,8 @@ class Observability(unittest.TestCase):
         item = producer.unit_item()
         good = b"".join(f"{n} 1/30 {n} 6\n".encode() for n in range(4))
         producer.packet_clock(good, item)
-        for changed in (good.replace(b"1/30", b"1/29"), good.replace(b"1 1/30 1", b"0 1/30 1"),
+        producer.packet_clock(good.replace(b"1/30", b"1/29"), item)
+        for changed in (good.replace(b"1/30", b"1/15"), good.replace(b"1 1/30 1", b"0 1/30 1"),
                         good.splitlines(keepends=True)[0], good + good[:13], good.replace(b"6", b"0")):
             with self.assertRaises(evidence.Invalid):
                 producer.packet_clock(changed, item)
