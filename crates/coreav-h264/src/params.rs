@@ -13,14 +13,14 @@ pub(crate) const MAX_PPS: usize = 256;
 
 /// The parts of the video usability information the decoder uses: the two
 /// hints that bound the decoded picture buffer (Annex E.2.1).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Vui {
     pub(crate) max_num_reorder_frames: Option<u32>,
     pub(crate) max_dec_frame_buffering: Option<u32>,
 }
 
 /// A sequence parameter set.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Sps {
     pub(crate) profile_idc: u8,
     pub(crate) constraint_flags: u8,
@@ -384,7 +384,7 @@ fn parse_crop(r: &mut BitReader, sps: &Sps) -> Result<[u32; 4]> {
 
 /// A picture parameter set, resolved against the sequence parameter set it
 /// names.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Pps {
     pub(crate) sps_id: u32,
     pub(crate) cabac: bool,

@@ -26,6 +26,9 @@ use crate::work::{
     Workers,
 };
 
+mod one_idr;
+use one_idr::OneIdrState;
+
 /// What a decoder spends its work on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -54,6 +57,10 @@ pub enum Mode {
     ///   [`Picture::mark`] are how a caller tells which access unit a
     ///   picture came from.
     KeyframesOnly,
+    /// One complete supplied access unit, preflighted before picture
+    /// allocation, with one intra-only IDR and strict macroblock coverage.
+    /// Use [`Decoder::decode_one_idr`]; streaming slices are refused.
+    OneIdr,
 }
 
 /// A problem that does not stop decoding, but that may change what the
@@ -144,6 +151,7 @@ pub struct Decoder<K: Kernels = Auto> {
     choice: Choice,
     limits: Limits,
     mode: Mode,
+    one_idr: OneIdrState,
     /// Pictures decoded at once, one thread each; 1 decodes on the
     /// caller's thread and starts none.
     threads: usize,
@@ -234,6 +242,7 @@ impl<K: Kernels> Decoder<K> {
             choice: Choice::detect(true),
             limits,
             mode: Mode::EveryPicture,
+            one_idr: OneIdrState::Fresh,
             threads: 1,
             band_mbs: None,
             workers: Workers { list: Vec::new() },
@@ -277,6 +286,15 @@ impl<K: Kernels> Decoder<K> {
     /// A thumbnail needs one keyframe and nothing else; skipping the rest
     /// is most of the work of a stream.
     pub fn with_mode(mut self, mode: Mode) -> Decoder<K> {
+        if mode == Mode::OneIdr
+            && self.mode != Mode::OneIdr
+            && (self.started
+                || self.rbsp.capacity() != 0
+                || !self.pool.is_empty()
+                || !self.workers.list.is_empty())
+        {
+            self.fail_one_idr();
+        }
         self.mode = mode;
         self
     }
@@ -458,6 +476,9 @@ impl<K: Kernels> Decoder<K> {
     /// is decoded, and this returns the pictures up to the first that is
     /// not, without waiting for it.
     pub fn take_pictures(&mut self) -> Vec<Arc<Picture>> {
+        if self.mode == Mode::OneIdr && self.one_idr != OneIdrState::Finished {
+            return Vec::new();
+        }
         self.retire(Wait::No);
         self.release_output();
         let cleared = self.cleared();
@@ -589,6 +610,9 @@ impl<K: Kernels> Decoder<K> {
     /// after it as a picture of their own; the decoder cannot tell that
     /// from a stream whose last slices are missing.
     pub fn end_access_unit(&mut self) -> Result<()> {
+        if self.mode == Mode::OneIdr {
+            return self.one_idr_settled();
+        }
         let result = self.finish_picture();
         self.end_of_access_unit();
         self.report(result)
@@ -606,6 +630,9 @@ impl<K: Kernels> Decoder<K> {
     /// ones become warnings. A caller that carries on takes the pictures
     /// one thread gives.
     pub fn flush(&mut self) -> Result<()> {
+        if self.mode == Mode::OneIdr {
+            return self.one_idr_settled();
+        }
         if let Err(e) = self.finish_picture() {
             self.warn(Warning::PictureIncomplete(e));
         }
@@ -635,6 +662,13 @@ impl<K: Kernels> Decoder<K> {
     /// Decodes one NAL unit, with its header byte and without emulation
     /// prevention bytes removed (that happens here).
     pub fn decode_nal(&mut self, nal: &[u8]) -> Result<()> {
+        if self.mode == Mode::OneIdr {
+            let result = self.one_idr_parameter_set(nal);
+            if result.is_err() {
+                self.fail_one_idr();
+            }
+            return result;
+        }
         let result = self.decode_unit(nal);
         self.report(result)
     }
@@ -706,6 +740,15 @@ impl<K: Kernels> Decoder<K> {
     /// A slice that goes to a worker takes `rbsp` with it.
     fn decode_slice(&mut self, rbsp: &mut Vec<u8>, idr: bool, nal_ref_idc: u8) -> Result<()> {
         let pps_id = peek_pps_id(rbsp)? as usize;
+        let (sps, pps) = self.resolve_parameter_sets(pps_id)?;
+        check_scope(&sps, &pps)?;
+        let mut r = BitReader::new(rbsp);
+        let nal_unit_type = if idr { 5 } else { 1 };
+        let hdr = parse_slice_header(&mut r, nal_unit_type, nal_ref_idc, &sps, &pps)?;
+        self.decode_slice_header(rbsp, hdr, sps, pps)
+    }
+
+    fn resolve_parameter_sets(&mut self, pps_id: usize) -> Result<(Arc<Sps>, Arc<Pps>)> {
         let raw = self
             .pps
             .get(pps_id)
@@ -746,10 +789,16 @@ impl<K: Kernels> Decoder<K> {
                 (sps, pps)
             }
         };
-        check_scope(&sps, &pps)?;
-        let mut r = BitReader::new(rbsp);
-        let nal_unit_type = if idr { 5 } else { 1 };
-        let hdr = parse_slice_header(&mut r, nal_unit_type, nal_ref_idc, &sps, &pps)?;
+        Ok((sps, pps))
+    }
+
+    fn decode_slice_header(
+        &mut self,
+        rbsp: &mut Vec<u8>,
+        hdr: SliceHeader,
+        sps: Arc<Sps>,
+        pps: Arc<Pps>,
+    ) -> Result<()> {
         if hdr.field_pic {
             return Err(Error::Unsupported("field pictures"));
         }
@@ -897,6 +946,9 @@ impl<K: Kernels> Decoder<K> {
 
     /// Starts a new picture (clause 8.2).
     fn start_picture(&mut self, hdr: &SliceHeader, sps: &Arc<Sps>, pps: &Pps) -> Result<()> {
+        if self.mode == Mode::OneIdr {
+            self.check_one_idr_start(hdr, sps)?;
+        }
         let mb_w = sps.width_mbs as usize;
         let mb_h = sps.frame_height_mbs() as usize;
         let mbs = mb_w
@@ -904,7 +956,7 @@ impl<K: Kernels> Decoder<K> {
             .filter(|&m| m > 0 && m <= self.limits.max_mbs)
             .ok_or(Error::Limit(LimitKind::PictureSize))?;
         let dpb_size = self.dpb_size(sps, mbs);
-        if self.memory_checked != Some((mb_w, mb_h, dpb_size)) {
+        if self.mode != Mode::OneIdr && self.memory_checked != Some((mb_w, mb_h, dpb_size)) {
             self.fit_memory(mb_w, mb_h, dpb_size)?;
             self.memory_checked = Some((mb_w, mb_h, dpb_size));
         }
@@ -995,12 +1047,15 @@ impl<K: Kernels> Decoder<K> {
         let picture = Arc::new(picture.with_output(poc, crop, slot, self.mark));
         self.pool.push(Arc::clone(&picture));
         let canvas = Canvas::new(Arc::clone(&picture), bands);
-        let work = PictureWork::new(
+        let mut work = PictureWork::new(
             Arc::clone(&self.kernels),
             self.choice,
             canvas,
             pps.chroma_qp_index_offset,
-        );
+        )?;
+        if self.mode == Mode::OneIdr {
+            work.reserve_one_picture()?;
+        }
         // What the output process released before this picture is behind
         // the pictures started before it.
         self.release_output();
@@ -1245,6 +1300,9 @@ impl<K: Kernels> Decoder<K> {
         mb_w: usize,
         mb_h: usize,
     ) -> Result<()> {
+        if self.mode == Mode::OneIdr {
+            return Err(Error::OneIdr(crate::OneIdrError::FrameNumGap));
+        }
         // The frames a gap invents may push out of the buffer, at once,
         // every reference the pictures in flight predict from; those
         // finish first, so that what they hold stays within what the
@@ -1366,6 +1424,11 @@ impl<K: Kernels> Decoder<K> {
     /// for its bands: those of a picture nothing else holds, or none.
     fn new_picture(&mut self, geometry: Geometry) -> Result<(Picture, Vec<BandData>)> {
         let picture = Picture::new(geometry, &self.limits)?;
+        if self.mode == Mode::OneIdr {
+            let mut band = BandData::default();
+            band.try_fit(&geometry, 0)?;
+            return Ok((picture, vec![band]));
+        }
         let free = self
             .pool
             .iter()
@@ -1397,6 +1460,9 @@ impl<K: Kernels> Decoder<K> {
         };
         let result = match current.feed {
             Feed::Inline(work) => {
+                if self.mode == Mode::OneIdr && !work.complete() {
+                    return Err(Error::OneIdr(crate::OneIdrError::IncompletePicture));
+                }
                 let (result, spare) = work.finish();
                 self.spare = spare;
                 result

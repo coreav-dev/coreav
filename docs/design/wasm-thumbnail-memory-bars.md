@@ -49,6 +49,8 @@ A starting one-picture model is `K0 = S + 384A + T*A + 128 KiB + 4 MiB NAL + 4 M
 
 Use fallible frame-sized reservations and the existing counting allocator to test estimates across admitted geometries, parameter sets, slices, output transfer and refusals. No new unsafe allocator is authorized. If this bound cannot be established, stage 1 is not ready; it cannot bypass the general estimator with an unchecked thumbnail-side estimate.
 
+The decoder-owned prerequisite is `Mode::OneIdr` with `Decoder::decode_one_idr` and `NativeH264::one_idr()`, described in [h264.md](h264.md#pictures-that-need-no-other-picture). Its admission contract requires the complete supplied access unit and checks every slice header before picture start. Exact entropy-decoded macroblock coverage is checked before output, not before pixel allocation; a separate entropy-validation pass is not used. Its SPS-derived fallible bound retains `K0` because the preflight borrows the supplied packet and adds no retained packet/header copy, and it reserves slice-filter capacity once. The caller still owns this plan's tighter geometry, packet restoration, planning, rendering, encoding and host budgets. Native allocation tests do not establish the Workers envelope.
+
 ## Derivation of budgets
 
 [Workers documents 128 MB per isolate](https://developers.cloudflare.com/workers/platform/limits/#memory), including JS heap and WASM allocations, shared by requests. Conservatively treat this as 128,000,000 bytes, not 128 MiB. Every MiB below is 1,048,576 bytes.

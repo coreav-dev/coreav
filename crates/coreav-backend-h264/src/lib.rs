@@ -76,6 +76,7 @@ pub struct NativeOptions {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NativeH264 {
     options: NativeOptions,
+    one_idr: bool,
 }
 
 impl NativeH264 {
@@ -87,7 +88,29 @@ impl NativeH264 {
 
     /// The backend with `options`.
     pub fn with_options(options: NativeOptions) -> NativeH264 {
-        NativeH264 { options }
+        NativeH264 {
+            options,
+            one_idr: false,
+        }
+    }
+
+    /// One complete intra-only IDR access unit, with a codec-owned bound
+    /// of at most 32 MiB, one thread and no concealed output.
+    pub fn one_idr() -> NativeH264 {
+        NativeH264 {
+            options: NativeOptions {
+                keyframes_only: false,
+                threads: Some(1),
+            },
+            one_idr: true,
+        }
+    }
+
+    /// The fallible codec-side bound for an SPS NAL in one-IDR mode,
+    /// including one packed output frame. The borrowed packet is external.
+    pub fn one_idr_memory_needed(sps_nal: &[u8], limits: &Limits) -> Result<u64, Error> {
+        coreav_h264::Decoder::<Auto>::one_idr_memory_needed(sps_nal, &decode_limits(limits))
+            .map_err(|e| Error::new(kind_of(&e), e.to_string()))
     }
 
     /// The memory budget (`Limits::max_memory_bytes`) a stream of
@@ -156,7 +179,12 @@ impl Backend for NativeH264 {
     }
 
     fn open(&self, stream: &StreamConfig, limits: &Limits) -> Result<Box<dyn Decoder>, Error> {
-        Ok(Box::new(NativeDecoder::open(stream, limits, self.options)?))
+        Ok(Box::new(NativeDecoder::open(
+            stream,
+            limits,
+            self.options,
+            self.one_idr,
+        )?))
     }
 }
 
@@ -204,6 +232,8 @@ struct Mark {
 /// invent one.
 struct NativeDecoder {
     decoder: coreav_h264::Decoder<Auto>,
+    one_idr: bool,
+    one_idr_failed: bool,
     /// Pictures the decoder decodes at once.
     threads: usize,
     info: DecoderInfo,
@@ -233,6 +263,7 @@ impl NativeDecoder {
         stream: &StreamConfig,
         limits: &Limits,
         options: NativeOptions,
+        one_idr: bool,
     ) -> Result<NativeDecoder, Error> {
         let kernels = Auto::detect();
         let own_limits = decode_limits(limits);
@@ -246,6 +277,9 @@ impl NativeDecoder {
             coreav_h264::Decoder::with_kernels(kernels, own_limits).with_threads(threads);
         if options.keyframes_only {
             decoder = decoder.with_mode(Mode::KeyframesOnly);
+        }
+        if one_idr {
+            decoder = decoder.with_mode(Mode::OneIdr).with_threads(1);
         }
         let mut length_size = None;
         if let Some(config) = &stream.config {
@@ -284,6 +318,8 @@ impl NativeDecoder {
         Ok(NativeDecoder {
             threads: decoder.threads(),
             decoder,
+            one_idr,
+            one_idr_failed: false,
             info: DecoderInfo {
                 backend: BackendKind::Native,
                 isolation: Isolation::InProcess,
@@ -417,6 +453,12 @@ impl NativeDecoder {
     /// limits drops the frames after it that the same NAL unit released,
     /// not the rest of the packet's.
     fn decode_access_unit(&mut self, data: &[u8]) -> Result<(), Error> {
+        if self.one_idr {
+            self.decoder
+                .decode_one_idr(data, self.length_size)
+                .map_err(|e| Error::new(kind_of(&e), e.to_string()))?;
+            return self.collect();
+        }
         let mut first = Ok(());
         let mut framed = Ok(());
         let mut note = |this: &mut Self, result: coreav_h264::Result<()>| {
@@ -466,32 +508,53 @@ impl NativeDecoder {
 
 impl Decoder for NativeDecoder {
     fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
-        self.check_deadline()?;
-        self.limits.check_packet(packet)?;
-        if self.eof {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "a packet after the end of the stream",
-            ));
+        let result = (|| {
+            if self.one_idr_failed {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "the one-IDR request failed",
+                ));
+            }
+            self.check_deadline()?;
+            self.limits.check_packet(packet)?;
+            if self.eof {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "a packet after the end of the stream",
+                ));
+            }
+            let mark = self.next_mark;
+            self.next_mark = self.next_mark.wrapping_add(1);
+            self.decoder.set_mark(mark);
+            while self.marks.len() >= MAX_PENDING_MARKS + self.threads {
+                self.marks.pop_front();
+            }
+            self.marks.push_back(Mark {
+                mark,
+                pts: packet.pts,
+                discard: packet.discard,
+            });
+            // The frames are collected even when the packet failed, so that a
+            // caller that carries on gets the same frames whatever the thread
+            // count; one that stops at the error never asks for them.
+            self.decode_access_unit(packet.data)
+        })();
+        if self.one_idr && result.is_err() {
+            self.one_idr_failed = true;
+            self.ready.clear();
+            self.marks.clear();
+            self.pending_bytes = 0;
         }
-        let mark = self.next_mark;
-        self.next_mark = self.next_mark.wrapping_add(1);
-        self.decoder.set_mark(mark);
-        while self.marks.len() >= MAX_PENDING_MARKS + self.threads {
-            self.marks.pop_front();
-        }
-        self.marks.push_back(Mark {
-            mark,
-            pts: packet.pts,
-            discard: packet.discard,
-        });
-        // The frames are collected even when the packet failed, so that a
-        // caller that carries on gets the same frames whatever the thread
-        // count; one that stops at the error never asks for them.
-        self.decode_access_unit(packet.data)
+        result
     }
 
     fn send_eof(&mut self) -> Result<(), Error> {
+        if self.one_idr_failed {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the one-IDR request failed",
+            ));
+        }
         self.check_deadline()?;
         if !self.eof {
             self.eof = true;
@@ -502,7 +565,13 @@ impl Decoder for NativeDecoder {
                 .flush()
                 .map_err(|e| Error::new(kind_of(&e), e.to_string()));
             let collected = self.collect();
-            return flushed.and(collected);
+            let result = flushed.and(collected);
+            if self.one_idr && result.is_err() {
+                self.one_idr_failed = true;
+                self.ready.clear();
+                self.pending_bytes = 0;
+            }
+            return result;
         }
         Ok(())
     }
@@ -631,6 +700,7 @@ fn kind_of(error: &coreav_h264::Error) -> ErrorKind {
     match error {
         coreav_h264::Error::Unsupported(_) => ErrorKind::Unsupported,
         coreav_h264::Error::Limit(_) => ErrorKind::Limit,
+        coreav_h264::Error::OneIdr(_) => ErrorKind::InvalidData,
         coreav_h264::Error::Geometry(_) => ErrorKind::Backend,
         coreav_h264::Error::Truncated(_) | coreav_h264::Error::Invalid(_) => ErrorKind::InvalidData,
     }
