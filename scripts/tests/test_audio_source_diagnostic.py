@@ -2,7 +2,11 @@ import importlib.util
 from pathlib import Path
 import random
 import struct
+import subprocess
+import sys
+import tempfile
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'audio_source_diagnostic.py'
 SPEC = importlib.util.spec_from_file_location('audio_source_diagnostic', SCRIPT)
@@ -15,6 +19,52 @@ def pcm(values):
 
 
 class AudioSourceDiagnostic(unittest.TestCase):
+    def test_command_failures_retain_a_bounded_stderr_tail(self):
+        self.assertEqual(diagnostic.run([sys.executable, '-I', '-c', 'print("ok")']), b'ok\n')
+        command = [sys.executable, '-I', '-c',
+                   'import sys; sys.stderr.write("discarded-prefix" + "x" * 5000 + "failure-marker"); sys.exit(7)']
+        with self.assertRaisesRegex(RuntimeError, 'failure-marker') as raised:
+            diagnostic.run(command)
+        self.assertIsInstance(raised.exception.__cause__, subprocess.CalledProcessError)
+        self.assertNotIn('discarded-prefix', str(raised.exception))
+        self.assertLess(len(str(raised.exception)), 4300)
+
+    def test_fixture_and_metadata_failures_leave_an_incomplete_report(self):
+        for failure in ['fixture', 'version', 'hash']:
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                for program in ['coreav', 'ffmpeg', 'ffprobe']:
+                    (root / program).write_bytes(b'controlled tool identity')
+                (root / 'MANIFEST').write_text('generated browser.webm\n')
+                output = root / 'report'
+                if failure == 'hash':
+                    (root / 'coreav').unlink()
+
+                def failing_run(command, **kwargs):
+                    if (failure == 'fixture' and 'lavfi' in command
+                            or failure == 'version' and '-version' in command):
+                        raise RuntimeError('controlled preparation failure')
+                    return b'controlled tool version\n'
+
+                argv = ['audio_source_diagnostic.py', '--coreav', str(root / 'coreav'),
+                        '--ffmpeg', str(root / 'ffmpeg'), '--fixtures', str(root), '--out', str(output)]
+                with mock.patch.object(sys, 'argv', argv), mock.patch.object(diagnostic, 'run', failing_run):
+                    with self.assertRaises((RuntimeError, FileNotFoundError)):
+                        diagnostic.main()
+                report = diagnostic.json.loads((output / 'report.json').read_text())
+                self.assertFalse(report['completed'])
+                self.assertTrue(report['diagnostic_only'])
+                self.assertEqual(report['results'], [])
+
+    def test_workflow_diagnostic_survives_test_failure_but_not_a_missing_build(self):
+        workflow = SCRIPT.parents[1] / '.github/workflows/ci.yml'
+        job = workflow.read_text().split('\n  isobmff-decode:\n', 1)[1].split('\n  b9-shard:\n', 1)[0]
+        self.assertTrue('id: decode-build\n' in job, 'Give the diagnostic prerequisite build id: decode-build')
+        step = job.split('- name: Observe decoder and AAC encoder boundaries on generated fixtures\n', 1)[1]
+        step = step.split('\n      - ', 1)[0]
+        self.assertTrue("if: ${{ !cancelled() && steps.decode-build.outcome == 'success' }}" in step,
+                        'Run the diagnostic unless cancelled, only after a successful decode-build')
+
     def test_equal_pcm_and_counts(self):
         raw = pcm(range(64))
         result = diagnostic.compare_pcm(raw, raw, max_lag=4, window=16)

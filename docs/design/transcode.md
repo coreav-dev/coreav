@@ -1026,9 +1026,10 @@ output, before the encoder starts:
 - **Stream order.** FFmpeg writes the selected video first, then the
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
-- **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; a command that selects an audio stream without
-  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
+- **Audio.** Selected audio follows the default AAC rules above unless a
+  matching codec option selects another behavior. Explicit codec options
+  keep their precedence; unsupported source, layout or rate combinations
+  and implicit Opus-to-AAC encoding remain refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

@@ -16,9 +16,13 @@ from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 
 def run(command, *, data=None, env=None):
-    return subprocess.run([str(x) for x in command], input=data, env=env,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          check=True, timeout=120).stdout
+    try:
+        return subprocess.run([str(x) for x in command], input=data, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              check=True, timeout=120).stdout
+    except subprocess.CalledProcessError as error:
+        tail = (error.stderr or b'').decode(errors='replace')[-4096:]
+        raise RuntimeError(f'{Path(command[0]).name} exited {error.returncode}; stderr tail:\n{tail}') from error
 
 
 def wav_pcm(wav, rate):
@@ -159,27 +163,28 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     args.coreav, args.ffmpeg = args.coreav.resolve(), args.ffmpeg.resolve()
-    run([sys.executable, '-I', HERE / 'oracle_pin.py', '--verify-bin', args.ffmpeg.parent])
-    manifest = (args.fixtures / 'MANIFEST').read_text().splitlines()
-    if 'generated browser.webm' not in manifest:
-        raise ValueError('browser fixture is not registered as generated')
     args.out.mkdir(parents=True, exist_ok=False)
-    sources = [(args.fixtures / 'browser.webm', 48_000)]
-    for rate in [44_100, 48_000]:
-        source = args.out / f'flac-{rate}.mp4'
-        run([args.ffmpeg, '-v', 'error', '-f', 'lavfi', '-i',
-             'testsrc2=size=320x240:rate=25:duration=2', '-f', 'lavfi', '-i',
-             f'sine=frequency=440:duration=2:sample_rate={rate}',
-             '-c:v', 'libx264', '-bf', '0', '-pix_fmt', 'yuv420p', '-c:a', 'flac', source])
-        sources.append((source, rate))
-    report = {'diagnostic_only': True, 'completed': False,
-              'coreav_sha256': hashlib.sha256(args.coreav.read_bytes()).hexdigest(),
-              'ffmpeg_sha256': hashlib.sha256(args.ffmpeg.read_bytes()).hexdigest(),
-              'ffprobe_sha256': hashlib.sha256(args.ffmpeg.with_name('ffprobe').read_bytes()).hexdigest(),
-              'ffmpeg_version': run([args.ffmpeg, '-version']).decode().splitlines()[0],
-              'results': []}
+    report = {'diagnostic_only': True, 'completed': False, 'results': []}
     report_path = args.out / 'report.json'
     try:
+        run([sys.executable, '-I', HERE / 'oracle_pin.py', '--verify-bin', args.ffmpeg.parent])
+        manifest = (args.fixtures / 'MANIFEST').read_text().splitlines()
+        if 'generated browser.webm' not in manifest:
+            raise ValueError('browser fixture is not registered as generated')
+        report.update({
+            'coreav_sha256': hashlib.sha256(args.coreav.read_bytes()).hexdigest(),
+            'ffmpeg_sha256': hashlib.sha256(args.ffmpeg.read_bytes()).hexdigest(),
+            'ffprobe_sha256': hashlib.sha256(args.ffmpeg.with_name('ffprobe').read_bytes()).hexdigest(),
+            'ffmpeg_version': run([args.ffmpeg, '-version']).decode().splitlines()[0],
+        })
+        sources = [(args.fixtures / 'browser.webm', 48_000)]
+        for rate in [44_100, 48_000]:
+            source = args.out / f'flac-{rate}.mp4'
+            run([args.ffmpeg, '-v', 'error', '-f', 'lavfi', '-i',
+                 'testsrc2=size=320x240:rate=25:duration=2', '-f', 'lavfi', '-i',
+                 f'sine=frequency=440:duration=2:sample_rate={rate}',
+                 '-c:v', 'libx264', '-bf', '0', '-pix_fmt', 'yuv420p', '-c:a', 'flac', source])
+            sources.append((source, rate))
         for source, rate in sources:
             directory = args.out / source.stem
             directory.mkdir()
