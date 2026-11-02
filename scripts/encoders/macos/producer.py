@@ -146,7 +146,7 @@ def avcc(data):
 
 
 def probe_facts(value, item):
-    keys(value, "streams frames")
+    smoke.probe_sections(value)
     require(type(value["streams"]) is list and len(value["streams"]) == 1, "probe_streams")
     stream = value["streams"][0]
     expected = {"codec_name": "h264", "profile": "High", "width": item["width"], "height": item["height"],

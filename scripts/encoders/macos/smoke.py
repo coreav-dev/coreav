@@ -153,8 +153,20 @@ def pixels(data):
                 all(abs(pixel - level) <= 8 for pixel in luma), "decoded_frame_identity")
 
 
-def probe(value, native):
+def probe_sections(value):
+    if type(value) is not dict:
+        print("oracle probe shape: object=false", file=sys.stderr)
+    elif set(value) != {"streams", "frames"}:
+        known = {"streams", "frames", "programs", "stream_groups"}
+        print(f"oracle probe shape: fields={len(value)} streams={'streams' in value} frames={'frames' in value} "
+              f"programs_present={'programs' in value} programs_empty={value.get('programs') == []} "
+              f"stream_groups_present={'stream_groups' in value} stream_groups_empty={value.get('stream_groups') == []} "
+              f"unknown_fields={len(set(value) - known)}", file=sys.stderr)
     require(type(value) is dict and set(value) == {"streams", "frames"}, "probe_shape")
+
+
+def probe(value, native):
+    probe_sections(value)
     require(type(value["streams"]) is list and len(value["streams"]) == 1, "probe_streams")
     stream = value["streams"][0]
     keys(stream, "codec_name width height pix_fmt color_range color_space color_transfer color_primaries")

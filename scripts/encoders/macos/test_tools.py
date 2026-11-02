@@ -230,6 +230,16 @@ class Records(unittest.TestCase):
 
 
 class Smoke(unittest.TestCase):
+    def test_oracle_probe_shape_diagnostic_never_exposes_unknown_fields(self):
+        smoke.probe_sections({"streams": [], "frames": []})
+        output = io.StringIO()
+        with redirect_stderr(output), self.assertRaises(evidence.Invalid) as invalid:
+            smoke.probe_sections({"streams": [], "frames": [], "private/path": "secret"})
+        self.assertEqual(invalid.exception.code, "probe_shape")
+        self.assertEqual(output.getvalue(), "oracle probe shape: fields=3 streams=True frames=True "
+                         "programs_present=False programs_empty=False stream_groups_present=False "
+                         "stream_groups_empty=False unknown_fields=1\n")
+
     def test_hosted_refusal_requires_the_exact_condition_and_expires_when_observable(self):
         good = hosted_refusal()
         self.assertEqual(smoke.manifest(good, "software", True), ["manifest.json"])
