@@ -159,10 +159,10 @@ skipped job passes says nothing about the commit. The report jobs of
 `ci.yml`, `python.yml` and `npm.yml` still pass a job their path filter
 skipped, because there the skip is the filter's own decision.
 
-Two properties make a report job a report job, and `workflow_check.py`
-reads both: it waits on the jobs that do the work, so a dependency exists
-that can be missing, and it uses no action, so it cannot be the job that
-checks the repository out and runs the checks. Naming is not one of them:
+A report job is one that waits on the jobs that do the work, carries
+`if: always()` so it runs after they stop, and uses no action, so it cannot
+be the job that checks the repository out. `workflow_check.py` reads all
+three, and a job's name is not one of them:
 the check reads job ids and conditions through Psych's node tree, so a job
 called `deny-report` that does the work is refused like any other, and a
 report job renamed to anything else is still a report job. The same reader
