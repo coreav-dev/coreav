@@ -223,6 +223,26 @@ exit "${HASH_EXIT:-0}"
         self.assertIn('make -C "${BUILD%/*}" -j2 CC=', text)
         self.assertNotIn('-j2 ldecod ', text)
 
+    def test_conformance_preserves_failure_diagnostics(self):
+        result = subprocess.CompletedProcess(['driver'], 1, stdout=b'', stderr=b'encoding limit exceeded\n')
+        with tempfile.TemporaryDirectory() as temp, patch.object(conformance.subprocess, 'run', return_value=result):
+            with self.assertRaises(subprocess.CalledProcessError):
+                conformance.run(['driver'], cwd=pathlib.Path(temp))
+            record = json.loads((pathlib.Path(temp)/'process-000.json').read_text())
+            self.assertEqual(record['stderr'], 'encoding limit exceeded\n')
+            self.assertEqual(record['exit_code'], 1)
+
+    def test_full_range_native_pixel_format_is_not_converted(self):
+        info = dict(width=18, height=22, pix_fmt='yuvj420p', color_range='pc')
+        self.assertEqual(conformance.native_format(info, 18, 22, True), '+yuvj420p')
+        info.update(pix_fmt='yuv420p', color_range='tv')
+        self.assertEqual(conformance.native_format(info, 18, 22, False), '+yuv420p')
+        for key, value in [('pix_fmt', 'yuv444p'), ('color_range', 'pc'), ('width', 20)]:
+            invalid = dict(info)
+            invalid[key] = value
+            with self.assertRaises(ValueError):
+                conformance.native_format(invalid, 18, 22, False)
+
 
 if __name__ == '__main__':
     unittest.main()

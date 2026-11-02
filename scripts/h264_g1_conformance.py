@@ -22,8 +22,18 @@ def digest(path):
 
 
 def run(command, cwd=None):
-    return subprocess.run(list(map(str, command)), cwd=cwd, check=True,
-                          capture_output=True, timeout=180).stdout
+    result = subprocess.run(list(map(str, command)), cwd=cwd, check=False,
+                            capture_output=True, timeout=180)
+    if cwd is not None:
+        path = pathlib.Path(cwd)
+        record = path / f'process-{len(list(path.glob("process-*.json"))):03}.json'
+        record.write_text(json.dumps({'command': list(map(str, command)), 'exit_code': result.returncode,
+                                      'stdout': result.stdout.decode(errors='replace'),
+                                      'stderr': result.stderr.decode(errors='replace')}, indent=2) + '\n')
+    if result.returncode:
+        sys.stderr.write(result.stderr.decode(errors='replace'))
+    result.check_returncode()
+    return result.stdout
 
 
 class Bits:
@@ -115,6 +125,14 @@ def same_planes(expected, actual, size):
     require(digest(a), digest(b), 'reconstruction SHA-256')
 
 
+def native_format(info, width, height, full_range):
+    require((info['width'], info['height']), (width, height), 'oracle visible dimensions')
+    require(info['color_range'], 'pc' if full_range else 'tv', 'oracle signalled range')
+    if info['pix_fmt'] not in ('yuv420p', 'yuvj420p'):
+        raise ValueError('oracle output is not native 8-bit planar 4:2:0')
+    return '+' + info['pix_fmt']
+
+
 def inspect_anchor(data, width, height, qp, frames):
     markers = list(re.finditer(b'\x00\x00\x00\x01|\x00\x00\x01', data))
     if not markers or markers[0].start() != 0:
@@ -175,18 +193,23 @@ def inspect_anchor(data, width, height, qp, frames):
 
 
 def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(False, 1, 1, 1, 0)):
+    driver, ffmpeg, jm, raw, output = (path.resolve() for path in (driver, ffmpeg, jm, raw, output))
     output.mkdir(parents=True, exist_ok=False)
     stream, recon, own = (output / n for n in ('output.h264', 'encoder.yuv', 'coreav.yuv'))
     run([driver, width, height, qp, frames, raw, stream, recon, own,
-         str(colour[0]).lower(), *colour[1:]])
+         str(colour[0]).lower(), *colour[1:]], cwd=output)
     inspect(stream.read_bytes(), width, height, qp, frames, colour)
     size = width * height * 3 // 2 * frames
     same_planes(recon, own, size)
     oracle = output / 'ffmpeg.yuv'
+    probe = json.loads(run([ffmpeg.with_name('ffprobe'), '-v', 'error', '-select_streams', 'v:0',
+                            '-show_entries', 'stream=width,height,pix_fmt,color_range', '-of', 'json', stream], cwd=output))
+    require(len(probe['streams']), 1, 'one oracle video stream')
+    pixel_format = native_format(probe['streams'][0], width, height, colour[0])
     run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-xerror', '-err_detect', 'explode',
          '-hwaccel', 'none', '-threads', '1', '-c:v', 'h264', '-i', stream,
-         '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'rawvideo', '-pix_fmt', '+yuv420p',
-         '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle])
+         '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'rawvideo', '-pix_fmt', pixel_format,
+         '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle], cwd=output)
     same_planes(recon, oracle, size)
     reference = output / 'jm.yuv'
     log = run([jm, '-i', stream.resolve(), '-o', reference.resolve()], cwd=output)

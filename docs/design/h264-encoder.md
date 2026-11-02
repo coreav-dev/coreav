@@ -102,7 +102,7 @@ These are acceptance bars, not results. G0 gave the quality judge no vote author
 
 ### Oracle and baseline pins
 
-FFmpeg is the exact binary verified by `scripts/oracle-ffmpeg.env` and `scripts/oracle_pin.py`, currently 9.0.2, build `n9.0.2-17-g2a571b6068`. Do not replace it with a system installation. Its software H.264 decoder runs with one thread, no hardware acceleration, and strict error reporting, producing native `yuv420p` without filters or format conversion.
+FFmpeg is the exact binary verified by `scripts/oracle-ffmpeg.env` and `scripts/oracle_pin.py`, currently 9.0.2, build `n9.0.2-17-g2a571b6068`. Do not replace it with a system installation. Its software H.264 decoder runs with one thread, no hardware acceleration, and strict error reporting, producing native `yuv420p` without filters or format conversion. The supplemental full-range signalling fixture may use the decoder's native `yuvj420p` alias for the same 8-bit planar 4:2:0 byte layout. The harness checks the native format and range with the pinned ffprobe and disables automatic conversion. The limited-range G1 measurement convention is unchanged.
 
 x264 is core 165 at `X264_COMMIT` in that same pin file, currently `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee`. Build the test-only CLI with `scripts/install-x264.sh` without reading source. Reusing the repository's oracle pin avoids an unrelated baseline and ties the CLI to the pinned FFmpeg's libx264. Record the executable hash, build configuration, and effective version. A pin change requires a pre-run protocol amendment, not an unrecorded upgrade.
 

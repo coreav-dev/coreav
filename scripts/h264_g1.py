@@ -322,6 +322,7 @@ def measure(args, manifest):
     tools = json.loads(args.tools.read_text())
     require(set(tools), set(manifest['tools']), 'complete frozen tool set')
     tools = {k: str(pathlib.Path(v).resolve()) for k, v in tools.items()}
+    require(str(pathlib.Path(tools['ffmpeg']).with_name('ffprobe')), tools['ffprobe'], 'paired pinned FFmpeg tools')
     for name, pin in manifest['tools'].items():
         require(digest(tools[name]), pin['sha256'], f'{name} executable')
     problems = list(oracle_pin.verify_bin(pathlib.Path(tools['ffmpeg']).parent))
