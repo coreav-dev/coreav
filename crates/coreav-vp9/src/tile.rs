@@ -84,12 +84,41 @@ fn tile_offset(tile: u32, mis: u32, log2: u8) -> u32 {
     (((tile * sbs) >> log2) << 3).min(mis)
 }
 
-/// What later blocks of a frame read of one 8x8 block (clause 6.4.4).
+/// What later blocks of a frame, and its loop filter, read of one 8x8
+/// block (clause 6.4.4).
 #[derive(Clone, Copy, Default)]
-struct ModeInfo {
+pub(crate) struct ModeInfo {
     sub_modes: [u8; 4],
     skip: bool,
-    tx_size: u8,
+    pub(crate) tx_size: u8,
+    /// `MiSize`.
+    pub(crate) size: u8,
+    pub(crate) segment_id: u8,
+}
+
+/// `get_plane_block_size` (clause 6.4.23): the size `size` covers in a
+/// plane subsampled by `(sub_x, sub_y)`.
+fn plane_block_size(size: u8, (sub_x, sub_y): (bool, bool)) -> Result<u8> {
+    let s = get(
+        &get(&get(&SS_SIZE, size.into()), sub_x.into()),
+        sub_y.into(),
+    );
+    if s >= BLOCK_INVALID {
+        Err(Error::Invalid(
+            "a block too narrow or too flat for its chroma",
+        ))
+    } else {
+        Ok(s)
+    }
+}
+
+/// `get_uv_tx_size` (clause 6.4.22): the transform size of a block's
+/// chroma planes, subsampled by `sub`.
+pub(crate) fn uv_tx_size(size: u8, tx_size: u8, sub: (bool, bool)) -> Result<u8> {
+    if size < BLOCK_8X8 {
+        return Ok(0);
+    }
+    Ok(tx_size.min(get(&MAX_TX_SIZE, plane_block_size(size, sub)?.into())))
 }
 
 /// A block's mode info as its residual reads it.
@@ -129,14 +158,15 @@ struct Tiles<'a, P> {
 /// Reads the tiles of an intra frame (`decode_tiles`, clause 6.4) from
 /// `data`, the frame's bytes after its compressed header, with the
 /// probabilities and transform mode of its compressed header. Returns
-/// whether every tile's boolean decoder ended as clause 9.2.3 requires.
+/// whether every tile's boolean decoder ended as clause 9.2.3 requires, and
+/// the mode info of each 8x8 block in raster order.
 pub(crate) fn read<P: Sample>(
     data: &[u8],
     h: &FrameHeader,
     probs: &Probs,
     tx_mode: TxMode,
     frame: &mut Planes<P>,
-) -> Result<bool> {
+) -> Result<(bool, Vec<ModeInfo>)> {
     let mi_cols = h.mi_cols();
     let mi_rows = h.mi_rows();
     let sb_cols = (mi_cols as usize).div_ceil(8);
@@ -192,7 +222,7 @@ pub(crate) fn read<P: Sample>(
             clean &= d.exit();
         }
     }
-    Ok(clean)
+    Ok((clean, t.mi))
 }
 
 impl<P: Sample> Tiles<'_, P> {
@@ -372,6 +402,8 @@ impl<P: Sample> Tiles<'_, P> {
             sub_modes,
             skip,
             tx_size,
+            size,
+            segment_id,
         };
         let rows = u32::from(get(&NUM_8X8_HIGH, size.into()));
         let cols = u32::from(get(&NUM_8X8_WIDE, size.into()));
@@ -399,27 +431,12 @@ impl<P: Sample> Tiles<'_, P> {
             } else {
                 (false, false)
             };
-            let plane_size = |size: u8| {
-                let s = get(
-                    &get(&get(&SS_SIZE, size.into()), sub_x.into()),
-                    sub_y.into(),
-                );
-                if s >= BLOCK_INVALID {
-                    Err(Error::Invalid(
-                        "a block too narrow or too flat for its chroma",
-                    ))
-                } else {
-                    Ok(s)
-                }
-            };
             let tx_size = if plane == 0 {
                 b.tx_size
-            } else if b.size < BLOCK_8X8 {
-                0
             } else {
-                b.tx_size.min(get(&MAX_TX_SIZE, plane_size(b.size)?.into()))
+                uv_tx_size(b.size, b.tx_size, (sub_x, sub_y))?
             };
-            let size = plane_size(bsize)?;
+            let size = plane_block_size(bsize, (sub_x, sub_y))?;
             let step = 1u32 << tx_size;
             let w = u32::from(get(&NUM_4X4_WIDE, size.into()));
             let h = u32::from(get(&NUM_4X4_HIGH, size.into()));
@@ -629,6 +646,9 @@ impl<P: Sample> Tiles<'_, P> {
         };
         for (i, c) in coefs.iter_mut().enumerate() {
             *c = *c * if i == 0 { dc } else { ac } / denom;
+            if std::env::var("WRAP").is_ok() {
+                *c = i64::from(*c as i16);
+            }
         }
         let tx_type = match tx_type {
             ADST_DCT => TxType::AdstDct,

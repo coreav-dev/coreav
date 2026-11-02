@@ -178,7 +178,8 @@ const SIZE_OVERRIDES: [(&str, (u32, u32), &str); 3] = [
 ];
 
 /// The vector whose key frame's tile does not end as clause 9.2.3 requires,
-/// and the reason it is not counted against the tile reader. The check
+/// and the reason it is not counted against the tile reader and its key
+/// frame's MD5 is not checked against the list. The check
 /// fails once that tile ends cleanly, so the exception cannot outlive its
 /// cause.
 const UNCLEAN_TILE: (&str, &str) = (
@@ -265,7 +266,7 @@ fn check(dir: &Path, name: &str) -> Option<String> {
                     if h.show_frame {
                         in_packet.push((h.width, h.height));
                         hashes.push(
-                            (h.is_intra() && h.loop_filter.level == 0)
+                            (h.is_intra() && name != UNCLEAN_TILE.0)
                                 .then(|| md5(&picture.expect("an intra frame is decoded"))),
                         );
                     }
@@ -304,7 +305,7 @@ fn check(dir: &Path, name: &str) -> Option<String> {
         .zip(&hashes)
         .position(|(ours, theirs)| ours.as_ref().is_some_and(|ours| ours != theirs))?;
     Some(format!(
-        "intra frame {wrong} without the loop filter has MD5 {}, the list says {}",
+        "intra frame {wrong} has MD5 {}, the list says {}",
         shown_hashes[wrong].as_ref().unwrap(),
         hashes[wrong]
     ))

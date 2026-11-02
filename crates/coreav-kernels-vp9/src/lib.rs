@@ -1,13 +1,13 @@
-//! Pixel kernels of CoreAV's VP9 decoder: the inverse transforms and intra
-//! prediction.
+//! Pixel kernels of CoreAV's VP9 decoder: the inverse transforms, intra
+//! prediction and the loop filter's sample filters.
 //!
 //! The kernels are pure arithmetic over samples. They hold no decoder state
-//! and read no bitstream: the decoder hands each one a [`BlockMut`] that
-//! covers exactly the samples the kernel writes, and building it checked
-//! its length and stride. Their other inputs are typed to the domains the
+//! and read no bitstream: the decoder hands each one a [`BlockMut`] or an
+//! [`Edge`] that covers exactly the samples the kernel reads and writes,
+//! and building it checked its bounds. Their other inputs are typed to the domains the
 //! specification gives them ([`TxSize`], [`BitDepth`], [`Coefficients`]),
 //! so no value outside them reaches the arithmetic. These are the scalar reference kernels, written
-//! from clauses 8.5.1 and 8.7 of the VP9 Bitstream & Decoding Process
+//! from clauses 8.5.1, 8.7 and 8.8.5 of the VP9 Bitstream & Decoding Process
 //! Specification (version 0.7); faster implementations come later and are
 //! compared with them bit for bit (`docs/design/vp9.md`, milestone 6).
 //!
@@ -28,10 +28,12 @@
 
 #![forbid(unsafe_code)]
 
+mod filter;
 mod intra;
 mod tables;
 mod transform;
 
+pub use filter::{Edge, FilterSize, Strength, filter_edge};
 pub use intra::{Edges, IntraMode, predict_intra};
 pub use transform::{TxType, inverse_transform_add};
 

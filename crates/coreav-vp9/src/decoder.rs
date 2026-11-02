@@ -1,10 +1,12 @@
 //! The decoder's state between packets.
 
+use crate::compressed::TxMode;
 use crate::error::{Error, LimitKind, Result};
-use crate::header::{self, Carried, Header, Slot};
+use crate::header::{self, Carried, FrameHeader, Header, Slot};
 use crate::limits::Limits;
-use crate::picture::Planes;
-use crate::probs::Contexts;
+use crate::loop_filter;
+use crate::picture::{Picture, Planes, Sample};
+use crate::probs::{Contexts, Probs};
 use crate::superframe;
 use crate::tile;
 
@@ -67,23 +69,10 @@ impl Decoder {
                     let tiles = frame
                         .get(h.uncompressed_size + usize::from(h.compressed_header_size)..)
                         .unwrap_or_default();
-                    let c = h.color;
-                    let (mi_cols, mi_rows) = (h.mi_cols(), h.mi_rows());
-                    let (ss_x, ss_y) = (c.subsampling_x, c.subsampling_y);
-                    let (clean, decoded) = if c.bit_depth == 8 {
-                        let mut frame = Planes::<u8>::new(mi_cols, mi_rows, ss_x, ss_y);
-                        let clean = tile::read(tiles, h, &probs, compressed.tx_mode, &mut frame)?;
-                        (
-                            clean,
-                            frame.picture(h.width, h.height, c.bit_depth, ss_x, ss_y),
-                        )
+                    let (clean, decoded) = if h.color.bit_depth == 8 {
+                        decode_intra::<u8>(tiles, h, &probs, compressed.tx_mode)?
                     } else {
-                        let mut frame = Planes::<u16>::new(mi_cols, mi_rows, ss_x, ss_y);
-                        let clean = tile::read(tiles, h, &probs, compressed.tx_mode, &mut frame)?;
-                        (
-                            clean,
-                            frame.picture(h.width, h.height, c.bit_depth, ss_x, ss_y),
-                        )
+                        decode_intra::<u16>(tiles, h, &probs, compressed.tx_mode)?
                     };
                     *tiles_end_cleanly = Some(clean);
                     *picture = Some(Box::new(decoded));
@@ -121,4 +110,28 @@ impl Decoder {
         }
         Ok(())
     }
+}
+
+/// Decodes the tiles of intra frame `h` and filters the result (clauses
+/// 8.6 to 8.8). Returns whether every tile ended cleanly, and the frame.
+fn decode_intra<P: Sample>(
+    tiles: &[u8],
+    h: &FrameHeader,
+    probs: &Probs,
+    tx_mode: TxMode,
+) -> Result<(bool, Picture)> {
+    let c = h.color;
+    let mut frame = Planes::<P>::new(h.mi_cols(), h.mi_rows(), c.subsampling_x, c.subsampling_y);
+    let (clean, mi) = tile::read(tiles, h, probs, tx_mode, &mut frame)?;
+    loop_filter::apply(h, &mi, &mut frame)?;
+    Ok((
+        clean,
+        frame.picture(
+            h.width,
+            h.height,
+            c.bit_depth,
+            c.subsampling_x,
+            c.subsampling_y,
+        ),
+    ))
 }
