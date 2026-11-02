@@ -399,6 +399,8 @@ impl Instance {
                 ptr::null(),
             )
         })?;
+        #[cfg(test)]
+        eprintln!("AudioCodec append: bytes {bytes}/{offered}, packets {frames}/{offered_frames}");
         if bytes > offered || bytes % (self.channels * 4) != 0 || frames > offered_frames {
             return Err(Error::Output);
         }
@@ -418,6 +420,8 @@ impl Instance {
                 ptr::null(),
             )
         })?;
+        #[cfg(test)]
+        eprintln!("AudioCodec EOF: bytes {bytes}, packets {packets}");
         if bytes != 0 || packets != 0 {
             return Err(Error::Output);
         }
@@ -443,6 +447,11 @@ impl Instance {
                 &mut status,
             )
         })?;
+        #[cfg(test)]
+        eprintln!(
+            "AudioCodec output: status {status}, bytes {bytes}/{capacity}, packets {count}, offset {}, packet bytes {}, frames {}",
+            description.offset, description.bytes, description.frames
+        );
         if bytes as usize > data.len() || count > 1 {
             return Err(Error::Output);
         }
