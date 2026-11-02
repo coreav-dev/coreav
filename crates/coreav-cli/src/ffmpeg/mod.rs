@@ -800,7 +800,9 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
                 Some(Codec::Audio(args::AudioEncoder::Aac))
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
-            (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => Some(Codec::AviAudio(AviAudio::PcmS16)),
+            (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
+                Some(Codec::AviAudio(AviAudio::PcmS16))
+            }
             _ => None,
         })
         .collect();
@@ -1052,11 +1054,10 @@ fn select_sources(
         let subtitle = all
             .iter()
             .filter(|_| {
-                !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
-                    && command
-                        .codecs
-                        .iter()
-                        .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
+                command
+                    .codecs
+                    .iter()
+                    .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
             })
             .find(|(_, s)| s.kind == StreamKind::Subtitle && !disabled(s));
         if let Some((i, s)) = subtitle {
@@ -1417,9 +1418,11 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Avi(_) | Job::Split(_) | Job::Transcode(_) | Job::AudioEncode { .. } | Job::Pcm { .. } => {
-            Ok(serde_json::Value::Null)
-        }
+        Job::Avi(_)
+        | Job::Split(_)
+        | Job::Transcode(_)
+        | Job::AudioEncode { .. }
+        | Job::Pcm { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),

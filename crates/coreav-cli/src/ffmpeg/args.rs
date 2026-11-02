@@ -837,16 +837,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     if command.muxer != Muxer::Avi
-        && command
-            .codecs
-            .iter()
-            .any(|(_, c)| match c {
-                Codec::AviAudio(AviAudio::PcmS16) => {
-                    !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
-                }
-                Codec::AviAudio(_) => true,
-                _ => false,
-            })
+        && command.codecs.iter().any(|(_, c)| match c {
+            Codec::AviAudio(AviAudio::PcmS16) => {
+                !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+            }
+            Codec::AviAudio(_) => true,
+            _ => false,
+        })
     {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",
