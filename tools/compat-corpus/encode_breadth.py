@@ -22,13 +22,16 @@ codec-coverage-plan.md, "V2, encode breadth" and "V3, the native share").
         copy_check.py through r3.py; libx264 to B1 to B4 of
         transcode_check.py; libopus and aac to O1 to O4 and A1 to A4 on the
         helpers of opus_encode_check.py; a stream copied beside an encode to
-        B3's packet rule. FILE gets one line per command; SUMMARY is
+        B3's packet rule. Linear PCM, FLAC, PNG, BMP, rawvideo, FFV1,
+        HuffYUV and external MP3 use decoded_output.py's exact samples,
+        pixels, fields and timing; PNG/BMP from YUV remain no_oracle.
+        FILE gets one line per command; SUMMARY is
         "summarize"'s result with the SHA-256 of the programs and fixtures.
         Exits 2 when the run is void: a fallback log line whose "ran" is not
         null, or a command with no result.
 
     encode_breadth.py summarize --records FILE... [--set v3|v2] [--summary FILE]
-        V2 (the share against 40%, 196 of 488) and V3 (the share of 630,
+        V2 (the observed share of 488, without a release bar) and V3 (the share of 630,
         beside the 79 commands classify.py labels native): the counts per
         container and class, the misses by code, the options CoreAV refused,
         and the per-encoder groups, from the records of a run.
@@ -54,6 +57,8 @@ import types
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent.parent / 'scripts')]
 import classify  # noqa: E402
+import decoded_output
+import oracle_pin
 import opus_encode_check as opus  # noqa: E402
 import r3  # noqa: E402
 import release_round  # noqa: E402
@@ -69,12 +74,11 @@ COREAV_SECONDS = 300
 FILE_BLOCKS = 2 * 1024 * 1024
 NO_FALLBACK = '/nonexistent/coreav-fallback'
 STDOUT = 'stdout'
-BAR_PERCENT = 40
 MISSES = ('no_input', 'refused', 'rejected', 'timeout', 'failed', 'ffmpeg_job', 'no_oracle', 'oracle',
           'streams_differ')
 GROUPS = ('x264', 'libopus', 'aac', 'other encoders', 'copy only')
 COPY_JOBS = ('remux', 'clip', 'split', 'join', 'extract-audio')
-REGISTERED = ('copy', 'libx264', 'libopus', 'aac')
+REGISTERED = ('copy', 'libx264', 'libopus', 'aac', 'libmp3lame', *decoded_output.LOSSLESS)
 UNJUDGED = ('decode-only', 'subtitles', 'other')
 TIMING = ('-ss', '-t', '-to', '-sseof', '-itsoffset')
 MAPPED = re.compile(r"^\s*Stream #(\d+):(\d+)(?:\[[^]]*\])?(?: \([^)]*\))? -> #0:(\d+) \((.*)\)\s*$", re.M)
@@ -241,8 +245,57 @@ def aac_encoder_start(args):
 
 def encoder_start(program, args):
     """Whether a start of the program log is an encoder's: any x264 start,
-    or an ffmpeg start that aac_encoder_start takes."""
-    return program == 'x264' or (program == 'ffmpeg' and aac_encoder_start(args))
+    or an encoder-only AAC or MP3 invocation of ffmpeg."""
+    return program == 'x264' or (program == 'ffmpeg' and (aac_encoder_start(args) or mp3_encoder_start(args)))
+
+
+def mp3_encoder_start(args):
+    before, raw, codec, output, form = True, None, None, None, None
+    mapped = False
+    values = iter(args)
+    for option in values:
+        if output is not None:
+            return False
+        if option in START_FLAGS:
+            continue
+        if option in ('-loglevel', '-v'):
+            if next(values, None) is None:
+                return False
+        elif option == '-f':
+            value = next(values, None)
+            if before:
+                if raw is not None or value not in RAW_SAMPLES:
+                    return False
+                raw = value
+            else:
+                if form is not None or value != 'mp3':
+                    return False
+                form = value
+        elif option in ('-ar', '-ac'):
+            value = next(values, '')
+            if not before or not value.isdigit() or int(value) <= 0:
+                return False
+        elif option == '-i':
+            if not before or raw is None or next(values, None) not in ('pipe:0', '-'):
+                return False
+            before = False
+        elif option in ('-c:a', '-codec:a', '-acodec'):
+            if before or codec is not None or next(values, None) != 'libmp3lame':
+                return False
+            codec = 'libmp3lame'
+        elif option == '-map':
+            if before or mapped or next(values, None) not in ('0:a', '0:a:0'):
+                return False
+            mapped = True
+        elif option in ('-b:a', '-q:a', '-qscale:a', '-aq'):
+            value = next(values, None)
+            if before or not value or value.startswith('-'):
+                return False
+        elif option.startswith('-') and option != '-':
+            return False
+        else:
+            output = option
+    return not before and codec == 'libmp3lame' and output is not None
 
 
 def execute(argv, cwd, env, seconds, pipe=False):
@@ -591,18 +644,49 @@ def checks(cx, out, ref, listing):
 
 
 def encoding(cx):
-    """The oracle of a command with a stream that libx264, libopus or aac
-    encodes: its one output file, against the pinned ffmpeg's."""
+    """The registered per-stream oracles against the pinned same-command output."""
     name = cx.entry['output']
+    decoded = [j for j in cx.jobs if j.kind not in ('copy', 'libx264', 'libopus', 'aac')]
+    source_listings = {}
+    for job in decoded:
+        path = source_of(cx, job.file)[1]
+        if job.file not in source_listings:
+            source_listings[job.file] = decoded_output.probe(path, cx.tc.ffprobe, cx.opts.env)
+        listing = source_listings[job.file]
+        if listing is None:
+            return 'no_oracle', {'job': job.kind, 'why': 'source probe'}
+        if job.kind in ('png', 'bmp'):
+            stream = next((s for s in listing['streams'] if s.get('index') == job.stream), None)
+            if not stream or stream.get('pix_fmt') not in ('rgb24', 'bgr24', 'gbrp', 'rgba', 'bgra', 'gbrap'):
+                return 'no_oracle', {'job': job.kind, 'why': 'colour conversion'}
     outs, refs = produced(name, cx.run.cwd), produced(name, cx.reference.cwd)
-    if len(outs) != 1 or len(refs) != 1:
+    if not decoded and (len(outs) != 1 or len(refs) != 1):
         return 'no_oracle', {'job': 'output not one file'}
+    if decoded and (not refs or [p.name for p in outs] != [p.name for p in refs]):
+        return 'oracle', {'check': 'decoded_outputs'}
     if len([j for j in cx.jobs if j.kind == 'libx264']) > 1:
         return 'no_oracle', {'job': 'libx264'}
-    out, ref = str(outs[0]), str(refs[0])
-    for check, passed in checks(cx, out, ref, transcode_check.written(cx.tc, out)[0]):
-        if not passed:
-            return 'oracle', {'check': check}
+    if any(j.kind == 'libmp3lame' for j in decoded) and not any(
+            s['program'] == 'ffmpeg' and mp3_encoder_start(s['args']) for s in cx.starts):
+        return 'oracle', {'check': 'mp3_start'}
+    for out, ref in zip(outs, refs):
+        for check, passed in checks(cx, str(out), str(ref), transcode_check.written(cx.tc, str(out))[0]):
+            if not passed:
+                return 'oracle', {'check': check}
+        for job in decoded:
+            args = cx.entry['args']
+            last_input = max((i for i, a in enumerate(args) if a == '-i'), default=-1)
+            if job.kind == 'rawvideo' and name.endswith('.yuv') and '-f' not in args[last_input + 2:]:
+                args = [*args[:-1], '-f', 'rawvideo', args[-1]]
+            try:
+                inputs = decoded_output.raw_inputs(args, source_listings[job.file])
+            except (TypeError, ValueError, ZeroDivisionError):
+                return 'no_oracle', {'job': job.kind, 'why': 'raw output description'}
+            status, reason = decoded_output.compare(out, ref, cx.tc.ffmpeg, cx.tc.ffprobe, cx.opts.env,
+                                                     cx.scratch, inputs, stream=job.output)
+            if status != 'verified':
+                return ('no_oracle', {'job': job.kind, 'why': reason}) if status == 'unverified' else (
+                    'oracle', {'check': reason, 'job': job.kind})
     return None
 
 
@@ -614,8 +698,9 @@ def oracle(cx):
         return 'no_oracle', {'job': cx.entry['class']}
     if not kinds:
         return 'no_oracle', {'job': 'none'}
-    if any(k not in REGISTERED for k in kinds):
-        return 'no_oracle', {'job': next(k for k in kinds if k not in REGISTERED)}
+    unknown = next((k for k in kinds if k not in REGISTERED and not decoded_output.PCM.fullmatch(k)), None)
+    if unknown is not None:
+        return 'no_oracle', {'job': unknown}
     if any(source_of(cx, j.file)[0] is None for j in cx.jobs):
         return 'no_oracle', {'job': 'input not a fixture'}
     return copy_only(cx) if set(kinds) == {'copy'} else encoding(cx)
@@ -705,8 +790,7 @@ def summarize(records, selected):
                                          ('a command is recorded twice', len(seen) - len(set(seen)))) if found]
     media = [r for r in records if r['class'] == 'media']
     total = len(commands('v2'))
-    v2 = {**share(media, total), 'bar_percent': BAR_PERCENT, 'needed': -(-total * BAR_PERCENT // 100)}
-    v2['met'] = v2['counted'] >= v2['needed']
+    v2 = share(media, total)
     v2['per_container'] = {c: tally([r for r in media if r['container'] == c])
                            for c in sorted({r['container'] for r in media})}
     v2['misses'] = misses(media)
@@ -748,6 +832,11 @@ def cmd_run(opts):
     if missing:
         print(f'UNMEASURED: no fixture {", ".join(missing)} in {opts.fixtures}')
         return release_round.UNMEASURED
+    try:
+        programs = oracle_programs(opts)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        print(f'VOID: {error}', file=sys.stderr)
+        return 2
     for path in (opts.work, opts.records.parent, opts.summary.parent):
         path.mkdir(parents=True, exist_ok=True)
     opts.env = environment()
@@ -761,9 +850,23 @@ def cmd_run(opts):
     opts.records.write_text(''.join(json.dumps(r) + '\n' for r in records))
     summary = summarize(records, opts.set)
     summary['programs'] = {name: sha256(getattr(opts, name)) for name in ('coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264')}
+    summary['reference_programs'] = programs
+    summary['encoder_ffmpeg'] = programs['ffmpeg']
     summary['fixtures'] = {name: sha256(opts.fixtures / name) for name in FIXTURES}
     opts.summary.write_text(json.dumps(summary, indent=1) + '\n')
     return brief(summary)
+
+
+def oracle_programs(opts):
+    directory = pathlib.Path(opts.ffmpeg).resolve().parent
+    if pathlib.Path(opts.ffprobe).resolve() != (directory / 'ffprobe').resolve():
+        raise ValueError('ffprobe must be installed beside the pinned ffmpeg')
+    problems = list(oracle_pin.verify_bin(directory))
+    if problems:
+        raise ValueError('; '.join(problems))
+    return {name: {'version': subprocess.run([str(getattr(opts, name)), '-version'], capture_output=True,
+                                             text=True, check=True, timeout=10).stdout.splitlines()[0],
+                   'sha256': sha256(getattr(opts, name))} for name in ('ffmpeg', 'ffprobe')}
 
 
 def cmd_summarize(opts):

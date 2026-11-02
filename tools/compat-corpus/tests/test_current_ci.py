@@ -123,6 +123,28 @@ class CurrentPolicy(unittest.TestCase):
 
 
 class DecodedSamples(unittest.TestCase):
+    def test_frame_probes_use_the_shared_audio_input_options(self):
+        with mock.patch.object(decoded_output, 'invoke', return_value=(0, b'{"streams":[{}]}', b'')) as invoke:
+            self.assertIsNotNone(decoded_output.probe('media', 'ffprobe', {}))
+        args = invoke.call_args.args[0]
+        self.assertEqual(args[args.index('-i') - len(decoded_output.AUDIO_DECODE_INPUT):args.index('-i')],
+                         list(decoded_output.AUDIO_DECODE_INPUT))
+
+    def test_a_selected_encode_does_not_replace_the_copy_stream_oracle(self):
+        stream = {'index': 1, 'codec_type': 'audio', 'codec_name': 'flac', 'sample_fmt': 's16',
+                  'sample_rate': '48000', 'channels': 1}
+        listing = {'streams': [{'index': 0, 'codec_type': 'video', 'codec_name': 'h264'}, stream], 'frames': []}
+        def decode(args, env, output):
+            self.assertIn('0:1', args)
+            output.write_bytes(struct.pack('<i', 256))
+            return 0, b'', b''
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(decoded_output, 'probe', return_value=listing), \
+                mock.patch.object(decoded_output, 'invoke', side_effect=decode):
+            self.assertEqual(decoded_output.compare('a', 'b', 'ffmpeg', 'ffprobe', {}, pathlib.Path(tmp), stream=1)[0],
+                             'verified')
+            self.assertEqual(decoded_output.compare('a', 'b', 'ffmpeg', 'ffprobe', {}, pathlib.Path(tmp))[0],
+                             'unverified')
+
     def test_timed_out_programs_are_killed_and_reaped(self):
         popen, children = decoded_output.subprocess.Popen, []
         def launch(*args, **kwargs):
