@@ -522,6 +522,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-vp9-corpus-oracle"
+version = "0.0.1"
+dependencies = [
+ "coreav-mkv",
+ "coreav-vp9",
+ "md-5",
+ "serde_json",
+]
+
+[[package]]
 name = "coreav-wasm"
 version = "0.0.1"
 dependencies = [

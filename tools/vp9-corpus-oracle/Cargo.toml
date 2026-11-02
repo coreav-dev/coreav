@@ -1,0 +1,22 @@
+[package]
+name = "coreav-vp9-corpus-oracle"
+description = "Test-only VP9 corpus frame and packet-timeline adapter; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "vp9-corpus-oracle"
+path = "src/main.rs"
+
+[dependencies]
+coreav-mkv = { path = "../../crates/coreav-mkv" }
+coreav-vp9 = { path = "../../crates/coreav-vp9" }
+md-5 = "0.10"
+serde_json.workspace = true
+
+[lints]
+workspace = true
