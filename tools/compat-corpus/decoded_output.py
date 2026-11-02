@@ -141,7 +141,7 @@ def raw_inputs(args, source):
         channels = int(options.get('-ac', audio.get('channels', 0)))
         if rate <= 0 or channels not in (1, 2):
             raise ValueError('raw audio description')
-        return ['-f', form, '-ar', str(rate), '-ac', str(channels)]
+        return ['-f', form, '-sample_rate', str(rate), '-ch_layout', 'mono' if channels == 1 else 'stereo']
     if form == 'rawvideo':
         video = selected('video')
         size = options.get('-s', f'{video.get("width")}x{video.get("height")}')
