@@ -605,6 +605,11 @@ Before comparing this extension with the pinned FFmpeg, these bars apply:
 These are lossy re-encodes, so bit-identical round trips do not apply.
 This extension makes no size or speed claim.
 
+CI runs the complete transcode fixture target with and without AAC
+decoding, rather than filtering the feature build by encoder test names.
+This includes the source sample matrix and the AAC command-shape matrix.
+The additional feature-enabled cases run in the existing fixture job.
+
 **Decision.** Preserve the source's presentation rather than extend it to
 match padding emitted by FFmpeg. The generated two-second mono Opus MP4
 fixture presents exactly 96,000 samples at 48 kHz. Its single edit starts
