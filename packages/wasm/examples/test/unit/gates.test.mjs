@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { GateLedger, residentMemory } from "../gates.mjs";
+import { registeredBars } from "../registry.mjs";
 
 const build = "a".repeat(64);
 const info = (isolate = "isolate-a", changes = {}) => ({ build, isolate, served: 0, inFlight: 0, pending: 0, memoryBytes: 65536, ...changes });
@@ -65,6 +67,17 @@ test("new isolates and every gated build must match their provenance", () => {
   assert.throws(() => variant.ledger.gate(variant.worker, "one", variant.reading), /unavailable/);
 });
 
+test("a reading one WebAssembly page over a registered bar fails", () => {
+  const step = "fresh-probe";
+  const bar = registeredBars(readFileSync(new URL("../../../../../docs/design/wasm-memory-bars.md", import.meta.url), "utf8")).get(step);
+  assert.ok(Number.isSafeInteger(bar));
+  const ledger = new GateLedger(new Map([[step, bar]]), build);
+  const worker = { build };
+  ledger.start(worker, info());
+  ledger.gate(worker, step, info("isolate-a", { served: 1, memoryBytes: bar + 65536 }), { served: 1 });
+  assert.deepEqual(ledger.finish(), { state: "failed", gatesPassed: 0, failures: [{ step, bar, reason: "over_bar" }] });
+});
+
 test("only an explicitly shared scenario can reuse a gate's isolate", () => {
   const first = setup(["one", "two"]);
   first.ledger.gate(first.worker, "one", first.reading);
@@ -73,6 +86,17 @@ test("only an explicitly shared scenario can reuse a gate's isolate", () => {
   second.ledger.gate(second.worker, "one", second.reading);
   second.ledger.gate(second.worker, "two", second.reading, { sameAs: "one" });
   assert.equal(second.ledger.finish().state, "passed");
+});
+
+test("hls-concurrent refuses an isolate other than hls-built", () => {
+  const { ledger, worker, reading } = setup(["hls-built", "hls-concurrent"]);
+  ledger.gate(worker, "hls-built", reading);
+  const other = { build };
+  ledger.start(other, info("isolate-b"));
+  const served = reading.served + 14;
+  const batch = { size: 4, total: 4, entered: 4, completed: 4, peak: 4, timedOut: false, overflow: false };
+  assert.throws(() => ledger.gate(other, "hls-concurrent", info("isolate-b", { served, batch }), { sameAs: "hls-built", served, concurrency: 4, total: 4 }), /unavailable/);
+  assert.deepEqual(ledger.finish(), { state: "failed", gatesPassed: 1, failures: [{ step: "hls-concurrent", bar: 65536, reason: "isolate" }] });
 });
 
 test("concurrency requires every exact peak entry completion and status field", () => {
