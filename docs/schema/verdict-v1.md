@@ -33,7 +33,7 @@ written to stdout, 141 when stdout was closed by its reader.
 | Key | Type | Meaning |
 |---|---|---|
 | `code` | string | `not_allowed` (the value is not one the rule allows), `above_maximum`, `below_minimum`, `unknown` (the rule needs a value the probe output leaves `null`), or `unreadable` (the probe rejected the file). |
-| `rule` | string or `null` | JSON pointer of the rule in the policy, for example `/streams/video/max_width`. For a stream kind that is not allowed, where its object would be (`/streams/subtitle`). `null` for `unreadable`, and for the one `unknown` reason of a document that is neither a `coreav.probe/1` nor a `coreav.probe-matroska/1` output (its `path` is `/schema`, its `limit` the two schema names). |
+| `rule` | string or `null` | JSON pointer of the rule in the policy, for example `/streams/video/max_width`. For a stream kind that is not allowed, where its object would be (`/streams/subtitle`). `null` for `unreadable`, and for the one `unknown` reason of a document whose schema is not `coreav.probe/1`, `coreav.probe-matroska/1` or `coreav.probe-mpegts/2` (its `path` is `/schema`, its `limit` the three schema names). |
 | `path` | string or `null` | JSON pointer of the value the rule read in the file's probe document (`coreav.probe/1`, or `coreav.probe-matroska/1` for Matroska and WebM), for example `/streams/0/video/width`, `/dropped_streams/0/fourcc` or `/dropped_streams/0/codec_id`. `null` when the rule combines several values (the overall bit rate, `max_pixels`, stream counts) and for `unreadable`. For `unknown`, it may point inside an object the probe prints as `null`, such as `/streams/2/video/width` for a video codec under a handler that is not `vide`. |
 | `stream_index` | integer or `null` | For a reason about one stream: its `stream_index` (`ffprobe`'s `index`). |
 | `value` | any | The value compared with the limit, as below; `null` for `unknown` and `unreadable`. |
@@ -54,6 +54,12 @@ written to stdout, 141 when stdout was closed by its reader.
 | `max_width`, `max_height` | The larger of the declared value (`video.width`) and the verified one (`video.scanned_size.width` or `video.parameter_set_size.width`, as `size_source` says); `path` points at the larger, the declared one when they are equal. For `unknown`, `path` points at the value that is missing. |
 | `max_pixels` | The larger of the declared and the verified width × height. |
 | counts | The count. |
+
+For MPEG-TS, `path` points into the current `coreav.probe-mpegts/2`
+document. `container.formats` derives `value: "mpegts"` from `/schema`.
+Stream rate reasons point at `/streams/i/scan/bit_rate`. An `unknown`
+reason can point at an absent field, including the structural, verified-size
+and rotation fields listed in [the policy reference](policy-v1.md#mpeg-ts-mapping-and-missing-evidence).
 
 ## Order
 

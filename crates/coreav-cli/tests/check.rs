@@ -13,6 +13,8 @@ mod common;
 #[path = "../../coreav-mkv/tests/common/mod.rs"]
 mod mkv;
 mod schema;
+#[path = "../../coreav-mpegts/tests/common/mod.rs"]
+mod ts;
 
 use common::{aac_entry, av_movie_with, bx, fragmented_movie};
 use schema::{assert_matches, validate};
@@ -45,6 +47,264 @@ fn file(name: &str, bytes: &[u8]) -> PathBuf {
 
 fn policy_file(name: &str, policy: &Value) -> PathBuf {
     file(name, policy.to_string().as_bytes())
+}
+
+fn transport_stream() -> Vec<u8> {
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x0F, 0x101)]);
+    for n in 0..3 {
+        mux.pes(0x101, 0xC0, 90_000 + n * 1920, &ts::adts(100), true);
+    }
+    mux.out
+}
+
+fn transport_policy() -> Value {
+    json!({
+        "schema": "coreav.policy/1",
+        "streams": {
+            "audio": {"codecs": ["aac"]},
+            "invalid_tables": "ignore",
+            "external_data": "ignore",
+            "multiple_descriptions": "ignore"
+        }
+    })
+}
+
+#[test]
+fn transport_streams_are_checked_against_the_current_document() {
+    let bytes = transport_stream();
+    let input = file("check-transport.ts", &bytes);
+    let policy = transport_policy();
+    let parsed = coreav_policy::Policy::from_value(&policy).unwrap();
+    let policy = policy_file("check-transport.json", &policy);
+    let run = check(&policy, &input);
+    assert_eq!(run.code, 0, "{}", run.stdout);
+    let checked = verdict(&run);
+    let probed = json(&probe(&input).stdout);
+    assert_eq!(probed["schema"], "coreav.probe-mpegts/2");
+    assert_eq!(checked, coreav_policy::evaluate(&parsed, &probed).to_json());
+    let source = coreav_isobmff::SliceSource::new(&bytes);
+    assert_eq!(
+        checked,
+        coreav_cli::check::run_source(source, bytes.len() as u64, &parsed)
+            .map_err(|e| e.to_json())
+            .unwrap()
+            .to_json()
+    );
+}
+
+#[test]
+fn transport_packet_layouts_and_leading_bytes_get_the_same_verdict() {
+    let bytes = transport_stream();
+    let policy = policy_file("check-ts-layouts.json", &transport_policy());
+    for stride in [188, 192, 204] {
+        let mut stored = vec![0x55; 137];
+        for packet in bytes.chunks_exact(188) {
+            if stride == 192 {
+                stored.extend([0; 4]);
+            }
+            stored.extend(packet);
+            if stride == 204 {
+                stored.extend([0; 16]);
+            }
+        }
+        let input = file(&format!("check-ts-{stride}.bin"), &stored);
+        let run = check(&policy, &input);
+        assert_eq!(run.code, 0, "{stride}: {}", run.stdout);
+        assert_eq!(verdict(&run)["verdict"], "accept");
+    }
+}
+
+#[test]
+fn transport_rules_read_exact_times_and_scanned_rates() {
+    let input = file("check-ts-values.ts", &transport_stream());
+    let mut policy = transport_policy();
+    policy["container"] = json!({"formats": ["mpegts"]});
+    policy["duration"] = json!({"max_seconds": 0.064});
+    policy["streams"]["audio"] = json!({
+        "codecs": ["aac"], "min_count": 1, "max_count": 1,
+        "max_channels": 2, "max_sample_rate": 48_000, "max_bit_rate": 37_500
+    });
+    assert_matches(&policy, POLICY_SCHEMA);
+    let matching = policy_file("check-ts-values.json", &policy);
+    let run = check(&matching, &input);
+    assert_eq!(run.code, 0, "{}", run.stdout);
+
+    policy["duration"]["max_seconds"] = json!(0.063999);
+    policy["streams"]["audio"]["max_bit_rate"] = json!(37_499);
+    let rejecting = policy_file("check-ts-values-reject.json", &policy);
+    let run = check(&rejecting, &input);
+    let checked = verdict(&run);
+    assert_eq!(run.code, 1);
+    let reasons = checked["reasons"].as_array().unwrap();
+    assert_eq!(reasons.len(), 2, "{checked}");
+    assert_eq!(reasons[0]["path"], "/duration");
+    assert_eq!(reasons[0]["exact"], json!({"num": 8, "den": 125}));
+    assert_eq!(reasons[1]["path"], "/streams/0/scan/bit_rate");
+    assert_eq!(reasons[1]["exact"], json!({"num": 37_500, "den": 1}));
+    assert_eq!(reasons[1]["code"], "above_maximum");
+}
+
+#[test]
+fn transport_missing_evidence_rejects_under_the_documented_defaults() {
+    let input = file("check-ts-missing.ts", &transport_stream());
+    let policy = policy_file(
+        "check-ts-missing.json",
+        &json!({
+            "schema": "coreav.policy/1", "container": {"fragmented": false},
+            "streams": {"audio": {}}
+        }),
+    );
+    let checked = verdict(&check(&policy, &input));
+    let reasons = checked["reasons"].as_array().unwrap();
+    assert_eq!(reasons.len(), 4, "{checked}");
+    assert_eq!(reasons[0]["rule"], "/container/fragmented");
+    assert_eq!(reasons[1]["rule"], "/streams/invalid_tables");
+    assert_eq!(reasons[2]["rule"], "/streams/external_data");
+    assert_eq!(reasons[3]["rule"], "/streams/multiple_descriptions");
+    for reason in reasons {
+        assert_eq!(reason["code"], "unknown");
+        assert_eq!(reason["value"], Value::Null);
+    }
+}
+
+#[test]
+fn transport_sizes_are_not_a_verified_bound_or_a_rotation() {
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x1B, 0x101)]);
+    let frame = [
+        vec![0, 0, 1],
+        ts::h264_sps(640, 480, None),
+        vec![0, 0, 1],
+        ts::h264_pps(),
+        vec![0, 0, 1, 0x65, 0xB8, 0x80],
+    ]
+    .concat();
+    for n in 0..3 {
+        mux.pes(0x101, 0xE0, 90_000 + n * 3600, &frame, true);
+    }
+    let input = file("check-ts-video.ts", &mux.out);
+    for source in ["scan", "configuration", "declared"] {
+        let mut policy = transport_policy();
+        policy["streams"]["video"] = json!({
+            "max_width": 640, "max_height": 480, "max_pixels": 307_200,
+            "size_source": source
+        });
+        let policy_path = policy_file(&format!("check-ts-size-{source}.json"), &policy);
+        let run = check(&policy_path, &input);
+        assert_eq!(run.code, i32::from(source != "declared"), "{}", run.stdout);
+        let checked = verdict(&run);
+        for reason in checked["reasons"].as_array().unwrap() {
+            assert_eq!(reason["code"], "unknown");
+        }
+    }
+    let mut policy = transport_policy();
+    policy["streams"]["video"] = json!({"rotations": [0, 90, 180, 270]});
+    let policy = policy_file("check-ts-rotation.json", &policy);
+    let checked = verdict(&check(&policy, &input));
+    assert_eq!(checked["reasons"][0]["path"], "/streams/0/video/rotation");
+    assert_eq!(checked["reasons"][0]["code"], "unknown");
+}
+
+#[test]
+fn unidentified_transport_streams_cannot_bypass_the_rule_as_data() {
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x99, 0x101)]);
+    for n in 0..3 {
+        mux.pes(0x101, 0xBD, 90_000 + n * 1920, &[0x55; 20], true);
+    }
+    let input = file("check-ts-other.ts", &mux.out);
+    for (name, unidentified, code) in [
+        ("reject", json!("reject"), 1),
+        ("list", json!(["other", "153"]), 1),
+        ("ignore", json!("ignore"), 0),
+    ] {
+        let mut policy = transport_policy();
+        policy["streams"]["unidentified"] = unidentified;
+        let policy = policy_file(&format!("check-ts-other-{name}.json"), &policy);
+        let run = check(&policy, &input);
+        assert_eq!(run.code, code, "{}", run.stdout);
+        let checked = verdict(&run);
+        if code != 0 {
+            assert_eq!(checked["reasons"][0]["rule"], "/streams/unidentified");
+            assert_eq!(checked["reasons"][0]["path"], "/streams/0/codec");
+            assert_eq!(checked["reasons"][0]["value"], "other");
+        }
+    }
+}
+
+#[test]
+fn transport_packet_scans_run_only_for_stream_rate_rules() {
+    let bytes = transport_stream();
+    let mut policy = transport_policy();
+    policy["file"] = json!({"max_bit_rate": 1_000_000});
+    policy["duration"] = json!({"max_seconds": 10});
+    for scan in [false, true] {
+        if scan {
+            policy["streams"]["audio"]["max_bit_rate"] = json!(100_000);
+        }
+        let doc = coreav_cli::check::probe_source_limited(
+            coreav_isobmff::SliceSource::new(&bytes),
+            bytes.len() as u64,
+            &coreav_policy::Policy::from_value(&policy).unwrap(),
+            &coreav_isobmff::Limits::default(),
+        )
+        .map_err(|e| e.to_json())
+        .unwrap();
+        assert_eq!(doc["container"]["scanned"], scan);
+    }
+}
+
+#[test]
+fn transport_probe_failures_keep_their_own_classification() {
+    let mut mux = ts::Mux::default();
+    for _ in 0..3 {
+        mux.packet(0x1FFF, false, &[0xFF; 184]);
+    }
+    let input = file("check-ts-no-programs.ts", &mux.out);
+    let policy = policy_file("check-ts-no-programs.json", &transport_policy());
+    let checked = verdict(&check(&policy, &input));
+    assert_eq!(checked["reasons"].as_array().unwrap().len(), 1);
+    assert_eq!(checked["reasons"][0]["code"], "unreadable");
+    assert_eq!(checked["reasons"][0]["error"], json(&probe(&input).stderr));
+    assert_eq!(checked["reasons"][0]["error"]["kind"], "invalid_structure");
+}
+
+#[test]
+fn a_transport_source_io_failure_is_not_an_unreadable_verdict() {
+    use coreav_isobmff::{Error, SliceSource, Source};
+    struct Fails<'a>(&'a [u8]);
+    impl Source for Fails<'_> {
+        fn len(&mut self) -> Result<u64, Error> {
+            Ok(self.0.len() as u64)
+        }
+        fn read_exact_at(&mut self, offset: u64, buf: &mut [u8]) -> Result<(), Error> {
+            if buf.len() > 100 {
+                return Err(Error::Io(std::io::ErrorKind::ConnectionReset));
+            }
+            SliceSource::new(self.0).read_exact_at(offset, buf)
+        }
+    }
+    let bytes = transport_stream();
+    let policy = coreav_policy::Policy::from_value(&transport_policy()).unwrap();
+    assert!(matches!(
+        coreav_cli::check::run_source(Fails(&bytes), bytes.len() as u64, &policy),
+        Err(coreav_cli::error::Failure::Mpegts(
+            coreav_mpegts::Error::Io(std::io::ErrorKind::ConnectionReset)
+        ))
+    ));
+}
+
+#[test]
+fn all_policy_codec_names_are_in_the_machine_readable_schema() {
+    for codec in coreav_policy::CODECS {
+        let policy = json!({"schema": "coreav.policy/1", "streams": {"data": {"codecs": [codec]}}});
+        assert_matches(&policy, POLICY_SCHEMA);
+        assert!(coreav_policy::Policy::from_value(&policy).is_ok());
+    }
 }
 
 struct Run {
