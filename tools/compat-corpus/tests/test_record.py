@@ -60,6 +60,61 @@ class PastMistakes(unittest.TestCase):
             f'{NAME}:{line}: round 6, ISO base media, `format.duration`: the text says 97.81%, '
             'b3a-round6.json has 1025/1049 = 97.71%'])
 
+    def test_a_figure_whose_key_is_missing_from_the_evidence(self):
+        text, line = replace_once(RECORD.read_text(), '`format.duration` (96.85% to 97.71%',
+                                  '`format.duraton` (96.85% to 97.81%')
+        self.assertEqual(check(text), [
+            f'{NAME}:{line}: round 6, ISO base media, `format.duraton`: the text '
+            f'quotes {said} for round {n}, where there is no b3a-round{n}.json or no such key'
+            for said, n in (('96.85%', 5), ('97.81%', 6), ('1049', 6))])
+
+    def test_a_missing_stream_key_and_a_missing_joined_key(self):
+        for phrase, key in (('`duraton`', 'streams.duraton'),
+                            ('`format.tags.missing-name with spaces`',
+                             'format.tags.missing-name with spaces'),
+                            ('`format.duration` and `format.duraton`', 'format.duraton')):
+            with self.subTest(phrase):
+                text = f'## Round 6\n\nISO base media {phrase} is 97.71%.\n'
+                self.assertEqual(check(text), [
+                    f'{NAME}:3: round 6, ISO base media, `{key}`: the text quotes 97.71% '
+                    'for round 6, where there is no b3a-round6.json or no such key'])
+
+    def test_code_spans_without_key_figures_are_not_missing_evidence(self):
+        text = ('## Round 6\n\nThe `dist` binary is unchanged.\n\n'
+                'ISO base media `format.duraton` is not measured.\n\n'
+                'Tables: `compat-ffprobe/b3a-round6.json`; keys below 98% are listed.\n')
+        self.assertEqual(check(text), [])
+
+    def test_parenthetical_code_without_a_figure_preserves_the_outer_key(self):
+        for key in ('format.duration', 'format.duraton'):
+            for aside in ('reported by `ffprobe`', 'reported by (`ffprobe`)'):
+                with self.subTest(key=key, aside=aside):
+                    text = f'## Round 6\n\nISO base media `{key}` ({aside}) is 97.81%.\n'
+                    detail = ('the text says 97.81%, b3a-round6.json has 1025/1049 = 97.71%'
+                              if key == 'format.duration' else
+                              'the text quotes 97.81% for round 6, where there is no '
+                              'b3a-round6.json or no such key')
+                    self.assertEqual(check(text), [
+                        f'{NAME}:3: round 6, ISO base media, `{key}`: {detail}'])
+
+    def test_a_measured_parenthetical_key_ends_the_outer_group(self):
+        for key in ('streams.duration', 'streams.duraton'):
+            for aside in (f'while `{key}` is 97.81%', f'while (`{key}` is 97.81%)'):
+                with self.subTest(key=key, aside=aside):
+                    text = ('## Round 6\n\nISO base media `format.duration` is 97.71% '
+                            f'({aside}), and overall agreement is 100%.\n')
+                    expected = [] if key == 'streams.duration' else [
+                        f'{NAME}:3: round 6, ISO base media, `{key}`: the text quotes 97.81% '
+                        'for round 6, where there is no b3a-round6.json or no such key']
+                    self.assertEqual(check(text), expected)
+
+    def test_an_outer_keys_parenthetical_figure_does_not_end_its_group(self):
+        text = ('## Round 6\n\nISO base media `format.duration` '
+                '(97.71%) is now 97.81%.\n')
+        self.assertEqual(check(text), [
+            f'{NAME}:3: round 6, ISO base media, `format.duration`: the text says 97.81%, '
+            'b3a-round6.json has 1025/1049 = 97.71%'])
+
     def test_a_table_cell_that_contradicts_the_evidence(self):
         text, line = replace_once(
             RECORD.read_text(),

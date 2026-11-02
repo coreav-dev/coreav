@@ -1,0 +1,82 @@
+name: package-rehearsal
+
+# workflow-check: not required
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-build:
+        description: Successful manual release workflow artifact source
+        required: true
+      npm-build:
+        description: Successful manual npm workflow artifact source
+        required: true
+      wasm-build:
+        description: Successful wasm workflow artifact source
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  installed-packages:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64, target: x86_64-unknown-linux-musl, os: ubuntu-24.04 }
+          - { platform: linux-arm64, target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-15 }
+          - { platform: win32-x64, target: x86_64-pc-windows-msvc, os: windows-2025 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.22.1'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release-build }}
+          name: release-dist
+          path: artifacts/release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.npm-build }}
+          name: npm-linux-x64
+          path: artifacts/npm-main
+      - if: ${{ !cancelled() && matrix.platform != 'linux-x64' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.npm-build }}
+          name: npm-${{ matrix.platform }}
+          path: artifacts/npm-native
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: ${{ !cancelled() }}
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.wasm-build }}
+          name: wasm-package
+          path: artifacts/wasm
+      - name: Install and exercise the artifacts
+        if: ${{ !cancelled() }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
+        run: node packages/cli/test/package-rehearsal.mjs artifacts
+      - name: Retain each package outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: package-rehearsal-${{ matrix.platform }}
+          path: artifacts/results.json
+          if-no-files-found: warn
+          retention-days: 7

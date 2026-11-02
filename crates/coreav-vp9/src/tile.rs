@@ -35,6 +35,7 @@ const PARTITION_VERT: u8 = 2;
 const PARTITION_SPLIT: u8 = 3;
 const DC_PRED: u8 = 0;
 const SEG_LVL_ALT_Q: usize = 0;
+const SEG_LVL_REF_FRAME: usize = 2;
 const SEG_LVL_SKIP: usize = 3;
 const DCT_DCT: u8 = 0;
 const ADST_DCT: u8 = 1;
@@ -285,6 +286,7 @@ struct Block {
 pub(crate) struct TileContext<'a> {
     pub(crate) references: &'a [Option<Arc<Picture>>],
     pub(crate) previous: Option<&'a [ModeInfo]>,
+    pub(crate) previous_segments: &'a [u8],
     pub(crate) reference_mode: ReferenceMode,
 }
 
@@ -310,6 +312,8 @@ struct Tiles<'a, P> {
     mi: Vec<ModeInfo>,
     above_partition: Vec<u8>,
     left_partition: [u8; 8],
+    above_seg_pred: Vec<bool>,
+    left_seg_pred: [bool; 8],
     above_nonzero: [Vec<bool>; 3],
     left_nonzero: [[bool; 16]; 3],
     token_cache: Vec<u8>,
@@ -317,7 +321,7 @@ struct Tiles<'a, P> {
     coefs: Vec<i64>,
 }
 
-/// Reads the tiles of an intra frame (`decode_tiles`, clause 6.4) from
+/// Reads the tiles of a frame (`decode_tiles`, clause 6.4) from
 /// `data`, the frame's bytes after its compressed header, with the
 /// probabilities and transform mode of its compressed header. Returns
 /// whether every tile's boolean decoder ended as clause 9.2.3 requires, and
@@ -347,6 +351,8 @@ pub(crate) fn read<P: Sample>(
         mi: vec![ModeInfo::default(); mi_rows as usize * mi_cols as usize],
         above_partition: vec![0; sb_cols * 8],
         left_partition: [0; 8],
+        above_seg_pred: vec![false; mi_cols as usize],
+        left_seg_pred: [false; 8],
         above_nonzero: core::array::from_fn(|_| vec![false; sb_cols * 16]),
         left_nonzero: [[false; 16]; 3],
         token_cache: vec![0; 1024],
@@ -381,6 +387,7 @@ pub(crate) fn read<P: Sample>(
             let mut d = BoolDecoder::new(tile);
             for r in (row_start..row_end).step_by(8) {
                 t.left_partition = [0; 8];
+                t.left_seg_pred = [false; 8];
                 t.left_nonzero = [[false; 16]; 3];
                 for c in (t.col_start..col_end).step_by(8) {
                     t.partition(&mut d, r, c, BLOCK_64X64)?;
@@ -397,6 +404,57 @@ pub(crate) fn read<P: Sample>(
 }
 
 impl<P: Sample> Tiles<'_, P> {
+    fn segment_id(&mut self, d: &mut BoolDecoder<'_>, row: u32, col: u32, size: u8) -> u8 {
+        let seg = &self.h.segmentation;
+        if !seg.enabled {
+            return 0;
+        }
+        if self.h.is_intra() {
+            return if seg.update_map {
+                read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
+            } else {
+                0
+            };
+        }
+        let width = u32::from(get(&NUM_8X8_WIDE, size.into()));
+        let height = u32::from(get(&NUM_8X8_HIGH, size.into()));
+        let mut predicted = 7;
+        for r in row..(row + height).min(self.mi_rows) {
+            for c in col..(col + width).min(self.mi_cols) {
+                predicted = predicted.min(get(
+                    self.context.previous_segments,
+                    r as usize * self.mi_cols as usize + c as usize,
+                ));
+            }
+        }
+        if !seg.update_map {
+            return predicted;
+        }
+        let use_prediction = if seg.temporal_update {
+            let ctx = usize::from(get(&self.above_seg_pred, col as usize))
+                + usize::from(get(&self.left_seg_pred, (row & 7) as usize));
+            let value = d.read(get(&seg.pred_probs, ctx));
+            for c in col..(col + width).min(self.mi_cols) {
+                if let Some(v) = self.above_seg_pred.get_mut(c as usize) {
+                    *v = value;
+                }
+            }
+            for r in row..(row + height).min(self.mi_rows) {
+                if let Some(v) = self.left_seg_pred.get_mut((r & 7) as usize) {
+                    *v = value;
+                }
+            }
+            value
+        } else {
+            false
+        };
+        if use_prediction {
+            predicted
+        } else {
+            read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
+        }
+    }
+
     fn mi_at(&self, row: u32, col: u32) -> ModeInfo {
         get(
             &self.mi,
@@ -479,19 +537,19 @@ impl<P: Sample> Tiles<'_, P> {
         if size >= BLOCK_INVALID {
             return Err(Error::Invalid("a partition of an invalid block size"));
         }
-        if !self.h.is_intra() && self.h.segmentation.enabled {
-            return Err(Error::Unsupported("segmentation in inter frames"));
-        }
         let avail_u = r > 0;
         let avail_l = c > self.col_start;
         let above = avail_u.then(|| self.mi_at(r - 1, c));
         let left = avail_l.then(|| self.mi_at(r, c - 1));
+        let segment_id = self.segment_id(d, r, c, size);
         let seg = &self.h.segmentation;
-        let segment_id = if seg.enabled && seg.update_map {
-            read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
-        } else {
-            0
-        };
+        let forced_ref = seg
+            .features
+            .get(usize::from(segment_id))
+            .and_then(|f| f.get(SEG_LVL_REF_FRAME))
+            .copied()
+            .flatten()
+            .filter(|_| seg.enabled);
         let skip_active = seg.enabled
             && seg
                 .features
@@ -507,22 +565,26 @@ impl<P: Sample> Tiles<'_, P> {
                 self.counts.skip.get_mut(ctx).unwrap_or(&mut [0; 2]),
             )
         };
-        let is_inter = !self.h.is_intra() && {
-            let ai = above.is_some_and(|m| m.ref_frames[0] <= 0);
-            let li = left.is_some_and(|m| m.ref_frames[0] <= 0);
-            let ctx = if avail_u && avail_l {
-                if ai && li { 3 } else { usize::from(ai || li) }
-            } else if avail_u || avail_l {
-                2 * usize::from(if avail_u { ai } else { li })
-            } else {
-                0
-            };
-            counted_bool(
-                d,
-                get(&self.probs.is_inter, ctx),
-                self.counts.is_inter.get_mut(ctx).unwrap_or(&mut [0; 2]),
-            )
-        };
+        let is_inter = !self.h.is_intra()
+            && forced_ref.map_or_else(
+                || {
+                    let ai = above.is_some_and(|m| m.ref_frames[0] <= 0);
+                    let li = left.is_some_and(|m| m.ref_frames[0] <= 0);
+                    let ctx = if avail_u && avail_l {
+                        if ai && li { 3 } else { usize::from(ai || li) }
+                    } else if avail_u || avail_l {
+                        2 * usize::from(if avail_u { ai } else { li })
+                    } else {
+                        0
+                    };
+                    counted_bool(
+                        d,
+                        get(&self.probs.is_inter, ctx),
+                        self.counts.is_inter.get_mut(ctx).unwrap_or(&mut [0; 2]),
+                    )
+                },
+                |reference| reference != 0,
+            );
         let max_tx = get(&MAX_TX_SIZE, size.into());
         let tx_size = if self.tx_mode == TxMode::Select && size >= BLOCK_8X8 && (!skip || !is_inter)
         {
@@ -562,7 +624,7 @@ impl<P: Sample> Tiles<'_, P> {
             ..ModeInfo::default()
         };
         let uv_mode = if is_inter {
-            self.inter_mode(d, r, c, &mut info, above, left)?;
+            self.inter_mode(d, r, c, &mut info, above, left);
             0
         } else {
             self.intra_modes(d, &mut info, above, left)
@@ -670,100 +732,64 @@ impl<P: Sample> Tiles<'_, P> {
         info: &mut ModeInfo,
         above: Option<ModeInfo>,
         left: Option<ModeInfo>,
-    ) -> Result<()> {
-        let fixed = if self.h.ref_frame_sign_bias[1] == self.h.ref_frame_sign_bias[2] {
-            3
-        } else if self.h.ref_frame_sign_bias[1] == self.h.ref_frame_sign_bias[3] {
-            2
+    ) {
+        let layout = crate::refs::References::new(self.h.ref_frame_sign_bias);
+        let above_refs = above.map(|m| m.ref_frames);
+        let left_refs = left.map(|m| m.ref_frames);
+        let forced_ref = self
+            .h
+            .segmentation
+            .features
+            .get(usize::from(info.segment_id))
+            .and_then(|f| f.get(SEG_LVL_REF_FRAME))
+            .copied()
+            .flatten()
+            .filter(|_| self.h.segmentation.enabled);
+        let compound = forced_ref.is_none()
+            && match self.context.reference_mode {
+                ReferenceMode::Compound => true,
+                ReferenceMode::Single => false,
+                ReferenceMode::Select => {
+                    let ctx = layout.mode_context(above_refs, left_refs);
+                    counted_bool(
+                        d,
+                        get(&self.probs.comp_mode, ctx),
+                        self.counts.comp_mode.get_mut(ctx).unwrap_or(&mut [0; 2]),
+                    )
+                }
+            };
+        info.ref_frames = if let Some(reference) = forced_ref {
+            [reference as i8, -1]
+        } else if compound {
+            let ctx = layout.compound_context(above_refs, left_refs);
+            let choice = counted_bool(
+                d,
+                get(&self.probs.comp_ref, ctx),
+                self.counts.comp_ref.get_mut(ctx).unwrap_or(&mut [0; 2]),
+            );
+            layout.pair(choice)
         } else {
-            1
-        };
-        let compound = match self.context.reference_mode {
-            ReferenceMode::Compound => true,
-            ReferenceMode::Single => false,
-            ReferenceMode::Select => {
-                let ctx = match (above, left) {
-                    (Some(a), Some(l)) => {
-                        usize::from((a.ref_frames[0] == fixed) ^ (l.ref_frames[0] == fixed))
-                    }
-                    (Some(a), None) => usize::from(a.ref_frames[0] == fixed),
-                    (None, Some(l)) => usize::from(l.ref_frames[0] == fixed),
-                    (None, None) => 1,
-                };
+            let [first, second] = crate::refs::single_contexts(above_refs, left_refs);
+            let mut read = |ctx, node| {
                 counted_bool(
                     d,
-                    get(&self.probs.comp_mode, ctx),
-                    self.counts.comp_mode.get_mut(ctx).unwrap_or(&mut [0; 2]),
+                    get(&get(&self.probs.single_ref, ctx), node),
+                    self.counts
+                        .single_ref
+                        .get_mut(ctx)
+                        .and_then(|p| p.get_mut(node))
+                        .unwrap_or(&mut [0; 2]),
                 )
-            }
-        };
-        if compound {
-            return Err(Error::Unsupported("compound inter prediction"));
-        }
-        let a = above.map(|m| m.ref_frames[0]);
-        let l = left.map(|m| m.ref_frames[0]);
-        let ctx = match (a, l) {
-            (Some(a), Some(l)) if a <= 0 && l <= 0 => 2,
-            (Some(a), Some(l)) if l <= 0 => 4 * usize::from(a == 1),
-            (Some(a), Some(l)) if a <= 0 => 4 * usize::from(l == 1),
-            (Some(a), Some(l)) => 2 * usize::from(a == 1) + 2 * usize::from(l == 1),
-            (Some(v), None) | (None, Some(v)) if v > 0 => 4 * usize::from(v == 1),
-            _ => 2,
-        };
-        let p1 = counted_bool(
-            d,
-            get(&get(&self.probs.single_ref, ctx), 0),
-            self.counts
-                .single_ref
-                .get_mut(ctx)
-                .and_then(|p| p.get_mut(0))
-                .unwrap_or(&mut [0; 2]),
-        );
-        let reference = if !p1 {
-            1
-        } else {
-            let context_one = |v: i8| {
-                if v <= 0 || v == 1 {
-                    2
-                } else {
-                    4 * usize::from(v == 2)
-                }
             };
-            let ctx = match (a, l) {
-                (Some(a), Some(l)) if a <= 0 && l <= 0 => 2,
-                (Some(a), Some(l)) if l <= 0 => {
-                    if a == 1 {
-                        3
-                    } else {
-                        4 * usize::from(a == 2)
-                    }
-                }
-                (Some(a), Some(l)) if a <= 0 => {
-                    if l == 1 {
-                        3
-                    } else {
-                        4 * usize::from(l == 2)
-                    }
-                }
-                (Some(1), Some(1)) => 3,
-                (Some(1), Some(l)) => 4 * usize::from(l == 2),
-                (Some(a), Some(1)) => 4 * usize::from(a == 2),
-                (Some(a), Some(l)) => 2 * usize::from(a == 2) + 2 * usize::from(l == 2),
-                (Some(v), None) | (None, Some(v)) => context_one(v),
-                _ => 2,
+            let reference = if !read(first, 0) {
+                1
+            } else if read(second, 1) {
+                3
+            } else {
+                2
             };
-            let p2 = counted_bool(
-                d,
-                get(&get(&self.probs.single_ref, ctx), 1),
-                self.counts
-                    .single_ref
-                    .get_mut(ctx)
-                    .and_then(|p| p.get_mut(1))
-                    .unwrap_or(&mut [0; 2]),
-            );
-            if p2 { 3 } else { 2 }
+            [reference, -1]
         };
-        info.ref_frames = [reference, -1];
         let search = Search {
             modes: &self.mi,
             previous: self.context.previous,
@@ -773,9 +799,26 @@ impl<P: Sample> Tiles<'_, P> {
             col_end: self.col_end,
             header: self.h,
         };
-        let candidates = search.candidates(row, col, info.size, reference, None);
-        let best = search.best(row, col, info.size, candidates.vectors);
-        if info.size >= BLOCK_8X8 {
+        let candidates = search.candidates(row, col, info.size, info.ref_frames[0], None);
+        let mut best = [
+            search.best(row, col, info.size, candidates.vectors),
+            [[0; 2]; 2],
+        ];
+        if compound {
+            let second = search.candidates(row, col, info.size, info.ref_frames[1], None);
+            best[1] = search.best(row, col, info.size, second.vectors);
+        }
+        let force_zero = self.h.segmentation.enabled
+            && self
+                .h
+                .segmentation
+                .features
+                .get(usize::from(info.segment_id))
+                .and_then(|f| f.get(SEG_LVL_SKIP))
+                .is_some_and(Option::is_some);
+        if force_zero {
+            info.mode = 12;
+        } else if info.size >= BLOCK_8X8 {
             info.mode = 10
                 + counted_tree(
                     d,
@@ -828,7 +871,6 @@ impl<P: Sample> Tiles<'_, P> {
         for y in (0..2).step_by(h) {
             for x in (0..2).step_by(w) {
                 let block = y * 2 + x;
-                let mut selected = best;
                 if info.size < BLOCK_8X8 {
                     info.mode = 10
                         + counted_tree(
@@ -840,39 +882,49 @@ impl<P: Sample> Tiles<'_, P> {
                                 .get_mut(candidates.context)
                                 .unwrap_or(&mut [[0; 2]; 3]),
                         );
-                    if info.mode == 10 || info.mode == 11 {
-                        let raw = search
-                            .candidates(row, col, info.size, reference, Some(block))
-                            .vectors;
-                        selected = mv::append_sub8x8(raw, info.sub_mvs[0], block);
-                    }
                 }
-                let vector = match info.mode {
-                    10 => selected[0],
-                    11 => selected[1],
-                    12 => [0; 2],
-                    _ => read_mv(
-                        d,
-                        self.probs,
-                        &mut self.counts,
-                        best[0],
-                        self.h.allow_high_precision_mv,
-                    ),
-                };
-                for dy in 0..h {
-                    for dx in 0..w {
-                        if let Some(m) = info
-                            .sub_mvs
-                            .get_mut(0)
-                            .and_then(|v| v.get_mut((y + dy) * 2 + x + dx))
-                        {
-                            *m = vector;
+                for (list, &reference_best) in
+                    best.iter().enumerate().take(1 + usize::from(compound))
+                {
+                    let mut selected = reference_best;
+                    if info.size < BLOCK_8X8 && (info.mode == 10 || info.mode == 11) {
+                        let raw = search
+                            .candidates(
+                                row,
+                                col,
+                                info.size,
+                                get(&info.ref_frames, list),
+                                Some(block),
+                            )
+                            .vectors;
+                        selected = mv::append_sub8x8(raw, get(&info.sub_mvs, list), block);
+                    }
+                    let vector = match info.mode {
+                        10 => selected[0],
+                        11 => selected[1],
+                        12 => [0; 2],
+                        _ => read_mv(
+                            d,
+                            self.probs,
+                            &mut self.counts,
+                            reference_best[0],
+                            self.h.allow_high_precision_mv,
+                        ),
+                    };
+                    for dy in 0..h {
+                        for dx in 0..w {
+                            if let Some(m) = info
+                                .sub_mvs
+                                .get_mut(list)
+                                .and_then(|v| v.get_mut((y + dy) * 2 + x + dx))
+                            {
+                                *m = vector;
+                            }
                         }
                     }
                 }
             }
         }
-        Ok(())
     }
 
     /// `residual` (clause 6.4.21): prediction, the tokens of each
@@ -995,6 +1047,20 @@ impl<P: Sample> Tiles<'_, P> {
         region: (u32, u32, u32, u32),
         block: usize,
     ) -> Result<()> {
+        for list in 0..1 + usize::from(b.info.ref_frames[1] > 0) {
+            self.reference_prediction(b, plane, region, block, list)?;
+        }
+        Ok(())
+    }
+
+    fn reference_prediction(
+        &mut self,
+        b: &Block,
+        plane: usize,
+        region: (u32, u32, u32, u32),
+        block: usize,
+        list: usize,
+    ) -> Result<()> {
         let (x, y, w, h) = region;
         let (sx, sy) = if plane == 0 {
             (0, 0)
@@ -1004,7 +1070,7 @@ impl<P: Sample> Tiles<'_, P> {
                 u32::from(self.h.color.subsampling_y),
             )
         };
-        let vectors = b.info.sub_mvs[0];
+        let vectors = get(&b.info.sub_mvs, list);
         let average = |sum: i32, divisor: i32| {
             (sum + if sum < 0 { -(divisor / 2) } else { divisor / 2 }) / divisor
         };
@@ -1035,7 +1101,7 @@ impl<P: Sample> Tiles<'_, P> {
         let col_mv = clamp(vector[1], b.col, self.mi_cols, bw, sx);
         let slot = get(
             &self.h.ref_frame_idx,
-            usize::try_from(b.info.ref_frames[0] - 1).unwrap_or(0),
+            usize::try_from(get(&b.info.ref_frames, list) - 1).unwrap_or(0),
         );
         let reference = self
             .context
@@ -1097,7 +1163,7 @@ impl<P: Sample> Tiles<'_, P> {
             2 => InterpFilter::EightTapSharp,
             _ => InterpFilter::Bilinear,
         };
-        predict_inter(block, source, sampling, filter, bit_depth, false);
+        predict_inter(block, source, sampling, filter, bit_depth, list != 0);
         Ok(())
     }
 

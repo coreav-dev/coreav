@@ -293,7 +293,9 @@ class Record:
         (stream `bit_rate`); the container is the last one the paragraph
         names before the key. Keys joined by a comma or "and" share the
         figures that follow them, up to the next key or the parenthesis
-        that closes around them. In a sentence that says "below 98%",
+        that closes around them. Unmeasured parenthetical code does not
+        end the outer group; a new key with a figure does.
+        In a sentence that says "below 98%",
         `<container> N of M` (or `development`, `held out` after it) is the
         count of the container's keys below the bar, and `round K: N` that
         count in round K."""
@@ -313,6 +315,11 @@ class Record:
             return f'{self.name}:{para[bisect.bisect_right(starts, offset) - 1][0]}'
 
         def compare(offset, said, k, c, m, field, comparison=None):
+            if c is None:
+                problems.append(f'{where(offset)}: round {n}, `{k}`: the text quotes {said}, but '
+                                f'the paragraph names no container before the key, so its figure '
+                                f'cannot be checked')
+                return
             name, d = self.evidence(m)
             entry = d[c].get(k) if d else None
             if entry is None:
@@ -330,32 +337,29 @@ class Record:
                 problems.append(f"{where(offset)}: round {n}, {CONTAINERS[c]}, `{k}`: the text says "
                                 f"{claim}, {name} has {entry['agree']}/{entry['files']} = {share}{of_round}")
 
-        container, group, sentence, depth, group_depth, last_key = None, [], 0, 0, 0, 0
+        container, group, sentence, scopes, last_key = None, [], 0, [], 0
         for t in TOKEN.finditer(text):
             at = bisect.bisect_right(ends, t.start())
             if at != sentence:
-                sentence, group, depth = at, [], 0
+                sentence, group, scopes = at, [], []
             if t.group('container'):
                 container = NAMES[t.group('container')]
             elif t.group('open'):
-                depth += 1
+                scopes.append((list(group), last_key))
             elif t.group('close'):
-                depth -= 1
-                if depth < group_depth:
-                    group = []
+                group, last_key = scopes.pop() if scopes else ([], 0)
             elif t.group('key'):
                 k = t.group('key') if '.' in t.group('key') else f"streams.{t.group('key')}"
-                if not any(k in table for table in doc.values() if isinstance(table, dict)):
-                    continue
-                if container is None:
-                    problems.append(f'{where(t.start())}: round {n}, `{k}`: the paragraph names no '
-                                    f'container before the key, so its figures cannot be checked')
+                if not any(k in table for table in doc.values() if isinstance(table, dict)) \
+                        and not re.fullmatch(r'[A-Za-z_]\w*(?:\.[^/]+)?', t.group('key')):
                     continue
                 if not group or not JOIN.fullmatch(text[last_key:t.start()]):
-                    group, group_depth = [], depth
+                    group = []
                 group.append((k, container))
                 last_key = t.end()
             elif group and not t.group('skip'):
+                scopes = [(outer_group if outer_key == last_key else [], outer_key)
+                          for outer_group, outer_key in scopes]
                 for k, c in group:
                     if t.group('rate'):
                         compare(t.start(), t.group('rate'), k, c, n, 'rate')

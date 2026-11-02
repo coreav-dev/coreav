@@ -379,6 +379,67 @@ fn single_reference_inter_frames_match_the_published_md5s() {
             "vp90-2-09-subpixel-00.ivf".to_owned(),
             "vp90-2-03-size-196x198.webm".to_owned(),
         ]);
+    check_pixel_md5s(&dir, names);
+}
+
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn compound_frames_scaling_tiles_and_shown_references_match_the_published_md5s() {
+    let names = [
+        "vp90-2-01-sharpness-1.webm",
+        "vp90-2-01-sharpness-2.webm",
+        "vp90-2-01-sharpness-3.webm",
+        "vp90-2-01-sharpness-4.webm",
+        "vp90-2-01-sharpness-5.webm",
+        "vp90-2-01-sharpness-6.webm",
+        "vp90-2-01-sharpness-7.webm",
+        "vp90-2-07-frame_parallel-1.webm",
+        "vp90-2-07-frame_parallel.webm",
+        "vp90-2-07-frame_parallel_big_superframe.webm",
+        "vp90-2-07-frame_parallel_multi_big_superframe.webm",
+        "vp90-2-08-tile-4x1.webm",
+        "vp90-2-08-tile-4x4.webm",
+        "vp90-2-08-tile_1x2.webm",
+        "vp90-2-08-tile_1x2_frame_parallel.webm",
+        "vp90-2-08-tile_1x4.webm",
+        "vp90-2-08-tile_1x4_frame_parallel.webm",
+        "vp90-2-08-tile_1x8.webm",
+        "vp90-2-08-tile_1x8_frame_parallel.webm",
+        "vp90-2-10-show-existing-frame.webm",
+        "vp90-2-10-show-existing-frame2.webm",
+        "vp90-2-13-largescaling.ivf",
+        "vp90-2-13-largescaling.webm",
+        "vp90-2-13-mv-with-scaling.ivf",
+        "vp90-2-17-show-existing-frame.webm",
+        "vp90-2-20-10000000111111111111.webm",
+        "vp90-2-20-11011011111111111111.webm",
+        "vp90-2-20-big_superframe-01.webm",
+        "vp90-2-20-big_superframe-02.webm",
+    ];
+    assert_eq!(
+        check_pixel_md5s(&vectors_dir(), names.map(str::to_owned)),
+        349
+    );
+}
+
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn segmented_inter_frames_match_the_published_md5s() {
+    let names = [
+        "vp90-2-03-deltaq.webm",
+        "vp90-2-09-aq2.webm",
+        "vp90-2-15-segkey.webm",
+        "vp90-2-15-segkey_adpq.webm",
+        "vp90-2-19-skip-01.webm",
+        "vp90-2-19-skip-02.webm",
+        "vp90-2-19-skip.webm",
+    ];
+    let shown = check_pixel_md5s(&vectors_dir(), names.map(str::to_owned));
+    assert_eq!(shown, 385);
+}
+
+fn check_pixel_md5s(dir: &Path, names: impl IntoIterator<Item = String>) -> usize {
+    let mut total = 0;
     for name in names {
         let data = std::fs::read(dir.join(&name)).unwrap();
         let list = std::fs::read_to_string(dir.join(format!("{name}.md5"))).unwrap();
@@ -407,7 +468,9 @@ fn single_reference_inter_frames_match_the_published_md5s() {
             }
         }
         assert_eq!(shown, expected.len(), "{name}");
+        total += shown;
     }
+    total
 }
 
 /// A vector whose key frame the padding check below changes, the MD5 its

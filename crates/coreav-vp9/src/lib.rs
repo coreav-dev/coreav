@@ -15,9 +15,9 @@
 //! probability contexts, so it can say which frames a stream shows and at
 //! what size. It reads the tiles of intra frames, reconstructs them and
 //! applies the loop filter, so each intra frame comes with its [`Picture`].
-//! [`FrameDecoder`] separately reconstructs profile 0 single-reference
+//! [`FrameDecoder`] separately reconstructs profile 0 single-reference and compound
 //! inter frames with reference pictures and backward probability adaptation.
-//! Compound prediction and segmentation in inter frames remain unsupported.
+//! Inter frames also support segmentation and retained segment maps.
 //!
 //! ```
 //! use coreav_vp9::{Decoder, Header, Limits};
@@ -49,6 +49,7 @@ mod loop_filter;
 mod mv;
 mod picture;
 mod probs;
+mod refs;
 mod superframe;
 mod tables;
 mod tile;

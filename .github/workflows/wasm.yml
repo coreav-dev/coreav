@@ -180,6 +180,13 @@ jobs:
           npm run check:package --prefix packages/wasm -- --tarball "$tarball"
           cargo build --locked -p coreav-edge-native --profile edge
           echo "WASM_PACKAGE=$tarball" >> "$GITHUB_ENV"
+      - name: Retain the verified package for installation rehearsals
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wasm-package
+          path: ${{ env.WASM_PACKAGE }}
+          if-no-files-found: error
+          retention-days: 7
       - name: Judge the registered memory gates
         id: examples
         timeout-minutes: 5
