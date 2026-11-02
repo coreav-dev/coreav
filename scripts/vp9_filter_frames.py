@@ -1,5 +1,6 @@
 """Generated keyframe controls from VP9 draft 0.7, clauses 6.2.1 and 6.2.8–6.2.13."""
 from dataclasses import dataclass
+from fractions import Fraction
 import struct
 
 
@@ -126,11 +127,13 @@ def rewrite(template, level, setting):
     return packet
 
 
-def ivf(data):
+def ivf(data, *, tick=None):
     require(44 < len(data) <= (1 << 20) + 44, 'invalid generated IVF length')
     magic, version, length, codec, width, height, rate, scale, count, unused = struct.unpack('<4sHH4sHHIIII', data[:32])
-    require((magic, version, length, codec, rate, scale, count, unused)
-            == (b'DKIF', 0, 32, b'VP90', 1, 1, 1, 0), 'unexpected generated IVF header')
+    require((magic, version, length, codec, count, unused)
+            == (b'DKIF', 0, 32, b'VP90', 1, 0) and rate > 0 and scale > 0,
+            'unexpected generated IVF header')
+    require(tick is None or Fraction(scale, rate) == tick, 'unexpected source IVF clock')
     size, timestamp = struct.unpack('<IQ', data[32:44])
     require(size == len(data) - 44 and timestamp == 0, 'expected exactly one IVF packet at zero')
     packet = data[44:]

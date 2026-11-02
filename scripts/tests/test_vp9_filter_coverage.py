@@ -1,4 +1,5 @@
 import copy
+from fractions import Fraction
 import hashlib
 import importlib.util
 import json
@@ -86,6 +87,18 @@ class Rewriting(unittest.TestCase):
         for data in (encoded[:-1], encoded + b'extra', encoded[:32] + struct.pack('<IQ', 1, 0) + encoded[44:]):
             with self.assertRaises(ValueError):
                 frames.ivf(data)
+
+    def test_packet_copy_may_change_the_container_tick_but_not_the_packet(self):
+        packet = template()
+        encoded = bytearray(frames.wrap(packet))
+        encoded[16:20] = struct.pack('<I', 1000)
+        self.assertEqual(frames.ivf(bytes(encoded)), packet)
+        self.assertEqual(frames.ivf(bytes(encoded), tick=Fraction(1, 1000)), packet)
+        with self.assertRaisesRegex(ValueError, 'source IVF clock'):
+            frames.ivf(bytes(encoded), tick=Fraction(1, 1))
+        encoded[16:20] = bytes(4)
+        with self.assertRaises(ValueError):
+            frames.ivf(bytes(encoded))
 
     def test_picture_bytes_are_bounded_reproducible_and_planar(self):
         for pattern in ('steps', 'ramp', 'texture'):

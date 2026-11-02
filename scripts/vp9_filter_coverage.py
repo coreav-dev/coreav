@@ -207,7 +207,7 @@ def capture(args):
                 report['encoded_ivf'].append(dict(pattern=pattern, bytes=len(data),
                     rate=int.from_bytes(data[16:20], 'little'), scale=int.from_bytes(data[20:24], 'little'),
                     frames=int.from_bytes(data[24:28], 'little')))
-                packet = frames.ivf(outputs[0])
+                packet = frames.ivf(outputs[0], tick=Fraction(1, 1))
                 template = frames.keyframe(packet)
                 corpus.require(not template.control['segmentation'], 'source encoder added segmentation')
                 corpus.require((template.width, template.height) == (width, height), 'source dimensions differ')
@@ -226,7 +226,10 @@ def capture(args):
                          '-map', '0:v:0', '-c:v', 'copy', '-an', '-f', 'matroska', mkv_path])
                 command([args.ffmpeg, '-nostdin', '-v', 'error', '-xerror', *AUDIO_DECODE_INPUT, '-i', mkv_path,
                          '-map', '0:v:0', '-c:v', 'copy', '-an', '-f', 'ivf', roundtrip])
-                corpus.require(frames.ivf(roundtrip.read_bytes()) == packet, 'packet-copy round trip changed bytes')
+                returned = roundtrip.read_bytes()
+                report['roundtrip_ivf'] = dict(rate=int.from_bytes(returned[16:20], 'little'),
+                    scale=int.from_bytes(returned[20:24], 'little'), frames=int.from_bytes(returned[24:28], 'little'))
+                corpus.require(frames.ivf(returned) == packet, 'packet-copy round trip changed bytes')
                 input_sha = corpus.digest(mkv_path)
                 report['phase'] = 'compare'
                 result = corpus.compare(dict(path=str(mkv_path), sha256=input_sha), args, set(), private)
