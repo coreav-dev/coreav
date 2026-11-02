@@ -1224,9 +1224,9 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
 }
 
 /// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
-/// "Through `coreav ffmpeg`"): the pipeline's encode, the audio copied; and
-/// the refusals where `ffmpeg`'s defaults would give another output, at
-/// exit status 4 with nothing written.
+/// "Through `coreav ffmpeg`"): the video's encode with copied audio, or
+/// default AAC when this build decodes the source; unsupported commands
+/// refuse at exit status 4 with nothing written.
 #[test]
 fn ffmpeg_libx264_commands_run_the_pipeline() {
     let Some(tools) = tools() else { return };
@@ -1279,21 +1279,48 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     );
     decodes_cleanly(&tools, &out);
     std::fs::remove_file(&out).unwrap();
-    for (words, source) in [
-        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4"),
-        ("-i IN -c:v libx264 OUT", "vfr.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "timecode.mov"),
-        ("-i IN -an -c:v libx264 OUT", "chapters.mov"),
-        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 OUT", "basic.mp4"),
-        ("-i IN -c copy -crf 20 OUT", "basic.mp4"),
+    for (words, source, expected) in [
+        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "vfr.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "browser.webm", 4),
+        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "timecode.mov", 4),
+        ("-i IN -an -c:v libx264 OUT", "chapters.mov", 4),
+        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4", 4),
+        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4", 4),
+        (
+            "-i IN -c:v libx264 OUT",
+            "basic.mp4",
+            if cfg!(feature = "aac") { 0 } else { 4 },
+        ),
+        ("-i IN -c copy -crf 20 OUT", "basic.mp4", 4),
     ] {
         let (code, stderr) = run(words, source, &out);
-        assert_eq!(code, 4, "{words} on {source}: {stderr}");
-        assert!(!out.exists(), "{words} on {source}");
+        assert_eq!(code, expected, "{words} on {source}: {stderr}");
+        if source == "browser.webm" {
+            assert!(
+                stderr.contains("default AAC encoding of an Opus source"),
+                "{stderr}"
+            );
+        }
+        if expected == 4 {
+            assert!(!out.exists(), "{words} on {source}");
+        } else {
+            assert_eq!(
+                probe_json(
+                    &tools,
+                    &["-show_entries", "stream=codec_type,codec_name"],
+                    &out
+                )["streams"],
+                serde_json::json!([
+                    {"codec_type": "video", "codec_name": "h264"},
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ]),
+            );
+            decodes_cleanly(&tools, &out);
+            std::fs::remove_file(&out).unwrap();
+        }
     }
     let (code, stderr) = run(
         "-noautorotate -i IN -an -c:v libx264 -preset ultrafast OUT",
@@ -1735,6 +1762,103 @@ fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
     path
 }
 
+#[test]
+fn ffmpeg_default_codecs_match_the_oracle() {
+    let Some(tools) = tools() else { return };
+    for muxer in ["mp4", "ipod"] {
+        let help = Command::new(&tools.ffmpeg)
+            .args(["-hide_banner", "-h", &format!("muxer={muxer}")])
+            .output()
+            .unwrap();
+        assert!(help.status.success());
+        let help = String::from_utf8(help.stdout).unwrap();
+        assert!(help.contains("Default video codec: h264"), "{help}");
+        assert!(help.contains("Default audio codec: aac"), "{help}");
+    }
+    let dir = dir("ffmpeg-default-codecs");
+    let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let basic = tools.fixtures.join("basic.mp4");
+    let mut cases = vec![
+        ("video-only", &basic, vec!["-an"]),
+        ("audio-copy", &basic, vec!["-c:a", "copy"]),
+        ("both-default", &flac, vec![]),
+        ("video-default", &flac, vec!["-c:a", "aac"]),
+        ("audio-default", &flac, vec!["-c:v", "libx264"]),
+        ("last-copy", &basic, vec!["-c:v", "libx264", "-c", "copy"]),
+    ];
+    if cfg!(feature = "aac") {
+        cases.push(("aac-source-default", &basic, vec!["-c:v", "libx264"]));
+    }
+    for (name, source, flags) in cases {
+        let output = dir.join(format!("{name}.mp4"));
+        let oracle = dir.join(format!("{name}-oracle.mp4"));
+        let log = dir.join(format!("{name}-fallback.log"));
+        let actual = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(source)
+            .args(&flags)
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        assert!(
+            actual.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&actual.stderr)
+        );
+        assert!(
+            !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+            "{name}: fell back"
+        );
+        let expected = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
+            .arg(source)
+            .args(&flags)
+            .arg(&oracle)
+            .output()
+            .unwrap();
+        assert!(
+            expected.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&expected.stderr)
+        );
+        let fields = [
+            "-show_entries",
+            "stream=codec_type,codec_name,profile,width,height,pix_fmt,sample_rate,channels",
+        ];
+        assert_eq!(
+            probe_json(&tools, &fields, &output),
+            probe_json(&tools, &fields, &oracle),
+            "{name}"
+        );
+        assert_eq!(
+            video_md5(&tools, &output, &["-f", "framemd5"]),
+            video_md5(&tools, &oracle, &["-f", "framemd5"]),
+            "{name}"
+        );
+        if name == "audio-copy" || name == "last-copy" {
+            assert_eq!(
+                audio_packets(&tools, &output),
+                audio_packets(&tools, &oracle),
+                "{name}"
+            );
+        } else if !flags.contains(&"-an") {
+            let (actual, errors) = decoded_audio(&tools, &output);
+            let (expected, oracle_errors) = decoded_audio(&tools, &oracle);
+            assert!(errors.is_empty() && oracle_errors.is_empty(), "{name}");
+            assert!(!actual.is_empty(), "{name}");
+            assert_eq!(actual.len(), expected.len(), "{name}");
+        }
+        decodes_cleanly(&tools, &output);
+    }
+    nothing_left(&dir);
+}
+
 /// The audio of `path` as `ffmpeg` decodes it: 16-bit samples at 48 kHz,
 /// with the edit list applied; and what it printed.
 fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
@@ -1829,7 +1953,12 @@ fn ffmpeg_audio_only_refusals_do_not_publish_output() {
     let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
     let no_aac = script(&dir, "without-aac", "exit 0");
     for (name, options, program, strict) in [
-        ("video.mp4", vec![], tools.ffmpeg.as_path(), false),
+        (
+            "video.mp4",
+            vec!["-c:v", "copy"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
         (
             "trim.mp4",
             vec!["-vn", "-t", "1"],

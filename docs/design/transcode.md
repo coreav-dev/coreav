@@ -1070,6 +1070,28 @@ command without one, or with a video only the FFmpeg decoder would decode,
 is refused (exit status 4) and never handed to FFmpeg, as is every
 `-c:a aac` command, whose encoder is the `ffmpeg` program.
 
+When no codec option covers a selected video or audio stream, MP4 and M4A
+use libx264 and AAC respectively, as the pinned FFmpeg's muxer defaults do.
+Explicit codec options still win in their original order. For example,
+`-i in.mp4 -an out.mp4` encodes the video, while `-c copy` copies every
+selected stream. Defaults do not add an encoder, widen audio-source
+support or enable audio-only encoding. An M4A output with selected video
+is still refused, not silently reduced to audio. Segment output still
+requires explicit codecs. Encoder options still require their explicit
+encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
+
+An Opus source still requires an explicit audio codec choice. Default AAC
+encoding of Opus is refused because its exact end-to-end output has not
+been verified. Explicit audio encoding and copying keep their existing
+behavior. FLAC, MP3 and, with the `aac` feature, AAC sources retain their
+existing eligibility checks. The [audio source diagnostic](audio-source-diagnostic.md)
+separates decoder samples from AAC encoder behavior without changing B9.
+
+Explicit encoder names are checked before the input is read. Default
+encoders are checked after CoreAV probes and selects the streams, before
+decoding. Strict-safe mode refuses default AAC just as it refuses
+explicit AAC, and default libx264 can use only the x264 program.
+
 | Option | Taken as |
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
@@ -1137,9 +1159,10 @@ output, before the encoder starts:
 - **Stream order.** FFmpeg writes the selected video first, then the
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
-- **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; a command that selects an audio stream without
-  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
+- **Audio.** Selected audio follows the default AAC rules above unless a
+  matching codec option selects another behavior. Explicit codec options
+  keep their precedence; unsupported source, layout or rate combinations
+  and implicit Opus-to-AAC encoding remain refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

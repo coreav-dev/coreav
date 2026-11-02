@@ -67,12 +67,8 @@ pub(super) fn bits(text: &str) -> Option<u128> {
     Some(digits.checked_mul(scale)? / ten)
 }
 
-/// The encoder of a command that encodes with `libx264`, as strict-safe
-/// mode allows it, from the command line alone: refused before the input
-/// is read. `None` for a command that names no `libx264`. A command that
-/// names `aac` is refused in strict-safe mode first: its encoder is the
-/// `ffmpeg` program.
-pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
+/// Checks explicitly named encoders before reading the input.
+pub fn preflight(command: &Command, strict_safe: StrictSafe) -> Result<(), Refusal> {
     if strict_safe.on()
         && (command.muxer == super::args::Muxer::Mp3
             || command
@@ -87,24 +83,34 @@ pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Enco
         .iter()
         .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Aac))
     {
-        strict_safe
-            .aac("use -c:a copy or libopus")
-            .map_err(|message| {
-                Refusal::NotNative(NotNative {
-                    reason: Reason::Property(
-                        "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)",
-                    ),
-                    message,
-                })
-            })?;
+        check_aac(strict_safe)?;
     }
     if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
-        return Ok(None);
+        return Ok(());
     }
     strict_safe
         .encoder("auto", None)
-        .map(Some)
+        .map(|_| ())
         .map_err(refused_strict)
+}
+
+fn check_aac(strict_safe: StrictSafe) -> Result<(), Refusal> {
+    strict_safe
+        .aac("use -c:a copy or libopus")
+        .map_err(|message| Refusal::NotNative(NotNative {
+            reason: Reason::Property(
+                "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)",
+            ),
+            message,
+        }))
+}
+
+/// Checks the selected encoders, including the muxer's defaults, before decoding.
+pub fn encoder(job: &TranscodeJob, strict_safe: StrictSafe) -> Result<Encoder, Refusal> {
+    if job.audio_encoder == Some(AudioEncoder::Aac) {
+        check_aac(strict_safe)?;
+    }
+    strict_safe.encoder("auto", None).map_err(refused_strict)
 }
 
 /// The request for the pipeline from the command's encoder options, its
@@ -657,7 +663,7 @@ mod tests {
         ] {
             let line: Vec<String> = line.split(' ').map(String::from).collect();
             let command = super::super::args::parse(&line).unwrap();
-            match encoder(&command, StrictSafe::new(true)) {
+            match preflight(&command, StrictSafe::new(true)) {
                 Err(Refusal::NotNative(refusal)) => {
                     assert_eq!(
                         refusal.reason,
@@ -674,6 +680,16 @@ mod tests {
                 other => panic!("{line:?}: {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn strict_safe_mode_checks_resolved_aac_before_selecting_video_encoder() {
+        let refusal = encoder(&job(AudioEncoder::Aac), StrictSafe::new(true)).unwrap_err();
+        assert!(
+            matches!(refusal, Refusal::NotNative(refusal) if refusal.reason == Reason::Property(
+                "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
+            ))
+        );
     }
 
     #[test]

@@ -579,6 +579,30 @@ pub(crate) struct BandData {
 }
 
 impl BandData {
+    pub(crate) fn try_fit(&mut self, g: &Geometry, k: usize) -> Result<()> {
+        let (luma, chroma) = g.plane_samples(k);
+        let mbs = g.motion(k).rows() * g.mb_width;
+        for (plane, len) in [
+            (&mut self.y, luma),
+            (&mut self.cb, chroma),
+            (&mut self.cr, chroma),
+        ] {
+            plane
+                .try_reserve_exact(len.saturating_sub(plane.len()))
+                .map_err(|_| Error::Limit(LimitKind::Memory))?;
+            plane.resize(len, 0);
+        }
+        self.motion
+            .try_reserve_exact(mbs * 16)
+            .map_err(|_| Error::Limit(LimitKind::Memory))?;
+        self.motion.resize(mbs * 16, NO_MOTION);
+        self.heads
+            .try_reserve_exact(mbs)
+            .map_err(|_| Error::Limit(LimitKind::Memory))?;
+        self.heads.resize(mbs, NO_HEAD);
+        Ok(())
+    }
+
     /// Sizes the buffers for band `k`, keeping what they hold: a picture is
     /// reused without being cleared (`docs/design/h264.md`, "Reusing a
     /// picture without clearing it"). A new plane is zeroed memory from the
