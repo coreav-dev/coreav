@@ -313,6 +313,11 @@ class Record:
             return f'{self.name}:{para[bisect.bisect_right(starts, offset) - 1][0]}'
 
         def compare(offset, said, k, c, m, field, comparison=None):
+            if c is None:
+                problems.append(f'{where(offset)}: round {n}, `{k}`: the text quotes {said}, but '
+                                f'the paragraph names no container before the key, so its figure '
+                                f'cannot be checked')
+                return
             name, d = self.evidence(m)
             entry = d[c].get(k) if d else None
             if entry is None:
@@ -345,11 +350,8 @@ class Record:
                     group = []
             elif t.group('key'):
                 k = t.group('key') if '.' in t.group('key') else f"streams.{t.group('key')}"
-                if not any(k in table for table in doc.values() if isinstance(table, dict)):
-                    continue
-                if container is None:
-                    problems.append(f'{where(t.start())}: round {n}, `{k}`: the paragraph names no '
-                                    f'container before the key, so its figures cannot be checked')
+                if not any(k in table for table in doc.values() if isinstance(table, dict)) \
+                        and not re.fullmatch(r'[A-Za-z_]\w*(?:\.[^/]+)?', t.group('key')):
                     continue
                 if not group or not JOIN.fullmatch(text[last_key:t.start()]):
                     group, group_depth = [], depth
