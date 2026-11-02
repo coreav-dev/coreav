@@ -36,7 +36,7 @@ class Workflows(unittest.TestCase):
         REGISTRATION = cls.fixture.registration
 
     def run_plan(self, name, commit, registration=None, event='workflow_dispatch', ref='refs/heads/main',
-                 selection='rehearsal'):
+                 selection='rehearsal', judging_edit=None):
         if registration is None:
             registration = REGISTRATION
         workflow = self.workflows[name]
@@ -47,13 +47,23 @@ class Workflows(unittest.TestCase):
                 shutil.copytree(self.fixture.root, directory, dirs_exist_ok=True)
             (directory / README).parent.mkdir(parents=True, exist_ok=True)
             (directory / README).write_text(registration)
+            tooling = self.fixture.tooling
+            if name == 'compat-0.1.0.yml' and (registration != self.fixture.registration or judging_edit):
+                repo = copy.copy(self.fixture)
+                repo.root = directory
+                if judging_edit:
+                    path = directory / judging_edit
+                    repo.write(judging_edit, (path.read_text() if path.exists() else '') + '\n')
+                tooling = repo.save()
+                repo.git('update-ref', 'refs/remotes/origin/main', tooling)
+                self.assertEqual(repo.git('status', '--porcelain', '--untracked-files=no'), '')
             (directory / 'scripts').mkdir(exist_ok=True)
             guard = ROOT / 'scripts/registered_candidate.py'
             if guard.exists():
                 shutil.copy(guard, directory / 'scripts')
             output = directory / 'output'
             env = {**os.environ, 'GITHUB_REF': ref, 'EVENT': event, 'SET': selection, 'OPEN': 'true',
-                   'COMMIT': commit, 'SHA': 'c' * 40, 'TOOLING': self.fixture.tooling,
+                   'COMMIT': commit, 'SHA': 'c' * 40, 'TOOLING': tooling,
                    'R2_ENDPOINT': 'test', 'R2_ACCESS_KEY_ID': 'test',
                    'R2_SECRET_ACCESS_KEY': 'test', 'R2_BUCKET': 'test', 'GITHUB_OUTPUT': str(output),
                    'GITHUB_STEP_SUMMARY': str(directory / 'summary')}
@@ -96,6 +106,8 @@ class Workflows(unittest.TestCase):
                     self.assertNotEqual(code, 0, output)
                     self.assertNotIn('commit=', output)
                     self.assertFalse(started)
+                    if not registration:
+                        self.assertIn('register exactly one full release candidate SHA', error)
 
     def test_pull_requests_plan_their_own_head_without_a_registration(self):
         code, output, error, started = self.run_plan('codec-coverage.yml', '', '', event='pull_request',
@@ -115,6 +127,18 @@ class Workflows(unittest.TestCase):
                                                     ref='refs/pull/1/merge')
         self.assertNotEqual(code, 0)
         self.assertFalse(started)
+        self.assertIn('register exactly one full release candidate SHA', error)
+
+    def test_changed_judging_sources_stop_dispatch_before_measurement(self):
+        for path in ('tools/compat-corpus/r3.py', 'tools/compat-corpus/copy_check.py',
+                     'tools/compat-corpus/run.py', 'tools/compat-corpus/ffmpeg9.json',
+                     'scripts/oracle_audio.py', '.github/workflows/compat-0.1.0.yml'):
+            with self.subTest(path=path):
+                code, output, error, started = self.run_plan('compat-0.1.0.yml', CANDIDATE, judging_edit=path)
+                self.assertNotEqual(code, 0)
+                self.assertFalse(started)
+                self.assertNotIn('commit=', output)
+                self.assertIn(path, error)
 
     def assert_gated(self, workflow):
         jobs = workflow['jobs']
@@ -138,8 +162,12 @@ class Workflows(unittest.TestCase):
             self.assertEqual(guard['if'], checkout['if'])
             self.assertNotIn('ref', checkout.get('with', {}))
         self.assertFalse(checkout['with']['persist-credentials'])
-        self.assertIn(str(README), checkout['with']['sparse-checkout'])
-        self.assertIn('scripts/registered_candidate.py', checkout['with']['sparse-checkout'])
+        if key == 'compat-plan':
+            self.assertIn('/docs/measurements/compat-0.1.0/', checkout['with']['sparse-checkout'])
+            self.assertIn('/scripts/', checkout['with']['sparse-checkout'])
+        else:
+            self.assertIn(str(README), checkout['with']['sparse-checkout'])
+            self.assertIn('scripts/registered_candidate.py', checkout['with']['sparse-checkout'])
         self.assertEqual(plan['env']['COMMIT'], '${{ steps.candidate.outputs.commit }}')
         self.assertEqual(guard['env']['COMMIT'], '${{ inputs.commit }}')
         for name, job in jobs.items():

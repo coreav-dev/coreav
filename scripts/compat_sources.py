@@ -25,6 +25,46 @@ FROZEN = (
 ARTIFACTS = {'coreav': 'candidate', 'r3-harness': 'observer'}
 FILES = set(ARTIFACTS) | {'sources.json', 'sha256.txt'}
 SCHEMA = 'compat-0.1.0-sources/1'
+JUDGING_REGISTRATION = 'docs/measurements/compat-0.1.0/judging.json'
+JUDGING_SCHEMA = 'compat-0.1.0-judging/1'
+JUDGING = (
+    '.github/workflows/compat-0.1.0.yml',
+    'docs/known-divergences-clip.json',
+    'docs/known-divergences-extract.json',
+    'docs/known-divergences-hls.json',
+    'docs/known-divergences-join.json',
+    'docs/known-divergences-mkv.json',
+    'docs/known-divergences-remux.json',
+    'docs/known-divergences-split.json',
+    'docs/known-divergences-ts.json',
+    'docs/known-divergences.json',
+    'scripts/clip_check.py',
+    'scripts/compat_check.py',
+    'scripts/compat_sources.py',
+    'scripts/extract_check.py',
+    'scripts/hls_check.py',
+    'scripts/join_check.py',
+    'scripts/mkv_remux_check.py',
+    'scripts/oracle_audio.py',
+    'scripts/oracle_kd.py',
+    'scripts/oracle_kd_mkv.py',
+    'scripts/oracle_kd_ts.py',
+    'scripts/oracle_pin.py',
+    'scripts/policy_ref.py',
+    'scripts/registered_candidate.py',
+    'scripts/remux_check.py',
+    'scripts/split_check.py',
+    'scripts/track_boxes.py',
+    'scripts/writer_boxes.py',
+    'tools/compat-corpus/copy_check.py',
+    'tools/compat-corpus/ffmpeg9.json',
+    'tools/compat-corpus/r3.py',
+    'tools/compat-corpus/release_round.py',
+    'tools/compat-corpus/run.py',
+    'tools/oracle/writer_corpus.py',
+    'tools/stage3-report/corpus.py',
+    'tools/stage3-report/r2pool.py',
+)
 
 
 def git(root, *args):
@@ -46,6 +86,42 @@ def full_sha(value):
     if not isinstance(value, str) or re.fullmatch(r'[0-9a-f]{40}', value) is None:
         raise ValueError('source commits must be full lowercase SHAs, not mutable refs')
     return value
+
+
+def committed_blob(root, commit, path):
+    done = subprocess.run(['git', 'cat-file', 'blob', f'{commit}:{path}'], cwd=root,
+                          capture_output=True, check=False)
+    if done.returncode:
+        raise ValueError(f'{path} is unavailable in the tooling commit; check out its complete source')
+    return done.stdout
+
+
+def register(root, tooling):
+    full_sha(tooling)
+    files = {path: hashlib.sha256(committed_blob(root, tooling, path)).hexdigest() for path in JUDGING}
+    return json.dumps({'schema': JUDGING_SCHEMA, 'files': files}, indent=2, sort_keys=True) + '\n'
+
+
+def judging(root, tooling):
+    raw = committed_blob(root, tooling, JUDGING_REGISTRATION)
+    try:
+        registration = json.loads(raw)
+    except ValueError as error:
+        raise ValueError(f'{JUDGING_REGISTRATION} must contain valid judging JSON') from error
+    if not isinstance(registration, dict) or set(registration) != {'schema', 'files'} or \
+            registration['schema'] != JUDGING_SCHEMA or not isinstance(registration['files'], dict):
+        raise ValueError(f'{JUDGING_REGISTRATION} must register the judging schema and file hashes')
+    files = registration['files']
+    if set(files) != set(JUDGING):
+        changed = sorted(set(files) ^ set(JUDGING))
+        raise ValueError('judging registration has missing or extra files: ' + ', '.join(changed))
+    for path in JUDGING:
+        if not isinstance(files[path], str) or re.fullmatch(r'[0-9a-f]{64}', files[path]) is None:
+            raise ValueError(f'{path} needs a full lowercase SHA-256 in the judging registration')
+        if files[path] != hashlib.sha256(committed_blob(root, tooling, path)).hexdigest():
+            raise ValueError(f'{path} differs from its registered judging hash; review it, then run compat_sources.py register')
+    return {'registration': JUDGING_REGISTRATION, 'registration_sha256': hashlib.sha256(raw).hexdigest(),
+            'files': files}
 
 
 def plan(root, event, ref, commit, tooling):
@@ -76,7 +152,8 @@ def plan(root, event, ref, commit, tooling):
         if expected != actual:
             raise ValueError(f'{path} differs from the registered candidate; keep oracle, input and harness sources fixed')
         frozen[path] = actual
-    return {'commit': candidate, 'tooling': tooling, 'floor': floor, 'on_main': on_main, 'frozen': frozen}
+    return {'commit': candidate, 'tooling': tooling, 'floor': floor, 'on_main': on_main,
+            'frozen': frozen, 'judging': judging(root, tooling)}
 
 
 def digest(path):
@@ -108,7 +185,7 @@ def record(root, candidate_dir, dist, commit, tooling, run, compiler):
     manifest = {'schema': SCHEMA, 'run': run,
                 'candidate': {'commit': commit, 'registration': README},
                 'tooling': {'commit': tooling, 'floor': sources['floor'], 'on_main': sources['on_main']},
-                'frozen': sources['frozen'], 'artifacts': artifacts,
+                'frozen': sources['frozen'], 'judging': sources['judging'], 'artifacts': artifacts,
                 'build': {'coreav': 'cargo build --locked --profile dist -p coreav-cli',
                           'r3-harness': 'cargo test --locked --release -p coreav-cli --test ffmpeg --no-run',
                           'harness_test': 'the_0_1_0_commands_on_listed_pairs', 'features': 'default'},
@@ -151,6 +228,8 @@ def verify(root, dist, commit, tooling, run):
     for path in FROZEN:
         if manifest['frozen'][path] != git(root, 'rev-parse', '--verify', f'{tooling}:{path}'):
             raise ValueError(f'artifact provenance disagrees with tooling source {path}')
+    if manifest.get('judging') != judging(root, tooling):
+        raise ValueError('artifact provenance differs from the registered judging hashes')
     if set(manifest['artifacts']) != set(ARTIFACTS):
         raise ValueError('artifact provenance has the wrong artifact roles')
     checksums = {}
@@ -175,21 +254,24 @@ def verify(root, dist, commit, tooling, run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'record', 'verify'):
+    for name in ('plan', 'record', 'verify', 'register'):
         command = commands.add_parser(name)
-        command.add_argument('--commit', required=True)
+        if name != 'register':
+            command.add_argument('--commit', required=True)
         command.add_argument('--tooling', required=True)
         if name == 'plan':
             command.add_argument('--event', required=True)
             command.add_argument('--ref', required=True)
-        else:
+        elif name != 'register':
             command.add_argument('--dist', required=True, type=Path)
             if name == 'record':
                 command.add_argument('--candidate-dir', required=True, type=Path)
     args = parser.parse_args()
     root = Path.cwd()
     try:
-        if args.command == 'plan':
+        if args.command == 'register':
+            print(register(root, args.tooling), end='')
+        elif args.command == 'plan':
             sources = plan(root, args.event, args.ref, args.commit, args.tooling)
             print('\n'.join(f'{key}={sources[key]}' for key in ('commit', 'tooling', 'floor')))
         elif args.command == 'record':

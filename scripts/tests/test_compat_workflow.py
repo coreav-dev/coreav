@@ -410,6 +410,7 @@ class Shards(unittest.TestCase):
             (d / 'bin').mkdir()
             (d / 'bin' / 'sha256.txt').write_text('abc coreav\n')
             provenance = {'candidate': {'commit': 'candidate-full-sha'}, 'tooling': {'commit': 'tooling-full-sha'},
+                          'judging': {'registration_sha256': 'judging-digest', 'files': {}},
                           'artifacts': {'r3-harness': {'sha256': 'harness-digest'}}}
             (d / 'bin' / 'sources.json').write_text(json.dumps(provenance))
             fake = d / 'merge.py'
@@ -432,6 +433,7 @@ class Shards(unittest.TestCase):
             self.assertIn('tooling-full-sha', (d / 'summary.md').read_text())
             self.assertIn('candidate-full-sha', (d / 'summary.md').read_text())
             self.assertIn('harness-digest', (d / 'summary.md').read_text())
+            self.assertIn('judging-digest', (d / 'summary.md').read_text())
 
 
 if __name__ == '__main__':
