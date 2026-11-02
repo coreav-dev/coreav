@@ -69,6 +69,7 @@ encoder values outside the native encoders described below, `-f lavfi`,
 `-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
 (bitstream filters), `-ar`, `-ac`,
 `-ab`, `-profile:*`,
+plain `-b` (use `-b:v` or `-b:a`),
 `-async`, `-metadata`, `-strict`, `-flags`, `-probesize`,
 `-analyzeduration`, `-protocol_whitelist`, `-bufsize`, `-maxrate`, `-g`,
 `-pass`, `-vpre`, `-q:*`, `-qscale`, `-framerate`, `-video_size`,
@@ -95,6 +96,8 @@ to FFmpeg") and is refused in strict-safe mode, where nothing runs. A
 backend, its `aac` encoder the `ffmpeg` program run as a process of its
 own (`coreav transcode --audio aac`), so strict-safe mode refuses every
 such line before the input is read.
+
+Native H.264 output accepts `-b:v`, `-crf`, `-preset` and `-s` within the transcode pipeline's limits. The frame-rate mode option `-vsync` accepts only `0` or `passthrough`; other values still fall back or are refused in strict-safe mode.
 
 Builds with a decoder backend also accept the image and raw-video output described in [frame-output.md](frame-output.md): `-c:v png`, `bmp` or `rawvideo`, `-f image2`, `rawvideo` or `yuv4mpegpipe`, `-frames:v`/`-vframes`, `-update`, output `-r` that only drops frames, and `-pix_fmt` without a new conversion. Their extension defaults are limited to `.png`, `.bmp`, `.yuv` and `.y4m`. Builds without a decoder backend still refuse these jobs. The historical command-coverage labels stay unchanged.
 
