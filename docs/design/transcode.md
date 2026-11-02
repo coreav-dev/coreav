@@ -582,6 +582,29 @@ matrix's translation follows the new size.
 
 ## Opus audio
 
+### Decoded audio source correctness bars
+
+Audio encodes accept the codecs the build decodes, including Opus and,
+with `aac`, AAC-LC. The decoder owns stream selection and presentation
+trimming. Encoder delay is separate from source priming and is removed
+only by the output edit list.
+
+Before comparing this extension with the pinned FFmpeg, these bars apply:
+
+- For AAC and Opus sources in MP4 and Matroska, the samples fed to the
+  encoder equal the decoder's presented sample count. Source priming,
+  decoder delay, discard padding and empty edits are applied once.
+- The output's codec, profile, sample rate, channels, start time and
+  duration match FFmpeg for the same command. Durations may differ only
+  by the source container's timestamp precision, at most one millisecond
+  for Matroska. The output edit removes its encoder's delay and padding.
+- Default selection uses the first stream the build decodes. Explicit
+  selection never silently switches streams. Without `aac`, explicitly
+  selected AAC is refused before a video encode starts.
+
+These are lossy re-encodes, so bit-identical round trips do not apply.
+This extension makes no size or speed claim.
+
 `coreav transcode --audio opus [--audio-bitrate KBPS]` encodes one audio
 stream to Opus (RFC 6716) with libopus, as policy record 0042 allows an
 encoder backend: a crate of its own, `coreav-backend-libopus`, built only
