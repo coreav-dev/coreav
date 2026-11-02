@@ -57,7 +57,14 @@ def video_equal(candidate, reference, ffmpeg, ffprobe, env, scratch, record):
     left, right = documents
     record.update(candidate_probe=left, reference_probe=right,
                   candidate_layout=riff_layout(candidate), reference_layout=riff_layout(reference))
-    print(json.dumps(record), flush=True)
+    bitmap = []
+    for layout in (record['candidate_layout'], record['reference_layout']):
+        data = bytes.fromhex(next(item['hex'] for item in layout if item['name'].endswith('/strf')))
+        values = list(struct.unpack_from('<IiiHH4sI', data))
+        values[5] = values[5].decode('ascii')
+        bitmap.append(values)
+    record['bitmap_fields'] = bitmap
+    assert bitmap[0] == bitmap[1], bitmap
     assert len(left['streams']) == len(right['streams']) == 1
     assert decoded_output.metadata(left['streams'][0], right['streams'][0]), (left, right)
     timelines = []
@@ -102,23 +109,45 @@ def main():
                 scratch.mkdir()
                 verdict = decoded_output.compare(candidate, reference, str(opts.ffmpeg), str(opts.ffprobe), env, scratch)
                 records.append({'rate': rate, 'channels': channels, 'codec': codec, 'verdict': verdict})
+                if codec == 'libmp3lame':
+                    records[-1].update(candidate_layout=riff_layout(candidate), reference_layout=riff_layout(reference))
+                    alignment = []
+                    for layout in (records[-1]['candidate_layout'], records[-1]['reference_layout']):
+                        data = bytes.fromhex(next(item['hex'] for item in layout if item['name'].endswith('/strf')))
+                        alignment.append(struct.unpack_from('<H', data, 12)[0])
+                    records[-1]['mp3_block_alignment'] = alignment
+                    assert alignment[0] == alignment[1], alignment
                 assert verdict[0] == 'verified', records[-1]
-        directory = opts.work / 'copy-video'
-        directory.mkdir()
-        source, candidate, reference = (directory / p for p in ('source.mp4', 'candidate.avi', 'reference.avi'))
-        run([opts.ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=64x48:rate=25:duration=0.24',
-             '-c:v', 'libx264', '-bf', '0', '-an', source], env)
-        args = ['-i', source, '-c', 'copy']
-        run([opts.ffmpeg, '-v', 'error', *args, reference], env)
-        run([opts.coreav, 'ffmpeg', *args, candidate], env)
-        scratch = directory / 'decode'
-        scratch.mkdir()
-        record = {'codec': 'h264-copy', 'verdict': 'pending'}
-        records.append(record)
-        video_equal(candidate, reference, opts.ffmpeg, opts.ffprobe, env, scratch, record)
-        record['verdict'] = 'exact pixels, fields and timing'
+        for rate, frames in ((25, 6), (25, 1), (24, 6), (30, 6), (50, 6), (60, 6)):
+            directory = opts.work / f'copy-video-{rate}-{frames}'
+            directory.mkdir()
+            source, candidate, reference = (directory / p for p in ('source.mp4', 'candidate.avi', 'reference.avi'))
+            original = (rate, frames) == (25, 6)
+            duration = '0.24' if original else '1'
+            ending = [] if original else ['-frames:v', frames, '-movie_timescale', '600']
+            run([opts.ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', f'testsrc2=size=64x48:rate={rate}:duration={duration}',
+                 '-c:v', 'libx264', '-bf', '0', '-an', *ending, source], env)
+            args = ['-i', source, '-c', 'copy']
+            run([opts.ffmpeg, '-v', 'error', *args, reference], env)
+            run([opts.coreav, 'ffmpeg', *args, candidate], env)
+            scratch = directory / 'decode'
+            scratch.mkdir()
+            record = {'codec': 'h264-copy', 'rate': rate, 'frames': frames, 'verdict': 'pending'}
+            records.append(record)
+            video_equal(candidate, reference, opts.ffmpeg, opts.ffprobe, env, scratch, record)
+            record['verdict'] = 'exact pixels, fields and timing'
         existing = directory / 'existing.avi'
         existing.write_bytes(b'preserved')
+        broken = directory / 'broken-encoder'
+        broken.write_text('#!/bin/sh\nexit 1\n')
+        broken.chmod(0o755)
+        failed = subprocess.run([str(opts.coreav), 'ffmpeg', '-y', '-i',
+                                 str(opts.work / '44100-1/source.mp4'), '-c:a', 'libmp3lame', str(existing)],
+                                env={**env, 'COREAV_FFMPEG': str(broken.resolve())}, capture_output=True,
+                                timeout=10, check=False)
+        error = json.loads(failed.stderr)
+        assert error['kind'] in ('decode', 'io') and failed.returncode == (3 if error['kind'] == 'io' else 1), error
+        assert existing.read_bytes() == b'preserved'
         for args in (['-i', source, '-c:v', 'huffyuv'], ['-i', source], ['-i', source, '-c', 'copy', '-ss', '0.1']):
             result = subprocess.run([str(opts.coreav), 'ffmpeg', '-y', *map(str, args), str(existing)],
                                     env=env, capture_output=True, timeout=10, check=False)
@@ -127,7 +156,8 @@ def main():
                                    '-c:a', 'libmp3lame', str(existing)], env=env, capture_output=True, timeout=10, check=False)
         assert explicit.returncode == 4 and b'strict-safe' in explicit.stderr, explicit.stderr
         assert not list(opts.work.rglob('*.part')), 'unfinished atomic output'
-        print(json.dumps(records, indent=2))
+        print(json.dumps([{k: r[k] for k in ('codec', 'rate', 'channels', 'frames', 'verdict') if k in r}
+                          for r in records], indent=2))
     finally:
         (opts.work / 'results.json').write_text(json.dumps(records, indent=2) + '\n')
 

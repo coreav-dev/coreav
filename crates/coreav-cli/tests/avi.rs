@@ -64,10 +64,19 @@ fn a_copy_keeps_the_payloads_and_explicit_stream_order() {
     let movi = data.windows(4).position(|b| b == b"movi").unwrap();
     assert_eq!(
         u32::from_le_bytes(data[index + 4..index + 8].try_into().unwrap()),
-        8 * 16
+        8 * 24 * 16
     );
-    for (i, entry) in data[index + 8..].chunks_exact(16).enumerate() {
-        assert_eq!(&entry[..4], if i % 2 == 0 { b"00dc" } else { b"01dc" });
+    let mut real = 0;
+    let mut empty = 0;
+    for entry in data[index + 8..].chunks_exact(16) {
+        let size = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
+        if size == 0 {
+            empty += 1;
+            assert_eq!(u32::from_le_bytes(entry[4..8].try_into().unwrap()), 0);
+            continue;
+        }
+        assert_eq!(&entry[..4], if real % 2 == 0 { b"00dc" } else { b"01dc" });
+        real += 1;
         let offset = u32::from_le_bytes(entry[8..12].try_into().unwrap()) as usize + movi;
         let size = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
         assert!(
@@ -76,6 +85,7 @@ fn a_copy_keeps_the_payloads_and_explicit_stream_order() {
                 .all(|b| *b == 0xab)
         );
     }
+    assert_eq!((real, empty), (8, 8 * 23));
 }
 
 #[test]

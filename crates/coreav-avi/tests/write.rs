@@ -232,9 +232,84 @@ fn h264_has_a_bitmap_header_and_a_frame_clock() {
     let avih = out.windows(4).position(|b| b == b"avih").unwrap() + 8;
     assert_eq!(number(&out, avih), 33367);
     let stream = out.windows(4).position(|b| b == b"strh").unwrap() + 8;
-    assert_eq!(&out[stream..stream + 8], b"vidsH264");
+    assert_eq!(&out[stream..stream + 8], b"vidsavc1");
     assert_eq!(number(&out, stream + 20), 1001);
     assert_eq!(number(&out, stream + 24), 30000);
     assert_eq!(number(&out, stream + 32), 1);
     assert!(out.windows(4).any(|b| b == b"00dc"));
+}
+
+#[test]
+fn video_clock_slots_include_empty_chunks_in_offsets_lengths_and_budgets() {
+    let tracks = [
+        Track::H264 {
+            width: 16,
+            height: 16,
+            scale: 1,
+            rate: 600,
+            config: vec![1, 0, 0, 0, 0, 0, 0],
+        },
+        pcm(),
+    ];
+    let packets = [
+        Packet {
+            duration: 24,
+            size: 3,
+            ..packet(3)
+        },
+        Packet {
+            track: 1,
+            ..packet(1)
+        },
+        Packet {
+            time: 24,
+            duration: 24,
+            size: 2,
+            keyframe: false,
+            ..packet(2)
+        },
+    ];
+    let plan = plan(&tracks, &packets, &Limits::default()).unwrap();
+    let mut out = Vec::new();
+    let mut calls = Vec::new();
+    plan.write(&mut out, |i, to| {
+        calls.push(i);
+        to.write_all(&vec![1; packets[i].size as usize])
+    })
+    .unwrap();
+    assert_eq!(calls, [0, 1, 2]);
+    let movi = out.windows(4).position(|b| b == b"movi").unwrap();
+    let index = out.windows(4).position(|b| b == b"idx1").unwrap();
+    assert_eq!(number(&out, index + 4), 49 * 16);
+    let stream = out.windows(4).position(|b| b == b"strh").unwrap() + 8;
+    assert_eq!(number(&out, stream + 32), 48);
+    let mut empty = 0;
+    for entry in out[index + 8..].chunks_exact(16) {
+        let at = movi + number(entry, 8) as usize;
+        assert_eq!(&out[at..at + 4], &entry[..4]);
+        assert_eq!(number(&out, at + 4), number(entry, 12));
+        if number(entry, 12) == 0 {
+            empty += 1;
+            assert_eq!(number(entry, 4), 0);
+        }
+    }
+    assert_eq!(empty, 46);
+    assert_eq!(number(&out, index + 8 + 48 * 16 + 12), 0);
+    for limits in [
+        Limits {
+            max_packets: 48,
+            ..Default::default()
+        },
+        Limits {
+            max_index_bytes: 49 * 16 - 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(coreav_avi::plan(&tracks, &packets, &limits).is_err());
+    }
+    let huge = [Packet {
+        duration: u32::MAX,
+        ..packets[0]
+    }];
+    assert!(coreav_avi::plan(&tracks[..1], &huge, &Limits::default()).is_err());
 }

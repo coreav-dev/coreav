@@ -9,7 +9,7 @@ on:
       - crates/coreav-avi/**
       - crates/coreav-cli/src/ffmpeg/**
       - crates/coreav-cli/tests/avi.rs
-      - crates/coreav-transcode/src/mp3.rs
+      - crates/coreav-transcode/**
       - scripts/avi_fixture_check.py
       - scripts/avi_v2_check.py
       - scripts/oracle-ffmpeg.env

@@ -50,7 +50,8 @@ pub struct Packet {
     pub track: usize,
     /// Decode and presentation time. Reordering is not supported.
     pub time: u64,
-    /// PCM sample frames, or one compressed audio/video frame.
+    /// PCM sample frames, one MP3 frame, or occupied video clock slots.
+    /// Video occupies one payload chunk followed by empty clock slots.
     pub duration: u32,
     /// Payload bytes, excluding chunk headers and padding.
     pub size: u32,
@@ -210,7 +211,7 @@ impl Track {
                 dword(&mut out, u32::from(*height));
                 word(&mut out, 1);
                 word(&mut out, 24);
-                out.extend_from_slice(b"H264");
+                out.extend_from_slice(b"avc1");
                 dword(&mut out, u32::from(*width) * u32::from(*height) * 3);
                 out.extend_from_slice(&[0; 16]);
                 out.extend_from_slice(config);
@@ -295,10 +296,20 @@ pub fn plan<'a>(
     if tracks.is_empty() || packets.is_empty() {
         return Err(invalid("AVI needs streams and packets"));
     }
-    if tracks.len() > limits.max_tracks.min(100)
-        || packets.len() > limits.max_packets
-        || packets
-            .len()
+    if tracks.len() > limits.max_tracks.min(100) || packets.len() > limits.max_packets {
+        return Err(Error::Limit("AVI stream or packet budget exceeded"));
+    }
+    let chunks = packets.iter().try_fold(0usize, |sum, packet| {
+        let count = match tracks.get(packet.track) {
+            Some(Track::H264 { .. }) => packet.duration as usize,
+            Some(_) => 1,
+            None => return Err(invalid("AVI packet stream is out of range")),
+        };
+        sum.checked_add(count)
+            .ok_or(Error::Limit("AVI chunk count overflows"))
+    })?;
+    if chunks > limits.max_packets
+        || chunks
             .checked_mul(16)
             .is_none_or(|n| n > limits.max_index_bytes)
     {
@@ -321,7 +332,7 @@ pub fn plan<'a>(
     }
     let mut lengths = vec![0u64; tracks.len()];
     let mut largest = vec![0u32; tracks.len()];
-    let mut index = Vec::with_capacity(packets.len() * 16);
+    let mut index = Vec::with_capacity(chunks * 16);
     let mut movi_size = 4u64;
     for packet in packets {
         let track = tracks
@@ -336,7 +347,8 @@ pub fn plan<'a>(
             ));
         }
         let align = track.sample_size()?;
-        if (align == 0 && packet.duration != 1)
+        let video = matches!(track, Track::H264 { .. });
+        if (!video && align == 0 && packet.duration != 1)
             || (align != 0
                 && u64::from(packet.duration) * u64::from(align) != u64::from(packet.size))
         {
@@ -353,20 +365,27 @@ pub fn plan<'a>(
         if let Some(max) = largest.get_mut(packet.track) {
             *max = (*max).max(packet.size);
         }
-        index.extend_from_slice(&chunk_id(
-            packet.track,
-            matches!(track, Track::H264 { .. }),
-        )?);
-        dword(&mut index, if packet.keyframe { 0x10 } else { 0 });
-        dword(&mut index, narrow(movi_size)?);
-        dword(&mut index, packet.size);
-        movi_size = movi_size
-            .checked_add(8 + u64::from(packet.size) + u64::from(packet.size % 2))
-            .ok_or(Error::Limit("AVI size overflows"))?;
-        if movi_size >= MAX_FILE_BYTES {
-            return Err(Error::Limit(
-                "AVI output at or above 1 GiB needs unsupported OpenDML",
-            ));
+        for slot in 0..if video { packet.duration } else { 1 } {
+            let size = if slot == 0 { packet.size } else { 0 };
+            index.extend_from_slice(&chunk_id(packet.track, video)?);
+            dword(
+                &mut index,
+                if slot == 0 && packet.keyframe {
+                    0x10
+                } else {
+                    0
+                },
+            );
+            dword(&mut index, narrow(movi_size)?);
+            dword(&mut index, size);
+            movi_size = movi_size
+                .checked_add(8 + u64::from(size) + u64::from(size % 2))
+                .ok_or(Error::Limit("AVI size overflows"))?;
+            if movi_size >= MAX_FILE_BYTES {
+                return Err(Error::Limit(
+                    "AVI output at or above 1 GiB needs unsupported OpenDML",
+                ));
+            }
         }
     }
     if lengths.contains(&0) {
@@ -419,7 +438,7 @@ pub fn plan<'a>(
         let mut header = Vec::new();
         let is_video = matches!(track, Track::H264 { .. });
         header.extend_from_slice(if is_video { b"vids" } else { b"auds" });
-        header.extend_from_slice(if is_video { b"H264" } else { &[0; 4] });
+        header.extend_from_slice(if is_video { b"avc1" } else { &[0; 4] });
         for n in [
             0,
             0,
@@ -483,10 +502,11 @@ impl Plan<'_> {
         mut copy: impl FnMut(usize, &mut dyn Write) -> io::Result<()>,
     ) -> Result<u64, Error> {
         out.write_all(&self.head)?;
+        let mut index_at = 8;
         for (i, packet) in self.packets.iter().enumerate() {
             let entry = self
                 .index
-                .get(8 + i * 16..12 + i * 16)
+                .get(index_at..index_at + 4)
                 .ok_or_else(|| invalid("AVI index entry is missing"))?;
             out.write_all(entry)?;
             out.write_all(&packet.size.to_le_bytes())?;
@@ -502,6 +522,14 @@ impl Plan<'_> {
             }
             if packet.size % 2 != 0 {
                 out.write_all(&[0])?;
+            }
+            index_at += 16;
+            if entry.get(2) == Some(&b'd') {
+                for _ in 1..packet.duration {
+                    out.write_all(entry)?;
+                    out.write_all(&0u32.to_le_bytes())?;
+                    index_at += 16;
+                }
             }
         }
         out.write_all(&self.index)?;

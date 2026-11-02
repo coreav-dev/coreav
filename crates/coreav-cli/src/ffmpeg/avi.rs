@@ -293,7 +293,7 @@ fn source_track(
         units += u64::from(duration);
         compressed_bytes += u64::from(packet.size);
     }
-    let result = if is_h264 {
+    let mut result = if is_h264 {
         let config = description
             .codec_config
             .as_ref()
@@ -344,6 +344,31 @@ fn source_track(
         return Err(refused(
             "AVI source has a partial final packet or an unknown presentation window",
         ));
+    }
+    if let Track::H264 { scale, rate, .. } = &mut result {
+        let ticks = u64::from(*scale) * 600;
+        if ticks % u64::from(*rate) != 0 {
+            return Err(refused(
+                "AVI H.264 cadence does not fit the 600 Hz copy clock",
+            ));
+        }
+        let slots = u32::try_from(ticks / u64::from(*rate))
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(|| refused("AVI H.264 clock slots are out of range"))?;
+        for chunk in chunks.iter_mut().filter(|c| c.packet.track == output) {
+            chunk.packet.time = chunk
+                .packet
+                .time
+                .checked_mul(u64::from(slots))
+                .ok_or_else(|| refused("AVI H.264 duration overflows"))?;
+            if chunk.packet.time > u64::from(u32::MAX) {
+                return Err(refused("AVI H.264 duration exceeds 32 bits"));
+            }
+            chunk.packet.duration = slots;
+        }
+        *scale = 1;
+        *rate = 600;
     }
     Ok(result)
 }
@@ -448,7 +473,7 @@ fn encoded_audio(
                 &launcher,
                 std::time::Instant::now() + std::time::Duration::from_secs(120),
             )
-            .map_err(|e| WriteFailure::Rejected(Failure::Unsupported(e.to_string())))?;
+            .map_err(|e| WriteFailure::Rejected(Failure::Encode(e)))?;
             if kept.saturating_add(encoded.data.len()) > AUDIO_BYTES {
                 return Err(refused("AVI encoded audio buffers exceed 64 MiB"));
             }
