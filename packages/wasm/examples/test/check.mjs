@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -15,20 +15,23 @@ import { fixtures } from "./synth.mjs";
 import { indexIdentity } from "../hls/src/indexes.js";
 import { archiveEntries, validateArchive, validateManifest, consumerEnv } from "../../scripts/check-package.mjs";
 import { allowedLicenses } from "../../scripts/legal.mjs";
+import { registeredBars } from "./registry.mjs";
+import { GateLedger } from "./gates.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const platform = process.platform === "win32" ? "windows" : process.platform;
 const architecture = process.arch === "x64" ? "64" : process.arch;
 const workerd = createRequire(import.meta.url).resolve(`@cloudflare/workerd-${platform}-${architecture}/bin/workerd${process.platform === "win32" ? ".exe" : ""}`);
 const output = join(root, ".harness");
+const bars = registeredBars(readFileSync(resolve(root, "../../../docs/design/wasm-memory-bars.md"), "utf8"));
 const args = process.argv.slice(2);
-let native, tarball, extra = [];
+let native, tarball;
 while (args.length) {
   const arg = args.shift();
   if (arg === "--edge-native" && args.length) native = resolve(args.shift());
-  else if (arg === "--fixtures" && args.length) extra.push(...args.shift().split(",").map((path) => resolve(path)));
+  else if (arg === "--fixtures") throw new Error("memory gates use generated fixtures only");
   else if (arg === "--tarball" && args.length) tarball = resolve(args.shift());
-  else throw new Error("usage: check --edge-native PATH --tarball PATH [--fixtures DIR,...]");
+  else throw new Error("usage: check --edge-native PATH --tarball PATH");
 }
 assert.ok(native && existsSync(native), "build edge-native and pass --edge-native PATH");
 assert.ok(tarball && existsSync(tarball), "pack the WASM package and pass --tarball PATH");
@@ -51,7 +54,7 @@ try {
   install(consumer);
   for (const name of ["media", "hls"]) cpSync(join(root, name, "src"), join(consumer, name, "src"), { recursive: true });
   mkdirSync(join(consumer, "test"));
-  for (const name of ["harness.js", "fake-r2.mjs"]) cpSync(join(root, "test", name), join(consumer, "test", name));
+  for (const name of ["harness.js", "fake-r2.mjs", "batch.mjs"]) cpSync(join(root, "test", name), join(consumer, "test", name));
 } catch (error) {
   rmSync(consumer, { recursive: true, force: true });
   throw error;
@@ -59,11 +62,6 @@ try {
 rmSync(output, { recursive: true, force: true });
 mkdirSync(join(output, "fixtures"), { recursive: true });
 const files = new Map([...fixtures()].map(([name, bytes]) => [name, { bytes, etag: "fixture-v1" }]));
-for (const dir of extra) for (const name of readdirSync(dir)) {
-  if (!/\.(mp4|mov|m4a|mkv|webm|bin)$/.test(name)) continue;
-  assert.equal(files.has(name), false, "fixture names must be unique");
-  files.set(name, { bytes: new Uint8Array(readFileSync(join(dir, name))), etag: "fixture-v1" });
-}
 for (const [name, record] of files) writeFileSync(join(output, "fixtures", name), record.bytes);
 const policy = JSON.parse(readFileSync(join(root, "media/src/policy.json")));
 const records = new Map();
@@ -72,9 +70,11 @@ let puts = 0, comparisons = 0, resources = 0;
 const logs = [];
 const workers = new Set();
 const memory = [];
-const memoryGates = [];
+let completed = false;
 const secret = /SECRETSIG|SECRETTOK|SECRETPW|SECRETKEY/;
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const ledger = new GateLedger(bars, sha(packed.get("package/wasm/coreav_bg.wasm")));
+writeFileSync(join(output, "verdict.json"), JSON.stringify(ledger.verdict()) + "\n");
 
 const server = createServer(async (request, response) => {
   try {
@@ -188,6 +188,8 @@ const config :Workerd.Config = (
     if (response?.ok) {
       const info = await response.json();
       assert.equal(info.build, worker.build, "moduleInfo fingerprint must describe the embedded WASM");
+      ledger.start(worker, info);
+      worker.isolate = info.isolate;
       worker.version = info.version;
       await recordMemory(worker, `${example}-boot`);
       return worker;
@@ -274,7 +276,7 @@ async function crawl(worker, name) {
     }
   }
   assert.ok([...seen].some((name) => name.endsWith(".m4s")), "crawl must reach media segments");
-  await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(15000) }).then((response) => response.json());
+  await reading(worker);
 }
 
 async function heapUsage(worker) {
@@ -310,8 +312,24 @@ async function heapUsage(worker) {
   } finally { socket?.close(); }
 }
 
-async function recordMemory(worker, step, bar = null) {
-  const { memoryBytes, ...details } = await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(15000) }).then((response) => response.json());
+async function reading(worker) {
+  assert.ok(worker.child.exitCode === null && worker.child.signalCode === null, "memory runtime exited before its reading");
+  const response = await fetch(worker.base + "/__harness/memory", { signal: AbortSignal.timeout(15000) });
+  assert.ok(response.ok, "memory reading is unavailable");
+  const info = await response.json();
+  assert.ok(worker.child.exitCode === null && worker.child.signalCode === null, "memory runtime exited during its reading");
+  assert.equal(info.isolate, worker.isolate, "memory isolate identity changed");
+  assert.equal(info.build, worker.build, "memory build identity changed");
+  assert.equal(info.inFlight, 0, "memory reading preceded response completion");
+  assert.equal(info.pending, 0, "memory reading preceded deferred work completion");
+  return info;
+}
+
+async function recordMemory(worker, step, expect) {
+  if (expect === undefined) ledger.diagnostic(step);
+  const info = await reading(worker);
+  if (expect !== undefined) ledger.gate(worker, step, info, expect);
+  const { memoryBytes, ...details } = info;
   assert.ok(Number.isSafeInteger(memoryBytes) && memoryBytes > 0, "moduleInfo must report linear memory");
   let peakRss = null, peakRssError = "unavailable_on_this_os";
   if (process.platform === "linux") {
@@ -319,8 +337,13 @@ async function recordMemory(worker, step, bar = null) {
     peakRss = match ? Number(match[1]) * 1024 : null;
     peakRssError = match ? null : "process_high_water_mark_unavailable";
   }
-  memory.push({ step, classification: bar === null ? "diagnostic" : "gate", wasm: memoryBytes, ...await heapUsage(worker), peakRss, peakRssError, readerMemoryBytes: worker.defaultReaders ? 0 : 40 * 1024 * 1024, ...details });
-  if (bar !== null) memoryGates.push({ step, signal: "wasm_linear_bytes", value: memoryBytes, bar, source: "fresh_operation", pass: memoryBytes <= bar });
+  memory.push({ step, classification: expect === undefined ? "diagnostic" : "gate", wasm: memoryBytes, ...await heapUsage(worker), peakRss, peakRssError, readerMemoryBytes: worker.defaultReaders ? 0 : 40 * 1024 * 1024, ...details });
+}
+
+async function arm(worker, size, total) {
+  const response = await fetch(worker.base + "/__harness/batch", { method: "POST", body: JSON.stringify({ size, total }), signal: AbortSignal.timeout(15000) });
+  assert.equal(response.status, 204, "memory batch did not arm");
+  await response.arrayBuffer();
 }
 
 async function standalone(example) {
@@ -346,8 +369,7 @@ async function memoryMatrix() {
   for (const route of routes) {
     const worker = await start("media");
     await compareMedia(worker, "av-text.mp4", route, "key");
-    const bar = route[0] === "ffprobe" ? null : (route[0] === "remux" || route[0] === "sanitize" ? 64 : 32) * 1024 * 1024;
-    await recordMemory(worker, `fresh-${route[0]}`, bar);
+    await recordMemory(worker, `fresh-${route[0]}`, { served: 1 });
     await stop(worker);
   }
   const warm = await start("media");
@@ -365,6 +387,7 @@ async function memoryMatrix() {
     for (const concurrency of [1, 4, 6]) {
       const worker = await start("media");
       const requests = [...list, ...list];
+      if (name === "with-writers") await arm(worker, concurrency, requests.length);
       let at = 0;
       await Promise.all(Array.from({ length: concurrency }, async () => {
         while (at < requests.length) {
@@ -372,7 +395,7 @@ async function memoryMatrix() {
           await compareMedia(worker, "av-text.mp4", route, "key");
         }
       }));
-      await recordMemory(worker, `concurrent-${name}-${concurrency}`);
+      await recordMemory(worker, `concurrent-${name}-${concurrency}`, name === "with-writers" ? { served: requests.length, concurrency, total: requests.length } : undefined);
       await stop(worker);
     }
   }
@@ -435,33 +458,37 @@ try {
   await crawl(hls, "av.mp4");
   await crawl(hls, "audio.m4a");
   await crawl(hls, "video-only.mp4");
-  await recordMemory(hls, "hls-built");
-  for (const [path, status, init] of [
+  await recordMemory(hls, "hls-built", { served: resources });
+  const errors = [
     ["/av.mp4/video-99999.m4s", 404], ["/av.mp4/audio-99999.m4s", 404], ["/audio.m4a/video-init.mp4", 404],
     ["/video-only.mp4/audio-init.mp4", 404],
     ["/av.mp4/index.html", 404], ["/%FF/master.m3u8", 400], ["/av.mp4/master.m3u8", 405, { method: "POST" }],
     ["/not-a-movie.bin/master.m3u8", 422], ["/missing-SECRETKEY/master.m3u8", 404], ["/__throw__SECRETKEY/master.m3u8", 500]
-  ]) {
+  ];
+  for (const [path, status, init] of errors) {
     const actual = await get(hls, path, init);
     assert.equal(actual.status, status, actual.text);
     assert.equal(actual.headers.get("access-control-allow-origin"), "*");
     if (status === 405) assert.equal(actual.headers.get("allow"), "GET");
   }
+  await arm(hls, 4, 4);
   const parallel = await Promise.all(Array.from({ length: 4 }, () => get(hls, "/av.mp4/video-0.m4s")));
   assert.ok(parallel.every((item) => item.status === 200));
   for (const item of parallel) assert.deepEqual(item.bytes, parallel[0].bytes);
-  await recordMemory(hls, "hls-concurrent");
+  await recordMemory(hls, "hls-concurrent", { served: resources + errors.length + parallel.length, concurrency: 4, total: 4, sameAs: "hls-built" });
   const aBuild = hls.build, version = hls.version;
   const storedCount = records.size, writes = puts;
   await stop(hls); hls = await start("hls");
+  const beforeReload = resources;
   await crawl(hls, "av.mp4"); assert.equal(puts, writes, "restart should use the stored index");
-  await recordMemory(hls, "hls-reloaded");
+  await recordMemory(hls, "hls-reloaded", { served: resources - beforeReload });
   const damaged = await indexIdentity({ key: "av.mp4", etag: "fixture-v1", build: aBuild, options: { segmentDuration: "1" } });
   assert.ok(records.has(damaged.storeKey));
   records.get(damaged.storeKey).bytes = new Uint8Array(16).fill(7);
   await stop(hls); hls = await start("hls");
+  const beforeRebuild = resources;
   await crawl(hls, "av.mp4"); assert.equal(puts, writes + 1, "a damaged stored index rebuilds once");
-  await recordMemory(hls, "hls-rebuilt");
+  await recordMemory(hls, "hls-rebuilt", { served: resources - beforeRebuild });
   const changed = files.get("av.mp4"); changed.etag = "fixture-v2";
   await crawl(hls, "av.mp4"); assert.equal(records.size, storedCount + 1, "new ETag uses a new identity");
   changed.etag = "fixture-v1";
@@ -488,14 +515,16 @@ try {
   await stop(hls);
   assert.ok(comparisons > 0 && resources > 0 && files.size > 0, "empty verification is not a pass");
   assert.doesNotMatch(logs.join(""), secret);
-  assert.equal(memoryGates.length, 8, "all fresh-operation memory gates must run");
-  const failed = memoryGates.filter((gate) => !gate.pass);
-  assert.equal(failed.length, 0, `memory gates failed: ${failed.map((gate) => `${gate.step} (bar ${gate.bar / 1024 / 1024} MiB)`).join(", ")}`);
+  const memoryVerdict = ledger.finish();
+  assert.equal(memoryVerdict.state, "passed", `memory gates failed: ${memoryVerdict.failures.map((gate) => `${gate.step} (bar ${gate.bar} bytes)`).join(", ")}`);
   console.log(JSON.stringify({ fixtures: files.size, comparisons, resources, storedIndexes: records.size }));
-  console.log(`memory: ${memoryGates.length} gates passed (synthetic fixtures; not a platform isolate measurement)`);
+  console.log(`memory: ${memoryVerdict.gatesPassed} gates passed (synthetic fixtures; not a platform isolate measurement)`);
   if (!process.env.CI) console.log("Local diagnostic records: .harness/memory.json");
+  completed = true;
 } finally {
-  writeFileSync(join(output, "memory.json"), JSON.stringify({ gates: memoryGates, records: memory, limitations: ["Small generated fixtures, not a held-out or platform isolate measurement", "The fake bucket retains whole fixture bodies in JavaScript", "Heap and process RSS are diagnostic; RSS is unavailable on macOS", "Zero readerMemoryBytes means library defaults, not a zero-byte reader", "Warm, HLS and all new concurrency observations have no acceptance bar"] }, null, 2) + "\n");
+  const verdict = { ...ledger.finish(), ...(!completed && { state: "failed" }) };
+  writeFileSync(join(output, "verdict.json"), JSON.stringify(verdict) + "\n");
+  writeFileSync(join(output, "memory.json"), JSON.stringify({ gates: verdict, records: memory, limitations: ["Small generated fixtures, not a held-out or platform isolate measurement", "The fake bucket retains whole fixture bodies in JavaScript", "Heap and process RSS are diagnostic; RSS is unavailable on macOS", "Zero readerMemoryBytes means library defaults, not a zero-byte reader", "Warm, read-only concurrency and library-default-reader observations have no acceptance bar"] }, null, 2) + "\n");
   writeFileSync(join(output, "runtime.log"), logs.join(""));
   for (const worker of [...workers]) await stop(worker);
   await new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); });

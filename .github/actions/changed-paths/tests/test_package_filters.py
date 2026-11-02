@@ -71,6 +71,22 @@ class PackageFilters(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selected([path]), dict.fromkeys(self.filters, True))
 
+    def test_wasm_triggers_cover_crates_and_registered_memory_bars(self):
+        inputs = ['docs/design/wasm-memory-bars.md', 'tools/edge-native/src/main.rs',
+                  '.github/scripts/wasm-memory-failure.cjs']
+        inputs.extend(str(path.parent.relative_to(ROOT) / 'src/lib.rs')
+                      for path in (ROOT / 'crates').glob('*/Cargo.toml'))
+        self.assertGreater(len(inputs), 1)
+        filters = workflow_check.trigger_filters(
+            (ROOT / '.github/workflows/wasm.yml').read_text())
+        self.assertTrue({'push', 'pull_request'} <= {event for event, _, _ in filters})
+        for event, key, patterns in filters:
+            for path in inputs:
+                with self.subTest(event=event, path=path):
+                    selected, _ = cp.decide([path], patterns if key == 'paths' else [],
+                                            patterns if key == 'paths-ignore' else [])
+                    self.assertTrue(selected, f'add {path} to the WASM {event} trigger')
+
     def test_wasm_crate_and_other_rust_inputs_still_run_rust_ci(self):
         for path in ('crates/coreav-wasm/src/bindings.rs', 'crates/coreav-isobmff/src/source.rs',
                      'Cargo.toml', 'rust-toolchain.toml'):
