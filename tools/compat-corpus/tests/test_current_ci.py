@@ -165,9 +165,10 @@ class DecodedSamples(unittest.TestCase):
         source = {'streams': [{'index': 0, 'codec_type': 'audio', 'sample_rate': '44100', 'channels': 1},
                               {'index': 1, 'codec_type': 'audio', 'sample_rate': '48000', 'channels': 2}]}
         args = ['-i', 'INPUT', '-f', 's16le', '-map', '0:0', 'OUTPUT']
-        self.assertEqual(decoded_output.raw_inputs(args, source), ['-f', 's16le', '-ar', '44100', '-ac', '1'])
+        self.assertEqual(decoded_output.raw_inputs(args, source),
+                         ['-f', 's16le', '-sample_rate', '44100', '-ch_layout', 'mono'])
         self.assertEqual(decoded_output.raw_inputs(['-i', 'INPUT', '-f', 's16le', 'OUTPUT'], source),
-                         ['-f', 's16le', '-ar', '48000', '-ac', '2'])
+                         ['-f', 's16le', '-sample_rate', '48000', '-ch_layout', 'stereo'])
 
 
 @unittest.skipUnless(os.environ.get('COREAV_CURRENT_CI_ORACLE') == '1', 'pinned Linux oracle runs in fixture CI')
@@ -209,6 +210,31 @@ class PinnedOracle(unittest.TestCase):
             self.wav(left, [1, 2, 4], junk=True)
             self.assertEqual(decoded_output.compare(left, right, self.ffmpeg, self.ffprobe, self.env, work),
                              ('failed', 'decoded samples'))
+
+    def test_raw_audio_success_is_verified_but_one_wrong_sample_fails(self):
+        for channels in (1, 2):
+            with self.subTest(channels=channels), tempfile.TemporaryDirectory() as tmp:
+                work = pathlib.Path(tmp)
+                candidate, reference, scratch = (work / name for name in ('candidate', 'reference', 'scratch'))
+                for directory in (candidate, reference, scratch):
+                    directory.mkdir()
+                source = work / 'input.wav'
+                samples = [1, 2, 3, 4, 5, 6, 7, 8]
+                pcm = struct.pack('<8h', *samples)
+                with wave.open(str(source), 'wb') as writer:
+                    writer.setparams((channels, 2, 48000, 0, 'NONE', 'not compressed'))
+                    writer.writeframes(pcm)
+                output = candidate / 'output.mp4'
+                output.write_bytes(pcm)
+                args = ['-i', 'INPUT', '-f', 's16le', '-acodec', 'pcm_s16le', 'OUTPUT']
+                self.assertEqual(current_ci.verify(args, source, candidate, reference, self.env,
+                                                    self.ffmpeg, self.ffprobe, scratch)[0], 'verified')
+                for path in reference.iterdir():
+                    path.unlink()
+                output.write_bytes(struct.pack('<8h', *samples[:-1], 9))
+                self.assertEqual(current_ci.verify(args, source, candidate, reference, self.env,
+                                                    self.ffmpeg, self.ffprobe, scratch),
+                                 ('failed', 'decoded samples'))
 
     def test_byte_different_images_pass_but_one_wrong_pixel_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
