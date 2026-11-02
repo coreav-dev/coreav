@@ -20,6 +20,7 @@ const FRAME_DROPPED: u32 = 1 << 1;
 const PROPERTY_NOT_SUPPORTED: i32 = -12900;
 const POOL_THRESHOLD: i32 = -6689;
 const MAX_ENCODER_ID_BYTES: usize = 4096;
+const MAX_ENCODER_LIST_ENTRIES: isize = 256;
 
 #[repr(C, packed(4))]
 #[derive(Clone, Copy)]
@@ -91,6 +92,16 @@ struct DictionaryValues {
     equal: Equal,
 }
 
+#[cfg(test)]
+#[repr(C)]
+struct ArrayCallbacks {
+    version: isize,
+    retain: Retain,
+    release: Release,
+    description: Description,
+    equal: Equal,
+}
+
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn CFRetain(value: Ref) -> Ref;
@@ -127,10 +138,19 @@ unsafe extern "C" {
     fn CFArrayGetTypeID() -> usize;
     fn CFArrayGetCount(array: Ref) -> isize;
     fn CFArrayGetValueAtIndex(array: Ref, index: isize) -> Ref;
+    #[cfg(test)]
+    fn CFArrayCreate(
+        allocator: Ref,
+        values: *const Ref,
+        count: isize,
+        callbacks: *const ArrayCallbacks,
+    ) -> Ref;
     static kCFTypeDictionaryKeyCallBacks: DictionaryKeys;
     static kCFTypeDictionaryValueCallBacks: DictionaryValues;
     static kCFBooleanTrue: Ref;
     static kCFBooleanFalse: Ref;
+    #[cfg(test)]
+    static kCFTypeArrayCallBacks: ArrayCallbacks;
 }
 
 #[link(name = "VideoToolbox", kind = "framework")]
@@ -163,6 +183,9 @@ unsafe extern "C" {
     fn VTCompressionSessionCompleteFrames(session: Ref, through: CMTime) -> i32;
     fn VTSessionSetProperty(session: Ref, key: Ref, value: Ref) -> i32;
     fn VTSessionCopyProperty(session: Ref, key: Ref, allocator: Ref, value: *mut c_void) -> i32;
+    fn VTCopyVideoEncoderList(options: Ref, encoders: *mut Ref) -> i32;
+    static kVTVideoEncoderList_EncoderID: Ref;
+    static kVTVideoEncoderList_IsHardwareAccelerated: Ref;
     static kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder: Ref;
     static kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder: Ref;
     static kVTCompressionPropertyKey_AverageBitRate: Ref;
@@ -671,7 +694,8 @@ impl Native {
 
     pub(super) fn identity(&self) -> Result<Identity, Error> {
         self.control.check()?;
-        let encoder_id = match self.property(unsafe { kVTCompressionPropertyKey_EncoderID })? {
+        let identifier = self.property(unsafe { kVTCompressionPropertyKey_EncoderID })?;
+        let encoder_id = match identifier.as_ref() {
             Some(value) => Some(unsafe { encoder_id(value.get(), &self.control)? }),
             None => None,
         };
@@ -688,7 +712,20 @@ impl Native {
                     Ok(Hardware::Software)
                 }
             })?,
-            None => Hardware::Unknown,
+            None => {
+                let identifier = identifier.as_ref().ok_or(Error::UnknownHardware)?;
+                let list = controlled(&self.control, || unsafe {
+                    let mut list = ptr::null();
+                    status(
+                        Operation::Query,
+                        VTCopyVideoEncoderList(ptr::null(), &mut list),
+                    )?;
+                    Owned::adopt(list)
+                })?;
+                controlled(&self.control, || unsafe {
+                    hardware_from_list(identifier.get(), list.get(), &self.control)
+                })?
+            }
         };
         match (self.settings.hardware, hardware) {
             (HardwarePolicy::Require | HardwarePolicy::Disable, Hardware::Unknown) => {
@@ -976,6 +1013,69 @@ fn initialized_bytes(length: usize) -> Result<Vec<u8>, Error> {
 }
 
 /// # Safety
+/// `identifier` and `list` are live CF objects for the entire call.
+unsafe fn hardware_from_list(
+    identifier: Ref,
+    list: Ref,
+    control: &Control,
+) -> Result<Hardware, Error> {
+    control.check()?;
+    unsafe {
+        if identifier.is_null()
+            || list.is_null()
+            || CFGetTypeID(identifier) != CFStringGetTypeID()
+            || CFGetTypeID(list) != CFArrayGetTypeID()
+        {
+            return Err(Error::Output);
+        }
+        let length = CFStringGetLength(identifier);
+        if length <= 0 || usize::try_from(length).map_err(|_| Error::Limit)? > MAX_ENCODER_ID_BYTES
+        {
+            return Err(Error::Limit);
+        }
+        let count = CFArrayGetCount(list);
+        if !(0..=MAX_ENCODER_LIST_ENTRIES).contains(&count) {
+            return Err(Error::Limit);
+        }
+        let mut hardware = None;
+        for index in 0..count {
+            control.check()?;
+            let entry = CFArrayGetValueAtIndex(list, index);
+            if entry.is_null() || CFGetTypeID(entry) != CFDictionaryGetTypeID() {
+                return Err(Error::Output);
+            }
+            let candidate = CFDictionaryGetValue(entry, kVTVideoEncoderList_EncoderID);
+            if candidate.is_null() || CFGetTypeID(candidate) != CFStringGetTypeID() {
+                return Err(Error::Output);
+            }
+            let length = CFStringGetLength(candidate);
+            if length <= 0
+                || usize::try_from(length).map_err(|_| Error::Limit)? > MAX_ENCODER_ID_BYTES
+            {
+                return Err(Error::Limit);
+            }
+            if CFEqual(candidate, identifier) == 0 {
+                continue;
+            }
+            if hardware.is_some() {
+                return Err(Error::UnknownHardware);
+            }
+            let flag = CFDictionaryGetValue(entry, kVTVideoEncoderList_IsHardwareAccelerated);
+            if flag.is_null() || CFGetTypeID(flag) != CFBooleanGetTypeID() {
+                return Err(Error::UnknownHardware);
+            }
+            hardware = Some(if CFBooleanGetValue(flag) != 0 {
+                Hardware::Hardware
+            } else {
+                Hardware::Software
+            });
+        }
+        control.check()?;
+        hardware.ok_or(Error::UnknownHardware)
+    }
+}
+
+/// # Safety
 /// `value` is a live CF object from a successful copied session property.
 unsafe fn encoder_id(value: Ref, control: &Control) -> Result<String, Error> {
     control.check()?;
@@ -1241,5 +1341,108 @@ unsafe fn extract(
             dts,
             sync,
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn array(values: &[Ref]) -> Owned {
+        unsafe {
+            Owned::adopt(CFArrayCreate(
+                ptr::null(),
+                values.as_ptr(),
+                isize::try_from(values.len()).unwrap(),
+                &kCFTypeArrayCallBacks,
+            ))
+            .unwrap()
+        }
+    }
+
+    fn entry(identifier: Ref, flag: Ref) -> Owned {
+        unsafe {
+            dictionary(
+                [
+                    kVTVideoEncoderList_EncoderID,
+                    kVTVideoEncoderList_IsHardwareAccelerated,
+                ],
+                [identifier, flag],
+            )
+            .unwrap()
+        }
+    }
+
+    #[test]
+    fn encoder_list_hardware_requires_one_exact_id_and_explicit_boolean() {
+        let control = Control::new(Instant::now() + Duration::from_secs(60));
+        let identifier = unsafe { kVTProfileLevel_H264_High_AutoLevel };
+        let other = unsafe { kCVImageBufferColorPrimaries_ITU_R_709_2 };
+        let software = entry(identifier, unsafe { kCFBooleanFalse });
+        let hardware = entry(identifier, unsafe { kCFBooleanTrue });
+        let unrelated = entry(other, unsafe { kCFBooleanTrue });
+        for (entry, expected) in [
+            (&software, Hardware::Software),
+            (&hardware, Hardware::Hardware),
+        ] {
+            let list = array(&[unrelated.get(), entry.get()]);
+            assert_eq!(
+                unsafe { hardware_from_list(identifier, list.get(), &control) },
+                Ok(expected)
+            );
+        }
+        let number = Owned::integer(0).unwrap();
+        let nonboolean = entry(identifier, number.get());
+        let missing_flag =
+            unsafe { dictionary([kVTVideoEncoderList_EncoderID], [identifier]) }.unwrap();
+        for values in [
+            vec![],
+            vec![unrelated.get()],
+            vec![software.get(), software.get()],
+            vec![software.get(), hardware.get()],
+            vec![nonboolean.get()],
+            vec![missing_flag.get()],
+        ] {
+            let list = array(&values);
+            assert_eq!(
+                unsafe { hardware_from_list(identifier, list.get(), &control) },
+                Err(Error::UnknownHardware)
+            );
+        }
+        let invalid_id = entry(number.get(), unsafe { kCFBooleanTrue });
+        let missing_id = unsafe {
+            dictionary(
+                [kVTVideoEncoderList_IsHardwareAccelerated],
+                [kCFBooleanTrue],
+            )
+        }
+        .unwrap();
+        for values in [
+            vec![number.get()],
+            vec![invalid_id.get()],
+            vec![missing_id.get()],
+        ] {
+            let list = array(&values);
+            assert_eq!(
+                unsafe { hardware_from_list(identifier, list.get(), &control) },
+                Err(Error::Output)
+            );
+        }
+        assert_eq!(
+            unsafe { hardware_from_list(identifier, number.get(), &control) },
+            Err(Error::Output)
+        );
+        let list = array(&vec![software.get(); 257]);
+        assert_eq!(
+            unsafe { hardware_from_list(identifier, list.get(), &control) },
+            Err(Error::Limit)
+        );
+        control.cancel();
+        assert_eq!(
+            unsafe { hardware_from_list(identifier, list.get(), &control) },
+            Err(Error::Cancelled)
+        );
     }
 }
