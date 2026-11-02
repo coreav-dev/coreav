@@ -1,5 +1,6 @@
-import importlib.util
+import ast
 import hashlib
+import importlib.util
 import json
 import math
 import pathlib
@@ -68,9 +69,17 @@ class CalibrationSimulation(unittest.TestCase):
         np.testing.assert_array_equal(position[..., ::2], -position[..., 1::2])
         self.assertEqual(position.shape, (3, 8, 2, 16))
 
+
+class CalibrationEvidence(unittest.TestCase):
     def test_committed_validation_is_complete_and_binds_the_simulator(self):
         root = pathlib.Path(__file__).resolve().parents[3]
-        digest = hashlib.sha256((root / 'tools/compat-corpus/calibration_sim.py').read_bytes()).hexdigest()
+        source = (root / 'tools/compat-corpus/calibration_sim.py').read_bytes()
+        digest = hashlib.sha256(source).hexdigest()
+        scenarios = next(node.value for node in ast.parse(source).body
+                         if isinstance(node, ast.Assign) and any(
+                             isinstance(target, ast.Name) and target.id == 'SCENARIOS'
+                             for target in node.targets))
+        expected_scenarios = {ast.literal_eval(key) for key in scenarios.keys}
         for name, seed, bootstrap_seed in [('calibration-simulation.json', 35612, 0),
                                            ('calibration-simulation-sensitivity.json', 35613, 1)]:
             with self.subTest(name=name):
@@ -79,14 +88,21 @@ class CalibrationSimulation(unittest.TestCase):
                 self.assertEqual(data['seed'], seed)
                 self.assertEqual(data['bootstrap_seed'], bootstrap_seed)
                 self.assertEqual(data['trials_per_scenario'], 2000)
-                self.assertEqual({r['scenario'] for r in data['results']}, set(self.sim.SCENARIOS))
+                self.assertEqual({r['scenario'] for r in data['results']}, expected_scenarios)
                 self.assertTrue(data['all_null_upper99_at_most_005'])
                 for row in data['results']:
                     null = row['bias_results'][0]
                     self.assertEqual(null['multiplicative_bias'], 0)
                     count = null['rejections']['either']
                     self.assertEqual(null['rates']['either'], count / 2000)
-                    self.assertEqual(null['either_wilson99'], self.sim.wilson(count, 2000))
+                    z, trials = 2.3263478740408408, 2000
+                    p = count / trials
+                    denominator = 1 + z ** 2 / trials
+                    center = (p + z ** 2 / (2 * trials)) / denominator
+                    radius = z * math.sqrt(p * (1 - p) / trials + z ** 2 / (4 * trials ** 2)) / denominator
+                    expected = [max(0, center - radius), min(1, center + radius)]
+                    for actual, bound in zip(null['either_wilson99'], expected):
+                        self.assertAlmostEqual(actual, bound, places=14)
                     self.assertLessEqual(null['either_wilson99'][1], 0.05)
 
 
