@@ -1827,6 +1827,7 @@ fn ffmpeg_audio_only_refusals_do_not_publish_output() {
     let Some(tools) = tools() else { return };
     let dir = dir("audio-only-refusals");
     let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
+    let no_aac = script(&dir, "without-aac", "exit 0");
     for (name, options, program, strict) in [
         ("video.mp4", vec![], tools.ffmpeg.as_path(), false),
         (
@@ -1848,6 +1849,13 @@ fn ffmpeg_audio_only_refusals_do_not_publish_output() {
             false,
         ),
         ("safe.mp4", vec!["-vn"], tools.ffmpeg.as_path(), true),
+        ("without-aac.mp4", vec!["-vn"], no_aac.as_path(), false),
+        (
+            "bitrate.mp4",
+            vec!["-vn", "-b:a", "4k"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
     ] {
         let output = dir.join(name);
         let mut command = Command::new(bin());
@@ -1870,6 +1878,83 @@ fn ffmpeg_audio_only_refusals_do_not_publish_output() {
             String::from_utf8_lossy(&run.stderr)
         );
         assert!(!output.exists(), "{name}");
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_refuses_unpreserved_source_properties() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-properties");
+    let clean = made(&tools, &dir, "clean.mp4", &["-c:a", "flac"]);
+    let mut sources = Vec::new();
+    for name in [
+        "offset.mp4",
+        "offset.mkv",
+        "late.mp4",
+        "handler.mp4",
+        "forced.mp4",
+    ] {
+        let source = dir.join(name);
+        let mut command = Command::new(&tools.ffmpeg);
+        command.args(["-nostdin", "-v", "error", "-i"]).arg(&clean);
+        match name {
+            "late.mp4" => {
+                command
+                    .args(["-itsoffset", "1", "-i"])
+                    .arg(&clean)
+                    .args(["-map", "0:v", "-map", "1:a"]);
+            }
+            "handler.mp4" => {
+                command.args(["-metadata:s:a", "handler_name=Dialogue"]);
+            }
+            "forced.mp4" => {
+                command.args(["-disposition:a", "forced"]);
+            }
+            _ => {
+                command.args(["-output_ts_offset", "1"]);
+            }
+        }
+        let run = command.args(["-c", "copy"]).arg(&source).output().unwrap();
+        assert!(
+            run.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        sources.push((source, vec![]));
+    }
+    let list = dir.join("list.txt");
+    std::fs::write(
+        &list,
+        format!("file '{}'\nfile '{}'\n", clean.display(), clean.display()),
+    )
+    .unwrap();
+    sources.push((list, vec!["-f", "concat", "-safe", "0"]));
+    for (source, before) in sources {
+        let output = dir.join(format!(
+            "{}.m4a",
+            source.file_name().unwrap().to_str().unwrap()
+        ));
+        let run = Command::new(bin())
+            .arg("ffmpeg")
+            .args(before)
+            .arg("-i")
+            .arg(&source)
+            .args(["-vn", "-c:a", "aac"])
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(4),
+            "{}: {}",
+            source.display(),
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!output.exists());
     }
     nothing_left(&dir);
 }
@@ -2191,6 +2276,38 @@ fn audio_encodes_preserve_the_decoders_presented_samples() {
                     ));
                 }
                 decodes_cleanly(&tools, &out);
+                let audio_only = dir.join(format!("{codec}-{container}-{mode}-audio.mp4"));
+                let run = Command::new(bin())
+                    .args(["ffmpeg", "-i"])
+                    .arg(&source)
+                    .args(["-vn", "-c:a", encoder])
+                    .arg(&audio_only)
+                    .env("COREAV_FFMPEG", &wrapper)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{codec} {container} {mode}: {}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let audio_streams = probe_json(
+                    &tools,
+                    &[
+                        "-select_streams",
+                        "a",
+                        "-show_entries",
+                        "stream=codec_name,profile,channels,sample_rate,start_pts,duration_ts",
+                    ],
+                    &audio_only,
+                );
+                assert_eq!(
+                    audio_streams, streams,
+                    "{codec} {container} {mode}: audio-only timeline changed"
+                );
+                let (pcm, errors) = decoded_audio(&tools, &audio_only);
+                assert!(!pcm.is_empty());
+                assert!(errors.is_empty(), "{codec} {container} {mode}: {errors}");
             }
         }
     }

@@ -939,7 +939,7 @@ encoder defaults are the same as for video transcodes. The standalone
 `coreav transcode` command still requires video.
 
 Commands selecting other streams beside the encoded audio, multiple audio
-streams, video encoder settings, trim options, chapters or source metadata
+streams, delayed source audio, video encoder settings, trim options, chapters or source metadata
 that this writer does not preserve are refused before encoding. M4A accepts
 AAC only. `-map_metadata -1` on M4A discards source tags. Encoder-generated
 container tags, file sizes and compressed bit rates need not be identical
@@ -955,6 +955,12 @@ supported command. The output must decode without errors. Source trimming
 is applied once, and output encoder delay and padding are removed once.
 AAC sources run only with the `aac` feature. No size or speed claim is
 made, and lossy output does not have a bit-identity bar.
+
+The existing generated Opus-in-MP4 presentation fixture also runs through
+the audio-only path and must produce the same audio timing as the video
+transcode. Its exact source contract and two-pair padding predicate stay
+unchanged ("Decoded audio source correctness bars"); no new duration
+tolerance is introduced.
 
 `ffmpeg_audio_only_encodes_match_the_oracle_timeline` runs FLAC and AAC in
 MP4, and MP3 and Opus in Matroska, through AAC in MP4 and M4A and Opus in

@@ -1,5 +1,6 @@
 use super::args::{AudioEncoder, Command, Encoding, MapMetadata, Muxer};
 use super::{Job, Refusal};
+use crate::ffprobe::model::Value;
 use crate::ffprobe::{Report, Stream, StreamKind};
 
 pub(super) fn plan(
@@ -25,6 +26,15 @@ pub(super) fn plan(
     if trims {
         return Err(Refusal::not_native("seeking or trimming while encoding"));
     }
+    if stream
+        .entries
+        .iter()
+        .any(|(key, value)| *key == "start_pts" && matches!(value, Value::Int(n) if *n > 0))
+    {
+        return Err(Refusal::not_native(
+            "an audio-only encode with a delayed source stream",
+        ));
+    }
     if !matches!(command.muxer, Muxer::Mp4 | Muxer::Ipod) {
         return Err(Refusal::not_native("an audio encode outside MP4 or M4A"));
     }
@@ -48,6 +58,15 @@ pub(super) fn plan(
             "metadata from a selected stream on an audio-only encode",
         ));
     }
+    if stream
+        .disposition
+        .iter()
+        .any(|(key, value)| *key != "default" && !matches!(value, Value::Int(0)))
+    {
+        return Err(Refusal::not_native(
+            "source dispositions on an audio-only encode",
+        ));
+    }
     if command.map_metadata == MapMetadata::Default
         && (report.format_tags.iter().any(|(key, _)| {
             !matches!(
@@ -56,7 +75,8 @@ pub(super) fn plan(
             )
         }) || stream.tags.iter().any(|(key, value)| match key.as_str() {
             "language" => value != "und",
-            "handler_name" | "vendor_id" | "encoder" | "ENCODER" | "DURATION" => false,
+            "handler_name" => value != "SoundHandler",
+            "vendor_id" | "encoder" | "ENCODER" | "DURATION" => false,
             _ => true,
         }))
     {

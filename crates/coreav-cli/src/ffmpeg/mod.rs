@@ -358,10 +358,10 @@ pub fn plan(
             _ => None,
         })
         .collect();
+    if list.is_some() && (!encoded.is_empty() || !audio_encoded.is_empty()) {
+        return Err(Refusal::not_native("encoding the files of a concat list"));
+    }
     if !encoded.is_empty() {
-        if list.is_some() {
-            return Err(Refusal::not_native("encoding the files of a concat list"));
-        }
         return transcode_job(command, report, &output, &encoded, &audio_encoded, trims);
     }
     if !audio_encoded.is_empty() {

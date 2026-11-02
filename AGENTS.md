@@ -6,6 +6,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 
 | Rule | Enforced by |
 |---|---|
+| Audio-only encoding refuses source offsets, tags and dispositions it cannot preserve, and never treats a concat list as a media file | The shared concat-encoding guard and `audio::plan` own these refusals; `ffmpeg_audio_only_refuses_unpreserved_source_properties` covers positive input origins, delayed audio, custom handlers, forced dispositions and concat in the whole transcode fixture target (`ci.yml`). Types cannot prove source metadata or command semantics |
 | AudioToolbox native fixtures append source PCM or begin drain only at `Flow::NeedInput`, pulling pending `Flow::More` output first | The `flow == Flow::NeedInput` append branch and pre-drain assertion in `native_four_cells_drain_and_decode_with_the_independent_rust_decoder` (`coreav-backend-apple/src/audiotoolbox/tests.rs`) enforce the fixture's ordering; it runs in `encoder-backends.yml` on hosted macOS |
 | The verdict reference lists every reason phase in emission order, including unidentified streams kept in `streams` | Not enforced: judgment. The `Order` section of `docs/schema/verdict-v1.md` must match both evaluators; prose completeness cannot be inferred from their control flow |
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
