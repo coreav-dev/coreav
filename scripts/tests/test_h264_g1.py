@@ -216,6 +216,13 @@ exit "${HASH_EXIT:-0}"
                 else:
                     self.assertNotIn('jm19.0.zip', calls)
 
+    def test_jm_recipe_uses_only_the_decoder_build_directory(self):
+        installer = pathlib.Path(__file__).resolve().parents[1] / 'install-jm-decoder.sh'
+        text = installer.read_text()
+        self.assertIn("-path '*/ldecod/Makefile'", text)
+        self.assertIn('make -C "${BUILD%/*}" -j2 CC=', text)
+        self.assertNotIn('-j2 ldecod ', text)
+
 
 if __name__ == '__main__':
     unittest.main()
