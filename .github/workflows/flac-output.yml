@@ -49,6 +49,9 @@ jobs:
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Check native frames and failure states
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
         run: |
           cargo test --locked --no-fail-fast -p coreav-audio --lib --test flac_encode
       - name: Build the native compatibility command

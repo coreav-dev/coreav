@@ -161,6 +161,26 @@ fn unsupported_formats_and_output_failures_are_not_successes() {
     let ordinary = format(2, 16, 44100);
     for format in [
         OutputFormat {
+            channels: 3,
+            channel_mask: 0xB,
+            ..ordinary
+        },
+        OutputFormat {
+            channels: 4,
+            channel_mask: 0x107,
+            ..ordinary
+        },
+        OutputFormat {
+            channels: 5,
+            channel_mask: 0x607,
+            ..ordinary
+        },
+        OutputFormat {
+            channels: 6,
+            channel_mask: 0x60F,
+            ..ordinary
+        },
+        OutputFormat {
             sample_rate: 0,
             ..ordinary
         },

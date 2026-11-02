@@ -219,6 +219,16 @@ pub(super) fn plan(
                 "an inconsistent speaker layout for native audio output",
             ));
         }
+        if flac
+            && u16::try_from(super::int(stream, "channels"))
+                .ok()
+                .and_then(coreav_audio::flac::encode::channel_mask)
+                != Some(mask)
+        {
+            return Err(Refusal::not_native(
+                "a speaker layout outside the FLAC channel order",
+            ));
+        }
         Some(mask)
     } else {
         None

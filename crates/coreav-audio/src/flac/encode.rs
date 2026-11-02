@@ -5,6 +5,14 @@ use std::io::Write;
 
 const BLOCK: usize = 4096;
 
+/// The RFC 9639 speaker mask for one to eight channels, or `None` otherwise.
+pub fn channel_mask(channels: u16) -> Option<u32> {
+    match channels {
+        1..=8 => Some(crate::convert::default_mask(channels)),
+        _ => None,
+    }
+}
+
 /// A bounded native FLAC writer for signed 16-bit or packed 24-bit PCM.
 /// Call `finish` to flush the tail and obtain the completed file header.
 pub struct FlacSink<W: Write> {
@@ -66,19 +74,14 @@ impl<W: Write> Sink for FlacSink<W> {
             return Err(Error::Invalid("FLAC encoder was already started"));
         }
         if !matches!(format.format, SampleFormat::S16 | SampleFormat::S24)
-            || !(1..=8).contains(&format.channels)
             || !(1..=0xF_FFFF).contains(&format.sample_rate)
         {
             return Err(Error::Unsupported("FLAC encoder sample format"));
         }
-        crate::limits::check_channels(usize::from(format.channels), self.limits.max_channels)?;
-        let mask = [0x4, 0x3, 0x7, 0x33, 0x37, 0x3F, 0x70F, 0x63F]
-            .get(usize::from(format.channels - 1))
-            .copied()
-            .unwrap_or(0);
-        if format.channel_mask != mask {
+        if channel_mask(format.channels) != Some(format.channel_mask) {
             return Err(Error::Unsupported("FLAC encoder speaker layout"));
         }
+        crate::limits::check_channels(usize::from(format.channels), self.limits.max_channels)?;
         self.out
             .write_all(&header(format, 0, 0, 0, [0; 16]))
             .map_err(Error::Output)?;
