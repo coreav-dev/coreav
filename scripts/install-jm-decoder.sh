@@ -10,8 +10,9 @@ ROOTS="${SSL_CERT_FILE:-/etc/ssl/certs/ca-certificates.crt}"
 curl --fail --location --retry 3 --max-time 120 "$JM_CA_URL" -o "$WORK/intermediate.pem"
 openssl x509 -in "$WORK/intermediate.pem" -outform DER -out "$WORK/intermediate.der"
 printf '%s  %s\n' "$JM_CA_SHA256" "$WORK/intermediate.der" | sha256sum --check --status
-openssl verify -CAfile "$ROOTS" "$WORK/intermediate.pem" > /dev/null
-cat "$ROOTS" "$WORK/intermediate.pem" > "$WORK/ca.pem"
+openssl x509 -inform DER -in "$WORK/intermediate.der" -out "$WORK/intermediate-pinned.pem"
+openssl verify -CAfile "$ROOTS" "$WORK/intermediate-pinned.pem" > /dev/null
+cat "$ROOTS" "$WORK/intermediate-pinned.pem" > "$WORK/ca.pem"
 curl --fail --location --retry 3 --max-time 120 --cacert "$WORK/ca.pem" "$JM_URL" -o "$WORK/jm.zip"
 printf '%s  %s\n' "$JM_SHA256" "$WORK/jm.zip" | sha256sum --check --status
 unzip -q "$WORK/jm.zip" -d "$WORK/source"

@@ -10,6 +10,7 @@ import re
 import statistics
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from h264_g1_conformance import compare, digest, require, same_planes, inspect_anchor
@@ -22,6 +23,28 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+
+
+def publish_json(path, value):
+    import fcntl
+    directory = os.open(path.parent, os.O_RDONLY)
+    temporary = None
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        if path.exists():
+            raise FileExistsError(f'completed publication already exists: {path}')
+        descriptor, name = tempfile.mkstemp(prefix=f'.{path.name}.', suffix='.tmp', dir=path.parent)
+        temporary = pathlib.Path(name)
+        with os.fdopen(descriptor, 'wb') as output:
+            output.write(canonical(value))
+            output.flush()
+            os.fsync(output.fileno())
+        os.rename(temporary, path)
+        os.fsync(directory)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        os.close(directory)
 
 
 def sha(value):
@@ -308,6 +331,33 @@ def decode_anchor(decoder, stream, directory):
     return independent
 
 
+def resume_cell(directory, binding, clip, arm, qp, resume_fault):
+    checkpoint = directory / 'cell.json'
+    if checkpoint.exists():
+        try:
+            cell = json.loads(checkpoint.read_text())
+        except json.JSONDecodeError:
+            if not resume_fault:
+                raise ValueError(f'truncated checkpoint retained at {directory}; a recorded infrastructure fault is required') from None
+        else:
+            require((cell['label'], cell['arm'], cell['qp']), (clip['label'], arm, qp), 'checkpoint coordinates')
+            verify_cell(cell, directory, binding, clip)
+            return cell
+    if directory.exists():
+        if not resume_fault:
+            raise ValueError(f'failed attempt retained at {directory}; an infrastructure-fault disposition is required')
+        fault = json.loads(resume_fault.read_text())
+        require(fault['binding'], sha(binding), 'infrastructure-fault identity')
+        if fault['reason'] not in ('preemption', 'runner-loss', 'input-integrity', 'host-gate') or directory.name not in fault['cells']:
+            raise ValueError('infrastructure fault does not cover this incomplete cell')
+        failed = directory.parent / 'failed-attempts'
+        failed.mkdir(exist_ok=True)
+        number = len(list(failed.iterdir()))
+        publish_json(failed / f'fault-{number:03}.json', fault)
+        directory.rename(failed / f'{directory.name}-{number:03}')
+    return None
+
+
 def measure(args, manifest):
     if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
         raise ValueError('G1 measurement is enabled only in authorized Linux Actions jobs')
@@ -338,7 +388,7 @@ def measure(args, manifest):
     if stamp.exists():
         require(json.loads(stamp.read_text()), binding, 'checkpoint identity')
     else:
-        stamp.write_bytes(canonical(binding))
+        publish_json(stamp, binding)
     fixture = manifest['metric_fixture']
     for name in ('reference', 'reconstruction'):
         path = args.metric_fixture / f'{name}.yuv'
@@ -356,24 +406,10 @@ def measure(args, manifest):
             for arm in ('coreav', 'x264'):
                 directory = args.output / f'{clip["label"]}-{arm}-q{qp}'
                 checkpoint = directory / 'cell.json'
-                if checkpoint.exists():
-                    cell = json.loads(checkpoint.read_text())
-                    require((cell['label'], cell['arm'], cell['qp']), (clip['label'], arm, qp), 'checkpoint coordinates')
-                    verify_cell(cell, directory, binding, clip)
+                cell = resume_cell(directory, binding, clip, arm, qp, args.resume_fault)
+                if cell is not None:
                     cells.append(cell)
                     continue
-                if directory.exists():
-                    if not args.resume_fault:
-                        raise ValueError(f'failed attempt retained at {directory}; an infrastructure-fault disposition is required')
-                    fault = json.loads(args.resume_fault.read_text())
-                    require(fault['binding'], sha(binding), 'infrastructure-fault identity')
-                    if fault['reason'] not in ('preemption', 'runner-loss', 'input-integrity', 'host-gate') or directory.name not in fault['cells']:
-                        raise ValueError('infrastructure fault does not cover this incomplete cell')
-                    failed = args.output / 'failed-attempts'
-                    failed.mkdir(exist_ok=True)
-                    number = len(list(failed.iterdir()))
-                    directory.rename(failed / f'{directory.name}-{number:03}')
-                    (failed / f'fault-{number:03}.json').write_bytes(args.resume_fault.read_bytes())
                 if arm == 'coreav':
                     cell = compare(args.driver.resolve(), pathlib.Path(tools['ffmpeg']), pathlib.Path(tools['jm']), raw, directory,
                                    clip['width'], clip['height'], qp, 60)
@@ -400,10 +436,14 @@ def measure(args, manifest):
                 cell.update(scores)
                 cell.update({'label': clip['label'], 'arm': arm, 'qp': qp, 'binding': sha(binding),
                              'artifacts': {str(p.relative_to(directory)): digest(p) for p in directory.rglob('*') if p.is_file()}})
-                checkpoint.write_bytes(canonical(cell))
+                publish_json(checkpoint, cell)
                 cells.append(cell)
     result = report(manifest, cells)
-    (args.output / 'report.json').write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
+    summary = args.output / 'report.json'
+    if summary.exists():
+        require(json.loads(summary.read_text()), result, 'completed report')
+    else:
+        publish_json(summary, result)
     return 0 if result['pass'] else 1
 
 

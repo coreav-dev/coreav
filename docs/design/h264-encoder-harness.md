@@ -10,6 +10,8 @@ Every action requires `--freeze COMMIT --manifest PATH --sha256 SHA256`. The com
 
 The driver verifies every prepared input and tool before work. It verifies the frozen synthetic conversion fixture before encoding any roster input. Completed cells bind the freeze, candidate, binary identity, tool digests, and every retained file digest. Resume refuses changed identities or artifacts. Incomplete cells remain failures. `--resume-fault FILE` permits resuming only an incomplete cell named in a recorded infrastructure fault with the same identity digest. Its reason is `preemption`, `runner-loss`, `input-integrity`, or `host-gate`; the old directory and fault record are retained under `failed-attempts`. It cannot replace a completed cell or repair a measured miss.
 
+JSON publication writes a temporary file in the destination directory, flushes and fsyncs its contents, renames it under a directory lock, and fsyncs the directory. Publication refuses an existing destination. Runner loss before rename leaves no completed checkpoint; a bound fault disposition retains that incomplete attempt before a new attempt starts. Runner loss after rename reuses the validated completed cell. Legacy truncated JSON is retained and recoverable only through the same explicit infrastructure-fault path. A valid JSON cell that fails artifact or metric validation is never reclassified as an incomplete publication.
+
 ## Freeze JSON
 
 The freeze uses `protocol = "coreav-h264-g1-v1"`, `qps = [16,22,28,34,40]`, `frames = 60`, `timing = [30,1]`, and `colour = [false,1,1,1,0]`. The last value fixes the measurement preparation signalling as limited-range BT.709 with left chroma siting. Original declarations stay separate, including absent values.
@@ -24,7 +26,7 @@ The freeze uses `protocol = "coreav-h264-g1-v1"`, `qps = [16,22,28,34,40]`, `fra
 
 ## Outputs and interpretation
 
-The JM server supplies a chain for a different intermediate than its leaf requires. The installer downloads the correct intermediate from the certificate authority's HTTPS repository, verifies its DER digest from `scripts/jm-decoder.env`, and verifies its signature chain against existing system roots before using it in a per-request bundle. It neither installs new roots nor disables TLS verification. The JM archive digest is unchanged.
+The JM server supplies a chain for a different intermediate than its leaf requires. The installer downloads the correct intermediate from the certificate authority's HTTPS repository and verifies its DER digest from `scripts/jm-decoder.env`. It reconstructs a single PEM certificate from those exact DER bytes, verifies that certificate's chain against existing roots, and adds only that certificate to the per-request bundle. Extra certificates in the downloaded PEM never enter the trust bundle. It neither installs new roots nor disables TLS verification. The JM archive digest is unchanged.
 
 Each encoder/QP cell retains its elementary stream, reconstruction, conformance output, command records, and frame scores. Both arms receive the same plane bytes and nominal timing. The CoreAV arm must match its own reconstruction in all three decoders. The x264 arm is decoded by CoreAV, FFmpeg, and JM; its syntax is checked for the registered subset and effective slice QP. Only identifying SEI is removed, preserving all other bytes and original Annex B delimiters.
 

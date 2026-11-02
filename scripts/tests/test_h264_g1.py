@@ -4,6 +4,7 @@ import json
 import math
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -222,6 +223,141 @@ exit "${HASH_EXIT:-0}"
         self.assertIn("-path '*/ldecod/Makefile'", text)
         self.assertIn('make -C "${BUILD%/*}" -j2 CC=', text)
         self.assertNotIn('-j2 ldecod ', text)
+
+    def test_jm_bundle_drops_a_trailing_unpinned_certificate(self):
+        installer = pathlib.Path(__file__).resolve().parents[1] / 'install-jm-decoder.sh'
+        openssl = shutil.which('openssl')
+        self.assertIsNotNone(openssl)
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            for name in ('pinned', 'extra'):
+                subprocess.run([openssl, 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                                '-subj', f'/CN=Synthetic-{name}-CA', '-keyout', str(root/f'{name}.key'),
+                                '-out', str(root/f'{name}.pem')], check=True, capture_output=True, timeout=20)
+            der = subprocess.run([openssl, 'x509', '-in', str(root/'pinned.pem'), '-outform', 'DER'],
+                                 check=True, capture_output=True, timeout=10).stdout
+            (root/'download.pem').write_bytes((root/'pinned.pem').read_bytes() + (root/'extra.pem').read_bytes())
+            (root/'install.sh').write_bytes(installer.read_bytes())
+            (root/'jm-decoder.env').write_text(f'JM_VERSION=synthetic\nJM_URL=https://synthetic.invalid/jm19.0.zip\nJM_SHA256={"0"*64}\nJM_CA_URL=https://synthetic.invalid/intermediate.pem\nJM_CA_SHA256={hashlib.sha256(der).hexdigest()}\n')
+            commands = root/'commands'
+            commands.mkdir()
+            curl = commands/'curl'
+            curl.write_text('''#!/bin/bash
+if [[ "$*" == *--cacert* ]]; then
+  while [[ "$1" != --cacert ]]; do shift; done
+  cp "$2" "$CAPTURE"
+  exit 42
+fi
+while [[ "$1" != -o ]]; do shift; done
+cp "$CA_INPUT" "$2"
+''')
+            curl.chmod(0o755)
+            checksum = commands/'sha256sum'
+            checksum.write_text(f'#!{sys.executable}\nimport hashlib,pathlib,sys\nexpected,path=sys.stdin.read().strip().split(None,1)\nsys.exit(0 if hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()==expected else 1)\n')
+            checksum.chmod(0o755)
+            bundle = root/'bundle.pem'
+            env = dict(os.environ, PATH=str(commands)+os.pathsep+os.environ['PATH'],
+                       SSL_CERT_FILE=str(root/'pinned.pem'), CA_INPUT=str(root/'download.pem'), CAPTURE=str(bundle))
+            result = subprocess.run(['bash', str(root/'install.sh'), str(root/'bin')], env=env,
+                                    capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 42, result.stderr.decode())
+            self.assertEqual(bundle.read_text().count('-----BEGIN CERTIFICATE-----'), 2)
+            trusted = subprocess.run([openssl, 'verify', '-CAfile', str(bundle), str(root/'pinned.pem')], capture_output=True, timeout=10)
+            untrusted = subprocess.run([openssl, 'verify', '-CAfile', str(bundle), str(root/'extra.pem')], capture_output=True, timeout=10)
+            self.assertEqual(trusted.returncode, 0, trusted.stderr.decode())
+            self.assertNotEqual(untrusted.returncode, 0, 'trailing unpinned CA became trusted')
+
+    @unittest.skipUnless(os.name == 'posix', 'G1 publication runs on POSIX hosts')
+    def test_checkpoint_publication_is_atomic_across_runner_loss(self):
+        script = '''import json,os,pathlib,sys
+sys.path.insert(0,sys.argv[1])
+import h264_g1 as g1
+real_fsync=os.fsync
+calls=0
+def interrupt(descriptor):
+    global calls
+    calls+=1
+    if calls==int(sys.argv[3]):
+        os._exit(93)
+    real_fsync(descriptor)
+os.fsync=interrupt
+g1.publish_json(pathlib.Path(sys.argv[2]),json.loads(sys.argv[4]))
+'''
+        for kill_at in (1, 2):
+            with self.subTest(kill_at=kill_at), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                directory = root/'synthetic-coreav-q16'
+                directory.mkdir()
+                checkpoint = directory/'cell.json'
+                binding = {'candidate': 'synthetic'}
+                clip = {'label': 'synthetic'}
+                value = dict(label=clip['label'], arm='coreav', qp=16, binding=g1.sha(binding))
+                fault = root/'runner-loss.json'
+                fault.write_text(json.dumps(dict(binding=g1.sha(binding), reason='runner-loss', cells=[directory.name])))
+                process = subprocess.run([sys.executable, '-c', script, str(g1.ROOT/'scripts'),
+                                          str(checkpoint), str(kill_at), json.dumps(value)], capture_output=True, timeout=10)
+                self.assertEqual(process.returncode, 93, process.stderr.decode())
+                with patch.object(g1, 'verify_cell') as verify:
+                    resumed = g1.resume_cell(directory, binding, clip, 'coreav', 16, fault)
+                if kill_at == 1:
+                    self.assertIsNone(resumed)
+                    verify.assert_not_called()
+                    self.assertFalse(directory.exists())
+                    archived = list((root/'failed-attempts').glob('synthetic-coreav-q16-*'))
+                    self.assertEqual(len(archived), 1)
+                    self.assertFalse((archived[0]/'cell.json').exists())
+                    self.assertEqual(len(list(archived[0].glob('.cell.json.*.tmp'))), 1)
+                    self.assertEqual(json.loads((root/'failed-attempts/fault-000.json').read_text())['reason'], 'runner-loss')
+                else:
+                    self.assertEqual(resumed, value)
+                    verify.assert_called_once()
+                    self.assertEqual(checkpoint.read_bytes(), g1.canonical(value))
+                    self.assertFalse((root/'failed-attempts').exists())
+                    with self.assertRaises(FileExistsError):
+                        g1.publish_json(checkpoint, {'changed': True})
+                    self.assertEqual(checkpoint.read_bytes(), g1.canonical(value))
+
+    @unittest.skipUnless(os.name == 'posix', 'G1 publication runs on POSIX hosts')
+    def test_legacy_truncated_checkpoint_requires_a_bound_fault_and_is_retained(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            directory = root/'synthetic-coreav-q16'
+            directory.mkdir()
+            checkpoint = directory/'cell.json'
+            checkpoint.write_text('{')
+            binding = {'candidate': 'synthetic'}
+            clip = {'label': 'synthetic'}
+            with self.assertRaisesRegex(ValueError, 'recorded infrastructure fault'):
+                g1.resume_cell(directory, binding, clip, 'coreav', 16, None)
+            fault = root/'runner-loss.json'
+            disposition = dict(binding='wrong', reason='runner-loss', cells=[directory.name])
+            fault.write_text(json.dumps(disposition))
+            with self.assertRaisesRegex(ValueError, 'infrastructure-fault identity'):
+                g1.resume_cell(directory, binding, clip, 'coreav', 16, fault)
+            disposition['binding'] = g1.sha(binding)
+            fault.write_text(json.dumps(disposition))
+            self.assertIsNone(g1.resume_cell(directory, binding, clip, 'coreav', 16, fault))
+            archived = list((root/'failed-attempts').glob('synthetic-coreav-q16-*'))
+            self.assertEqual(len(archived), 1)
+            self.assertEqual((archived[0]/'cell.json').read_text(), '{')
+
+    @unittest.skipUnless(os.name == 'posix', 'G1 publication runs on POSIX hosts')
+    def test_fault_disposition_cannot_replace_a_completed_invalid_cell(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            directory = root/'synthetic-coreav-q16'
+            directory.mkdir()
+            checkpoint = directory/'cell.json'
+            value = dict(label='synthetic', arm='coreav', qp=16)
+            checkpoint.write_bytes(g1.canonical(value))
+            binding = {'candidate': 'synthetic'}
+            fault = root/'runner-loss.json'
+            fault.write_text(json.dumps(dict(binding=g1.sha(binding), reason='runner-loss', cells=[directory.name])))
+            with patch.object(g1, 'verify_cell', side_effect=ValueError('artifact mismatch')):
+                with self.assertRaisesRegex(ValueError, 'artifact mismatch'):
+                    g1.resume_cell(directory, binding, {'label': 'synthetic'}, 'coreav', 16, fault)
+            self.assertEqual(checkpoint.read_bytes(), g1.canonical(value))
+            self.assertFalse((root/'failed-attempts').exists())
 
     def test_conformance_preserves_failure_diagnostics(self):
         result = subprocess.CompletedProcess(['driver'], 1, stdout=b'', stderr=b'encoding limit exceeded\n')
