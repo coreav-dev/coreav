@@ -1735,6 +1735,99 @@ fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
     path
 }
 
+#[test]
+fn ffmpeg_default_codecs_match_the_oracle() {
+    let Some(tools) = tools() else { return };
+    for muxer in ["mp4", "ipod"] {
+        let help = Command::new(&tools.ffmpeg)
+            .args(["-hide_banner", "-h", &format!("muxer={muxer}")])
+            .output()
+            .unwrap();
+        assert!(help.status.success());
+        let help = String::from_utf8(help.stdout).unwrap();
+        assert!(help.contains("Default video codec: h264"), "{help}");
+        assert!(help.contains("Default audio codec: aac"), "{help}");
+    }
+    let dir = dir("ffmpeg-default-codecs");
+    let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let basic = tools.fixtures.join("basic.mp4");
+    for (name, source, flags) in [
+        ("video-only", &basic, vec!["-an"]),
+        ("audio-copy", &basic, vec!["-c:a", "copy"]),
+        ("both-default", &flac, vec![]),
+        ("video-default", &flac, vec!["-c:a", "aac"]),
+        ("audio-default", &flac, vec!["-c:v", "libx264"]),
+        ("last-copy", &basic, vec!["-c:v", "libx264", "-c", "copy"]),
+    ] {
+        let output = dir.join(format!("{name}.mp4"));
+        let oracle = dir.join(format!("{name}-oracle.mp4"));
+        let log = dir.join(format!("{name}-fallback.log"));
+        let actual = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(source)
+            .args(&flags)
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        assert!(
+            actual.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&actual.stderr)
+        );
+        assert!(
+            !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+            "{name}: fell back"
+        );
+        let expected = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
+            .arg(source)
+            .args(&flags)
+            .arg(&oracle)
+            .output()
+            .unwrap();
+        assert!(
+            expected.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&expected.stderr)
+        );
+        let fields = [
+            "-show_entries",
+            "stream=codec_type,codec_name,profile,width,height,pix_fmt,sample_rate,channels",
+        ];
+        assert_eq!(
+            probe_json(&tools, &fields, &output),
+            probe_json(&tools, &fields, &oracle),
+            "{name}"
+        );
+        assert_eq!(
+            video_md5(&tools, &output, &["-f", "framemd5"]),
+            video_md5(&tools, &oracle, &["-f", "framemd5"]),
+            "{name}"
+        );
+        if name == "audio-copy" || name == "last-copy" {
+            assert_eq!(
+                audio_packets(&tools, &output),
+                audio_packets(&tools, &oracle),
+                "{name}"
+            );
+        } else if !flags.contains(&"-an") {
+            let (actual, errors) = decoded_audio(&tools, &output);
+            let (expected, oracle_errors) = decoded_audio(&tools, &oracle);
+            assert!(errors.is_empty() && oracle_errors.is_empty(), "{name}");
+            assert!(!actual.is_empty(), "{name}");
+            assert_eq!(actual.len(), expected.len(), "{name}");
+        }
+        decodes_cleanly(&tools, &output);
+    }
+    nothing_left(&dir);
+}
+
 /// The audio of `path` as `ffmpeg` decodes it: 16-bit samples at 48 kHz,
 /// with the edit list applied; and what it printed.
 fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {

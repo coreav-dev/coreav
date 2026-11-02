@@ -2227,6 +2227,10 @@ decision, 2026-10-30):
   refused the same way. All come before the input is read: a `coreav ffmpeg` line that names `libx264` takes its
   encoder from the command line alone, so in the mode it is refused
   without x264 even when its input turns out to hold no video to encode.
+  For MP4/M4A streams with no explicit codec, CoreAV first probes and selects
+  the streams, then checks the default encoders before decoding. Default
+  libx264 requires x264 in this mode, and default AAC is refused because
+  its encoder is the ffmpeg program. Explicit `-c copy` suppresses both defaults.
 - **In the hidden entries.** `coreav` runs itself as its decode worker
   (`__coreav_worker`) and as the sandbox launcher of its encoder
   (`__coreav_exec`; `decode.md`, "The sandboxed worker"), before it

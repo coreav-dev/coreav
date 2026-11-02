@@ -937,6 +937,21 @@ command without one, or with a video only the FFmpeg decoder would decode,
 is refused (exit status 4) and never handed to FFmpeg, as is every
 `-c:a aac` command, whose encoder is the `ffmpeg` program.
 
+When no codec option covers a selected video or audio stream, MP4 and M4A
+use libx264 and AAC respectively, as the pinned FFmpeg's muxer defaults do.
+Explicit codec options still win in their original order. For example,
+`-i in.mp4 -an out.mp4` encodes the video, while `-c copy` copies every
+selected stream. Defaults do not add an encoder, widen audio-source
+support or enable audio-only encoding. An M4A output with selected video
+is still refused, not silently reduced to audio. Segment output still
+requires explicit codecs. Encoder options still require their explicit
+encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
+
+Explicit encoder names are checked before the input is read. Default
+encoders are checked after CoreAV probes and selects the streams, before
+decoding. Strict-safe mode refuses default AAC just as it refuses
+explicit AAC, and default libx264 can use only the x264 program.
+
 | Option | Taken as |
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
