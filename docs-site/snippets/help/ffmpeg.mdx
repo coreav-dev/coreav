@@ -6,6 +6,7 @@ Experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files.
 The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
+  a copy to .mkv, .mka or .webm (or -f matroska/webm): container output
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
   .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
@@ -13,7 +14,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
-Builds with a decoder backend also encode the video with -c:v libx264.
+Builds with a decoder backend also encode the video with -c:v libx264
+into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
+codec explicitly because its Vorbis default is not implemented.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.

@@ -26,6 +26,13 @@ pub enum Media {
         height: u32,
         /// Display width and height in pixels, without changing encoded size.
         display: Option<(u32, u32)>,
+        /// Container colour primaries, transfer, matrix and range overrides.
+        /// Unspecified fields are omitted, not inferred from codec bytes.
+        colour: coreav_isobmff::Color,
+        /// FlagInterlaced: 0 undetermined, 1 interlaced, 2 progressive.
+        interlaced: u8,
+        /// FieldOrder: 0, 1, 2, 6, 9 or 14, meaningful for interlaced video.
+        field_order: u8,
     },
     /// Sampling frequency, channel count and optional PCM bit depth.
     Audio {

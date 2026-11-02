@@ -80,9 +80,27 @@ pub(super) fn validate(track: &Track, doc_type: DocType) -> Result<(), Error> {
             width,
             height,
             display,
+            colour,
+            interlaced,
+            field_order,
         } => {
             if width == 0 || height == 0 || display.is_some_and(|(w, h)| w == 0 || h == 0) {
                 return Err(invalid("video dimensions must be positive"));
+            }
+            if colour.matrix.is_some_and(|v| !matches!(v, 0..=2 | 4..=14))
+                || colour
+                    .transfer
+                    .is_some_and(|v| !matches!(v, 1..=2 | 4..=18))
+                || colour
+                    .primaries
+                    .is_some_and(|v| !matches!(v, 1..=2 | 4..=12 | 22))
+            {
+                return Err(invalid(
+                    "video colour code points must be defined by Matroska",
+                ));
+            }
+            if !matches!(interlaced, 0..=2) || !matches!(field_order, 0..=2 | 6 | 9 | 14) {
+                return Err(invalid("video scan flags must be defined by Matroska"));
             }
         }
         Media::Audio {

@@ -59,8 +59,8 @@ What `native` means, option by option. Anything not here is refused.
 | Flags | `-y`, `-n`, `-an`, `-vn`, `-sn`, `-dn`, `-hide_banner`, `-nostdin`, `-copyts`, `-start_at_zero`, `-ignore_unknown`, `-shortest` |
 | Frame-output values | `-frames:v`, `-vframes`, `-update`, `-r` and `-pix_fmt`, within the limits in [frame-output.md](frame-output.md) |
 | Demuxers (`-f` before the first `-i`) | `concat`, `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, and the aliases FFmpeg matches against those names: `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`. **Not** `mpegts`: `coreav probe` reads transport streams, no writer of step 1 does |
-| Muxers (`-f` after it) | `mp4`, `ipod`, `hls`, `segment`; builds with a decoder backend also write `image2`, `rawvideo` and `yuv4mpegpipe`. CoreAV reads more containers than it writes, so `-f matroska` on the way out is refused although Matroska on the way in is read |
-| Containers written | MP4, M4A, HLS (`.m3u8`), and numbered segments. Builds with a decoder backend also write PNG/BMP images, image sequences, raw video and YUV4MPEG2 |
+| Muxers (`-f` after it) | `mp4`, `ipod`, `matroska`, `webm`, `hls`, `segment`; builds with a decoder backend also write `image2`, `rawvideo` and `yuv4mpegpipe`. Matroska/WebM support is described in [Matroska output](mkv-write.md) |
+| Containers written | MP4, M4A, Matroska (`.mkv`, audio-only `.mka`), WebM, HLS (`.m3u8`), and numbered segments. Builds with a decoder backend also write PNG/BMP images, image sequences, raw video and YUV4MPEG2 |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
 **Refused by design,** although common in the set, each because the job
