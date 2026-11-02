@@ -43,7 +43,9 @@ and from the path filters an earlier change put on the heavy workflows:
   waited for by one of them. `deny-report` carries `name: deny`, because
   the required name was `deny` before it was a report job and a ruleset
   matches by name; a required name is never reported by a job that does
-  the work ("A job timeout is not a cancellation" below).
+  the work ("A job timeout is not a cancellation" below). A report job is
+  one that waits on other jobs, carries `if: always()` and uses no action,
+  not one whose id ends in `-report`.
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
@@ -148,10 +150,24 @@ successfully in two days, and its ceiling was 10, so the ceiling sat inside
 the job's own runtime: one run crossed it and left `deny` cancelled on its
 commit with no replacement. Its ceiling is now 30, well above that runtime,
 and the required `deny` name is reported by `deny-report`, which always runs
-and fails when `deny-checks` failed or was cancelled. A timeout is a red
-required check that names the job which stopped, not a cancelled one with
-nothing after it. `workflow_check.py` refuses a required name reported by
-the job that does the work.
+and fails unless `deny-checks` succeeded. A timeout is a red required check
+that names the job which stopped, not a cancelled one with nothing after it.
+
+`deny-report` passes on `success` and nothing else. Nothing in `deny.yml` is
+filtered, so no job of it has anything to skip, and a required check that a
+skipped job passes says nothing about the commit. The report jobs of
+`ci.yml`, `python.yml` and `npm.yml` still pass a job their path filter
+skipped, because there the skip is the filter's own decision.
+
+Two properties make a report job a report job, and `workflow_check.py`
+reads both: it waits on the jobs that do the work, so a dependency exists
+that can be missing, and it uses no action, so it cannot be the job that
+checks the repository out and runs the checks. Naming is not one of them:
+the check reads job ids and conditions through Psych's node tree, so a job
+called `deny-report` that does the work is refused like any other, and a
+report job renamed to anything else is still a report job. The same reader
+makes a quoted job id a job, so adding work outside the report job's
+`needs:` fails rather than disappearing.
 
 Every report job runs for seconds under a ceiling of 5 minutes, so a job it
 waits for is not cancelled by a timeout without the report saying so.

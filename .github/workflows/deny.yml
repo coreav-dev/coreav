@@ -198,7 +198,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Fail if a job above failed or was cancelled
+      - name: Fail unless the job above succeeded
+        # `success` and nothing else: nothing here is filtered, so no job of
+        # this workflow has anything to skip, and a required check that a
+        # skipped job passes is not a check at all
+        # (docs/design/ci-checks.md, "A job timeout is not a cancellation").
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
@@ -208,9 +212,9 @@ jobs:
             jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
           } >> "$GITHUB_STEP_SUMMARY"
           bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
+            | select(.value.result != "success")
             | .key] | join(", ")' <<< "$RESULTS")
           if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
+            echo "::error::did not succeed: $bad"
             exit 1
           fi
