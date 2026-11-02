@@ -47,6 +47,8 @@ pub enum Error {
     Unsupported(&'static str),
     /// A limit was exceeded.
     Limit(LimitKind),
+    /// The bounded one-IDR decoding contract was violated.
+    OneIdr(OneIdrError),
     /// The decoder asked a kernel for samples outside a picture. This is a
     /// bug in the decoder, never a property of the stream; it is an error
     /// rather than a panic so that no input can stop the process.
@@ -60,6 +62,7 @@ impl fmt::Display for Error {
             Error::Invalid(what) => write!(f, "invalid bitstream: {what}"),
             Error::Unsupported(what) => write!(f, "unsupported: {what}"),
             Error::Limit(kind) => write!(f, "limit exceeded: {}", kind.as_str()),
+            Error::OneIdr(reason) => write!(f, "one-IDR admission: {reason:?}"),
             Error::Geometry(what) => write!(f, "kernel geometry: {what}"),
         }
     }
@@ -75,6 +78,27 @@ impl From<coreav_kernels_h264::Geometry> for Error {
 
 /// The decoder's result type.
 pub type Result<T> = core::result::Result<T, Error>;
+
+/// Why a bounded one-IDR request was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OneIdrError {
+    /// Supply a complete access unit through `decode_one_idr`.
+    AccessUnitRequired,
+    /// The access unit does not contain an IDR picture.
+    ExpectedIdr,
+    /// Every primary slice must be intra-only.
+    PredictedSlice,
+    /// A second picture would be started.
+    SecondPicture,
+    /// Active parameter sets change within the access unit.
+    ConfigurationConflict,
+    /// Frame-number-gap synthesis is forbidden.
+    FrameNumGap,
+    /// The slices do not cover the whole picture.
+    IncompletePicture,
+    /// A failed request cannot be resumed.
+    Failed,
+}
 
 /// Fails with [`Error::Invalid`] unless `ok` holds.
 #[inline]

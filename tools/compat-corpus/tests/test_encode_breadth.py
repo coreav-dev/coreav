@@ -23,6 +23,7 @@ sys.path.insert(0, str(HERE))
 import encode_breadth as eb  # noqa: E402
 import r3  # noqa: E402
 import release_round  # noqa: E402
+import test_current_ci as current_tests
 
 MAPPING = 'Stream mapping:\n  Stream #0:0 -> #0:0 (copy)\n  Stream #0:1 -> #0:1 (copy)\n'
 LISTING = [['video', 'h264'], ['audio', 'aac']]
@@ -204,6 +205,21 @@ class Mapping(unittest.TestCase):
 
 
 class EncoderStart(unittest.TestCase):
+    def test_mp3_accepts_only_raw_audio_input_and_an_encoder_only_output(self):
+        good = ['-nostdin', '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
+                '-map', '0:a:0', '-c:a', 'libmp3lame', '-q:a', '2', '-f', 'mp3', 'pipe:1']
+        self.assertTrue(eb.mp3_encoder_start(good))
+        self.assertTrue(eb.encoder_start('ffmpeg', good))
+        self.assertFalse(eb.aac_encoder_start(good))
+        for extra in (['-i', 'source.mp4'], ['-af', 'anull'], ['-ar', '16000'], ['-ac', '1'],
+                      ['-c:v', 'libx264'], ['-map', '0:v'], ['-map', '0:a:0'], ['-f', 'matroska'], ['other.mp3']):
+            self.assertFalse(eb.mp3_encoder_start(good[:-1] + extra + good[-1:]), extra)
+        for change in (good[:good.index('-i')] + ['-i', 'source.raw'] + good[good.index('-i') + 2:],
+                       ['-i', 'pipe:0', '-c:a', 'libmp3lame', 'out.mp3'], good + ['-q:a'],
+                       ['-f', 's16le', '-i', 'pipe:0', '-c:a', 'copy', 'out.mp3']):
+            self.assertFalse(eb.mp3_encoder_start(change), change)
+        self.assertFalse(eb.aac_encoder_start(AAC_START[:-1] + ['-q:a', '2', AAC_START[-1]]))
+
     def test_the_aac_encode_of_coreav_is_an_encoder_start(self):
         self.assertTrue(eb.aac_encoder_start(AAC_START))
         self.assertTrue(eb.aac_encoder_start(AAC_START[:-3] + ['-b:a', '64000'] + AAC_START[-3:]))
@@ -376,9 +392,9 @@ class Misses(Stubs):
 
     def test_a_job_with_no_oracle_is_no_oracle_and_names_it(self):
         self.config['mapping'] = ('Stream mapping:\n  Stream #0:0 -> #0:0 (copy)\n'
-                                  '  Stream #0:1 -> #0:1 (aac (native) -> mp3 (libmp3lame))\n')
+                                  '  Stream #0:1 -> #0:1 (aac (native) -> vorbis (libvorbis))\n')
         record = self.evaluate(self.COPY)
-        self.assertEqual((record['miss'], record['detail']), ('no_oracle', {'job': 'libmp3lame'}))
+        self.assertEqual((record['miss'], record['detail']), ('no_oracle', {'job': 'libvorbis'}))
         self.assertEqual(record['groups'], ['other encoders'])
         for cls in ('decode-only', 'subtitles', 'other'):
             record = self.evaluate(entry(['-i', 'INPUT', 'OUTPUT'], cls=cls, container=None))
@@ -515,6 +531,140 @@ class CopyOracle(Stubs):
 
 def fake_source(**attrs):
     return types.SimpleNamespace(path='/fixtures/basic.mp4', kinds=('audio',), **attrs)
+
+
+class DecodedJobs(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = pathlib.Path(self.temp.name)
+        for name in ('candidate', 'reference', 'scratch'):
+            (root / name).mkdir()
+        self.cx = types.SimpleNamespace(
+            opts=types.SimpleNamespace(fixtures=root, env={}),
+            tc=types.SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe'),
+            entry=entry(['-i', 'INPUT', 'OUTPUT']), assignment=('basic.mp4',),
+            run=types.SimpleNamespace(cwd=root / 'candidate'), reference=types.SimpleNamespace(cwd=root / 'reference'),
+            scratch=root / 'scratch', starts=[], jobs=[], sources={})
+        (root / 'candidate' / 'OUTPUT.mp4').write_bytes(b'candidate encoding')
+        (root / 'reference' / 'OUTPUT.mp4').write_bytes(b'different reference encoding')
+        self.source = {'streams': [{'index': 0, 'codec_type': 'video', 'pix_fmt': 'rgb24',
+                                    'width': 320, 'height': 240, 'r_frame_rate': '25/1'}]}
+
+    def judge(self, kind, result=('verified', 'exact'), copied=True):
+        self.cx.jobs = [eb.Job(0, 0, 0, kind)]
+        with mock.patch.object(eb.decoded_output, 'probe', return_value=self.source), \
+                mock.patch.object(eb.decoded_output, 'compare', return_value=result) as compare, \
+                mock.patch.object(eb.transcode_check, 'written', return_value=([], None, [])), \
+                mock.patch.object(eb, 'copied', return_value=copied):
+            answer = eb.oracle(self.cx)
+        return answer, compare
+
+    def test_each_registered_lossless_job_uses_decoded_equality_not_encoded_bytes(self):
+        for kind in ('pcm_s16le', 'pcm_s24le', 'pcm_f64le', 'flac', 'png', 'bmp', 'rawvideo', 'ffv1', 'huffyuv'):
+            answer, compare = self.judge(kind)
+            self.assertIsNone(answer, kind)
+            self.assertEqual(compare.call_count, 1, kind)
+            self.assertEqual(compare.call_args.kwargs['stream'], 0)
+
+    def test_a_wrong_sample_or_pixel_misses_the_oracle(self):
+        for kind, reason in (('flac', 'decoded samples'), ('png', 'decoded pixels')):
+            self.assertEqual(self.judge(kind, ('failed', reason))[0], ('oracle', {'check': reason, 'job': kind}))
+
+    def test_yuv_images_are_no_oracle_before_candidate_bytes_are_read(self):
+        self.source['streams'][0]['pix_fmt'] = 'yuv420p'
+        self.cx.run = None
+        for kind in ('png', 'bmp'):
+            answer, compare = self.judge(kind)
+            self.assertEqual(answer, ('no_oracle', {'job': kind, 'why': 'colour conversion'}))
+            compare.assert_not_called()
+
+    def test_unknown_reference_formats_do_not_pass(self):
+        self.assertEqual(self.judge('flac', ('unverified', 'reference sample format'))[0],
+                         ('no_oracle', {'job': 'flac', 'why': 'reference sample format'}))
+        self.assertEqual(self.judge('pcm_mulaw')[0], ('no_oracle', {'job': 'pcm_mulaw'}))
+
+    def test_mp3_requires_its_own_encoder_start_not_an_aac_start(self):
+        self.cx.starts = [{'program': 'ffmpeg', 'args': AAC_START, 'encoder': True}]
+        self.assertEqual(self.judge('libmp3lame')[0], ('oracle', {'check': 'mp3_start'}))
+        self.cx.starts = [{'program': 'ffmpeg', 'encoder': True,
+                           'args': ['-f', 's16le', '-i', 'pipe:0', '-c:a', 'libmp3lame', '-f', 'mp3', '-']}]
+        self.assertIsNone(self.judge('libmp3lame')[0])
+
+    def test_missing_or_extra_sequence_files_fail(self):
+        self.cx.entry = entry(['-i', 'INPUT', '-f', 'image2', 'OUTPUT'], output='OUTPUT%03d.png')
+        for directory in (self.cx.run.cwd, self.cx.reference.cwd):
+            (directory / 'OUTPUT001.png').write_bytes(b'encoding')
+        self.assertIsNone(self.judge('png')[0])
+        (self.cx.run.cwd / 'OUTPUT002.png').write_bytes(b'extra')
+        self.assertEqual(self.judge('png')[0], ('oracle', {'check': 'decoded_outputs'}))
+
+    def test_captured_raw_stdout_uses_an_explicit_reference_description(self):
+        self.cx.entry = entry(['-i', 'INPUT', '-f', 'rawvideo', 'OUTPUT'], output='-')
+        for directory in (self.cx.run.cwd, self.cx.reference.cwd):
+            (directory / 'OUTPUT.mp4').rename(directory / eb.STDOUT)
+        answer, compare = self.judge('rawvideo')
+        self.assertIsNone(answer)
+        self.assertEqual(compare.call_args.args[6],
+                         ['-f', 'rawvideo', '-pixel_format', 'rgb24', '-video_size', '320x240', '-framerate', '25/1'])
+
+    def test_raw_yuv_extension_is_resolved_even_with_an_explicit_input_format(self):
+        self.cx.entry = entry(['-f', 'mp4', '-i', 'INPUT', 'OUTPUT'], output='OUTPUT.yuv')
+        for directory in (self.cx.run.cwd, self.cx.reference.cwd):
+            (directory / 'OUTPUT.mp4').rename(directory / 'OUTPUT.yuv')
+        answer, compare = self.judge('rawvideo')
+        self.assertIsNone(answer)
+        self.assertEqual(compare.call_args.args[6][:2], ['-f', 'rawvideo'])
+
+    def test_copied_streams_keep_b3_and_only_the_encoded_stream_is_decoded(self):
+        self.cx.jobs = [eb.Job(0, 0, 0, 'copy'), eb.Job(1, 0, 1, 'flac')]
+        with mock.patch.object(eb.decoded_output, 'probe', return_value=self.source), \
+                mock.patch.object(eb.decoded_output, 'compare', return_value=('verified', 'exact')) as compare, \
+                mock.patch.object(eb.transcode_check, 'written', return_value=([], None, [])), \
+                mock.patch.object(eb, 'copied', return_value=False) as copied:
+            self.assertEqual(eb.oracle(self.cx), ('oracle', {'check': 'B3'}))
+            compare.assert_not_called()
+            copied.return_value = True
+            self.assertIsNone(eb.oracle(self.cx))
+            self.assertEqual(compare.call_args.kwargs['stream'], 1)
+
+
+@unittest.skipUnless(os.environ.get('COREAV_CURRENT_CI_ORACLE') == '1', 'pinned Linux oracle runs in fixture CI')
+class PinnedDecodedJobs(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        current_tests.PinnedOracle.setUpClass()
+        cls.ffmpeg, cls.ffprobe, cls.env = (current_tests.PinnedOracle.ffmpeg,
+                                           current_tests.PinnedOracle.ffprobe, current_tests.PinnedOracle.env)
+
+    def setUp(self):
+        DecodedJobs.setUp(self)
+        self.cx.tc = types.SimpleNamespace(ffmpeg=self.ffmpeg, ffprobe=self.ffprobe)
+        self.cx.opts.env = self.env
+
+    def test_byte_different_audio_counts_and_one_wrong_sample_does_not(self):
+        source = self.cx.opts.fixtures / 'basic.mp4'
+        mine, reference = self.cx.run.cwd / 'OUTPUT.mp4', self.cx.reference.cwd / 'OUTPUT.mp4'
+        for path, junk in ((source, False), (mine, True), (reference, False)):
+            current_tests.PinnedOracle.wav(self, path, [1, 2, 3], junk)
+        self.cx.jobs = [eb.Job(0, 0, 0, 'pcm_s16le')]
+        self.assertNotEqual(mine.read_bytes(), reference.read_bytes())
+        with mock.patch.object(eb.transcode_check, 'ENV', self.env):
+            self.assertIsNone(eb.oracle(self.cx))
+            current_tests.PinnedOracle.wav(self, mine, [1, 2, 4], True)
+            self.assertEqual(eb.oracle(self.cx), ('oracle', {'check': 'decoded samples', 'job': 'pcm_s16le'}))
+
+    def test_byte_different_png_counts_and_one_wrong_pixel_does_not(self):
+        source = self.cx.opts.fixtures / 'basic.mp4'
+        mine, reference = self.cx.run.cwd / 'OUTPUT.mp4', self.cx.reference.cwd / 'OUTPUT.mp4'
+        for path, level in ((source, 0), (mine, 0), (reference, 9)):
+            current_tests.PinnedOracle.png(self, path, b'\x01\x02\x03', level)
+        self.cx.jobs = [eb.Job(0, 0, 0, 'png')]
+        self.assertNotEqual(mine.read_bytes(), reference.read_bytes())
+        with mock.patch.object(eb.transcode_check, 'ENV', self.env):
+            self.assertIsNone(eb.oracle(self.cx))
+            current_tests.PinnedOracle.png(self, mine, b'\x01\x02\x04', 0)
+            self.assertEqual(eb.oracle(self.cx), ('oracle', {'check': 'decoded pixels', 'job': 'png'}))
 
 
 class AudioChecks(unittest.TestCase):
@@ -657,11 +807,18 @@ class VideoChecks(unittest.TestCase):
 
 
 class Order(unittest.TestCase):
+    def test_an_mp3_start_cannot_satisfy_the_aac_invocation_gate(self):
+        mp3 = ['-f', 's16le', '-i', 'pipe:0', '-c:a', 'libmp3lame', '-f', 'mp3', '-']
+        cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'aac')], starts=[])
+        for args, accepted in ((mp3, False), (AAC_START, True), (DECODE_START, False)):
+            cx.starts = [{'program': 'ffmpeg', 'encoder': eb.encoder_start('ffmpeg', args), 'args': args}]
+            self.assertEqual(next(eb.checks(cx, '/o', '/r', [])), ('aac_start', accepted))
+
     def test_the_start_comes_first_then_the_video_then_audio_and_a_stream_beside_an_encode_is_b3(self):
         cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'libx264'), eb.Job(1, 0, 1, 'libopus'),
                                          eb.Job(2, 0, 2, 'aac')],
                                    starts=[{'program': 'x264', 'encoder': True},
-                                           {'program': 'ffmpeg', 'encoder': True}])
+                                           {'program': 'ffmpeg', 'encoder': True, 'args': AAC_START}])
         with mock.patch.object(eb, 'video_checks', lambda *a: iter([('B1', True)])), \
                 mock.patch.object(eb, 'audio_checks', lambda cx_, job, *a: iter([(job.kind, True)])):
             self.assertEqual([n for n, _ in eb.checks(cx, '/o', '/r', [])],
@@ -674,7 +831,7 @@ class Order(unittest.TestCase):
 
     def test_a_copy_beside_audio_encodes_is_judged_by_b3_without_a_video_encode(self):
         cx = types.SimpleNamespace(jobs=[eb.Job(0, 0, 0, 'copy'), eb.Job(1, 0, 1, 'aac')],
-                                   starts=[{'program': 'ffmpeg', 'encoder': True}])
+                                   starts=[{'program': 'ffmpeg', 'encoder': True, 'args': AAC_START}])
         copies = []
         with mock.patch.object(eb, 'copied', lambda cx_, job, out: copies.append(job.output) or True), \
                 mock.patch.object(eb, 'audio_checks', lambda *a: iter([('A1', True)])):
@@ -725,11 +882,12 @@ def whole_run(counted_media=0, counted_other=0):
 
 
 class Result(unittest.TestCase):
-    def test_v2_needs_196_of_488(self):
-        for counted, met in ((195, False), (196, True)):
+    def test_v2_reports_488_commands_without_a_release_verdict(self):
+        for counted in (0, 195, 196, 488):
             v2 = eb.summarize(whole_run(counted), 'v3')['v2']
-            self.assertEqual((v2['counted'], v2['of'], v2['needed'], v2['met']), (counted, 488, 196, met))
-        self.assertEqual(v2['share'], 0.4016)
+            self.assertEqual((v2['counted'], v2['of'], v2['share']), (counted, 488, round(counted / 488, 4)))
+            for obsolete in ('bar_percent', 'needed', 'met'):
+                self.assertNotIn(obsolete, v2)
 
     def test_v3_is_the_share_of_630_per_class_beside_the_79_native(self):
         summary = eb.summarize(whole_run(100, 7), 'v3')
@@ -784,6 +942,31 @@ class Result(unittest.TestCase):
 
 
 class Cli(Stubs):
+    def pinned_stand_ins(self):
+        build = eb.oracle_pin.load()['BUILD']
+        for name in ('ffmpeg', 'ffprobe'):
+            pathlib.Path(getattr(self.opts, name)).write_text(
+                f'#!{sys.executable}\nprint({name + " version " + build!r})\n')
+
+    def test_preflight_records_the_supplied_pinned_executables(self):
+        self.pinned_stand_ins()
+        programs = eb.oracle_programs(self.opts)
+        for name in ('ffmpeg', 'ffprobe'):
+            self.assertEqual(programs[name], {'version': name + ' version ' + eb.oracle_pin.load()['BUILD'],
+                                              'sha256': eb.sha256(getattr(self.opts, name))})
+
+    def test_an_unpinned_supplied_ffmpeg_beside_pinned_tools_stops_before_commands(self):
+        self.pinned_stand_ins()
+        other = self.dir / 'other-ffmpeg'
+        other.write_text(f'#!{sys.executable}\nprint("ffmpeg version 0.0.0")\n')
+        other.chmod(0o755)
+        self.opts.ffmpeg = str(other)
+        with self.assertRaises(ValueError):
+            eb.oracle_programs(self.opts)
+        with mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(eb.cmd_run(self.opts), 2)
+        evaluate.assert_not_called()
+
     def test_run_writes_a_record_a_command_and_a_summary_with_the_programs_hashes(self):
         small = [(0, entry(['-i', 'INPUT', '-c', 'copy', 'OUTPUT'])), (1, entry(['-i', 'INPUT', 'OUTPUT'], cls='other',
                                                                               container=None))]
@@ -793,7 +976,9 @@ class Cli(Stubs):
             '--work', str(self.dir / 'w'), '--records', str(self.dir / 'out' / 'r.jsonl'),
             '--summary', str(self.dir / 'out' / 's.json'), '--jobs', '2']
         with mock.patch.object(sys, 'argv', argv), mock.patch.object(eb, 'commands', lambda selected: small), \
-                mock.patch.object(eb, 'oracle', return_value=None), contextlib.redirect_stdout(io.StringIO()):
+                mock.patch.object(eb, 'oracle', return_value=None), \
+                mock.patch.object(eb, 'oracle_programs', return_value={'ffmpeg': {'version': 'stand-in'}}), \
+                contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(eb.main(), 0)
         rows = [json.loads(line) for line in (self.dir / 'out' / 'r.jsonl').read_text().splitlines()]
         self.assertEqual([r['index'] for r in rows], [0, 1])
@@ -801,6 +986,14 @@ class Cli(Stubs):
         self.assertEqual(set(summary['programs']), {'coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264'})
         self.assertEqual(set(summary['fixtures']), set(eb.FIXTURES))
         self.assertEqual(summary['schema'], 'coreav.encode-breadth/1')
+        self.assertEqual(summary['reference_programs'], {'ffmpeg': {'version': 'stand-in'}})
+        self.assertEqual(summary['encoder_ffmpeg'], summary['reference_programs']['ffmpeg'])
+
+    def test_a_pin_mismatch_stops_before_running_any_command(self):
+        with mock.patch.object(eb, 'oracle_programs', side_effect=ValueError('wrong oracle')), \
+                mock.patch.object(eb, 'evaluate') as evaluate, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(eb.cmd_run(self.opts), 2)
+        evaluate.assert_not_called()
 
     def test_a_missing_fixture_is_unmeasured_and_summarize_exits_as_the_run_would(self):
         (self.fixtures / 'basic.mp4').unlink()
