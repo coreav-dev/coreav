@@ -145,6 +145,7 @@ pub struct Settings {
 
 impl Settings {
     /// Selects mono or stereo AAC-LC, indexed rate, CBR, and quality 0 through 127.
+    /// Encoder creation refuses a quality value the codec does not retain exactly.
     pub fn new(sample_rate: u32, channels: u16, bitrate: u32, quality: u32) -> Result<Self, Error> {
         Config::for_pcm(sample_rate, channels).map_err(|_| Error::Input)?;
         if bitrate == 0 || quality > 127 {

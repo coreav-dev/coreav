@@ -329,6 +329,21 @@ fn disposal_failure_cannot_be_a_successful_completion() -> Result<(), Error> {
 
 #[cfg(target_os = "macos")]
 #[test]
+fn native_quality_rounding_is_refused() -> Result<(), Error> {
+    let settings = Settings::new(44_100, 1, 128_000, 127)?;
+    assert_eq!(
+        Encoder::new(settings, limits(), control()).err(),
+        Some(Error::Setting {
+            property: u32::from_be_bytes(*b"srcq"),
+            requested: 127,
+            actual: 96,
+        })
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[test]
 fn native_four_cells_drain_and_decode_with_the_independent_rust_decoder()
 -> Result<(), Box<dyn std::error::Error>> {
     for (rate, channels) in [(44_100, 1), (44_100, 2), (48_000, 1), (48_000, 2)] {
@@ -336,7 +351,7 @@ fn native_four_cells_drain_and_decode_with_the_independent_rust_decoder()
             rate,
             channels,
             if channels == 1 { 128_000 } else { 192_000 },
-            127,
+            96,
         )?;
         let mut encoder = Encoder::new(settings, limits(), control())?;
         let identity = encoder.identity();
