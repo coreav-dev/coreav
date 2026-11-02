@@ -19,6 +19,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import types
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -38,6 +39,8 @@ POOLED_TAGS = '(tag keys in fewer than 5 files, together)'
 ABSENCE_KD = 'KD-FF9-EMPTY-EDIT-PADDING'
 ABSENCE_KEY = 'packets.side_data_list.discard_padding'
 ABSENCE_CASE = 'last-sample-within-media-edit'
+PACKET_CACHE_BYTES = 512 * 1024**2
+COVERAGE_CACHE_ENTRIES = 65536
 MKV_DOWNMIX = 'KD-FF9-ANNEX-D-DOWNMIX'
 AV1_DEFAULT = 'KD-FF9-AV1-DEFAULT-SUFFIX'
 AV1_CHROMA = 'KD-FF9-AV1-CHROMA-POSITION'
@@ -467,6 +470,83 @@ class Attack:
     packets: object = None
 
 
+@dataclasses.dataclass(frozen=True)
+class Listing:
+    path: pathlib.Path
+    sha256: str
+    cached: object = None
+
+    def rows(self, transform=None):
+        if self.cached is None:
+            yield from packet_rows(self.path, transform)
+            return
+        for i, fields in enumerate(self.cached):
+            yield from transform(i, fields) if transform else (fields,)
+
+
+@dataclasses.dataclass(frozen=True)
+class Prepared:
+    capture: Capture
+    signature: str
+    registry: Registry
+    media: pathlib.Path
+    container: str
+    facts: dict
+    reference: Listing
+    candidate: object
+
+    def check(self, capture, media, registry, container):
+        if self.capture is not capture or self.registry is not registry \
+                or self.media != pathlib.Path(media) or self.container != container \
+                or self.signature != capture_signature(capture):
+            raise ValueError('prepared evidence belongs to a different capture')
+
+    def verify(self):
+        for listing in (self.reference, self.candidate):
+            if listing is not None and file_hash(listing.path) != listing.sha256:
+                raise ValueError('packet capture changed during comparison or audit')
+
+
+def capture_signature(capture):
+    return record_hash([capture.reference, capture.candidate, str(capture.reference_packets),
+                        str(capture.candidate_packets), capture.section_code, capture.packet_code,
+                        sorted(capture.strict_keys)])
+
+
+def prepare(capture, media, registry, container):
+    remaining = PACKET_CACHE_BYTES
+    listings = []
+    for path in (capture.reference_packets, capture.candidate_packets if capture.packet_code == 0 else None):
+        if path is None:
+            listings.append(None)
+            continue
+        digest = file_hash(path)
+        cached = [] if remaining > 0 else None
+        if cached is not None:
+            for row in packet_rows(path):
+                cost = sys.getsizeof(row) + sys.getsizeof(types.MappingProxyType(row)) + 32 \
+                    + sum(sys.getsizeof(key) + sys.getsizeof(value) for key, value in row.items())
+                if cost > remaining:
+                    cached = None
+                    remaining = 0
+                    break
+                remaining -= cost
+                cached.append(types.MappingProxyType(row))
+        listings.append(Listing(pathlib.Path(path), digest, tuple(cached) if cached is not None else None))
+    prepared = Prepared(capture, capture_signature(capture), registry, pathlib.Path(media), container,
+                        registry.evidence(media, container), *listings)
+    prepared.verify()
+    return prepared
+
+
+def capture_rows(capture, candidate=False, transform=None, prepared=None):
+    if candidate and capture.packet_code != 0:
+        return iter(())
+    if prepared is not None:
+        return (prepared.candidate if candidate else prepared.reference).rows(transform)
+    return packet_rows(capture.candidate_packets if candidate else capture.reference_packets, transform)
+
+
 def packet_rows(path, transform=None):
     with open(path, encoding='utf-8') as source:
         for i, line in enumerate(source):
@@ -535,10 +615,10 @@ def validate_packets(path, sections):
         raise ValueError('empty packet capture')
 
 
-def packet_summary(capture, attack):
+def packet_summary(capture, attack, prepared=None):
     transform = attack.packets if attack else None
-    reference = packet_rows(capture.reference_packets)
-    candidate = packet_rows(capture.candidate_packets, transform) if capture.packet_code == 0 else iter(())
+    reference = capture_rows(capture, prepared=prepared)
+    candidate = capture_rows(capture, True, transform, prepared)
     last_reference, last_candidate, differences, count_equal = {}, {}, [], True
     streams = (collections.defaultdict(list), collections.defaultdict(list))
     for i, (ref, got) in enumerate(itertools.zip_longest(reference, candidate)):
@@ -558,15 +638,16 @@ def packet_summary(capture, attack):
                          tuple({index: tuple(rows) for index, rows in side.items()} for side in streams))
 
 
-def occurrences(capture, attack=None, *, summarize=False):
+def occurrences(capture, attack=None, *, summarize=False, prepared=None, summary=None):
     candidate = capture.candidate if attack is None or attack.sections is None else attack.sections
-    summary = packet_summary(capture, attack) if summarize else None
+    if summarize:
+        summary = packet_summary(capture, attack, prepared)
     context = Context(capture.reference, candidate, packet_summary=summary)
     for path, key, ref, present, got in run.key_pairs(run.flatten(capture.reference), run.flatten(candidate)):
         yield Occurrence(path, key, ref, present, got, context, capture.section_code == 0)
     transform = attack.packets if attack else None
-    got = iter(packet_rows(capture.candidate_packets, transform)) if capture.packet_code == 0 else iter(())
-    for i, ref in enumerate(packet_rows(capture.reference_packets)):
+    got = capture_rows(capture, True, transform, prepared)
+    for i, ref in enumerate(capture_rows(capture, prepared=prepared)):
         other = next(got, {})
         context = Context(capture.reference, candidate, ref, other, i, summary)
         for path, key, value, present, actual in run.key_pairs(ref, other, f'packets[{i}].'):
@@ -574,10 +655,12 @@ def occurrences(capture, attack=None, *, summarize=False):
                              capture.section_code == 0 and capture.packet_code == 0)
 
 
-def compare(capture, media, registry, container):
-    facts = registry.evidence(media, container)
+def compare(capture, media, registry, container, *, prepared=None):
+    prepared = prepared or prepare(capture, media, registry, container)
+    prepared.check(capture, media, registry, container)
+    facts = prepared.facts
     keys, differences, validated, by_kd, examples = {}, collections.Counter(), collections.Counter(), {}, {}
-    for item in occurrences(capture, summarize=registry.summarizes(facts)):
+    for item in occurrences(capture, summarize=registry.summarizes(facts), prepared=prepared):
         keys[item.key] = keys.get(item.key, True) and not item.different
         if not item.different:
             continue
@@ -590,6 +673,7 @@ def compare(capture, media, registry, container):
             validated[item.key] += 1
             by_kd.setdefault(item.key, set()).update(ids)
     excluded = {key: sorted(by_kd[key]) for key, n in differences.items() if validated[key] == n}
+    prepared.verify()
     return {'keys': keys, 'covered_keys': sorted(capture.strict_keys), 'excluded': excluded,
             'differences': dict(differences), 'validated': dict(validated), 'examples': examples}
 
@@ -617,7 +701,7 @@ def section_nodes(document):
             yield from section_nodes(value)
 
 
-def mutations(capture):
+def mutations(capture, prepared=None):
     for node_index, node in enumerate(section_nodes(capture.candidate)):
         for key, value in node.items():
             if isinstance(value, (list, dict)):
@@ -642,9 +726,12 @@ def mutations(capture):
                     else:
                         streams.insert(i, copy.deepcopy(streams[i]))
                     yield Attack(f'section {node_index}: {action} stream {i}', sections=changed)
-    counts = collections.Counter(row.get('stream_index') for row in packet_rows(capture.candidate_packets))
+    listing = prepared.candidate if prepared is not None else None
+    def rows():
+        return listing.rows() if listing is not None else packet_rows(capture.candidate_packets)
+    counts = collections.Counter(row.get('stream_index') for row in rows())
     seen = collections.Counter()
-    for i, row in enumerate(packet_rows(capture.candidate_packets)):
+    for i, row in enumerate(rows()):
         stream = row.get('stream_index')
         ordinal = seen[stream]
         seen[stream] += 1
@@ -660,29 +747,75 @@ def mutations(capture):
             yield Attack(f'{action} packet {i}', packets=structure)
 
 
-def audit(capture, media, registry, container, attacks=None):
-    facts = registry.evidence(media, container)
+def audit(capture, media, registry, container, attacks=None, *, prepared=None):
+    prepared = prepared or prepare(capture, media, registry, container)
+    prepared.check(capture, media, registry, container)
+    facts = prepared.facts
     results = []
     if attacks is None:
-        attacks = mutations(capture) if registry.rules else ()
+        attacks = mutations(capture, prepared) if registry.rules else ()
+    baseline = None
+    reference = run.flatten(capture.reference)
+    original = run.flatten(capture.candidate)
+    packet_scope = {key.removeprefix('packets.') for rule in registry.rules
+                    if facts.get(rule.container) is not None for key in rule.keys if key.startswith('packets.')}
+    summarize = registry.summarizes(facts)
     for attack in attacks:
+        if baseline is None:
+            baseline_summary = packet_summary(capture, None, prepared) if summarize else None
+            baseline = set()
+            for item in occurrences(capture, prepared=prepared, summary=baseline_summary):
+                if registry.covers(item, facts):
+                    baseline.add((item.context.packet_index is None, item.path))
+                    if len(baseline) > COVERAGE_CACHE_ENTRIES:
+                        baseline = False
+                        break
+        summary = packet_summary(capture, attack, prepared) if summarize and attack.packets is not None else baseline_summary
+        candidate = capture.candidate if attack.sections is None else attack.sections
         caught, covered, changed = 0, 0, 0
-        for before, after in zip(occurrences(capture, summarize=registry.summarizes(facts)),
-                                 occurrences(capture, attack, summarize=registry.summarizes(facts)), strict=True):
-            old_ids, new_ids = registry.covers(before, facts), registry.covers(after, facts)
-            new_difference = after.different and (not before.different or
-                              (before.present, before.candidate) != (after.present, after.candidate))
+
+        def check(path, key, ref, present, got, before_present, before_got, context, old_context):
+            nonlocal caught, covered, changed
+            if ref == got:
+                return
+            successful = capture.section_code == 0 and (context.packet_index is None or capture.packet_code == 0)
+            after = Occurrence(path, key, ref, present, got, context, successful)
+            new_ids = registry.covers(after, facts)
+            old_ids = (context.packet_index is None, path) in baseline if baseline is not False else registry.covers(
+                Occurrence(path, key, ref, before_present, before_got, old_context, successful), facts)
+            new_difference = ref == before_got or (before_present, before_got) != (present, got)
             if new_difference:
                 changed += 1
-                if new_ids or after.key in capture.strict_keys:
+                if new_ids or key in capture.strict_keys:
                     covered += 1
                 else:
                     caught += 1
-            elif after.different and not old_ids and new_ids:
+            elif not old_ids and new_ids:
                 covered += 1
+
+        context = Context(capture.reference, candidate, packet_summary=summary)
+        old_context = Context(capture.reference, capture.candidate, packet_summary=baseline_summary)
+        for path, key, ref, present, got in run.key_pairs(reference, run.flatten(candidate)):
+            check(path, key, ref, present, got, path in original, original.get(path), context, old_context)
+        before_rows = capture_rows(capture, True, prepared=prepared)
+        after_rows = capture_rows(capture, True, attack.packets, prepared)
+        empty = {}
+        for i, ref in enumerate(capture_rows(capture, prepared=prepared)):
+            before, after = next(before_rows, empty), next(after_rows, empty)
+            if before is after and not packet_scope:
+                continue
+            fields = ref if before is not after else {k: v for k, v in ref.items() if k in packet_scope}
+            if not fields:
+                continue
+            context = Context(capture.reference, candidate, ref, after, i, summary)
+            old_context = Context(capture.reference, capture.candidate, ref, before, i, baseline_summary)
+            for path, key, value, present, got in run.key_pairs(fields, after, f'packets[{i}].'):
+                check(path, key, value, present, got, key.removeprefix('packets.') in before,
+                      before.get(key.removeprefix('packets.')), context, old_context)
         verdict = 'covered' if covered else 'caught' if caught else 'no effect'
         results.append({'label': attack.label, 'verdict': verdict, 'changed': changed,
                         'caught': caught, 'covered': covered})
+    prepared.verify()
     return {'passed': all(r['verdict'] != 'covered' for r in results), 'attacks': results,
             'blind_spots': BLIND_SPOTS}
 
@@ -882,8 +1015,10 @@ def main():
             if file_hash(media) != row['sha256']:
                 raise ValueError('manifest media checksum differs')
             cap = capture_file(args.coreav, media, args.out / 'private' / row['alias'])
-            result = compare(cap, media, registry, row['container'])
-            audited = audit(cap, media, registry, row['container'])
+            prepared = prepare(cap, media, registry, row['container'])
+            result = compare(cap, media, registry, row['container'], prepared=prepared)
+            audited = audit(cap, media, registry, row['container'], prepared=prepared)
+            del prepared
             failed = any(code != 0 and not (code == 1 and cap.strict_keys)
                          for code in (cap.section_code, cap.packet_code))
             results[i] = {'alias': row['alias'], 'container': row['container'], 'holdout': row['holdout'],
