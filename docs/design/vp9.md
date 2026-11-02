@@ -123,9 +123,9 @@ C2's 74 files were measured before with libvpx (74 of 74 streams agreed with FFm
 
 | Bar | Hosts | Kernels | Threads |
 |---|---|---|---|
-| C1 | GitHub-hosted `ubuntu-24.04` (x86-64) and `macos-14` (arm64) | scalar, and `Auto` | 1, 2 and 8 with `Auto`; 1 with scalar |
+| C1 | GitHub-hosted `ubuntu-24.04` (x86-64) and `macos-15` (arm64) | scalar, and `Auto` | 1, 2 and 8 with `Auto`; 1 with scalar |
 | C2 | GitHub-hosted `ubuntu-24.04` (x86-64), the corpus fetched with read-only credentials in its fetch step only | scalar, and `Auto` | 1 and 8 with `Auto`; 1 with scalar |
-| C3 | GitHub-hosted `ubuntu-24.04` (x86-64) and `macos-14` (arm64) | each SIMD kernel against scalar | not applicable |
+| C3 | GitHub-hosted `ubuntu-24.04` (x86-64) and `macos-15` (arm64) | each SIMD kernel against scalar | not applicable |
 | C5 | GitHub-hosted `ubuntu-24.04` (x86-64) | `Auto` | 1 |
 
 ### Speed
