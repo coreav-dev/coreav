@@ -54,7 +54,7 @@ Each target builds on its native OS and architecture. The script refuses a diffe
 | `x86_64-apple-darwin` | macOS x86-64 | `clang` | 10.12 |
 | `aarch64-apple-darwin` | macOS AArch64 | `clang` | 11.0 |
 
-The host needs Python 3.9 or later, CMake 3.16 or later, Make, and native C and C++ compilers. CMake configures both languages even though the encoder library is C. x86-64 builds also need NASM 2.14 or later. Linux verification needs `readelf`; macOS verification needs `lipo` and `otool`.
+The host needs Python 3.9 or later, CMake 3.16 or later, Make, and native C and C++ compilers. CMake configures both languages even though the encoder library is C. x86-64 builds also need NASM 2.14 or later. Linux needs `readelf`, `gcc-ar`, and `gcc-ranlib`. The recipe explicitly supplies GCC's LTO archive tools because CMake's compiler-name inference can look for nonexistent musl-prefixed tools. macOS verification needs `lipo` and `otool`.
 
 ```sh
 python3 scripts/encoders/svt-av1/build.py \
@@ -65,6 +65,8 @@ python3 -m unittest discover -s scripts/encoders/svt-av1 -p 'test_*.py'
 The prefix's parent must exist and the prefix must not exist. No other process may create or change that destination during the build. `--archive` accepts a local copy of the same pinned tarball. The script verifies the full SHA-256 before extraction in both download and local modes. `--cmake` selects the CMake executable. `--jobs` accepts 1 through 16 and defaults to 2.
 
 The recipe uses a Release static build with applications and upstream tests disabled, CPU-native tuning disabled, LTO enabled, and position-independent code. It ignores inherited build flags rather than let a caller's shell silently change the recipe. Temporary source and build directories are removed on success or failure. Installation is staged, verified, and published only after its link-and-version probe passes. Existing installations are never reused as evidence of a fresh build.
+
+Each build-tool command has a one-hour timeout. Timeout or cancellation terminates and reaps the command's process group before removing its workspace. This is a build-tool bound, not an encoder deadline guarantee.
 
 The probe retains the encoder API symbols and calls only the public version query. It checks the exact release version and target architecture. Linux's probe has no ELF interpreter or shared dependencies; macOS permits only system libraries. The probe performs no encoding, so success proves neither encoder conformance nor the release acceptance bars. The installed manifest records build settings and hashes of the archive, probe, headers, and notices.
 

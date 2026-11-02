@@ -30,6 +30,7 @@ ARCHIVE_URL = (
 ARCHIVE_SHA256 = "c7b13c4a84bd3751aa35fcc72be13e6875467e7c2216879251a486e5b1e4e740"
 SOURCE_ROOT = f"SVT-AV1-v{SVT_VERSION}"
 C_FLAGS = "-O3 -DNDEBUG -ffunction-sections -fdata-sections"
+RUN_TIMEOUT = 3600
 NOTICES = {
     "LICENSE.md": "LICENSE.md",
     "LICENSE-BSD2.md": "LICENSE-BSD2.md",
@@ -113,12 +114,12 @@ def extract(archive, destination):
     return root
 
 
-def run(command, env):
+def run(command, env, timeout=RUN_TIMEOUT):
     process = subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        stdout, stderr = process.communicate()
-    except BaseException:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except BaseException as error:
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -128,6 +129,8 @@ def run(command, env):
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
+        if isinstance(error, subprocess.TimeoutExpired):
+            raise BuildError(f"command timed out after {timeout}s: {command[0]}") from error
         raise
     if process.returncode:
         raise BuildError(f"command failed ({process.returncode}): {command[0]}\n{stderr}")
@@ -171,7 +174,7 @@ def build(options, runner=run):
     if not 1 <= options.jobs <= 16:
         raise BuildError("--jobs must be between 1 and 16")
     tools = [options.cmake, target.cc, target.cxx, "make"]
-    tools += ["readelf"] if target.system == "Linux" else ["lipo", "otool"]
+    tools += ["readelf", "gcc-ar", "gcc-ranlib"] if target.system == "Linux" else ["lipo", "otool"]
     if target.machine == "x86_64":
         tools.append("nasm")
     resolved = {}
@@ -216,7 +219,10 @@ def build(options, runner=run):
             "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
         ]
         platform_flags = []
-        if target.system == "Darwin":
+        if target.system == "Linux":
+            flags += [f"-DCMAKE_C_COMPILER_AR={resolved['gcc-ar']}",
+                      f"-DCMAKE_C_COMPILER_RANLIB={resolved['gcc-ranlib']}"]
+        else:
             flags += [f"-DCMAKE_OSX_ARCHITECTURES={target.machine}",
                       f"-DCMAKE_OSX_DEPLOYMENT_TARGET={target.deployment}"]
             platform_flags = ["-arch", target.machine,
@@ -284,6 +290,9 @@ def build(options, runner=run):
                     *sorted(notices.iterdir())]
         manifest_flags = [flag.replace(str(prefix), "<prefix>")
                           .replace(cc, target.cc).replace(cxx, target.cxx) for flag in flags]
+        if target.system == "Linux":
+            for tool in ("gcc-ar", "gcc-ranlib"):
+                manifest_flags = [flag.replace(resolved[tool], tool) for flag in manifest_flags]
         manifest = {
             "target": options.target, "version": SVT_VERSION, "archive_sha256": ARCHIVE_SHA256,
             "configure_args": ["-G", "Unix Makefiles", *manifest_flags],

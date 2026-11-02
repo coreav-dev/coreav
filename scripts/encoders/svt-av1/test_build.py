@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -189,6 +190,8 @@ class BuildTests(unittest.TestCase):
                     self.assertEqual([cmd[1] for cmd, env in runner.calls
                                       if Path(cmd[0]).name == "readelf"], ["-h", "-l", "-d"])
                     self.assertIn("-DCMAKE_CXX_COMPILER=/fake/bin/c++", runner.configure)
+                    self.assertIn("-DCMAKE_C_COMPILER_AR=/fake/bin/gcc-ar", runner.configure)
+                    self.assertIn("-DCMAKE_C_COMPILER_RANLIB=/fake/bin/gcc-ranlib", runner.configure)
                 else:
                     self.assertNotIn("-static", runner.link)
                     self.assertIn("-DCMAKE_OSX_ARCHITECTURES=" + machine, runner.configure)
@@ -206,6 +209,9 @@ class BuildTests(unittest.TestCase):
                 self.assertEqual(manifest["archive_sha256"], build.ARCHIVE_SHA256)
                 self.assertEqual(manifest["compiler_version"], "fake native compiler 1")
                 self.assertNotIn(".svt-av1-", json.dumps(manifest))
+                if system == "Linux":
+                    self.assertIn("-DCMAKE_C_COMPILER_AR=gcc-ar", manifest["configure_args"])
+                    self.assertIn("-DCMAKE_C_COMPILER_RANLIB=gcc-ranlib", manifest["configure_args"])
                 self.assertEqual(len(manifest["sha256"]), 9)
                 for name, digest in manifest["sha256"].items():
                     self.assertEqual(hashlib.sha256((options.prefix / name).read_bytes()).hexdigest(), digest)
@@ -383,6 +389,19 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(which.call_args_list, [mock.call("cmake"), mock.call("musl-gcc")])
         self.assert_clean()
 
+    def test_missing_lto_archive_tools_fail_before_acquisition(self):
+        for triple in ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"):
+            for missing in ("gcc-ar", "gcc-ranlib"):
+                with self.subTest(target=triple, missing=missing), \
+                        self.native(build.TARGETS[triple]), \
+                        mock.patch.object(build.shutil, "which", side_effect=lambda tool:
+                                          None if tool == missing else "/fake/bin/" + tool), \
+                        mock.patch.object(build.urllib.request, "urlopen") as download:
+                    with self.assertRaisesRegex(build.BuildError, missing):
+                        build.build(self.options(triple), mock.Mock(side_effect=AssertionError))
+                    download.assert_not_called()
+                    self.assert_clean()
+
     def test_subprocess_runner_kills_and_reaps_its_group_on_cancellation(self):
         process = mock.Mock(pid=1234)
         process.communicate.side_effect = [KeyboardInterrupt, subprocess.TimeoutExpired("fake", 5),
@@ -394,6 +413,28 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(kill.call_args_list, [mock.call(1234, signal.SIGTERM),
                                               mock.call(1234, signal.SIGKILL)])
         self.assertEqual(process.communicate.call_count, 3)
+        self.assertEqual(process.communicate.call_args_list[0],
+                         mock.call(timeout=build.RUN_TIMEOUT))
+
+    def test_subprocess_timeout_kills_reaps_and_reports_a_build_error(self):
+        process = mock.Mock(pid=1234)
+        process.communicate.side_effect = [subprocess.TimeoutExpired("fake", 7), ("", "")]
+        with mock.patch.object(build.subprocess, "Popen", return_value=process), \
+                mock.patch.object(build.os, "killpg") as kill:
+            with self.assertRaisesRegex(build.BuildError, "timed out after 7s"):
+                build.run(["fake"], {}, timeout=7)
+        kill.assert_called_once_with(1234, signal.SIGTERM)
+        self.assertEqual(process.communicate.call_args_list,
+                         [mock.call(timeout=7), mock.call(timeout=5)])
+
+    def test_real_subprocess_timeout_leaves_no_child(self):
+        with mock.patch.object(build.os, "killpg", wraps=os.killpg) as kill:
+            with self.assertRaisesRegex(build.BuildError, "command timed out"):
+                build.run([sys.executable, "-c", "import signal; signal.pause()"],
+                          {}, timeout=0.1)
+        pid = kill.call_args_list[0][0][0]
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
 
 
 if __name__ == "__main__":
