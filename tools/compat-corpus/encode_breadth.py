@@ -47,7 +47,6 @@ import pathlib
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import types
@@ -254,17 +253,11 @@ def execute(argv, cwd, env, seconds, pipe=False):
     out = open(cwd / STDOUT, 'wb') if pipe else subprocess.DEVNULL
     try:
         limited = ['/bin/sh', '-c', 'ulimit -f "$0" && exec "$@"', str(FILE_BLOCKS)] + [str(a) for a in argv]
-        with subprocess.Popen(limited, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=out,
-                              stderr=subprocess.PIPE, start_new_session=True) as child:
-            try:
-                stderr, timed_out = child.communicate(timeout=seconds)[1], False
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid, signal.SIGKILL)
-                stderr, timed_out = child.communicate()[1], True
+        done, timed_out = r3.capture(limited, env, seconds, cwd=cwd, stdout=out)
     finally:
         if pipe:
             out.close()
-    return Ran(child.returncode, timed_out, stderr.decode(errors='replace'))
+    return Ran(done.returncode, timed_out, done.stderr.decode(errors='replace'))
 
 
 def nothing_to_find(name):

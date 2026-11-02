@@ -51,6 +51,7 @@ import math
 import os
 import pathlib
 import select
+import selectors
 import shutil
 import signal
 import subprocess
@@ -81,20 +82,123 @@ def media_files(opts):
     return [p for p in out if release_round.family(p)]
 
 
+def reap_group(pgid):
+    libc = ctypes.CDLL(None, use_errno=True)
+    enabled = ctypes.c_int()
+    libc.prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+    libc.prctl.restype = ctypes.c_int
+    if libc.prctl(37, ctypes.addressof(enabled), 0, 0, 0) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    if not enabled.value:
+        return
+    os.waitid(os.P_PID, pgid, os.WEXITED | os.WNOWAIT)
+    while True:
+        members = []
+        for entry in pathlib.Path('/proc').iterdir():
+            if not entry.name.isdigit() or int(entry.name) == pgid:
+                continue
+            try:
+                if os.getpgid(int(entry.name)) == pgid:
+                    members.append(int(entry.name))
+            except (FileNotFoundError, ProcessLookupError):
+                continue
+        if not members:
+            return
+        adopted = set()
+        for task in pathlib.Path('/proc/self/task').iterdir():
+            try:
+                adopted.update(map(int, (task / 'children').read_text().split()))
+            except FileNotFoundError:
+                continue
+        reaped = False
+        for pid in adopted - {pgid}:
+            try:
+                if os.getpgid(pid) == pgid:
+                    os.waitpid(pid, 0)
+                    reaped = True
+            except (ProcessLookupError, ChildProcessError):
+                pass
+        if not reaped:
+            time.sleep(0.01)
+
+
+def capture(argv, env, timeout, *, cwd=None, stdout=subprocess.PIPE):
+    with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=stdout, stderr=subprocess.PIPE,
+                          cwd=cwd, env=env, start_new_session=True) as child:
+        if sys.platform != 'linux':
+            try:
+                out, err = child.communicate(timeout=timeout)
+                timed_out = False
+            except subprocess.TimeoutExpired as error:
+                child.kill()
+                child.wait()
+                out, err, timed_out = error.output, error.stderr or b'', True
+            return subprocess.CompletedProcess(argv, child.returncode, out, err), timed_out
+        buffers = {'out': bytearray(), 'err': bytearray()}
+        streams = {name: stream for name, stream in (('out', child.stdout), ('err', child.stderr))
+                   if stream is not None}
+        end = time.monotonic() + timeout
+        timed_out = False
+        try:
+            fd = os.pidfd_open(child.pid)
+            try:
+                with selectors.DefaultSelector() as selector:
+                    selector.register(fd, selectors.EVENT_READ, None)
+                    for name, stream in streams.items():
+                        os.set_blocking(stream.fileno(), False)
+                        selector.register(stream, selectors.EVENT_READ, name)
+                    while selector.get_map():
+                        remaining = end - time.monotonic()
+                        if remaining <= 0:
+                            timed_out = True
+                            break
+                        ready = selector.select(remaining)
+                        if not ready:
+                            timed_out = True
+                            break
+                        for key, _ in ready:
+                            if key.data is None:
+                                selector.unregister(key.fileobj)
+                                continue
+                            data = os.read(key.fd, 65536)
+                            if data:
+                                buffers[key.data].extend(data)
+                            else:
+                                selector.unregister(key.fileobj)
+            finally:
+                os.close(fd)
+        finally:
+            try:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child.pid, signal.SIGKILL)
+                reap_group(child.pid)
+            finally:
+                child.wait()
+        for name, stream in streams.items():
+            while True:
+                try:
+                    data = os.read(stream.fileno(), 65536)
+                except BlockingIOError:
+                    break
+                if not data:
+                    break
+                buffers[name].extend(data)
+        out = bytes(buffers['out']) if child.stdout is not None else None
+        return subprocess.CompletedProcess(argv, child.returncode, out, bytes(buffers['err'])), timed_out
+
+
 def run(argv, env, timeout=TIMEOUT):
-    try:
-        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, env=env,
-                              timeout=timeout).returncode
-    except subprocess.TimeoutExpired:
-        return None
+    done, timed_out = capture(argv, env, timeout)
+    return None if timed_out else done.returncode
 
 
 def streams(ffprobe, path, env):
     try:
-        done = subprocess.run([ffprobe, '-v', 'error', '-of', 'json', '-show_streams', str(path)],
-                              stdin=subprocess.DEVNULL, capture_output=True, env=env, timeout=TIMEOUT)
-        return json.loads(done.stdout)['streams'] if done.returncode == 0 else None
-    except (subprocess.TimeoutExpired, ValueError, KeyError):
+        done, timed_out = capture(
+            [ffprobe, '-v', 'error', '-of', 'json', '-show_streams', str(path)], env, TIMEOUT)
+        return json.loads(done.stdout)['streams'] if not timed_out and done.returncode == 0 else None
+    except (ValueError, KeyError):
         return None
 
 
