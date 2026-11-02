@@ -156,13 +156,19 @@ Another paragraph, on one line.
 > A quote
 > that runs over two lines.
 
+> A quoted paragraph
+with a lazy continuation
+and another quoted line.
+
 | a | b |
 |---|---|
 | 1 | 2 |
 | 3 | 4 |
 
-a | b
+Name | Result
 --- | ---
+unit | pass
+fixture | pass
 
 ```text
 a code block
@@ -203,13 +209,25 @@ Setext heading
 
 A paragraph.
 
+<!-- Evidence follows -->
 ## Evidence
 
 Text.
+
+<!--
+A comment
+with a blank line inside
+
+and a line after it
+-->
 """
 
 
 class Body(unittest.TestCase):
+    def assert_passes(self, text):
+        """`text`, which may span lines, as the paragraph the body holds."""
+        self.assertEqual(check.body_failures(BODY.replace('A fragmented file names', text)), [])
+
     def test_a_body_of_the_template_passes(self):
         self.assertEqual(check.body_failures(BODY), [])
 
@@ -217,12 +235,41 @@ class Body(unittest.TestCase):
         self.assertEqual(check.body_failures(EXEMPT), [])
 
     def test_the_template_and_the_required_sections_agree(self):
-        # The template owns the section list: a section added to it, or one
-        # it stops requiring, has to appear above.
+        # The template owns the section list, and its own comment marks the
+        # sections an author may delete: one of those is an optional section.
         template = (HERE.parent / '.github' / 'pull_request_template.md').read_text(encoding='utf-8')
-        headings = [text.strip() for text, _ in check.scan_body(template)[0]]
-        self.assertEqual(sorted(headings),
-                         sorted(check.REQUIRED_SECTIONS + check.OPTIONAL_SECTIONS), headings)
+        required, optional, comment, collecting, pending = [], [], '', False, None
+
+        def classify():
+            (optional if 'delete this section' in comment.casefold() else required).append(pending)
+
+        for line in template.split('\n'):
+            found = check.HEADING.match(line)
+            if found and len(found.group(1)) == 2:
+                if pending is not None:
+                    classify()
+                pending, comment, collecting = found.group(2), '', False
+                continue
+            collecting = collecting or '<!--' in line
+            if collecting:
+                comment += line + '\n'
+                collecting = '-->' not in line.split('<!--', 1)[-1]
+        if pending is not None:
+            classify()
+        self.assertEqual(required, list(check.REQUIRED_SECTIONS))
+        self.assertEqual(optional, list(check.OPTIONAL_SECTIONS))
+
+    def test_a_table_without_pipes_at_its_edges_passes(self):
+        self.assert_passes('Name | Result\n--- | ---\nunit | pass\nfixture | pass')
+
+    def test_a_comment_ends_at_its_terminator_not_at_a_blank_line(self):
+        self.assert_passes('<!--\nA comment\nwith a blank line inside\n\nand a line after it\n-->')
+
+    def test_a_one_line_comment_does_not_hide_the_heading_after_it(self):
+        self.assertEqual(check.body_failures(BODY.replace('## Evidence', '<!-- Evidence follows -->\n## Evidence')), [])
+
+    def test_a_lazy_continuation_of_a_quote_passes(self):
+        self.assert_passes('> A quoted paragraph\nwith a lazy continuation\nand another quoted line.')
 
     def test_a_missing_section(self):
         for section in check.REQUIRED_SECTIONS:
@@ -286,6 +333,14 @@ class Command(unittest.TestCase):
             run = self.run_check('--event', str(event), '--commits', str(pathlib.Path(d) / 'nope'))
             self.assertEqual(run.returncode, 1)
             self.assertIn('pr-shape: cannot read', run.stderr)
+
+    def test_a_title_alone(self):
+        run = self.run_check('--title', 'ci: fine')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn('the title keeps its shape', run.stdout)
+        run = self.run_check('--title', 'fine')
+        self.assertEqual(run.returncode, 1)
+        self.assertIn(NOT_FORM, run.stdout)
 
     def test_title_and_body_files(self):
         with tempfile.TemporaryDirectory() as d:

@@ -41,9 +41,9 @@ SHA = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 PARENTS = re.compile(r'(?:[0-9a-f]{40}|[0-9a-f]{64})(?: (?:[0-9a-f]{40}|[0-9a-f]{64}))*|')
 
 # The sections .github/pull_request_template.md opens with `## `, split by
-# whether it tells the author to keep them. Two of its sections are deleted
-# when they do not apply, and the template says so in their comments, so only
-# the rest are required. A test reads the template and fails when these two
+# whether it tells the author to keep them. A section whose comment says
+# "delete this section" is optional and the rest are required. The test reads
+# the template, takes that comment as the marker, and fails when these two
 # lists no longer hold its level-2 headings.
 REQUIRED_SECTIONS = ('TL;DR', 'Background', 'What changes', 'Decisions', 'Evidence')
 OPTIONAL_SECTIONS = ('How it works', 'Needs the maintainer')
@@ -124,9 +124,11 @@ def scan_body(body):
     """(heading text, line) of each heading, and (line, line) of each paragraph
     or list item a line break runs through."""
     headings, wraps = [], []
-    fence = None
-    html = False
-    code = False
+    fence = None    # the opening fence, until its like closes it
+    html = None     # 'comment' until the line holding `-->`, 'blank' until a blank line
+    code = False    # an indented code block, until a line indented less than four
+    table = False   # a table's rows, from its delimiter row to a blank line
+    quote = False   # a block quote, whose lazy continuation lines have no marker
     open_ = None    # the line the prose block under way started at
     broken = None   # (its line, the line that continued it) once one does
 
@@ -145,9 +147,13 @@ def scan_body(body):
             if FENCE.match(text) and stripped.startswith(fence):
                 fence = None
             continue
+        if html == 'comment':
+            if '-->' in text:
+                html = None
+            continue
         if html:
             if not stripped:
-                html = False
+                html = None
             continue
         if code:
             if stripped and not INDENTED_CODE.match(text):
@@ -156,35 +162,55 @@ def scan_body(body):
                 continue
         if not stripped:
             close(False)
+            table = quote = False
             continue
         found = FENCE.match(text)
         if found:
             close(False)
             fence = found.group(1)
+            table = quote = False
             continue
         if HTML_BLOCK.match(text):
             close(False)
-            html = True
+            table = quote = False
+            if stripped.startswith('<!--'):
+                html = None if '-->' in text else 'comment'
+            else:
+                html = 'blank'
             continue
         found = HEADING.match(text)
         if found:
             close(False)
+            table = quote = False
             if len(found.group(1)) == 2:
                 headings.append((found.group(2), number))
             continue
-        if QUOTE.match(text) or TABLE_ROW.match(text):
-            close(bool(TABLE_DELIMITER.match(text)))
+        if QUOTE.match(text):
+            close(False)
+            table = False
+            quote = True
+            continue
+        if TABLE_ROW.match(text):
+            close(False)
+            table = bool(TABLE_DELIMITER.match(text))
+            quote = False
             continue
         if TABLE_DELIMITER.match(text) and '-' in text:
             close(True)     # the row above is a table's header
+            table = True
+            quote = False
             continue
         if RULE.match(text):
             close(True)     # the line above is a setext heading, or a blank marker
+            table = quote = False
             continue
         if LIST_ITEM.match(text):
             close(False)
+            table = quote = False
             open_ = number
             continue
+        if table or quote:
+            continue        # a table row, or a quote's lazy continuation
         if open_ is None and INDENTED_CODE.match(text):
             code = True     # an indented code block, which a paragraph's line cannot start
             continue
@@ -203,19 +229,24 @@ def main():
     ap.add_argument('--body-file', help="a file holding the pull request's body")
     ap.add_argument('--commits', help="the pull request's commits (see above)")
     a = ap.parse_args()
+    body = None
     if a.event:
         with open(a.event, encoding='utf-8') as f:
             pr = json.load(f).get('pull_request') or {}
+        body = pr.get('body') or ''
     elif a.title is not None:
-        try:
-            with open(a.body_file, encoding='utf-8') as f:
-                body = f.read()
-        except OSError as e:
-            sys.exit(f'pr-shape: cannot read {a.body_file}: {e.strerror}')
-        pr = {'title': a.title, 'body': body}
+        pr = {'title': a.title}
+        if a.body_file is not None:
+            try:
+                with open(a.body_file, encoding='utf-8') as f:
+                    body = f.read()
+            except OSError as e:
+                sys.exit(f'pr-shape: cannot read {a.body_file}: {e.strerror}')
     else:
         sys.exit('pr-shape: give --event, or --title')
-    failures = title_failures(pr.get('title') or '') + body_failures(pr.get('body') or '')
+    failures = title_failures(pr.get('title') or '')
+    if body is not None:
+        failures += body_failures(body)
     if a.commits:
         try:
             with open(a.commits, encoding='utf-8') as f:
@@ -224,8 +255,13 @@ def main():
             sys.exit(f'pr-shape: cannot read {a.commits}: {e.strerror}')
     for failure in failures:
         print(failure)
-    print(f'pr-shape: {len(failures)} failure(s)' if failures
-          else 'pr-shape: the title, body and commits keep their shape')
+    checked = ['title'] + (['body'] if body is not None else []) + (['commits'] if a.commits else [])
+    if failures:
+        print(f'pr-shape: {len(failures)} failure(s)')
+    elif len(checked) > 1:
+        print(f'pr-shape: the {", ".join(checked[:-1])} and {checked[-1]} keep their shape')
+    else:
+        print(f'pr-shape: the {checked[0]} keeps its shape')
     sys.exit(1 if failures else 0)
 
 
