@@ -794,6 +794,23 @@ runners vary in CPU model between jobs, so no claim is made from it.
 
 ## AAC audio
 
+### Audio-only output bars
+
+Audio-only encoding uses the same decoded samples and checked encoder
+output as a video transcode. It does not create or decode a video stream.
+The output writer consumes one encoded audio track, so the encode is
+independent of its output container.
+
+Before comparing audio-only outputs with the pinned FFmpeg, correctness
+requires the output codec, profile, sample rate, channel count, start time
+and presentation duration to agree for the same supported command.
+The output must decode without errors. Source trimming is applied once,
+and output encoder delay and padding are removed once. AAC sources run
+only with the `aac` feature; unsupported sources, channels, settings and
+missing encoder programs fail before output publication. No size or speed
+claim is made, and lossy output does not have a bit-identity bar.
+
+
 `coreav transcode --audio aac [--audio-bitrate KBPS]` encodes one audio
 stream to AAC-LC with FFmpeg's built-in `aac` encoder, run as an
 operator-provided program under policy record 0042, point 5, as
