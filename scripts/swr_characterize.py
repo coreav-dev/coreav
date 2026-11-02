@@ -19,6 +19,17 @@ FORMS = {'s16le': ('h', 32768), 's32le': ('i', 2147483648),
 
 
 def signal(name, length):
+    if name == 'lcg-full':
+        state = 0x51A7
+        values = []
+        for _ in range(length):
+            state = (state * 1664525 + 1013904223) & 0xFFFFFFFF
+            signed = state if state < 0x80000000 else state - 0x100000000
+            values.append(signed * 0.75 / 2147483648)
+        return values
+    if name.startswith('basis-'):
+        position = int(name.removeprefix('basis-'))
+        return [0.5 if n == position else 0.0 for n in range(length)]
     if name.startswith('impulse-'):
         where = name.removeprefix('impulse-')
         position = {'first': 0, 'second': 1, 'middle': length // 2,
@@ -47,7 +58,30 @@ def pcm(values, channels, form):
     return struct.pack('<' + code * len(samples), *samples)
 
 
-def cases():
+def confirmation():
+    for incoming, outgoing in RATES:
+        for source, target in (('f32le', 'f32le'), ('s16le', 's16le'),
+                               ('s32le', 's32le'), ('f32le', 's16le'),
+                               ('f32le', 's32le'), ('f64le', 'f64le')):
+            for channels in (1, 2):
+                yield incoming, outgoing, source, target, channels, 'lcg-full', 1021, False, None
+        for block in (1, 7, 31):
+            yield incoming, outgoing, 'f32le', 'f32le', 2, 'lcg-full', 1021, False, block
+        if incoming == outgoing:
+            continue
+        for length in (*range(18, 32), *range(45, 52), *range(64, 69), *range(92, 102)):
+            yield incoming, outgoing, 'f32le', 'f32le', 1, 'constant', length, False, None
+        for position in (64, 65, 95, 128, 159, 191, 223, 255, 288, 319, 351, 383):
+            yield incoming, outgoing, 'f32le', 'f32le', 1, f'basis-{position}', 512, False, None
+        for length in (511, 512, 513, 1023, 1024, 1025):
+            for channels in (1, 2):
+                yield incoming, outgoing, 'f32le', 'f32le', channels, 'lcg-full', length, False, None
+
+
+def cases(wave='initial'):
+    if wave == 'confirmation':
+        yield from confirmation()
+        return
     names = ['impulse-first', 'impulse-second', 'impulse-middle',
              'impulse-middle-next', 'impulse-penultimate', 'impulse-last',
              'constant', 'step', 'alternating', 'irregular']
@@ -67,7 +101,7 @@ def cases():
             yield incoming, outgoing, 'f32le', 'f32le', 2, 'irregular', 257, False, block
 
 
-def capture(ffmpeg, directory):
+def capture(ffmpeg, directory, wave='initial'):
     problems = list(verify_bin(ffmpeg.parent))
     if problems:
         raise RuntimeError('\n'.join(problems))
@@ -84,9 +118,12 @@ def capture(ffmpeg, directory):
         'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'plan_sha256': hashlib.sha256((root / 'docs/design/audio-swr-parity-plan.md').read_bytes()).hexdigest(),
         'complete': False,
+        'wave': wave,
+        'cpu': dict(line.split(':', 1) for line in Path('/proc/cpuinfo').read_text().split('\n\n')[0].splitlines()
+                    if line.split(':', 1)[0].strip() in ('model name', 'flags')),
     }
     try:
-        for index, case in enumerate(cases()):
+        for index, case in enumerate(cases(wave)):
             incoming, outgoing, source, target, channels, name, length, scalar, block = case
             remaining = 300 - (time.monotonic() - started)
             if index >= 768 or remaining <= 0:
@@ -131,5 +168,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Capture bounded synthetic swr behavior, not command coverage')
     parser.add_argument('--ffmpeg', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--wave', choices=('initial', 'confirmation'), default='initial')
     options = parser.parse_args()
-    capture(options.ffmpeg.resolve(), options.out.resolve())
+    capture(options.ffmpeg.resolve(), options.out.resolve(), options.wave)

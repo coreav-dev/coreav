@@ -26,6 +26,8 @@ The first pass captures these pairs in this order: 44,100 to 48,000, 22,050 and 
 
 Retain raw synthetic output bytes, complete lengths, the exact argument vector, return status and input digest. A subprocess error, timeout, cap or incomplete capture is an experiment failure, not evidence of parity.
 
+The confirmation wave uses a full-amplitude deterministic LCG sequence with seed `0x51A7`, multiplier 1,664,525 and increment 1,013,904,223 modulo 2^32. Its signed values are scaled by 0.75/2^31. Capture 1,021 frames for mono/stereo S16, S32, F32 and diagnostic F64 paths, with separate F32-to-integer paths; repeat the stereo F32 path in blocks of 1, 7 and 31. On changed rates, add constant lengths 18–31, 45–51, 64–68 and 92–101; isolated half-scale impulses at positions 64, 65, 95, 128, 159, 191, 223, 255, 288, 319, 351 and 383 of a 512-frame input; and mono/stereo LCG lengths 511, 512, 513, 1,023, 1,024 and 1,025. These 570 calls check arithmetic and raw-input packet boundaries without a corpus or judged input.
+
 ## Independent candidate and hypotheses
 
 Keep the initial numerical prototype outside the product. Compute coefficients from the cited equations rather than recorded outputs. Evaluate two support models derived from the documented size: a continuous 32-tap window at the lower rate, and a finite tap-grid-centered support of `ceil(32/a)` coefficients adjusted for the cutoff. For the first model use half-width `16/min(1, output/input)` with the window centered on the output position. For the second use a window centered at `(length-1)/2` on the integer tap grid while the sinc follows the fractional position.
