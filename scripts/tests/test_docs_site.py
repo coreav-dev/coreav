@@ -65,6 +65,14 @@ def slugs(markdown):
 
 
 class DocsSite(unittest.TestCase):
+    def test_frame_output_documents_decoded_bytes_per_decoder(self):
+        for name in ('docs/design/frame-output.md', 'docs-site/commands/ffmpeg.mdx'):
+            text = (ROOT / name).read_text().lower()
+            with self.subTest(page=name):
+                self.assertTrue('4 gib per decoder' in text, f'{name}: name the decoded-byte limit and its per-decoder scope')
+                self.assertFalse('decoded-sample limit' in text or 'total decoded samples' in text,
+                                 f'{name}: max_decoded_bytes counts bytes, not samples')
+
     def test_frame_output_documents_native_decoder_session_timeout(self):
         for name in ('docs/design/frame-output.md', 'docs-site/commands/ffmpeg.mdx'):
             text = (ROOT / name).read_text()
