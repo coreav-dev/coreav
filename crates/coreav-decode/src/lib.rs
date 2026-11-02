@@ -186,11 +186,15 @@ pub struct Limits {
     pub timeout: Duration,
     /// Most reference frames a stream may keep (NVDEC's DPB size).
     pub max_reference_frames: u32,
-    /// Memory each process of a sandboxed decoder may use (its address
+    /// Memory budget for each process of a sandboxed decoder (its address
     /// space): the worker, and each process it starts. A backend fits its
     /// work to it (fewer threads) or refuses a stream it cannot fit with
-    /// `Limit`; running into it fails with `Limit`, never an out-of-memory
-    /// kill of the host.
+    /// `Limit`. Where the sandbox enforces the address-space limit, running
+    /// into it fails with `Limit`. This does not prevent system-wide
+    /// out-of-memory handling.
+    /// On macOS the budget is advisory: no process-wide memory cap is
+    /// enforced, and a decoder can use more. Strict-safe mode refuses
+    /// sandboxed work there.
     pub max_memory_bytes: u64,
 }
 
