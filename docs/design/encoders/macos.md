@@ -1,12 +1,12 @@
 # Apple encoder output readers
 
-The Apple backend is under development. No framework encoder, CLI option, or performance result is provided by these readers. The [encoder contract](../encoders.md) defines the remaining work and its acceptance bars. Platform encoding is not a finding that an operator's use is patent-covered. Paid services may need their own patent licence.
+The Apple backend is under development. The standalone crate has checked AAC metadata readers and a macOS AudioToolbox adapter. It is not integrated into the CLI and provides no acceptance-bar or performance result. The [encoder contract](../encoders.md) defines the remaining work and its acceptance bars. Platform encoding is not a finding that an operator's use is patent-covered. Paid services may need their own patent licence.
 
 ## AAC configuration and packet boundaries
 
-`coreav-backend-apple` currently has no dependencies and calls no Apple framework. Its standalone manifest and lockfile permit isolated checks until workspace integration.
+`coreav-backend-apple` has no production Rust dependencies. Its standalone manifest and lockfile permit isolated checks until workspace integration. macOS fixture tests alone depend on CoreAV's independent AAC decoder. This does not add a decoder to the production library graph.
 
-`aac::Config` reads a two-byte ISO/IEC 14496-3 `AudioSpecificConfig`. It accepts AAC-LC with 1024-sample frames, an indexed sample rate, and mono or left-right stereo. The parsed rate and channel configuration must equal the requested PCM format. Explicit frequencies, program configurations, 960-sample frames, core-coder dependencies, and extensions are refused. The input is the extracted configuration, not the AudioToolbox magic cookie or an MPEG-4 descriptor. Extracting that configuration from framework output is not implemented yet.
+`aac::Config::parse` reads a two-byte ISO/IEC 14496-3 `AudioSpecificConfig`. It accepts AAC-LC with 1024-sample frames, an indexed sample rate, and mono or left-right stereo. The parsed rate and channel configuration must equal the requested PCM format. Explicit frequencies, program configurations, 960-sample frames, core-coder dependencies, and extensions are refused. `from_cookie` additionally reads bounded MPEG-4 ES, DecoderConfig, DecoderSpecificInfo, and SLConfig descriptors. It accepts the optional ASC suffix that explicitly signals absent SBR, normalizing that representation to the same two-byte configuration. Unknown descriptors, ES flags, unexplained suffixes, and present SBR are refused.
 
 `aac::PacketBatch` checks copied `AudioStreamPacketDescription` values against the supplied buffer and caller-supplied batch limits before allocating packet storage. Signed offsets must be nonnegative. Packets must be nonempty, in buffer order, nonoverlapping, and wholly within the buffer. Apple permits gaps between packets. The reader copies only the packet bytes into owned storage. Both zero, meaning the format's fixed frame count, and an explicit count of 1024 are accepted. An empty batch must have an empty buffer and does not by itself prove completion.
 
@@ -27,7 +27,19 @@ cargo test --locked --manifest-path crates/coreav-backend-apple/Cargo.toml
 cargo clippy --locked --manifest-path crates/coreav-backend-apple/Cargo.toml --all-targets -- -D warnings
 ```
 
-Framework ownership, callback cancellation, H.264 output, independent-decode capability smoke, affected-target fuzz CI, and the reference-Mac driver remain separate implementation steps. No M1 through M5 or AAC acceptance result is claimed. The development machine is not the designated reference host.
+VideoToolbox ownership and callback cancellation, H.264 output, the hosted H.264 independent-decode capability smoke, and the reference-host driver remain separate implementation steps. No M1 through M5 or AAC acceptance result is claimed. The development machine is not a measurement host, and no physical measurement host is provisioned or promised.
+
+## AudioToolbox ownership and streaming
+
+`audiotoolbox::Encoder` uses the direct `AudioCodec` push/pull API instead of `AudioConverter` input callbacks. The component copies accepted input into its own buffer during `append`. No Rust frame reference or callback state survives a call, and there is no callback queue. One private native module owns one successful non-null component instance and disposes it on every later failure or drop. Failure outputs from component creation confer no ownership. The owner is neither Send nor Sync.
+
+Settings select the Apple software AAC-LC component, CBR, unchanged indexed rate, mono or left-right stereo, quality 0 through 127, normal priming, and compatibility delay. The initialized formats and effective controls are checked before accepting PCM. The actual instance is resolved back to its component. Identity records its type, subtype, manufacturer, and documented component version value. The selected Apple software manufacturer identifies a software codec, not a requested hardware preference. No framework semantic version or OS build is invented.
+
+`append` accepts finite interleaved float PCM and a contiguous sample-frame identity. It reports partial consumption explicitly. Non-frame-aligned consumption is refused. Empty chunks do not signal EOF, and timestamp gaps are refused rather than filled with silence or closed. `start_drain` supplies the API's zero-byte EOF marker once. `pull` returns at most one owned, checked AAC packet and a progress state. Failure, unknown output status, early EOF, a stalled output claim, excess output, and incomplete drain cannot become successful completion. A failed session accepts no further native work.
+
+The caller supplies per-chunk, total sample, packet, output-byte, cookie, and trim limits. Output storage is fallibly allocated to a bounded size, and returned counts are checked against initialized buffers before the safe reader sees them. Cancellation and the session's single deadline are checked before and after synchronous framework calls. Neither can interrupt such a call or enforce a cap on the framework's own internal allocations. This adapter does not make strict-safe mode eligible.
+
+Finalization reads the final cookie and codec-specific priming and padding values, checks their arithmetic against the actual accepted PCM and emitted packet totals, and returns validated container configuration only after drain. These are `AudioCodec` properties, not `AudioConverterPrimeInfo` input lookahead. The native fixtures independently decode synthetic AAC with the Rust decoder and check declared trim, channel impulse placement, and all four acceptance formats. They are correctness fixtures, not quality or speed bars against the pinned FFmpeg oracle.
 
 ## Sources
 
@@ -35,4 +47,4 @@ Framework ownership, callback cancellation, H.264 output, independent-decode cap
 - Apple's public `CoreAudioBaseTypes.h`, `AudioStreamPacketDescription`, and `AudioConverter.h`, `AudioConverterPrimeInfo`.
 - Apple's [AudioStreamPacketDescription](https://developer.apple.com/documentation/coreaudiotypes/audiostreampacketdescription) and [AudioConverterPrimeInfo](https://developer.apple.com/documentation/audiotoolbox/audioconverterprimeinfo) references.
 
-There are no unsafe sites in this reader-only slice.
+The only native unsafe file is `crates/coreav-backend-apple/src/audiotoolbox/sys.rs`, with its crate lint change registered alongside it in the global unsafe-site inventory. Every other source file retains the crate's `deny` level without an opt-out.
