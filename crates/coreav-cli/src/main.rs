@@ -349,9 +349,9 @@ struct TranscodeArgs {
     /// in this build.
     #[arg(long, value_name = "ENCODER", value_parser = ["auto", "platform", "ffmpeg"])]
     audio_encoder: Option<String>,
-    /// Require hardware platform encoding with --encoder auto or platform.
-    /// Unavailable in this build; never falls back to software or another
-    /// encoder.
+    /// Require hardware VideoToolbox encoding with --encoder auto or platform.
+    /// Needs the VideoToolbox backend, unavailable in this build; never falls
+    /// back to software or another encoder.
     #[arg(long)]
     require_hardware: bool,
     /// The x264 program (default: COREAV_X264, else x264 on PATH).

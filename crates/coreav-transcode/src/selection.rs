@@ -163,6 +163,11 @@ impl Selection {
                     "the selected platform encoder cannot honor --preset; omit it or select x264",
                 );
             }
+            if self.require_hardware {
+                return Err(
+                    "no hardware H.264 encoder is available: this build has no VideoToolbox backend",
+                );
+            }
             return Err("no platform H.264 encoder: this build has no platform backend");
         }
         if self.video == VideoCodec::Av1 {

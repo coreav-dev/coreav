@@ -30,7 +30,7 @@ SVT-AV1 initially accepts 8-bit 4:2:0 frames, a numeric preset from 0 through 13
 
 The initial VideoToolbox path accepts a target bitrate, H.264 High profile, 8-bit 4:2:0, no frame reordering, and a maximum keyframe interval of two seconds. With no rate option, its target is 2,000,000 bits per second. This is a bitrate default, not a claim of x264 CRF equivalence. AudioToolbox initially accepts AAC-LC, the source channel layout and rate where supported, and a target bitrate of 128,000 bits per second for mono or 192,000 for stereo when unset. Other layouts require an explicit supported bitrate. Unsupported channel layouts or rates are refused, not resampled or downmixed silently.
 
-VideoToolbox auto permits either hardware or software encoding and reports what actually ran. A proposed `--require-hardware` option requires a hardware VideoToolbox session and fails rather than falling back to software or another program. It is incompatible with a non-platform video encoder. Software availability is a runtime capability, not inferred from an OS version or the presence of the framework.
+VideoToolbox auto permits either hardware or software encoding and reports what actually ran. `--require-hardware` requires the VideoToolbox backend and a hardware VideoToolbox session, and fails rather than falling back to software or another program. The backend is not connected in this phase, so the option reports that no hardware encoder is available before reading input or touching output. It is incompatible with a non-platform video encoder. Software availability is a runtime capability, not inferred from an OS version or the presence of the framework.
 
 ### Missing encoders and strict-safe mode
 

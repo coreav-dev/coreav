@@ -66,6 +66,8 @@ fn refused(output: Output, message: &str) {
 const NO_AV1: &str = "no AV1 encoder: this build has no SVT-AV1 backend";
 const NO_PLATFORM_VIDEO: &str = "no platform H.264 encoder: this build has no platform backend";
 const NO_PLATFORM_AUDIO: &str = "no platform AAC encoder: this build has no platform backend";
+const NO_HARDWARE: &str =
+    "no hardware H.264 encoder is available: this build has no VideoToolbox backend";
 const NO_H264: &str = "no H.264 encoder: install x264 or FFmpeg with libx264";
 const NO_AAC: &str = "no AAC encoder: install FFmpeg or select --audio opus";
 const STRICT_PLATFORM: &str = "strict-safe mode does not permit an in-process platform encoder";
@@ -99,7 +101,7 @@ fn new_selections_refuse_before_a_missing_input_or_output_is_opened() {
         (&["--encoder", "platform"], NO_PLATFORM_VIDEO),
         (
             &["--encoder", "platform", "--require-hardware"],
-            NO_PLATFORM_VIDEO,
+            NO_HARDWARE,
         ),
         (
             &["--encoder", "platform", "--bitrate", "2000"],
@@ -113,11 +115,8 @@ fn new_selections_refuse_before_a_missing_input_or_output_is_opened() {
             &["--encoder", "platform", "--preset", "medium"],
             "the selected platform encoder cannot honor --preset; omit it or select x264",
         ),
-        (&["--require-hardware"], NO_PLATFORM_VIDEO),
-        (
-            &["--require-hardware", "--encoder", "auto"],
-            NO_PLATFORM_VIDEO,
-        ),
+        (&["--require-hardware"], NO_HARDWARE),
+        (&["--require-hardware", "--encoder", "auto"], NO_HARDWARE),
         (
             &["--require-hardware", "--encoder", "x264"],
             "--require-hardware is incompatible with a non-platform video encoder",
@@ -422,6 +421,44 @@ fn a_refused_selection_does_not_touch_an_existing_output() {
 
 #[cfg(unix)]
 #[test]
+fn hardware_refusals_do_not_read_input_or_modify_forced_output() {
+    let dir = dir("hardware-boundary");
+    let input = dir.join("fifo.mp4");
+    let output = dir.join("out.mp4");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&input)
+            .status()
+            .unwrap()
+            .success()
+    );
+    std::fs::write(&output, b"retain hardware refusal output").unwrap();
+    for (flags, message) in [
+        (&["--require-hardware", "--force"][..], NO_HARDWARE),
+        (
+            &["--require-hardware", "--encoder", "platform", "--force"][..],
+            NO_HARDWARE,
+        ),
+        (
+            &["--require-hardware", "--encoder", "x264", "--force"][..],
+            "--require-hardware is incompatible with a non-platform video encoder",
+        ),
+        (
+            &["--require-hardware", "--encoder", "ffmpeg", "--force"][..],
+            "--require-hardware is incompatible with a non-platform video encoder",
+        ),
+    ] {
+        refused(run(&input, &output, flags, false), message);
+        assert_eq!(
+            std::fs::read(&output).unwrap(),
+            b"retain hardware refusal output"
+        );
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn new_selections_do_not_open_a_blocking_input() {
     let dir = dir("fifo");
     let input = dir.join("fifo.mp4");
@@ -462,7 +499,7 @@ fn new_selections_make_no_network_request() {
         (&["--video", "av1"][..], NO_AV1),
         (&["--video", "av1", "--encoder", "svt-av1"][..], NO_AV1),
         (&["--encoder", "platform"][..], NO_PLATFORM_VIDEO),
-        (&["--require-hardware"][..], NO_PLATFORM_VIDEO),
+        (&["--require-hardware"][..], NO_HARDWARE),
         (
             &["--audio", "aac", "--audio-encoder", "ffmpeg"][..],
             NO_H264,
@@ -586,6 +623,7 @@ fn help_names_unavailable_backends_and_settings() {
         "--audio-encoder",
         "`platform` is unavailable in this build",
         "--require-hardware",
+        "Needs the VideoToolbox backend, unavailable in this build",
     ] {
         assert!(normalized.contains(phrase), "{phrase}: {help}");
     }
