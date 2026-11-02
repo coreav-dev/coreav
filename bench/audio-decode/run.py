@@ -36,7 +36,7 @@ def closed_error(error):
 @contextlib.contextmanager
 def job_deadline(deadline):
     def stop(signum, frame):
-        raise failure('timeout')
+        raise failure('job_deadline')
 
     old = signal.signal(signal.SIGALRM, stop)
     signal.setitimer(signal.ITIMER_REAL, max(0.001, deadline - time.monotonic()))
@@ -143,15 +143,9 @@ def host_setup(work, limits):
     work = pathlib.Path(work).resolve(strict=True)
     if not work.is_dir():
         raise capacity.Invalid('invalid_work')
-    device = work.stat().st_dev
-    identity = f'{os.major(device)}:{os.minor(device)}'
-    filesystems = set()
-    for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
-        left, right = line.split(' - ', 1)
-        if left.split()[2] == identity:
-            filesystems.add(right.split()[0])
-    if filesystems != {'tmpfs'}:
-        raise capacity.Invalid('work_not_tmpfs')
+    tmpfs_bytes = bounded_tmpfs(work, limits)
+    if any(work.iterdir()):
+        raise capacity.Invalid('work_not_empty')
     check_space(work, limits)
     available = next((int(line.split()[1]) * 1024 for line in pathlib.Path('/proc/meminfo').read_text().splitlines()
                       if line.startswith('MemAvailable:')), 0)
@@ -170,7 +164,30 @@ def host_setup(work, limits):
                 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS'):
         os.environ[key] = '1'
     return {'cpu': cpu, 'smt': False, 'outputs_tmpfs': True,
-            'memory_as_bytes': limits['memory_bytes'], 'tmpfs_budget_bytes': limits['tmpfs_bytes']}
+            'memory_as_bytes': limits['memory_bytes'], 'tmpfs_budget_bytes': limits['tmpfs_bytes'],
+            'tmpfs_capacity_bytes': tmpfs_bytes}
+
+
+def bounded_tmpfs(work, limits):
+    work = pathlib.Path(work).resolve(strict=True)
+    device = work.stat().st_dev
+    identity = f'{os.major(device)}:{os.minor(device)}'
+    found = False
+    for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
+        left, right = line.split(' - ', 1)
+        fields = left.split()
+        mount = pathlib.Path(re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), fields[4]))
+        if work in mount.parents:
+            raise capacity.Invalid('nested_output_mount')
+        if mount == work:
+            found = fields[2] == identity and fields[3] == '/' and right.split()[0] == 'tmpfs'
+    if not found:
+        raise capacity.Invalid('work_not_dedicated_tmpfs')
+    stat = os.statvfs(work)
+    total = stat.f_blocks * stat.f_frsize
+    if total != limits['tmpfs_bytes']:
+        raise capacity.Invalid('tmpfs_capacity_mismatch')
+    return total
 
 
 def check_space(work, limits):
@@ -220,11 +237,18 @@ class Executor:
     def invoke(self, operation, role, argv, timeout=None, stdout_path=None):
         remaining = self.deadline - time.monotonic()
         if remaining <= 0:
-            raise failure('timeout')
-        bound = min(self.limits['per_call_seconds'], remaining)
+            raise failure('job_deadline')
+        bounded_tmpfs(self.work, self.limits)
+        call_limit = self.limits['per_call_seconds']
         if timeout is not None:
-            bound = min(bound, timeout)
-        return receipts.invoke(operation, role, argv, bound, stdout_path=stdout_path)
+            call_limit = min(call_limit, timeout)
+        deadline_limited = remaining < call_limit
+        try:
+            return receipts.invoke(operation, role, argv, min(call_limit, remaining), stdout_path=stdout_path)
+        except receipts.CommandFailure as error:
+            if deadline_limited and error.receipt['outcome'] == 'timeout':
+                raise receipts.CommandFailure({**error.receipt, 'outcome': 'job_deadline'}) from None
+            raise
 
     def selected_stream(self, record):
         key = record['sha256']
@@ -375,9 +399,10 @@ def run(binding, records, host, limits, store, execute, rebind, work, *, resume=
                     reconcile(row, record)
                 except BaseException as error:
                     closed = closed_error(error)
-                    stop = closed['outcome'] == 'cancelled' or isinstance(error, capacity.Invalid)
+                    interrupted = closed['outcome'] in ('cancelled', 'job_deadline')
+                    stop = interrupted or isinstance(error, capacity.Invalid)
                     stop |= deadline is not None and time.monotonic() >= deadline
-                    slot.update(status='interrupted' if closed['outcome'] == 'cancelled' else 'failed',
+                    slot.update(status='interrupted' if interrupted else 'failed',
                                 result=None, error=closed)
                 store.write(value)
                 if stop:

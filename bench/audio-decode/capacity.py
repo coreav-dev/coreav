@@ -6,13 +6,17 @@ import importlib.metadata
 import json
 import pathlib
 import re
+import subprocess
 import sys
+import tarfile
 import tempfile
 from dataclasses import dataclass
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import oracle
 import receipts
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+import oracle_pin
 
 INPUT_RATE = 48000
 MIN_FULL_FRAMES = 900 * INPUT_RATE
@@ -23,7 +27,8 @@ TOOLS = ('base_abench', 'head_abench', 'base_coreav', 'head_coreav',
 SCRIPT_INPUTS = ('scripts/opus_identity.py', 'scripts/oracle_audio.py',
                  'scripts/oracle-audio-args.txt', 'scripts/decode_audio_check.py',
                  'scripts/oracle_kd.py', 'scripts/oracle_kd_ts.py',
-                 'scripts/oracle-ffmpeg.env', 'docs/known-divergences-decode-audio.json')
+                 'scripts/oracle-ffmpeg.env', 'scripts/oracle_pin.py',
+                 'docs/known-divergences-decode-audio.json')
 JUDGING_INPUTS = (*SCRIPT_INPUTS, *(f'bench/audio-decode/{name}.py'
                   for name in ('capacity', 'run', 'receipts', 'oracle', 'agreement')))
 
@@ -65,6 +70,52 @@ def digest(path):
     except OSError:
         raise Invalid('unavailable_bound_file') from None
     return value.hexdigest()
+
+
+def verify_tools(repo, tools):
+    pin = oracle_pin.load(pathlib.Path(repo))
+    binaries = [pathlib.Path(tools[name]).resolve() for name in ('ffmpeg', 'ffprobe')]
+    if (any(path.name != name for path, name in zip(binaries, ('ffmpeg', 'ffprobe')))
+            or binaries[0].parent != binaries[1].parent
+            or list(oracle_pin.verify_bin(binaries[0].parent, pathlib.Path(repo)))):
+        raise Invalid('oracle_pin_mismatch')
+    archive = pathlib.Path(tools['lav_archive'])
+    if digest(archive) != pin['LAV_SHA256']:
+        raise Invalid('baseline_archive_pin_mismatch')
+    try:
+        done = subprocess.run(['ldd', str(pathlib.Path(tools['lav']).resolve())],
+                              capture_output=True, check=True, timeout=10)
+        libraries = {}
+        for line in done.stdout.decode().splitlines():
+            match = re.fullmatch(r'\s*(\S+) => (/.+) \(0x[0-9a-f]+\)\s*', line)
+            if match:
+                name, path = match.groups()
+                if name in libraries:
+                    raise Invalid('ambiguous_baseline_library')
+                libraries[name] = digest(path)
+        required = ('libavcodec', 'libavformat', 'libavutil', 'libswresample')
+        if any(not any(name.startswith(prefix + '.so.') for name in libraries) for prefix in required):
+            raise Invalid('missing_baseline_library')
+        with tarfile.open(archive, 'r:xz') as source:
+            members = source.getmembers()
+            for name, actual in libraries.items():
+                if not re.fullmatch(r'lib(?:avcodec|avformat|avutil|avfilter|avdevice|swresample|swscale)\.so\.\d+', name):
+                    continue
+                matches = [member for member in members if member.isfile()
+                           and member.name.startswith(pin['LAV_ARCHIVE'] + '/lib/' + name)
+                           and re.fullmatch(re.escape(name) + r'(?:\.\d+)*', pathlib.PurePosixPath(member.name).name)]
+                if len(matches) != 1:
+                    raise Invalid('missing_pinned_baseline_library')
+                value = hashlib.sha256()
+                with source.extractfile(matches[0]) as incoming:
+                    while block := incoming.read(4 << 20):
+                        value.update(block)
+                if value.hexdigest() != actual:
+                    raise Invalid('baseline_library_pin_mismatch')
+    except (OSError, ValueError, UnicodeError, tarfile.TarError, subprocess.SubprocessError):
+        raise Invalid('unverifiable_baseline_libraries') from None
+    return {'pin_sha256': digest(pathlib.Path(repo) / 'scripts/oracle-ffmpeg.env'),
+            'lav_archive_sha256': digest(archive), 'libraries': libraries}
 
 
 def load(path):
@@ -194,8 +245,9 @@ def judging(repo):
 
 
 def make_binding(repo, inputs, media, tools, limits):
-    if not isinstance(tools, dict) or set(tools) != set(TOOLS):
+    if not isinstance(tools, dict) or set(tools) != set(TOOLS) | {'lav_archive'}:
         raise Invalid('invalid_tool_roster')
+    provenance = verify_tools(repo, tools)
     media = pathlib.Path(media).resolve()
     bound = []
     for row in records(inputs):
@@ -211,7 +263,7 @@ def make_binding(repo, inputs, media, tools, limits):
     if re.fullmatch(r'\d+\.\d+\.\d+(?:[a-z0-9.+-]*)', numpy) is None:
         raise Invalid('invalid_runtime_version')
     return {'schema': 'opus-capacity-binding/1', 'scope': 'spent', 'inputs': bound,
-            'tools': {role: digest(tools[role]) for role in TOOLS}, 'judging': judging(repo),
+            'tools': {role: digest(tools[role]) for role in TOOLS}, 'oracle': provenance, 'judging': judging(repo),
             'runtime': {'python': f'{sys.version_info.major}.{sys.version_info.minor}', 'numpy': numpy},
             'operations': list(OPERATIONS), 'minimum_full_frames': MIN_FULL_FRAMES,
             'limits': normalized_limits(limits)}
@@ -219,7 +271,7 @@ def make_binding(repo, inputs, media, tools, limits):
 
 def validate_binding(binding):
     if (not isinstance(binding, dict) or set(binding) != {'schema', 'scope', 'inputs', 'tools',
-            'judging', 'runtime', 'operations', 'minimum_full_frames', 'limits'}
+            'judging', 'oracle', 'runtime', 'operations', 'minimum_full_frames', 'limits'}
             or binding['schema'] != 'opus-capacity-binding/1' or binding['scope'] != 'spent'
             or binding['operations'] != list(OPERATIONS) or binding['minimum_full_frames'] != MIN_FULL_FRAMES
             or not isinstance(binding['tools'], dict) or set(binding['tools']) != set(TOOLS)
@@ -231,6 +283,16 @@ def validate_binding(binding):
             or not all(isinstance(value, str) and re.fullmatch(r'[0-9]+(?:\.[0-9]+)+(?:[a-z0-9.+-]*)', value)
                        for value in binding['runtime'].values())):
         raise Invalid('invalid_binding_manifest')
+    provenance = binding['oracle']
+    if (not isinstance(provenance, dict) or set(provenance) != {'pin_sha256', 'lav_archive_sha256', 'libraries'}
+            or provenance['pin_sha256'] != binding['judging']['scripts/oracle-ffmpeg.env']
+            or provenance['lav_archive_sha256'] != oracle_pin.load()['LAV_SHA256']
+            or not isinstance(provenance['libraries'], dict)
+            or not all(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_.+-]+', name) and sha(value)
+                       for name, value in provenance['libraries'].items())
+            or any(not any(name.startswith(prefix + '.so.') for name in provenance['libraries'])
+                   for prefix in ('libavcodec', 'libavformat', 'libavutil', 'libswresample'))):
+        raise Invalid('invalid_oracle_provenance')
     normalized_limits(binding['limits'])
     inputs = {'scope': 'spent', 'inputs': [dict(row, file='bound') for row in binding['inputs']]}
     expected = [{key: value for key, value in row.items() if key != 'file'} for row in records(inputs)]
@@ -248,13 +310,14 @@ def validate_capacity(receipt, expected_binding):
         raise Invalid('capacity_incomplete_or_unbound')
     host = receipt.get('host', {})
     if (not isinstance(host, dict) or set(host) != {'cpu', 'smt', 'outputs_tmpfs',
-                                                  'memory_as_bytes', 'tmpfs_budget_bytes'}):
+                                                  'memory_as_bytes', 'tmpfs_budget_bytes', 'tmpfs_capacity_bytes'}):
         raise Invalid('invalid_capacity_host')
     cpu = re.sub(r'\((?:r|tm)\)', '', str(host.get('cpu', '')).lower())
     if (not 'intel xeon platinum 8581c' in ' '.join(cpu.split()) or host.get('smt') is not False
             or host.get('outputs_tmpfs') is not True
             or host.get('memory_as_bytes') != binding['limits']['memory_bytes']
-            or host.get('tmpfs_budget_bytes') != binding['limits']['tmpfs_bytes']):
+            or host.get('tmpfs_budget_bytes') != binding['limits']['tmpfs_bytes']
+            or host.get('tmpfs_capacity_bytes') != binding['limits']['tmpfs_bytes']):
         raise Invalid('unqualified_capacity_host')
     rows = receipt.get('inputs')
     if not isinstance(rows, list) or len(rows) != len(binding['inputs']):
@@ -299,6 +362,22 @@ def validate_capacity(receipt, expected_binding):
                 or any(not positive(value) or value < MIN_FULL_FRAMES - 5760 for value in samples.values())
                 or samples['ours'] != cli['frames']):
             raise Invalid('incomplete_oracle_sample_work')
+        detail = oracle['detail']
+        if row['class'] == 'mp4':
+            if (not {'model', 'full', 'ffmpeg_expected'} <= set(detail)
+                    or detail['model'] != cli['frames']
+                    or abs(detail['full'] - raw['frames']) > 5760):
+                raise Invalid('incomplete_oracle_model_work')
+            expected = detail['ffmpeg_expected']
+        else:
+            if abs(cli['frames'] - raw['frames']) > 5760:
+                raise Invalid('incomplete_oracle_presentation_work')
+            expected = cli['frames']
+        if samples['ref'] != expected or samples['default'] != expected:
+            raise Invalid('incomplete_oracle_sample_work')
+        raw_bytes = 2 * (8 + packets * 32 + raw['frames'] * channels * 4)
+        if max(raw_bytes, cli['output_bytes'] * 2) > binding['limits']['tmpfs_bytes']:
+            raise Invalid('insufficient_temporary_output_budget')
         for name in ('head_dec', 'base_dec', 'lav_dec', 'head_lib', 'base_lib', 'lav_lib'):
             work = results[name]
             if not positive(work.get('samples')) or work.get('errors', 0) != 0:

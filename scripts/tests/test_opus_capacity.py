@@ -7,6 +7,8 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import tarfile
+import io
 import unittest
 from unittest.mock import patch
 
@@ -45,6 +47,9 @@ def evidence():
                 'ffmpeg_cli': {'frames': presented, 'channels': 2, 'sample_rate': 48000,
                                'sample_width': 2, 'output_bytes': presented * 4 + 44},
             }
+            if cls == 'mp4':
+                results['oracle']['detail'].update(applied=True, model=presented,
+                                                   ffmpeg_expected=presented, full=presented, entries_count=0)
             rows.append({'sha256': digest, 'class': cls, 'mode': mode,
                          'operations': {name: {'status': 'complete', 'result': value, 'error': None}
                                         for name, value in results.items()}})
@@ -53,24 +58,27 @@ def evidence():
                       for name in ('capacity', 'run', 'receipts', 'oracle', 'agreement')))
     binding = {'schema': 'opus-capacity-binding/1', 'scope': 'spent', 'inputs': inputs,
                'tools': {name: 'a' * 64 for name in capacity.TOOLS},
+               'oracle': {'pin_sha256': 'b' * 64, 'lav_archive_sha256': capacity.oracle_pin.load()['LAV_SHA256'],
+                          'libraries': {name + '.so.1': 'e' * 64 for name in
+                                        ('libavcodec', 'libavformat', 'libavutil', 'libswresample')}},
                'judging': {name: 'b' * 64 for name in source_names},
                'runtime': {'python': '3.12', 'numpy': '2.5.4'}, 'operations': list(capacity.OPERATIONS),
                'minimum_full_frames': frames, 'limits': limits}
     receipt = {'schema': 'opus-capacity/1', 'purpose': 'full', 'binding': copy.deepcopy(binding),
                'host': {'cpu': 'INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz', 'smt': False,
                         'outputs_tmpfs': True, 'memory_as_bytes': limits['memory_bytes'],
-                        'tmpfs_budget_bytes': limits['tmpfs_bytes']},
+                        'tmpfs_budget_bytes': limits['tmpfs_bytes'], 'tmpfs_capacity_bytes': limits['tmpfs_bytes']},
                'inputs': rows, 'complete': True, 'passed': True}
     return receipt, binding
 
 
 class RetainedEvidence(unittest.TestCase):
-    def test_full_receipt_qualifies_with_its_exact_binding(self):
+    def test_historical_full_receipt_keeps_its_exact_binding_but_cannot_qualify(self):
         directory = ROOT / 'bench/audio-decode/evidence'
         binding = capacity.load(directory / 'binding.json')
         value = capacity.load(directory / 'capacity.json')
-        proof = capacity.validate_capacity(value, binding)
-        self.assertEqual(proof.binding_sha256,
+        self.assertFalse(capacity.qualify(value, binding))
+        self.assertEqual(capacity.canonical(binding),
                          'c3962b386482b448471085b8844e42e0c6f6db2c10f5ec44afb59c08b8b83250')
         self.assertEqual(sum(len(row['operations']) for row in value['inputs']), 60)
 
@@ -125,6 +133,43 @@ class Workflow(unittest.TestCase):
 
 
 class Qualification(unittest.TestCase):
+    def test_long_truncated_reference_and_default_are_not_complete_work(self):
+        value, binding = evidence()
+        for row in binding['inputs']:
+            row['packets'] = {name: count * 2 for name, count in row['packets'].items()}
+        value['binding'] = copy.deepcopy(binding)
+        for row in value['inputs']:
+            for operation, slot in row['operations'].items():
+                result = slot['result']
+                for field in ('frames', 'samples', 'bytes', 'output_bytes'):
+                    if field in result:
+                        result[field] *= 2
+                if 'packets' in result:
+                    result['packets'] *= 2
+                if operation == 'oracle':
+                    result['detail']['samples'] = {name: count * 2 for name, count in result['detail']['samples'].items()}
+                    for field in ('model', 'full', 'ffmpeg_expected'):
+                        if field in result['detail']:
+                            result['detail'][field] *= 2
+        self.assertTrue(capacity.qualify(value, binding))
+        for row in value['inputs']:
+            result = row['operations']['oracle']['result']
+            result['detail']['samples'].update(ref=capacity.MIN_FULL_FRAMES,
+                                               default=capacity.MIN_FULL_FRAMES)
+            result['detail'].update(length_ok=False, default_length_ok=False,
+                                    compare_passed=False)
+            result['passed'] = False
+        self.assertFalse(capacity.qualify(value, binding))
+
+    def test_completed_outputs_cannot_qualify_under_a_one_byte_budget(self):
+        receipt, binding = evidence()
+        self.assertTrue(capacity.qualify(receipt, binding))
+        binding['limits']['tmpfs_bytes'] = 1
+        receipt['binding'] = copy.deepcopy(binding)
+        receipt['host']['tmpfs_budget_bytes'] = 1
+        receipt['host']['tmpfs_capacity_bytes'] = 1
+        self.assertFalse(capacity.qualify(receipt, binding))
+
     def test_complete_full_length_six_cell_receipt_qualifies(self):
         receipt, binding = evidence()
         proof = capacity.validate_capacity(receipt, binding)
@@ -223,6 +268,60 @@ class Qualification(unittest.TestCase):
 
 
 class Binding(unittest.TestCase):
+    def test_oracle_and_loaded_baseline_libraries_must_match_the_shared_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'scripts').mkdir()
+            archive = root / 'shared.tar.xz'
+            paths = {}
+            with tarfile.open(archive, 'w:xz') as out:
+                for name in ('libavcodec', 'libavformat', 'libavutil', 'libswresample'):
+                    soname = name + '.so.1'
+                    path = root / soname
+                    path.write_bytes(name.encode())
+                    paths[soname] = path
+                    member = tarfile.TarInfo('synthetic/lib/' + soname + '.2')
+                    member.size = path.stat().st_size
+                    out.addfile(member, io.BytesIO(path.read_bytes()))
+            (root / 'scripts/oracle-ffmpeg.env').write_text(
+                'BUILD=synthetic\nLAV_ARCHIVE=synthetic\nLAV_SHA256=' + capacity.digest(archive) + '\n')
+            tools = {'lav_archive': archive, 'lav': root / 'lav'}
+            system = root / 'libc.so.6'
+            system.write_bytes(b'system dependency')
+            paths[system.name] = system
+            for name in ('ffmpeg', 'ffprobe'):
+                binary = root / name
+                binary.write_text(f'#!{sys.executable}\nprint("{name} version synthetic")\n')
+                binary.chmod(0o700)
+                tools[name] = binary
+            original = subprocess.run
+            def invoke(argv, **kwargs):
+                if argv[0] == 'ldd':
+                    return subprocess.CompletedProcess(argv, 0, stdout=''.join(
+                        f'{name} => {path} (0x1234)\n' for name, path in paths.items()).encode())
+                return original(argv, **kwargs)
+            with patch.object(subprocess, 'run', side_effect=invoke):
+                first = capacity.verify_tools(root, tools)
+                self.assertEqual(first['libraries'], {name: capacity.digest(path) for name, path in paths.items()})
+                system.write_bytes(b'changed system dependency')
+                second = capacity.verify_tools(root, tools)
+                self.assertNotEqual(first['libraries'], second['libraries'])
+                changed = paths['libavcodec.so.1']
+                changed.write_bytes(b'different baseline bytes')
+                with self.assertRaisesRegex(capacity.Invalid, 'baseline_library_pin_mismatch'):
+                    capacity.verify_tools(root, tools)
+                tools['ffmpeg'].write_text(f'#!{sys.executable}\nprint("ffmpeg version unrelated-build")\n')
+                with self.assertRaisesRegex(capacity.Invalid, 'oracle_pin_mismatch'):
+                    capacity.verify_tools(root, tools)
+                tools['ffmpeg'].write_text(f'#!{sys.executable}\nprint("ffmpeg version synthetic")\n')
+                tools['ffprobe'].write_text(f'#!{sys.executable}\nprint("ffprobe version unrelated-build")\n')
+                with self.assertRaisesRegex(capacity.Invalid, 'oracle_pin_mismatch'):
+                    capacity.verify_tools(root, tools)
+                tools['ffprobe'].write_text(f'#!{sys.executable}\nprint("ffprobe version synthetic")\n')
+                archive.write_bytes(b'changed archive')
+                with self.assertRaisesRegex(capacity.Invalid, 'baseline_archive_pin_mismatch'):
+                    capacity.verify_tools(root, tools)
+
     def test_inputs_tools_and_judging_are_bound_to_bytes_not_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -242,7 +341,9 @@ class Binding(unittest.TestCase):
                 path = root / ('PRIVATE-MARKER-' + role)
                 path.write_bytes(b'executable')
                 tools[role] = str(path)
-            with patch.object(capacity.importlib.metadata, 'version', return_value='2.5.4'):
+            tools['lav_archive'] = tools['lav']
+            with patch.object(capacity.importlib.metadata, 'version', return_value='2.5.4'), \
+                    patch.object(capacity, 'verify_tools', return_value=fixture['oracle']):
                 first = capacity.make_binding(root, inputs, media, tools, fixture['limits'])
                 pathlib.Path(tools['lav']).write_bytes(b'changed executable')
                 second = capacity.make_binding(root, inputs, media, tools, fixture['limits'])
@@ -287,6 +388,7 @@ class Registration(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('source')
         binding['judging'] = capacity.judging(root)
+        binding['oracle']['pin_sha256'] = binding['judging']['scripts/oracle-ffmpeg.env']
         receipt['binding'] = copy.deepcopy(binding)
         directory = root / 'evidence'
         directory.mkdir()

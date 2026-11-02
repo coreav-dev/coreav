@@ -25,7 +25,8 @@ OPERATIONS = frozenset({
 TOOLS = frozenset({'harness', 'coreav', 'base_coreav', 'head_coreav', 'ffmpeg', 'ffprobe',
                    'opus_compare', 'lav', 'base_abench', 'head_abench'})
 OUTCOMES = frozenset({'ok', 'disagree', 'exit', 'signal', 'timeout', 'cancelled',
-                     'launch_error', 'io_error', 'protocol_error', 'internal_error', 'output_limit', 'out_of_memory'})
+                     'launch_error', 'io_error', 'protocol_error', 'internal_error', 'output_limit', 'out_of_memory',
+                     'job_deadline'})
 
 
 def receipt(operation, tool, outcome, exit_code=None, signum=None, diagnostics=None):

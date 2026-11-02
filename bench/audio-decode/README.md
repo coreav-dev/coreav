@@ -4,9 +4,9 @@ This tooling checks whether the complete Opus measurement path can finish on lon
 
 ## Inputs and tools
 
-Use Linux on the fixed Intel Xeon Platinum 8581C host class, with SMT disabled. Run one owner at a time. Put temporary outputs on a dedicated tmpfs with more free space than the configured budget, and leave host RAM for the operating system and temporary files. The inherited per-process address-space limit does not prevent system-wide out-of-memory handling.
+Use Linux on the fixed Intel Xeon Platinum 8581C host class, with SMT disabled. Run one owner at a time. Put temporary outputs at the root of a dedicated, empty tmpfs whose total size equals `tmpfs_bytes`, with no nested mounts. The runner checks that kernel-enforced capacity before child execution and records it; free space on a larger filesystem is not a maximum. The filesystem bounds child-written files, streamed captures and intermediate copies together. Leave host RAM for the operating system and temporary files. The inherited per-process address-space limit does not prevent system-wide out-of-memory handling.
 
-Install the pinned numerical dependency in a virtual environment:
+Install the hash-pinned numerical and Markdown parser dependencies in a virtual environment:
 
 ```sh
 python3 -m venv .venv
@@ -15,7 +15,7 @@ python3 -m venv .venv
 
 The input document has `scope: "spent"` and an `inputs` array. Each record contains `file` (relative to the media directory), `sha256` (the complete file hash), `class` (`mp4` or `matroska`), `channels` (one or two), and `packets` (observed Opus TOC counts, such as `{"celt/20": 45000}`). The dominant TOC mode determines its cell. A qualifying roster covers CELT, Hybrid and SILK in both containers; every input must decode at least 43,200,000 raw frames at 48 kHz. Input files stay private.
 
-The tools document maps each role to its executable path: `base_abench`, `head_abench`, `base_coreav`, `head_coreav`, `lav`, `ffmpeg`, `ffprobe` and `opus_compare`. Use the shared pinned FFmpeg oracle. The two `abench` programs and `lav` are the measurement harnesses, not product commands. Their success summaries must provide actual work counters:
+The tools document maps each role to its executable path: `base_abench`, `head_abench`, `base_coreav`, `head_coreav`, `lav`, `ffmpeg`, `ffprobe` and `opus_compare`. It also requires `lav_archive`, the unchanged LGPL shared-library archive named and hashed by `scripts/oracle-ffmpeg.env`. Keep `ffmpeg` and `ffprobe` together under those names; the runner uses `oracle_pin.verify_bin`, the owner of `oracle_pin.py --verify-bin`, to refuse a different build. It checks the baseline's loaded FFmpeg libraries against the checksum-verified archive and binds every library resolved by `ldd`, including system dependencies. No implementation source is opened. The two `abench` programs and `lav` are the measurement harnesses, not product commands. Their success summaries must provide actual work counters:
 
 | Operation | Required output |
 | --- | --- |
@@ -54,7 +54,7 @@ For the full pass, run from the checkout that supplies the judging code:
   --checkpoint checkpoint.json --out capacity.json
 ```
 
-Repeat the same command with `--resume` after an interruption. The runner verifies all input, tool and judging bytes before reuse and around each operation. It needs no old temporary PCM files. A saved `running` operation becomes interrupted and is run again; completed operations are skipped, including terminal failures. A failed binary cannot silently turn into a pass on resume. Keep the failed receipt if a tooling correction requires a fresh binding.
+Repeat the same command with `--resume` after an interruption. The runner verifies all input, tool, loaded-library and judging bytes before reuse and around each operation. It needs no old temporary PCM files. A saved `running` operation becomes interrupted and is run again; completed operations are skipped, including terminal failures. A timeout selected by the per-call budget remains terminal even if handling crosses the job deadline. An invocation shortened by the remaining job budget records `job_deadline` and can resume, as can an interrupted whole job. The executor chooses that classification from the budget before launch, not from the clock after failure. A failed binary cannot silently turn into a pass on resume. Keep the failed receipt if a tooling correction requires a fresh binding.
 
 Local checkpoints and output documents are atomically replaced. For preemptible hosts, optionally add `--r2-prefix PREFIX`; install `boto3` in the environment and supply `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` securely. The runner synchronously uploads each operation transition before continuing. A new host can use `--resume` with no local checkpoint to recover the same binding's remote checkpoint. Keep exact media and executable bytes in durable storage separately, and do not start another owner until the previous host is stopped. A storage failure stops the pass rather than leaving uncheckpointed work running.
 
@@ -65,7 +65,7 @@ The receipt contains its binding manifest. Save that manifest as `binding.json`,
   --receipt capacity.json --binding binding.json
 ```
 
-The validator recomputes qualification; it does not trust `passed`. Only a complete full-length pass can satisfy the future registration line in the design note. A normal oracle disagreement is completed capacity work, not agreement approval. Errors and incomplete counters never qualify.
+The validator recomputes qualification; it does not trust `passed`. Only a complete full-length pass can satisfy the future registration line in the design note. Reference and default decode counts must equal the complete presentation count, or the MP4 model's expected count; the model's full decode is also reconciled with raw frames. A sample-value disagreement is completed capacity work, not agreement approval. Errors, truncated counts and output budgets smaller than the observed simultaneous files never qualify.
 
 ## Oracle failures
 
@@ -89,7 +89,7 @@ The unfiltered required `deny` check installs the hash-pinned dependency, runs t
 
 ## Retained validation evidence
 
-The [full receipt](evidence/capacity.json) completed all 60 operations on six already-spent full-length inputs. Its [binding](evidence/binding.json) has canonical SHA-256 `c3962b386482b448471085b8844e42e0c6f6db2c10f5ec44afb59c08b8b83250`. These are capacity results, not a new speed round or decoder acceptance. No timing values are retained.
+The historical [full receipt](evidence/capacity.json) completed all 60 operations on six already-spent full-length inputs. Its unchanged [binding](evidence/binding.json) has canonical SHA-256 `c3962b386482b448471085b8844e42e0c6f6db2c10f5ec44afb59c08b8b83250`. It predates the enforced filesystem maximum and verified library provenance, so it no longer qualifies and cannot authorize a future registration. Fresh evidence under the corrected judging code is required. These records are not a new speed round or decoder acceptance. No timing values are retained.
 
 | Mode | Container | Raw decoded frames | Packets |
 | --- | --- | ---: | ---: |
@@ -100,13 +100,13 @@ The [full receipt](evidence/capacity.json) completed all 60 operations on six al
 | SILK | MP4 | 64,111,680 | 133,566 |
 | SILK | Matroska | 64,111,680 | 133,566 |
 
-The host was an Intel Xeon Platinum 8581C with SMT off. The bound envelope is one concurrent operation, 8 GiB inherited address space per process, a 4 GiB temporary-output budget on tmpfs, a 900-second per-call deadline and a 3,600-second whole-pass deadline. Python was 3.13 and NumPy was 2.5.4. Both CoreAV arms use the existing fixed executables; the oracle and libavcodec baseline use the shared FFmpeg pin. The full receipt contains the executable and judging-file hashes and all sample and byte counts.
+The host was an Intel Xeon Platinum 8581C with SMT off. The recorded configuration was one concurrent operation, 8 GiB inherited address space per process, a requested 4 GiB temporary-output budget on tmpfs, a 900-second per-call deadline and a 3,600-second whole-pass deadline. Python was 3.13 and NumPy was 2.5.4. Both CoreAV arms used the existing fixed executables. The receipt records the executable and judging-file hashes and all sample and byte counts, but does not prove the filesystem maximum or the baseline library provenance now required.
 
 The [initial pilot](evidence/failed-pilot.json) completed 18 operations but failed both comparator operations under a 3 GiB address-space limit; it remains failed. Its original protocol errors do not establish a cause. A separate [diagnostic receipt](evidence/memory-error.json) reproduces an explicit comparator allocation error under that limit with the current classifier. Increasing the separately bound envelope to 8 GiB let the [second pilot](evidence/pilot.json) finish all 20 operations. Neither pilot can qualify because its purpose is smoke and it covers only two cells. This diagnostic does not identify the causes of the historical speed round's unretained worker errors.
 
-The [resume proof](evidence/resume.json) records an actual signal interruption after one completed operation. The new process recovered from remote storage after losing its local checkpoint and temporary outputs, kept the completed result and finished the remaining work. A second remote-only replay left the completed receipt unchanged. The numerical and schema regressions replay these retained documents in CI.
+The [resume proof](evidence/resume.json) records an actual signal interruption after one completed operation. The new process recovered from remote storage after losing its local checkpoint and temporary outputs, kept the completed result and finished the remaining work. A second remote-only replay left the completed receipt unchanged. Regressions retain their identities and confirm that the historical documents cannot pass current qualification.
 
-Replay the full qualification without media or external executables:
+Confirm that the historical receipt is refused without media or external executables (exit 1 is expected):
 
 ```sh
 .venv/bin/python bench/audio-decode/capacity.py validate \

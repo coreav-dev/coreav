@@ -5,6 +5,8 @@ import json
 import os
 import pathlib
 import struct
+import shutil
+import subprocess
 import sys
 import tempfile
 import types
@@ -68,7 +70,7 @@ class RuntimeTests(unittest.TestCase):
                        'channels': 1, 'packets': {'celt/20': 1}}
         self.binding = {'synthetic': 'bound-by-parent'}
         self.host = {'cpu': 'Intel Xeon Platinum 8581C', 'smt': False, 'outputs_tmpfs': True,
-                     'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096}
+                     'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096, 'tmpfs_capacity_bytes': 4096}
         self.limits = {'memory_bytes': 1 << 30, 'tmpfs_bytes': 4096, 'per_call_seconds': 5,
                        'job_seconds': 30, 'concurrency': 1}
         self.store = runner.Store(self.root / 'checkpoint.json', self.root / 'out.json', self.binding)
@@ -162,6 +164,20 @@ class RuntimeTests(unittest.TestCase):
         self.run_pass(resume=True)
         self.assertEqual(self.calls, [])
 
+    def test_job_deadline_interruption_retries_but_call_timeout_stays_terminal(self):
+        for outcome, status in (('job_deadline', 'interrupted'), ('timeout', 'failed')):
+            with self.subTest(outcome=outcome):
+                self.calls.clear()
+                def execute(operation, record):
+                    if operation == 'oracle':
+                        return oracle.failure(receipts.receipt('oracle.compare', 'opus_compare', outcome))
+                    return self.execute(operation, record)
+                value = self.run_pass(execute)
+                self.assertEqual(value['inputs'][0]['operations']['oracle']['status'], status)
+                self.calls.clear()
+                self.run_pass(resume=True)
+                self.assertEqual('oracle' in self.calls, outcome == 'job_deadline')
+
     def test_bad_counts_and_missing_results_fail_without_suppressing_other_engines(self):
         for operation, replacement in (('head_dec', {'samples': 1}), ('lav_dec', {'samples': 960, 'packets': 2, 'errors': 0}),
                                        ('base_lib', {'samples': 960, 'bytes': 1}), ('head_lib', None)):
@@ -233,6 +249,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(all(slot['status'] == 'pending' for slot in value['inputs'][0]['operations'].values()))
 
     def test_six_long_synthetic_cells_qualify_but_smoke_and_short_work_do_not(self):
+        self.limits['tmpfs_bytes'] = 4 << 30
+        self.host.update(tmpfs_budget_bytes=4 << 30, tmpfs_capacity_bytes=4 << 30)
         records = []
         for index, (mode, container) in enumerate((mode, cls) for mode in ('celt', 'hybrid', 'silk')
                                                  for cls in ('mp4', 'matroska')):
@@ -241,6 +259,9 @@ class RuntimeTests(unittest.TestCase):
         binding = {'schema': 'opus-capacity-binding/1', 'scope': 'spent',
                    'inputs': [{key: value for key, value in row.items() if key != 'file'} for row in records],
                    'tools': {role: 'b' * 64 for role in capacity.TOOLS},
+                   'oracle': {'pin_sha256': 'c' * 64, 'lav_archive_sha256': capacity.oracle_pin.load()['LAV_SHA256'],
+                              'libraries': {name + '.so.1': 'e' * 64 for name in
+                                            ('libavcodec', 'libavformat', 'libavutil', 'libswresample')}},
                    'judging': {name: 'c' * 64 for name in capacity.JUDGING_INPUTS},
                    'runtime': {'python': '3.12', 'numpy': '2.0.0'}, 'operations': list(capacity.OPERATIONS),
                    'minimum_full_frames': capacity.MIN_FULL_FRAMES, 'limits': self.limits}
@@ -259,6 +280,10 @@ class RuntimeTests(unittest.TestCase):
                     result['output_bytes'] = capacity.MIN_FULL_FRAMES * 2 + 44
                 if operation == 'oracle':
                     result['detail']['samples'] = dict.fromkeys(('ours', 'ref', 'default'), capacity.MIN_FULL_FRAMES)
+                    if row['class'] == 'mp4':
+                        result['detail'].update(applied=True, model=capacity.MIN_FULL_FRAMES,
+                                                full=capacity.MIN_FULL_FRAMES,
+                                                ffmpeg_expected=capacity.MIN_FULL_FRAMES, entries_count=0)
                 slot.update(status='complete', result=result)
         value['complete'] = True
         self.assertTrue(capacity.qualify(value, binding))
@@ -280,7 +305,7 @@ class BoundaryTests(unittest.TestCase):
         def text(path, *args, **kwargs):
             if str(path) == '/proc/self/mountinfo':
                 device = self.root.stat().st_dev
-                return f'1 0 {os.major(device)}:{os.minor(device)} / / rw - {filesystem} none rw\n'
+                return f'1 0 {os.major(device)}:{os.minor(device)} / {self.root.resolve()} rw - {filesystem} none rw\n'
             if str(path) == '/proc/meminfo':
                 return f'MemAvailable: {memory_kib} kB\n'
             if str(path) == '/proc/cpuinfo':
@@ -288,6 +313,7 @@ class BoundaryTests(unittest.TestCase):
             return siblings
         sibling = self.root / 'thread_siblings_list'
         with patch.object(pathlib.Path, 'read_text', text), patch.object(pathlib.Path, 'glob', return_value=[sibling]), \
+                patch.object(os, 'statvfs', return_value=types.SimpleNamespace(f_blocks=1, f_frsize=4096, f_bavail=1)), \
                 patch.object(runner.resource, 'setrlimit') as limit, patch.dict(os.environ):
             host = runner.host_setup(self.root, self.limits)
             limit.assert_called_once_with(runner.resource.RLIMIT_AS, (1 << 30, 1 << 30))
@@ -298,7 +324,7 @@ class BoundaryTests(unittest.TestCase):
     def test_host_enforces_inherited_address_space_and_verified_tmpfs(self):
         host = self.host()
         self.assertEqual(host, {'cpu': 'Intel Xeon Platinum 8581C', 'smt': False, 'outputs_tmpfs': True,
-                                'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096})
+                                'memory_as_bytes': 1 << 30, 'tmpfs_budget_bytes': 4096, 'tmpfs_capacity_bytes': 4096})
 
     def test_wrong_filesystem_memory_shortage_and_smt_are_closed_failures(self):
         for kwargs in ({'filesystem': 'ext4'}, {'memory_kib': 1}, {'siblings': '0,1'}):
@@ -309,6 +335,51 @@ class BoundaryTests(unittest.TestCase):
         with self.assertRaises(capacity.Invalid) as caught:
             self.host(cpu='unknown')
         self.assertEqual(caught.exception.code, 'cpu_mismatch')
+
+    def test_free_space_on_a_larger_tmpfs_does_not_establish_the_output_limit(self):
+        work = self.root.resolve()
+        device = work.stat().st_dev
+        mount = f'1 0 {os.major(device)}:{os.minor(device)} / {work} rw - tmpfs none rw\n'
+        stat = types.SimpleNamespace(f_blocks=2, f_frsize=4096, f_bavail=2)
+        with patch.object(pathlib.Path, 'read_text', return_value=mount), patch.object(os, 'statvfs', return_value=stat):
+            with self.assertRaisesRegex(capacity.Invalid, 'tmpfs_capacity_mismatch'):
+                runner.bounded_tmpfs(work, self.limits)
+        mount += f'2 1 1:2 / {work}/escape rw - ext4 none rw\n'
+        with patch.object(pathlib.Path, 'read_text', return_value=mount):
+            with self.assertRaisesRegex(capacity.Invalid, 'nested_output_mount'):
+                runner.bounded_tmpfs(work, self.limits)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'The output bound is enforced by Linux tmpfs')
+    def test_kernel_bound_covers_child_written_files_and_streamed_captures(self):
+        mount = self.root / 'bounded'
+        mount.mkdir()
+        prefix = [] if os.geteuid() == 0 else [shutil.which('sudo') or 'sudo', '-n']
+        subprocess.run([*prefix, 'mount', '-t', 'tmpfs', '-o', 'size=4096,mode=0777', 'tmpfs', str(mount)],
+                       check=True, capture_output=True)
+        try:
+            self.assertEqual(runner.bounded_tmpfs(mount, self.limits), 4096)
+            script = self.root / 'writer'
+            script.write_text(f'#!{sys.executable}\nimport sys,wave\n'
+                              'with wave.open(sys.argv[-1], "wb") as out:\n'
+                              ' out.setnchannels(1); out.setsampwidth(2); out.setframerate(48000)\n'
+                              ' out.writeframes(bytes(2048))\n')
+            script.chmod(0o700)
+            tools = dict.fromkeys(capacity.TOOLS, script)
+            limits = dict(self.limits, per_call_seconds=5)
+            execute = runner.Executor(HERE.parents[1], self.root, mount, tools, limits, float('inf'))
+            record = {'file': 'synthetic.mp4', 'channels': 1}
+            with patch.object(execute, 'selected_stream', return_value=0):
+                with self.assertRaises(receipts.CommandFailure):
+                    execute('cli_identity', record)
+            self.assertEqual(list(mount.iterdir()), [])
+            capture = mount / 'capture'
+            with self.assertRaises(receipts.CommandFailure):
+                execute.invoke('capacity.ffmpeg', 'ffmpeg',
+                               [sys.executable, '-c', 'import sys; sys.stdout.buffer.write(bytes(16384))'],
+                               stdout_path=capture)
+            self.assertLessEqual(capture.stat().st_size, 4096)
+        finally:
+            subprocess.run([*prefix, 'umount', str(mount)], check=True, capture_output=True)
 
     def test_cli_cannot_bind_a_different_tree_than_the_running_judge(self):
         args = []
@@ -370,6 +441,9 @@ class OutputTests(unittest.TestCase):
         self.record = {'file': 'synthetic.mp4', 'sha256': 'a' * 64, 'channels': 1, 'packets': {'celt/20': 1}}
         self.executor = runner.Executor(HERE.parents[1], self.root, self.root, self.tools,
                                         {'per_call_seconds': 5}, float('inf'))
+        bounded = patch.object(runner, 'bounded_tmpfs', return_value=4096)
+        bounded.start()
+        self.addCleanup(bounded.stop)
 
     def test_wave_parser_refuses_missing_empty_and_truncated_outputs(self):
         path = self.root / 'synthetic.wav'
@@ -451,6 +525,16 @@ class OutputTests(unittest.TestCase):
         with patch.object(receipts, 'invoke') as invoke, self.assertRaises(receipts.CommandFailure):
             self.executor.invoke('capacity.lib.head', 'head_abench', ['unused'])
         invoke.assert_not_called()
+
+    def test_timeout_cause_uses_the_invocation_budget_not_the_later_clock(self):
+        for remaining, expected in ((2, 'job_deadline'), (10, 'timeout')):
+            self.executor.deadline = remaining
+            with patch.object(runner.time, 'monotonic', side_effect=[0, 100]), \
+                    patch.object(receipts, 'invoke', side_effect=runner.failure('timeout')) as invoke:
+                with self.assertRaises(receipts.CommandFailure) as caught:
+                    self.executor.invoke('capacity.lib.head', 'head_abench', ['unused'])
+            self.assertEqual(caught.exception.receipt['outcome'], expected)
+            self.assertEqual(invoke.call_args.args[3], min(remaining, 5))
 
 
 if __name__ == '__main__':
