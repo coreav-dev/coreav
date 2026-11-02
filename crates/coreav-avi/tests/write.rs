@@ -112,6 +112,50 @@ fn one_gib_is_refused_using_only_metadata() {
 }
 
 #[test]
+fn empty_video_slots_are_charged_to_the_file_limit_using_only_metadata() {
+    let tracks = [Track::H264 {
+        width: 16,
+        height: 16,
+        scale: 1,
+        rate: 600,
+        config: vec![1, 0, 0, 0, 0, 0, 0],
+    }];
+    let limits = Limits {
+        max_packet_bytes: u32::MAX,
+        ..Default::default()
+    };
+    let small = Packet {
+        duration: 1,
+        ..packet(2)
+    };
+    let overhead = plan(&tracks, &[small], &limits).unwrap().bytes() - 2;
+    let near = Packet {
+        size: u32::try_from(MAX_FILE_BYTES - overhead - 16 - 2).unwrap(),
+        ..small
+    };
+    assert_eq!(
+        plan(&tracks, &[near], &limits).unwrap().bytes(),
+        MAX_FILE_BYTES - 16 - 2
+    );
+    for size in [
+        near.size,
+        u32::try_from(MAX_FILE_BYTES - 4 - 8 - 8).unwrap(),
+    ] {
+        let expanded = Packet {
+            duration: 2,
+            size,
+            ..small
+        };
+        assert!(matches!(
+            plan(&tracks, &[expanded], &limits),
+            Err(coreav_avi::Error::Limit(
+                "AVI output at or above 1 GiB needs unsupported OpenDML"
+            ))
+        ));
+    }
+}
+
+#[test]
 fn invalid_formats_gaps_and_work_budgets_fail_before_writing() {
     let packet = packet(4);
     for track in [
