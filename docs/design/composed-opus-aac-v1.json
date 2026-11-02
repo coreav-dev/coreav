@@ -1,0 +1,68 @@
+{
+  "schema": "coreav-transcode-check-registration/1",
+  "version": "composed-opus-aac-v1",
+  "legacy": {
+    "version": "legacy-b9",
+    "commit": "a662bfa6fc6f913234dfcaa442c6fe7fab348713",
+    "file": "scripts/transcode_check.py",
+    "function": "compare_encoded_audio",
+    "function_sha256": "74a184efebce359283d342d02b7709855a9c86bf363961c959c51aff5b69095b",
+    "unversioned_evidence": "legacy-only"
+  },
+  "scope": {
+    "source_codecs": ["opus"],
+    "output_codec": "aac",
+    "containers": ["mp4", "matroska"],
+    "channels": [1, 2],
+    "sample_rate": 48000,
+    "other_sources": "unchanged-end-to-end-exact",
+    "copied_audio": "unchanged",
+    "resampling": false,
+    "downmixing": false
+  },
+  "decoder": {
+    "policy": "docs/design/audio-decode.md",
+    "section": "Opus bars",
+    "policy_sha256": "efcacb8d77e00ae701a6182e11e071811878f4c0bc53e355162e120f7d51e56f",
+    "vectors": "existing-all-24-range-states-and-quality-above-90",
+    "agreement": "equal-presented-lengths-and-opus-compare-pass-against-libopus",
+    "reference_decoder": "libopus-through-pinned-ffmpeg",
+    "sample_projection": "hard-clipped-nearest-ties-even-s16le",
+    "conversion_owner": "crates/coreav-audio/src/convert.rs",
+    "conversion_sha256": "f5efbbbb7cecc84a7151626482f40a2787f824a929a7d89e16860dbebd5548ee",
+    "alignment_correction": false,
+    "default_ffmpeg_opus_snr": "reported-only"
+  },
+  "encoder": {
+    "program": "shared-pinned-ffmpeg",
+    "pin": "scripts/oracle-ffmpeg.env",
+    "pin_sha256": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+    "input": "exact-successfully-written-interleaved-f32le",
+    "settings": "registered-command-not-captured-argv",
+    "comparison": ["ordered-aac-packets", "codec-configuration", "presented-decoded-f32"],
+    "presentation": "exact-effective-sample-timeline-and-properties-against-normal-source-baseline",
+    "tolerance": 0
+  },
+  "opus_compare": {
+    "url": "https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz",
+    "sha256": "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1",
+    "source": "opus-1.6.1/src/opus_compare.c",
+    "usage": "compiled-black-box-source-never-read"
+  },
+  "capture": {
+    "activation": "explicit-opt-in-off-by-default",
+    "boundary": "successful-parent-side-encoder-stdin-writes",
+    "normal_path": "no-additional-copy-or-allocation",
+    "max_pcm_bytes": 67108864,
+    "max_receipt_bytes": 65536,
+    "publication": "after-writer-encoder-output-and-transcode-success",
+    "bind": ["version", "registration-digest", "call", "input-bytes", "requested-stream", "resolved-stream", "format", "rate", "channels", "channel-order", "accepted-byte-count", "sample-count", "pcm-digest", "encoder-program", "actual-argv", "sandbox", "output-bytes"]
+  },
+  "before_merge": {
+    "inputs": "trusted-generated-fixtures-only",
+    "judged_or_held_out": false,
+    "commands": "existing-compat-command-roster-plus-explicit-aac-mapped-stream-and-bitrate-cases",
+    "fixtures": ["existing-browser-opus", "nonperiodic-opus-mono-mp4", "nonperiodic-opus-stereo-mp4", "nonperiodic-opus-mono-webm", "nonperiodic-opus-stereo-webm", "distinct-mapped-opus-streams", "flac-44100-control", "flac-48000-control"]
+  },
+  "required_mutations": ["wrong-pcm", "wrong-call-or-stream", "wrong-lag", "dropped-or-duplicated-samples", "swapped-channels", "wrong-rate-or-count", "wrong-encoder-arguments", "interior-timestamp-or-edit-with-preserved-endpoints", "truncated-capture", "missing-writer-completion", "failed-child", "mixed-or-relabeled-version"]
+}
