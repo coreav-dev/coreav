@@ -1,0 +1,24 @@
+[package]
+name = "coreav-backend-apple"
+description = "Checked output readers for CoreAV's Apple encoder adapters"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/coreav-dev/coreav"
+publish = false
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
