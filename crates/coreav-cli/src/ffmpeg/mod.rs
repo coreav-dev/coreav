@@ -172,7 +172,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le: the same PCM samples without a header
+  -f s16le after -i: the same PCM samples without a header
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
+  -ar RATE after -i with raw S16 input: native rate conversion
 Builds with a decoder backend also encode the video with -c:v libx264.
 Prints nothing on success.
 

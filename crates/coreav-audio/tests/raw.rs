@@ -154,7 +154,7 @@ fn rate_conversion_bounds_its_reads_and_writes() {
 }
 
 #[test]
-#[ignore = "needs COREAV_SWR_REPLAY manifest from the synthetic capture"]
+#[ignore = "needs COREAV_SWR_REPLAY from scripts/raw_pcm_check.py; run in audio-conformance"]
 fn replay_the_captured_raw_s16_cases() {
     let manifest = std::fs::read_to_string(std::env::var_os("COREAV_SWR_REPLAY").unwrap()).unwrap();
     let mut count = 0;
@@ -181,5 +181,5 @@ fn replay_the_captured_raw_s16_cases() {
         );
         count += 1;
     }
-    assert_eq!(count, 50);
+    assert_eq!(count, 56);
 }

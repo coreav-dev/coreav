@@ -901,7 +901,7 @@ fn demuxer(name: &str) -> Result<Demuxer, Refusal> {
         _ => Err(not_native(
             "-f",
             Some(name),
-            "coreav ffmpeg reads MP4/MOV, Matroska and WebM",
+            "coreav ffmpeg reads MP4/MOV, Matroska, WebM or explicit s16le with -ar and -ac",
         )),
     }
 }

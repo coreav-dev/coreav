@@ -166,18 +166,34 @@ fn framing_and_output_identity_fail_without_publishing_a_temporary_file() {
             .code(),
         Some(2)
     );
+    assert_eq!(std::fs::read(&input).unwrap(), [0u8; 4]);
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    success(run(&input, &output, &before, &["-y"]));
+    assert_eq!(&std::fs::read(output).unwrap()[44..], [0u8; 4]);
+}
+
+#[test]
+#[cfg(unix)]
+fn raw_output_uses_the_shared_owners_unix_hardlink_protection() {
+    let dir = scratch("hardlink");
+    let input = dir.join("input.pcm");
     let alias = dir.join("alias.pcm");
+    std::fs::write(&input, [0u8; 4]).unwrap();
     std::fs::hard_link(&input, &alias).unwrap();
     assert_eq!(
-        run(&input, &alias, &before, &["-y", "-f", "wav"])
-            .status
-            .code(),
+        run(
+            &input,
+            &alias,
+            &["-f", "s16le", "-ar", "44100", "-ac", "2"],
+            &["-y", "-f", "wav"]
+        )
+        .status
+        .code(),
         Some(2)
     );
     assert_eq!(std::fs::read(&input).unwrap(), [0u8; 4]);
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 3);
-    success(run(&input, &output, &before, &["-y"]));
-    assert_eq!(&std::fs::read(output).unwrap()[44..], [0u8; 4]);
+    assert_eq!(std::fs::read(&alias).unwrap(), [0u8; 4]);
+    assert_eq!(std::fs::read_dir(dir).unwrap().count(), 2);
 }
 
 #[test]
