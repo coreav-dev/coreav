@@ -132,6 +132,26 @@ Each detector uses its named measure and worst-one-second pooling. Blocking take
 
 Calibration requires every registered development clean control and severe positive, with complete finite frame readings and source support. A blocking reading needs at least one grid measure supported on every frame; pumping needs texture support on every frame. If any required clip or reading is missing, nonfinite or unsupported, record failed calibration for that detector with a null threshold and the affected clip identities and reasons. Do not compute a midpoint from the remaining clips, substitute zero or use a fallback measure. The same nonpassing, diagnostic-only disposition applies. Neither the proxy gaps nor the 0.90 bar changes.
 
+### Amendment dated 2026-11-02: pumping calibration scope
+
+This amendment corrects detector applicability before any held-out metric, human-label judgement or vision-model exposure. The preceding all-clean-control rule made pumping calibration fail on textureless references, even though pumping's registered positive source classes are edges and texture. The original rule and its unsupported-control finding remain recorded above. This amendment supersedes only pumping's clean-control applicability, not an observed held-out failure.
+
+Pumping calibration uses all eight development clean controls from edges and texture, with seeds 0 through 3, and all 32 registered severe positives from those same classes. Smooth gradients, dark gradients and fades with a cut are outside pumping's calibration and planted-detector scope. Record those 12 development controls as out of scope, never as passes or zero-valued readings. Compute pumping's clean-control false-positive rate only on its in-scope controls and report the out-of-scope count separately. Every in-scope control and positive must still have complete finite readings and texture support on every frame. An unsupported in-scope case still fails calibration with a null threshold. Do not choose the scope from the measured defect response or fitted separation.
+
+Development-only structural preflight covers all 20 clean controls across all five detectors and every registered severe positive. The table counts controls with structural source support on every frame, out of four controls per class. Banding, flicker and colour have no source-support predicate; their entries establish only that the predicate is inapplicable, not that a metric returned finite values.
+
+| Detector | Smooth gradients | Dark gradients | Moving edges | Moving texture | Fades with a cut | Severe positives with source support |
+| --- | --- | --- | --- | --- | --- | --- |
+| Banding | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 32/32 |
+| Blocking | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 32/32 |
+| Flicker | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 80/80 |
+| Colour shift | 4/4 | 4/4 | 4/4 | 4/4 | 4/4 | 80/80 |
+| Pumping | 0/4, out of scope | 0/4, out of scope | 4/4 | 4/4 | 0/4, out of scope | 32/32 |
+
+The preflight evaluates the generator's shared scalar at native 1920 by 1080 coordinates for every one of the 120 frame indices. Each supported blocking frame has a grid-aligned flat-bond witness, and each supported pumping frame has a source-gradient witness of at least four. Texture absence on the other three classes follows their row-invariant ramp and adjacent-step bound of at most one. Severe positives share those exact references, so their source support is unchanged by injection strength or local/global scope. This is an existence check, not a sampled metric score, support-count measurement or threshold fit. All 256 severe-positive cases are represented without encoding or decoding full-size clips. Twenty complete 32 by 32 development clips remain byte-identical after extracting the shared scalar from the generator.
+
+No other detector has a structural class-scope mismatch, so the other four retain all 20 development clean controls. All other rules, bars, proxy gaps, cluster floors and frozen corpus rosters remain unchanged, including the 0.90 accuracy bar. No fitted threshold or calibration pass follows from this preflight. Held-out media, human labels and vision-model work stay closed until this amendment merges. Missing or unsupported in-scope work still fails closed.
+
 ## Bars and reporting
 
 | Test | Bar or disposition |
