@@ -21,24 +21,29 @@ def digest(path):
     return h.hexdigest()
 
 
-def capture(command, cwd, timeout, record=None):
+def capture(command, cwd, timeout, record=None, stdout_file=None, stderr_file=None):
     command = list(map(str, command))
     path = pathlib.Path(cwd)
     result = None
     timed_out = False
     try:
-        result = subprocess.run(command, cwd=cwd, check=False, capture_output=True, timeout=timeout)
+        result = subprocess.run(command, cwd=cwd, check=False, stdout=stdout_file if stdout_file is not None else subprocess.PIPE,
+                                stderr=subprocess.PIPE, timeout=timeout)
     except subprocess.TimeoutExpired as error:
         result = error
         timed_out = True
         raise
     finally:
         if result is not None:
+            if stderr_file is not None:
+                (path / stderr_file).write_bytes(result.stderr or b'')
             name = record or f'process-{len(list(path.glob("process-*.json"))):03}.json'
-            (path / name).write_text(json.dumps({'argv': command, 'exit_code': getattr(result, 'returncode', None),
-                                                'timed_out': timed_out,
-                                                'stdout': (result.stdout or b'').decode(errors='replace'),
-                                                'stderr': (result.stderr or b'').decode(errors='replace')}, indent=2) + '\n')
+            data = {'argv': command, 'exit_code': getattr(result, 'returncode', None), 'timed_out': timed_out,
+                    'stdout': (result.stdout or b'').decode(errors='replace'),
+                    'stderr': (result.stderr or b'').decode(errors='replace')}
+            if stdout_file is not None:
+                data['stdout_file'] = pathlib.Path(stdout_file.name).name
+            (path / name).write_text(json.dumps(data, indent=2) + '\n')
     if result.returncode:
         sys.stderr.write(result.stderr.decode(errors='replace'))
     result.check_returncode()

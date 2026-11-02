@@ -388,6 +388,44 @@ g1.publish_json(pathlib.Path(sys.argv[2]),json.loads(sys.argv[4]))
                     self.assertEqual(record['stdout'], (output or b'').decode())
                     self.assertEqual(record['stderr'], (stderr or b'').decode())
 
+    def test_anchor_decode_failure_retains_binary_output_and_diagnostics(self):
+        original_run = subprocess.run
+        def fail(command, **kwargs):
+            return original_run([sys.executable, '-c',
+                                 "import os; os.write(1,b'partial pixels'); os.write(2,b'decode failed'); raise SystemExit(7)"], **kwargs)
+        with tempfile.TemporaryDirectory() as temp, patch.object(g1.subprocess, 'run', side_effect=fail):
+            directory = pathlib.Path(temp)
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                g1.decode_anchor(directory/'decoder', directory/'anchor.264', directory)
+            self.assertEqual(raised.exception.returncode, 7)
+            self.assertEqual(raised.exception.stderr, b'decode failed')
+            self.assertEqual((directory/'coreav.yuv').read_bytes(), b'partial pixels')
+            self.assertEqual((directory/'coreav.log').read_bytes(), b'decode failed')
+            record = json.loads((directory/'coreav-process.json').read_text())
+            self.assertEqual(record['exit_code'], 7)
+            self.assertFalse(record['timed_out'])
+            self.assertEqual(record['stdout_file'], 'coreav.yuv')
+
+    def test_anchor_decode_timeout_retains_binary_output_and_diagnostics(self):
+        for stderr in (b'partial diagnostic', None):
+            with self.subTest(stderr=stderr), tempfile.TemporaryDirectory() as temp:
+                directory = pathlib.Path(temp)
+                expired = subprocess.TimeoutExpired(['decoder'], 300, stderr=stderr)
+                def timeout(command, **kwargs):
+                    kwargs['stdout'].write(b'partial pixels')
+                    raise expired
+                with patch.object(g1.subprocess, 'run', side_effect=timeout):
+                    with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                        g1.decode_anchor(directory/'decoder', directory/'anchor.264', directory)
+                self.assertIs(raised.exception, expired)
+                self.assertEqual((directory/'coreav.yuv').read_bytes(), b'partial pixels')
+                self.assertEqual((directory/'coreav.log').read_bytes(), stderr or b'')
+                record = json.loads((directory/'coreav-process.json').read_text())
+                self.assertIsNone(record['exit_code'])
+                self.assertTrue(record['timed_out'])
+                self.assertEqual(record['stderr'], (stderr or b'').decode())
+                self.assertEqual(record['stdout_file'], 'coreav.yuv')
+
     def test_full_range_native_pixel_format_is_not_converted(self):
         info = dict(width=18, height=22, pix_fmt='yuvj420p', color_range='pc')
         self.assertEqual(conformance.native_format(info, 18, 22, True), '+yuvj420p')

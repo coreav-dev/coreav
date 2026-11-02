@@ -323,8 +323,8 @@ def load_cells(manifest, output, freeze, manifest_digest):
 def decode_anchor(decoder, stream, directory):
     independent = directory / 'coreav.yuv'
     with independent.open('wb') as output:
-        process = subprocess.run([str(decoder.resolve()), '--kernels', 'scalar', '--threads', '1', str(stream.resolve())], stdout=output, stderr=subprocess.PIPE, timeout=300, check=True)
-    (directory / 'coreav.log').write_bytes(process.stderr)
+        process = capture([decoder.resolve(), '--kernels', 'scalar', '--threads', '1', stream.resolve()], directory, 300,
+                          record='coreav-process.json', stdout_file=output, stderr_file='coreav.log')
     require(process.stderr, b'', 'CoreAV oracle diagnostics')
     return independent
 
