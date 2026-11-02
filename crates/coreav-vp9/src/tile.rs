@@ -35,6 +35,7 @@ const PARTITION_VERT: u8 = 2;
 const PARTITION_SPLIT: u8 = 3;
 const DC_PRED: u8 = 0;
 const SEG_LVL_ALT_Q: usize = 0;
+const SEG_LVL_REF_FRAME: usize = 2;
 const SEG_LVL_SKIP: usize = 3;
 const DCT_DCT: u8 = 0;
 const ADST_DCT: u8 = 1;
@@ -285,6 +286,7 @@ struct Block {
 pub(crate) struct TileContext<'a> {
     pub(crate) references: &'a [Option<Arc<Picture>>],
     pub(crate) previous: Option<&'a [ModeInfo]>,
+    pub(crate) previous_segments: &'a [u8],
     pub(crate) reference_mode: ReferenceMode,
 }
 
@@ -310,6 +312,8 @@ struct Tiles<'a, P> {
     mi: Vec<ModeInfo>,
     above_partition: Vec<u8>,
     left_partition: [u8; 8],
+    above_seg_pred: Vec<bool>,
+    left_seg_pred: [bool; 8],
     above_nonzero: [Vec<bool>; 3],
     left_nonzero: [[bool; 16]; 3],
     token_cache: Vec<u8>,
@@ -317,7 +321,7 @@ struct Tiles<'a, P> {
     coefs: Vec<i64>,
 }
 
-/// Reads the tiles of an intra frame (`decode_tiles`, clause 6.4) from
+/// Reads the tiles of a frame (`decode_tiles`, clause 6.4) from
 /// `data`, the frame's bytes after its compressed header, with the
 /// probabilities and transform mode of its compressed header. Returns
 /// whether every tile's boolean decoder ended as clause 9.2.3 requires, and
@@ -347,6 +351,8 @@ pub(crate) fn read<P: Sample>(
         mi: vec![ModeInfo::default(); mi_rows as usize * mi_cols as usize],
         above_partition: vec![0; sb_cols * 8],
         left_partition: [0; 8],
+        above_seg_pred: vec![false; mi_cols as usize],
+        left_seg_pred: [false; 8],
         above_nonzero: core::array::from_fn(|_| vec![false; sb_cols * 16]),
         left_nonzero: [[false; 16]; 3],
         token_cache: vec![0; 1024],
@@ -381,6 +387,7 @@ pub(crate) fn read<P: Sample>(
             let mut d = BoolDecoder::new(tile);
             for r in (row_start..row_end).step_by(8) {
                 t.left_partition = [0; 8];
+                t.left_seg_pred = [false; 8];
                 t.left_nonzero = [[false; 16]; 3];
                 for c in (t.col_start..col_end).step_by(8) {
                     t.partition(&mut d, r, c, BLOCK_64X64)?;
@@ -397,6 +404,57 @@ pub(crate) fn read<P: Sample>(
 }
 
 impl<P: Sample> Tiles<'_, P> {
+    fn segment_id(&mut self, d: &mut BoolDecoder<'_>, row: u32, col: u32, size: u8) -> u8 {
+        let seg = &self.h.segmentation;
+        if !seg.enabled {
+            return 0;
+        }
+        if self.h.is_intra() {
+            return if seg.update_map {
+                read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
+            } else {
+                0
+            };
+        }
+        let width = u32::from(get(&NUM_8X8_WIDE, size.into()));
+        let height = u32::from(get(&NUM_8X8_HIGH, size.into()));
+        let mut predicted = 7;
+        for r in row..(row + height).min(self.mi_rows) {
+            for c in col..(col + width).min(self.mi_cols) {
+                predicted = predicted.min(get(
+                    self.context.previous_segments,
+                    r as usize * self.mi_cols as usize + c as usize,
+                ));
+            }
+        }
+        if !seg.update_map {
+            return predicted;
+        }
+        let use_prediction = if seg.temporal_update {
+            let ctx = usize::from(get(&self.above_seg_pred, col as usize))
+                + usize::from(get(&self.left_seg_pred, (row & 7) as usize));
+            let value = d.read(get(&seg.pred_probs, ctx));
+            for c in col..(col + width).min(self.mi_cols) {
+                if let Some(v) = self.above_seg_pred.get_mut(c as usize) {
+                    *v = value;
+                }
+            }
+            for r in row..(row + height).min(self.mi_rows) {
+                if let Some(v) = self.left_seg_pred.get_mut((r & 7) as usize) {
+                    *v = value;
+                }
+            }
+            value
+        } else {
+            false
+        };
+        if use_prediction {
+            predicted
+        } else {
+            read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
+        }
+    }
+
     fn mi_at(&self, row: u32, col: u32) -> ModeInfo {
         get(
             &self.mi,
@@ -479,19 +537,19 @@ impl<P: Sample> Tiles<'_, P> {
         if size >= BLOCK_INVALID {
             return Err(Error::Invalid("a partition of an invalid block size"));
         }
-        if !self.h.is_intra() && self.h.segmentation.enabled {
-            return Err(Error::Unsupported("segmentation in inter frames"));
-        }
         let avail_u = r > 0;
         let avail_l = c > self.col_start;
         let above = avail_u.then(|| self.mi_at(r - 1, c));
         let left = avail_l.then(|| self.mi_at(r, c - 1));
+        let segment_id = self.segment_id(d, r, c, size);
         let seg = &self.h.segmentation;
-        let segment_id = if seg.enabled && seg.update_map {
-            read_tree(d, &SEGMENT_TREE, |node| get(&seg.tree_probs, node))
-        } else {
-            0
-        };
+        let forced_ref = seg
+            .features
+            .get(usize::from(segment_id))
+            .and_then(|f| f.get(SEG_LVL_REF_FRAME))
+            .copied()
+            .flatten()
+            .filter(|_| seg.enabled);
         let skip_active = seg.enabled
             && seg
                 .features
@@ -507,22 +565,26 @@ impl<P: Sample> Tiles<'_, P> {
                 self.counts.skip.get_mut(ctx).unwrap_or(&mut [0; 2]),
             )
         };
-        let is_inter = !self.h.is_intra() && {
-            let ai = above.is_some_and(|m| m.ref_frames[0] <= 0);
-            let li = left.is_some_and(|m| m.ref_frames[0] <= 0);
-            let ctx = if avail_u && avail_l {
-                if ai && li { 3 } else { usize::from(ai || li) }
-            } else if avail_u || avail_l {
-                2 * usize::from(if avail_u { ai } else { li })
-            } else {
-                0
-            };
-            counted_bool(
-                d,
-                get(&self.probs.is_inter, ctx),
-                self.counts.is_inter.get_mut(ctx).unwrap_or(&mut [0; 2]),
-            )
-        };
+        let is_inter = !self.h.is_intra()
+            && forced_ref.map_or_else(
+                || {
+                    let ai = above.is_some_and(|m| m.ref_frames[0] <= 0);
+                    let li = left.is_some_and(|m| m.ref_frames[0] <= 0);
+                    let ctx = if avail_u && avail_l {
+                        if ai && li { 3 } else { usize::from(ai || li) }
+                    } else if avail_u || avail_l {
+                        2 * usize::from(if avail_u { ai } else { li })
+                    } else {
+                        0
+                    };
+                    counted_bool(
+                        d,
+                        get(&self.probs.is_inter, ctx),
+                        self.counts.is_inter.get_mut(ctx).unwrap_or(&mut [0; 2]),
+                    )
+                },
+                |reference| reference != 0,
+            );
         let max_tx = get(&MAX_TX_SIZE, size.into());
         let tx_size = if self.tx_mode == TxMode::Select && size >= BLOCK_8X8 && (!skip || !is_inter)
         {
@@ -674,19 +736,31 @@ impl<P: Sample> Tiles<'_, P> {
         let layout = crate::refs::References::new(self.h.ref_frame_sign_bias);
         let above_refs = above.map(|m| m.ref_frames);
         let left_refs = left.map(|m| m.ref_frames);
-        let compound = match self.context.reference_mode {
-            ReferenceMode::Compound => true,
-            ReferenceMode::Single => false,
-            ReferenceMode::Select => {
-                let ctx = layout.mode_context(above_refs, left_refs);
-                counted_bool(
-                    d,
-                    get(&self.probs.comp_mode, ctx),
-                    self.counts.comp_mode.get_mut(ctx).unwrap_or(&mut [0; 2]),
-                )
-            }
-        };
-        info.ref_frames = if compound {
+        let forced_ref = self
+            .h
+            .segmentation
+            .features
+            .get(usize::from(info.segment_id))
+            .and_then(|f| f.get(SEG_LVL_REF_FRAME))
+            .copied()
+            .flatten()
+            .filter(|_| self.h.segmentation.enabled);
+        let compound = forced_ref.is_none()
+            && match self.context.reference_mode {
+                ReferenceMode::Compound => true,
+                ReferenceMode::Single => false,
+                ReferenceMode::Select => {
+                    let ctx = layout.mode_context(above_refs, left_refs);
+                    counted_bool(
+                        d,
+                        get(&self.probs.comp_mode, ctx),
+                        self.counts.comp_mode.get_mut(ctx).unwrap_or(&mut [0; 2]),
+                    )
+                }
+            };
+        info.ref_frames = if let Some(reference) = forced_ref {
+            [reference as i8, -1]
+        } else if compound {
             let ctx = layout.compound_context(above_refs, left_refs);
             let choice = counted_bool(
                 d,
@@ -734,7 +808,17 @@ impl<P: Sample> Tiles<'_, P> {
             let second = search.candidates(row, col, info.size, info.ref_frames[1], None);
             best[1] = search.best(row, col, info.size, second.vectors);
         }
-        if info.size >= BLOCK_8X8 {
+        let force_zero = self.h.segmentation.enabled
+            && self
+                .h
+                .segmentation
+                .features
+                .get(usize::from(info.segment_id))
+                .and_then(|f| f.get(SEG_LVL_SKIP))
+                .is_some_and(Option::is_some);
+        if force_zero {
+            info.mode = 12;
+        } else if info.size >= BLOCK_8X8 {
             info.mode = 10
                 + counted_tree(
                     d,

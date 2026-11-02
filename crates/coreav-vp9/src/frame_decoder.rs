@@ -23,7 +23,7 @@ struct Previous {
 /// this entry point refuses frames it cannot reconstruct and never advances
 /// its stream state using undecoded pictures or unadapted probabilities.
 /// Today it supports profile 0 with single-reference and compound inter
-/// prediction. Segmentation in inter frames is unsupported.
+/// prediction and segmentation.
 #[derive(Debug)]
 pub struct FrameDecoder {
     limits: Limits,
@@ -32,6 +32,7 @@ pub struct FrameDecoder {
     contexts: Contexts,
     references: [Option<Arc<Picture>>; 8],
     previous: Option<Previous>,
+    segment_ids: Vec<u8>,
 }
 
 impl FrameDecoder {
@@ -44,6 +45,7 @@ impl FrameDecoder {
             contexts: Contexts::default(),
             references: core::array::from_fn(|_| None),
             previous: None,
+            segment_ids: Vec::new(),
         }
     }
 
@@ -86,9 +88,20 @@ impl FrameDecoder {
                     && !h.error_resilient
                     && !h.is_intra()
             });
+            let reset_segments = h.is_intra()
+                || h.error_resilient
+                || self
+                    .previous
+                    .as_ref()
+                    .is_none_or(|p| p.width != h.width || p.height != h.height);
             let context = TileContext {
                 references: &self.references,
                 previous: previous.map(|p| p.modes.as_slice()),
+                previous_segments: if reset_segments {
+                    &[]
+                } else {
+                    &self.segment_ids
+                },
                 reference_mode: compressed.reference_mode,
             };
             let data = bytes
@@ -117,6 +130,11 @@ impl FrameDecoder {
             }
             self.contexts = contexts;
             self.carried = h.carried();
+            if h.segmentation.enabled && h.segmentation.update_map {
+                self.segment_ids = tiles.modes.iter().map(|m| m.segment_id).collect();
+            } else if reset_segments {
+                self.segment_ids.clear();
+            }
             self.previous = Some(Previous {
                 width: h.width,
                 height: h.height,

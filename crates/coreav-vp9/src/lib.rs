@@ -17,7 +17,7 @@
 //! applies the loop filter, so each intra frame comes with its [`Picture`].
 //! [`FrameDecoder`] separately reconstructs profile 0 single-reference and compound
 //! inter frames with reference pictures and backward probability adaptation.
-//! Segmentation in inter frames remains unsupported.
+//! Inter frames also support segmentation and retained segment maps.
 //!
 //! ```
 //! use coreav_vp9::{Decoder, Header, Limits};

@@ -422,6 +422,22 @@ fn compound_frames_scaling_tiles_and_shown_references_match_the_published_md5s()
     );
 }
 
+#[test]
+#[ignore = "needs the test vectors in COREAV_VP9_VECTORS"]
+fn segmented_inter_frames_match_the_published_md5s() {
+    let names = [
+        "vp90-2-03-deltaq.webm",
+        "vp90-2-09-aq2.webm",
+        "vp90-2-15-segkey.webm",
+        "vp90-2-15-segkey_adpq.webm",
+        "vp90-2-19-skip-01.webm",
+        "vp90-2-19-skip-02.webm",
+        "vp90-2-19-skip.webm",
+    ];
+    let shown = check_pixel_md5s(&vectors_dir(), names.map(str::to_owned));
+    assert_eq!(shown, 385);
+}
+
 fn check_pixel_md5s(dir: &Path, names: impl IntoIterator<Item = String>) -> usize {
     let mut total = 0;
     for name in names {
