@@ -59,7 +59,7 @@ def probe(program, path):
     [stream] = report["streams"]
     return {"stream": {key: stream.get(key) for key in FIELDS},
             "tags": {key.lower(): value for key, value in report["format"].get("tags", {}).items()
-                     if key.lower() != "encoder"}}
+                     if key.lower() not in {"encoder", "major_brand", "minor_version", "compatible_brands"}}}
 
 
 def make_source(ffmpeg, root, bits, channels, rate, samples, label, container="mka"):

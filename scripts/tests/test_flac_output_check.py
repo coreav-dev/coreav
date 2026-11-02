@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -14,6 +15,16 @@ spec.loader.exec_module(check)
 
 
 class FlacCorrectness(unittest.TestCase):
+    def test_probe_omits_container_identity_but_retains_user_metadata(self):
+        report = {"streams": [{"codec_name": "flac", "channel_layout": "5.0"}],
+                  "format": {"tags": {"ENCODER": "vendor", "major_brand": "isom",
+                                      "MINOR_VERSION": "512", "compatible_brands": "isomiso2mp41",
+                                      "title": "keep", "comment": "also keep"}}}
+        with patch.object(check, "run", return_value=json.dumps(report).encode()):
+            result = check.probe("ffprobe", "input.mp4")
+        self.assertEqual(result["tags"], {"title": "keep", "comment": "also keep"})
+        self.assertEqual(result["stream"]["channel_layout"], "5.0")
+
     def test_tiny_reference_rule_excludes_empty_and_normal_outputs(self):
         for count in range(1, 16):
             self.assertEqual(check.tiny_reference_options(count), ["-frame_size", "4096"])
