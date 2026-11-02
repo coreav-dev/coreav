@@ -5,12 +5,14 @@ import struct
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import composed_audio as composed
 import composed_audio_fixtures as fixtures
 import transcode_check as checker
+import composed_audio_source as source_model
 
 
 class ComparatorDownload(unittest.TestCase):
@@ -54,7 +56,7 @@ def edits_blob(entries, version=0):
         struct.pack(fmt, *entry) for entry in entries)
 
 
-def movie(entries, track_id=7, elst=None, extra_tables=b'', duplicate_track=False):
+def movie(entries, track_id=7, elst=None, extra_tables=b'', duplicate_track=False, opus=False):
     mvhd, tkhd, mdhd, hdlr, audio = (bytearray(n) for n in (100, 84, 24, 24, 28))
     struct.pack_into('>I', mvhd, 12, 1000)
     struct.pack_into('>I', tkhd, 12, track_id)
@@ -62,7 +64,9 @@ def movie(entries, track_id=7, elst=None, extra_tables=b'', duplicate_track=Fals
     hdlr[8:12] = b'soun'
     struct.pack_into('>H', audio, 16, 1)
     struct.pack_into('>I', audio, 24, 48000 << 16)
-    stsd = box(b'stsd', b'\0' * 7 + b'\1' + box(b'mp4a', audio + box(b'esds', b'\0' * 4)))
+    configuration = (box(b'dOps', struct.pack('>BBHIhB', 0, 1, 312, 48000, 0, 0)) if opus else
+                     box(b'esds', b'\0' * 4))
+    stsd = box(b'stsd', b'\0' * 7 + b'\1' + box(b'Opus' if opus else b'mp4a', audio + configuration))
     tables = b''.join(box(kind, b'\0' * 8) for kind in (b'stts', b'stsc', b'stsz', b'stco'))
     media = box(b'mdhd', mdhd) + box(b'hdlr', hdlr) + box(b'minf', box(b'stbl', stsd + tables + extra_tables))
     track = box(b'trak', box(b'tkhd', tkhd) + box(b'mdia', media) +
@@ -188,6 +192,11 @@ class EditReader(unittest.TestCase):
 
 
 class Registration(unittest.TestCase):
+    def test_the_inherited_audio_policy_checker_keeps_its_registered_bytes(self):
+        root = Path(__file__).resolve().parents[2]
+        self.assertEqual(composed.sha256_file(root / 'scripts/oracle_audio.py'),
+                         composed.registration()[0]['legacy']['audio_input_policy_sha256'])
+
     def test_policy_matches_the_first_registration(self):
         self.assertEqual(composed.check_policy()['version'], composed.VERSION)
 
@@ -285,6 +294,13 @@ class Receipt(unittest.TestCase):
 
 
 class Projection(unittest.TestCase):
+    def test_the_mono_comparator_reference_is_two_identical_channels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, target = Path(directory) / 'source', Path(directory) / 'target'
+            source.write_bytes(struct.pack('<ff', 0.25, -0.25))
+            composed.project_s16(source, target, 2, 1, stereo_reference=True)
+            self.assertEqual(struct.unpack('<4h', target.read_bytes()), (8192, 8192, -8192, -8192))
+
     def test_clipping_and_halfway_values_follow_the_registered_projection(self):
         with tempfile.TemporaryDirectory() as directory:
             source, target = Path(directory) / 'source', Path(directory) / 'target'
@@ -327,6 +343,57 @@ class Mapping(unittest.TestCase):
             self.assertEqual(hashes['channels'], 1)
             self.assertIn('-ignore_editlist', command.call_args.args[0])
             read.assert_called_once_with('file', 7)
+
+
+class SourcePresentation(unittest.TestCase):
+    def setUp(self):
+        self.edits = composed.Edits(7, 48000, 48000, ((960, 312, 1, 0),), ((8, 8200),), 1, 312)
+        self.packets = [{'pts': 0, 'dts': 0, 'duration': 960, 'pos': 8, 'size': 16},
+                        {'pts': 960, 'dts': 960, 'duration': 312, 'pos': 24, 'size': 16}]
+
+    def test_source_window_uses_declared_edits_and_packet_work_not_candidate_length(self):
+        self.assertEqual(source_model.source_window(self.edits, self.packets, lambda *_: b'\x98\0'),
+                         (0, 960, 0, 1608))
+        with self.assertRaises(composed.Invalid):
+            source_model.source_window(dataclasses.replace(self.edits, entries=((2000, 312, 1, 0),)),
+                                       self.packets, lambda *_: b'\x98\0')
+
+    def test_packet_clock_payload_bounds_and_codec_work_are_required(self):
+        for key, value in [('pts', 959), ('dts', 959), ('duration', 0), ('pos', 8200)]:
+            packets = json.loads(json.dumps(self.packets))
+            packets[1][key] = value
+            with self.assertRaises(composed.Invalid):
+                source_model.source_window(self.edits, packets, lambda *_: b'\x98\0')
+        for header in (b'', b'\x9b', b'\x9b\0', b'\x9b\x3f'):
+            with self.assertRaises(composed.Invalid):
+                source_model.packet_samples(header)
+
+    def test_full_decode_must_match_source_work_before_applying_source_edits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / 'source.mp4'
+            data = bytearray(movie(((20, 312, 1, 0),), opus=True))
+            data[8] = data[24] = 0x98
+            path.write_bytes(data)
+            document = {'streams': [{'index': 0, 'id': '0x7', 'codec_name': 'opus',
+                         'channels': 1, 'sample_rate': '48000', 'time_base': '1/48000'}], 'packets': self.packets}
+            args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe')
+            for count in (1607, 1608, 1609):
+                def run(command, env, **kwargs):
+                    if command[0] == 'ffprobe':
+                        return json.dumps(document).encode(), b''
+                    self.assertIn('-ignore_editlist', command)
+                    self.assertEqual(kwargs['limit'], 1608 * 4)
+                    kwargs['output'].write(struct.pack('<' + 'f' * count, *range(count)))
+                    return b'', b''
+                with mock.patch.object(composed, 'bounded', side_effect=run):
+                    if count != 1608:
+                        with self.assertRaises(composed.Invalid):
+                            source_model.source_reference(args, root, path, 0, 1, {})
+                    else:
+                        target = source_model.source_reference(args, root, path, 0, 1, {})
+                        self.assertEqual(target.read_bytes(), struct.pack('<' + 'f' * 960, *range(960)))
+                        target.unlink()
 
 
 class BoundedCommands(unittest.TestCase):

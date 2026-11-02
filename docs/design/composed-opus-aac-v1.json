@@ -7,6 +7,7 @@
     "file": "scripts/transcode_check.py",
     "function": "compare_encoded_audio",
     "function_sha256": "74a184efebce359283d342d02b7709855a9c86bf363961c959c51aff5b69095b",
+    "audio_input_policy_sha256": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
     "unversioned_evidence": "legacy-only"
   },
   "scope": {
@@ -27,6 +28,7 @@
     "vectors": "existing-all-24-range-states-and-quality-above-90",
     "agreement": "equal-presented-lengths-and-opus-compare-pass-against-libopus",
     "reference_decoder": "libopus-through-pinned-ffmpeg",
+    "reference_owner": "scripts/composed_audio_source.py",
     "sample_projection": "hard-clipped-nearest-ties-even-s16le",
     "conversion_owner": "crates/coreav-audio/src/convert.rs",
     "conversion_sha256": "f5efbbbb7cecc84a7151626482f40a2787f824a929a7d89e16860dbebd5548ee",

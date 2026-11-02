@@ -1141,6 +1141,9 @@ def display_matrix(args, path, index):
 def validate_info(info, identity, manifest=False):
     composed_audio.require_version(info, identity)
     if identity is None:
+        if 'judging_sha256' in info or 'compat_check' in info or \
+                info.get('commands' if manifest else 'compat') == COMPOSED_COMMANDS:
+            raise composed_audio.Invalid('current evidence cannot be relabeled as legacy')
         return
     if info.get('judging_sha256') != composed_audio.method_identity():
         raise composed_audio.Invalid('evidence was acquired with different judging source bytes')
@@ -1160,10 +1163,18 @@ def validate_info(info, identity, manifest=False):
                 raise composed_audio.Invalid('current evidence has incomplete program identities')
 
 
-def validate_result(result, identity):
+def validate_result(result, identity, config=None, key=None):
     composed_audio.require_version(result, identity)
     if identity is None:
+        nested = [result, result.get('baseline', {}), *result.get('arms', {}).values()]
+        nested += [item for arm in result.get('arms', {}).values()
+                   for item in (arm.get('B3') or {}).get('encoded_streams', [])]
+        if any('compat_check' in item or 'judging_sha256' in item for item in nested):
+            raise composed_audio.Invalid('current result cannot be relabeled as legacy')
         return
+    if config is not None and (config not in COMPOSED_COMMANDS or result.get('config') != config or
+                              result.get('file') != key or result.get('command') != COMPOSED_COMMANDS[config]):
+        raise composed_audio.Invalid('current result differs from its requested configuration, file or command')
     if result.get('judging_sha256') != composed_audio.method_identity():
         raise composed_audio.Invalid('result was acquired with different judging source bytes')
     if not isinstance(result.get('complete'), bool):
@@ -1256,7 +1267,7 @@ def export_evidence(args, out, run_info):
             if p.parent.parent.name != 'results':
                 continue
             r = json.loads(p.read_text())
-            validate_result(r, identity)
+            validate_result(r, identity, p.parent.name, p.name[:-5])
             if identity is not None and fixture_hashes.get(r.get('file')) != r.get('source_sha256'):
                 raise composed_audio.Invalid('export input bytes differ from the recorded input')
             for arm, a in [('baseline', r.get('baseline', {}))] + list(r.get('arms', {}).items()):
@@ -1486,8 +1497,8 @@ def process(args, item):
     for config in item['configs']:
         saved = result_path(args.out, config, item['key'])
         if saved.exists():
-            recorded = composed_audio.json_document(saved.read_bytes())
-            validate_result(recorded, identity)
+            recorded = json.loads(saved.read_bytes(), object_pairs_hook=composed_audio.unique_pairs)
+            validate_result(recorded, identity, config, item['key'])
             if identity is not None and 'path' in item and recorded.get('source_sha256') != sha256_file(item['path']):
                 raise composed_audio.Invalid('resume input bytes differ from the recorded input')
     todo = [c for c in item['configs'] if not _complete(result_path(args.out, c, item['key']))]
@@ -1574,9 +1585,9 @@ def summarize(out, fixtures, expected, arms, compat=False):
     for config, files in expected.items():
         for key, cls in files.items():
             f = result_path(out, config, key)
-            r = json.loads(f.read_text()) if f.exists() else {}
+            r = json.loads(f.read_text(), object_pairs_hook=composed_audio.unique_pairs) if f.exists() else {}
             if r:
-                validate_result(r, identity)
+                validate_result(r, identity, config, key)
             if not r.get('complete'):
                 missing[config][cls] += 1
                 missing[config]['all'] += 1
@@ -1949,8 +1960,8 @@ def merge(args):
                     infos[k] = info
                     continue
                 path = out.joinpath(*parts)
-                record = composed_audio.json_document(data)
-                validate_result(record, identity)
+                record = json.loads(data, object_pairs_hook=composed_audio.unique_pairs)
+                validate_result(record, identity, parts[1], parts[2][:-5])
                 if identity is not None:
                     if manifests[-1].get('fixtures', {}).get(record.get('file')) != record.get('source_sha256') or \
                             parts[1] != record.get('config') or parts[2] != str(record.get('file')) + '.json':

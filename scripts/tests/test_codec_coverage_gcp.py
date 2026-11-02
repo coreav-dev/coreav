@@ -324,7 +324,8 @@ class Trigger(unittest.TestCase):
             'scripts/gen-fixtures-ts.sh', 'tools/compat-corpus/tests/test_decode_breadth.py',
             'tools/compat-corpus/tests/test_decode_breadth_fixtures.py',
             'tools/compat-corpus/tests/test_encode_breadth.py', 'tools/decode-oracle/src/stream.rs',
-            'crates/coreav-cli/tests/ffmpeg.rs', '.github/workflows/codec-coverage.yml'}
+            'crates/coreav-cli/tests/ffmpeg.rs', '.github/workflows/codec-coverage.yml',
+            'docs/design/composed-opus-aac-v1.json'}
         patterns = self.patterns()
         for rel in sorted(wanted):
             self.assertTrue((ROOT / rel).exists(), rel)

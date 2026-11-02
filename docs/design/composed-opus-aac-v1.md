@@ -18,6 +18,8 @@ For the captured transcode PCM, apply that note's real-input agreement rule. Com
 
 Compare presented samples without shifting, dropping, padding, realigning or trimming to the shorter stream. Default FFmpeg Opus SNR may be reported, but does not decide conformance. The test fixtures must contain nonperiodic, asymmetric material so lag and channel mistakes are observable.
 
+The inherited MP4 reference is the source-declared presentation model: acquire the complete libopus decode with edits ignored, establish its length from the selected source's packet headers and `dOps` pre-skip, then apply only that source's independently read edit window. The registered runtime owner is `scripts/composed_audio_source.py`; it also owns native encoder command expectations without changing the frozen audio-input policy checker. No candidate length chooses the reference window. Missing media or an unsupported source edit fails, and the ordinary source-to-AAC baseline remains a separate exact properties and presentation obligation.
+
 ## Capture the PCM actually delivered
 
 Use an optional parent-side capture hook at the encoder stdin writer. Capture only the bytes each successful stdin write accepted, including partial-write handling. A decoder output or enqueue-only tap does not prove delivery. Do not replace the encoder with a regular-file tee, relax its sandbox, or add a decoder environment variable.

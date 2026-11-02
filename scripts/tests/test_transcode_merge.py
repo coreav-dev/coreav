@@ -2,6 +2,7 @@
 import io
 import hashlib
 import json
+import math
 import pathlib
 import subprocess
 import sys
@@ -126,6 +127,7 @@ class ComposedMerge(unittest.TestCase):
         def upgrade(document):
             document.update(self.marker)
             if 'config' in document:
+                document['command'] = checker.COMPOSED_COMMANDS[document['config']]
                 document['source_sha256'] = fixtures[document['file']]
                 document['composed_outputs'] = []
                 for arm in [document['baseline'], *document['arms'].values()]:
@@ -176,6 +178,48 @@ class ComposedMerge(unittest.TestCase):
         self.assertEqual({key: report[key] for key in self.marker}, self.marker)
         self.assertEqual(report['missing'], {})
 
+    def test_lossless_psnr_infinity_survives_resume_export_and_merge_in_both_versions(self):
+        for version in ('legacy-b9', composed.VERSION):
+            with self.subTest(version=version):
+                tmp, whole, shards = (self.runs() if version == composed.VERSION else
+                                     Merge.runs(self, lambda c, k: 'refused'))
+
+                def lossless(name, record):
+                    if name.startswith('results/'):
+                        record['baseline']['Q1'] = {'ok': True, 'average': math.inf}
+                        for arm in record['arms'].values():
+                            arm.update(status='ok', exit=0, reason=None, B1={'ok': True}, B2={'ok': True},
+                                       Q1={'ok': True, 'delta': 0}, Q2={'ok': True, 'average': math.inf},
+                                       size_ratio=1.0)
+                    return record
+
+                for path in whole.glob('results/*/*.json'):
+                    path.write_text(json.dumps(lossless(str(path.relative_to(whole)), json.loads(path.read_text()))))
+                for shard in map(pathlib.Path, shards):
+                    self.rewrite_archive(shard, lossless)
+                    path = shard / 'calls.jsonl'
+                    rows = [json.loads(line) | {'status': 'ok', 'exit': 0} for line in path.read_text().splitlines()]
+                    path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+                args = SimpleNamespace(out=str(whole), compat_check=version)
+                checker.process(args, {'key': 'a.mp4', 'configs': ['x01']})
+                options = ('--compat-check', version)
+                status, text = check('--summarize', '--out', str(whole), *options)
+                self.assertEqual(status, 0, text)
+                merged = tmp / 'merged'
+                merged_status, merged_text = check('--merge', *shards, '--out', str(merged), *options)
+                self.assertEqual((merged_status, merged_text), (status, text))
+                fixture_dir = tmp / 'fixtures'
+                fixture_dir.mkdir()
+                for name in FILES:
+                    (fixture_dir / name).write_bytes(name.encode())
+                args.fixtures, args.tmp = str(fixture_dir), str(tmp)
+                args.coreav, args.ffmpeg, args.ffprobe = '/missing/coreav', '/missing/ffmpeg', '/missing/ffprobe'
+                args.arms, args.compat = [('x264', []), ('ffmpeg', [])], True
+                info = json.loads((whole / 'run.json').read_text()) | {'ffmpeg_version': ['fixture']}
+                checker.export_evidence(args, whole, info)
+                exported = [json.loads(line) for line in (whole / 'evidence/calls.jsonl').read_text().splitlines()]
+                self.assertTrue(any(row['Q2_db'] == math.inf for row in exported))
+
     def test_historical_evidence_cannot_be_selected_as_current_or_current_as_historical(self):
         tmp, whole, shards = Merge.runs(self, lambda c, k: 'refused')
         for mode in [('--summarize', '--out', str(whole)), ('--merge', *shards, '--out', str(tmp / 'merged'))]:
@@ -187,6 +231,52 @@ class ComposedMerge(unittest.TestCase):
             status, text = check(*mode)
             self.assertNotEqual(status, 0)
             self.assertIn('missing, mixed or relabeled', text)
+
+    def test_cached_records_cannot_change_configuration_file_or_command(self):
+        for mutation in ('configuration', 'file', 'command'):
+            with self.subTest(mutation=mutation):
+                tmp, whole, _ = self.runs()
+                original = json.loads((whole / 'results/x01/a.mp4.json').read_text())
+                original.update(config='x14', command=checker.COMPOSED_COMMANDS['x14'])
+                if mutation == 'configuration':
+                    original.update(config='x13', command=checker.COMPOSED_COMMANDS['x13'])
+                elif mutation == 'file':
+                    original['file'] = 'b.mp4'
+                else:
+                    original['command'] = checker.COMPOSED_COMMANDS['x13']
+                path = whole / 'results/x14/a.mp4.json'
+                path.parent.mkdir()
+                path.write_text(json.dumps(original))
+                expected = {'x14': {'a.mp4': 'h264'}}
+                args = SimpleNamespace(out=str(whole), compat_check=composed.VERSION)
+                with self.assertRaisesRegex(composed.Invalid, 'requested configuration, file or command'):
+                    checker.process(args, {'key': 'a.mp4', 'configs': ['x14']})
+                with self.assertRaisesRegex(composed.Invalid, 'requested configuration, file or command'):
+                    checker.summarize(whole, True, expected, ['x264', 'ffmpeg'], True)
+                fixture_dir = tmp / 'fixtures'
+                fixture_dir.mkdir()
+                for name in FILES:
+                    (fixture_dir / name).write_bytes(name.encode())
+                args.fixtures, args.tmp = str(fixture_dir), str(tmp)
+                args.coreav, args.ffmpeg, args.ffprobe = '/missing/coreav', '/missing/ffmpeg', '/missing/ffprobe'
+                args.arms, args.compat = [('x264', [])], True
+                info = json.loads((whole / 'run.json').read_text()) | {'ffmpeg_version': ['fixture']}
+                with self.assertRaisesRegex(composed.Invalid, 'requested configuration, file or command'):
+                    checker.export_evidence(args, whole, info)
+
+    def test_removing_outer_markers_does_not_turn_current_results_into_legacy(self):
+        _, whole, _ = self.runs()
+        for path in [whole / 'run.json', *whole.glob('results/*/*.json')]:
+            record = json.loads(path.read_text())
+            record.pop('compat_check')
+            record.pop('judging_sha256')
+            path.write_text(json.dumps(record))
+            if path.name != 'run.json':
+                with self.assertRaisesRegex(composed.Invalid, 'relabeled as legacy'):
+                    checker.validate_result(record, None)
+        status, text = check('--summarize', '--out', str(whole))
+        self.assertNotEqual(status, 0)
+        self.assertIn('relabeled as legacy', text)
 
     def test_changed_judging_source_is_rejected_at_every_evidence_boundary(self):
         for location in ('manifest', 'run', 'result', 'row'):

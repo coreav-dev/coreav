@@ -17,6 +17,7 @@ import sys
 import time
 
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+from composed_audio_source import expected_encoder, source_reference
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -70,6 +71,7 @@ def method_digest():
     sources = ('scripts/composed_audio.py', 'scripts/transcode_check.py', 'scripts/oracle_audio.py',
                'scripts/oracle-audio-args.txt', 'scripts/oracle_pin.py', 'scripts/composed_audio_fixtures.py',
                'docs/design/composed-opus-aac-v1.json')
+    sources += (registration()[0]['decoder']['reference_owner'],)
     return hashlib.sha256(json.dumps({path: sha256_file(ROOT / path) for path in sources}, sort_keys=True).encode()).hexdigest()
 
 
@@ -82,6 +84,9 @@ def method_identity():
 
 def check_policy():
     value, identity = registration()
+    if value['decoder']['reference_owner'] != str(pathlib.Path(source_reference.__code__.co_filename)
+                                                 .resolve().relative_to(ROOT)):
+        raise Invalid('the registered source reference owner differs from the loaded implementation')
     legacy = value['legacy']
     source = (ROOT / legacy['file']).read_text()
     functions = [node for node in ast.parse(source).body
@@ -98,6 +103,8 @@ def check_policy():
                 value['decoder']['conversion_sha256'], value['encoder']['pin_sha256'])
     if actual != expected:
         raise Invalid('registered legacy or decoder/oracle policy changed')
+    if sha256_file(ROOT / 'scripts/oracle_audio.py') != legacy['audio_input_policy_sha256']:
+        raise Invalid('the inherited audio input policy changed')
     return identity
 
 
@@ -120,6 +127,7 @@ class Edits:
     entries: tuple
     media_spans: tuple
     channels: int = 1
+    pre_skip: int = 0
 
 
 class Headers:
@@ -179,7 +187,7 @@ class Headers:
             raise Invalid('unsupported or malformed MP4 time header')
         return data
 
-    def selected(self, track_id):
+    def selected(self, track_id, source_opus=False):
         top = self.children(0, self.size)
         spans = tuple(top.get(b'mdat', []))
         if not spans:
@@ -219,9 +227,10 @@ class Headers:
         if prefix != b'\0\0\0\0\0\0\0\1':
             raise Invalid('audio needs one sample description')
         descriptions = self.children(stsd[0] + 8, stsd[1])
-        if set(descriptions) != {b'mp4a'}:
-            raise Invalid('selected track is not an ordinary AAC sample entry')
-        entry = self.one(descriptions, b'mp4a')
+        kind = b'Opus' if source_opus else b'mp4a'
+        if set(descriptions) != {kind}:
+            raise Invalid('selected track has an unexpected audio sample entry')
+        entry = self.one(descriptions, kind)
         if entry[1] - entry[0] < 28:
             raise Invalid('truncated AAC sample entry')
         audio = self.read(entry[0], 28)
@@ -230,7 +239,16 @@ class Headers:
             raise Invalid('unregistered AAC sample entry format')
         if channels not in (1, 2):
             raise Invalid('unregistered AAC sample entry channels')
-        self.one(self.children(entry[0] + 28, entry[1]), b'esds')
+        children = self.children(entry[0] + 28, entry[1])
+        pre_skip = 0
+        if source_opus:
+            config = self.payload(self.one(children, b'dOps'))
+            if len(config) != 11 or config[0] != 0 or config[1] != channels or \
+                    config[4:8] not in (b'\0' * 4, struct.pack('>I', 48000)) or config[8:11] != b'\0' * 3:
+                raise Invalid('unsupported Opus configuration')
+            pre_skip = struct.unpack_from('>H', config, 2)[0]
+        else:
+            self.one(children, b'esds')
         edits = self.children(*self.one(track, b'edts'))
         if set(edits) != {b'elst'}:
             raise Invalid('unregistered edit container')
@@ -246,7 +264,7 @@ class Headers:
             raise Invalid('non-unit or empty edit')
         if entries[-1][1] < 0 or (count == 2 and entries[0][1] != -1):
             raise Invalid('only an optional empty edit and one media edit are registered')
-        return Edits(track_id, movie_scale, media_scale, entries, spans, channels)
+        return Edits(track_id, movie_scale, media_scale, entries, spans, channels, pre_skip)
 
 
 def read_edits(path, track_id):
@@ -332,7 +350,8 @@ def bounded(cmd, env, *, limit=MAX_METADATA, timeout=120, stdin=None, output=Non
                         else:
                             total += len(data)
                             if total > limit:
-                                raise Invalid('composed reference output exceeds its limit')
+                                raise Invalid(f'composed reference output exceeds its limit: '
+                                              f'{pathlib.Path(cmd[0]).name}, observed {total}, limit {limit}')
                             if output is None:
                                 stdout.extend(data)
                             else:
@@ -402,16 +421,6 @@ def read_aac_timing(ffprobe, path, index, frames, env):
     return timing, {'configuration': configuration.lower(), 'packets': hashes, 'channels': stream['channels']}
 
 
-def expected_encoder(rate, channels, bitrate):
-    integer(rate, 'encoder rate', 1)
-    integer(channels, 'encoder channels', 1)
-    args = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'f32le',
-            '-ar', str(rate), '-ac', str(channels), '-i', 'pipe:0', '-map', '0:a:0', '-c:a', 'aac']
-    if bitrate is not None:
-        args += ['-b:a', str(integer(bitrate, 'encoder bitrate', 1))]
-    return args + ['-f', 'matroska', 'pipe:1']
-
-
 def validate_receipt(directory, source, output, command, expected_stream, bitrate, tools):
     registered, identity = registration()
     directory = pathlib.Path(directory)
@@ -466,7 +475,7 @@ def validate_receipt(directory, source, output, command, expected_stream, bitrat
     return receipt, path, dict(audio, start_ticks=integer(captured.get('start_ticks'), 'capture origin'))
 
 
-def project_s16(source, destination, frames, channels):
+def project_s16(source, destination, frames, channels, stereo_reference=False):
     expected = integer(frames, 'PCM frames', 1) * integer(channels, 'PCM channels', 1) * 4
     if pathlib.Path(source).stat().st_size != expected:
         raise Invalid('PCM lengths differ')
@@ -478,7 +487,8 @@ def project_s16(source, destination, frames, channels):
             for (value,) in struct.iter_unpack('<f', block):
                 if not math.isfinite(value):
                     raise Invalid('nonfinite PCM sample')
-                values.append(max(-32768, min(32767, round(value * 32768))))
+                projected = max(-32768, min(32767, round(value * 32768)))
+                values.extend((projected, projected) if stereo_reference and channels == 1 else (projected,))
             output.write(struct.pack('<' + 'h' * len(values), *values))
 
 
@@ -520,14 +530,10 @@ def compare(args, directory, source, output, output_index, baseline, baseline_in
         receipt, pcm, capture = validate_receipt(directory, source, output, command, expected_stream, bitrate, tools)
         frames, channels = capture['samples'], capture['channels']
         directory = pathlib.Path(directory)
-        reference_pcm = directory / 'libopus.f32'
-        with reference_pcm.open('xb') as sink:
-            bounded([args.ffmpeg, '-nostdin', '-v', 'error', '-request_sample_fmt', 'flt', '-c:a', 'libopus',
-                     *AUDIO_DECODE_INPUT, '-i', source, '-map', f'0:{expected_stream}', '-c:a', 'pcm_f32le',
-                     '-f', 'f32le', 'pipe:1'], env, limit=frames * channels * 4, output=sink)
+        reference_pcm = source_reference(args, directory, source, expected_stream, channels, env)
         ours_s16, reference_s16 = directory / 'captured.s16', directory / 'libopus.s16'
         project_s16(pcm, ours_s16, frames, channels)
-        project_s16(reference_pcm, reference_s16, frames, channels)
+        project_s16(reference_pcm, reference_s16, frames, channels, stereo_reference=True)
         stdout, stderr = bounded([args.opus_compare, *(['-s'] if channels == 2 else []), '-r', '48000',
                                   reference_s16, ours_s16], env, limit=65536, messages=True)
         metrics = re.findall(rb'quality metric: ([^\s]+)', stdout + stderr)

@@ -705,8 +705,9 @@ fn encode_with(
                 channel_mask: capture.channel_mask,
                 start_ticks: ticks(start_ns, rate),
                 sandboxed: launcher.is_some(),
-                address_space: Some(AAC_ENCODER_MEMORY),
-                open_files: EncoderLimits::new(AAC_ENCODER_MEMORY).open_files,
+                address_space: launcher.map(|_| AAC_ENCODER_MEMORY),
+                open_files: launcher
+                    .and_then(|_| EncoderLimits::new(AAC_ENCODER_MEMORY).open_files),
             })
         })
         .transpose()?;
