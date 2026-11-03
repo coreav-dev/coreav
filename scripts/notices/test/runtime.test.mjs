@@ -8,6 +8,23 @@ const commit = runtimeManifest.rustCommit;
 const context = { commit, version: "1.99.1", library: new Set(), members: new Set(), memberPaths: new Set() };
 const evidence = nativeEvidence(Buffer.alloc(0));
 
+test("Windows notices identify the static Microsoft CRT and link its terms", () => {
+  const target = "x86_64-pc-windows-msvc";
+  const text = renderRuntimes(target, commit);
+  assert.ok(text.includes("The statically linked Microsoft C runtime (vcruntime and UCRT) is distributed under the Visual Studio redistribution terms:"));
+  assert.ok(text.includes("https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/"));
+  const sections = noticeSections(text);
+  assert.ok(sections.has("C runtime\0Microsoft C runtime"));
+  assert.throws(() => validateEvidence(evidence, new Map(), { ...context, target }), /C runtime Microsoft C runtime is not covered/);
+  assert.doesNotThrow(() => validateEvidence(evidence, sections, { ...context, target }));
+  for (const origin of ["crates.io", "Rust toolchain", "Rust toolchain, crates.io"]) {
+    assert.throws(() => noticeSections(text.replace("(C runtime) ===", `(${origin}) ===`)), /malformed third-party notice crate label/);
+  }
+  for (const other of Object.keys(runtimeManifest.targets).filter(value => value !== target)) {
+    assert.ok(!renderRuntimes(other, commit).includes("Microsoft C runtime"));
+  }
+});
+
 test("C runtime sections cannot cover Rust roots or build output", () => {
   for (const target of ["x86_64-unknown-linux-musl", "wasm32-wasip1"]) {
     const sections = noticeSections(renderRuntimes(target, commit));
@@ -38,7 +55,7 @@ test("the runtime inventory covers every shipped target, independently of Cargo 
     "wasm32-unknown-unknown": [],
     "aarch64-apple-darwin": [],
     "x86_64-apple-darwin": [],
-    "x86_64-pc-windows-msvc": [],
+    "x86_64-pc-windows-msvc": ["Microsoft C runtime"],
   };
   assert.deepEqual(Object.keys(runtimeManifest.targets).sort(), Object.keys(expected).sort());
   for (const [target, labels] of Object.entries(expected)) {
