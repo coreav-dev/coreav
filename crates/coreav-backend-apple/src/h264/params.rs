@@ -1,5 +1,5 @@
 use super::bits::{Bits, rbsp};
-use super::{Dimensions, Error, Limits, header};
+use super::{Color, Dimensions, Error, Limits, header};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Poc {
@@ -15,6 +15,7 @@ pub(super) struct Sps {
     pub frame_bits: u8,
     pub poc: Poc,
     pub macroblocks: u64,
+    pub color: Option<Color>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -95,9 +96,11 @@ pub(super) fn sps(nal: &[u8], expected: Dimensions, limits: Limits) -> Result<Sp
     if Dimensions::new(width, height)? != expected {
         return Err(Error::FormatMismatch);
     }
-    if r.bit()? {
-        vui(&mut r, references)?;
-    }
+    let color = if r.bit()? {
+        vui(&mut r, references)?
+    } else {
+        None
+    };
     r.finish()?;
     Ok(Sps {
         id,
@@ -106,6 +109,7 @@ pub(super) fn sps(nal: &[u8], expected: Dimensions, limits: Limits) -> Result<Sp
         frame_bits,
         poc,
         macroblocks: u64::from(width_mbs) * u64::from(height_mbs),
+        color,
     })
 }
 
@@ -149,7 +153,8 @@ pub(super) fn pps(nal: &[u8], sps: Sps) -> Result<Pps, Error> {
     Ok(Pps { id, bottom_poc })
 }
 
-fn vui(r: &mut Bits<'_>, references: u32) -> Result<(), Error> {
+fn vui(r: &mut Bits<'_>, references: u32) -> Result<Option<Color>, Error> {
+    let mut color = None;
     if r.bit()? {
         match r.bits(8)? {
             255 => {
@@ -167,11 +172,14 @@ fn vui(r: &mut Bits<'_>, references: u32) -> Result<(), Error> {
         if r.bits(3)? > 5 {
             return Err(Error::Malformed);
         }
-        r.bit()?;
+        let full_range = r.bit()?;
         if r.bit()? {
-            r.bits(8)?;
-            r.bits(8)?;
-            r.bits(8)?;
+            color = Some(Color {
+                full_range,
+                primaries: r.bits(8)? as u8,
+                transfer: r.bits(8)? as u8,
+                matrix: r.bits(8)? as u8,
+            });
         }
     }
     if r.bit()? {
@@ -211,7 +219,7 @@ fn vui(r: &mut Bits<'_>, references: u32) -> Result<(), Error> {
             return Err(Error::Malformed);
         }
     }
-    Ok(())
+    Ok(color)
 }
 
 fn hrd(r: &mut Bits<'_>) -> Result<(), Error> {

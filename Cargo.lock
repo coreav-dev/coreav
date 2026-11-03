@@ -520,6 +520,8 @@ dependencies = [
  "coreav-mkv",
  "coreav-thumbnail",
  "coreav-worker",
+ "serde",
+ "sha2",
 ]
 
 [[package]]

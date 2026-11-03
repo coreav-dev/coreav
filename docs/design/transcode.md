@@ -1088,12 +1088,14 @@ is still refused, not silently reduced to audio. Segment output still
 requires explicit codecs. Encoder options still require their explicit
 encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
-An Opus source still requires an explicit audio codec choice. Default AAC
-encoding of Opus is refused because its exact end-to-end output has not
-been verified. Explicit audio encoding and copying keep their existing
-behavior. FLAC, MP3 and, with the `aac` feature, AAC sources retain their
-existing eligibility checks. The [audio source diagnostic](audio-source-diagnostic.md)
-separates decoder samples from AAC encoder behavior without changing B9.
+An Opus source can use default AAC encoding. Its current verification uses
+the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):
+existing decoder conformance, exact AAC output from the PCM actually written
+to the encoder, and an independent exact presentation check. There is no
+encoder tolerance or alignment correction. Legacy B9 results are not
+reinterpreted. FLAC, MP3 and, with the `aac` feature, AAC sources retain their
+existing eligibility and exact end-to-end checks. Explicit audio choices,
+copying and strict-safe mode keep their existing behavior.
 
 Explicit encoder names are checked before the input is read. Default
 encoders are checked after CoreAV probes and selects the streams, before
@@ -1170,7 +1172,7 @@ output, before the encoder starts:
 - **Audio.** Selected audio follows the default AAC rules above unless a
   matching codec option selects another behavior. Explicit codec options
   keep their precedence; unsupported source, layout or rate combinations
-  and implicit Opus-to-AAC encoding remain refused.
+  remain refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

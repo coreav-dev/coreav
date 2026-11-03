@@ -187,7 +187,7 @@ class MainPlan(unittest.TestCase):
         for plan in (main, group):
             self.assertIn('check', plan['ci'])
             self.assertIn('isobmff-writers', plan['ci'])
-            self.assertIn('b9-shard', plan['ci'])
+            self.assertIn('transcode-compat-shard', plan['ci'])
             self.assertIn('linux-x86_64', plan['python'])
             self.assertIn('package', plan['npm'])
             self.assertNotIn('main-cache', plan['ci'])

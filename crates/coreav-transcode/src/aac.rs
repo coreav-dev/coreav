@@ -67,6 +67,9 @@ pub struct AacAudio {
     /// Bits a second, from [`MIN_BITRATE`] to [`MAX_BITRATE`]; `None` for
     /// the encoder's own default.
     pub bitrate: Option<u32>,
+    /// Optional actual-stdin capture, for registered composed verification.
+    #[cfg(feature = "input-capture")]
+    pub input_capture: Option<crate::capture::Target>,
 }
 
 /// Whether the encode takes `rate` Hz as it is: the sampling frequencies
