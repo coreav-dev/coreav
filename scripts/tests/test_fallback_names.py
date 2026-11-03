@@ -128,6 +128,19 @@ class FallbackNames(unittest.TestCase):
         self.assertNotIn('checkerboard', generated)
         self.assertNotIn('byte', generated)
 
+    def test_function_arguments_are_not_entry_tuples(self):
+        text = '''
+            names::sample_fmt("flac", Some(bits));
+            lookup ( "codec_value", bits );
+            object.method("method_value", bits);
+            callable()("closure_value", bits);
+            let entries = [("sample_fmt", Value::Str(value))];
+            entries.push(("sample_rate", value));
+            match value { 1 => ("sample_count", value), _ => return ("duration", value) }
+        '''
+        self.assertEqual(set(names.entry_keys(text)),
+                         {'sample_fmt', 'sample_rate', 'sample_count', 'duration'})
+
 
 if __name__ == '__main__':
     unittest.main()
