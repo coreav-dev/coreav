@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -92,6 +92,28 @@ test("the install script makes the command the native binary", { skip: needsBin 
   }
 });
 
+test("the installed command shares the platform binary and survives relocation and reinstall", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-link-"));
+  try {
+    const copy = installed(scratch, bin);
+    const command = join(copy, "bin", "coreav");
+    const binary = join(scratch, "node_modules", "@coreav", `cli-${platform}`, "bin", exe);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const done = run(process.execPath, [join(copy, "install.js")], { COREAV_BINARY: "" });
+      assert.equal(done.status, 0, done.stderr.toString());
+      assert.ok(lstatSync(command).isSymbolicLink());
+      assert.equal(realpathSync(command), realpathSync(binary));
+      assert.ok(readlinkSync(command).startsWith("../"));
+      assert.deepEqual(run(command, ["--version"]), run(bin, ["--version"]));
+    }
+    const moved = join(scratch, "moved");
+    renameSync(join(scratch, "node_modules"), moved);
+    assert.deepEqual(run(join(moved, "coreav", "bin", "coreav"), ["--version"]), run(bin, ["--version"]));
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 test("the install script leaves the launcher for another version's binary, or none", { skip: needsBin }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-install-"));
   try {
@@ -101,12 +123,64 @@ test("the install script leaves the launcher for another version's binary, or no
     for (const binary of [process.platform === "win32" ? undefined : other, undefined]) {
       rmSync(join(scratch, "node_modules"), { recursive: true, force: true });
       const copy = installed(scratch, binary);
-      const launcher = readFileSync(join(copy, "bin", "coreav"));
       const done = run(process.execPath, [join(copy, "install.js")], { COREAV_BINARY: "" });
       assert.equal(done.status, 0, done.stderr.toString());
-      assert.ok(readFileSync(join(copy, "bin", "coreav")).equals(launcher), "the launcher was replaced");
+      const launcher = process.platform === "win32" ? join(root, "bin", "coreav") : join(copy, "lib", "main.js");
+      assert.ok(readFileSync(join(copy, "bin", "coreav")).equals(readFileSync(launcher)), "the command is not the launcher");
     }
   } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test("reinstall restores the WASI launcher after the optional binary is removed or rejected", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-restore-"));
+  try {
+    for (const failure of ["removed", "wrong version", "cannot execute", "version command failed"]) {
+      rmSync(join(scratch, "node_modules"), { recursive: true, force: true });
+      const copy = installed(scratch, bin);
+      cpSync(join(root, "wasm"), join(copy, "wasm"), { recursive: true });
+      const command = join(copy, "bin", "coreav");
+      const binary = join(scratch, "node_modules", "@coreav", `cli-${platform}`, "bin", exe);
+      assert.equal(run(process.execPath, [join(copy, "install.js")]).status, 0);
+      assert.equal(realpathSync(command), realpathSync(binary));
+      if (failure === "removed") rmSync(dirname(dirname(binary)), { recursive: true, force: true });
+      else if (failure === "wrong version") writeFileSync(binary, "#!/bin/sh\necho coreav 9.9.9\n");
+      else if (failure === "cannot execute") chmodSync(binary, 0o644);
+      else writeFileSync(binary, `#!/bin/sh\necho coreav ${pkg.version}\necho rejected-native-binary >&2\nexit 1\n`);
+      const done = run(process.execPath, [join(copy, "install.js")]);
+      assert.equal(done.status, 0, done.stderr.toString());
+      assert.equal(realpathSync(command), realpathSync(join(copy, "lib", "main.js")));
+      assert.deepEqual(run(command, ["--version"], { COREAV_BINARY: "" }), run(bin, ["--version"]));
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test("the version check terminates a binary that ignores SIGTERM", { skip: needsBin || (process.platform === "win32" && "POSIX signals") }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-version-timeout-"));
+  const pidFile = join(scratch, "pid");
+  try {
+    const copy = installed(scratch, bin);
+    cpSync(join(root, "wasm"), join(copy, "wasm"), { recursive: true });
+    const binary = join(scratch, "node_modules", "@coreav", `cli-${platform}`, "bin", exe);
+    writeFileSync(binary, `#!/usr/bin/env node\nprocess.on("SIGTERM", () => {});\nrequire("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\nsetInterval(() => {}, 1000);\n`);
+    const probe = join(scratch, "probe.cjs");
+    writeFileSync(probe, `const cp = require("node:child_process");\nconst exec = cp.execFileSync;\ncp.execFileSync = (file, args, options) => exec(file, args, { ...options, timeout: 1000 });\nrequire(${JSON.stringify(join(copy, "lib", "main.js"))}).run();\n`);
+    const done = spawnSync(process.execPath, [probe, "--version"], {
+      env: { ...process.env, COREAV_BINARY: "" }, timeout: 8000, killSignal: "SIGKILL",
+    });
+    assert.ok(existsSync(pidFile), "the version process did not reach its SIGTERM handler");
+    assert.equal(done.status, 0, done.stderr?.toString());
+    assert.equal(done.stdout.toString(), `coreav ${pkg.version}\n`);
+    assert.equal(done.stderr.length, 0);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    assert.throws(() => process.kill(pid, 0), "the version process is still running");
+  } finally {
+    if (existsSync(pidFile)) {
+      try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
+    }
     rmSync(scratch, { recursive: true, force: true });
   }
 });
@@ -125,7 +199,7 @@ test("the install script changes nothing outside node_modules, and ignores COREA
     rmSync(join(scratch, "node_modules"), { recursive: true, force: true });
     const bare = installed(scratch);
     run(process.execPath, [join(bare, "install.js")], { COREAV_BINARY: bin });
-    assert.ok(readFileSync(join(bare, "bin", "coreav")).equals(launcher), "COREAV_BINARY was installed");
+    assert.ok(readFileSync(join(bare, "bin", "coreav")).equals(readFileSync(join(bare, "lib", "main.js"))), "COREAV_BINARY was installed");
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
