@@ -12,5 +12,18 @@
   "eight_thread_ci_high_max": 1.01,
   "calibration_min": 0.99,
   "calibration_max": 1.01,
-  "reference_drift_max": 0.05
+  "reference_drift_max": 0.05,
+  "diagnostics": {
+    "gates_h264": false,
+    "expected_direction": "neutral",
+    "ci_high_max": 1.01,
+    "cli_features": ["native-h264"],
+    "affinities": [1, 8],
+    "fixture": {"generator": "lcg32-high16-le-v1", "sample_rate": 48000, "channels": 2, "sample_frames": 2880000, "seed": 20261103},
+    "cases": [
+      {"id": "probe", "input": "diagnostics/alac.m4a", "argv": ["probe", "{input}"], "output": "stdout"},
+      {"id": "mp4-remux", "input": "diagnostics/alac.m4a", "argv": ["remux", "{input}", "{output}"], "output": "mp4"},
+      {"id": "flac-decode", "input": "diagnostics/flac.mka", "argv": ["decode-audio", "--format", "s16", "--threads", "{threads}", "{input}", "{output}"], "output": "wav"}
+    ]
+  }
 }

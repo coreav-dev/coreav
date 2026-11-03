@@ -43,6 +43,22 @@ Report every class and overall estimate, interval, faster-file share, and each f
 
 ## Design choices
 
+### Registered non-H.264 diagnostics
+
+This addition is registered after the initial construction checks and before any diagnostic implementation or run. It does not change the H.264 thresholds or authorize a release-default change. Like the held-out evaluation, these measurements run only after both PRs merge, on the same on-demand host within the existing evaluation limit.
+
+Build diagnostic-only full-CLI companions with default features plus `native-h264`, using the same source, compiler, target, `dist` profile, path normalization and retained clean decoder profile as the example. Keep an unprofiled CLI and a PGO CLI, and require an independent rebuild of the PGO CLI. Do not train on the diagnostic commands. Most CLI functions are outside the decoder training profile, so these companions do not establish the behavior of the published `release-full` feature set.
+
+Use the three fixed commands and fixture parameters in `scripts/h264_pgo_registration.json`: a probe of an ALAC MP4, an MP4 remux of that file, and native FLAC-to-WAV decoding from Matroska. Both media fixtures come from the same deterministic sixty-second, 48 kHz stereo S16 signal, with 2,880,000 sample frames and seed 20261103, encoded by the pinned oracle. These synthetic fixtures are separate from the fresh held-out allocation. Bind their hashes and both CLI artifacts in the allocation contract before opening that allocation.
+
+The signal generator advances unsigned state as `(1664525 * state + 1013904223) mod 2^32` once per interleaved channel sample, starting at the registered seed. Store the upper sixteen bits as little-endian two's-complement S16. Do not repeat a shorter block. Encode ALAC as `s16p` in `ipod` with `+faststart`, and FLAC as `s16` at compression level 5 in Matroska. Both oracle encodes use the shared single-thread audio input arguments, `-map 0:a:0`, `-flags:a +bitexact` and output `-fflags +bitexact`.
+
+The expected direction is neutral for every command: no systematic improvement is expected outside the trained decoder. Run both CPU affinities, CPU 2 and CPUs 0 through 7, with the same one-warmup, nine interleaved paired-round protocol, fixed randomization seed, process-exit timer and host checks. The probe and remux need not use eight workers just because eight cores are available; audio decoding explicitly requests the matching thread count. Include file writing in the user-operation timings, remove prior outputs outside the timed interval, and prohibit fallback with `COREAV_STRICT_SAFE=1`.
+
+Qualify complete native outputs before timing. Require equal probe JSON and complete MP4/WAV output bytes between CLI arms, and independently check decoded remux/audio samples and sample counts against the fixed source signal. A failed diagnostic command has an explicit incomplete diagnostic result, never a fast timing. Infrastructure errors and shared host or artifact failures still invalidate the run.
+
+For each command and affinity, report the ratio of the nine-call PGO and base medians, the complete per-call values and ranges, and a paired-round 95% bootstrap interval. Resample nine round indices with replacement 10,000 times using seed 20261103, keep both arms paired, and use the same interpolated percentile rule as the H.264 estimator. The diagnostic non-regression guard is an interval upper bound **at most 1.01** for every command and affinity. Report every guard result, including inconclusive or failed ones. These diagnostic guards **do not gate the H.264 verdict** and do not imply a release-default recommendation.
+
 One serial build recipe owns profile provenance. Separate base, instrumented and optimized target directories prevent stale build reuse. The historical reproduction is a separate mode because its flags and profile are intentionally different.
 
 The measurement executor writes events, while the auditor checks completeness before the shared `h264_parity_bars.py` estimator computes intervals. Reusing the older parity runner unchanged would retain tolerated diagnostics and unresolved-stream behavior that this evaluation does not allow. The VM lifecycle remains owned by `gcp_vm_job.py`, always with explicit standard provisioning for timing.
