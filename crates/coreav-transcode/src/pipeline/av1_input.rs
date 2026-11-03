@@ -251,9 +251,7 @@ impl<'a> Av1Transcode<'a> {
         output: &Path,
         out: W,
     ) -> Result<Av1Summary, Error> {
-        if Instant::now() >= self.deadline {
-            return Err(timed_out());
-        }
+        self.check_deadline()?;
         let done = execute(
             source,
             kind,
@@ -289,6 +287,14 @@ impl<'a> Av1Transcode<'a> {
             audio: done.audio,
             remux: done.remux,
         })
+    }
+
+    /// Checks the stored deadline before host-side source opening or identification.
+    pub fn check_deadline(&self) -> Result<(), Error> {
+        if Instant::now() >= self.deadline {
+            return Err(timed_out());
+        }
+        Ok(())
     }
 }
 

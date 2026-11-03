@@ -49,8 +49,8 @@ thumbnail-summary = ["dep:coreav-thumbnail"]
 # re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
 # backend feature turns it on.
-transcode = ["thumbnail", "dep:coreav-transcode"]
-svt-av1 = ["transcode", "coreav-transcode/svt-av1"]
+transcode = ["thumbnail", "dep:coreav-transcode", "coreav-transcode/svt-av1"]
+svt-av1 = ["transcode"]
 svt-av1-native = ["svt-av1", "coreav-transcode/svt-av1-native", "dep:coreav-backend-svt-av1", "coreav-backend-svt-av1/native"]
 input-capture = ["transcode", "coreav-transcode/input-capture"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
