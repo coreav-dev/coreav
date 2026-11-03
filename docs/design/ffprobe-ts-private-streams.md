@@ -16,9 +16,10 @@ every private stream as audio would misidentify the remaining streams.
 ## Support boundary
 
 Before output, refuse ffprobe compatibility requests when the existing
-report identifies MPEG-TS and contains a binary-data stream whose codec
-tag is the unresolved stream type 0x0006. Recognized private codecs and
-explicit registration tags do not satisfy that predicate.
+report identifies MPEG-TS and contains a stream with media kind data
+and codec name bin_data. A registration tag names a format but does not
+prove the reader identified its codec, so it does not exempt a stream.
+Genuinely identified codecs do not satisfy that predicate.
 
 Own this check in the compatibility command, after its existing probe
 and before creating the output writer. Return the existing Unsupported
@@ -44,7 +45,8 @@ regression that fails before the check and verifies strict-safe refusal
 before any output, including packet requests. Verify ordinary fallback's
 arguments, output and exit status with a stand-in, and compare actual
 pinned fallback output on a hash-verified non-holdout development input.
-Keep recognized private-codec, registered-data and ordinary audio/video
+Include registered and unregistered MPEG-audio payloads in the refusal
+controls. Keep genuinely identified private-codec and ordinary audio/video
 controls native, and check that the native probe command is unchanged.
 
 Run focused CLI/fallback tests, targeted Clippy, formatting, public-text

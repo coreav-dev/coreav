@@ -286,9 +286,6 @@ fn run<S: Source>(
     }) && probed.report.streams.iter().any(|stream| {
         stream.kind == ffprobe::StreamKind::Data
             && stream.entries.iter().any(|(key, value)| {
-                *key == "codec_tag" && matches!(value, Value::Str(tag) if tag == "0x0006")
-            })
-            && stream.entries.iter().any(|(key, value)| {
                 *key == "codec_name" && matches!(value, Value::Str(codec) if codec == "bin_data")
             })
     }) {
