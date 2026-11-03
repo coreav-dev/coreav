@@ -50,6 +50,7 @@ project "$RUNNER_TEMP/smoke-native"
 npm install --no-audit --no-fund "$native" "$main"
 if [ "$RUNNER_OS" != Windows ]; then
   cmp node_modules/coreav/bin/coreav "node_modules/@coreav/cli-$platform/bin/coreav"
+  [ -L node_modules/coreav/bin/coreav ]
 fi
 checks
 

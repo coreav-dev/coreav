@@ -69,6 +69,23 @@ fn snippet(help: &str) -> String {
 }
 
 #[test]
+fn help_links_work_without_a_repository_checkout() {
+    let commands = subcommands(&help(&[]));
+    for (name, text) in snippets(&commands) {
+        assert!(
+            !text.split_whitespace().any(|word| {
+                let word = word.trim_start_matches('(');
+                word.starts_with("docs/design/") || word.starts_with("docs/measurements/")
+            }),
+            "{name}: {text}"
+        );
+    }
+    for command in ["ffprobe", "ffmpeg"] {
+        assert!(help(&[command]).contains(&format!("https://coreav.dev/docs/commands/{command}")));
+    }
+}
+
+#[test]
 fn the_command_reference_matches_the_help() {
     let commands = subcommands(&help(&[]));
     if cfg!(not(feature = "thumbnail")) {

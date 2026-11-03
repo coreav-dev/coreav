@@ -1,0 +1,2869 @@
+{
+  "state": "complete",
+  "rows": [
+    {
+      "class": "tones",
+      "bits": 16,
+      "channels": 1,
+      "rate": 44100,
+      "case": "tones-16-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.18883240900001397,
+          "native_exit": 0,
+          "reference": 0.053753147000008994,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.053472872000014604,
+          "reference_exit": 0,
+          "native": 0.19097943099998815,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.19064450200002625,
+          "native_exit": 0,
+          "reference": 0.05488243300001727,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.054199465000010605,
+          "reference_exit": 0,
+          "native": 0.18975013400000762,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.1900357579999934,
+          "native_exit": 0,
+          "reference": 0.054622388000012734,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.054049818000009964,
+          "reference_exit": 0,
+          "native": 0.19270078599998897,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.18968208999999092,
+          "native_exit": 0,
+          "reference": 0.05492657099998155,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05394615999998109,
+          "reference_exit": 0,
+          "native": 0.18970975199999884,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.18981590300001017,
+          "native_exit": 0,
+          "reference": 0.054703480999990006,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "e83314031f7d5f0b7a5a41b82f665b4a8dd0fe7ab036cd819be3e11fd8ccf0b7",
+      "bytes": {
+        "native": 622658,
+        "reference": 653016
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 16,
+      "channels": 1,
+      "rate": 48000,
+      "case": "tones-16-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.20533336599999075,
+          "native_exit": 0,
+          "reference": 0.05827485699998647,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05769264199997792,
+          "reference_exit": 0,
+          "native": 0.20539984699999536,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.2049371640000004,
+          "native_exit": 0,
+          "reference": 0.05835103200001868,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05758225399998196,
+          "reference_exit": 0,
+          "native": 0.2058286279999777,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.20549359999998273,
+          "native_exit": 0,
+          "reference": 0.0582181910000088,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05766415899998378,
+          "reference_exit": 0,
+          "native": 0.2054614909999941,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.2040167359999998,
+          "native_exit": 0,
+          "reference": 0.058562504000008175,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05787224499999866,
+          "reference_exit": 0,
+          "native": 0.20452891399997952,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.20533742899999652,
+          "native_exit": 0,
+          "reference": 0.058182182999985343,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "8a536be6165ba8a1ad8fa585d3f2e623d0ece7fd04e01f09319fe2d309553b95",
+      "bytes": {
+        "native": 670173,
+        "reference": 694691
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 16,
+      "channels": 2,
+      "rate": 44100,
+      "case": "tones-16-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6928838999999982,
+          "native_exit": 0,
+          "reference": 0.08161914600000841,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08125046699998961,
+          "reference_exit": 0,
+          "native": 0.6940915330000053,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6909880720000103,
+          "native_exit": 0,
+          "reference": 0.08129262099998869,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08114475599998627,
+          "reference_exit": 0,
+          "native": 0.6911371589999931,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6886084100000005,
+          "native_exit": 0,
+          "reference": 0.08098216999999863,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08033834200000456,
+          "reference_exit": 0,
+          "native": 0.6916694660000076,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6904315310000015,
+          "native_exit": 0,
+          "reference": 0.0807908700000155,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08057065699998134,
+          "reference_exit": 0,
+          "native": 0.6931772470000226,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6910325569999998,
+          "native_exit": 0,
+          "reference": 0.0807015849999857,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "635db7a22d0604f33ba081e3062d92e82e5d4371b15595563d263649a609bf42",
+      "bytes": {
+        "native": 1042794,
+        "reference": 1127864
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 16,
+      "channels": 2,
+      "rate": 48000,
+      "case": "tones-16-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7622123909999914,
+          "native_exit": 0,
+          "reference": 0.08734700599998746,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08713907000000631,
+          "reference_exit": 0,
+          "native": 0.7620112909999932,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7612692849999974,
+          "native_exit": 0,
+          "reference": 0.08764829599999757,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08675729199998727,
+          "reference_exit": 0,
+          "native": 0.7616704889999824,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7637199190000103,
+          "native_exit": 0,
+          "reference": 0.08776821600000062,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08717922200000316,
+          "reference_exit": 0,
+          "native": 0.7660754240000074,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.761763650000006,
+          "native_exit": 0,
+          "reference": 0.0872872159999929,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08580154099999504,
+          "reference_exit": 0,
+          "native": 0.7624936379999951,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7608101129999909,
+          "native_exit": 0,
+          "reference": 0.08597361200000364,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "6aab6d0e4d6177f01951ffa6b23a897c8219bd8ac739108bd799a90fd61426ea",
+      "bytes": {
+        "native": 1118290,
+        "reference": 1200994
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 24,
+      "channels": 1,
+      "rate": 44100,
+      "case": "tones-24-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.1779935710000018,
+          "native_exit": 0,
+          "reference": 0.057412986000002775,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05650553899999977,
+          "reference_exit": 0,
+          "native": 0.17816085499998735,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17942982900001425,
+          "native_exit": 0,
+          "reference": 0.057106678999986116,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.056685101999988774,
+          "reference_exit": 0,
+          "native": 0.1793971109999859,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17745612499999197,
+          "native_exit": 0,
+          "reference": 0.056602185999992116,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.056870852999992394,
+          "reference_exit": 0,
+          "native": 0.17787417799999616,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.1776551660000223,
+          "native_exit": 0,
+          "reference": 0.0568775119999998,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05639086599998677,
+          "reference_exit": 0,
+          "native": 0.17737126699998385,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17771531799999707,
+          "native_exit": 0,
+          "reference": 0.056495614999988675,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "2e34b0f73626daf4a4a4522b0f6024468cbeec379c773d2f2720b022249b41c6",
+      "bytes": {
+        "native": 1537117,
+        "reference": 1699795
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 24,
+      "channels": 1,
+      "rate": 48000,
+      "case": "tones-24-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.191522324999994,
+          "native_exit": 0,
+          "reference": 0.06029933700000356,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06012138700000946,
+          "reference_exit": 0,
+          "native": 0.19255834099999447,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.19202992000001018,
+          "native_exit": 0,
+          "reference": 0.06060039300001563,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06041647399999306,
+          "reference_exit": 0,
+          "native": 0.19872458600002574,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.19266198400001144,
+          "native_exit": 0,
+          "reference": 0.060369391999984146,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06033621200000994,
+          "reference_exit": 0,
+          "native": 0.192323789999989,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.19230259799999772,
+          "native_exit": 0,
+          "reference": 0.06046791200000712,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06023359599998912,
+          "reference_exit": 0,
+          "native": 0.19216858400000092,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.19296048699999346,
+          "native_exit": 0,
+          "reference": 0.06113764799999899,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "7edd40a303ba01218c9157acbb7ba84077b4b83ed89137137d0f78234e0bd8d3",
+      "bytes": {
+        "native": 1679637,
+        "reference": 1834457
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 24,
+      "channels": 2,
+      "rate": 44100,
+      "case": "tones-24-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6354324159999862,
+          "native_exit": 0,
+          "reference": 0.08894486299999471,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08799267899999563,
+          "reference_exit": 0,
+          "native": 0.6390182049999851,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6365635519999842,
+          "native_exit": 0,
+          "reference": 0.08931385299999306,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08856614900000181,
+          "reference_exit": 0,
+          "native": 0.6367544419999831,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6364389729999971,
+          "native_exit": 0,
+          "reference": 0.08941224200000875,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08912239299999669,
+          "reference_exit": 0,
+          "native": 0.6353307120000125,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6503078599999981,
+          "native_exit": 0,
+          "reference": 0.08963811499998542,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08883507699999882,
+          "reference_exit": 0,
+          "native": 0.6367916979999961,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6378281380000033,
+          "native_exit": 0,
+          "reference": 0.08885801499999957,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "97aed94445f9307db8dc303f8b2905dddccba415ed977cdecf85db7892709732",
+      "bytes": {
+        "native": 2249893,
+        "reference": 3100714
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "tones",
+      "bits": 24,
+      "channels": 2,
+      "rate": 48000,
+      "case": "tones-24-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6870857310000247,
+          "native_exit": 0,
+          "reference": 0.09559568800000307,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09539999099999363,
+          "reference_exit": 0,
+          "native": 0.6931453370000042,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6885691869999846,
+          "native_exit": 0,
+          "reference": 0.09577237499999569,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09526962500001446,
+          "reference_exit": 0,
+          "native": 0.6866267139999991,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6869844869999895,
+          "native_exit": 0,
+          "reference": 0.09620152900001244,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09586557299999754,
+          "reference_exit": 0,
+          "native": 0.6879878350000013,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6876569050000114,
+          "native_exit": 0,
+          "reference": 0.096002636999998,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09518401100001483,
+          "reference_exit": 0,
+          "native": 0.6869255320000036,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6903432889999976,
+          "native_exit": 0,
+          "reference": 0.09561319899998466,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "c0bbb68bc764aafa1ee16a7f76ce371479d8175034a59acafd7e67e4da46ccab",
+      "bytes": {
+        "native": 2402561,
+        "reference": 3363953
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 16,
+      "channels": 1,
+      "rate": 44100,
+      "case": "polynomial-16-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16277907699998195,
+          "native_exit": 0,
+          "reference": 0.040036836000012954,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.03986066899997809,
+          "reference_exit": 0,
+          "native": 0.16341360900000268,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16358030199998552,
+          "native_exit": 0,
+          "reference": 0.04066024200000129,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04038486499999294,
+          "reference_exit": 0,
+          "native": 0.16356307600000264,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16359128799999212,
+          "native_exit": 0,
+          "reference": 0.04016879700000686,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.03965326499999833,
+          "reference_exit": 0,
+          "native": 0.16345639399997935,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16328153800000678,
+          "native_exit": 0,
+          "reference": 0.04141201100000558,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04016706400000203,
+          "reference_exit": 0,
+          "native": 0.163032080000022,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16291665500000363,
+          "native_exit": 0,
+          "reference": 0.04069237100000578,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "c660fa82c978ca431e9393ef2af9000f4d1fb145c7ab1fe7d349b849e4f5089d",
+      "bytes": {
+        "native": 2649790,
+        "reference": 2657390
+      },
+      "work_dominates_startup": false
+    },
+    {
+      "class": "polynomial",
+      "bits": 16,
+      "channels": 1,
+      "rate": 48000,
+      "case": "polynomial-16-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17782240700000784,
+          "native_exit": 0,
+          "reference": 0.04232719899999893,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.042165233999980956,
+          "reference_exit": 0,
+          "native": 0.17707797599999253,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17900467699999467,
+          "native_exit": 0,
+          "reference": 0.042372096999997666,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04216542399998957,
+          "reference_exit": 0,
+          "native": 0.17765749500000538,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.1770732989999999,
+          "native_exit": 0,
+          "reference": 0.042311345000001666,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0421415579999973,
+          "reference_exit": 0,
+          "native": 0.17704016799999067,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17735760000002188,
+          "native_exit": 0,
+          "reference": 0.04264455999998518,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04229365800000551,
+          "reference_exit": 0,
+          "native": 0.17759860500001423,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.17761760400000526,
+          "native_exit": 0,
+          "reference": 0.04325184100000001,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "7e202f5076acef23a830c7f8fcefc1e0400130cc5b17dd84d02a8e9dbde7ff11",
+      "bytes": {
+        "native": 2884138,
+        "reference": 2891678
+      },
+      "work_dominates_startup": false
+    },
+    {
+      "class": "polynomial",
+      "bits": 16,
+      "channels": 2,
+      "rate": 44100,
+      "case": "polynomial-16-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6543912660000046,
+          "native_exit": 0,
+          "reference": 0.05586154999997461,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.055271556000008104,
+          "reference_exit": 0,
+          "native": 0.6533263110000007,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6578116819999877,
+          "native_exit": 0,
+          "reference": 0.05582476500001121,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05510075600000164,
+          "reference_exit": 0,
+          "native": 0.6553073850000146,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.653012173999997,
+          "native_exit": 0,
+          "reference": 0.05530370200000334,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.055027013000000125,
+          "reference_exit": 0,
+          "native": 0.6538497620000214,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6527161629999796,
+          "native_exit": 0,
+          "reference": 0.055452408000007836,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05514399999998432,
+          "reference_exit": 0,
+          "native": 0.654534678999994,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.6538882090000016,
+          "native_exit": 0,
+          "reference": 0.05507341300000235,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "3f7690351cc150018cd269f60336d8c236b766aaa1ad89d1a13da1dfc5e4b952",
+      "bytes": {
+        "native": 5296113,
+        "reference": 5469088
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 16,
+      "channels": 2,
+      "rate": 48000,
+      "case": "polynomial-16-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7107715459999895,
+          "native_exit": 0,
+          "reference": 0.05872440700002812,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05880596099999025,
+          "reference_exit": 0,
+          "native": 0.709675175000001,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7107870899999966,
+          "native_exit": 0,
+          "reference": 0.05886052299999278,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.059052635000000464,
+          "reference_exit": 0,
+          "native": 0.7108785500000181,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.708794145000013,
+          "native_exit": 0,
+          "reference": 0.058433890999992855,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.058667563999989625,
+          "reference_exit": 0,
+          "native": 0.7071354050000025,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7081337460000157,
+          "native_exit": 0,
+          "reference": 0.05881498799999463,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.058520531999988634,
+          "reference_exit": 0,
+          "native": 0.7087203840000029,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.7076134280000019,
+          "native_exit": 0,
+          "reference": 0.058909341000003224,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "9746ac006ab358616958e239552692ab33dc54a551aed16dfec79d847035c0cb",
+      "bytes": {
+        "native": 5764490,
+        "reference": 5951742
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 24,
+      "channels": 1,
+      "rate": 44100,
+      "case": "polynomial-24-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.1570682659999818,
+          "native_exit": 0,
+          "reference": 0.055090431000024864,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.055205263000004834,
+          "reference_exit": 0,
+          "native": 0.15279211899999723,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.15271142699998563,
+          "native_exit": 0,
+          "reference": 0.0546828510000239,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05460646499997779,
+          "reference_exit": 0,
+          "native": 0.15279633599999443,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.15240661500001806,
+          "native_exit": 0,
+          "reference": 0.054701530000016874,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05484493599999496,
+          "reference_exit": 0,
+          "native": 0.1529264530000205,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.15511604200000306,
+          "native_exit": 0,
+          "reference": 0.05479607200001624,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0546477780000032,
+          "reference_exit": 0,
+          "native": 0.15367306499999245,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.15248373899999024,
+          "native_exit": 0,
+          "reference": 0.0546840540000062,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "0758bc4f0a8acfa26991db14ae1adb20720f60f83b020604114065cb8a4a6056",
+      "bytes": {
+        "native": 3972790,
+        "reference": 3196535
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 24,
+      "channels": 1,
+      "rate": 48000,
+      "case": "polynomial-24-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16577007699999058,
+          "native_exit": 0,
+          "reference": 0.058096667000000934,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05817193100000395,
+          "reference_exit": 0,
+          "native": 0.1704769909999868,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16574579999999628,
+          "native_exit": 0,
+          "reference": 0.05837107299998934,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.05803186899998991,
+          "reference_exit": 0,
+          "native": 0.1659171400000048,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16573993200000814,
+          "native_exit": 0,
+          "reference": 0.05848311299999409,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.058397522999996454,
+          "reference_exit": 0,
+          "native": 0.16588271699998813,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16614640699998517,
+          "native_exit": 0,
+          "reference": 0.05837459800000033,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.058818289999976514,
+          "reference_exit": 0,
+          "native": 0.16607314699999165,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.16597358499998904,
+          "native_exit": 0,
+          "reference": 0.05991372100001513,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "743e35c3bfa9c6fa41a58e4c00d641060d920cd6e482a3afb5cb5908b5b9789d",
+      "bytes": {
+        "native": 4324138,
+        "reference": 3480361
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 24,
+      "channels": 2,
+      "rate": 44100,
+      "case": "polynomial-24-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5363763029999973,
+          "native_exit": 0,
+          "reference": 0.08484200500001293,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08399973800001703,
+          "reference_exit": 0,
+          "native": 0.5384010820000071,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5460036849999881,
+          "native_exit": 0,
+          "reference": 0.0848659909999867,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0846842760000186,
+          "reference_exit": 0,
+          "native": 0.536948974000012,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5369525090000025,
+          "native_exit": 0,
+          "reference": 0.08481535499998927,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08475418300000115,
+          "reference_exit": 0,
+          "native": 0.5376974849999954,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5380917210000007,
+          "native_exit": 0,
+          "reference": 0.08478703200000837,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08386344600000939,
+          "reference_exit": 0,
+          "native": 0.5351561540000205,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.536291460000001,
+          "native_exit": 0,
+          "reference": 0.08458887300000129,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "9eecc5ed47f1fe5f69eac90cc6ab1b4078a2f6703caa0ca5aa4642a68e57c7c5",
+      "bytes": {
+        "native": 7942113,
+        "reference": 6383989
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "polynomial",
+      "bits": 24,
+      "channels": 2,
+      "rate": 48000,
+      "case": "polynomial-24-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5832164239999997,
+          "native_exit": 0,
+          "reference": 0.09052284900002405,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09103326199999628,
+          "reference_exit": 0,
+          "native": 0.583490930000039,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5958217670000181,
+          "native_exit": 0,
+          "reference": 0.09087578800000529,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09053352099999756,
+          "reference_exit": 0,
+          "native": 0.5945392739999988,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5840067980000185,
+          "native_exit": 0,
+          "reference": 0.09117503200002375,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09098861899997246,
+          "reference_exit": 0,
+          "native": 0.5930187399999909,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5836393920000091,
+          "native_exit": 0,
+          "reference": 0.09114668899997014,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0910120949999964,
+          "reference_exit": 0,
+          "native": 0.5849253700000077,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.5858452030000194,
+          "native_exit": 0,
+          "reference": 0.09101039299997637,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "dc7bfdaf829c180a21e20d5a81c4fb77214708dca6f753035fbbe03220317c68",
+      "bytes": {
+        "native": 8644490,
+        "reference": 6951420
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 16,
+      "channels": 1,
+      "rate": 44100,
+      "case": "noise-16-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.21736418700004378,
+          "native_exit": 0,
+          "reference": 0.04080581800002392,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.040313140999955976,
+          "reference_exit": 0,
+          "native": 0.21710170900001913,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.216618536999988,
+          "native_exit": 0,
+          "reference": 0.0408670599999823,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.040350346999957765,
+          "reference_exit": 0,
+          "native": 0.21682939700002635,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.21726397599996972,
+          "native_exit": 0,
+          "reference": 0.040804090999984055,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04039638799997647,
+          "reference_exit": 0,
+          "native": 0.21712942900001053,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.21655814399997553,
+          "native_exit": 0,
+          "reference": 0.04029781000002686,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04018760499997143,
+          "reference_exit": 0,
+          "native": 0.216683842000009,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.21656071699999302,
+          "native_exit": 0,
+          "reference": 0.040190299000016694,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "977017d348cb2addc2a98930b9b5cb744c6f41281972715dc622811d84272b71",
+      "bytes": {
+        "native": 2649790,
+        "reference": 2657390
+      },
+      "work_dominates_startup": false
+    },
+    {
+      "class": "noise",
+      "bits": 16,
+      "channels": 1,
+      "rate": 48000,
+      "case": "noise-16-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.23565804300000082,
+          "native_exit": 0,
+          "reference": 0.04221277099998133,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04237443599998869,
+          "reference_exit": 0,
+          "native": 0.23672428499997977,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.23545732500002714,
+          "native_exit": 0,
+          "reference": 0.042723674999990635,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04193707399997493,
+          "reference_exit": 0,
+          "native": 0.2359894119999808,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.23628961600002185,
+          "native_exit": 0,
+          "reference": 0.043246517999989464,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.042693990000032045,
+          "reference_exit": 0,
+          "native": 0.23681716499999084,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.2354292629999577,
+          "native_exit": 0,
+          "reference": 0.042641450000019177,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04155700799998385,
+          "reference_exit": 0,
+          "native": 0.23591054199999917,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.23567138999999315,
+          "native_exit": 0,
+          "reference": 0.042266742999970575,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "78b2a65a38b91ccf9858a4f7a2a055a9676230380d0a704149ca0cd3cebcd54f",
+      "bytes": {
+        "native": 2884138,
+        "reference": 2891678
+      },
+      "work_dominates_startup": false
+    },
+    {
+      "class": "noise",
+      "bits": 16,
+      "channels": 2,
+      "rate": 44100,
+      "case": "noise-16-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8220724960000325,
+          "native_exit": 0,
+          "reference": 0.0661042860000407,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0656902399999808,
+          "reference_exit": 0,
+          "native": 0.8225998130000107,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8229465079999727,
+          "native_exit": 0,
+          "reference": 0.06581278599998086,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06610453700000107,
+          "reference_exit": 0,
+          "native": 0.8231818739999994,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8230553419999751,
+          "native_exit": 0,
+          "reference": 0.06569553799999994,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06582388200001787,
+          "reference_exit": 0,
+          "native": 0.8232311880000225,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8234384720000207,
+          "native_exit": 0,
+          "reference": 0.06627487500003326,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.06651922499997909,
+          "reference_exit": 0,
+          "native": 0.8229932879999637,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8226192999999853,
+          "native_exit": 0,
+          "reference": 0.06584008299995503,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "a8bc1a3f048f9890ca04a45550e0d9b588bbfd1a828d10edb5fe4a0eea33998e",
+      "bytes": {
+        "native": 5296113,
+        "reference": 5399084
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 16,
+      "channels": 2,
+      "rate": 48000,
+      "case": "noise-16-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8951892869999938,
+          "native_exit": 0,
+          "reference": 0.07077313600001389,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.07014922199999774,
+          "reference_exit": 0,
+          "native": 0.8946380630000021,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.9073083000000111,
+          "native_exit": 0,
+          "reference": 0.07027232899997671,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0704034070000148,
+          "reference_exit": 0,
+          "native": 0.8953970410000238,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.895474135000029,
+          "native_exit": 0,
+          "reference": 0.06994820800002799,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.07032117300002483,
+          "reference_exit": 0,
+          "native": 0.8965767060000189,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.89590059599999,
+          "native_exit": 0,
+          "reference": 0.07063085300001148,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.07028807500000767,
+          "reference_exit": 0,
+          "native": 0.8951382240000498,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.897484167000016,
+          "native_exit": 0,
+          "reference": 0.0701191990000325,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "05185a662281100bcbba02da3f08b964fd326095f3d64ce8404650265d39c621",
+      "bytes": {
+        "native": 5764490,
+        "reference": 5874909
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 24,
+      "channels": 1,
+      "rate": 44100,
+      "case": "noise-24-1-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.22226089000002958,
+          "native_exit": 0,
+          "reference": 0.043678179999972144,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.043623717999992095,
+          "reference_exit": 0,
+          "native": 0.2208928389999869,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.22183646799999224,
+          "native_exit": 0,
+          "reference": 0.04363413300001184,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04380097599999999,
+          "reference_exit": 0,
+          "native": 0.22198026500001333,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.22191068899996935,
+          "native_exit": 0,
+          "reference": 0.043692582000005586,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0442410630000154,
+          "reference_exit": 0,
+          "native": 0.22222621700001355,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.22215340700000752,
+          "native_exit": 0,
+          "reference": 0.04464536400001862,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04398753800001032,
+          "reference_exit": 0,
+          "native": 0.22215319700001146,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.22278647600001023,
+          "native_exit": 0,
+          "reference": 0.04440193599998565,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "f25b1bb166edafa05967ac1d0161958f58dfd7d4a188df67b077abe2b882398c",
+      "bytes": {
+        "native": 3972790,
+        "reference": 3980390
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 24,
+      "channels": 1,
+      "rate": 48000,
+      "case": "noise-24-1-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.2412887749999868,
+          "native_exit": 0,
+          "reference": 0.04704900600000883,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04682253400000036,
+          "reference_exit": 0,
+          "native": 0.2415714829999729,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.2416443930000014,
+          "native_exit": 0,
+          "reference": 0.047334958999954324,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.04694175399998812,
+          "reference_exit": 0,
+          "native": 0.24271620499996516,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.24173597100002553,
+          "native_exit": 0,
+          "reference": 0.04707211099997721,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.047204240999974445,
+          "reference_exit": 0,
+          "native": 0.24177717300000268,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.24158549300000232,
+          "native_exit": 0,
+          "reference": 0.04707944200004022,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.046933741999964695,
+          "reference_exit": 0,
+          "native": 0.24177776499999482,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.24141441500000838,
+          "native_exit": 0,
+          "reference": 0.0470596119999982,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "bf319588f3fa0cb39b44f693a43876c8e436b5227c69d9305eeee54a82ed9a10",
+      "bytes": {
+        "native": 4324138,
+        "reference": 4331678
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 24,
+      "channels": 2,
+      "rate": 44100,
+      "case": "noise-24-2-44100",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8270852670000295,
+          "native_exit": 0,
+          "reference": 0.08916280500000084,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08891669299998739,
+          "reference_exit": 0,
+          "native": 0.8278313650000086,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8439980279999872,
+          "native_exit": 0,
+          "reference": 0.08886629899996024,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08889563399998224,
+          "reference_exit": 0,
+          "native": 0.8290145999999936,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8298630310000021,
+          "native_exit": 0,
+          "reference": 0.08899955999999065,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.08886409600000889,
+          "reference_exit": 0,
+          "native": 0.8260600469999986,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8303949959999954,
+          "native_exit": 0,
+          "reference": 0.08896033500002432,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09030796400003283,
+          "reference_exit": 0,
+          "native": 0.8399105270000291,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8390642250000155,
+          "native_exit": 0,
+          "reference": 0.09002625800002306,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "e700dec379ed7ad7fdda7f1896d2c0821d753bd48b04b01f43e52b592dd18640",
+      "bytes": {
+        "native": 7942113,
+        "reference": 8076537
+      },
+      "work_dominates_startup": true
+    },
+    {
+      "class": "noise",
+      "bits": 24,
+      "channels": 2,
+      "rate": 48000,
+      "case": "noise-24-2-48000",
+      "pairs": [
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.9132184179999854,
+          "native_exit": 0,
+          "reference": 0.09685869200001207,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.0960525929999676,
+          "reference_exit": 0,
+          "native": 0.9173580519999973,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.9149285659999578,
+          "native_exit": 0,
+          "reference": 0.09602942800000847,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09604524200000242,
+          "reference_exit": 0,
+          "native": 0.9132490449999864,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.9075026099999945,
+          "native_exit": 0,
+          "reference": 0.09542161799998894,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09554901100000279,
+          "reference_exit": 0,
+          "native": 0.9001853510000046,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.907375218000027,
+          "native_exit": 0,
+          "reference": 0.09578022499999861,
+          "reference_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "reference",
+            "native"
+          ],
+          "reference": 0.09442406400000891,
+          "reference_exit": 0,
+          "native": 0.8999248210000133,
+          "native_exit": 0,
+          "verified": true
+        },
+        {
+          "order": [
+            "native",
+            "reference"
+          ],
+          "native": 0.8992136059999893,
+          "native_exit": 0,
+          "reference": 0.09463956999996981,
+          "reference_exit": 0,
+          "verified": true
+        }
+      ],
+      "complete": true,
+      "input_pcm_sha256": "d8ea9029c9d18bbd2852f5cff8ce31edc1b9d318302d00534b9d55eddef1fdb8",
+      "bytes": {
+        "native": 8644490,
+        "reference": 8790084
+      },
+      "work_dominates_startup": true
+    }
+  ],
+  "judged": true,
+  "head": "17ea08c6d9f1b8bf152e6f1385db931e757b9a74",
+  "plan_sha256": "182cff794f998797ed4c5680a6acef6a349eacb3e495683094562ecfe632cea9",
+  "driver_sha256": "08fc261b9808f9373d135e7f28d7e83118b07ce834037bd93108cce5fefcca42",
+  "coreav_sha256": "830f4a58bbd8616424dd1088ff1ba6841d8e9551c21b6611690f47c10827eec1",
+  "reference_sha256": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+  "reference_version": "ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers",
+  "host": {
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "logical_cpu": 0,
+    "runner": "ubuntu-24.04",
+    "storage": "runner temporary directory"
+  },
+  "null_seconds": [
+    0.00910501799998542,
+    0.008578196999991405,
+    0.008350221000000602,
+    0.008525427000023456,
+    0.008633250999992015,
+    0.008646451000004163,
+    0.008553390000002992,
+    0.008595134000017879,
+    0.008575804000003018
+  ],
+  "aa_pairs": [
+    [
+      0.05396342500000628,
+      0.05398387599998955
+    ],
+    [
+      0.05401791700001013,
+      0.054246454999997695
+    ],
+    [
+      0.05424838800001908,
+      0.05430038700001205
+    ],
+    [
+      0.05404751199998259,
+      0.05452785200000676
+    ],
+    [
+      0.05425021100001004,
+      0.05392941399998108
+    ],
+    [
+      0.05408720300002301,
+      0.05413128999998662
+    ],
+    [
+      0.05320763599999623,
+      0.053247917000021516
+    ],
+    [
+      0.0531363779999765,
+      0.053209390999995776
+    ],
+    [
+      0.05331098600001383,
+      0.05345028799999341
+    ]
+  ],
+  "statistics": {
+    "tones": {
+      "cases": 8,
+      "median_ratio": 5.348980381779154,
+      "interval_95": [
+        3.307113989053881,
+        8.510273121812979
+      ],
+      "share_faster": 0.0
+    },
+    "polynomial": {
+      "cases": 8,
+      "median_ratio": 5.271910173148063,
+      "interval_95": [
+        3.4008765237622507,
+        11.795629023880863
+      ],
+      "share_faster": 0.0
+    },
+    "noise": {
+      "cases": 8,
+      "median_ratio": 7.4480140342242525,
+      "interval_95": [
+        5.19519449084933,
+        12.44436135627102
+      ],
+      "share_faster": 0.0
+    },
+    "overall": {
+      "cases": 24,
+      "median_ratio": 5.960005713594752,
+      "interval_95": [
+        4.207214020170731,
+        8.524560243614042
+      ],
+      "share_faster": 0.0
+    }
+  },
+  "size_ratio": 1.0174813278867645,
+  "size_bar": false,
+  "speed_bar_observed": false,
+  "speed_verdict": "diagnostic-only-shared-host"
+}

@@ -26,7 +26,7 @@ export function noticeSections(text) {
     requireValue(!sections.has(key), "duplicate third-party notice section within an origin");
     const section = { origin, label, license: license[1] };
     const standard = standardLabel.exec(label);
-    requireValue(standard || crateLabel.test(label), "malformed third-party notice crate label");
+    requireValue(origin === "C runtime" || standard || crateLabel.test(label), "malformed third-party notice crate label");
     if (standard) {
       requireValue(origin === "Rust toolchain", "Rust standard library section has the wrong origin");
       const crates = /^Crates: ([A-Za-z0-9_-]+(?:, [A-Za-z0-9_-]+)*)$/.exec(lines[at + 2] ?? "");

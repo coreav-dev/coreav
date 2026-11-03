@@ -80,6 +80,12 @@ impl From<Refusal> for Stop {
 
 impl From<WriteFailure> for Stop {
     fn from(failure: WriteFailure) -> Self {
+        if let WriteFailure::Rejected(Failure::Unsupported(reason)) = &failure {
+            return Self::Refused(Refusal::NotNative(NotNative::property(
+                "what the input needs",
+                reason,
+            )));
+        }
         match not_native_reason(&failure) {
             Some(reason) => Self::Refused(Refusal::not_native(reason)),
             None => Self::Failed(failure),
@@ -243,7 +249,6 @@ program on PATH instead (or the one COREAV_FALLBACK names), which is
 FFmpeg's C code, and says so on standard error. Help on a topic
 (-h long, -h full, -h encoder=NAME, ...) is handled the same way.
 Documentation: https://coreav.dev/docs/commands/ffmpeg
-See docs/design/compat-cli.md.
 ";
 
 /// Parses, plans and runs a command line. Returns the summary its writer's
@@ -1485,9 +1490,6 @@ fn not_native_reason(failure: &WriteFailure) -> Option<&'static str> {
         | WriteFailure::Rejected(Failure::Matroska(coreav_mkv::Error::CodecNotAllowed {
             ..
         })) => Some("a codec that CoreAV does not copy"),
-        WriteFailure::Rejected(Failure::Unsupported(_)) => {
-            Some("a stream that CoreAV cannot copy to MP4")
-        }
         _ => None,
     }
 }
