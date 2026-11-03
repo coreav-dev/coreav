@@ -307,6 +307,7 @@ dependencies = [
  "coreav-audio",
  "coreav-avi",
  "coreav-backend-h264",
+ "coreav-backend-svt-av1",
  "coreav-backend-vp9",
  "coreav-decode",
  "coreav-frame",

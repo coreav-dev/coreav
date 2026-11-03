@@ -23,6 +23,9 @@ use crate::error::Failure;
 use crate::output::WriteFailure;
 use crate::strict_safe::{Encoder, StrictSafe};
 
+#[cfg(feature = "svt-av1")]
+pub(crate) mod av1;
+
 /// What `coreav transcode` asks for, from its arguments.
 #[derive(Clone, Debug)]
 pub struct Request {
