@@ -121,7 +121,7 @@ def fetch(args, wanted=None):
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
     import round_files
     import r2pool
-    limits = r2pool.Limits(requests=5000, bytes_=512 << 20)
+    limits = r2pool.Limits(requests=5000, bytes_=(len(wanted) + 1) * (128 << 20))
 
     def pool():
         credentials = {k: os.environ[v] for k, v in (

@@ -187,6 +187,24 @@ class Merge(unittest.TestCase):
             self.assertEqual(run.main(), 0)
             self.assertEqual(fetch.call_args.kwargs['wanted'], run.plan(SCRIPTS.parent)['inputs'])
 
+    def test_full_roster_acquisition_shares_finite_caps_and_restores_the_pool_after_failure(self):
+        wanted = run.plan(SCRIPTS.parent)['inputs']
+        entries = [dict(row, set='real', ext='webm', size=1, key=f'synthetic-{i}') for i, row in enumerate(wanted)]
+        original = object()
+        owner = argparse.Namespace(pool=original, manifest=mock.Mock(return_value=entries),
+                                   fetch=mock.Mock(side_effect=ValueError('synthetic failure')))
+        limits = argparse.Namespace(requests=4, bytes=12)
+        pool = argparse.Namespace(Limits=mock.Mock(return_value=limits))
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(sys.modules,
+                {'round_files': owner, 'r2pool': pool}), mock.patch.object(build.ceiling.sys, 'platform', 'linux'):
+            directory = pathlib.Path(temporary) / 'media'
+            with self.assertRaises(ValueError):
+                build.ceiling.fetch(argparse.Namespace(media=directory), wanted=wanted)
+            self.assertIs(owner.pool, original)
+            self.assertEqual(pool.Limits.call_args.kwargs, dict(requests=5000, bytes_=896 << 20))
+            self.assertEqual(run.read(directory / 'acquisition.json')['requests_reserved'], 4)
+            self.assertEqual([r['sha256'] for r in owner.fetch.call_args.args[0]], [r['sha256'] for r in wanted])
+
 
 class Capture(unittest.TestCase):
     def setUp(self):
