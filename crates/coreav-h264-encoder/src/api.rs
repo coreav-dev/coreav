@@ -7,6 +7,8 @@ pub enum Error {
     Settings,
     /// A caller or level bound would be exceeded.
     Limit,
+    /// No candidate fits the 3,200-bit macroblock-layer limit.
+    MacroblockLimit,
     /// Memory reservation failed.
     Allocation,
     /// A coefficient or intermediate is outside the normative range.

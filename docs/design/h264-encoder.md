@@ -60,6 +60,8 @@ The initial quantiser chooses the nearest signed coefficient level to the ideal 
 
 G1 uses a fixed luma QP for the sequence, restricted to 10 through 51. The restriction avoids the low-QP CAVLC DC representability issue called out in clauses 8.5.10 and 8.5.11. Map chroma QP through the normative nonlinear table with zero offset. Signal `slice_qp_delta = QP - 26` and zero `mb_qp_delta` where that syntax is present. There is no CRF, ABR, per-block QP change, VBV, or bitrate target.
 
+Clause A.3.1(n) separately limits each `macroblock_layer` to 3,200 bits. The shared counting and emission traversal rejects oversized candidates before mode comparison. If no candidate fits, the whole picture returns `Error::MacroblockLimit` without advancing sequence state or returning partial output. Fixed QP with no I_PCM means that some dense content at low QP is refused even when its format and coefficient values are supported. A later slice may add I_PCM or a per-macroblock QP raise; neither fallback is implemented here or silently added to the fixed-QP evaluation method. See the [bit-limit fix](h264-encoder-macroblock-limit.md).
+
 For every winning block, inverse-scan levels, apply the appropriate inverse scaling and DC transform, apply the integer inverse 4x4 transform, add prediction, and clip samples exactly as clause 8.5 requires. Store this result for the next prediction. Preserve the complete encoder reconstruction until all three decoders have compared it. Transform tests cover basis impulses, signed extrema, DC-only blocks, all six QP remainders, chroma-QP transitions, and padded boundaries.
 
 ## NAL and entropy writing
