@@ -270,6 +270,7 @@ export function validateEvidence(evidence, sections, context) {
   const covered = new Set(standard?.crates?.map(normalise) ?? []);
   let builtins = false;
   for (const section of sections.values()) {
+    if (!["crates.io", "Rust toolchain", "Rust toolchain, crates.io"].includes(section.origin)) continue;
     const crate = crateLabel.exec(section.label);
     if (!crate) continue;
     covered.add(normalise(crate[1]));

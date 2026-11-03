@@ -8,6 +8,28 @@ const commit = runtimeManifest.rustCommit;
 const context = { commit, version: "1.99.1", library: new Set(), members: new Set(), memberPaths: new Set() };
 const evidence = nativeEvidence(Buffer.alloc(0));
 
+test("C runtime sections cannot cover Rust roots or build output", () => {
+  for (const target of ["x86_64-unknown-linux-musl", "wasm32-wasip1"]) {
+    const sections = noticeSections(renderRuntimes(target, commit));
+    for (const component of runtimeComponents(target, commit)) {
+      const root = component.label.split(" ")[0].replaceAll("-", "_");
+      for (const kind of ["roots", "buildOut"]) {
+        const observed = nativeEvidence(Buffer.alloc(0));
+        observed[kind].add(root);
+        assert.throws(() => validateEvidence(observed, sections, { ...context, target }), /module carries (?:crate root|build output for crate)/);
+        const withRust = noticeSections(renderRuntimes(target, commit) + `\n=== ${root} 1.0.0 (crates.io) ===\nLicense: MIT\n`);
+        assert.doesNotThrow(() => validateEvidence(observed, withRust, { ...context, target }));
+      }
+    }
+  }
+});
+
+test("LLVM runtime expressions preserve the legacy licence choice", () => {
+  for (const name of ["libunwind", "compiler-rt"]) {
+    assert.equal(runtimeManifest.components[name].license, "Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)");
+  }
+});
+
 test("the runtime inventory covers every shipped target, independently of Cargo features", () => {
   const expected = {
     "x86_64-unknown-linux-musl": ["musl 1.2.5", "libunwind 23.1.1", "compiler-rt 23.1.1"],

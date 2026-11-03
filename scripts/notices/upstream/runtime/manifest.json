@@ -36,7 +36,7 @@
     },
     "libunwind": {
       "label": "libunwind 23.1.1",
-      "license": "Apache-2.0 WITH LLVM-exception AND NCSA AND MIT",
+      "license": "Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)",
       "files": [
         "libunwind/LICENSE.TXT"
       ]
@@ -56,7 +56,7 @@
     },
     "compiler-rt": {
       "label": "compiler-rt 23.1.1",
-      "license": "Apache-2.0 WITH LLVM-exception AND NCSA AND MIT",
+      "license": "Apache-2.0 WITH LLVM-exception AND (NCSA OR MIT)",
       "files": [
         "compiler-rt/LICENSE.TXT"
       ]
