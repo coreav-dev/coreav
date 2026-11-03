@@ -1,6 +1,50 @@
 # Known divergences: audio output versus FFmpeg 9.0.2
 
-These entries describe existing audio-output checks, including a default encoder refusal. They do not add a machine-readable acceptance rule, change a tolerance, or reinterpret a frozen measurement. The linked tests own each exception's scope. Commands below use generated inputs and the pinned FFmpeg 9.0.2 binaries, never an arbitrary installed version.
+These entries describe audio-output differences, including a default encoder refusal. They do not change a tolerance or reinterpret a frozen measurement. The linked tests own each checked exception's scope. Commands below use generated inputs and the pinned FFmpeg 9.0.2 binaries, never an arbitrary installed version.
+
+## Lossy PCM decoding is not byte-identical
+
+Native MP3, Opus and AAC-LC decode does **not** match FFmpeg 9.0.2 byte for byte. Conformance permits decoder-specific numerical output, and S16 rounding can hide differences already present in F32. The [decoder eligibility record](compat/audio-decoder-eligibility.json) separates conformance from container presentation and conversion eligibility; it does not register an exact decoder or activate a command by itself.
+
+The following diagnostic comparisons ran on 2026-11-03, Linux x86-64 (AMD EPYC), with CoreAV `6b048e3127269547706753a38b4b0e73b2ce57ac` and pinned FFmpeg `9.0.2 / n9.0.2-17-g2a571b6068`. Native `coreav decode-audio --threads 1 --format {f32,s16} INPUT -` WAV data was compared with `ffmpeg -v error -threads:a 1 -i INPUT -f {f32le,s16le} -`, without rate or channel conversion. Equality means stored sample bits at the same position, not aligned numerical closeness. These are development diagnostics, not universal error bounds or conformance results.
+
+### MP3 arithmetic
+
+Two-second generated stereo tones (440/3171 Hz left, 553/3242 Hz right, amplitudes 0.23/0.07), with and without periodic 1 ms clicks, were encoded at 128 kbit/s and copied into MP4 and Matroska. Both containers gave the same native-rate comparisons:
+
+| Rate | S16 samples equal | Maximum S16 difference | F32 samples bit-identical |
+|---|---:|---:|---:|
+| 44.1 kHz | 99.776644–99.794218% | 1 integer unit | 6.573129–6.596939% |
+| 48 kHz | 99.775000–99.777083% | 1 integer unit | 6.415104–6.434375% |
+
+Complete lengths agree (176,400 and 192,000 interleaved scalar samples respectively). The measured maximum of one S16 unit is not an allowance for arbitrary decoder errors. The [MP3 conformance bar](design/audio-decode.md#mp3-bars) remains the acceptance criterion, applied before quantization.
+
+### AAC arithmetic and perceptual noise substitution
+
+Tool-free generated stereo tones at 128 kbit/s gave S16 equality of 99.927438% at 44.1 kHz and 99.926563% at 48 kHz, with maximum difference one unit. Public ISO conformance inputs `al00_48` and `al07_48` gave 99.983909% and 99.995660% S16 equality, also at most one unit. Their F32 identity was only 22.677335% and 28.226997%. Complete lengths agreed.
+
+The public `al18_48` input uses PNS in all 2,813 frames. F32 identity was 0%, S16 equality 0.047075%, and maximum S16 difference 3,701 units, while aggregate noise energy differed by only 0.0003 dB. PNS specifies the noise energy rather than FFmpeg's particular random waveform. This does not waive the existing aggregate-energy gate or excuse a count mismatch.
+
+An additional correlated 5 kHz stereo development encode selected one intensity frame under an all-ones MS mask, without PNS. S16 equality was 99.361458% with maximum difference 71 units. The [existing AAC-LC choices and bars](design/audio-decode.md#aac-lc-bars) describe that intensity-direction disagreement; this diagnostic does not establish a new interpretation of the specification. HE-AAC and SBR are outside this registration.
+
+### Opus mode differences and terminal output
+
+Generated two-second CBR inputs used 20 ms packets: CELT stereo at 96 kbit/s with low-delay application, SILK mono at 12 kbit/s, and Hybrid mono at 24 kbit/s with voice application. All 101 packet TOCs of each input confirmed the intended mode. These are not the RFC conformance vectors.
+
+| Mode and container | Native / FFmpeg scalar samples | S16 equality over common prefix | Maximum S16 difference |
+|---|---:|---:|---:|
+| CELT MP4 | 192,000 / 193,680 | 99.942708% | 1 |
+| CELT Matroska | 193,680 / 193,680 | 99.227592% | 82 |
+| SILK MP4 | 96,000 / 96,648 | 0.028125% | 6,191 |
+| SILK Matroska | 96,648 / 96,648 | 0.033110% | 6,191 |
+| Hybrid MP4 | 96,000 / 96,648 | 0.016667% | 3,557 |
+| Hybrid Matroska | 96,648 / 96,648 | 0.019659% | 3,557 |
+
+Different lengths fail complete equality. The native MP4 outputs contain 96,000 samples per channel, but these diagnostics alone do not prove the source's specified count. The [source-edit rule](#opus-mp4-re-encoding-preserves-the-source-edit) independently explains a 648-sample difference for its precisely checked fixture, not every input in this table. Low-delay CELT has a different priming length, so that fixture's 648-sample exception cannot be applied to it. A source-bound presentation check is still needed before admitting these Opus paths.
+
+SILK and Hybrid differ inside the presentation, not just at EOF. In a black-box diagnostic, forcing FFmpeg to `-c:a libopus` made SILK's common prefix bit-identical to CoreAV, while FFmpeg's default `opus` decoder gave 0% F32 identity. That alternative is not a replacement baseline. Opus conformance uses the RFC vectors and their comparison procedure, not identity with either FFmpeg decoder.
+
+CELT's MP4 in-presentation F32 maximum difference was 1.19209e-7. Matroska's largest difference (0.00249358) occurred in the terminal extension; its first 192,000 scalar samples retained the tiny MP4 maximum. The terminal waveform needs separate investigation and is not waived as harmless rounding. Both Opus presentation rows remain ineligible. If CoreAV's count differs from the stream's specified pre-skip and end trim, that is a correctness bug, never a permitted divergence.
 
 ## Opus MP4 re-encoding preserves the source edit
 

@@ -1,0 +1,39 @@
+{
+  "schema": "coreav.audio-decoder-eligibility/1",
+  "oracle_version": "9.0.2",
+  "decoders": [
+    {
+      "codec": "mp3",
+      "kind": "conformance",
+      "decoder_eligible": true,
+      "presentations": [
+        { "container": "mp4", "eligible": true, "requirements": ["mpeg1_layer3", "supported_mp4_timeline"] },
+        { "container": "matroska", "eligible": false, "requirements": [] }
+      ],
+      "evidence": "docs/design/lossy-pcm-eligibility.md#mp3",
+      "limitations": ["Only MPEG-1 Layer III has registered conformance evidence", "MPEG-2 and MPEG-2.5 are not registered", "Not byte-identical to FFmpeg"]
+    },
+    {
+      "codec": "opus",
+      "kind": "conformance",
+      "decoder_eligible": true,
+      "presentations": [
+        { "container": "mp4", "eligible": false, "requirements": [] },
+        { "container": "matroska", "eligible": false, "requirements": [] }
+      ],
+      "evidence": "docs/design/lossy-pcm-eligibility.md#opus",
+      "limitations": ["Decoder conformance does not register container presentation", "Presentation and terminal output need separate admission evidence", "Not byte-identical to FFmpeg"]
+    },
+    {
+      "codec": "aac",
+      "kind": "conformance",
+      "decoder_eligible": true,
+      "presentations": [
+        { "container": "mp4", "eligible": true, "requirements": ["aac_lc", "supported_mp4_timeline"] },
+        { "container": "matroska", "eligible": false, "requirements": [] }
+      ],
+      "evidence": "docs/design/lossy-pcm-eligibility.md#aac-lc",
+      "limitations": ["Requires an AAC-enabled build and supported AAC-LC configuration", "HE-AAC is not registered", "PNS waveform is not an exactness contract", "Not byte-identical to FFmpeg"]
+    }
+  ]
+}
