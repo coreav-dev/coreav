@@ -228,11 +228,7 @@ def interval(values, seed):
 
 
 def paired_round_summary(times, streams, new, old, rounds, seed, resamples):
-    """Class-stratified file and paired-round bootstrap for fully audited calls.
-
-    `times[(stream, arm)][round]` contains elapsed seconds. Historical report
-    estimation stays unchanged. This entry accepts raw rounds, not medians.
-    """
+    """Bootstrap `times[(stream, arm)][round]` with shared paired-round indices."""
     groups = {c: sorted(s for s, cls in streams.items() if cls == c) for c in CLASSES}
     if any(not v for v in groups.values()) or rounds < 1 or resamples < 1:
         raise Refused('paired rounds require all four classes and positive counts')

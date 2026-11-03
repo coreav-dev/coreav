@@ -46,25 +46,157 @@ def merged(checkout=ROOT):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True).strip()
 
 
-def reservation(root, plan):
+def reservation(root, plan, commit=None):
     config = json.loads((root / 'reservation-checkout.json').read_text())
     checkout = Path(config['checkout']).resolve()
-    commit = merged(checkout)
-    path = checkout / config['manifest']
-    allocation = json.loads(path.read_text())['allocations'][plan['allocation']]
+    relative = Path(config['manifest'])
+    require(not relative.is_absolute() and '..' not in relative.parts and relative.parts,
+            'reservation manifest must stay inside its checkout')
+    current = merged(checkout)
+    commit = current if commit is None else commit
+    require(re.fullmatch('[0-9a-f]{40}', commit) is not None, 'invalid reservation revision')
+    subprocess.run(['git', 'merge-base', '--is-ancestor', commit, 'origin/main'], cwd=checkout, check=True, timeout=30)
+    entry = subprocess.check_output(['git', 'ls-tree', commit, '--', relative.as_posix()], cwd=checkout, text=True)
+    require(entry.startswith('100644 blob ') and len(entry.splitlines()) == 1, 'reservation manifest must be a tracked regular file')
+    raw = subprocess.check_output(['git', 'cat-file', 'blob', f'{commit}:{relative.as_posix()}'], cwd=checkout)
+    allocation = json.loads(raw)['allocations'][plan['allocation']]
     require(allocation['operation'] == 'h264-decode' and allocation['status'] == 'reserved' and
             allocation['holdout'] is True and allocation['spent'] is False and
             allocation['seed'] == plan['draw_seed'] and allocation['count_per_class'] == plan['count_per_class'],
             'allocation reservation differs from the public plan')
-    return {'allocation': plan['allocation'], 'commit': commit, 'manifest_sha256': digest(path),
-            'count_per_class': plan['count_per_class']}
+    return {'allocation': plan['allocation'], 'commit': commit, 'manifest_sha256': hashlib.sha256(raw).hexdigest(),
+            'population': allocation['population'], 'count_per_class': plan['count_per_class']}
 
 
 def reservation_receipt(root, plan):
     value = json.loads((root / 'reservation-receipt.json').read_text())
-    require(value['allocation'] == plan['allocation'] and value['count_per_class'] == plan['count_per_class'] and
+    require(set(value) == {'allocation', 'commit', 'manifest_sha256', 'population', 'count_per_class'} and
+            isinstance(value['population'], str) and value['population'] and
+            value['allocation'] == plan['allocation'] and value['count_per_class'] == plan['count_per_class'] and
             re.fullmatch('[0-9a-f]{40}', value['commit']) is not None and
             re.fullmatch('[0-9a-f]{64}', value['manifest_sha256']) is not None, 'missing merged allocation receipt')
+
+
+def build_evidence(root, revision):
+    from h264_pgo_build import training_roster, TOOLCHAIN, LLVM
+    build = json.loads((root / 'build.json').read_text())
+    require(build['schema'] == 1 and build['source']['commit'] == revision and
+            build['source']['lock_sha256'] == digest(ROOT / 'Cargo.lock') and build['independent_match'] is True and
+            build['recipe_sha256'] == digest(ROOT / 'scripts/h264_pgo_build.py'), 'build provenance changed')
+    require(build['pgo']['sha256'] == build['independent']['sha256'] == digest(root / 'pgo') == digest(root / 'independent')
+            and build['base']['sha256'] == digest(root / 'base') and
+            build['profile_sha256'] == digest(root / 'profile.profdata'), 'build artifacts differ')
+    require(f'release: {TOOLCHAIN}' in build['tools']['rustc'] and LLVM in build['tools']['profdata'], 'build compiler differs')
+    approved = training_roster(ROOT)
+    training = build['training']
+    require(len(training) == 32 and {(r['input'], r['threads']) for r in training} ==
+            {(s, t) for s in approved for t in (1, 8)}, 'incomplete profile training')
+    require(all(r['input_sha256'] == approved[r['input']]['es_sha256'] and r['bytes'] > 0 for r in training), 'training bytes differ')
+    return build
+
+
+def evidence_inventory(rows, refs):
+    names = ['roster.json', 'exclusions.json', 'references.json', 'instance.json', 'build.json',
+             'reservation-receipt.json', 'allocation-contract.json', 'collection.json', 'base', 'pgo', 'independent',
+             'profile.profdata', 'ffmpeg', 'ffprobe', 'aa', 'null']
+    names += ['media/' + r['label'] + '.h264' for r in rows + refs]
+    require(len(names) == len(set(names)), 'input label overlaps a reference')
+    return names
+
+
+def population_files(root, receipt, plan):
+    population = json.loads((root / 'population.json').read_text())
+    require(set(population) == {'allocation', 'population', 'snapshots', 'candidates'} and
+            population['allocation'] == plan['allocation'] and population['population'] == receipt['population'],
+            'population differs from reservation')
+    require(isinstance(population['snapshots'], dict) and population['snapshots'], 'population has no frozen metadata snapshots')
+    paths = []
+    for name, expected in population['snapshots'].items():
+        require(re.fullmatch('s[0-9]{4}\\.json', name) is not None, 'snapshot needs a neutral local name')
+        path = 'snapshots/' + name
+        require(digest(root / path) == expected, 'population snapshot changed')
+        paths.append(path)
+    return population, paths
+
+
+def allocation_files(snapshots):
+    return ['population.json', 'allocation.json', 'exclusions.json', 'build.json', 'reservation-receipt.json',
+            'base', 'pgo', 'independent', 'profile.profdata', *snapshots]
+
+
+def verify_allocation(root, plan, expected, revision=None):
+    require(expected is not None and re.fullmatch('[0-9a-f]{64}', expected) is not None and
+            digest(root / 'allocation-contract.json') == expected, 'allocation contract differs from registered digest')
+    contract = json.loads((root / 'allocation-contract.json').read_text())
+    require(set(contract) == {'schema', 'plan', 'revision', 'files'} and contract['schema'] == 1 and
+            contract['plan'] == digest(PLAN), 'allocation contract schema or plan differs')
+    require(revision is None or contract['revision'] == revision, 'allocation source changed')
+    receipt = json.loads((root / 'reservation-receipt.json').read_text())
+    reservation_receipt(root, plan)
+    population, snapshots = population_files(root, receipt, plan)
+    require(set(contract['files']) == set(allocation_files(snapshots)), 'incomplete allocation inventory')
+    require(all(digest(root / n) == sha for n, sha in contract['files'].items()), 'frozen allocation artifact changed')
+    selected = json.loads((root / 'allocation.json').read_text())
+    require(selected == allocate(population['candidates'], json.loads((root / 'exclusions.json').read_text()), plan),
+            'allocation differs from deterministic exclusion and order')
+    build_evidence(root, contract['revision'])
+    return selected
+
+
+def resolution(width, height):
+    return next((c for c, w, h in (('sd', 640, 480), ('720p', 1280, 720), ('1080p', 1920, 1088))
+                 if width <= w and height <= h), '4k')
+
+
+def selection(rows, candidates, decisions, registry, plan):
+    used = exclusions(registry)
+    require(len(decisions) <= len(candidates), 'collection extends population')
+    counts = {c: 0 for c in bars.CLASSES}
+    chosen, groups, hashes = [], set(), set()
+    for candidate, decision in zip(candidates, decisions):
+        require(source_identity(decision['identity']) == candidate['identity'], 'collection is not an ordered population prefix')
+        require(not all(n == plan['count_per_class'] for n in counts.values()), 'collection continued after quotas filled')
+        metadata = decision['metadata']
+        require(set(metadata) == {'codec_name', 'pix_fmt', 'field_order', 'profile', 'width', 'height', 'frames'} and
+                decision['capture_status'] == 'ok', 'collection lacks a complete metadata capture')
+        eligible = (metadata['codec_name'] == 'h264' and metadata['pix_fmt'] == 'yuv420p' and
+                    metadata['field_order'] == 'progressive' and metadata['profile'] in ('Constrained Baseline', 'Main', 'High') and
+                    all(type(metadata[k]) is int and metadata[k] > 0 for k in ('width', 'height', 'frames')))
+        sha = decision['source_sha256']
+        require(re.fullmatch('[a-f0-9]{64}', sha) is not None, 'invalid acquired content digest')
+        if sha in used['hashes'] or sha[:12] in used['hashes'] or sha in hashes:
+            reason = 'used-bytes'
+        elif set(candidate['groups']) & groups:
+            reason = 'group-used'
+        elif not eligible:
+            reason = 'unsupported'
+        elif counts[resolution(metadata['width'], metadata['height'])] == plan['count_per_class']:
+            reason = 'class-full'
+        else:
+            reason = None
+        if reason is not None:
+            require(decision['status'] == 'excluded' and decision['reason'] == reason, 'unsupported collection exclusion')
+            continue
+        require(decision['status'] == 'selected', 'eligible input was skipped')
+        cls = resolution(metadata['width'], metadata['height'])
+        chosen.append({'identity': candidate['identity'], 'groups': candidate['groups'], 'source_sha256': sha,
+                       'class': cls, 'width': metadata['width'], 'height': metadata['height']})
+        groups.update(candidate['groups'])
+        hashes.add(sha)
+        counts[cls] += 1
+    require(all(n == plan['count_per_class'] for n in counts.values()) and len(chosen) == len(rows), 'collection quotas are incomplete')
+    for row, expected in zip(rows, chosen):
+        require(all(source_identity(row[k]) == v if k == 'identity' else row[k] == v for k, v in expected.items()),
+                'roster differs from first eligible independent inputs')
+
+
+def reference_evidence(refs):
+    from h264_pgo_build import training_roster
+    approved = training_roster(ROOT)
+    require(len(refs) == 4 and {r['class'] for r in refs} == set(bars.CLASSES), 'four training references required')
+    require(all(re.fullmatch('r[0-9]{3}', r['label']) is not None and
+                any(r['sha256'] == a['es_sha256'] and r['class'] == a['class'] for a in approved.values())
+                for r in refs), 'calibration reference is not approved training data')
 
 
 def exclusions(registry):
@@ -75,7 +207,7 @@ def exclusions(registry):
         require(re.fullmatch('[a-f0-9]{64}', record['commitment']) is not None, 'invalid registry commitment')
         for key in result:
             require(isinstance(record[key], list) and bool(record[key]), 'empty exclusion component')
-            result[key].update(record[key])
+            result[key].update(source_identity(v) if key == 'identities' else v for v in record[key])
     return result
 
 
@@ -129,6 +261,7 @@ def exclusion_registry(owners):
 
 def allocate(candidates, registry, plan):
     used = exclusions(registry)
+    candidates = [r | {'identity': source_identity(r['identity'])} for r in candidates]
     require(len({r['identity'] for r in candidates}) == len(candidates), 'duplicate candidate identity')
     selected = []
     for row in candidates:
@@ -148,20 +281,19 @@ def roster(rows, registry, plan):
     require(len({r['label'] for r in rows}) == len(rows), 'duplicate label')
     require(len({r['source_sha256'] for r in rows}) == len(rows), 'duplicate source bytes')
     require(len({r['sha256'] for r in rows}) == len(rows), 'duplicate extracted bytes')
-    require(len({r['identity'] for r in rows}) == len(rows), 'duplicate source identity')
+    require(len({source_identity(r['identity']) for r in rows}) == len(rows), 'duplicate source identity')
     groups = [g for r in rows for g in r['groups']]
     require(len(groups) == len(set(groups)), 'source group contributes more than one file')
     for cls in bars.CLASSES:
         require(sum(r['class'] == cls for r in rows) == plan['count_per_class'], 'incomplete class')
     for row in rows:
         require(re.fullmatch('h[0-9]{3}', row['label']) is not None, 'use neutral input labels')
-        require(row['identity'] not in used['identities'] and not set(row['groups']) & used['groups'], 'used source')
+        require(source_identity(row['identity']) not in used['identities'] and not set(row['groups']) & used['groups'], 'used source')
         require(row['source_sha256'] not in used['hashes'] and row['sha256'] not in used['hashes'], 'used input bytes')
         require(row['source_sha256'][:12] not in used['hashes'] and row['sha256'][:12] not in used['hashes'], 'used input prefix')
         require(row['groups'] and row['class'] in bars.CLASSES, 'invalid input metadata')
         require(all(type(row[k]) is int and row[k] > 0 for k in ('width', 'height')), 'invalid geometry')
-        cls = next((c for c, w, h in (('sd', 640, 480), ('720p', 1280, 720), ('1080p', 1920, 1088))
-                    if row['width'] <= w and row['height'] <= h), '4k')
+        cls = resolution(row['width'], row['height'])
         require(row['class'] == cls, 'class disagrees with displayed geometry')
         require(all(re.fullmatch('[a-f0-9]{64}', row[k]) is not None for k in ('sha256', 'source_sha256')), 'invalid content digest')
     return {r['label']: r['class'] for r in rows}
@@ -184,10 +316,11 @@ def host(instance):
             'cpu': '8581C', 'load': list(os.getloadavg()), 'instance': instance}
 
 
-def execute(argv, maximum=0, timeout=180):
+def execute(argv, maximum=0, timeout=180, capture=False):
     start = time.perf_counter()
     h = hashlib.sha256()
     size, error = 0, bytearray()
+    output = bytearray()
     with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE if maximum else subprocess.DEVNULL,
                           stderr=subprocess.PIPE, start_new_session=True) as process:
         try:
@@ -216,11 +349,14 @@ def execute(argv, maximum=0, timeout=180):
                                 size += len(data)
                                 require(size <= maximum, 'raw output exceeds frame budget')
                                 h.update(data)
+                                if capture:
+                                    output.extend(data)
                             else:
                                 error.extend(data)
                                 require(len(error) <= 65536, 'diagnostic output exceeds budget')
                     require(process.wait() == 0 and not error, 'decoder exit or unexpected diagnostic')
-                    return {'wall': elapsed, 'bytes': size, 'sha256': h.hexdigest()}
+                    value = {'wall': elapsed, 'bytes': size, 'sha256': h.hexdigest()}
+                    return value | {'stdout': output.decode('utf-8')} if capture else value
                 finally:
                     os.close(fd)
         finally:
@@ -239,6 +375,23 @@ def command(root, row, arm, threads, raw, plan):
     return prefix + ['-nostdin', '-v', 'error', '-threads', str(threads), '-i', path,
                      '-frames:v', count, '-fps_mode', 'passthrough'] + (
         ['-f', 'rawvideo', '-pix_fmt', 'yuv420p', '-'] if raw else ['-f', 'null', '-'])
+
+
+def stream_metadata(root, row):
+    result = execute([str(root / 'ffprobe'), '-v', 'error', '-threads', '1', '-select_streams', 'v:0',
+                      '-show_entries', 'stream=codec_name,pix_fmt,width,height,field_order,profile', '-of', 'json',
+                      str(root / 'media' / (row['label'] + '.h264'))], maximum=65536, timeout=30, capture=True)
+    streams = json.loads(result['stdout'])['streams']
+    require(len(streams) == 1, 'input must have one selected video stream')
+    validate_metadata(streams[0], row)
+    return streams[0]
+
+
+def validate_metadata(metadata, row):
+    require(metadata['codec_name'] == 'h264' and metadata['pix_fmt'] == 'yuv420p' and
+            metadata['field_order'] == 'progressive' and
+            metadata['profile'] in ('Constrained Baseline', 'Main', 'High') and
+            metadata['width'] == row['width'] and metadata['height'] == row['height'], 'input metadata differs from admission')
 
 
 def schedule(rows, plan):
@@ -261,29 +414,50 @@ def verdict(one, eight, plan):
             all(eight[c]['ci95'][1] <= plan['eight_thread_ci_high_max'] for c in bars.CLASSES))
 
 
-def audit(root, plan):
+def audit(root, plan, allocation_sha256):
     binding = json.loads((root / 'binding.json').read_text())
+    require(set(binding) == {'plan', 'revision', 'tools', 'files', 'allocation_sha256'} and
+            binding['allocation_sha256'] == allocation_sha256, 'incomplete binding schema')
+    candidates = verify_allocation(root, plan, allocation_sha256, binding['revision'])
+    rows = json.loads((root / 'roster.json').read_text())
+    refs = json.loads((root / 'references.json').read_text())
+    classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
+    reference_evidence(refs)
+    require(set(binding['files']) == set(evidence_inventory(rows, refs)), 'incomplete artifact inventory')
+    require(set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py', 'scripts/h264_parity_bars.py'},
+            'incomplete tool inventory')
     require(binding['plan'] == digest(PLAN), 'registration changed')
     for name, expected in binding['files'].items():
         require(digest(root / name) == expected, 'bound file changed')
     for name, expected in binding['tools'].items():
         require(digest(ROOT / name) == expected, 'executor or estimator changed')
     reservation_receipt(root, plan)
-    rows = json.loads((root / 'roster.json').read_text())
-    classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
+    build_evidence(root, binding['revision'])
+    selection(rows, candidates, json.loads((root / 'collection.json').read_text()),
+              json.loads((root / 'exclusions.json').read_text()), plan)
+    require(all(digest(root / 'media' / (r['label'] + '.h264')) == r['sha256'] for r in rows + refs), 'input digest differs from roster')
     events = [json.loads(line) for line in (root / 'events.jsonl').read_text().splitlines()]
     require(events and events[-1] == {'kind': 'complete'}, 'incomplete or aborted run')
     require(not any(r['kind'] == 'abort' for r in events), 'aborted run')
-    require(all(r['kind'] in {'host', 'qualification', 'calibration-call', 'calibration', 'health', 'warmup', 'timed', 'complete'}
+    require(all(r['kind'] in {'host', 'metadata', 'qualification', 'calibration-call', 'calibration', 'health', 'warmup', 'timed', 'complete'}
                 for r in events), 'unknown event kind')
     hosts = [r for r in events if r['kind'] == 'host']
-    require(len(hosts) == 1 and events[0]['kind'] == 'host', 'missing host evidence')
-    provider = hosts[0]['instance']
-    require(provider['provisioning'] == 'STANDARD' and provider['advanced_machine_features']['threadsPerCore'] == 1
-            and provider['advanced_machine_features']['turboMode'] == 'ALL_CORE_MAX', 'invalid provider host')
-    require(provider['machine_type'].split('/')[-1] == 'c4-standard-16' and hosts[0]['affinity'] == list(range(8))
-            and hosts[0]['topology'] == [str(c) for c in range(8)] and hosts[0]['cpu'] == '8581C', 'wrong host class')
+    require(len(hosts) == 2 and [r['phase'] for r in hosts] == ['before', 'after'] and events[0]['kind'] == 'host', 'missing host evidence')
+    for entry in hosts:
+        provider = entry['instance']
+        require(provider == json.loads((root / 'instance.json').read_text()) and provider['provisioning'] == 'STANDARD' and
+                provider['advanced_machine_features']['threadsPerCore'] == 1 and
+                provider['advanced_machine_features']['turboMode'] == 'ALL_CORE_MAX', 'invalid provider host')
+        require(provider['machine_type'].split('/')[-1] == 'c4-standard-16' and entry['affinity'] == list(range(8))
+                and entry['topology'] == [str(c) for c in range(8)] and entry['cpu'] == '8581C', 'wrong host class')
     checks = [r for r in events if r['kind'] == 'qualification']
+    metadata = [r for r in events if r['kind'] == 'metadata']
+    require(len(metadata) == len(rows) and {r['label'] for r in metadata} == set(classes), 'missing metadata checks')
+    for row in rows:
+        validate_metadata(next(r['value'] for r in metadata if r['label'] == row['label']), row)
+        meta_index = next(i for i, r in enumerate(events) if r['kind'] == 'metadata' and r['label'] == row['label'])
+        first_check = next(i for i, r in enumerate(events) if r['kind'] == 'qualification' and r['label'] == row['label'])
+        require(meta_index < first_check, 'input metadata followed qualification')
     wanted = {(r['label'], a, t) for r in rows for a in ARMS for t in (1, 8)}
     require(len(checks) == len(wanted) and {(r['label'], r['arm'], r['threads']) for r in checks} == wanted,
             'incomplete qualification')
@@ -325,6 +499,11 @@ def audit(root, plan):
             'missing warmup')
     health = [r for r in events if r['kind'] == 'health']
     require(len(health) == 2 and [r['phase'] for r in health] == ['before', 'after'], 'missing health checks')
+    indices = {k: [i for i, r in enumerate(events) if r['kind'] == k] for k in
+               ('host', 'health', 'qualification', 'warmup', 'timed', 'calibration', 'complete')}
+    require(indices['calibration'][-1] < indices['health'][0] < indices['qualification'][0] and
+            indices['qualification'][-1] < indices['warmup'][0] and indices['warmup'][-1] < indices['timed'][0] and
+            indices['timed'][-1] < indices['health'][1] < indices['host'][1] < indices['complete'][0], 'event phase order differs')
     for threads in (1, 8):
         for cls in bars.CLASSES:
             before = health[0]['references'][str(threads)][cls]
@@ -348,7 +527,7 @@ def audit(root, plan):
     return result
 
 
-def run(root, plan):
+def run(root, plan, allocation_sha256):
     revision = merged()
     out = root / 'events.jsonl'
     with out.open('x', buffering=1) as log:
@@ -356,31 +535,27 @@ def run(root, plan):
             log.write(json.dumps(row, allow_nan=False) + '\n')
         try:
             reservation_receipt(root, plan)
+            receipt = json.loads((root / 'reservation-receipt.json').read_text())
+            require(receipt == reservation(root, plan, receipt['commit']),
+                    'allocation is not reserved on its merged main')
+            candidates = verify_allocation(root, plan, allocation_sha256, revision)
             instance = json.loads((root / 'instance.json').read_text())
-            emit({'kind': 'host', **host(instance)})
+            emit({'kind': 'host', 'phase': 'before', **host(instance)})
             rows = json.loads((root / 'roster.json').read_text())
             roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
+            selection(rows, candidates, json.loads((root / 'collection.json').read_text()),
+                      json.loads((root / 'exclusions.json').read_text()), plan)
             subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/oracle_pin.py'), '--verify-bin', str(root)],
                            check=True, timeout=30)
             refs = json.loads((root / 'references.json').read_text())
-            require(len(refs) == 4 and {r['class'] for r in refs} == set(bars.CLASSES), 'four training references required')
-            from h264_pgo_build import training_roster
-            approved = training_roster(ROOT)
-            require(all(any(r['sha256'] == a['es_sha256'] and r['class'] == a['class'] for a in approved.values())
-                        for r in refs), 'calibration reference is not approved training data')
-            build = json.loads((root / 'build.json').read_text())
-            require(build['source']['commit'] == revision and build['independent_match'] and
-                    build['recipe_sha256'] == digest(ROOT / 'scripts/h264_pgo_build.py'), 'build provenance changed')
-            require(build['pgo']['sha256'] == build['independent']['sha256'] == digest(root / 'pgo') and
-                    build['base']['sha256'] == digest(root / 'base'), 'build binaries differ')
-            names = ['roster.json', 'exclusions.json', 'references.json', 'instance.json', 'build.json',
-                     'reservation-receipt.json', 'base', 'pgo', 'ffmpeg', 'ffprobe', 'aa', 'null']
-            names += ['media/' + r['label'] + '.h264' for r in rows + refs]
+            reference_evidence(refs)
+            build_evidence(root, revision)
+            names = evidence_inventory(rows, refs)
             require(digest(root / 'aa') == digest(root / 'base') == digest(root / 'null'), 'null binaries differ')
             for row in rows + refs:
                 require(digest(root / 'media' / (row['label'] + '.h264')) == row['sha256'], 'input changed')
-            write(root / 'binding.json', {'plan': digest(PLAN), 'revision': revision,
-                  'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py')},
+            write(root / 'binding.json', {'plan': digest(PLAN), 'revision': revision, 'allocation_sha256': allocation_sha256,
+                  'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py', ROOT / 'scripts/h264_pgo_build.py')},
                   'files': {n: digest(root / n) for n in names}})
             for threads in (1, 8):
                 for comparison, arm in (('aa', 'aa'), ('null', 'null')):
@@ -403,6 +578,7 @@ def run(root, plan):
                 emit({'kind': 'health', 'phase': phase, 'references': references})
             health('before')
             for row in rows:
+                emit({'kind': 'metadata', 'label': row['label'], 'value': stream_metadata(root, row)})
                 pixels = row['width'] * row['height'] + 2 * ((row['width'] + 1) // 2) * ((row['height'] + 1) // 2)
                 outputs = set()
                 for threads in (1, 8):
@@ -423,7 +599,7 @@ def run(root, plan):
                 value = execute(command(root, lookup[cell['label']], cell['arm'], cell['threads'], False, plan))
                 emit({'kind': 'timed', **cell, **value})
             health('after')
-            require(host(instance)['affinity'] == list(range(8)), 'host changed')
+            emit({'kind': 'host', 'phase': 'after', **host(instance)})
             emit({'kind': 'complete'})
         except BaseException:
             emit({'kind': 'abort'})
@@ -434,6 +610,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('action', choices=('registry', 'allocate', 'run', 'audit'))
     ap.add_argument('directory', type=Path)
+    ap.add_argument('--allocation-sha256', help='the allocation contract digest recorded before media acquisition')
     args = ap.parse_args()
     plan = json.loads(PLAN.read_text())
     root = args.directory.resolve()
@@ -443,14 +620,22 @@ def main():
             write(root / 'exclusions.json', exclusion_registry(owners))
             return 0
         if args.action == 'allocate':
-            merged()
-            write(root / 'reservation-receipt.json', reservation(root, plan))
-            candidates = json.loads((root / 'population.json').read_text())
-            write(root / 'allocation.json', allocate(candidates, json.loads((root / 'exclusions.json').read_text()), plan))
+            revision = merged()
+            build_evidence(root, revision)
+            require(not (root / 'allocation-contract.json').exists(), 'allocation is already frozen')
+            receipt = reservation(root, plan)
+            write(root / 'reservation-receipt.json', receipt)
+            population, snapshots = population_files(root, receipt, plan)
+            write(root / 'allocation.json', allocate(population['candidates'], json.loads((root / 'exclusions.json').read_text()), plan))
+            contract = {'schema': 1, 'plan': digest(PLAN), 'revision': revision,
+                        'files': {n: digest(root / n) for n in allocation_files(snapshots)}}
+            with (root / 'allocation-contract.json').open('x') as f:
+                json.dump(contract, f, indent=2, allow_nan=False)
+            print(digest(root / 'allocation-contract.json'))
             return 0
         if args.action == 'run':
-            run(root, plan)
-        result = audit(root, plan)
+            run(root, plan, args.allocation_sha256)
+        result = audit(root, plan, args.allocation_sha256)
         write(root / 'summary.json', result)
         return 0 if result['pass'] else 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, bars.Refused):
