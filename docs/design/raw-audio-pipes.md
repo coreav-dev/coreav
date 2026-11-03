@@ -36,6 +36,8 @@ For decoded files and spooled containers, validate the complete presentation wit
 
 File output retains atomic replacement, overwrite and alias checks. Raw stdout uses the shared buffered binary writer, checks flush errors, emits no summary to stdout, and returns 141 without diagnostics on EPIPE. Apply packet and output-sample limits to both preflight and execution. Explicit raw stdin with malformed trailing frames fails rather than retrying an already consumed stream.
 
+Existing explicit raw S16 file input to S16 file output retains its sized-input compatibility adapter, just like raw input to WAV. Do not apply the new pipe/F32 platform registrations to that pre-existing command. Its historical rate behavior is unchanged and does not establish a new exact registration.
+
 ## Verification
 
 Generate deterministic media from our own sample equations, using only the checksum-verified pinned oracle as a black box. Run short local fixture checks and unit tests on the development host. Existing CI runs the maintained checks; larger matrices belong in GitHub Actions. Run no held-out or judged inputs before merge and change no frozen record, roster, bar or oracle predicate.

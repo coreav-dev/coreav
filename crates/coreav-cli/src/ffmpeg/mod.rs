@@ -232,7 +232,7 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   raw audio requires registered decoder eligibility; channel conversion,
     rate conversion and packing require exact registrations
   MPEG-1 MP3 in MP4 is conformance-only, not byte-exact; AAC/Opus stay refused
-  changed-rate stages are restricted to verified Linux x86-64
+  new changed-rate stages are restricted to verified Linux x86-64
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
@@ -374,7 +374,10 @@ fn run_with_input(
     let input = PathBuf::from(&command.input);
     let (list, force) = match command.demuxer {
         Some(Demuxer::S16le(format)) => {
-            return if matches!(command.muxer, Muxer::S16le | Muxer::F32le) {
+            return if command.muxer == Muxer::F32le
+                || command.muxer == Muxer::S16le
+                    && (args::stdin(&command.input) || args::stdout(&command.output))
+            {
                 raw_audio::write_raw(&command, format)
             } else {
                 pcm::write_raw(&command, format)
