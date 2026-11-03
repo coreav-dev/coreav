@@ -162,9 +162,24 @@ def source_reference(args, directory, source, index, channels, env):
                 composed.decimal(stream.get('sample_rate'), 'source Opus rate') != 48000:
             raise composed.Invalid('source Matroska Opus format differs')
         if not isinstance(decoded, list) or not 0 < len(decoded) <= 4096 or \
-                any(not isinstance(frame, dict) for frame in decoded) or \
-                composed.decimal(decoded[0].get('pts'), 'source presentation origin') != 0 or \
-                sum(composed.decimal(frame.get('nb_samples'), 'source frame samples')
-                    for frame in decoded) != frames:
-            raise composed.Invalid('source Matroska presentation is missing, nonzero or incomplete')
+                any(not isinstance(frame, dict) for frame in decoded):
+            raise composed.Invalid('source Matroska presentation is missing or excessive')
+        time_base = stream.get('time_base')
+        parts = time_base.split('/') if isinstance(time_base, str) else []
+        if len(parts) != 2:
+            raise composed.Invalid('source Matroska time base is missing or invalid')
+        numerator, denominator = (composed.decimal(part, 'source Matroska time base') for part in parts)
+        if numerator == 0 or denominator == 0 or Fraction(numerator, denominator) > Fraction(1, 1000):
+            raise composed.Invalid('source Matroska time base is unsupported')
+        tick = Fraction(numerator, denominator)
+        elapsed = 0
+        for frame in decoded:
+            pts = composed.decimal(frame.get('pts'), 'source Matroska frame timestamp')
+            count = composed.decimal(frame.get('nb_samples'), 'source Matroska frame samples')
+            expected = int(Fraction(elapsed, 48000) / tick + Fraction(1, 2))
+            if not 0 < count <= 5760 or pts != expected:
+                raise composed.Invalid('source Matroska frame clock has a gap, overlap or displacement')
+            elapsed += count
+        if elapsed != frames:
+            raise composed.Invalid('source Matroska frame count differs from its complete decode')
     return target, {'frames': frames, 'rate': 48000, 'channels': channels, 'start_ticks': 0}

@@ -464,7 +464,7 @@ class SourcePresentation(unittest.TestCase):
                         return b'', b''
                     self.assertEqual(command[-3:], ['-threads:a', '1', path])
                     return json.dumps({'streams': [{'index': 2, 'codec_name': 'opus',
-                        'channels': 1, 'sample_rate': '48000'}],
+                        'channels': 1, 'sample_rate': '48000', 'time_base': '1/48000'}],
                         'frames': [{'pts': origin, 'nb_samples': count}]}).encode(), b''
 
                 with mock.patch.object(composed, 'bounded', side_effect=run):
@@ -474,6 +474,48 @@ class SourcePresentation(unittest.TestCase):
                     else:
                         with self.assertRaises(composed.Invalid):
                             source_model.source_reference(args, root, path, 2, 1, {})
+
+    def test_complete_matroska_clock_rejects_gaps_reordering_and_invalid_time_bases(self):
+        cases = [
+            ('1/48000', [0, 2, 4], [2, 2, 2], True),
+            ('1/96000', [0, 4, 8], [2, 2, 2], True),
+            ('1/1000', [0, 14, 34], [648, 960, 960], True),
+            ('1/48000', [0, 48000], [2, 2], False),
+            ('1/48000', [0, 3, 4], [2, 2, 2], False),
+            ('1/48000', [0, 4, 2], [2, 2, 2], False),
+            ('1/48000', [0, 0, 4], [2, 2, 2], False),
+            ('1/48000', [0, -2], [2, 2], False),
+            ('1/48000', [0, 0], [0, 4], False),
+            ('1/1000', [0, 15, 34], [648, 960, 960], False),
+        ]
+        cases += [(base, [0, 2], [2, 2], False) for base in
+                  (None, '1', '0/48000', '1/0', '-1/48000', '1/1', '1/999')]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / 'source.webm'
+            path.write_bytes(bytes.fromhex('1a45dfa3'))
+            args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe')
+            for base, timestamps, counts, accepted in cases:
+                with self.subTest(base=base, timestamps=timestamps, counts=counts):
+                    (root / 'libopus.f32').unlink(missing_ok=True)
+                    document = {'streams': [{'index': 2, 'codec_name': 'opus', 'channels': 1,
+                                'sample_rate': '48000', 'time_base': base}],
+                                'frames': [dict(pts=pts, nb_samples=count)
+                                           for pts, count in zip(timestamps, counts)]}
+
+                    def run(command, env, **kwargs):
+                        if command[0] == 'ffmpeg':
+                            kwargs['output'].write(bytes(sum(counts) * 4))
+                            return b'', b''
+                        return json.dumps(document).encode(), b''
+
+                    with mock.patch.object(composed, 'bounded', side_effect=run):
+                        if accepted:
+                            _, presentation = source_model.source_reference(args, root, path, 2, 1, {})
+                            self.assertEqual(presentation['frames'], sum(counts))
+                        else:
+                            with self.assertRaises(composed.Invalid):
+                                source_model.source_reference(args, root, path, 2, 1, {})
 
 
 class BoundedCommands(unittest.TestCase):
