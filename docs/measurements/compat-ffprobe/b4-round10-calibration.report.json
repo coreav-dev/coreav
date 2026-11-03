@@ -1,0 +1,870 @@
+{
+ "method": "b4-counterbalanced-v2",
+ "mode": "calibration",
+ "calibration": {
+  "arms": {
+   "aa": {
+    "estimate": 0.9997890334844733,
+    "ci95_diagnostic": [
+     0.9974298487952784,
+     1.0032325059338605
+    ],
+    "ci995_gate": [
+     0.9958907032592832,
+     1.0060685977120742
+    ],
+    "point_in_band": true,
+    "gate_contains_one": true,
+    "complete": true,
+    "no_fallback": true,
+    "passes": true
+   },
+   "null": {
+    "estimate": 1.0014591983155796,
+    "ci95_diagnostic": [
+     0.9975975616132138,
+     1.0047174852409528
+    ],
+    "ci995_gate": [
+     0.9961432990453187,
+     1.0056927046864785
+    ],
+    "point_in_band": true,
+    "gate_contains_one": true,
+    "complete": true,
+    "no_fallback": true,
+    "passes": true
+   }
+  },
+  "gate_confidence": 0.995,
+  "diagnostic_confidence": 0.95,
+  "coverage": {
+   "planned": 4992,
+   "executed": 4992,
+   "missing": 0,
+   "timed": 3072,
+   "failed": 0
+  },
+  "diagnostics": {
+   "case": {
+    "aa:calibration:isobmff:0:0": {
+     "calls": 32,
+     "median_seconds": 0.011570386000002486,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0157308984027342
+    },
+    "aa:calibration:isobmff:0:1": {
+     "calls": 32,
+     "median_seconds": 0.013677271499986432,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0173519584788213
+    },
+    "null:calibration:isobmff:0:0": {
+     "calls": 32,
+     "median_seconds": 0.0010011370000029274,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9924511669024162
+    },
+    "null:calibration:isobmff:0:1": {
+     "calls": 32,
+     "median_seconds": 0.0017364579999963325,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0014596139544327
+    },
+    "null:calibration:matroska:0:1": {
+     "calls": 32,
+     "median_seconds": 0.00366936249999128,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0059596906538952
+    },
+    "null:calibration:matroska:0:0": {
+     "calls": 32,
+     "median_seconds": 0.0012874614999986989,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9878519983363837
+    },
+    "aa:calibration:matroska:0:1": {
+     "calls": 32,
+     "median_seconds": 0.017503718999989815,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9991336841338433
+    },
+    "aa:calibration:matroska:0:0": {
+     "calls": 32,
+     "median_seconds": 0.0088508915000034,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0015520147346055
+    },
+    "aa:calibration:mpegts:0:0": {
+     "calls": 32,
+     "median_seconds": 0.018359243500000844,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9986395125726509
+    },
+    "aa:calibration:mpegts:0:1": {
+     "calls": 32,
+     "median_seconds": 0.026848071499998127,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.998875846253746
+    },
+    "null:calibration:mpegts:0:0": {
+     "calls": 32,
+     "median_seconds": 0.0245067905000127,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0055140330626964
+    },
+    "null:calibration:mpegts:0:1": {
+     "calls": 32,
+     "median_seconds": 0.046375620999995704,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0050542219184306
+    },
+    "null:calibration:isobmff:1:1": {
+     "calls": 32,
+     "median_seconds": 0.041119769000005135,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0006976322370345
+    },
+    "null:calibration:isobmff:1:0": {
+     "calls": 32,
+     "median_seconds": 0.0017913669999956028,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.995318095180995
+    },
+    "aa:calibration:isobmff:1:1": {
+     "calls": 32,
+     "median_seconds": 0.15264024299999335,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9969462062478076
+    },
+    "aa:calibration:isobmff:1:0": {
+     "calls": 32,
+     "median_seconds": 0.009310706500002652,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0187339060244547
+    },
+    "aa:calibration:matroska:1:0": {
+     "calls": 32,
+     "median_seconds": 0.009000493999991477,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0143870483395259
+    },
+    "aa:calibration:matroska:1:1": {
+     "calls": 32,
+     "median_seconds": 0.12851781450001454,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9996511553344752
+    },
+    "null:calibration:matroska:1:0": {
+     "calls": 32,
+     "median_seconds": 0.0012413594999998168,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9994823358396836
+    },
+    "null:calibration:matroska:1:1": {
+     "calls": 32,
+     "median_seconds": 0.039432984999990595,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0035152161612861
+    },
+    "null:calibration:mpegts:1:1": {
+     "calls": 32,
+     "median_seconds": 0.0015945650000048772,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0038736816746723
+    },
+    "null:calibration:mpegts:1:0": {
+     "calls": 32,
+     "median_seconds": 0.001330131499997833,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9971291742192213
+    },
+    "aa:calibration:mpegts:1:1": {
+     "calls": 32,
+     "median_seconds": 0.009527997500001106,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9864423747648471
+    },
+    "aa:calibration:mpegts:1:0": {
+     "calls": 32,
+     "median_seconds": 0.009059357500007081,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9846546223717317
+    },
+    "aa:calibration:isobmff:2:0": {
+     "calls": 32,
+     "median_seconds": 0.009201573499979077,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9975229441492007
+    },
+    "aa:calibration:isobmff:2:1": {
+     "calls": 32,
+     "median_seconds": 0.03318067450000228,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9946744522050555
+    },
+    "null:calibration:isobmff:2:0": {
+     "calls": 32,
+     "median_seconds": 0.0009515825000221412,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9911714724611327
+    },
+    "null:calibration:isobmff:2:1": {
+     "calls": 32,
+     "median_seconds": 0.00122672700000237,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9928724853621492
+    },
+    "null:calibration:matroska:2:1": {
+     "calls": 32,
+     "median_seconds": 0.0017087774999993144,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9858059734764784
+    },
+    "null:calibration:matroska:2:0": {
+     "calls": 32,
+     "median_seconds": 0.001198692499997378,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0074109109011962
+    },
+    "aa:calibration:matroska:2:1": {
+     "calls": 32,
+     "median_seconds": 0.009403867499997887,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9981198334837004
+    },
+    "aa:calibration:matroska:2:0": {
+     "calls": 32,
+     "median_seconds": 0.008256602999978213,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0070501407265438
+    },
+    "aa:calibration:mpegts:2:0": {
+     "calls": 32,
+     "median_seconds": 0.030391007000019954,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0044819425554552
+    },
+    "aa:calibration:mpegts:2:1": {
+     "calls": 32,
+     "median_seconds": 0.09840127249998432,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9979058361427522
+    },
+    "null:calibration:mpegts:2:0": {
+     "calls": 32,
+     "median_seconds": 0.005007205499993006,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9976471378873075
+    },
+    "null:calibration:mpegts:2:1": {
+     "calls": 32,
+     "median_seconds": 0.05027743800002327,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.001723012678484
+    },
+    "null:calibration:isobmff:3:1": {
+     "calls": 32,
+     "median_seconds": 0.05868521749997058,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.995716678710676
+    },
+    "null:calibration:isobmff:3:0": {
+     "calls": 32,
+     "median_seconds": 0.0018381629999879578,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9976471269115086
+    },
+    "aa:calibration:isobmff:3:1": {
+     "calls": 32,
+     "median_seconds": 0.16787789549999843,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0003761486454195
+    },
+    "aa:calibration:isobmff:3:0": {
+     "calls": 32,
+     "median_seconds": 0.013901079500001856,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.996013733633595
+    },
+    "aa:calibration:matroska:3:0": {
+     "calls": 32,
+     "median_seconds": 0.007914903499994352,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9989545836824757
+    },
+    "aa:calibration:matroska:3:1": {
+     "calls": 32,
+     "median_seconds": 0.017006233500012513,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0017414880860556
+    },
+    "null:calibration:matroska:3:0": {
+     "calls": 32,
+     "median_seconds": 0.0012818630000310804,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0010549390265218
+    },
+    "null:calibration:matroska:3:1": {
+     "calls": 32,
+     "median_seconds": 0.004106523499999071,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0025781932910045
+    },
+    "null:calibration:mpegts:3:1": {
+     "calls": 32,
+     "median_seconds": 0.01328745899999717,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9958334150102061
+    },
+    "null:calibration:mpegts:3:0": {
+     "calls": 32,
+     "median_seconds": 0.006789875500018638,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0133119718840202
+    },
+    "aa:calibration:mpegts:3:1": {
+     "calls": 32,
+     "median_seconds": 0.016467824499969197,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.990497531402552
+    },
+    "aa:calibration:mpegts:3:0": {
+     "calls": 32,
+     "median_seconds": 0.012335517500019932,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.998272091963792
+    },
+    "aa:calibration:isobmff:4:0": {
+     "calls": 32,
+     "median_seconds": 0.008788219499962224,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9886578790805924
+    },
+    "aa:calibration:isobmff:4:1": {
+     "calls": 32,
+     "median_seconds": 0.01425314550000678,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9952848037877188
+    },
+    "null:calibration:isobmff:4:0": {
+     "calls": 32,
+     "median_seconds": 0.0009949935000008736,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9969634458332483
+    },
+    "null:calibration:isobmff:4:1": {
+     "calls": 32,
+     "median_seconds": 0.002378337999999758,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9966428311599518
+    },
+    "null:calibration:matroska:4:1": {
+     "calls": 32,
+     "median_seconds": 0.0028609470000162673,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0101389058093126
+    },
+    "null:calibration:matroska:4:0": {
+     "calls": 32,
+     "median_seconds": 0.0013068480000129057,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0055128611472413
+    },
+    "aa:calibration:matroska:4:1": {
+     "calls": 32,
+     "median_seconds": 0.06226164750000862,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0020968731789008
+    },
+    "aa:calibration:matroska:4:0": {
+     "calls": 32,
+     "median_seconds": 0.05663945649999391,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0016764009084445
+    },
+    "aa:calibration:mpegts:4:0": {
+     "calls": 32,
+     "median_seconds": 0.01382138249999798,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0173210616581354
+    },
+    "aa:calibration:mpegts:4:1": {
+     "calls": 32,
+     "median_seconds": 0.06343802349999805,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.996491755310006
+    },
+    "null:calibration:mpegts:4:0": {
+     "calls": 32,
+     "median_seconds": 0.010056402000003573,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0023073492732368
+    },
+    "null:calibration:mpegts:4:1": {
+     "calls": 32,
+     "median_seconds": 0.0729568844999875,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9973916789295454
+    },
+    "null:calibration:isobmff:5:1": {
+     "calls": 32,
+     "median_seconds": 0.024823269999998843,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0101515593823929
+    },
+    "null:calibration:isobmff:5:0": {
+     "calls": 32,
+     "median_seconds": 0.001215004499982797,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0047766939137606
+    },
+    "aa:calibration:isobmff:5:1": {
+     "calls": 32,
+     "median_seconds": 0.09635288600001957,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0005776172551517
+    },
+    "aa:calibration:isobmff:5:0": {
+     "calls": 32,
+     "median_seconds": 0.011440703499999927,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0076312478940894
+    },
+    "aa:calibration:matroska:5:0": {
+     "calls": 32,
+     "median_seconds": 0.008750014000014517,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9730634337923029
+    },
+    "aa:calibration:matroska:5:1": {
+     "calls": 32,
+     "median_seconds": 0.010095312499998954,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0023698262094776
+    },
+    "null:calibration:matroska:5:0": {
+     "calls": 32,
+     "median_seconds": 0.0012060215000246899,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.995040918174992
+    },
+    "null:calibration:matroska:5:1": {
+     "calls": 32,
+     "median_seconds": 0.0015837179999778073,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0081447412141598
+    },
+    "null:calibration:mpegts:5:1": {
+     "calls": 32,
+     "median_seconds": 0.0084983184999885,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9995761239555013
+    },
+    "null:calibration:mpegts:5:0": {
+     "calls": 32,
+     "median_seconds": 0.005574243499992804,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9976801028930056
+    },
+    "aa:calibration:mpegts:5:1": {
+     "calls": 32,
+     "median_seconds": 0.1702610870000001,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0085669465918088
+    },
+    "aa:calibration:mpegts:5:0": {
+     "calls": 32,
+     "median_seconds": 0.16606954400000973,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9993189941094063
+    },
+    "aa:calibration:isobmff:6:0": {
+     "calls": 32,
+     "median_seconds": 0.02701670300000103,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9889150770156686
+    },
+    "aa:calibration:isobmff:6:1": {
+     "calls": 32,
+     "median_seconds": 0.030468472500018606,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9919712614134959
+    },
+    "null:calibration:isobmff:6:0": {
+     "calls": 32,
+     "median_seconds": 0.001085561500019594,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0188854731198902
+    },
+    "null:calibration:isobmff:6:1": {
+     "calls": 32,
+     "median_seconds": 0.001861751499987463,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.001181897984593
+    },
+    "null:calibration:matroska:6:1": {
+     "calls": 32,
+     "median_seconds": 0.002484807000001865,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0068408081719762
+    },
+    "null:calibration:matroska:6:0": {
+     "calls": 32,
+     "median_seconds": 0.001057483499977252,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0047099442746728
+    },
+    "aa:calibration:matroska:6:1": {
+     "calls": 32,
+     "median_seconds": 0.01282332399998154,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0253344850164108
+    },
+    "aa:calibration:matroska:6:0": {
+     "calls": 32,
+     "median_seconds": 0.008452379999994264,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0243093399831935
+    },
+    "aa:calibration:mpegts:6:0": {
+     "calls": 32,
+     "median_seconds": 0.0367134165000067,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0022815785598578
+    },
+    "aa:calibration:mpegts:6:1": {
+     "calls": 32,
+     "median_seconds": 0.18136096299998883,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.997791349062173
+    },
+    "null:calibration:mpegts:6:0": {
+     "calls": 32,
+     "median_seconds": 0.004615510499988318,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9953629622054738
+    },
+    "null:calibration:mpegts:6:1": {
+     "calls": 32,
+     "median_seconds": 0.12021621899998536,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0017405677146218
+    },
+    "null:calibration:isobmff:7:1": {
+     "calls": 32,
+     "median_seconds": 0.0028602510000155235,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0029463174864495
+    },
+    "null:calibration:isobmff:7:0": {
+     "calls": 32,
+     "median_seconds": 0.0010498619999737002,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.013751827827524
+    },
+    "aa:calibration:isobmff:7:1": {
+     "calls": 32,
+     "median_seconds": 0.0654382319999911,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9974055693282241
+    },
+    "aa:calibration:isobmff:7:0": {
+     "calls": 32,
+     "median_seconds": 0.03448468899999568,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9933360111613819
+    },
+    "aa:calibration:matroska:7:0": {
+     "calls": 32,
+     "median_seconds": 0.011941573499996139,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9946947161483451
+    },
+    "aa:calibration:matroska:7:1": {
+     "calls": 32,
+     "median_seconds": 0.12608396650001907,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9991433359650538
+    },
+    "null:calibration:matroska:7:0": {
+     "calls": 32,
+     "median_seconds": 0.0012038560000036114,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9912051492960365
+    },
+    "null:calibration:matroska:7:1": {
+     "calls": 32,
+     "median_seconds": 0.03291480849998152,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.004731460317893
+    },
+    "null:calibration:mpegts:7:1": {
+     "calls": 32,
+     "median_seconds": 0.13247831449999126,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 0.9965182929607205
+    },
+    "null:calibration:mpegts:7:0": {
+     "calls": 32,
+     "median_seconds": 0.002439296499986199,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.0089562256427604
+    },
+    "aa:calibration:mpegts:7:1": {
+     "calls": 32,
+     "median_seconds": 0.2657995100000221,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.005995962767217
+    },
+    "aa:calibration:mpegts:7:0": {
+     "calls": 32,
+     "median_seconds": 0.0309020814999883,
+     "timed_pairs": 16,
+     "crossovers": 8,
+     "estimate": 1.005511134486819
+    }
+   },
+   "position": {
+    "aa:0:B:0": {
+     "calls": 192,
+     "median_seconds": 0.011782472499987762
+    },
+    "aa:0:A:1": {
+     "calls": 192,
+     "median_seconds": 0.011729334500003574
+    },
+    "aa:0:A:0": {
+     "calls": 192,
+     "median_seconds": 0.011944968499989272
+    },
+    "aa:0:B:1": {
+     "calls": 192,
+     "median_seconds": 0.011843126000016468
+    },
+    "aa:1:B:0": {
+     "calls": 192,
+     "median_seconds": 0.047423425499999894
+    },
+    "aa:1:A:1": {
+     "calls": 192,
+     "median_seconds": 0.04734648749996495
+    },
+    "aa:1:A:0": {
+     "calls": 192,
+     "median_seconds": 0.047353156999975
+    },
+    "aa:1:B:1": {
+     "calls": 192,
+     "median_seconds": 0.047365609500005235
+    },
+    "null:0:B:0": {
+     "calls": 192,
+     "median_seconds": 0.001285823500012384
+    },
+    "null:0:A:1": {
+     "calls": 192,
+     "median_seconds": 0.0012743525000047384
+    },
+    "null:0:A:0": {
+     "calls": 192,
+     "median_seconds": 0.0012818630000310804
+    },
+    "null:0:B:1": {
+     "calls": 192,
+     "median_seconds": 0.0012703685000019505
+    },
+    "null:1:B:0": {
+     "calls": 192,
+     "median_seconds": 0.006291097499996567
+    },
+    "null:1:A:1": {
+     "calls": 192,
+     "median_seconds": 0.006289805500003354
+    },
+    "null:1:A:0": {
+     "calls": 192,
+     "median_seconds": 0.006330977499999335
+    },
+    "null:1:B:1": {
+     "calls": 192,
+     "median_seconds": 0.006299670999993623
+    }
+   },
+   "early_late": {
+    "aa:0:B:early": {
+     "calls": 192,
+     "median_seconds": 0.0117766710000069
+    },
+    "aa:0:A:early": {
+     "calls": 192,
+     "median_seconds": 0.011850401500012708
+    },
+    "aa:1:B:early": {
+     "calls": 192,
+     "median_seconds": 0.04723106749999317
+    },
+    "aa:1:A:early": {
+     "calls": 192,
+     "median_seconds": 0.04712388650000321
+    },
+    "null:0:B:early": {
+     "calls": 192,
+     "median_seconds": 0.0012722240000044849
+    },
+    "null:0:A:early": {
+     "calls": 192,
+     "median_seconds": 0.0012782615000190845
+    },
+    "null:1:B:early": {
+     "calls": 192,
+     "median_seconds": 0.006255122499993604
+    },
+    "null:1:A:early": {
+     "calls": 192,
+     "median_seconds": 0.006216981999997984
+    },
+    "aa:0:B:late": {
+     "calls": 192,
+     "median_seconds": 0.011827874000019278
+    },
+    "aa:0:A:late": {
+     "calls": 192,
+     "median_seconds": 0.011732777499986469
+    },
+    "aa:1:B:late": {
+     "calls": 192,
+     "median_seconds": 0.0476374989999897
+    },
+    "aa:1:A:late": {
+     "calls": 192,
+     "median_seconds": 0.04734648749996495
+    },
+    "null:0:B:late": {
+     "calls": 192,
+     "median_seconds": 0.0012761154999623159
+    },
+    "null:0:A:late": {
+     "calls": 192,
+     "median_seconds": 0.0012805940000077953
+    },
+    "null:1:B:late": {
+     "calls": 192,
+     "median_seconds": 0.006299670999993623
+    },
+    "null:1:A:late": {
+     "calls": 192,
+     "median_seconds": 0.006393524000003481
+    }
+   }
+  },
+  "passes": true
+ },
+ "aborted": null,
+ "fallback_log": {
+  "lines": 0,
+  "refused": 0,
+  "executed": 0,
+  "invalid": 0,
+  "void": false
+ },
+ "product": null,
+ "passes": true,
+ "b4_passes": null,
+ "b4_verdict": "not executed"
+}
