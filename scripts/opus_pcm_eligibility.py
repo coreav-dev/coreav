@@ -95,8 +95,8 @@ def check(coreav, oracle, tool, work):
                         summary['output']['sample_rate'] != 48000 or summary['warnings'] or \
                         len(raw[format]) != info['packet_samples'] * channels * width:
                     raise ValueError('incomplete native packet control')
-            reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
-                             '-c:a', 'libopus', '-i', packet_source, '-f', 's16le', '-'])
+            reference = run([oracle / 'ffmpeg', '-v', 'error', '-c:a', 'libopus',
+                             *AUDIO_DECODE_INPUT, '-i', packet_source, '-f', 's16le', '-'])
             whole_quality = compare(tool, work, label, reference, raw['s16'], channels)
             terminal_bytes = 2880 * channels * 2
             terminal_quality = compare(tool, work, label + '-terminal',
