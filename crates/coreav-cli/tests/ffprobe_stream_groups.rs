@@ -182,34 +182,108 @@ fn iso_group_counts_ignore_selection_handlers_and_unrelated_references() {
 fn incomplete_references_do_not_become_a_known_zero_group_count() {
     let directory = directory("bounded");
     let path = directory.0.join("bounded.mov");
-    for (ids, expected) in [(1022, Some(1)), (1023, None)] {
+    for ids in [1022, 1023] {
         let references = vec![2; ids];
         let bytes = movie(&[(1, &references)], &[2], b"tmcd", false);
-        let doc = probe(&path, &bytes, &[]);
-        assert_eq!(doc["format"]["nb_stream_groups"].as_i64(), expected);
+        std::fs::write(&path, &bytes).unwrap();
+        for writer in ["json", "default=noprint_wrappers=1"] {
+            let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args([
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=nb_stream_groups",
+                    "-of",
+                    writer,
+                ])
+                .arg(&path)
+                .env("COREAV_STRICT_SAFE", "1")
+                .output()
+                .unwrap();
+            if ids == 1022 {
+                assert!(output.status.success());
+                if writer == "json" {
+                    let doc: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+                    assert_eq!(doc["format"]["nb_stream_groups"], 1);
+                } else {
+                    assert_eq!(output.stdout, b"nb_stream_groups=1\n");
+                }
+            } else {
+                assert_eq!(output.status.code(), Some(4), "{writer}");
+                assert!(output.stdout.is_empty(), "{writer}");
+                assert!(String::from_utf8_lossy(&output.stderr).contains("stream-group count"));
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn incomplete_group_counts_reach_fallback_before_output() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = directory("fallback");
+    let path = directory.0.join("bounded.mov");
+    let log = directory.0.join("called");
+    let external = directory.0.join("ffprobe");
+    std::fs::write(&external, b"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$COUNT_FALLBACK_LOG\"\nprintf 'fallback-only\\n'\nexit 7\n").unwrap();
+    std::fs::set_permissions(&external, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let references = vec![2; 1023];
+    std::fs::write(&path, movie(&[(1, &references)], &[2], b"tmcd", false)).unwrap();
+    for entries in ["format=nb_streams", "stream=index"] {
         let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
-            .args([
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=nb_stream_groups",
-                "-of",
-                "default=noprint_wrappers=1",
-            ])
+            .args(["ffprobe", "-show_entries", entries, "-of", "json"])
             .arg(&path)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env_clear()
+            .env("COREAV_FALLBACK", &directory.0)
+            .env("COUNT_FALLBACK_LOG", &log)
             .output()
             .unwrap();
-        assert!(output.status.success());
-        assert_eq!(
-            String::from_utf8(output.stdout).unwrap(),
-            if expected.is_some() {
-                "nb_stream_groups=1\n"
-            } else {
-                "nb_stream_groups=N/A\n"
-            }
-        );
+        assert!(output.status.success(), "{entries}: {:?}", output.stderr);
+        assert!(!log.exists());
+    }
+    for args in [
+        vec!["ffprobe", "-show_format", "-of", "json"],
+        vec![
+            "ffprobe",
+            "-show_entries",
+            "format=nb_stream_groups",
+            "-of",
+            "json",
+        ],
+        vec![
+            "ffprobe",
+            "-show_entries",
+            "packet=stream_index:format=nb_stream_groups",
+            "-of",
+            "json",
+        ],
+    ] {
+        let strict = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(&args)
+            .arg(&path)
+            .env_clear()
+            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", &directory.0)
+            .env("COUNT_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        assert_eq!(strict.status.code(), Some(4));
+        assert!(strict.stdout.is_empty());
+        assert!(!log.exists());
+        let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(&args)
+            .arg(&path)
+            .env_clear()
+            .env("COREAV_FALLBACK", &directory.0)
+            .env("COUNT_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        assert_eq!(fallback.status.code(), Some(7), "{:?}", fallback.stderr);
+        assert_eq!(fallback.stdout, b"fallback-only\n");
+        let expected = format!("{}\n{}\n", args[1..].join("\n"), path.display());
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), expected);
+        std::fs::remove_file(&log).unwrap();
     }
 }
 

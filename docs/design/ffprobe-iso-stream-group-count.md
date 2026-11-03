@@ -48,8 +48,12 @@ stream indexes. The lookup is O(tracks + reference IDs), and its size
 is bounded by the retained target tracks.
 
 An incomplete snapshot cannot establish a count, including known zero.
-Represent it as `None` and use the existing unavailable-value writer
-behavior: omit the JSON field and print `N/A` in the default writer.
+Retain `None` internally, but refuse before any output when that count
+is requested. The pinned binary reports 1 for the over-bound fixture,
+so printing `N/A` would be an incompatible success. The existing fallback
+runs ffprobe with the original arguments; strict-safe mode instead
+refuses with exit status 4 and empty stdout. A request that does not
+select the count retains its existing native behavior.
 The reader already skips a `tref` payload over 4096 bytes; correct its
 completeness flag on that existing skip rather than rereading it or
 raising the limit. Other partial-data and I/O-error behavior remains
@@ -63,6 +67,8 @@ implementation that counts links cannot pass. Check noncontiguous
 track IDs, target-before-source ordering, missing and unrelated targets,
 unlinked timecode tracks and stream selection. Check both sides of the
 existing reference-size bound so skipped links never become known zero.
+Test strict-safe refusal and fallback before output, including mixed
+packet/count requests, and keep other selected fields native.
 Confirm that the
 unsupported group-listing flag is still refused before file access.
 

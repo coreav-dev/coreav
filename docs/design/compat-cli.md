@@ -1971,8 +1971,9 @@ stream oracle checks. The other fields include:
 - ISO `format.nb_stream_groups` counts distinct targets of `tmcd` track
   references whose first sample entry is also `tmcd`, including unsupported
   tracks. Shared targets count once, and stream selection does not change
-  this format-level count. An incomplete metadata snapshot leaves it
-  unavailable rather than claiming zero. This does not add group listing
+  this format-level count. Requesting it from an incomplete metadata
+  snapshot is refused before output and uses the existing ffprobe fallback
+  outside strict-safe mode. This does not add group listing
   (`docs/design/ffprobe-iso-stream-group-count.md`).
 - A protected stream of a movie with protection system headers (`pssh`)
   carries an "Encryption initialization data" side data element; its
