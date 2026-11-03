@@ -299,6 +299,10 @@ jobs:
           cargo build -p coreav-cli
           python3 -I scripts/pcm_output_check.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/coreav-encoders" --out "$RUNNER_TEMP/pcm-output.json"
+      - name: Compare native FLAC output with the pinned oracle
+        run: |
+          python3 -I scripts/flac_output_check.py --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/coreav-encoders" --out "$RUNNER_TEMP/flac-output.json"
       # The Opus and AAC bars' source set, made by the pinned FFmpeg at a
       # second each, so a source its filter parser refuses fails here and
       # not in a judged run (docs/design/transcode.md, "Opus bars").
@@ -2311,6 +2315,15 @@ jobs:
               exit 1
             fi
           fi
+      - name: Inspect startup linkage
+        run: |
+          for binary in "$RUNNER_TEMP/coreav-base" target/dist/coreav; do
+            if [ ! -x "$binary" ]; then continue; fi
+            echo "### Dynamic libraries: $binary"
+            readelf --wide --dynamic "$binary" | grep NEEDED
+            echo "### Undefined math symbols: $binary"
+            readelf --wide --dyn-syms "$binary" | awk '$7 == "UND" && $8 ~ /^(log|exp|pow|round|floor|ceil|sin|cos)/ { print $8 }'
+          done
       - name: Build the decoder binary
         # The cases that need a decoder (the thumbnail, the transcode, whose
         # encoder is the pinned ffmpeg on PATH, and AAC LC's decode-audio,
@@ -2338,7 +2351,18 @@ jobs:
               --fixtures "$RUNNER_TEMP/fixtures" --baseline "$AGAINST" \
               --write "$RUNNER_TEMP/counts.json"
           } | tee -a "$GITHUB_STEP_SUMMARY"
-      - if: always() && inputs.update
+      - name: Attribute a startup regression
+        if: failure() && env.BASE != ''
+        run: |
+          for side in base head; do
+            binary=target/dist/coreav
+            if [ "$side" = base ]; then binary="$RUNNER_TEMP/coreav-base"; fi
+            if [ ! -x "$binary" ]; then continue; fi
+            profile="$RUNNER_TEMP/startup-$side.callgrind"
+            valgrind --tool=callgrind --callgrind-out-file="$profile" "$binary" --version > /dev/null
+            callgrind_annotate --auto=no --threshold=99 "$profile" | sed -n '1,65p'
+          done
+      - if: always() && (inputs.update || failure())
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bench-guard-counts

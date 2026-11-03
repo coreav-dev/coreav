@@ -1,0 +1,89 @@
+name: flac-output
+
+# workflow-check: not required
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - crates/coreav-audio/**
+      - crates/coreav-cli/src/ffmpeg/**
+      - scripts/flac_output_check.py
+      - scripts/flac_output_measure.py
+      - scripts/tests/test_flac_output_measure.py
+      - scripts/tests/test_flac_output_check.py
+      - scripts/oracle_audio.py
+      - scripts/oracle-audio-args.txt
+      - scripts/oracle_pin.py
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
+      - tools/compat-corpus/speed.py
+      - .github/workflows/flac-output.yml
+  workflow_dispatch:
+    inputs:
+      measure:
+        description: Run the registered size and speed comparison after merge
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  flac-output:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - name: Install and verify the pinned oracle
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Check native frames and failure states
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
+        run: |
+          cargo test --locked --no-fail-fast -p coreav-audio --lib --test flac_encode
+      - name: Build the native compatibility command
+        run: cargo build --locked -p coreav-cli
+      - name: Compare complete output with the independent decoder
+        run: |
+          python3 -I -m unittest discover -s scripts/tests -p test_flac_output_check.py
+          python3 -I scripts/flac_output_check.py --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-correctness.json"
+      - name: Check the measurement driver without judged inputs
+        run: |
+          python3 -I -m unittest discover -s scripts/tests -p test_flac_output_measure.py
+          python3 -I scripts/flac_output_measure.py --smoke --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-smoke.json"
+      - name: Require merged main before measuring
+        if: github.event_name == 'workflow_dispatch' && inputs.measure
+        run: test "$GITHUB_REF" = refs/heads/main
+      - name: Build the release encoder
+        if: github.event_name == 'workflow_dispatch' && inputs.measure
+        run: cargo build --locked --release -p coreav-cli
+      - name: Run the registered comparison once
+        if: github.event_name == 'workflow_dispatch' && inputs.measure
+        run: |
+          python3 -I scripts/flac_output_measure.py --coreav target/release/coreav \
+            --oracle-dir "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-measurement.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-output
+          path: |
+            ${{ runner.temp }}/flac-correctness.json
+            ${{ runner.temp }}/flac-smoke.json
+            ${{ runner.temp }}/flac-measurement.json
+          if-no-files-found: ignore

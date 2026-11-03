@@ -97,14 +97,16 @@ pub enum Job {
         /// Unselected cover pictures from input zero.
         left_out_covers: Vec<u64>,
     },
-    /// One audio stream decoded to signed 16-bit PCM, as WAV or raw bytes.
+    /// One lossless audio stream decoded to PCM for a native audio writer.
     Pcm {
         /// The input stream index.
         stream: usize,
         /// The duration limit in sample frames, or the whole presentation.
         samples: Option<u64>,
-        /// The selected stream's reported speaker positions for WAV.
+        /// The selected stream's reported speaker positions for the writer.
         mask: Option<u32>,
+        /// The exact integer representation supplied to the writer.
+        format: coreav_audio::SampleFormat,
     },
     /// Audio and video streams written as Matroska or WebM.
     MatroskaOutput {
@@ -211,6 +213,7 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
+  one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
@@ -282,7 +285,8 @@ fn run_inner(
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) && !command.muxer.frames() {
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) && !command.muxer.frames()
+    {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
@@ -418,7 +422,7 @@ pub fn plan(
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
     }
-    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) {
         return pcm::plan(command, report, &selected, list.is_some());
     }
     if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
@@ -525,6 +529,9 @@ pub fn plan(
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
         ));
+    }
+    if decided.contains(&Some(Codec::Flac)) {
+        return Err(Refusal::not_native("FLAC encoding outside FLAC output"));
     }
     let coded = |wanted: Codec| -> Vec<usize> {
         output
@@ -929,6 +936,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
                 Some(Codec::Audio(args::AudioEncoder::Aac))
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
+            (Muxer::Flac, StreamKind::Audio) => Some(Codec::Flac),
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
@@ -1230,7 +1238,7 @@ fn select_sources(
                 Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
                 _ => None,
             });
-            if matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+            if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac)
                 || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
             {
                 selected.push(*i);
@@ -1469,9 +1477,10 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         stream,
         samples,
         mask,
+        format,
     } = job
     {
-        return pcm::write(command, *stream, *samples, *mask);
+        return pcm::write(command, *stream, *samples, *mask, *format);
     }
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
