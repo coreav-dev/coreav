@@ -13,10 +13,10 @@ name: vp9-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
   schedule:
     - cron: '41 6 * * 3'
   workflow_dispatch:
@@ -92,3 +92,7 @@ jobs:
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
         run: cargo test --locked --release -p coreav-vp9 --test vectors -- --include-ignored --nocapture
+      - name: Compare native boundary frames and keyframe-only selection
+        env:
+          COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
+        run: cargo test --locked --release -p coreav-backend-vp9 --test vectors -- --include-ignored --nocapture

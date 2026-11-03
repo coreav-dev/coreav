@@ -270,6 +270,9 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libopus,ffmpeg-fallback --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features aac,libopus,native-h264 --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --no-default-features --features cli,native-vp9 --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features native-vp9,native-h264,ffmpeg-fallback --all-targets -- -D warnings
+          cargo clippy -p coreav-decode-oracle --features native-vp9,native-h264 --all-targets -- -D warnings
           cargo test -p coreav-backend-libopus --features libopus
           cargo test -p coreav-worker --features libopus
       # The encoder programs of `coreav transcode`, black boxes for

@@ -10,6 +10,10 @@ impl Memory {
         Self { limit, used: 0 }
     }
 
+    pub(crate) fn used(&self) -> u64 {
+        self.used
+    }
+
     pub(crate) fn charge<T>(&mut self, count: usize) -> Result<()> {
         let bytes = count
             .checked_mul(core::mem::size_of::<T>())
