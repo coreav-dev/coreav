@@ -2,9 +2,11 @@
 
 `coreav ffmpeg` writes signed 16-bit little-endian PCM to WAV or raw `-f s16le` files. WAV selects `pcm_s16le` by default. Raw output requires `-f s16le`; a `.raw` extension alone does not identify a sample format.
 
+The newer [headerless audio pipeline](raw-audio-pipes.md) separately supports F32 and S16 files and pipes with stage-by-stage eligibility. This note's legacy adapter still owns WAV and timed or multichannel S16 file output. Its original correctness bars are unchanged.
+
 ## Scope
 
-The input uses the existing audio decoder for FLAC tracks in MP4, MOV and Matroska. Native PCM output accepts only decoded lossless sources, currently FLAC. PCM and ALAC input decoding are not implemented by this audio decoder. MP3's recorded agreement bar permits a floating-point tolerance, so it does not prove exact sample agreement with the pinned oracle. MP3, Opus and AAC sources retain their existing compatibility-command refusal and external FFmpeg fallback; strict-safe mode refuses them. Their `decode-audio` and lossy-transcode support is unchanged.
+The input uses the existing audio decoder for FLAC tracks in MP4, MOV and Matroska. This legacy adapter accepts only decoded lossless sources, currently FLAC. PCM and ALAC input decoding are not implemented by this audio decoder. MP3's recorded agreement bar permits a floating-point tolerance, so it does not prove exact sample agreement with the pinned oracle. MP3, Opus and AAC sources retain this adapter's compatibility-command refusal and external FFmpeg fallback; strict-safe mode refuses them. Their `decode-audio` and lossy-transcode support is unchanged. The separate headerless pipeline may admit a decoder's reviewed conformance record without changing this lossless adapter.
 
 Automatic selection chooses one audio stream with the existing disposition and channel-count rules, without selecting video. An explicit subtitle codec still selects a subtitle and makes PCM output unsupported; `-sn` disables subtitle selection. Explicit maps must select exactly one audio stream. Output uses the source rate and channel layout.
 

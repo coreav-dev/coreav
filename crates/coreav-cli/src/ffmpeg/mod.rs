@@ -23,6 +23,7 @@ mod frames;
 #[cfg(feature = "input-capture")]
 mod image_capture;
 mod pcm;
+mod raw_audio;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -97,6 +98,8 @@ impl From<WriteFailure> for Stop {
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
+    /// A fully registered raw audio conversion.
+    RawAudio(raw_audio::Plan),
     /// Selected streams written to AVI, with explicit audio jobs.
     Avi(Vec<(usize, Codec)>),
     /// Mapped streams copied from several MP4/MOV sources.
@@ -226,9 +229,16 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le after -i: the same PCM samples without a header
-  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
-  -ar RATE after -i with raw S16 input: native rate conversion
+  -f s16le or -f f32le after -i: headerless PCM to a file or stdout
+  raw audio stdout names: -, pipe: or pipe:1
+  encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
+    including streaming stdin without a whole-input spool
+  -threads 0..16 or auto before -i: audio decoder workers
+  raw audio requires registered decoder eligibility; channel conversion,
+    rate conversion and packing require exact registrations
+  MPEG-1 MP3 in MP4 is conformance-only, not byte-exact; AAC/Opus stay refused
+  changed-rate stages are restricted to verified Linux x86-64
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
@@ -250,7 +260,7 @@ Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints no status text on success; rawvideo pipes write binary stdout.
+Prints no status text on success; raw audio and rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg
@@ -269,6 +279,15 @@ Documentation: https://coreav.dev/docs/commands/ffmpeg
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     run_inner(args, strict_safe, None, None)
+}
+
+/// Runs a parsed pipe command from its privately spooled encoded input.
+pub fn run_spooled(
+    args: &[String],
+    strict_safe: StrictSafe,
+    input: &Path,
+) -> Result<serde_json::Value, Stop> {
+    run_with_input(args, strict_safe, None, None, Some(input))
 }
 
 /// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
@@ -319,7 +338,30 @@ fn run_inner(
     capture: Option<&Path>,
     image_capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
-    let command = args::parse(args)?;
+    run_with_input(args, strict_safe, capture, image_capture, None)
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_with_input(
+    args: &[String],
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+    image_capture: Option<&Path>,
+    spooled: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
+    let mut command = args::parse(args)?;
+    if let Some(input) = spooled {
+        command.input = input.to_string_lossy().into_owned();
+    }
+    if args::stdin(&command.input)
+        && (!command.more_inputs.is_empty()
+            || !matches!(command.muxer, Muxer::S16le | Muxer::F32le))
+    {
+        return Err(Refusal::not_native("stdin without a single raw audio output").into());
+    }
+    if args::stdin(&command.input) && !matches!(command.demuxer, Some(Demuxer::S16le(_))) {
+        return Err(Refusal::not_native("encoded stdin without an owned replay file").into());
+    }
     if capture.is_some()
         && (!command.more_inputs.is_empty()
             || command.muxer.frames()
@@ -330,20 +372,29 @@ fn run_inner(
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) && !command.muxer.frames()
+    if !matches!(
+        command.muxer,
+        Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
+    ) && !command.muxer.frames()
     {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
-    std::fs::metadata(&input).map_err(io)?;
     let (list, force) = match command.demuxer {
-        Some(Demuxer::S16le(format)) => return pcm::write_raw(&command, format),
+        Some(Demuxer::S16le(format)) => {
+            return if matches!(command.muxer, Muxer::S16le | Muxer::F32le) {
+                raw_audio::write_raw(&command, format)
+            } else {
+                pcm::write_raw(&command, format)
+            };
+        }
         Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
         Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
         Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),
         None => (None, None),
     };
+    std::fs::metadata(&input).map_err(io)?;
     let probed = list.as_ref().and_then(|l| l.first()).unwrap_or(&input);
     let size = std::fs::metadata(probed).map_err(io)?.len();
     let mut file = FileSource::open(probed).map_err(WriteFailure::from)?;
@@ -487,6 +538,11 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if matches!(command.muxer, Muxer::S16le | Muxer::F32le)
+        && !raw_audio::legacy(command, report, &selected)
+    {
+        return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
     }
@@ -1008,6 +1064,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
             (Muxer::Flac, StreamKind::Audio) => Some(Codec::Flac),
+            (Muxer::F32le, StreamKind::Audio) => Some(Codec::PcmF32),
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
@@ -1287,7 +1344,10 @@ fn select_sources(
                 })
                 .map(|(i, _)| i)
         };
-        if !matches!(command.muxer, Muxer::Mp3 | Muxer::Wav | Muxer::S16le) {
+        if !matches!(
+            command.muxer,
+            Muxer::Mp3 | Muxer::Wav | Muxer::S16le | Muxer::F32le
+        ) {
             selected.extend(best(StreamKind::Video, &|s| {
                 int(s, "width").saturating_mul(int(s, "height"))
             }));
@@ -1309,8 +1369,10 @@ fn select_sources(
                 Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
                 _ => None,
             });
-            if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac)
-                || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
+            if matches!(
+                command.muxer,
+                Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
+            ) || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
             {
                 selected.push(*i);
             }
@@ -1538,6 +1600,9 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 /// moved into place only once the whole job succeeded. A transcode is
 /// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+    if let Job::RawAudio(plan) = job {
+        return raw_audio::write(command, plan);
+    }
     if let Job::Avi(streams) = job {
         return avi::write(command, streams);
     }
@@ -1696,6 +1761,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         | Job::Ffv1 { .. }
         | Job::AudioEncode { .. }
         | Job::Pcm { .. }
+        | Job::RawAudio(_)
         | Job::Frames { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {

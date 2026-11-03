@@ -99,6 +99,8 @@ such line before the input is read.
 
 Native H.264 output accepts `-b:v`, `-crf`, `-preset` and `-s` within the transcode pipeline's limits. The frame-rate mode option `-vsync` accepts only `0` or `passthrough`; other values still fall back or are refused in strict-safe mode.
 
+Headerless audio output accepts `-f f32le` and `-f s16le`, their matching PCM codecs, and stdin/stdout descriptors through the [registered raw audio pipeline](raw-audio-pipes.md). Decoder eligibility distinguishes exact and conformance-only paths, while downmix, rate conversion and packing always require exact registration. Unregistered stages keep the fallback and strict-safe exit 4. Standalone WAV/PCM input is a follow-up, not implied by standalone probing.
+
 Builds with a decoder backend also accept explicit `-c:v ffv1` for one progressive 8-bit planar YUV stream into `.mkv`. The encoder is native and adds no pixel conversion. Other selected streams require explicit exclusion. RGB, higher bit depths, changing geometry, transformations, trim and rate-control options are not native. The [FFV1 design](ffv1-encode.md) defines slice alignment, resource limits and exact decoded-pixel verification. Existing strict-safe and announced fallback rules are unchanged.
 
 Builds with a decoder backend also accept the image and raw-video output described in [frame-output.md](frame-output.md): `-c:v png`, `bmp` or `rawvideo`, `-f image2`, `rawvideo` or `yuv4mpegpipe`, `-frames:v`/`-vframes`, `-update`, output `-r` that only drops frames, and `-pix_fmt` without a new conversion. Their extension defaults are limited to `.png`, `.bmp`, `.yuv` and `.y4m`. Builds without a decoder backend still refuse these jobs. The historical command-coverage labels stay unchanged.

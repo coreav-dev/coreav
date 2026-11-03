@@ -52,6 +52,8 @@ pub enum Muxer {
     Wav,
     /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
     S16le,
+    /// Headerless IEEE 32-bit little-endian floating-point PCM.
+    F32le,
     /// One encoded image per file.
     Image2,
     /// Encoded video packets without a container.
@@ -125,6 +127,8 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
+    /// IEEE 32-bit little-endian floating-point PCM.
+    PcmF32,
     /// The native lossless FLAC encoder.
     Flac,
     /// Audio encoders supported by the AVI and PCM writers.
@@ -219,6 +223,8 @@ pub struct Command {
     pub input_duration: Option<Rational>,
     /// `-to` before `-i`.
     pub input_until: Option<Rational>,
+    /// Decoder workers, with zero selecting automatic parallelism.
+    pub input_threads: Option<usize>,
     /// The output file, or the segment name pattern.
     pub output: String,
     /// How the output is written.
@@ -258,6 +264,18 @@ pub struct Command {
     pub segment_time: Rational,
     /// `-y`, `-n`.
     pub overwrite: Overwrite,
+}
+
+impl Command {
+    pub(super) fn decoder_threads(&self) -> Result<usize, Refusal> {
+        let threads = self.input_threads.unwrap_or(1);
+        if threads > coreav_audio::MAX_THREADS {
+            return Err(Refusal::not_native(
+                "more than sixteen audio decoder workers",
+            ));
+        }
+        Ok(threads)
+    }
 }
 
 /// What `-map_metadata` asks of the output's metadata.
@@ -403,6 +421,16 @@ fn file_path(name: &str) -> String {
         Some(path) => path.to_owned(),
         None => name.to_owned(),
     }
+}
+
+/// A supported standard-input descriptor.
+pub fn stdin(name: &str) -> bool {
+    matches!(name, "-" | "pipe:" | "pipe:0")
+}
+
+/// A supported standard-output descriptor.
+pub fn stdout(name: &str) -> bool {
+    matches!(name, "-" | "pipe:" | "pipe:1")
 }
 
 fn usage(text: impl Into<String>) -> Refusal {
@@ -754,6 +782,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         input_seek: None,
         input_duration: None,
         input_until: None,
+        input_threads: None,
         output: file_path(output),
         muxer: Muxer::Mp4,
         sample_rate: None,
@@ -808,7 +837,9 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     "of the demuxer flags only +genpts is native (MP4 and Matroska time every packet, so it changes nothing)",
                 ));
             }
-            "-threads" => threads(text)?,
+            "-threads" => {
+                command.input_threads = Some(threads(text)?);
+            }
             "-noautorotate" => command.noautorotate = true,
             "-safe" => safe = Some(boolean(option, text)?),
             _ => {
@@ -838,10 +869,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         (_, Some(_)) => return Err(usage("Option safe not found.")),
         (_, None) => {}
     }
-    if input == "-" || input.starts_with("pipe:") {
+    if input.starts_with("pipe:") && !stdin(input) {
         return Err(Refusal::not_native("an input from a pipe"));
     }
-    if !input.starts_with("file:") && !local(input, cfg!(windows)) {
+    if !input.starts_with("file:") && !local(input, cfg!(windows)) && !stdin(input) {
         return Err(Refusal::not_native("an input named with a protocol"));
     }
     let mut format = None;
@@ -862,6 +893,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
                 "flac" => Codec::Flac,
                 "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
+                "pcm_f32le" => Codec::PcmF32,
                 "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
                 "png" => Codec::Video(VideoEncoder::Png),
                 "bmp" => Codec::Video(VideoEncoder::Bmp),
@@ -1062,10 +1094,16 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         }
     }
     command.muxer = muxer(format, output)?;
-    if (output == "-" || output.starts_with("pipe:")) && command.muxer != Muxer::Rawvideo {
+    if stdin(input) && !matches!(command.muxer, Muxer::S16le | Muxer::F32le) {
+        return Err(Refusal::not_native("an input from a pipe"));
+    }
+    if (output == "-" || output.starts_with("pipe:"))
+        && !(stdout(output) && matches!(command.muxer, Muxer::S16le | Muxer::F32le)
+            || output == "-" && command.muxer == Muxer::Rawvideo)
+    {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if !output.starts_with("file:") && !local(output, cfg!(windows)) && output != "-" {
+    if !output.starts_with("file:") && !local(output, cfg!(windows)) && !stdout(output) {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
     if let Some(option) = audio_encoders
@@ -1110,17 +1148,20 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if !matches!(
         command.muxer,
-        Muxer::Avi | Muxer::Wav | Muxer::S16le | Muxer::Flac
+        Muxer::Avi | Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
     ) && command
         .codecs
         .iter()
-        .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
+        .any(|(_, codec)| matches!(codec, Codec::AviAudio(_) | Codec::PcmF32))
     {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",
         ));
     }
-    if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) {
+    if matches!(
+        command.muxer,
+        Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
+    ) {
         if movflags {
             return Err(not_native(
                 "-movflags",
@@ -1215,16 +1256,20 @@ fn boolean(option: &str, text: &str) -> Result<bool, Refusal> {
     }
 }
 
-fn threads(text: &str) -> Result<(), Refusal> {
-    if text == "auto" || text.parse::<u32>().is_ok() {
-        Ok(())
-    } else {
-        Err(not_native(
-            "-threads",
-            Some(text),
-            "a thread count outside the native unsigned integer syntax",
-        ))
+fn threads(text: &str) -> Result<usize, Refusal> {
+    if text == "auto" {
+        return Ok(0);
     }
+    text.parse::<u32>()
+        .ok()
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| {
+            not_native(
+                "-threads",
+                Some(text),
+                "a thread count outside the native unsigned integer syntax",
+            )
+        })
 }
 
 /// The muxer `ffmpeg` guesses from an output name's extension, among those
@@ -1260,6 +1305,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("avi") => Ok(Muxer::Avi),
         Some("wav") => Ok(Muxer::Wav),
         Some("s16le") => Ok(Muxer::S16le),
+        Some("f32le") => Ok(Muxer::F32le),
         Some("segment") => Ok(Muxer::Segment),
         Some("image2") => Ok(Muxer::Image2),
         Some("rawvideo") => Ok(Muxer::Rawvideo),
@@ -1269,7 +1315,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, f32le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),
@@ -1294,6 +1340,42 @@ mod tests {
             Err(Refusal::NotNative(n)) => n.reason,
             other => panic!("{text}: {other:?}"),
         }
+    }
+
+    #[test]
+    fn unknown_thread_syntax_falls_back_and_capacity_is_decoder_specific() {
+        for text in ["2*2", "invalid", "-1", "4294967296"] {
+            assert!(matches!(
+                parse(&args(&format!("-threads {text} -i in.mp4 -c copy out.mp4"))),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for text in ["0", "auto", "16", "17", "32", "4294967295"] {
+            let command =
+                parse(&args(&format!("-threads {text} -i in.mp4 -c copy out.mp4"))).unwrap();
+            if matches!(text, "0" | "auto" | "16") {
+                assert!(command.decoder_threads().is_ok());
+            } else {
+                assert!(matches!(
+                    command.decoder_threads(),
+                    Err(Refusal::NotNative(_))
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn unsupported_muxer_diagnostic_includes_float_pcm() {
+        assert_eq!(muxer(Some("f32le"), "out.raw").unwrap(), Muxer::F32le);
+        let Err(Refusal::NotNative(refusal)) = muxer(Some("f32l"), "out.raw") else {
+            panic!("unknown muxer was not refused");
+        };
+        assert!(
+            refusal
+                .message
+                .split([',', ' '])
+                .any(|format| format == "f32le")
+        );
     }
 
     #[test]
