@@ -20,16 +20,20 @@ function install() {
   const { nativeBinary } = require("./lib/main.js");
   // This platform's package only, never a binary named by the environment.
   const binary = nativeBinary({ override: false });
-  if (binary === null) return; // No native package: the WASI build.
-  const { version } = require("./package.json");
-  const printed = execFileSync(binary, ["--version"], { encoding: "utf8", timeout: 30000 }).trim();
-  if (printed !== `coreav ${version}`) return; // Not this version's binary.
+  let destination = path.join(__dirname, "lib", "main.js");
+  if (binary !== null) {
+    try {
+      const { version } = require("./package.json");
+      const printed = execFileSync(binary, ["--version"], { encoding: "utf8", timeout: 30000 }).trim();
+      if (printed === `coreav ${version}`) destination = binary;
+    } catch {}
+  }
   const target = path.join(__dirname, "bin", "coreav");
   // A name of this process's own, so that installs into the same directory
   // at once do not write one file.
   const temporary = `${target}.${process.pid}.tmp`;
   try {
-    fs.symlinkSync(path.relative(path.dirname(target), binary), temporary);
+    fs.symlinkSync(path.relative(path.dirname(target), destination), temporary);
     fs.renameSync(temporary, target);
   } finally {
     fs.rmSync(temporary, { force: true });

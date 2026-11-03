@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 "use strict";
 // The coreav command from npm (docs/design/npm-cli.md): the native binary
 // of this platform's package, `@coreav/cli-<platform>-<arch>`, an optional

@@ -18,7 +18,7 @@ are ready up to `npm publish --dry-run`.
 | Path | What |
 |---|---|
 | `packages/cli/bin/coreav` | The `coreav` command: replaced by the native binary on install where possible, otherwise the Node launcher. |
-| `packages/cli/lib/main.js` | The Node launcher: starts this platform's binary, else the WASI build. |
+| `packages/cli/lib/main.js` | The executable Node launcher: starts this platform's binary, else the WASI build. Also restores the command after an optional binary is removed. |
 | `packages/cli/lib/wasi.mjs` | The WASI fallback: runs `wasm/coreav.wasm` under `node:wasi`. |
 | `packages/cli/install.js` | The install script that makes `coreav` the native binary. |
 | `packages/cli/scripts/build.sh` | Builds `coreav-cli` for `wasm32-wasip1` into `wasm/coreav.wasm`. |
@@ -85,6 +85,12 @@ esbuild and Biome:
     platform package remains the binary's only copy, and the relative link
     still resolves if the installation directory moves.
   - If the filesystem refuses symbolic links, the Node launcher stays.
+  - A rebuild after the optional binary is removed, rejected by the version
+    check or unable to execute links the command to the canonical Node
+    launcher, `lib/main.js`, instead. The script never writes through the
+    previous link, even when its destination is missing.
+    After `npm prune --omit=optional`, run `npm rebuild coreav` to restore
+    that launcher. Pruning alone does not run the install script.
   - pnpm and Yarn link the binary the same way: their shims see no shebang
     and run it directly.
 - **The Node launcher runs everywhere else.** `bin/coreav` starts out as a
@@ -256,7 +262,7 @@ MB below means 1,000,000 bytes. These are artifact sizes, not speed results.
 | WASI module, Binaryen 133 `-O3` | 4,232,892 | 1,772,426 |
 
 `npm pack` with the unoptimized WASI module produced a 1.97 MB main
-tarball (5.54 MB unpacked) and a 5.67 MB macOS arm64 platform tarball
+tarball (5.55 MB unpacked) and a 5.67 MB macOS arm64 platform tarball
 (12.59 MB unpacked). Installing both with npm stored 18.14 MB of regular
 files, with one 11.65 MB native binary. The relative link replaces the
 former second copy, saving 11,651,632 bytes on this macOS build.
@@ -271,8 +277,9 @@ builds have different sizes.
 
 The postinstall script remains necessary to avoid starting Node for every
 native Unix call. With pnpm 10, add `coreav` to `onlyBuiltDependencies` in
-`pnpm-workspace.yaml` and run `pnpm rebuild coreav`. With Bun, run
-`bun pm trust coreav`. If scripts stay blocked, the launcher still works.
+`pnpm-workspace.yaml`. With pnpm 11 and later, use `allowBuilds: { coreav: true }`
+instead. Then run `pnpm rebuild coreav`. With Bun, run `bun pm trust coreav`.
+If scripts stay blocked, the launcher still works.
 
 ### Build
 

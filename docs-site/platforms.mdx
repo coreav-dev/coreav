@@ -32,7 +32,27 @@ The WebAssembly build has a few more differences:
 
 Installed with `npm install`, `coreav` is the native binary on Linux and macOS, so no Node.js starts first. A small Node.js launcher starts the binary instead, adding about 30 ms per call, on Windows, in installs that run no install scripts (`--ignore-scripts`), and with package managers that skip the scripts of dependencies unless they are allowed (pnpm 10 and later, Bun). The WebAssembly build adds about 60 ms per call. `npx coreav` adds npm's own start-up, about 0.2 s, to every call, so for many files, install the package and call `coreav` directly.
 
-To allow the script with pnpm 10, add `coreav` to `onlyBuiltDependencies` in `pnpm-workspace.yaml`, then run `pnpm rebuild coreav`. With Bun, run `bun pm trust coreav` in the project. Both choices keep the native binary's direct start on Linux and macOS. The script downloads nothing.
+To allow the script, add the setting for your pnpm version to `pnpm-workspace.yaml`, then run `pnpm rebuild coreav`.
+
+For pnpm 10:
+
+```yaml
+onlyBuiltDependencies:
+  - coreav
+```
+
+For pnpm 11 and later:
+
+```yaml
+allowBuilds:
+  coreav: true
+```
+
+pnpm 11 can fail an install with `ERR_PNPM_IGNORED_BUILDS` until scripts are approved. Add the setting before installing, or rebuild an existing installation after adding it.
+
+With Bun, run `bun pm trust coreav` in the project. Both choices keep the native binary's direct start on Linux and macOS. The script downloads nothing.
+
+After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the WebAssembly launcher.
 
 [The npm package's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/npm-cli.md) covers how the package picks a binary.
 

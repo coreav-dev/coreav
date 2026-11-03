@@ -82,6 +82,17 @@ class DocsSite(unittest.TestCase):
                     self.assertTrue(fact in text, f'{name}: describe the native H.264 session deadline, including time spent writing output')
                 self.assertFalse('per decoder call' in text, f'{name}: the native H.264 deadline is not renewed for each call')
 
+    def test_pnpm_approval_documents_both_supported_settings(self):
+        for name in ('docs-site/platforms.mdx', 'packages/cli/README.md', 'docs/design/npm-cli.md'):
+            text = (ROOT / name).read_text()
+            with self.subTest(page=name):
+                self.assertRegex(text, r'pnpm 10[\s\S]{0,180}onlyBuiltDependencies',
+                                 f'{name}: document pnpm 10 onlyBuiltDependencies')
+                self.assertRegex(text, r'pnpm 11[\s\S]{0,180}allowBuilds',
+                                 f'{name}: document pnpm 11 and later allowBuilds')
+                self.assertIn('pnpm rebuild coreav', text,
+                              f'{name}: tell existing installations to run pnpm rebuild coreav')
+
     def test_navigation_and_pages_agree(self):
         navigation = listed(json.loads((SITE / 'docs.json').read_text())['navigation'])
         self.assertEqual(sorted(set(navigation)), sorted(navigation), 'docs-site/docs.json lists a page twice')

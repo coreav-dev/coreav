@@ -44,9 +44,18 @@ onlyBuiltDependencies:
   - coreav
 ```
 
+For pnpm 11 and later, use `allowBuilds` in `pnpm-workspace.yaml` instead. Set it before installing to avoid `ERR_PNPM_IGNORED_BUILDS`, or run `pnpm rebuild coreav` after adding it to an existing installation:
+
+```yaml
+allowBuilds:
+  coreav: true
+```
+
 For Bun, run `bun pm trust coreav` in the project. This runs the script and adds `coreav` to `trustedDependencies` in `package.json` for future installs.
 
 [Platforms](https://coreav.dev/docs/platforms) covers the native and WebAssembly builds.
+
+After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the WebAssembly launcher.
 
 ## Usage
 
