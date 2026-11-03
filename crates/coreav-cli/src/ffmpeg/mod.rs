@@ -19,6 +19,8 @@ mod capture;
 pub mod encode;
 #[cfg(feature = "thumbnail")]
 mod frames;
+#[cfg(feature = "input-capture")]
+mod image_capture;
 mod pcm;
 
 use crate::error::Failure;
@@ -252,7 +254,7 @@ See docs/design/compat-cli.md.
 /// is checked before decoding. Explicit encoders are checked before the input is read.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
-    run_inner(args, strict_safe, None)
+    run_inner(args, strict_safe, None, None)
 }
 
 /// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
@@ -264,7 +266,7 @@ pub fn run_captured(
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     let session = capture::Session::begin(directory, Path::new(&command.input))?;
-    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")))?;
+    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")), None)?;
     session.seal(
         &summary,
         args,
@@ -274,11 +276,34 @@ pub fn run_captured(
     Ok(summary)
 }
 
+/// Runs file-based PNG/BMP output with an opt-in pre-encode RGB receipt.
+#[cfg(feature = "input-capture")]
+pub fn run_images_captured(
+    args: &[String],
+    strict_safe: StrictSafe,
+    directory: &Path,
+) -> Result<serde_json::Value, Stop> {
+    let command = args::parse(args)?;
+    if !command.more_inputs.is_empty() || command.muxer != Muxer::Image2 || command.frames.update {
+        return Err(
+            Refusal::not_native("image capture requires non-overwritten image files").into(),
+        );
+    }
+    let session = image_capture::Session::begin(directory, Path::new(&command.input))?;
+    let mut summary = run_inner(args, strict_safe, None, Some(directory))?;
+    session.seal(&summary, args, Path::new(&command.input), strict_safe)?;
+    if let Some(object) = summary.as_object_mut() {
+        object.remove("image_capture_stream");
+    }
+    Ok(summary)
+}
+
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 fn run_inner(
     args: &[String],
     strict_safe: StrictSafe,
     capture: Option<&Path>,
+    image_capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     if capture.is_some()
@@ -327,6 +352,17 @@ fn run_inner(
         return write(&command, &job);
     }
     let job = plan(&command, &report, list)?;
+    if image_capture.is_some()
+        && !matches!(
+            job,
+            Job::Frames {
+                encoder: args::VideoEncoder::Png | args::VideoEncoder::Bmp,
+                ..
+            }
+        )
+    {
+        return Err(Refusal::not_native("image capture requires a PNG or BMP frame job").into());
+    }
     #[cfg(feature = "transcode")]
     if let Job::Avi(streams) = &job
         && streams
@@ -337,7 +373,14 @@ fn run_inner(
     }
     #[cfg(feature = "thumbnail")]
     if let Job::Frames { video, encoder } = job {
-        return frames::write(&command, video, encoder, &report, strict_safe);
+        return frames::write(
+            &command,
+            video,
+            encoder,
+            &report,
+            strict_safe,
+            image_capture,
+        );
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
@@ -1720,7 +1763,12 @@ mod tests {
                 .map(String::from)
                 .collect::<Vec<_>>();
             assert!(matches!(
-                run_inner(&args, StrictSafe::new(false), Some(Path::new("unused.f32"))),
+                run_inner(
+                    &args,
+                    StrictSafe::new(false),
+                    Some(Path::new("unused.f32")),
+                    None
+                ),
                 Err(Stop::Refused(Refusal::NotNative(_)))
             ));
         }

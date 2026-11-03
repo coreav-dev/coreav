@@ -21,7 +21,7 @@ Unsupported reference shapes, alpha or high-bit-depth colour conversion, overwri
 
 ## Capture and provenance
 
-An opt-in, feature-gated CLI-library capture entry runs the same parser, planner and frame writer as the ordinary command. It records the actual picture immediately before PNG/BMP encoding, after the existing conversion and rotation. A dedicated ignored Rust integration-test entry supplies this capture mode without adding a public CLI option or environment-controlled hook to a release executable.
+An opt-in, feature-gated CLI-library capture entry runs the same parser, planner and frame writer as the ordinary command. It records the actual picture immediately before PNG/BMP encoding, after the existing conversion and rotation. A dedicated Rust integration-test executable supplies this capture mode without adding a public CLI option or environment-controlled hook to a release executable. Its own worker entry hosts the same sandboxed decoders as the normal executable.
 
 Each invocation uses a fresh capture directory and a new call identity. A complete receipt binds the registration, exact command, source bytes, selected source stream, capture executable and output bytes. Each captured frame records its ordinal, source presentation time, geometry, pixel format and packed RGB bytes with their length and digest. The receipt is published only after a successful complete command. Capture errors fail the harness invocation rather than falling back to an unobserved encode. The checker validates provenance, complete file rosters, lengths and digests before comparing samples. It also requires the harness outputs to equal the ordinary executable's outputs, not merely their probes or receipts.
 
@@ -46,3 +46,22 @@ Add the capture boundary, receipt validator and a separately selected V2 tool en
 Synthetic controls must prove successful exact captures for PNG and BMP, sequence completeness and ordinary/captured output identity. Negative controls change one RGB sample, one encoded image sample, source bytes, command, executable, registration, ordinal, geometry, frame count or a digest, and remove or add files or the completion marker. A reference-only pixel change must fail the reference comparison without falsely blaming the lossless encoder. An encoder-only pixel change must fail the lossless comparison. Test nonzero exits, missing captures and malformed receipts. Keep prior-registration exclusions and all unrelated predicates covered by their existing tests.
 
 Linux GitHub Actions runs the real pinned-oracle synthetic controls and affected Rust/Python tests. No new V2 pass count is claimed by this change. A merged, explicitly selected run and its later result record are required for any coverage claim.
+
+## Running the tools
+
+`tools/compat-corpus/png_bmp_yuv.py` is the opt-in runner. The existing `encode_breadth.py` and `current_ci.py` remain unchanged. Acquisition requires a clean checkout whose commit is on `origin/main`. Build the normal executable and copy harness with the registered full-build features, and build the `coreav-cli` test target `image_capture` with those features plus `input-capture`. That test target has its own main function so decoder worker re-entry does not run the Rust test dispatcher.
+
+Supply a build record with schema `coreav.image-build/1`, the checkout's `source_sha`, `cargo_lock_sha256`, toolchain and target, and `binaries` entries for `coreav`, `harness` and `image_harness`. Each binary entry contains its `sha256` and explicit `features` array. This is reviewed build provenance, not cryptographic source-to-binary attestation.
+
+After merge, run:
+
+```sh
+python3 -I tools/compat-corpus/png_bmp_yuv.py run \
+  --registration png-bmp-yuv-v1 \
+  --coreav COREAV --harness COPY_HARNESS --image-harness IMAGE_HARNESS \
+  --ffmpeg FFMPEG --ffprobe FFPROBE --x264 X264 \
+  --build-manifest BUILD.json --fixtures FIXTURES --work NEW_WORK_DIRECTORY \
+  --records RECORDS.jsonl --summary SUMMARY.json --manifest MANIFEST.json
+```
+
+The runner retains per-command capture and process evidence under the fresh work directory, with diagnostic comparisons in the records. Keep that directory with the run's evidence. Public records contain no new coverage claim until a merged run is recorded separately. `summarize --registration png-bmp-yuv-v1 --records RECORDS.jsonl --manifest MANIFEST.json --summary SUMMARY.json` rejects mixed registrations, changed command rows and changed judging-tool identities before applying the existing V2 accounting.
