@@ -106,6 +106,7 @@ jobs:
             .context/**
             docs/spikes/**
             packages/wasm/**
+            packages/wasm-h264/**
       # The code that differs between Linux, macOS and Windows (the sandbox,
       # the processes it starts, positioned file reads, code that differs by
       # target architecture), the backends the
@@ -2291,7 +2292,8 @@ jobs:
           {
             echo "### Base commit (${BASE::12})"
             python3 -I scripts/bench_guard.py --coreav "$RUNNER_TEMP/coreav-base" $DECODER \
-              --fixtures "$RUNNER_TEMP/fixtures" --report-only --write "$RUNNER_TEMP/base.json"
+              --fixtures "$RUNNER_TEMP/fixtures" --report-only --write "$RUNNER_TEMP/base.json" \
+              --profile-dir "$RUNNER_TEMP/guard-profiles/base"
             if ! git diff --quiet "$BASE" HEAD -- bench/guard/baseline.json; then
               echo
               echo "**This pull request changes bench/guard/baseline.json.** Its description must state the unavoidable cost that moves the baseline (docs/design/benchmarks.md)."
@@ -2352,8 +2354,15 @@ jobs:
             fi
             python3 -I scripts/bench_guard.py --coreav target/dist/coreav $DECODER \
               --fixtures "$RUNNER_TEMP/fixtures" --baseline "$AGAINST" \
-              --write "$RUNNER_TEMP/counts.json"
+              --write "$RUNNER_TEMP/counts.json" --profile-dir "$RUNNER_TEMP/guard-profiles/head"
           } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Retain instruction attribution on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-guard-profiles
+          path: ${{ runner.temp }}/guard-profiles
+          retention-days: 5
       - name: Attribute a startup regression
         if: failure() && env.BASE != ''
         run: |

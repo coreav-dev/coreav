@@ -46,6 +46,16 @@ pub fn parse_block(
     block_size: u64,
     offset: u64,
 ) -> Result<Parsed<BlockHeader>, Error> {
+    parse_block_with_planning(bytes, block_size, offset, None)
+}
+
+pub(crate) fn parse_block_with_planning(
+    bytes: &[u8],
+    block_size: u64,
+    offset: u64,
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Result<Parsed<BlockHeader>, Error> {
+    crate::planning::check(planning, offset)?;
     let invalid = |reason| Error::InvalidElement {
         offset,
         id: 0,
@@ -76,11 +86,14 @@ pub fn parse_block(
         let size = block_size
             .checked_sub(header_len as u64)
             .ok_or(invalid("block shorter than its header"))?;
+        let mut frames = Vec::new();
+        crate::planning::exact(planning, &mut frames, 1, offset)?;
+        frames.push((header_len as u64, size));
         return Ok(Parsed::Done(BlockHeader {
             track,
             timestamp,
             flags,
-            frames: vec![(header_len as u64, size)],
+            frames,
         }));
     }
     let Some(&count_minus_one) = bytes.get(header_len) else {
@@ -88,7 +101,8 @@ pub fn parse_block(
     };
     let count = usize::from(count_minus_one) + 1;
     let mut at = header_len + 1;
-    let mut sizes = Vec::with_capacity(count);
+    let mut sizes = Vec::new();
+    crate::planning::exact(planning, &mut sizes, count, offset)?;
     match lacing {
         // Xiph lacing (10.3.2): each size but the last as a run of 255s
         // ended by an octet below 255.
@@ -156,7 +170,8 @@ pub fn parse_block(
         .and_then(|rest| rest.checked_sub(laced))
         .ok_or(invalid("lace sizes exceed the block"))?;
     sizes.push(last);
-    let mut frames = Vec::with_capacity(count);
+    let mut frames = Vec::new();
+    crate::planning::exact(planning, &mut frames, count, offset)?;
     let mut position = at as u64;
     for size in sizes {
         frames.push((position, size));
@@ -173,6 +188,19 @@ pub fn parse_block(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lace_storage_is_admitted_before_allocation() {
+        let planning = coreav_isobmff::PlanningBudget::new(3 * size_of::<u64>() - 1);
+        let result = parse_block_with_planning(&[0x81, 0, 0, 4, 2], 2405, 0, Some(&planning));
+        assert_eq!(result, Err(crate::planning::limit(0)));
+        assert_eq!(planning.used(), 0);
+        assert!(planning.failed());
+        let planning = coreav_isobmff::PlanningBudget::new(3 * size_of::<u64>());
+        let result = parse_block_with_planning(&[0x81, 0, 0, 4, 2], 2405, 0, Some(&planning));
+        assert_eq!(result, Err(crate::planning::limit(0)));
+        assert_eq!(planning.used(), 3 * size_of::<u64>());
+    }
 
     fn done(bytes: &[u8], size: u64) -> BlockHeader {
         match parse_block(bytes, size, 0).unwrap() {

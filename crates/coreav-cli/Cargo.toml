@@ -43,7 +43,8 @@ native-vp9 = ["thumbnail", "transcode", "dep:coreav-backend-vp9"]
 # `coreav-worker` (the hidden `__coreav_exec` entry, which runs the encoder
 # of `coreav transcode`) to every build with a decoder backend, the native
 # H.264 decoder alone included.
-thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker", "dep:coreav-frame"]
+thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker", "dep:coreav-frame", "coreav-thumbnail/jpeg-simd"]
+thumbnail-summary = ["dep:coreav-thumbnail"]
 # `coreav transcode` (docs/design/transcode.md, experimental): the video
 # re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
@@ -87,7 +88,7 @@ coreav-policy = { path = "../coreav-policy" }
 coreav-text = { path = "../coreav-text" }
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame", optional = true }
-coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
+coreav-thumbnail = { path = "../coreav-thumbnail", optional = true, default-features = false }
 coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
 coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }

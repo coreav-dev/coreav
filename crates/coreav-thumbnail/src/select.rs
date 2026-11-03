@@ -1,7 +1,7 @@
 //! Which frame a time asks for, and which packets decode it
 //! (`docs/design/thumbnails.md`, "Which frame").
 
-use coreav_isobmff::Rational;
+use coreav_isobmff::{PlanningBudget, Rational};
 
 use crate::Error;
 
@@ -90,13 +90,44 @@ pub(crate) fn keyframe(
     forward: bool,
     cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
 ) -> Result<Choice, Error> {
+    keyframe_with_planning(samples, at, forward, cut_point, None)
+}
+
+pub(crate) fn keyframe_with_planning(
+    samples: &[Sample],
+    at: Rational,
+    forward: bool,
+    cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
+    planning: Option<&PlanningBudget>,
+) -> Result<Choice, Error> {
+    crate::planning_check(planning)?;
     check_end(samples, at)?;
-    let mut candidates: Vec<(usize, Rational)> = samples
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| offered_by(s, at))
-        .filter_map(|(i, s)| s.time.map(|t| (i, t)))
-        .collect();
+    let count = samples.iter().filter(|s| offered_by(s, at)).count();
+    if let Some(planning) = planning {
+        let stack = 4096 / size_of::<(usize, Rational)>();
+        let maximum = if stack >= 48 { stack } else { 20 };
+        if count > maximum {
+            let _ = planning.charge(usize::MAX);
+            let _ = planning.charge(1);
+            return Err(crate::planning_limit());
+        }
+    }
+    let mut candidates = Vec::new();
+    match planning {
+        Some(planning) => planning
+            .reserve_exact(&mut candidates, count)
+            .map_err(|_| crate::planning_limit())?,
+        None => candidates
+            .try_reserve_exact(count)
+            .map_err(|_| crate::planning_limit())?,
+    }
+    candidates.extend(
+        samples
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| offered_by(s, at))
+            .filter_map(|(i, s)| s.time.map(|t| (i, t))),
+    );
     candidates.sort_by(|a, b| {
         if lt(a.1, b.1) {
             std::cmp::Ordering::Less
@@ -354,5 +385,101 @@ mod tests {
             exact(&s, r(0), true, &mut none),
             Err(Error::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn planned_candidates_are_charged_before_selection() {
+        let samples = gop();
+        let bytes = 2 * size_of::<(usize, Rational)>();
+        let planning = PlanningBudget::new(bytes);
+        let native = keyframe(&samples, r(7), true, &mut |_| Ok(true)).expect("native");
+        let bounded =
+            keyframe_with_planning(&samples, r(7), true, &mut |_| Ok(true), Some(&planning))
+                .expect("bounded");
+        assert_eq!(native, bounded);
+        assert_eq!(planning.used(), bytes);
+        let tiny = PlanningBudget::new(bytes - 1);
+        let mut checks = 0;
+        assert!(matches!(
+            keyframe_with_planning(
+                &samples,
+                r(7),
+                true,
+                &mut |_| {
+                    checks += 1;
+                    Ok(true)
+                },
+                Some(&tiny)
+            ),
+            Err(Error::Isobmff(coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::PlanningBytes,
+                ..
+            }))
+        ));
+        assert_eq!(checks, 0);
+        assert!(tiny.failed());
+    }
+
+    #[test]
+    fn bounded_sort_refuses_heap_scratch_before_candidates() {
+        let maximum = 4096 / size_of::<(usize, Rational)>();
+        let samples = vec![
+            Sample {
+                time: Some(r(0)),
+                end: Some(r(1)),
+                presented: true,
+                keyframe: true
+            };
+            maximum + 1
+        ];
+        let planning = PlanningBudget::new(4 * 1024 * 1024);
+        assert_eq!(
+            keyframe(&samples, r(0), true, &mut |_| Ok(true))
+                .expect("native")
+                .target,
+            maximum
+        );
+        assert!(
+            keyframe_with_planning(&samples, r(0), true, &mut |_| Ok(true), Some(&planning))
+                .is_err()
+        );
+        assert_eq!(planning.used(), 0);
+        assert!(planning.failed());
+        let planning = PlanningBudget::new(4 * 1024 * 1024);
+        let admitted = &samples[..maximum];
+        assert_eq!(
+            keyframe_with_planning(admitted, r(0), true, &mut |_| Ok(true), Some(&planning))
+                .expect("stack sort"),
+            keyframe(admitted, r(0), true, &mut |_| Ok(true)).expect("native")
+        );
+    }
+
+    #[test]
+    fn bounded_sort_keeps_native_arithmetic_overflow_ties() {
+        let samples: Vec<_> = (0..30)
+            .map(|i| Sample {
+                time: Rational::new(
+                    -i128::MAX + i,
+                    u64::MAX - u64::try_from(i).expect("denominator"),
+                ),
+                end: Some(r(1)),
+                presented: true,
+                keyframe: true,
+            })
+            .collect();
+        assert_eq!(
+            samples[0]
+                .time
+                .expect("time")
+                .checked_lt(samples[1].time.expect("time")),
+            None
+        );
+        let native = keyframe(&samples, r(0), true, &mut |_| Ok(true)).expect("native");
+        let planning = PlanningBudget::new(4 * 1024 * 1024);
+        assert_eq!(
+            keyframe_with_planning(&samples, r(0), true, &mut |_| Ok(true), Some(&planning))
+                .expect("bounded"),
+            native
+        );
     }
 }

@@ -7,12 +7,12 @@
 use crate::bytes::{Bits, be_u16_at};
 
 /// Removes emulation prevention bytes (`0x000003`) from a NAL unit payload
-/// (ITU-T H.265 7.4.2), keeping at most `max` bytes.
-pub(crate) fn rbsp(nal: &[u8], max: usize) -> Vec<u8> {
-    let mut out = Vec::with_capacity(nal.len().min(max));
+/// (ITU-T H.265 7.4.2), writing at most the supplied buffer's length.
+pub(crate) fn rbsp<'a>(nal: &[u8], out: &'a mut [u8]) -> &'a [u8] {
+    let mut len = 0usize;
     let mut zeros = 0usize;
     for &byte in nal {
-        if out.len() >= max {
+        if len >= out.len() {
             break;
         }
         if zeros >= 2 && byte == 3 {
@@ -24,9 +24,21 @@ pub(crate) fn rbsp(nal: &[u8], max: usize) -> Vec<u8> {
         } else {
             0
         };
-        out.push(byte);
+        if let Some(target) = out.get_mut(len) {
+            *target = byte;
+            len += 1;
+        }
     }
-    out
+    out.get(..len).unwrap_or_default()
+}
+
+pub(crate) fn with_parameter_set_rbsp<T>(nal: &[u8], read: impl FnOnce(&[u8]) -> T) -> T {
+    if nal.len() <= 64 {
+        let mut scratch = [0; 64];
+        return read(rbsp(nal, &mut scratch));
+    }
+    let mut scratch = [0; 4096];
+    read(rbsp(nal, &mut scratch))
 }
 
 /// The video signal type a parameter set or sequence header describes:
@@ -50,7 +62,7 @@ pub(crate) fn hevc_full_range(hvcc: &[u8]) -> Option<bool> {
 /// be read.
 pub(crate) fn hevc_signal(hvcc: &[u8]) -> Option<Signal> {
     // Skip the two-byte NAL unit header.
-    hevc_sps_signal(&rbsp(hevc_first_sps(hvcc)?.get(2..)?, 4096))
+    with_parameter_set_rbsp(hevc_first_sps(hvcc)?.get(2..)?, hevc_sps_signal)
 }
 
 pub(crate) fn profile_tier_level(bits: &mut Bits<'_>, max_sub_layers_minus1: u32) -> Option<()> {
@@ -154,13 +166,13 @@ fn hevc_sps_signal(sps: &[u8]) -> Option<Signal> {
         return None;
     }
     // NumDeltaPocs of every short-term reference picture set (7.4.8).
-    let mut delta_pocs: Vec<u32> = Vec::with_capacity(sets as usize);
+    let mut previous_pocs = 0u32;
     for index in 0..sets {
         let inter = index != 0 && bits.flag()?;
         let count = if inter {
             bits.skip(1)?;
             bits.ue()?;
-            let reference = *delta_pocs.last()?;
+            let reference = previous_pocs;
             let mut count = 0u32;
             for _ in 0..=reference {
                 let used = bits.flag()?;
@@ -185,7 +197,7 @@ fn hevc_sps_signal(sps: &[u8]) -> Option<Signal> {
         if count > 32 {
             return None;
         }
-        delta_pocs.push(count);
+        previous_pocs = count;
     }
     if bits.flag()? {
         let long_term = bits.ue()?;
@@ -343,8 +355,7 @@ fn with_avc_sps<T>(avcc: &[u8], read: impl FnOnce(&mut Bits<'_>) -> Option<T>) -
     if nal.first()? & 0x1f != 7 {
         return None;
     }
-    let sps = rbsp(nal.get(1..)?, 4096);
-    read(&mut Bits::new(&sps))
+    with_parameter_set_rbsp(nal.get(1..)?, |sps| read(&mut Bits::new(sps)))
 }
 
 /// Reads a sequence parameter set (ITU-T H.264 7.3.2.1.1) up to
@@ -416,8 +427,9 @@ pub(crate) fn avc_sps_profile(avcc: &[u8]) -> Option<(u8, u8, u8)> {
     if nal.first()? & 0x1f != 7 {
         return None;
     }
-    let sps = rbsp(nal.get(1..)?, 3);
-    let [profile, flags, level] = *sps.as_slice() else {
+    let mut scratch = [0; 3];
+    let sps = rbsp(nal.get(1..)?, &mut scratch);
+    let [profile, flags, level] = *sps else {
         return None;
     };
     Some((profile, flags, level))
@@ -432,8 +444,9 @@ pub(crate) type HevcGeneral = (u8, bool, u8, u32, u64, u8);
 /// in an `hvcC` record (ITU-T H.265 7.3.2.2.1 and 7.3.3).
 pub(crate) fn hevc_sps_profile(hvcc: &[u8]) -> Option<HevcGeneral> {
     let sps = hevc_first_sps(hvcc)?;
-    let sps = rbsp(sps.get(2..)?, 16);
-    let mut bits = Bits::new(&sps);
+    let mut scratch = [0; 16];
+    let sps = rbsp(sps.get(2..)?, &mut scratch);
+    let mut bits = Bits::new(sps);
     bits.skip(8)?;
     let space = u8::try_from(bits.bits(2)?).ok()?;
     let tier = bits.flag()?;
@@ -815,7 +828,20 @@ mod tests {
 
     #[test]
     fn emulation_prevention_is_removed() {
-        assert_eq!(rbsp(&[0, 0, 3, 1, 0, 0, 3], 16), vec![0, 0, 1, 0, 0]);
+        assert_eq!(rbsp(&[0, 0, 3, 1, 0, 0, 3], &mut [0; 16]), [0, 0, 1, 0, 0]);
+    }
+
+    #[test]
+    fn parameter_set_scratch_keeps_the_same_prefix_across_both_sizes() {
+        for length in [0, 1, 63, 64, 65, 4095, 4096, 4097, 8192] {
+            let input: Vec<_> = [0, 0, 3, 1].into_iter().cycle().take(length).collect();
+            let expected: Vec<_> = (0..length)
+                .filter(|position| position % 4 != 2)
+                .map(|position| u8::from(position % 4 == 3))
+                .take(4096)
+                .collect();
+            with_parameter_set_rbsp(&input, |bytes| assert_eq!(bytes, expected));
+        }
     }
 
     #[test]
