@@ -1,0 +1,792 @@
+{
+  "schema": 1,
+  "source_commit": "50581ac8d546cc88efb97bfa485aea6db9d5fa16",
+  "target": "x86_64-unknown-linux-gnu",
+  "rust": "1.99.1",
+  "llvm": "23.1.1",
+  "timed": false,
+  "profile_calls": 32,
+  "raw_profiles": 32,
+  "build_script_functions": false,
+  "profile_sha256": "2c4008c9f692c6de69c3839205f9b94d3319ab7781b16a9a56e4a7d229571d49",
+  "base_sha256": "1052c7c09b351399d6b93dd8b84e0f29c47daf05a189e97d55c2f3db7d67375a",
+  "pgo_sha256": "3d4a10c5a452f32b528c95e4661bf236f0b42be1bfe7943d228dd626e45a1cbf",
+  "separate_target_rebuild_sha256": "3d4a10c5a452f32b528c95e4661bf236f0b42be1bfe7943d228dd626e45a1cbf",
+  "separate_host_rebuild_sha256": "3d4a10c5a452f32b528c95e4661bf236f0b42be1bfe7943d228dd626e45a1cbf",
+  "historical_source": "1821f1f005ff78f294a1b529bde5efe145b21e5c",
+  "historical_profile_sha256": "0d12fc7b98c5f94e3b99122b5bc3797cc0ba0d2b8ae983a54041207ca723fb63",
+  "historical_rebuilds": [
+    "e1a3ce41cf39fc77fbdded85f55eb627169065b8a8be3ae38ff1472e584ba3fa",
+    "e1a3ce41cf39fc77fbdded85f55eb627169065b8a8be3ae38ff1472e584ba3fa"
+  ],
+  "inputs": [
+    {
+      "label": "t001",
+      "class": "720p",
+      "es_sha256": "528220a5e83e738d4fcd716014a0d2171229872ffef250a727f9e2bb42f63a88",
+      "width": 1280,
+      "height": 720,
+      "output_bytes": 414720000,
+      "output_frames": 300,
+      "output_sha256": "a65243b48128d6a42d21d2ae1802664f57dcdbfc9cf52ea6dc77a90fbaf46a57",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t002",
+      "class": "4k",
+      "es_sha256": "86ffb86434f807d9f69b2d11decea97c4d79eba4c917fb32b547c4c697c726db",
+      "width": 2400,
+      "height": 1500,
+      "output_bytes": 810000000,
+      "output_frames": 150,
+      "output_sha256": "9889c57c99e68dbe098f566a89185ae46f24512dab6fa7d1445a5e3b9da03561",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 8
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 8
+        }
+      ]
+    },
+    {
+      "label": "t003",
+      "class": "720p",
+      "es_sha256": "2a38d84049299b8d2daac3e817b45cae4c3cf08971dd37bcad9740e6674091ef",
+      "width": 848,
+      "height": 480,
+      "output_bytes": 232623360,
+      "output_frames": 381,
+      "output_sha256": "37d1dd39fa111a47ec32d002c166220b04e80713f927eb8b8926df180fe8cf70",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t004",
+      "class": "sd",
+      "es_sha256": "1fa3ccd4aafe7d1f4f1bdf01812db531d2455dedd984276f11797562909c3dc8",
+      "width": 640,
+      "height": 360,
+      "output_bytes": 622080000,
+      "output_frames": 1800,
+      "output_sha256": "f2b52ad916d3253df5752095cc351f9d51c9e5f9ea4ea2623bf21f10d0da6a21",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t005",
+      "class": "sd",
+      "es_sha256": "5dc78973e3614b82d06b282ed323a02e7b5ebf81b3a491f5d433fca7a3083478",
+      "width": 352,
+      "height": 288,
+      "output_bytes": 273715200,
+      "output_frames": 1800,
+      "output_sha256": "a61a323c64394674e09df0a1a05a9d722cb746d832e8495b5a6694c56715e39a",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t006",
+      "class": "1080p",
+      "es_sha256": "9e8b50644429a41dd1a98abad7dfa5d30b13cb82f857b5a220c68bc542b6df86",
+      "width": 1920,
+      "height": 1080,
+      "output_bytes": 933120000,
+      "output_frames": 300,
+      "output_sha256": "a6683222294fb7a67bc36b1ef9f6070b3a6b3ffafd883980c39c238d3f96f4c1",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t007",
+      "class": "720p",
+      "es_sha256": "0e6051a7cfba05d0f491fba529de0642fcda6d2c270c7efa419ef238742baade",
+      "width": 1280,
+      "height": 720,
+      "output_bytes": 533606400,
+      "output_frames": 386,
+      "output_sha256": "da51545b891683a098cb6c1bd1a40cd786deded23f66693b0380b425247db2f4",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t008",
+      "class": "sd",
+      "es_sha256": "30376f559610fe2ad54300841a062d738bd7001082771682a08cc097f6cb438a",
+      "width": 640,
+      "height": 360,
+      "output_bytes": 622080000,
+      "output_frames": 1800,
+      "output_sha256": "6ac2fc55db38a45939e6caa0efd4d064b3cc75149675505e938c496b255b754f",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t009",
+      "class": "720p",
+      "es_sha256": "43c4e491f1429a20c46392e20408d3bcbfdaeb172df9518dcf76754c29f3804f",
+      "width": 960,
+      "height": 540,
+      "output_bytes": 699840000,
+      "output_frames": 900,
+      "output_sha256": "99f5ea2e7133438f2a2de30f2dcc9a7133a6f27bb82fa5201fcc134a55ebe0d5",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 2
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 2
+        }
+      ]
+    },
+    {
+      "label": "t010",
+      "class": "1080p",
+      "es_sha256": "8b5a3e8f224c6335bdf6fd6a1dceccb52b0d24f273cefe2f1a2cdfbcee79a094",
+      "width": 1560,
+      "height": 720,
+      "output_bytes": 505440000,
+      "output_frames": 300,
+      "output_sha256": "96fdb532a1639d51043063ee38e326ff3e370dfb8a4ec47a01459f374e567e70",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 2
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 2
+        }
+      ]
+    },
+    {
+      "label": "t011",
+      "class": "4k",
+      "es_sha256": "3211f919961cb840e498d5134427010ea1818b2a5031086e09fa167f9c402c6a",
+      "width": 720,
+      "height": 1280,
+      "output_bytes": 207360000,
+      "output_frames": 150,
+      "output_sha256": "d69fe0eb111b9501a47c642e83c6621dcf59f4b901f0eb1496a4daa36d9a2c2a",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t012",
+      "class": "1080p",
+      "es_sha256": "82ed2b6b0ca305cf1cb1f7d86ad7fa9611eda449028d4ad32b350c911b7d140f",
+      "width": 1920,
+      "height": 1080,
+      "output_bytes": 933120000,
+      "output_frames": 300,
+      "output_sha256": "dbc0436dc97f729686c52d23a959a122d6a6318b8335f2b721760318243c7736",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t013",
+      "class": "1080p",
+      "es_sha256": "5d17a3ac2a2612da6063eed43a17bc9342329f0273bfec0c832b92920f7968ca",
+      "width": 1920,
+      "height": 1080,
+      "output_bytes": 790041600,
+      "output_frames": 254,
+      "output_sha256": "edae71150af673fd3d8d4a31bde4d24c88d52fd784918de9f85b592384cc2dc5",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t014",
+      "class": "4k",
+      "es_sha256": "a1efbea88f7f787cf1f7adea52f6dde153a972bd6fde94a0fb0dff2567086aa1",
+      "width": 2478,
+      "height": 1818,
+      "output_bytes": 1013625900,
+      "output_frames": 150,
+      "output_sha256": "d85136fce3141e120dd2d9b4c348175e780aecfe93b74cc8328c3107d0ca6948",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    },
+    {
+      "label": "t015",
+      "class": "sd",
+      "es_sha256": "b8ecf4983448210ab161639a66cd5e7ca65acc3413a056e4a8533e34958d03c4",
+      "width": 320,
+      "height": 180,
+      "output_bytes": 155520000,
+      "output_frames": 1800,
+      "output_sha256": "a291ec73f87c8498489fe6cde4e393fae81075389d7d661328254af1be84b333",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 3
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 3
+        }
+      ]
+    },
+    {
+      "label": "t016",
+      "class": "4k",
+      "es_sha256": "b7444b729925968e5c80b5ad97f7ae40e928197aaf79d1b5c1a16364add68fad",
+      "width": 2032,
+      "height": 1080,
+      "output_bytes": 493776000,
+      "output_frames": 150,
+      "output_sha256": "d4f3573d31e0c1fca84363bf516e34d2286b693390ac902d74eb62cc5f89e520",
+      "calls": [
+        {
+          "arm": "base",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 1,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "base",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "pgo",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        },
+        {
+          "arm": "ffmpeg",
+          "threads": 8,
+          "exit_code": 0,
+          "diagnostic_lines": 0
+        }
+      ]
+    }
+  ]
+}

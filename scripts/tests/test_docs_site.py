@@ -6,6 +6,7 @@
 - A link to another page is root-relative without the base path: Mintlify serves the site under /docs and adds it
   itself, so /docs/install would become /docs/docs/install.
 - Every measurement page under docs/measurements is listed on the measurements page.
+- Every file under docs/agents is listed in AGENTS.md, and every docs/agents link in that index is a file.
 - No page breaks a rule of scripts/pr_text_check.py, or makes a speed claim against FFmpeg: that belongs on a
   measurement page, with its bars.
 
@@ -119,6 +120,18 @@ class DocsSite(unittest.TestCase):
             with self.subTest(page=page.name):
                 self.assertTrue(f'docs/measurements/{page.name})' in index,
                                 f'docs/measurements/{page.name} is not listed on docs-site/measurements.mdx: add a row for it')
+
+    def test_every_agents_area_file_is_listed(self):
+        index = (ROOT / 'AGENTS.md').read_text()
+        area = ROOT / 'docs' / 'agents'
+        for page in sorted(area.glob('*.md')):
+            with self.subTest(page=page.name):
+                self.assertTrue(f'docs/agents/{page.name})' in index,
+                                f'docs/agents/{page.name} is not listed in AGENTS.md: add a row for it')
+        for name in sorted(set(re.findall(r'docs/agents/([A-Za-z0-9._-]+\.md)', index))):
+            with self.subTest(link=name):
+                self.assertTrue((area / name).is_file(),
+                                f'AGENTS.md links docs/agents/{name}, which is not a file: add the file or remove that row')
 
     def test_public_text(self):
         for page in sorted(SITE.rglob('*')):

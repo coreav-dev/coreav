@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "allocation": "h264-pgo-heldout-v1",
+  "draw_seed": "coreav-h264-pgo-heldout-v1:20261103",
+  "seed": 20261103,
+  "count_per_class": 16,
+  "rounds": 9,
+  "bootstrap_replicates": 10000,
+  "frames": {"sd": 1800, "720p": 900, "1080p": 300, "4k": 150},
+  "one_thread_median_max": 0.97,
+  "one_thread_ci_high_below": 1.0,
+  "eight_thread_ci_high_max": 1.01,
+  "calibration_min": 0.99,
+  "calibration_max": 1.01,
+  "reference_drift_max": 0.05,
+  "diagnostics": {
+    "gates_h264": false,
+    "expected_direction": "neutral",
+    "ci_high_max": 1.01,
+    "cli_features": ["native-h264"],
+    "affinities": [1, 8],
+    "fixture": {"generator": "lcg32-high16-le-v1", "sample_rate": 48000, "channels": 2, "sample_frames": 2880000, "seed": 20261103},
+    "cases": [
+      {"id": "probe", "input": "diagnostics/alac.m4a", "argv": ["probe", "{input}"], "output": "stdout"},
+      {"id": "mp4-remux", "input": "diagnostics/alac.m4a", "argv": ["remux", "{input}", "{output}"], "output": "mp4"},
+      {"id": "flac-decode", "input": "diagnostics/flac.mka", "argv": ["decode-audio", "--format", "s16", "--threads", "{threads}", "{input}", "{output}"], "output": "wav"}
+    ]
+  }
+}
