@@ -635,6 +635,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn residual_planning_includes_escapes_and_five_bit_parameters() {
+        assert_eq!(Rice::plan(&[0; 63], 63, 0).cost, 15);
+        let one_bit: Vec<u32> = (0..63).map(|i| i % 2).collect();
+        assert_eq!(Rice::plan(&one_bit, 63, 0).cost, 78);
+        assert_eq!(Rice::plan(&[0x7fff_ffff; 63], 63, 0).cost, 1968);
+        let wide: Vec<u32> = std::iter::once(96 << 15)
+            .chain(std::iter::repeat(0).take(62))
+            .collect();
+        assert_eq!(Rice::plan(&wide, 63, 0).cost, 1115);
+        assert_eq!(Rice::plan(&[3 << 29], 1, 0).cost, 43);
+    }
+
+    #[test]
     fn linear_coefficient_shifts_respect_exact_power_of_two_boundaries() {
         for shift in 0..=15u8 {
             let boundary = 16382.0 / f64::from(1u32 << shift);
