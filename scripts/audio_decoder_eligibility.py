@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import re
 
+from markdown_it import MarkdownIt
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / 'docs/compat/audio-decoder-eligibility.json'
@@ -12,20 +14,14 @@ REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'supported_mp4_timeline'}
 
 def heading_anchors(markdown):
     anchors, counts = set(), {}
-    fence = None
-    for line in markdown.splitlines():
-        marker = re.match(r' {0,3}(`{3,}|~{3,})(.*)$', line)
-        if fence is not None:
-            if marker and marker[1][0] == fence[0] and len(marker[1]) >= fence[1] and not marker[2].strip():
-                fence = None
+    tokens = MarkdownIt('commonmark').parse(markdown)
+    for heading, inline in zip(tokens, tokens[1:]):
+        if heading.type != 'heading_open' or inline.type != 'inline':
             continue
-        if marker and (marker[1][0] == '~' or '`' not in marker[2]):
-            fence = (marker[1][0], len(marker[1]))
-            continue
-        heading = re.match(r' {0,3}#{1,6} (.+)', line)
-        if not heading:
-            continue
-        slug = re.sub(r'[^\w\- ]', '', heading.group(1).strip().lower()).replace(' ', '-')
+        text = ''.join(child.content if child.type in ('text', 'code_inline', 'image') else
+                       ' ' if child.type in ('softbreak', 'hardbreak') else ''
+                       for child in inline.children or [])
+        slug = re.sub(r'[^\w\- ]', '', text.strip().lower()).replace(' ', '-')
         count = counts.get(slug, 0)
         counts[slug] = count + 1
         anchors.add(slug if count == 0 else f'{slug}-{count}')

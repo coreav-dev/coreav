@@ -37,6 +37,13 @@ Duplicate decoder or container rows are invalid, not first-match wins.
 `evidence` is a repository-relative documentation link. `limitations` is
 informational and cannot grant permission.
 
+The validator reads evidence headings through the Markdown parser pinned
+in `scripts/pr-text-requirements.txt`, also used for pull request text.
+Install those hash-pinned requirements before standalone validation.
+Audio-conformance CI installs them; the existing deny job already uses
+that parser environment. Code fences, including list-contained fences,
+are parsed as blocks rather than inferred from individual lines.
+
 `kind` is either `exact` or `conformance`. These lossy rows use only
 `conformance`. Mixing, rate conversion and final serialization require
 their own registrations and cannot inherit decoder eligibility. The

@@ -61,6 +61,14 @@ class DecoderEligibility(unittest.TestCase):
         self.assertEqual(eligibility.heading_anchors(
             '  ````\n````not a closer\n## Hidden\n  ````\n  ## Visible\n'), {'visible'})
 
+    def test_list_fences_and_indented_code_cannot_supply_evidence_headings(self):
+        self.assertEqual(eligibility.heading_anchors(
+            '- ~~~\n  ## Example\n  ~~~\n\n## Visible\n'), {'visible'})
+        self.assertEqual(eligibility.heading_anchors(
+            '    ## Example\n\n## Visible\n'), {'visible'})
+        self.assertEqual(eligibility.heading_anchors(
+            'Visible [label](https://example.com)\n===\n'), {'visible-label'})
+
     def test_opus_presentation_cannot_be_enabled_by_its_vector_pass(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')
         self.assertTrue(opus['decoder_eligible'])
@@ -84,6 +92,8 @@ class DecoderEligibility(unittest.TestCase):
             block = block.split('  pull_request:', 1)[0]
             self.assertIn('"docs/compat/audio-decoder-eligibility.json"', block)
         self.assertIn('python3 -I scripts/audio_decoder_eligibility.py', workflow)
+        self.assertEqual(workflow.count('"scripts/pr-text-requirements.txt"'), 2)
+        self.assertIn('--require-hashes -r scripts/pr-text-requirements.txt', workflow)
         for job in ('mp3', 'opus', 'aac'):
             block = re.split(r'\n  [a-z][a-z0-9-]*:',
                              workflow.split('\n  ' + job + ':', 1)[1], maxsplit=1)[0]
