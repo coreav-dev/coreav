@@ -66,6 +66,12 @@ def slugs(markdown):
 
 
 class DocsSite(unittest.TestCase):
+    def test_raw_audio_documents_platform_gates_only_for_changed_rates(self):
+        text = (SITE / 'commands/ffmpeg.mdx').read_text()
+        self.assertIn('Changed-rate headerless output requires the platform-specific exact registration', text)
+        self.assertIn('Unchanged-rate identity output is platform-independent', text)
+        self.assertNotIn('Headerless output additionally requires the platform-specific', text)
+
     def test_frame_output_documents_decoded_bytes_per_decoder(self):
         for name in ('docs/design/frame-output.md', 'docs-site/commands/ffmpeg.mdx'):
             text = (ROOT / name).read_text().lower()
