@@ -3,14 +3,8 @@ use coreav_audio::Codec;
 use serde_json::Value;
 use std::collections::HashSet;
 
-const RECORD: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../docs/compat/audio-decoder-eligibility.json"
-));
-const ORACLE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../scripts/oracle-ffmpeg.env"
-));
+const RECORD: &str = include_str!("../../../../../docs/compat/audio-decoder-eligibility.json");
+const ORACLE: &str = include_str!("../../../../../scripts/oracle-ffmpeg.env");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Requirement {
