@@ -346,12 +346,41 @@ fn track_entries(tracks: &[Track], max_element_bytes: u64) -> Result<Vec<u8>, Er
                 width,
                 height,
                 display,
+                colour,
+                interlaced,
+                field_order,
             } => {
                 let mut media = uint(ids::PIXEL_WIDTH, u64::from(width))?;
                 media.extend(uint(ids::PIXEL_HEIGHT, u64::from(height))?);
+                if interlaced != 0 {
+                    media.extend(uint(ids::FLAG_INTERLACED, u64::from(interlaced))?);
+                }
+                if field_order != 2 {
+                    media.extend(uint(ids::FIELD_ORDER, u64::from(field_order))?);
+                }
                 if let Some((w, h)) = display {
                     media.extend(uint(ids::DISPLAY_WIDTH, u64::from(w))?);
                     media.extend(uint(ids::DISPLAY_HEIGHT, u64::from(h))?);
+                }
+                let mut colors = Vec::new();
+                for (id, value) in [
+                    (ids::MATRIX_COEFFICIENTS, colour.matrix.map(u64::from)),
+                    (
+                        ids::RANGE,
+                        colour.full_range.map(|full| if full { 2 } else { 1 }),
+                    ),
+                    (
+                        ids::TRANSFER_CHARACTERISTICS,
+                        colour.transfer.map(u64::from),
+                    ),
+                    (ids::PRIMARIES, colour.primaries.map(u64::from)),
+                ] {
+                    if let Some(value) = value {
+                        colors.extend(uint(id, value)?);
+                    }
+                }
+                if !colors.is_empty() {
+                    media.extend(element(ids::COLOUR, &colors)?);
                 }
                 data.extend(element(ids::VIDEO, &media)?);
             }
