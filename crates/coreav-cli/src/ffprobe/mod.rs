@@ -10,6 +10,7 @@
 //! writer the command chose.
 
 pub mod args;
+mod audio;
 mod frames;
 mod iso;
 mod iso_meta;
@@ -169,6 +170,11 @@ pub struct Packet {
 
 /// The packets of a file, read one at a time.
 pub trait PacketSource {
+    /// Whether this source implements packet and frame inspection.
+    fn supports_listing(&self) -> bool {
+        true
+    }
+
     /// Calls `f` with every packet in the order `ffprobe` lists them,
     /// until it returns `Ok(false)` or the packets end; with each packet's
     /// bytes when its stream's `payloads` entry is true, as a decoder takes them.
@@ -243,30 +249,8 @@ pub fn probe_limited<'a, S: Source + 'a>(
     limits: &coreav_isobmff::Limits,
 ) -> Result<Probed<'a>, Failure> {
     let mut buffered = coreav_isobmff::BufferedSource::new(source);
-    if force.is_none() {
-        let mut header = [0; 12];
-        let count = usize::try_from(size.min(12)).unwrap_or(12);
-        let bytes = header.get_mut(..count).unwrap_or_default();
-        buffered.read_exact_at(0, bytes).map_err(Failure::library)?;
-        let bytes: &[u8] = bytes;
-        let format = if bytes.starts_with(b"fLaC") {
-            Some("FLAC")
-        } else if matches!(bytes.get(..4), Some(b"RIFF" | b"RIFX" | b"RF64" | b"BW64"))
-            && bytes.get(8..12) == Some(b"WAVE")
-        {
-            Some("WAV")
-        } else if bytes.starts_with(b"ID3")
-            || matches!(bytes, [0xff, b, c, ..] if b & 0xe0 == 0xe0 && b & 0x18 != 0x08 && b & 0x06 != 0 && c & 0xf0 != 0xf0 && c & 0x0c != 0x0c)
-        {
-            Some("MP3")
-        } else {
-            None
-        };
-        if let Some(format) = format {
-            return Err(Failure::Unsupported(format!(
-                "standalone {format} input is not supported by CoreAV yet"
-            )));
-        }
+    if let Some(probed) = audio::probe(&mut buffered, size, name, force, limits)? {
+        return Ok(probed);
     }
     let matroska = crate::matroska::detect_source(&mut buffered)?;
     let wanted = |c: args::Container| force.is_none_or(|f| f == c);
@@ -423,6 +407,17 @@ pub fn emit(
     probed: &mut Probed<'_>,
     out: &mut dyn Write,
 ) -> Result<(), Failure> {
+    if !probed.packets.supports_listing()
+        && (options.selection.shown(Sid::Packets)
+            || options.selection.shown(Sid::Frames)
+            || options.count_packets
+            || options.count_frames
+            || !options.read_intervals.is_empty())
+    {
+        return Err(Failure::Unsupported(
+            "standalone audio packet and frame inspection is not supported".to_owned(),
+        ));
+    }
     let sel = &options.selection;
     let report = &probed.report;
     let mut w = Writer::new(options.writer.clone(), options.style);
@@ -853,8 +848,10 @@ The common ffprobe invocations, over CoreAV's own probes. Options:
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
   -show_private_data -probesize 5000000 -analyzeduration 0 -threads 1
-Reads MP4, MOV, Matroska, WebM and MPEG-TS files. Builds with networking
-also read HTTP(S) URLs.
+Reads MP4, MOV, Matroska, WebM, MPEG-TS, PCM WAVE and native FLAC
+files. Builds with networking also read HTTP(S) URLs. Standalone WAVE
+and FLAC support format and stream sections; packet and frame
+inspection uses the fallback.
 Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
 with CoreAV's H.264 decoder; other codecs' frames are refused.
 

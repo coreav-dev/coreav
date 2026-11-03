@@ -84,8 +84,13 @@ on standard error, a temporary file renamed into place, `--force`.
   below). Before an earlier change only the simple shape was applied, its end kept to
   the end of a frame as `ffmpeg` does; the agreement runs of FLAC and MP3
   measured that rule.
-  Matroska's `CodecDelay` drops samples from the start and `DiscardPadding`
-  from the end of its frame. Timestamps do not otherwise move samples:
+  Matroska's `CodecDelay` drops samples from the stream's start.
+  On an unlaced Block, positive `DiscardPadding` drops samples from the
+  end and negative values from the beginning, after the complete packet
+  is decoded. Padded laces and padded packets requiring MP3 reframing are
+  refused rather than applying a Block's padding repeatedly or losing it.
+  See [signed Matroska padding](matroska-audio-padding.md).
+  Timestamps do not otherwise move samples:
   gaps between packets are not filled, overlaps not cut, which is what
   `ffmpeg -i IN OUT.wav` writes too.
 - **End of the file**: a demuxer error after the first packet (a truncated
@@ -238,8 +243,8 @@ video presentation times those commands give.
   length), so a caller can drop the leading silence, or any span, without
   reading the file again. The WAV writer writes the timeline as it is,
   silence included: a WAV file has no timestamps to carry a start.
-- **Matroska** is unchanged: `CodecDelay` and `DiscardPadding` (RFC
-  9559) are its timeline; it has no edit list.
+- **Matroska** uses `CodecDelay` and signed `DiscardPadding` (RFC
+  9559) as its timeline; it has no edit list.
 - **Limits**: an empty edit's silence is output the caller did not
   send: a 2,392,423 ms leading empty edit (an `edge` corpus file) is 40
   minutes of PCM from a small file. Silence is written in chunks of at

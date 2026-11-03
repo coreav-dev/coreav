@@ -12,8 +12,10 @@ The common ffprobe invocations, over CoreAV's own probes. Options:
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
   -show_private_data -probesize 5000000 -analyzeduration 0 -threads 1
-Reads MP4, MOV, Matroska, WebM and MPEG-TS files. Builds with networking
-also read HTTP(S) URLs.
+Reads MP4, MOV, Matroska, WebM, MPEG-TS, PCM WAVE and native FLAC
+files. Builds with networking also read HTTP(S) URLs. Standalone WAVE
+and FLAC support format and stream sections; packet and frame
+inspection uses the fallback.
 Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
 with CoreAV's H.264 decoder; other codecs' frames are refused.
 
