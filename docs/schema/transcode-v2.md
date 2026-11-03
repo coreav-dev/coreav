@@ -1,6 +1,6 @@
 # AV1 transcode summary, schema `coreav.transcode/2`
 
-This reference describes completed explicit AV1 jobs. The library serializer is `coreav_cli::transcode::av1::document`. Public command selection is not connected yet. H.264 jobs retain the unchanged [`coreav.transcode/1` contract](transcode-v1.md).
+This reference describes completed explicit `coreav transcode --video av1` jobs. The standalone command requires a supported native SVT-AV1 build; parser-only builds and the embedded command refuse AV1. The library serializer is `coreav_cli::transcode::av1::document`. H.264 jobs, including the default command, retain the unchanged [`coreav.transcode/1` contract](transcode-v1.md).
 
 The machine-readable contract is [`transcode-v2.schema.json`](transcode-v2.schema.json). The [example document](transcode-v2.example.json) uses illustrative settings and counters. It is not a native encoding result.
 
