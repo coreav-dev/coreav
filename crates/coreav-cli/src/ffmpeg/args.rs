@@ -36,6 +36,8 @@ pub enum Muxer {
     Ipod,
     /// `mp3` (`.mp3`): one Layer III stream.
     Mp3,
+    /// Native FLAC (`.flac`).
+    Flac,
     /// `segment`, writing MP4 segments.
     Segment,
     /// Matroska output, with H.264 and Vorbis defaults.
@@ -121,6 +123,8 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
+    /// The native lossless FLAC encoder.
+    Flac,
     /// Audio encoders supported by the AVI and PCM writers.
     AviAudio(AviAudio),
     /// `copy`.
@@ -712,6 +716,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
+                "flac" => Codec::Flac,
                 "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
                 "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
                 "png" => Codec::Video(VideoEncoder::Png),
@@ -721,7 +726,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus, aac or libmp3lame",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with flac, libopus, aac or libmp3lame",
                     ));
                 }
             };
@@ -946,22 +951,24 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    if !matches!(command.muxer, Muxer::Avi | Muxer::Wav | Muxer::S16le)
-        && command
-            .codecs
-            .iter()
-            .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
+    if !matches!(
+        command.muxer,
+        Muxer::Avi | Muxer::Wav | Muxer::S16le | Muxer::Flac
+    ) && command
+        .codecs
+        .iter()
+        .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
     {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",
         ));
     }
-    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) {
         if movflags {
             return Err(not_native(
                 "-movflags",
                 None,
-                "it is not an option of PCM output",
+                "it is not an option of native audio output",
             ));
         }
     } else if command.sample_rate.is_some() {
@@ -1070,6 +1077,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
         "mp3" => Some(Muxer::Mp3),
+        "flac" => Some(Muxer::Flac),
         "avi" => Some(Muxer::Avi),
         "wav" => Some(Muxer::Wav),
         "png" | "bmp" => Some(Muxer::Image2),
@@ -1087,6 +1095,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
         Some("mp3") => Ok(Muxer::Mp3),
+        Some("flac") => Ok(Muxer::Flac),
         Some("avi") => Ok(Muxer::Avi),
         Some("wav") => Ok(Muxer::Wav),
         Some("s16le") => Ok(Muxer::S16le),
@@ -1099,7 +1108,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),

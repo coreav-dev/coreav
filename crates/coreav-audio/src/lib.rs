@@ -7,6 +7,7 @@
 //! in `docs/design/audio-decode.md`.
 //!
 //! - [`flac`]: FLAC (RFC 9639), native.
+//! - [`flac::encode`]: native FLAC encoding of interleaved integer PCM.
 //! - [`mp3`]: MPEG audio Layer III (ISO/IEC 11172-3, 13818-3), native.
 //! - AAC LC (ISO/IEC 14496-3) through `coreav-aac`, only with the opt-in
 //!   feature `aac`, off by default: decoding AAC may need a patent licence
