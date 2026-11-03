@@ -14,9 +14,9 @@ Only these changes are covered:
 
 Further explicit SIMD kernels, multithreading, parser changes, release feature changes, backend-selection changes and the next optimization round are out of scope. The native decoder remains opt-in.
 
-## Current data flow
+## Baseline data flow
 
-`coreav-vp9::tile` resolves references and motion vectors, then supplies `ReferencePlane`, `PredictionMut` and `Sampling` to the kernel crate. Their constructors check visible geometry and storage extents. The inter kernel currently allocates a horizontal intermediate and evaluates two eight-tap convolutions, including per-tap visible-edge clamping. It rounds and clips between passes. The loop filter calls `filter.rs::wide`, which rereads overlapping neighborhoods for each output. After filtering, `Planes::picture` packs visible rows for the stored reference picture. `Picture::copy` separately copies the shown picture.
+`coreav-vp9::tile` resolves references and motion vectors, then supplies `ReferencePlane`, `PredictionMut` and `Sampling` to the kernel crate. Their constructors check visible geometry and storage extents. The baseline inter kernel allocates a horizontal intermediate and evaluates two eight-tap convolutions, including per-tap visible-edge clamping. It rounds and clips between passes. The baseline loop filter calls `filter.rs::wide`, which rereads overlapping neighborhoods for each output. After filtering, `Planes::picture` packs visible rows for the stored reference picture. `Picture::copy` separately copies the shown picture.
 
 The decoder and backend keep ownership, memory charging, publication order and failure behavior. Kernels read samples and filter tables, never bitstream bytes. The new dispatch stays inside the kernel boundary.
 
@@ -105,3 +105,13 @@ These are hypotheses for the class median of paired `baseline time / merged-cand
 The model assumes roughly twofold to eightfold less interpolation cost, twofold to sixfold less wide-filter cost and fourfold to tenfold less packing cost. All three factors are unmeasured. Interpolation dominates the smaller classes, while wide filtering dominates 4K. Unchanged filtering decisions, transforms, entropy, frame management and scalar vertical work limit the total. The one horizontal AVX2 kernel does not make the whole interpolation component eightfold faster by itself.
 
 In the separate results pull request after the merged run, report a missed prediction without changing this range. Report all before-and-after component times and ratios, the scalar contribution, the measured SIMD increment and the remaining FFmpeg gap. These six development prefixes cannot establish general parity or clear the later held-out speed gates.
+
+## Driver
+
+After merge, dispatch `vp9-conformance` on `main` with mode `build-round` and the full implementation merge commit as `candidate`. The build verifies the live merge receipt and unchanged reviewed plan before creating media-free artifacts. Its [build recipe](../measurements/vp9-pixel-round/build.json) pins the source-only symbol build and native symbol-retention overrides. The compile-only adapter contract runs before merge without creating timing artifacts.
+
+On a Linux staging host with corpus credentials, use `scripts/vp9_pixel_round.py fetch --candidate COMMIT --media BUNDLE/files` from the merged source checkout. This verifies the merge boundary again and fetches only the six frozen identities, with shared request and byte caps and a retained acquisition receipt. Credentials are not transferred to the measurement host.
+
+Run the bundle's `scripts/vp9_pixel_job.sh` through the existing VM job runner on the registered host, staging its observed `instance.json` before execution. The script installs the profiler on Debian 13, invokes the staged driver and bounds capture to 6,000 seconds. The driver checks binary and script bytes, claims the bundle exclusively, binds original and prepared packet bytes, completes every pixel and repeated-work preflight, then runs the frozen timing and profile schedules. Failure retains an incomplete capture and deletes temporary clips; an existing claim is not silently reusable.
+
+Replay with `python3 -I BUNDLE/scripts/vp9_pixel_round.py replay --out CAPTURE --summary SUMMARY.json`. Replay checks retained subprocess output rather than trusting stored pass flags, including complete pixels, packet-copy binding, frame work, profile graphs and loss counters. It recomputes paired gains, ranges, symbol-build drift, exclusive component estimates and frozen-prediction matches. A failed replay replaces a stale summary with an incomplete result. Raw captures remain private; the generated summary contains only class labels, input indexes, commands' numeric outcomes and aggregate components.

@@ -1,6 +1,6 @@
 # Scoped exception for one VP9 AVX2 interpolation kernel
 
-- Status: Proposed. Independent review of this record and the pixel-round plan precedes any unsafe implementation commit.
+- Status: Implemented. Independent implementation review is required before merge.
 - Date: 2026-11-03.
 - Parent policy: 0001, sections 2 through 6, with the site inventory required by policy 0041.
 - Scope: `coreav-kernels-vp9` only.

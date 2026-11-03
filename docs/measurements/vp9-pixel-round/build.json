@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "reviewed_plan_commit": "b55d9fc2db39af3bec2aaa3f3a9576d299476964",
+  "reviewed_plan_sha256": "0cdd1ae3a3e7598ee1129eea0f46b27a601e43f55bb888899f97f005044ac651",
+  "ffmpeg_source_commit": "2a571b606854520cf89804d8030c8b328e621689",
+  "ffmpeg_source_archive_sha256": "8a1467f7f75a297fff18a4fa0ec2c9dd933cbe888fc45a3fc11e1d3225418674",
+  "native_profile_overrides": {
+    "CARGO_PROFILE_DIST_DEBUG": "2",
+    "CARGO_PROFILE_DIST_STRIP": "none"
+  }
+}

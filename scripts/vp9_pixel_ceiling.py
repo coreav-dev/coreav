@@ -114,9 +114,10 @@ def prepare(args):
     write(out / 'sources.json', provenance)
 
 
-def fetch(args):
+def fetch(args, wanted=None):
     require(sys.platform == 'linux', 'media acquisition requires hosted Linux')
-    _, wanted = selection()
+    if wanted is None:
+        _, wanted = selection()
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
     import round_files
     import r2pool
@@ -127,10 +128,11 @@ def fetch(args):
             ('access', 'R2_ACCESS_KEY_ID'), ('secret', 'R2_SECRET_ACCESS_KEY'), ('endpoint', 'R2_ENDPOINT'))}
         return r2pool.Pool(credentials, 4, limits, timeout=300)
 
-    round_files.pool = pool
+    original_pool = round_files.pool
     directory = pathlib.Path(args.media).resolve()
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     try:
+        round_files.pool = pool
         manifest = round_files.manifest('v1', None)
         entries = []
         for row in wanted:
@@ -146,6 +148,7 @@ def fetch(args):
                                 key=key if key.startswith('corpus/') else f'corpus/v1/{key}'))
         round_files.fetch(entries, directory)
     finally:
+        round_files.pool = original_pool
         write(directory / 'acquisition.json', dict(requests_reserved=limits.requests,
                                                    bytes_reserved=limits.bytes, request_cap=5000))
 

@@ -13,19 +13,23 @@ name: vp9-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "scripts/fuzz_run.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "scripts/fuzz_run.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   schedule:
     - cron: '41 6 * * 3'
   workflow_dispatch:
     inputs:
       mode:
-        description: Conformance or the untimed development instruction ceiling
+        description: Conformance, untimed instruction ceiling, or post-merge artifact build
         type: choice
-        options: [conformance, ceiling]
+        options: [conformance, ceiling, build-round]
         default: conformance
+      candidate:
+        description: Verified implementation merge commit for build-round
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ concurrency:
 
 jobs:
   vectors:
-    if: inputs.mode != 'ceiling'
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     strategy:
       fail-fast: false
       matrix:
@@ -137,7 +141,7 @@ jobs:
           cargo test --locked --release -p coreav-backend-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
 
   interpolation-fuzz:
-    if: inputs.mode != 'ceiling'
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     strategy:
       fail-fast: false
       matrix:
@@ -159,6 +163,69 @@ jobs:
         env:
           ASAN_OPTIONS: quarantine_size_mb=64
         run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/interpolation-fuzz"
+
+  adapter-contract:
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Check the scratch adapter without building timing artifacts
+        env:
+          COREAV_PIXEL_BUILD_CONTRACT: '1'
+        run: python3 -I -m unittest discover -s scripts/tests -p test_vp9_pixel_round.py
+
+  build-round:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-round'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Require merged tooling on main
+        env:
+          TOOLING_REF: ${{ github.ref }}
+        run: test "$TOOLING_REF" = refs/heads/main
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify the requested merge before checking out its source
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: |
+          python3 -I - "$CANDIDATE" <<'PY'
+          import pathlib, sys
+          sys.path.insert(0, str(pathlib.Path('scripts').resolve()))
+          import vp9_pixel_round as run
+          run.merge_receipt(run.plan(pathlib.Path('.')), sys.argv[1])
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Install the source-blind build tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential pkg-config nasm binutils
+      - name: Build content-bound media-free artifacts
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: python3 -I candidate/scripts/vp9_pixel_build.py --candidate "$CANDIDATE" --out "$RUNNER_TEMP/pixel-round"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: vp9-pixel-round-tools
+          path: ${{ runner.temp }}/pixel-round
+          retention-days: 30
 
   pixel-ceiling:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ceiling'

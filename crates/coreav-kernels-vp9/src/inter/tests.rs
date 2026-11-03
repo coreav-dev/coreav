@@ -352,11 +352,7 @@ fn unscaled_all_phase_pairs_equal_literal_predictions_for_both_sample_types() {
             for phase_y in 0..16 {
                 let case = phase_x + 16 * phase_y + filter as usize * 256;
                 let width = ((phase_x + 4 * phase_y + filter as usize * 7) % 64 + 1) as u8;
-                let height = if case % 16 == 0 {
-                    64
-                } else {
-                    ((phase_x + phase_y) % 4 + 1) as u8
-                };
+                let height = ((phase_y + 4 * phase_x + filter as usize * 11) % 64 + 1) as u8;
                 let x = if case & 1 == 0 {
                     5
                 } else {
