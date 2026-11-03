@@ -41,6 +41,8 @@ For pnpm, follow the [version-specific approval settings](https://coreav.dev/doc
 
 For Bun, run `bun pm trust coreav` in the project. This runs the script and adds `coreav` to `trustedDependencies` in `package.json` for future installs.
 
+If your project relies on Bun's default trusted packages, [preserve the required defaults](https://coreav.dev/docs/platforms#install-scripts) in that explicit list.
+
 [Platforms](https://coreav.dev/docs/platforms) covers the native and WebAssembly builds.
 
 After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the Node launcher, which falls back to WebAssembly.

@@ -158,6 +158,33 @@ test("reinstall restores the WASI launcher after the optional binary is removed 
   }
 });
 
+test("the version check terminates a binary that ignores SIGTERM", { skip: needsBin || (process.platform === "win32" && "POSIX signals") }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-version-timeout-"));
+  const pidFile = join(scratch, "pid");
+  try {
+    const copy = installed(scratch, bin);
+    cpSync(join(root, "wasm"), join(copy, "wasm"), { recursive: true });
+    const binary = join(scratch, "node_modules", "@coreav", `cli-${platform}`, "bin", exe);
+    writeFileSync(binary, `#!/usr/bin/env node\nprocess.on("SIGTERM", () => {});\nrequire("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\nsetInterval(() => {}, 1000);\n`);
+    const probe = join(scratch, "probe.cjs");
+    writeFileSync(probe, `const cp = require("node:child_process");\nconst exec = cp.execFileSync;\ncp.execFileSync = (file, args, options) => exec(file, args, { ...options, timeout: 1000 });\nrequire(${JSON.stringify(join(copy, "lib", "main.js"))}).run();\n`);
+    const done = spawnSync(process.execPath, [probe, "--version"], {
+      env: { ...process.env, COREAV_BINARY: "" }, timeout: 8000, killSignal: "SIGKILL",
+    });
+    assert.ok(existsSync(pidFile), "the version process did not reach its SIGTERM handler");
+    assert.equal(done.status, 0, done.stderr?.toString());
+    assert.equal(done.stdout.toString(), `coreav ${pkg.version}\n`);
+    assert.equal(done.stderr.length, 0);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    assert.throws(() => process.kill(pid, 0), "the version process is still running");
+  } finally {
+    if (existsSync(pidFile)) {
+      try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
+    }
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 test("the install script changes nothing outside node_modules, and ignores COREAV_BINARY", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-install-"));
   try {

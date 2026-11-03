@@ -86,7 +86,8 @@ class DocsSite(unittest.TestCase):
         platform = (SITE / 'platforms.mdx').read_text()
         for fact in ('pnpm 10.0 through 10.4', 'pnpm 10.5 through 10.x', 'pnpm 11 and later',
                      'onlyBuiltDependencies', 'allowBuilds', 'package.json', 'pnpm-workspace.yaml',
-                     'preserve existing approvals', 'copy the complete list', 'pnpm rebuild coreav'):
+                     'preserve existing approvals', 'copy the complete list', 'pnpm rebuild coreav',
+                     'neverBuiltDependencies', 'do not combine'):
             self.assertIn(fact, platform, f'docs-site/platforms.mdx: restore the approval rule {fact}')
         for name in ('packages/cli/README.md', 'docs/design/npm-cli.md'):
             text = (ROOT / name).read_text()
@@ -97,6 +98,13 @@ class DocsSite(unittest.TestCase):
                                     f'{name}: keep version-specific pnpm settings only on the platform page')
                 self.assertIn('pnpm rebuild coreav', text,
                               f'{name}: tell existing installations to run pnpm rebuild coreav')
+
+    def test_bun_trust_documents_the_explicit_list(self):
+        platform = (SITE / 'platforms.mdx').read_text()
+        for fact in ('trustedDependencies', 'replaces its default list', 'any required packages'):
+            self.assertIn(fact, platform, f'docs-site/platforms.mdx: restore the Bun trust rule {fact}')
+        self.assertIn('https://coreav.dev/docs/platforms#install-scripts',
+                      (ROOT / 'packages/cli/README.md').read_text())
 
     def test_navigation_and_pages_agree(self):
         navigation = listed(json.loads((SITE / 'docs.json').read_text())['navigation'])

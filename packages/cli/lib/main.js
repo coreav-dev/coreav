@@ -25,7 +25,10 @@ function nativeBinary({ override = true } = {}) {
   try {
     const binary = require.resolve(`@coreav/cli-${platform}/bin/${name}`);
     const { version } = require("../package.json");
-    const printed = execFileSync(binary, ["--version"], { encoding: "utf8", stdio: "pipe", timeout: 30000, windowsHide: true }).trim();
+    const printed = execFileSync(binary, ["--version"], {
+      encoding: "utf8", stdio: "pipe", timeout: 30000,
+      killSignal: process.platform === "win32" ? "SIGTERM" : "SIGKILL", windowsHide: true,
+    }).trim();
     return printed === `coreav ${version}` ? binary : null;
   } catch {
     return null;
