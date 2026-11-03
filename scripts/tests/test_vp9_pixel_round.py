@@ -19,6 +19,7 @@ sys.path.insert(0, str(SCRIPTS))
 import vp9_pixel_round as run
 import vp9_pixel_build as build
 import vp9_pixel_profiles as profiles
+import oracle_audio
 
 CANDIDATE = '1' * 40
 
@@ -408,6 +409,16 @@ class Replay(unittest.TestCase):
 
 
 class WorkAndProfiles(unittest.TestCase):
+    def test_video_only_command_registration_preserves_mapping_and_audio_exclusion(self):
+        for hashed in (False, True):
+            command = run.ffmpeg_command(pathlib.Path('/bundle'), 'ffmpeg-pinned', pathlib.Path('/input'), 80, hashed)
+            self.assertEqual(command.count('-i'), 1)
+            self.assertEqual(command.count('-map'), 1)
+            self.assertEqual(command[command.index('-map') + 1], '0:v:0')
+            self.assertIn('-an', command)
+        self.assertEqual(list(oracle_audio.python_problems((SCRIPTS / 'vp9_pixel_round.py').read_text(),
+                                                          'scripts/vp9_pixel_round.py')), [])
+
     def test_host_checks_live_machine_metadata_smt_avx2_and_noncoerced_provider_facts(self):
         registration = run.plan(SCRIPTS.parent)
         expected = registration['host']
