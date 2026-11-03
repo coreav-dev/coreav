@@ -759,6 +759,7 @@ struct Shared {
     exit: Mutex<Option<Exit>>,
     /// The encoder's standard output has ended.
     output_ended: AtomicBool,
+    _keep_alive: Option<Arc<dyn Send + Sync>>,
 }
 
 #[derive(Default)]
@@ -1183,6 +1184,14 @@ impl<S: Sink> Encoder<S> {
     }
 }
 
+struct Start<'a, S> {
+    command: std::process::Command,
+    program: &'a Path,
+    deadline: Instant,
+    sink: S,
+    keep_alive: Option<Arc<dyn Send + Sync>>,
+}
+
 impl<S: Sink> Process<S> {
     /// Starts `command` (running `program`), its output going to `sink`;
     /// every wait ends at `deadline`, when the process is killed.
@@ -1197,10 +1206,39 @@ impl<S: Sink> Process<S> {
         Self::spawn_using(
             name,
             unit,
-            command,
-            program,
-            deadline,
-            sink,
+            Start {
+                command,
+                program,
+                deadline,
+                sink,
+                keep_alive: None,
+            },
+            |stdin, shared| {
+                let _ = write_frames(stdin, shared);
+            },
+        )
+    }
+
+    #[cfg(feature = "svt-av1")]
+    pub(crate) fn spawn_retaining(
+        name: &'static str,
+        unit: &'static str,
+        command: std::process::Command,
+        program: &Path,
+        deadline: Instant,
+        sink: S,
+        keep_alive: Option<Arc<dyn Send + Sync>>,
+    ) -> Result<Self, Error> {
+        Self::spawn_using(
+            name,
+            unit,
+            Start {
+                command,
+                program,
+                deadline,
+                sink,
+                keep_alive,
+            },
             |stdin, shared| {
                 let _ = write_frames(stdin, shared);
             },
@@ -1219,10 +1257,13 @@ impl<S: Sink> Process<S> {
         Self::spawn_using(
             name,
             "sample blocks",
-            command,
-            program,
-            deadline,
-            sink,
+            Start {
+                command,
+                program,
+                deadline,
+                sink,
+                keep_alive: None,
+            },
             move |stdin, shared| {
                 let mut recorded = recording.attach(stdin);
                 if write_frames(&mut recorded, shared)
@@ -1241,12 +1282,16 @@ impl<S: Sink> Process<S> {
     fn spawn_using(
         name: &'static str,
         unit: &'static str,
-        mut command: std::process::Command,
-        program: &Path,
-        deadline: Instant,
-        sink: S,
+        start: Start<'_, S>,
         write: impl FnOnce(ChildStdin, &Shared) + Send + 'static,
     ) -> Result<Self, Error> {
+        let Start {
+            mut command,
+            program,
+            deadline,
+            sink,
+            keep_alive,
+        } = start;
         let mut child = command.spawn().map_err(|e| {
             Error::new(
                 ErrorKind::Backend,
@@ -1254,7 +1299,10 @@ impl<S: Sink> Process<S> {
             )
         })?;
         let pipes = (child.stdin.take(), child.stdout.take(), child.stderr.take());
-        let shared = Arc::new(Shared::default());
+        let shared = Arc::new(Shared {
+            _keep_alive: keep_alive,
+            ..Shared::default()
+        });
         // From here on the keeper owns the process: every path that gives up
         // tells it to kill.
         let (keeper, orders) = mpsc::channel();
@@ -1858,6 +1906,72 @@ mod tests {
             "a stopped encoder must return every queued decoder slot"
         );
         shared.stop();
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "svt-av1"))]
+    fn process_threads_keep_the_private_spool_owner_after_caller_drop() {
+        struct BlockedSink {
+            entered: Option<Sender<()>>,
+            release: Receiver<()>,
+        }
+        impl Sink for BlockedSink {
+            fn write(&mut self, _: &[u8]) -> Result<(), Error> {
+                if let Some(entered) = self.entered.take() {
+                    entered
+                        .send(())
+                        .map_err(|_| Error::new(ErrorKind::Backend, "fixture caller ended"))?;
+                    self.release
+                        .recv_timeout(Duration::from_secs(2))
+                        .map_err(|_| {
+                            Error::new(ErrorKind::Timeout, "fixture sink was not released")
+                        })?;
+                }
+                Ok(())
+            }
+        }
+        let dir = std::env::temp_dir().join(format!("coreav-spool-owner-{}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
+        let output = dir.join("output.mp4");
+        let path = dir.join(format!(".output.mp4.coreav-{}.spool", std::process::id()));
+        let spool = Arc::new(crate::pipeline::Spool::create(&output, "spool").unwrap());
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let program = Path::new("/bin/sh");
+        let command = exec::direct_command(
+            program,
+            &["-c".into(), "printf x; exec /bin/sleep 30".into()],
+        );
+        let process = Process::spawn_retaining(
+            "synthetic-owner",
+            "records",
+            command,
+            program,
+            Instant::now() + Duration::from_secs(5),
+            BlockedSink {
+                entered: Some(entered_tx),
+                release: release_rx,
+            },
+            Some(spool.clone()),
+        )
+        .unwrap();
+        entered_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        drop(spool);
+        drop(process);
+        assert!(
+            path.exists(),
+            "the reader still owns the private spool lifetime"
+        );
+        release_tx.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while path.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(
+            !path.exists(),
+            "all process actors must release the spool owner"
+        );
+        std::fs::remove_dir(&dir).unwrap();
     }
 
     #[test]

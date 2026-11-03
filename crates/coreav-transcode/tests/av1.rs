@@ -304,3 +304,55 @@ fn reset_global_identity_changed_configuration_and_invalid_native_assertions_fai
         );
     }
 }
+
+#[test]
+fn a_short_jobs_fixed_session_cap_may_exceed_its_frame_limit() {
+    for frames in 1..=4 {
+        let (mut request, retention) = request();
+        request.limits = Limits::new(20_000, 1 << 20, frames, 4096).unwrap();
+        let mut wire = Vec::new();
+        let mut writer = OutputWriter::new(&mut wire, "4.2.0", request.limits).unwrap();
+        let mut base = 0;
+        let mut segments = 0;
+        while base < frames {
+            let count = (frames - base).min(u64::from(retention.pictures())) as u32;
+            writer
+                .begin(base, retention, request.settings.keyint())
+                .unwrap();
+            let mut payload = Vec::new();
+            for index in 0..count {
+                payload.extend_from_slice(&fixtures::packet(2, &[]));
+                if index == 0 {
+                    payload.extend_from_slice(&fixtures::Seq::default().packet());
+                }
+                payload.extend_from_slice(
+                    &fixtures::Coded::default().packet(fixtures::Seq::default()),
+                );
+            }
+            writer.packet(0, -1, 1, 0, &payload).unwrap();
+            writer
+                .end(base, count, 1, retention.peak_bytes(count).unwrap())
+                .unwrap();
+            segments += 1;
+            base += u64::from(count);
+        }
+        writer.complete(frames, segments).unwrap();
+        let (_temporary, file) = Temporary::new();
+        let mut sink = OutputSink::new(
+            file,
+            request,
+            retention,
+            None,
+            Instant::now() + Duration::from_secs(10),
+        )
+        .unwrap();
+        sink.write(&wire).unwrap();
+        let times: Vec<_> = (0..frames).map(|index| 9000 + index as i64 * 3).collect();
+        let output = sink
+            .finish(&submissions(&times), NonZeroU64::new(3).unwrap())
+            .unwrap();
+        assert_eq!(output.packets.len(), frames as usize);
+        assert_eq!(output.segments, segments);
+        assert_eq!(output.packets.last().unwrap().1.duration, 3);
+    }
+}

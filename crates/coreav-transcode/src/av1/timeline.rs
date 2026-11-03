@@ -198,6 +198,14 @@ impl Timeline {
         self.last_duration
     }
 
+    pub(crate) fn contains(&self, pts: i64) -> bool {
+        self.times.binary_search(&pts).is_ok()
+    }
+
+    pub(crate) fn metadata_bytes(&self) -> u64 {
+        self.times.capacity() as u64 * size_of::<i64>() as u64
+    }
+
     pub(super) fn deadline(&self) -> Instant {
         self.deadline
     }

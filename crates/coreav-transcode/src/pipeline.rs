@@ -52,6 +52,13 @@ use crate::encoder::{
 use crate::scale::Scale;
 use crate::timing;
 
+#[cfg(feature = "svt-av1")]
+mod av1_input;
+#[cfg(feature = "svt-av1")]
+pub use av1_input::{
+    Av1Encoding, Av1Options, Av1Summary, Av1Transcode, Av1VideoSummary, CommonOptions,
+};
+
 /// The largest spool file: 64 GiB (`docs/design/transcode.md`, "Limits").
 pub const MAX_SPOOL_BYTES: u64 = 64 << 30;
 
@@ -343,7 +350,7 @@ fn timed_out() -> Error {
 /// is created next to `output`, the path the caller writes `out` to (or
 /// will rename it to), and removed before this returns.
 pub fn transcode<S: Source, W: Write>(
-    mut source: S,
+    source: S,
     kind: SourceKind,
     options: &TranscodeOptions,
     backends: &[&dyn Backend],
@@ -354,6 +361,102 @@ pub fn transcode<S: Source, W: Write>(
     let deadline = Instant::now()
         .checked_add(options.timeout)
         .ok_or_else(|| unsupported("timeout out of range"))?;
+    execute(
+        source,
+        kind,
+        Job {
+            options,
+            launcher,
+            deadline,
+            video: VideoMode::H264,
+        },
+        backends,
+        output,
+        out,
+    )?
+    .legacy()
+}
+
+struct Job<'a> {
+    options: &'a TranscodeOptions,
+    launcher: Option<&'a ExecLauncher>,
+    deadline: Instant,
+    video: VideoMode,
+}
+
+enum VideoMode {
+    H264,
+    #[cfg(feature = "svt-av1")]
+    Av1(av1_input::Runtime),
+}
+
+enum PreparedVideo {
+    H264 {
+        presented: Presented,
+        frame_rate: FrameRate,
+        program: EncoderProgram,
+    },
+    #[cfg(feature = "svt-av1")]
+    Av1(av1_input::Plan),
+}
+
+struct CompletedJob {
+    video: CompletedVideo,
+    stream_index: usize,
+    source_codec: Codec,
+    decoder: DecoderInfo,
+    skipped: Vec<Skipped>,
+    audio: Option<AudioSummary>,
+    remux: Remuxed,
+}
+
+impl CompletedJob {
+    fn legacy(self) -> Result<Summary, Error> {
+        let (encoder, frame_rate) = match self.video.encoding {
+            Encoding::H264 {
+                encoder,
+                frame_rate,
+            } => (encoder, frame_rate),
+            #[cfg(feature = "svt-av1")]
+            Encoding::Av1(_) => {
+                return Err(encode_error("AV1 cannot produce a legacy summary".into()));
+            }
+        };
+        Ok(Summary {
+            video: VideoSummary {
+                stream_index: self.stream_index,
+                codec: self.source_codec,
+                frames: self.video.frames,
+                dropped_frames: self.video.dropped,
+                not_presented: self.video.not_presented,
+                decoder: self.decoder,
+                skipped: self.skipped,
+                encoder,
+                width: self.video.width,
+                height: self.video.height,
+                sample_aspect: self.video.sample_aspect,
+                frame_rate,
+            },
+            audio: self.audio,
+            remux: self.remux,
+        })
+    }
+}
+
+fn execute<S: Source, W: Write>(
+    mut source: S,
+    kind: SourceKind,
+    job: Job<'_>,
+    backends: &[&dyn Backend],
+    output: &Path,
+    out: W,
+) -> Result<CompletedJob, Error> {
+    let Job {
+        options,
+        launcher,
+        deadline,
+        video: mode,
+    } = job;
     let mut demux = ThumbnailOptions::at(Rational::from_int(0));
     demux.isobmff_limits = options.isobmff_limits;
     demux.matroska_limits = options.matroska_limits;
@@ -368,9 +471,11 @@ pub fn transcode<S: Source, W: Write>(
         // keeps.
         return Err(unsupported(format!("the video stream has {warning}")));
     }
-    let presented = Presented::of(&video)?;
-    let frame_rate = presented.frame_rate(video.time_base);
-    let program = find_encoder(options.encoder, options.x264.clone(), options.ffmpeg.clone())
+    let prepared = match mode {
+        VideoMode::H264 => {
+            let presented = Presented::of(&video)?;
+            let frame_rate = presented.frame_rate(video.time_base);
+            let program = find_encoder(options.encoder, options.x264.clone(), options.ffmpeg.clone())
         .ok_or_else(|| {
             unsupported(match options.encoder {
                 EncoderChoice::X264 => "no x264 program: install one, or name it with --x264",
@@ -382,6 +487,17 @@ pub fn transcode<S: Source, W: Write>(
                 }
             })
         })?;
+            PreparedVideo::H264 {
+                presented,
+                frame_rate,
+                program,
+            }
+        }
+        #[cfg(feature = "svt-av1")]
+        VideoMode::Av1(runtime) => {
+            PreparedVideo::Av1(av1_input::Plan::new(&video, options, runtime, deadline)?)
+        }
+    };
     // Before the video: a stream that cannot be encoded is refused before
     // the video encoder starts.
     let encode = match &options.audio {
@@ -428,12 +544,16 @@ pub fn transcode<S: Source, W: Write>(
     let opened = coreav_decode::open(&video.stream, &options.policy, &limits, backends)
         .map_err(Error::Decode)?;
     let mut decoder = opened.decoder;
-    let spool = Spool::create(output, "spool")?;
+    let spool = Arc::new(Spool::create(output, "spool")?);
     // x264 reads the frames' times from a file, written before it starts:
     // the presented frames' times, which are the frames sent unless the
     // decoder leaves one out (docs/design/transcode.md).
-    let timecodes = match &program {
-        EncoderProgram::X264(_) => {
+    let timecodes = match &prepared {
+        PreparedVideo::H264 {
+            program: EncoderProgram::X264(_),
+            presented,
+            ..
+        } => {
             let file = Spool::create(output, "timecodes")?;
             let (num, den) = time_base_terms(video.time_base)?;
             let mut handle = file.handle()?;
@@ -445,27 +565,42 @@ pub fn transcode<S: Source, W: Write>(
             )?;
             Some(file)
         }
-        EncoderProgram::Ffmpeg(_) => None,
+        _ => None,
     };
-    let mut run = Run {
-        timecodes: timecodes.as_ref().map(|t| t.path.clone()),
-        options,
-        video: &video,
-        presented: &presented,
-        frame_rate,
-        program: &program,
-        launcher,
-        deadline,
-        spool: &spool,
-        encoder: None,
-        first_size: None,
-        sent: Arc::new(AtomicU64::new(0)),
-        sent_pts: Vec::new(),
-        last: None,
-        decode_order: times_in_decode_order(&video),
-        pending: BTreeMap::new(),
-        dropped: 0,
-        not_presented: 0,
+    let mut run = match prepared {
+        PreparedVideo::H264 {
+            presented,
+            frame_rate,
+            program,
+        } => VideoRun::H264(Box::new(Run {
+            timecodes: timecodes.as_ref().map(|t| t.path.clone()),
+            options,
+            video: &video,
+            presented,
+            frame_rate,
+            program,
+            launcher,
+            deadline,
+            spool: &spool,
+            encoder: None,
+            first_size: None,
+            sent: Arc::new(AtomicU64::new(0)),
+            sent_pts: Vec::new(),
+            last: None,
+            decode_order: times_in_decode_order(&video),
+            pending: BTreeMap::new(),
+            dropped: 0,
+            not_presented: 0,
+        })),
+        #[cfg(feature = "svt-av1")]
+        PreparedVideo::Av1(plan) => VideoRun::Av1(Box::new(av1_input::Run::new(
+            plan,
+            &video,
+            options,
+            launcher,
+            deadline,
+            Arc::clone(&spool),
+        )?)),
     };
     // The packets sent that wait for a frame, oldest first, and their bytes.
     let mut pace = Pace {
@@ -487,7 +622,7 @@ pub fn transcode<S: Source, W: Write>(
                 deadline,
                 || decoder.receive_frame().map_err(Error::Decode),
                 |frame| {
-                    let counts = presented_frame(&run, &frame);
+                    let counts = run.presented(&frame);
                     run.take(frame)?;
                     Ok(counts)
                 },
@@ -504,16 +639,13 @@ pub fn transcode<S: Source, W: Write>(
                 discard: !packet.presented,
             })
             .map_err(Error::Decode)?;
-        if run.decode_order && packet.presented {
-            let count = run.pending.entry(packet.pts).or_insert(0);
-            *count = count.saturating_add(1);
-        }
+        run.packet_sent(packet);
         if packet.presented {
             pace.sent(data.len());
         }
         // Every frame ready goes to the encoder before the next packet.
         while let Some(frame) = decoder.receive_frame().map_err(Error::Decode)? {
-            if presented_frame(&run, &frame) {
+            if run.presented(&frame) {
                 pace.received();
             }
             run.take(frame)?;
@@ -631,21 +763,12 @@ pub fn transcode<S: Source, W: Write>(
             ),
         }
     };
-    Ok(Summary {
-        video: VideoSummary {
-            stream_index: video.stream_index,
-            codec: video.stream.codec,
-            frames: completed.frames,
-            dropped_frames: completed.dropped,
-            not_presented: completed.not_presented,
-            decoder: decoder_info,
-            skipped: opened.skipped,
-            encoder: completed.encoder,
-            width: completed.width,
-            height: completed.height,
-            sample_aspect: completed.sample_aspect,
-            frame_rate: completed.frame_rate,
-        },
+    Ok(CompletedJob {
+        video: completed,
+        stream_index: video.stream_index,
+        source_codec: video.stream.codec,
+        decoder: decoder_info,
+        skipped: opened.skipped,
         audio: audio.map(|a| a.summary),
         remux,
     })
@@ -1127,20 +1250,73 @@ struct CompletedVideo {
     frames: u64,
     dropped: u64,
     not_presented: u64,
-    encoder: &'static str,
+    encoding: Encoding,
     width: u32,
     height: u32,
     sample_aspect: Option<(u32, u32)>,
-    frame_rate: FrameRate,
+}
+
+enum Encoding {
+    H264 {
+        encoder: &'static str,
+        frame_rate: FrameRate,
+    },
+    #[cfg(feature = "svt-av1")]
+    Av1(Av1Encoding),
+}
+
+enum VideoRun<'a> {
+    H264(Box<Run<'a>>),
+    #[cfg(feature = "svt-av1")]
+    Av1(Box<av1_input::Run<'a>>),
+}
+
+impl VideoRun<'_> {
+    fn presented(&self, frame: &Frame) -> bool {
+        match self {
+            Self::H264(run) => presented_frame(run, frame),
+            #[cfg(feature = "svt-av1")]
+            Self::Av1(run) => run.presented(frame),
+        }
+    }
+
+    fn packet_sent(&mut self, packet: &coreav_thumbnail::StreamPacket) {
+        match self {
+            Self::H264(run) => {
+                if run.decode_order && packet.presented {
+                    let count = run.pending.entry(packet.pts).or_insert(0);
+                    *count = count.saturating_add(1);
+                }
+            }
+            #[cfg(feature = "svt-av1")]
+            Self::Av1(_) => {}
+        }
+    }
+
+    fn take(&mut self, frame: Frame) -> Result<(), Error> {
+        match self {
+            Self::H264(run) => run.take(frame),
+            #[cfg(feature = "svt-av1")]
+            Self::Av1(run) => run.take(frame),
+        }
+    }
+
+    fn finish(self) -> Result<CompletedVideo, Error> {
+        match self {
+            Self::H264(run) => run.finish(),
+            #[cfg(feature = "svt-av1")]
+            Self::Av1(run) => run.finish(),
+        }
+    }
 }
 
 /// The transcode's state while frames come.
 struct Run<'a> {
     options: &'a TranscodeOptions,
     video: &'a VideoStream,
-    presented: &'a Presented,
+    presented: Presented,
     frame_rate: FrameRate,
-    program: &'a EncoderProgram,
+    program: EncoderProgram,
     launcher: Option<&'a ExecLauncher>,
     deadline: Instant,
     spool: &'a Spool,
@@ -1211,11 +1387,13 @@ impl Run<'_> {
             frames,
             dropped: self.dropped,
             not_presented: self.not_presented,
-            encoder: self.program.name(),
+            encoding: Encoding::H264 {
+                encoder: self.program.name(),
+                frame_rate: settings.frame_rate,
+            },
             width: settings.width,
             height: settings.height,
             sample_aspect: settings.sample_aspect,
-            frame_rate: settings.frame_rate,
         })
     }
 
@@ -1276,7 +1454,7 @@ impl Run<'_> {
                 host_memory(),
             ));
             let encoder = Encoder::spawn(
-                self.program,
+                &self.program,
                 &settings,
                 self.launcher,
                 &limits,

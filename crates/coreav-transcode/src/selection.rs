@@ -244,7 +244,7 @@ impl Selection {
     }
 }
 
-fn executable(path: &Path) -> bool {
+pub(crate) fn executable(path: &Path) -> bool {
     let Ok(metadata) = std::fs::metadata(path) else {
         return false;
     };

@@ -9,6 +9,7 @@ use std::{
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     num::NonZeroU64,
     path::Path,
+    sync::Arc,
     time::Instant,
 };
 
@@ -69,6 +70,46 @@ impl Encoder {
         spool: File,
         launch: Launch<'_>,
     ) -> Result<Self, Error> {
+        Self::start(program, request, retention, spool, launch, None, None)
+    }
+
+    fn start(
+        program: &Path,
+        request: Request,
+        retention: Retention,
+        spool: File,
+        launch: Launch<'_>,
+        source: Option<Timeline>,
+        keep_alive: Option<Arc<dyn Send + Sync>>,
+    ) -> Result<Self, Error> {
+        if let Some(source) = &source {
+            let (num, den) = request.settings.rate();
+            if source.deadline() != launch.deadline {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "AV1 timeline and process must share one deadline",
+                ));
+            }
+            if Instant::now() >= launch.deadline {
+                return Err(Error::new(
+                    ErrorKind::Timeout,
+                    "AV1 source deadline expired before launch",
+                ));
+            }
+            let rate = source.rate();
+            if u64::from(num) * u64::from(rate.den) != u64::from(rate.num) * u64::from(den) {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "AV1 request cadence differs from the source timeline",
+                ));
+            }
+            if source.frames() > request.limits.frames() {
+                return Err(Error::new(
+                    ErrorKind::Limit,
+                    "AV1 source timeline exceeds the frame limit",
+                ));
+            }
+        }
         if !program.is_absolute() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -101,20 +142,21 @@ impl Encoder {
             &launch.limits,
             launch.deadline,
         );
-        let mut process = Process::spawn(
+        let mut process = Process::spawn_retaining(
             "svt-av1",
             "AV1 records",
             command,
             program,
             launch.deadline,
             sink,
+            keep_alive,
         )?;
         process.enqueue(header)?;
         Ok(Self {
             state: State::Running(process),
             submitted: Submissions::new(layout, request.limits.frames()),
             frames: 0,
-            source: None,
+            source,
         })
     }
 
@@ -128,35 +170,35 @@ impl Encoder {
         launch: Launch<'_>,
         source: Timeline,
     ) -> Result<Self, Error> {
-        let (num, den) = request.settings.rate();
-        if source.deadline() != launch.deadline {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "AV1 timeline and process must share one deadline",
-            ));
-        }
-        if Instant::now() >= launch.deadline {
-            return Err(Error::new(
-                ErrorKind::Timeout,
-                "AV1 source deadline expired before launch",
-            ));
-        }
-        let rate = source.rate();
-        if u64::from(num) * u64::from(rate.den) != u64::from(rate.num) * u64::from(den) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "AV1 request cadence differs from the source timeline",
-            ));
-        }
-        if source.frames() > request.limits.frames() {
-            return Err(Error::new(
-                ErrorKind::Limit,
-                "AV1 source timeline exceeds the frame limit",
-            ));
-        }
-        let mut encoder = Self::spawn(program, request, retention, spool, launch)?;
-        encoder.source = Some(source);
-        Ok(encoder)
+        Self::start(
+            program,
+            request,
+            retention,
+            spool,
+            launch,
+            Some(source),
+            None,
+        )
+    }
+
+    pub(crate) fn spawn_retaining(
+        program: &Path,
+        request: Request,
+        retention: Retention,
+        spool: File,
+        launch: Launch<'_>,
+        source: Timeline,
+        keep_alive: Arc<dyn Send + Sync>,
+    ) -> Result<Self, Error> {
+        Self::start(
+            program,
+            request,
+            retention,
+            spool,
+            launch,
+            Some(source),
+            Some(keep_alive),
+        )
     }
 
     /// Checks and queues one owned planar 8-bit 4:2:0 picture at its source time.
@@ -196,6 +238,12 @@ impl Encoder {
             self.state = State::Failed(error.clone());
         }
         result
+    }
+
+    pub(crate) fn presents(&self, pts: i64) -> bool {
+        self.source
+            .as_ref()
+            .is_some_and(|source| source.contains(pts))
     }
 
     /// Completes the input, drains and reaps the worker, then validates the
@@ -523,9 +571,12 @@ impl Sink for OutputSink {
                 self.spool.check_deadline()?;
                 match record {
                     Record::Version(version) => self.version = Some(version),
-                    Record::Begin { .. } => {
+                    Record::Begin { base } => {
+                        let remaining = self.request.limits.frames().checked_sub(base).ok_or(
+                            BackendError::Output("AV1 segment exceeds the job frame limit"),
+                        )?;
                         self.stream
-                            .begin_segment(self.segment_capacity)
+                            .begin_segment(self.segment_capacity.min(remaining))
                             .map_err(sample_error)?;
                         self.segment_max_pts = None;
                     }
@@ -593,7 +644,7 @@ fn spool_error(error: io::Error) -> Error {
     Error::new(ErrorKind::Io, format!("AV1 sample spool: {}", error.kind()))
 }
 
-fn backend_error(error: BackendError) -> Error {
+pub(crate) fn backend_error(error: BackendError) -> Error {
     let kind = match &error {
         BackendError::Invalid(_) | BackendError::Output(_) => ErrorKind::InvalidData,
         BackendError::Unsupported(_) => ErrorKind::Unsupported,
