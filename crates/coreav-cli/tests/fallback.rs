@@ -403,6 +403,8 @@ fn audio_encoder_value_limits_are_not_usage_errors() {
         ("-b:a", " 128k"),
         ("-q:a", "10"),
         ("-q:a", "-1"),
+        ("-q:a", "NaN"),
+        ("-q:a", "inf"),
     ] {
         let args = [
             "ffmpeg",
