@@ -1,6 +1,6 @@
 # Native FFV1 encoding into Matroska
 
-Status: Proposed.
+Status: Accepted.
 
 This design adds lossless video encoding without an external encoder. The first implementation preserves 8-bit planar YCbCr samples and writes FFV1 version 3 into Matroska. It makes no speed or compression-ratio claim.
 
@@ -18,7 +18,7 @@ The first CLI command is:
 coreav ffmpeg -i input.mp4 -map 0:v:0 -an -sn -dn -c:v ffv1 output.mkv
 ```
 
-It requires a build with the existing `transcode` feature and a decoder backend that accepts the source. Encoding itself starts no external process. Strict-safe mode still applies independently to source decoding. The accepted input containers are the existing local MP4/MOV and Matroska/WebM video sources. The output contains exactly one selected video stream. An input without audio needs no `-an`; selected audio, subtitles, data, attachments, or additional video tracks require explicit exclusion rather than silent loss.
+It requires a build with the existing `transcode` feature and a decoder backend that accepts the source. Source decoding is limited to H.264 through the native backend, AV1 through dav1d, and VP8 or VP9 through libvpx. The current frame model carries no per-frame scan flag, so FFmpeg fallback and hardware decoders are not admitted by this path. The caller preflights source headers for progressive scan. Encoding itself starts no external process. Strict-safe mode still applies independently to source decoding. The accepted input containers are the existing local MP4/MOV and Matroska/WebM video sources. The output contains exactly one selected video stream. An input without audio needs no `-an`; selected audio, subtitles, data, attachments, or additional video tracks require explicit exclusion rather than silent loss.
 
 The native command requires a `.mkv` destination and the Matroska muxer. Explicit `-f matroska` may accompany that extension. MP4, AVI, WebM, `.mka`, arbitrary extensions, standard output, image output, and raw output are refused for this encoder. There is no implicit FFV1 default, new `coreav transcode` option, or FFV1 version option.
 

@@ -1,6 +1,6 @@
 [package]
 name = "coreav-transcode"
-description = "Transcoding to H.264 in MP4 (experimental): frames decoded through CoreAV's decode boundary, encoded by an operator-provided x264 or ffmpeg -c:v libx264 run as a separate, resource-limited process, and muxed with the source's audio copied"
+description = "Video transcoding through CoreAV's decode boundary: external H.264 encoding with copied audio, or native lossless FFV1 video in Matroska"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+coreav-ffv1 = { path = "../coreav-ffv1" }
 coreav-audio = { path = "../coreav-audio" }
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame" }

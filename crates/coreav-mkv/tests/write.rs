@@ -184,6 +184,46 @@ fn video_colour_is_explicit_bounded_and_keeps_the_stored_code_points() {
 }
 
 #[test]
+fn ffv1_initialization_is_required_and_never_admitted_by_webm() {
+    let mut track = video(CodecId::Ffv1);
+    let packets = [packet(0, 0, true)];
+    assert!(
+        plan(
+            std::slice::from_ref(&track),
+            &packets,
+            Options::default(),
+            &Limits::default()
+        )
+        .is_err()
+    );
+    track.private = vec![1, 2, 3, 4];
+    let bytes = output(std::slice::from_ref(&track), &packets, Options::default());
+    let segment = probe(
+        SliceSource::new(&bytes),
+        &Limits::default(),
+        &Allowlist::any(),
+    )
+    .unwrap();
+    assert_eq!(segment.tracks[0].codec, coreav_mkv::Codec::Ffv1);
+    assert_eq!(
+        segment.tracks[0].codec_private.as_ref(),
+        Some(&track.private)
+    );
+    assert!(
+        plan(
+            &[track],
+            &packets,
+            Options {
+                doc_type: DocType::Webm,
+                ..Options::default()
+            },
+            &Limits::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn video_scan_declarations_round_trip_and_invalid_values_are_refused() {
     for (interlaced, field_order) in [
         (0, 2),

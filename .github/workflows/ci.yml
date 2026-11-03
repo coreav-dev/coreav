@@ -292,6 +292,24 @@ jobs:
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
       - name: Verify the pinned encoder oracle
         run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
+      - name: Require exact native FFV1 pixels and probe fields
+        timeout-minutes: 15
+        run: |
+          python3 -I -m unittest discover -s scripts/tests -p 'test_ffv1*.py'
+          cargo run --locked -p coreav-ffv1 --example fixtures -- "$RUNNER_TEMP/ffv1-fixtures"
+          cargo build --locked -p coreav-cli --features native-h264
+          python3 -I scripts/ffv1_check.py \
+            --ffmpeg "$RUNNER_TEMP/coreav-encoders/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-encoders/ffprobe" \
+            --coreav target/debug/coreav --fixtures "$RUNNER_TEMP/ffv1-fixtures" \
+            --work "$RUNNER_TEMP/ffv1-check"
+      - name: Keep FFV1 exact-comparison results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ffv1-exact-results
+          path: ${{ runner.temp }}/ffv1-check/results.json
+          if-no-files-found: ignore
       - name: Check fallback names against the pinned oracle
         run: python3 -I scripts/fallback_names.py --check "$RUNNER_TEMP/coreav-encoders"
       - name: Compare native PCM output with the pinned oracle

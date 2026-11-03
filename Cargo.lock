@@ -352,6 +352,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-ffv1"
+version = "0.0.1"
+dependencies = [
+ "coreav-frame",
+ "coreav-mkv",
+ "serde_json",
+]
+
+[[package]]
 name = "coreav-frame"
 version = "0.0.1"
 
@@ -501,6 +510,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-audio",
  "coreav-decode",
+ "coreav-ffv1",
  "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",
