@@ -45,6 +45,17 @@ cannot start the sandboxed decoder worker or the encoder program
 
 ## Design
 
+### Installation update plan
+
+Keep the platform packages and the direct native command on Unix. Replace
+the install-time binary copy with a relative symbolic link to the platform
+package, so that one install stores the binary once. Keep the Node launcher
+when install scripts are blocked or a native binary is unavailable, and
+document how pnpm and Bun users can allow the script. Verify real tarballs
+with npm, pnpm and Bun, including the blocked-script path. Update the
+installation guidance and measured artifact sizes without changing the
+recorded speed rounds below.
+
 ### Native binaries, with the WASI build as the fallback
 
 The first version of the package shipped only the WASI build. It measured
