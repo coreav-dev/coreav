@@ -85,7 +85,7 @@ fn parse_bytes(bytes: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) -> Re
 
 fn frame(header: Result<Header>) -> FrameHeader {
     match header.unwrap() {
-        Header::Frame { header, .. } => *header,
+        Header::Frame { header, .. } => header,
         other => panic!("not a frame: {other:?}"),
     }
 }
@@ -350,7 +350,7 @@ fn contexts_after(bytes: &[u8], slots: &[Option<Slot>; 8], carried: &Carried) ->
         contexts.save(ctx, marked);
     }
     let parsed = parse(bytes, slots, carried, &contexts).unwrap();
-    let (after, _) = *parsed.probs.unwrap();
+    let (after, _) = parsed.probs.unwrap();
     [0, 1, 2, 3].map(|ctx| after.load(ctx).skip[0])
 }
 

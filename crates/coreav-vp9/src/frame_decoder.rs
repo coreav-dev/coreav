@@ -1,10 +1,9 @@
 //! Pixel decoding state, separate from header inspection.
 
-use std::sync::Arc;
-
 use crate::adapt;
 use crate::error::{Error, LimitKind, Result};
 use crate::header::{self, Carried, FrameHeader, Header, Slot};
+use crate::memory::Memory;
 use crate::picture::{Picture, Planes, Sample};
 use crate::probs::{Contexts, Probs};
 use crate::tile::{self, DecodedTiles, ModeInfo, TileContext};
@@ -30,7 +29,8 @@ pub struct FrameDecoder {
     slots: [Option<Slot>; 8],
     carried: Carried,
     contexts: Contexts,
-    references: [Option<Arc<Picture>>; 8],
+    references: [Option<Picture>; 8],
+    reference_slots: [Option<usize>; 8],
     previous: Option<Previous>,
     segment_ids: Vec<u8>,
 }
@@ -44,6 +44,7 @@ impl FrameDecoder {
             carried: Carried::default(),
             contexts: Contexts::default(),
             references: core::array::from_fn(|_| None),
+            reference_slots: [None; 8],
             previous: None,
             segment_ids: Vec::new(),
         }
@@ -57,17 +58,32 @@ impl FrameDecoder {
         if packet.len() > self.limits.max_packet_bytes {
             return Err(Error::Limit(LimitKind::PacketBytes));
         }
-        let mut output = Vec::new();
-        for bytes in superframe::split(packet)? {
+        let mut memory = Memory::new(self.limits.max_memory_bytes);
+        for reference in self.references.iter().flatten() {
+            reference.charge(&mut memory)?;
+        }
+        if let Some(previous) = &self.previous {
+            memory.charge::<ModeInfo>(previous.modes.capacity())?;
+        }
+        memory.charge::<u8>(self.segment_ids.capacity())?;
+        let frames = superframe::split_with_memory(packet, &mut memory)?;
+        let mut output = memory.empty(frames.len())?;
+        for bytes in frames {
             let parsed = header::parse(bytes, &self.slots, &self.carried, &self.contexts)?;
             let (h, compressed) = match parsed.header {
                 Header::ShowExisting { slot, .. } => {
+                    let index = self
+                        .reference_slots
+                        .get(usize::from(slot))
+                        .copied()
+                        .flatten()
+                        .ok_or(Error::Invalid("an unavailable shown reference"))?;
                     let reference = self
                         .references
-                        .get(usize::from(slot))
-                        .and_then(Option::as_deref)
+                        .get(index)
+                        .and_then(Option::as_ref)
                         .ok_or(Error::Invalid("an unavailable shown reference"))?;
-                    output.push(reference.clone());
+                    output.push(reference.copy(&mut memory)?);
                     continue;
                 }
                 Header::Frame {
@@ -78,7 +94,7 @@ impl FrameDecoder {
             if h.profile != 0 {
                 return Err(Error::Unsupported("pixel decoding outside profile 0"));
             }
-            let (mut contexts, probs) = *parsed
+            let (mut contexts, probs) = parsed
                 .probs
                 .ok_or(Error::Invalid("missing frame probabilities"))?;
             let previous = self.previous.as_ref().filter(|p| {
@@ -94,8 +110,16 @@ impl FrameDecoder {
                     .previous
                     .as_ref()
                     .is_none_or(|p| p.width != h.width || p.height != h.height);
+            let references: [Option<&Picture>; 8] = core::array::from_fn(|i| {
+                self.reference_slots
+                    .get(i)
+                    .copied()
+                    .flatten()
+                    .and_then(|index| self.references.get(index))
+                    .and_then(Option::as_ref)
+            });
             let context = TileContext {
-                references: &self.references,
+                references: &references,
                 previous: previous.map(|p| p.modes.as_slice()),
                 previous_segments: if reset_segments {
                     &[]
@@ -107,7 +131,8 @@ impl FrameDecoder {
             let data = bytes
                 .get(h.uncompressed_size + usize::from(h.compressed_header_size)..)
                 .unwrap_or_default();
-            let (picture, tiles) = decode::<u8>(data, &h, &probs, compressed, context)?;
+            let (picture, tiles) =
+                decode::<u8>(data, &h, &probs, compressed, context, &mut memory)?;
             let refreshed = adapt::refresh(
                 &contexts.load(h.frame_context_idx),
                 &probs,
@@ -119,19 +144,60 @@ impl FrameDecoder {
             if h.refresh_frame_context {
                 contexts.save(h.frame_context_idx, refreshed);
             }
-            let picture = Arc::new(picture);
-            for (i, (slot, reference)) in
-                self.slots.iter_mut().zip(&mut self.references).enumerate()
-            {
+            let shown = if h.show_frame {
+                Some(picture.copy(&mut memory)?)
+            } else {
+                None
+            };
+            let segments = if h.segmentation.enabled && h.segmentation.update_map {
+                let mut segments = memory.empty(tiles.modes.len())?;
+                segments.extend(tiles.modes.iter().map(|m| m.segment_id));
+                Some(segments)
+            } else {
+                None
+            };
+            let mut reference_slots = self.reference_slots;
+            for (i, slot) in reference_slots.iter_mut().enumerate() {
+                if h.refresh_frame_flags >> i & 1 == 1 {
+                    *slot = None;
+                }
+            }
+            let retained_index = if h.refresh_frame_flags != 0 {
+                Some(
+                    (0..8)
+                        .find(|i| !reference_slots.contains(&Some(*i)))
+                        .ok_or(Error::Invalid("no free reference picture"))?,
+                )
+            } else {
+                None
+            };
+            if let Some(index) = retained_index {
+                let entry = self
+                    .references
+                    .get_mut(index)
+                    .ok_or(Error::Invalid("reference picture index"))?;
+                *entry = Some(picture);
+                for (i, slot) in reference_slots.iter_mut().enumerate() {
+                    if h.refresh_frame_flags >> i & 1 == 1 {
+                        *slot = Some(index);
+                    }
+                }
+            }
+            for (i, reference) in self.references.iter_mut().enumerate() {
+                if !reference_slots.contains(&Some(i)) {
+                    *reference = None;
+                }
+            }
+            self.reference_slots = reference_slots;
+            for (i, slot) in self.slots.iter_mut().enumerate() {
                 if h.refresh_frame_flags >> i & 1 == 1 {
                     *slot = Some(h.slot());
-                    *reference = Some(Arc::clone(&picture));
                 }
             }
             self.contexts = contexts;
             self.carried = h.carried();
-            if h.segmentation.enabled && h.segmentation.update_map {
-                self.segment_ids = tiles.modes.iter().map(|m| m.segment_id).collect();
+            if let Some(segments) = segments {
+                self.segment_ids = segments;
             } else if reset_segments {
                 self.segment_ids.clear();
             }
@@ -142,8 +208,8 @@ impl FrameDecoder {
                 key: h.key_frame,
                 modes: tiles.modes,
             });
-            if h.show_frame {
-                output.push(picture.as_ref().clone());
+            if let Some(picture) = shown {
+                output.push(picture);
             }
         }
         Ok(output)
@@ -156,10 +222,25 @@ fn decode<P: Sample>(
     probs: &Probs,
     compressed: CompressedHeader,
     context: TileContext<'_>,
+    memory: &mut Memory,
 ) -> Result<(Picture, DecodedTiles)> {
     let c = h.color;
-    let mut frame = Planes::<P>::new(h.mi_cols(), h.mi_rows(), c.subsampling_x, c.subsampling_y);
-    let tiles = tile::read(data, h, probs, compressed.tx_mode, &mut frame, context)?;
+    let mut frame = Planes::<P>::new(
+        h.mi_cols(),
+        h.mi_rows(),
+        c.subsampling_x,
+        c.subsampling_y,
+        memory,
+    )?;
+    let tiles = tile::read(
+        data,
+        h,
+        probs,
+        compressed.tx_mode,
+        &mut frame,
+        context,
+        memory,
+    )?;
     loop_filter::apply(h, &tiles.modes, &mut frame)?;
     Ok((
         frame.picture(
@@ -168,7 +249,8 @@ fn decode<P: Sample>(
             c.bit_depth,
             c.subsampling_x,
             c.subsampling_y,
-        ),
+            memory,
+        )?,
         tiles,
     ))
 }

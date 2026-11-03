@@ -6,9 +6,9 @@ use crate::error::{Error, LimitKind, Result};
 ///
 /// Every decoder takes a `Limits` value. [`Limits::default`] allows
 /// frames up to 16384 samples on a side and 2^26 luma samples (8192x8192),
-/// and packets up to 64 MiB; callers that decode untrusted uploads lower
+/// packets up to 64 MiB and an 8 GiB aggregate allocation budget; callers that decode untrusted uploads lower
 /// them. A frame over a limit is refused when its header is read, before
-/// anything is allocated for it.
+/// sample buffers are allocated for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// Samples across one frame (`FrameWidth`).
@@ -19,6 +19,9 @@ pub struct Limits {
     pub max_pixels: u64,
     /// Bytes of one packet: a frame, or a superframe with its index.
     pub max_packet_bytes: usize,
+    /// Aggregate retained capacities and allocation requests during one call.
+    /// Borrowed packets, earlier returned outputs and allocator overhead are excluded.
+    pub max_memory_bytes: u64,
 }
 
 impl Default for Limits {
@@ -28,6 +31,7 @@ impl Default for Limits {
             max_height: 16_384,
             max_pixels: 1 << 26,
             max_packet_bytes: 64 << 20,
+            max_memory_bytes: 8 << 30,
         }
     }
 }

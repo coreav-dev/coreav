@@ -1,0 +1,26 @@
+[package]
+name = "coreav-h264-encoder"
+description = "Opt-in safe scalar H.264 intra encoder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+full = ["dep:coreav-kernels-h264"]
+
+[dependencies]
+coreav-kernels-h264 = { path = "../coreav-kernels-h264", optional = true }
+
+[dev-dependencies]
+coreav-h264 = { path = "../coreav-h264" }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "g1"
+required-features = ["full"]

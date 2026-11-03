@@ -1,6 +1,8 @@
 //! The frame being decoded (`CurrFrame`) and the decoded frames the
 //! decoder hands out.
 
+use crate::memory::Memory;
+use crate::{Error, LimitKind, Result};
 use coreav_kernels_vp9::Pixel;
 
 /// One plane of the frame being decoded: rows of `stride` samples that
@@ -25,23 +27,27 @@ impl<P: Sample> Planes<P> {
         mi_rows: u32,
         subsampling_x: bool,
         subsampling_y: bool,
-    ) -> Self {
+        memory: &mut Memory,
+    ) -> Result<Self> {
         let width = (mi_cols as usize).div_ceil(8) * 64;
         let height = (mi_rows as usize).div_ceil(8) * 64;
-        let plane = |sub_x: bool, sub_y: bool| {
+        let mut plane = |sub_x: bool, sub_y: bool| -> Result<Plane<P>> {
             let stride = width >> u32::from(sub_x);
-            Plane {
-                samples: vec![P::default(); stride * (height >> u32::from(sub_y))],
+            let len = stride
+                .checked_mul(height >> u32::from(sub_y))
+                .ok_or(Error::Limit(LimitKind::MemoryBytes))?;
+            Ok(Plane {
+                samples: memory.filled(len, P::default())?,
                 stride,
-            }
+            })
         };
-        Planes {
+        Ok(Planes {
             planes: [
-                plane(false, false),
-                plane(subsampling_x, subsampling_y),
-                plane(subsampling_x, subsampling_y),
+                plane(false, false)?,
+                plane(subsampling_x, subsampling_y)?,
+                plane(subsampling_x, subsampling_y)?,
             ],
-        }
+        })
     }
 
     /// The frame's visible samples (the output process, clause 8.9).
@@ -52,8 +58,9 @@ impl<P: Sample> Planes<P> {
         bit_depth: u8,
         subsampling_x: bool,
         subsampling_y: bool,
-    ) -> Picture {
-        let visible = |i: usize, plane: &Plane<P>| {
+        memory: &mut Memory,
+    ) -> Result<Picture> {
+        let mut visible = |i: usize, plane: &Plane<P>| -> Result<Samples> {
             let (w, h) = if i == 0 {
                 (width, height)
             } else {
@@ -62,23 +69,28 @@ impl<P: Sample> Planes<P> {
                     (height + u32::from(subsampling_y)) >> u32::from(subsampling_y),
                 )
             };
-            let samples = plane
-                .samples
-                .chunks(plane.stride.max(1))
-                .take(h as usize)
-                .flat_map(|row| row.iter().take(w as usize).copied())
-                .collect();
-            P::samples(samples)
+            let len = (w as usize)
+                .checked_mul(h as usize)
+                .ok_or(Error::Limit(LimitKind::MemoryBytes))?;
+            let mut samples = memory.empty(len)?;
+            samples.extend(
+                plane
+                    .samples
+                    .chunks(plane.stride.max(1))
+                    .take(h as usize)
+                    .flat_map(|row| row.iter().take(w as usize).copied()),
+            );
+            Ok(P::samples(samples))
         };
         let [y, u, v] = &self.planes;
-        Picture {
+        Ok(Picture {
             width,
             height,
             bit_depth,
             subsampling_x,
             subsampling_y,
-            planes: [visible(0, y), visible(1, u), visible(2, v)],
-        }
+            planes: [visible(0, y)?, visible(1, u)?, visible(2, v)?],
+        })
     }
 }
 
@@ -130,6 +142,36 @@ pub struct Picture {
     pub planes: [Samples; 3],
 }
 
+impl Picture {
+    pub(crate) fn charge(&self, memory: &mut Memory) -> Result<()> {
+        for plane in &self.planes {
+            match plane {
+                Samples::Eight(s) => memory.charge::<u8>(s.capacity())?,
+                Samples::High(s) => memory.charge::<u16>(s.capacity())?,
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn copy(&self, memory: &mut Memory) -> Result<Self> {
+        let mut plane = |s: &Samples| -> Result<Samples> {
+            Ok(match s {
+                Samples::Eight(s) => Samples::Eight(memory.copy(s)?),
+                Samples::High(s) => Samples::High(memory.copy(s)?),
+            })
+        };
+        let [y, u, v] = &self.planes;
+        Ok(Self {
+            planes: [plane(y)?, plane(u)?, plane(v)?],
+            width: self.width,
+            height: self.height,
+            bit_depth: self.bit_depth,
+            subsampling_x: self.subsampling_x,
+            subsampling_y: self.subsampling_y,
+        })
+    }
+}
+
 /// One plane's samples: bytes at 8 bits, 16-bit values at 10 and 12.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Samples {
@@ -137,4 +179,28 @@ pub enum Samples {
     Eight(Vec<u8>),
     /// 10 or 12-bit samples.
     High(Vec<u16>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn odd_high_depth_planes_charge_superblock_padding_and_visible_samples() {
+        let working = (128 * 64 + 2 * 64 * 32) * 2;
+        let visible = (65 * 33 + 2 * 33 * 17) * 2;
+        let mut memory = Memory::new(working + visible - 1);
+        let frame = Planes::<u16>::new(9, 5, true, true, &mut memory).unwrap();
+        assert!(matches!(
+            frame.picture(65, 33, 10, true, true, &mut memory),
+            Err(Error::Limit(LimitKind::MemoryBytes))
+        ));
+        let mut memory = Memory::new(working + visible);
+        let frame = Planes::<u16>::new(9, 5, true, true, &mut memory).unwrap();
+        let picture = frame.picture(65, 33, 10, true, true, &mut memory).unwrap();
+        let Samples::High(y) = &picture.planes[0] else {
+            panic!()
+        };
+        assert_eq!(y.len(), 65 * 33);
+    }
 }

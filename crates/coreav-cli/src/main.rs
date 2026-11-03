@@ -1074,6 +1074,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         }
     }
     let request = transcode::Request {
+        matroska_output: None,
         crf: args.crf,
         bitrate: args.bitrate,
         preset: args.preset.clone(),

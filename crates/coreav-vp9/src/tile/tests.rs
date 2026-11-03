@@ -96,14 +96,14 @@ fn segment_tiles(
     let crate::Header::Frame { header, .. } = parsed.header else {
         panic!()
     };
-    let mut header = *header;
+    let mut header = header;
     header.key_frame = false;
     header.width = 128;
     header.height = 128;
     header.segmentation.enabled = true;
     configure(&mut header);
     let probs = crate::probs::Contexts::default().load(0);
-    let mut frame = Planes::<u8>::new(16, 16, true, true);
+    let mut frame = Planes::<u8>::new(16, 16, true, true, &mut Memory::new(u64::MAX)).unwrap();
     let mut t = Tiles {
         h: &header,
         frame: &mut frame,
@@ -119,7 +119,7 @@ fn segment_tiles(
             previous_segments: previous,
             reference_mode: ReferenceMode::Single,
         },
-        counts: Box::default(),
+        counts: Counts::default(),
         mi: vec![ModeInfo::default(); 256],
         above_partition: vec![0; 16],
         left_partition: [0; 8],

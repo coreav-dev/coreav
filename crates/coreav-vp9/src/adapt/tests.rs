@@ -24,7 +24,7 @@ fn frame_header() -> FrameHeader {
     header.frame_parallel = false;
     header.interpolation_filter = InterpolationFilter::Switchable;
     header.allow_high_precision_mv = true;
-    *header
+    header
 }
 
 fn probabilities(p: u8) -> Probs {
