@@ -1,15 +1,16 @@
 """Media-free tests of the registered PGO evidence boundary."""
-import importlib.util
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import h264_parity_bars as bars
 import h264_pgo_round as round_tool
+import h264_pgo_build as build_tool
 
 
 class PgoRound(unittest.TestCase):
@@ -86,6 +87,82 @@ class PgoRound(unittest.TestCase):
             previous = result['training']['commitment']
             p.write_text(p.read_text() + '\n')
             self.assertNotEqual(previous, round_tool.exclusion_registry(owners)['training']['commitment'])
+
+    def test_training_roster_is_the_profile_only_half(self):
+        rows = build_tool.training_roster(ROOT)
+        self.assertEqual(len(rows), 16)
+        self.assertEqual(sum(r['class'] == '1080p' for r in rows.values()), 4)
+        self.assertIn('ec473c99c538.0.sd.h264', rows)
+        self.assertIn('6e90422a670a.0.1080p.h264', rows)
+
+    def test_clean_compile_instruments_only_the_explicit_target(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            def fake_run(command, **kwargs):
+                self.assertEqual(command[-2:], ['--target', build_tool.TARGET])
+                self.assertIn('--remap-path-prefix=', kwargs['env']['CARGO_ENCODED_RUSTFLAGS'])
+                self.assertIn('build-only-', kwargs['env']['LLVM_PROFILE_FILE'])
+                binary = root / 'new/target' / build_tool.TARGET / 'dist/examples/decode'
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(b'compiled')
+            with mock.patch.object(build_tool.subprocess, 'run', side_effect=fake_run):
+                value = build_tool.compile_binary(root / 'source', root / 'new', ['-Cprofile-generate=/profiles'])
+            self.assertEqual(value['sha256'], round_tool.digest(root / 'new/decode'))
+
+    def test_audit_refuses_missing_duplicate_aborted_and_changed_evidence(self):
+        plan = self.plan | {'count_per_class': 1, 'rounds': 2, 'bootstrap_replicates': 20}
+        registry = {c: {'commitment': 'f' * 64, 'hashes': ['f' * 64], 'identities': ['old'], 'groups': ['old']}
+                    for c in round_tool.COVERAGE}
+        rows = [{'label': f'h{i:03}', 'class': c, 'width': w, 'height': h, 'groups': [f'group{i}'],
+                 'identity': f'candidate{i}', 'source_sha256': str(i) * 64, 'sha256': str(i + 4) * 64}
+                for i, (c, w, h) in enumerate((('sd', 640, 480), ('720p', 1280, 720),
+                                               ('1080p', 1920, 1080), ('4k', 3840, 2160)))]
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            round_tool.write(root / 'roster.json', rows)
+            round_tool.write(root / 'exclusions.json', registry)
+            round_tool.write(root / 'reservation-receipt.json', {'allocation': plan['allocation'], 'commit': 'a' * 40,
+                              'manifest_sha256': 'b' * 64, 'count_per_class': 1})
+            round_tool.write(root / 'binding.json', {'plan': round_tool.digest(round_tool.PLAN), 'tools': {},
+                             'files': {p.name: round_tool.digest(p) for p in root.iterdir()}})
+            provider = {'machine_type': 'c4-standard-16', 'provisioning': 'STANDARD',
+                        'advanced_machine_features': {'threadsPerCore': 1, 'turboMode': 'ALL_CORE_MAX'}}
+            events = [{'kind': 'host', 'instance': provider, 'affinity': list(range(8)),
+                       'topology': [str(c) for c in range(8)], 'cpu': '8581C'}]
+            for t in (1, 8):
+                for comparison in ('aa', 'null'):
+                    events.extend({'kind': 'calibration-call', 'comparison': comparison, 'threads': t,
+                                   'class': c, 'arm': a, 'round': n, 'wall': 1.0}
+                                  for c in bars.CLASSES for n in range(2) for a in ('base', comparison))
+                    events.append({'kind': 'calibration', 'comparison': comparison, 'threads': t, 'ratio': 1.0})
+            references = {str(t): {c: 1.0 for c in bars.CLASSES} for t in (1, 8)}
+            events.append({'kind': 'health', 'phase': 'before', 'references': references})
+            for row in rows:
+                pixels = row['width'] * row['height'] * 3 // 2
+                for t in (1, 8):
+                    for a in round_tool.ARMS:
+                        events.append({'kind': 'qualification', 'label': row['label'], 'threads': t,
+                                       'arm': a, 'bytes': pixels, 'sha256': 'd' * 64, 'frames': 1})
+                        events.append({'kind': 'warmup', 'label': row['label'], 'threads': t, 'arm': a})
+            events.extend({'kind': 'timed', **cell, 'wall': 0.95 if cell['arm'] == 'pgo' else 1.0}
+                          for cell in round_tool.schedule(rows, plan))
+            events.extend([{'kind': 'health', 'phase': 'after', 'references': references}, {'kind': 'complete'}])
+            def save(values):
+                (root / 'events.jsonl').write_text(''.join(json.dumps(v) + '\n' for v in values))
+            save(events)
+            self.assertTrue(round_tool.audit(root, plan)['pass'])
+            timed = next(i for i, r in enumerate(events) if r['kind'] == 'timed')
+            for broken in (events[:timed] + events[timed + 1:],
+                           events[:timed] + [events[timed]] + events[timed:],
+                           events[:-1] + [{'kind': 'abort'}],
+                           [r | {'ratio': 0.999} if r['kind'] == 'calibration' else r for r in events]):
+                save(broken)
+                with self.assertRaises(ValueError):
+                    round_tool.audit(root, plan)
+            save(events)
+            (root / 'roster.json').write_text('[]')
+            with self.assertRaises(ValueError):
+                round_tool.audit(root, plan)
 
 
 if __name__ == '__main__':

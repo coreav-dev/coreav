@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import random
@@ -40,11 +39,32 @@ def write(path, value):
     Path(path).write_text(json.dumps(value, indent=2, allow_nan=False) + '\n')
 
 
-def merged():
-    subprocess.run(['git', 'fetch', '--quiet', 'origin', 'main'], cwd=ROOT, check=True, timeout=120)
-    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT), 'source must be clean')
-    subprocess.run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'], cwd=ROOT, check=True, timeout=30)
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+def merged(checkout=ROOT):
+    subprocess.run(['git', 'fetch', '--quiet', 'origin', 'main'], cwd=checkout, check=True, timeout=120)
+    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout), 'source must be clean')
+    subprocess.run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'], cwd=checkout, check=True, timeout=30)
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True).strip()
+
+
+def reservation(root, plan):
+    config = json.loads((root / 'reservation-checkout.json').read_text())
+    checkout = Path(config['checkout']).resolve()
+    commit = merged(checkout)
+    path = checkout / config['manifest']
+    allocation = json.loads(path.read_text())['allocations'][plan['allocation']]
+    require(allocation['operation'] == 'h264-decode' and allocation['status'] == 'reserved' and
+            allocation['holdout'] is True and allocation['spent'] is False and
+            allocation['seed'] == plan['draw_seed'] and allocation['count_per_class'] == plan['count_per_class'],
+            'allocation reservation differs from the public plan')
+    return {'allocation': plan['allocation'], 'commit': commit, 'manifest_sha256': digest(path),
+            'count_per_class': plan['count_per_class']}
+
+
+def reservation_receipt(root, plan):
+    value = json.loads((root / 'reservation-receipt.json').read_text())
+    require(value['allocation'] == plan['allocation'] and value['count_per_class'] == plan['count_per_class'] and
+            re.fullmatch('[0-9a-f]{40}', value['commit']) is not None and
+            re.fullmatch('[0-9a-f]{64}', value['manifest_sha256']) is not None, 'missing merged allocation receipt')
 
 
 def exclusions(registry):
@@ -128,6 +148,9 @@ def roster(rows, registry, plan):
     require(len({r['label'] for r in rows}) == len(rows), 'duplicate label')
     require(len({r['source_sha256'] for r in rows}) == len(rows), 'duplicate source bytes')
     require(len({r['sha256'] for r in rows}) == len(rows), 'duplicate extracted bytes')
+    require(len({r['identity'] for r in rows}) == len(rows), 'duplicate source identity')
+    groups = [g for r in rows for g in r['groups']]
+    require(len(groups) == len(set(groups)), 'source group contributes more than one file')
     for cls in bars.CLASSES:
         require(sum(r['class'] == cls for r in rows) == plan['count_per_class'], 'incomplete class')
     for row in rows:
@@ -137,6 +160,10 @@ def roster(rows, registry, plan):
         require(row['source_sha256'][:12] not in used['hashes'] and row['sha256'][:12] not in used['hashes'], 'used input prefix')
         require(row['groups'] and row['class'] in bars.CLASSES, 'invalid input metadata')
         require(all(type(row[k]) is int and row[k] > 0 for k in ('width', 'height')), 'invalid geometry')
+        cls = next((c for c, w, h in (('sd', 640, 480), ('720p', 1280, 720), ('1080p', 1920, 1088))
+                    if row['width'] <= w and row['height'] <= h), '4k')
+        require(row['class'] == cls, 'class disagrees with displayed geometry')
+        require(all(re.fullmatch('[a-f0-9]{64}', row[k]) is not None for k in ('sha256', 'source_sha256')), 'invalid content digest')
     return {r['label']: r['class'] for r in rows}
 
 
@@ -241,16 +268,21 @@ def audit(root, plan):
         require(digest(root / name) == expected, 'bound file changed')
     for name, expected in binding['tools'].items():
         require(digest(ROOT / name) == expected, 'executor or estimator changed')
+    reservation_receipt(root, plan)
     rows = json.loads((root / 'roster.json').read_text())
     classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
     events = [json.loads(line) for line in (root / 'events.jsonl').read_text().splitlines()]
     require(events and events[-1] == {'kind': 'complete'}, 'incomplete or aborted run')
     require(not any(r['kind'] == 'abort' for r in events), 'aborted run')
+    require(all(r['kind'] in {'host', 'qualification', 'calibration-call', 'calibration', 'health', 'warmup', 'timed', 'complete'}
+                for r in events), 'unknown event kind')
     hosts = [r for r in events if r['kind'] == 'host']
     require(len(hosts) == 1 and events[0]['kind'] == 'host', 'missing host evidence')
     provider = hosts[0]['instance']
     require(provider['provisioning'] == 'STANDARD' and provider['advanced_machine_features']['threadsPerCore'] == 1
             and provider['advanced_machine_features']['turboMode'] == 'ALL_CORE_MAX', 'invalid provider host')
+    require(provider['machine_type'].split('/')[-1] == 'c4-standard-16' and hosts[0]['affinity'] == list(range(8))
+            and hosts[0]['topology'] == [str(c) for c in range(8)] and hosts[0]['cpu'] == '8581C', 'wrong host class')
     checks = [r for r in events if r['kind'] == 'qualification']
     wanted = {(r['label'], a, t) for r in rows for a in ARMS for t in (1, 8)}
     require(len(checks) == len(wanted) and {(r['label'], r['arm'], r['threads']) for r in checks} == wanted,
@@ -259,11 +291,17 @@ def audit(root, plan):
         cells = [r for r in checks if r['label'] == row['label']]
         require(len({(r['bytes'], r['sha256'], r['frames']) for r in cells}) == 1, 'raw output mismatch')
         require(0 < cells[0]['frames'] <= plan['frames'][row['class']], 'invalid work')
+        pixels = row['width'] * row['height'] + 2 * ((row['width'] + 1) // 2) * ((row['height'] + 1) // 2)
+        require(cells[0]['bytes'] == cells[0]['frames'] * pixels and
+                re.fullmatch('[a-f0-9]{64}', cells[0]['sha256']) is not None, 'raw geometry or digest mismatch')
     timed = [r for r in events if r['kind'] == 'timed']
     expected = schedule(rows, plan)
     require(len(timed) == len(expected), 'incomplete timings')
     for got, want in zip(timed, expected):
         require(all(got[k] == v for k, v in want.items()) and bars.positive(got['wall']), 'bad timing cell')
+    first_timing = next(i for i, r in enumerate(events) if r['kind'] == 'timed')
+    require(all(i < first_timing for i, r in enumerate(events) if r['kind'] in
+                ('qualification', 'warmup', 'calibration', 'calibration-call')), 'preflight occurs after timing')
     calibration = [r for r in events if r['kind'] == 'calibration']
     require(len(calibration) == 4 and {(r['threads'], r['comparison']) for r in calibration} ==
             {(t, c) for t in (1, 8) for c in ('aa', 'null')}, 'missing calibration')
@@ -317,6 +355,7 @@ def run(root, plan):
         def emit(row):
             log.write(json.dumps(row, allow_nan=False) + '\n')
         try:
+            reservation_receipt(root, plan)
             instance = json.loads((root / 'instance.json').read_text())
             emit({'kind': 'host', **host(instance)})
             rows = json.loads((root / 'roster.json').read_text())
@@ -325,7 +364,17 @@ def run(root, plan):
                            check=True, timeout=30)
             refs = json.loads((root / 'references.json').read_text())
             require(len(refs) == 4 and {r['class'] for r in refs} == set(bars.CLASSES), 'four training references required')
-            names = ['roster.json', 'exclusions.json', 'references.json', 'instance.json', 'base', 'pgo', 'ffmpeg', 'ffprobe', 'aa', 'null']
+            from h264_pgo_build import training_roster
+            approved = training_roster(ROOT)
+            require(all(any(r['sha256'] == a['es_sha256'] and r['class'] == a['class'] for a in approved.values())
+                        for r in refs), 'calibration reference is not approved training data')
+            build = json.loads((root / 'build.json').read_text())
+            require(build['source']['commit'] == revision and build['independent_match'] and
+                    build['recipe_sha256'] == digest(ROOT / 'scripts/h264_pgo_build.py'), 'build provenance changed')
+            require(build['pgo']['sha256'] == build['independent']['sha256'] == digest(root / 'pgo') and
+                    build['base']['sha256'] == digest(root / 'base'), 'build binaries differ')
+            names = ['roster.json', 'exclusions.json', 'references.json', 'instance.json', 'build.json',
+                     'reservation-receipt.json', 'base', 'pgo', 'ffmpeg', 'ffprobe', 'aa', 'null']
             names += ['media/' + r['label'] + '.h264' for r in rows + refs]
             require(digest(root / 'aa') == digest(root / 'base') == digest(root / 'null'), 'null binaries differ')
             for row in rows + refs:
@@ -333,17 +382,6 @@ def run(root, plan):
             write(root / 'binding.json', {'plan': digest(PLAN), 'revision': revision,
                   'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py')},
                   'files': {n: digest(root / n) for n in names}})
-            for row in rows:
-                pixels = row['width'] * row['height'] + 2 * ((row['width'] + 1) // 2) * ((row['height'] + 1) // 2)
-                outputs = set()
-                for threads in (1, 8):
-                    for arm in ARMS:
-                        value = execute(command(root, row, arm, threads, True, plan), pixels * plan['frames'][row['class']])
-                        require(value['bytes'] > 0 and value['bytes'] % pixels == 0, 'invalid raw frame length')
-                        outputs.add((value['bytes'], value['sha256']))
-                        emit({'kind': 'qualification', 'label': row['label'], 'arm': arm, 'threads': threads,
-                              **value, 'frames': value['bytes'] // pixels})
-                require(len(outputs) == 1, 'raw output mismatch before timing')
             for threads in (1, 8):
                 for comparison, arm in (('aa', 'aa'), ('null', 'null')):
                     ratios = []
@@ -364,6 +402,17 @@ def run(root, plan):
                               for _ in range(3)) for r in refs} for t in (1, 8)}
                 emit({'kind': 'health', 'phase': phase, 'references': references})
             health('before')
+            for row in rows:
+                pixels = row['width'] * row['height'] + 2 * ((row['width'] + 1) // 2) * ((row['height'] + 1) // 2)
+                outputs = set()
+                for threads in (1, 8):
+                    for arm in ARMS:
+                        value = execute(command(root, row, arm, threads, True, plan), pixels * plan['frames'][row['class']])
+                        require(value['bytes'] > 0 and value['bytes'] % pixels == 0, 'invalid raw frame length')
+                        outputs.add((value['bytes'], value['sha256']))
+                        emit({'kind': 'qualification', 'label': row['label'], 'arm': arm, 'threads': threads,
+                              **value, 'frames': value['bytes'] // pixels})
+                require(len(outputs) == 1, 'raw output mismatch before timing')
             for row in rows:
                 for threads in (1, 8):
                     for arm in ARMS:
@@ -395,6 +444,7 @@ def main():
             return 0
         if args.action == 'allocate':
             merged()
+            write(root / 'reservation-receipt.json', reservation(root, plan))
             candidates = json.loads((root / 'population.json').read_text())
             write(root / 'allocation.json', allocate(candidates, json.loads((root / 'exclusions.json').read_text()), plan))
             return 0
