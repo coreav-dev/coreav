@@ -1,0 +1,143 @@
+{
+  "rustCommit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "targets": {
+    "x86_64-unknown-linux-musl": [
+      "musl",
+      "libunwind",
+      "compiler-rt"
+    ],
+    "aarch64-unknown-linux-musl": [
+      "musl",
+      "libunwind",
+      "compiler-rt"
+    ],
+    "aarch64-apple-darwin": [],
+    "x86_64-apple-darwin": [],
+    "x86_64-pc-windows-msvc": [],
+    "wasm32-wasip1": [
+      "wasi-libc"
+    ],
+    "wasm32-unknown-unknown": []
+  },
+  "components": {
+    "musl": {
+      "label": "musl 1.2.5",
+      "license": "MIT AND SunPro",
+      "files": [
+        "musl/COPYRIGHT",
+        "musl/aarch64-memcpy-LICENSE",
+        "musl/aarch64-memset-LICENSE",
+        "musl/math-cos-LICENSE",
+        "musl/math-__cos-LICENSE",
+        "musl/math-exp-LICENSE",
+        "musl/math-log-LICENSE",
+        "musl/math-pow-LICENSE"
+      ]
+    },
+    "libunwind": {
+      "label": "libunwind 23.1.1",
+      "license": "Apache-2.0 WITH LLVM-exception AND NCSA AND MIT",
+      "files": [
+        "libunwind/LICENSE.TXT"
+      ]
+    },
+    "wasi-libc": {
+      "label": "wasi-libc 33.0.0",
+      "license": "(Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND MIT AND BSD-2-Clause AND BSD-3-Clause AND CC0-1.0",
+      "files": [
+        "wasi-libc/LICENSE",
+        "wasi-libc/LICENSE-APACHE",
+        "wasi-libc/LICENSE-APACHE-LLVM",
+        "wasi-libc/LICENSE-MIT",
+        "wasi-libc/libc-top-half/musl/COPYRIGHT",
+        "wasi-libc/libc-bottom-half/cloudlibc/LICENSE",
+        "wasi-libc/fts/musl-fts/COPYING"
+      ]
+    },
+    "compiler-rt": {
+      "label": "compiler-rt 23.1.1",
+      "license": "Apache-2.0 WITH LLVM-exception AND NCSA AND MIT",
+      "files": [
+        "compiler-rt/LICENSE.TXT"
+      ]
+    }
+  },
+  "files": {
+    "wasi-libc/LICENSE": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE",
+      "gitBlob": "d3e737899d93ea0794d8dd67eac9f6020bb105bf",
+      "sha256": "2711a8b5a5cdfef0e639f96c1aca12ae23d7d64a02d0507f1bdf14d2b27bbc3a"
+    },
+    "wasi-libc/LICENSE-APACHE": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-APACHE",
+      "gitBlob": "16fe87b06e802f094b3fbb0894b137bca2b16ef1",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    "wasi-libc/LICENSE-APACHE-LLVM": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-APACHE-LLVM",
+      "gitBlob": "f9d81955f4bcb8f96a025e2ecc46f39ec536d465",
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+    },
+    "wasi-libc/LICENSE-MIT": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-MIT",
+      "gitBlob": "31aa79387f27e730e33d871925e152e35e428031",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    "wasi-libc/libc-top-half/musl/COPYRIGHT": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/COPYRIGHT",
+      "gitBlob": "c1628e9ac84f927fe791124ec172fb61c760bb9b",
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "wasi-libc/libc-bottom-half/cloudlibc/LICENSE": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-bottom-half/cloudlibc/LICENSE",
+      "gitBlob": "dd33b05122987dfa57c8170e5e2d9459420eef9e",
+      "sha256": "c8b789cf5a746611e6300a0cc7750dbf92b61912a709d04e639245f7290656d0"
+    },
+    "wasi-libc/fts/musl-fts/COPYING": {
+      "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/fts/musl-fts/COPYING",
+      "gitBlob": "f06eb044ea895d23f0c02b9f0b2dc271c2ee34c1",
+      "sha256": "55af87e4017668f54467a3380e7ebbac5e672d8c763bfe95e6fc882a6fdc4046"
+    },
+    "musl/COPYRIGHT": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/COPYRIGHT; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "libunwind/LICENSE.TXT": {
+      "source": "https://github.com/rust-lang/llvm-project/blob/1b9c0d5ff9bbe7634aead059efe6b11a7eeba145/libunwind/LICENSE.TXT",
+      "gitBlob": "1e3120621caeb62648745a42f7a9a25d1e2731ab",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    "musl/aarch64-memcpy-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/string/aarch64/memcpy.S; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "58434fb769354cde7381178661d44e74057047786b63f087b191397e4f9dc00c"
+    },
+    "musl/aarch64-memset-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/string/aarch64/memset.S; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "8c6b28d2c28f11c8e04b90f63356bfe31919a0b7e3269090cda7c9bd957ad4ad"
+    },
+    "compiler-rt/LICENSE.TXT": {
+      "source": "https://github.com/rust-lang/llvm-project/blob/1b9c0d5ff9bbe7634aead059efe6b11a7eeba145/compiler-rt/LICENSE.TXT",
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    "musl/math-cos-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/cos.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "565eff8b979411888b4fc163ba49daf7ad9beba47ee485942f032edcefd17948"
+    },
+    "musl/math-__cos-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/__cos.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "16cd38a2d4dd0bf4b8a51ab4bd8779856a38d7ac96d4f8a3b092d8c707b0a021"
+    },
+    "musl/math-exp-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/exp.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "f116966f95dc0f50b5cb67894c89e342a21be93ae821e841efb8cca987a8c949"
+    },
+    "musl/math-log-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/log.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "3389ac85e0ab5637e418ffee4a2a54933def50e1c7ab5b45cb7772587dd24c28"
+    },
+    "musl/math-pow-LICENSE": {
+      "source": "https://www.musl-libc.org/releases/musl-1.2.5.tar.gz (musl-1.2.5/src/math/pow.c; opening legal comment; SHA-256 a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4)",
+      "sha256": "ec479824c026f58d9b86ed77d0eb3a44839bdce04acde6c48b1a0893ca91b391"
+    }
+  }
+}

@@ -1,3 +1,5 @@
+import { runtimeComponents } from "./runtime.mjs";
+
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const version = String.raw`[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`;
 const crateLabel = new RegExp(`^([A-Za-z0-9_][A-Za-z0-9_-]*) (${version})$`);
@@ -14,7 +16,7 @@ export function noticeSections(text) {
   const lines = text.split(/\r?\n/);
   for (let at = 0; at < lines.length; at += 1) {
     if (!lines[at].startsWith("===") || /^=+$/.test(lines[at])) continue;
-    const header = /^=== (.+) \((crates\.io|Rust toolchain|Rust toolchain, crates\.io)\) ===$/.exec(lines[at]);
+    const header = /^=== (.+) \((crates\.io|Rust toolchain|Rust toolchain, crates\.io|C runtime)\) ===$/.exec(lines[at]);
     requireValue(header, "malformed third-party notice header or unknown origin");
     const [, label, origin] = header;
     requireValue(!/[\x00-\x1f\x7f]/.test(label), "malformed third-party notice label");
@@ -258,6 +260,12 @@ export function moduleEvidence(packed, raw) {
 /** Require artifact evidence to be covered, without treating absent evidence as absent code. */
 export function validateEvidence(evidence, sections, context) {
   const missing = new Set();
+  if (context.target) {
+    for (const component of runtimeComponents(context.target, context.commit)) {
+      const section = sections.get(`C runtime\0${component.label}`);
+      if (section?.license !== component.license) missing.add(`C runtime ${component.label} is not covered by THIRD-PARTY-NOTICES.txt`);
+    }
+  }
   const standard = sections.get(`Rust toolchain\0Rust standard library ${context.version} (${context.commit})`);
   const covered = new Set(standard?.crates?.map(normalise) ?? []);
   let builtins = false;

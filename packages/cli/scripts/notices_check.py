@@ -5,6 +5,8 @@ With --third-party, also require target-specific Rust notices beside them.
 Archives may be npm tarballs, release tarballs or ZIPs, or Python wheels.
 """
 import argparse
+import hashlib
+import json
 import pathlib
 import posixpath
 import re
@@ -22,6 +24,26 @@ TARGETS = {
     'darwin-x64': 'x86_64-apple-darwin',
     'win32-x64': 'x86_64-pc-windows-msvc',
 }
+
+
+def runtime_sections(target, commit):
+    directory = ROOT / 'scripts/notices/upstream/runtime'
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    if commit != manifest['rustCommit'] or target not in manifest['targets']:
+        raise ValueError('review the C runtime inventory for this compiler and target')
+    sections = []
+    for name in manifest['targets'][target]:
+        component = manifest['components'][name]
+        parts = [f'=== {component["label"]} (C runtime) ===\nLicense: {component["license"]}\n']
+        for path in component['files']:
+            file = manifest['files'][path]
+            data = (directory / path).read_bytes()
+            if hashlib.sha256(data).hexdigest() != file['sha256']:
+                raise ValueError(f'C runtime upstream licence changed: {path}')
+            text = data.decode('utf-8').replace('\r\n', '\n').rstrip('\n') + '\n'
+            parts.append(f'--- {path} ---\nSource: {file["source"]}\n{text}')
+        sections.append('\n'.join(parts))
+    return sections
 
 
 def members(archive, third_party=False):
@@ -65,6 +87,10 @@ def problems(archive, third_party=False):
         if not version or not commit:
             return [f'{archive.name}: distribution Rust pin is missing']
         standard = f'=== Rust standard library {version[1]} ({commit[1]}) (Rust toolchain) ==='
+        try:
+            runtimes = runtime_sections(target, commit[1])
+        except (ValueError, OSError) as error:
+            return [f'{archive.name}: {error}']
         for directory in complete:
             data = found.get(posixpath.join(directory, THIRD_PARTY))
             if data is None:
@@ -74,7 +100,8 @@ def problems(archive, third_party=False):
             except UnicodeDecodeError:
                 continue
             if (text.startswith(f'Rust dependency notices for coreav on {target}.\n')
-                    and standard in text.splitlines()):
+                    and standard in text.splitlines()
+                    and all(section in text for section in runtimes)):
                 return []
         return [f'{archive.name}: missing or stale {THIRD_PARTY} for {target} beside the root licence files']
     lacking = [name for name in FILES if not any(shipped(d, name) for d in directories)]
