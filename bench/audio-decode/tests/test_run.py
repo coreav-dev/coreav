@@ -1,5 +1,7 @@
 import importlib.util
+import base64
 import contextlib
+import gc
 import io
 import json
 import os
@@ -9,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tracemalloc
 import types
 import unittest
 import wave
@@ -519,6 +522,46 @@ class OutputTests(unittest.TestCase):
                 with self.assertRaises(receipts.CommandFailure):
                     self.executor(operation, self.record)
         self.assertEqual(invoke.call_count, 1)
+
+    def test_many_failed_operations_retain_only_current_stderr_and_flat_memory(self):
+        child = self.root / 'failed-worker'
+        child.write_text('#!' + sys.executable + '\nimport sys\n'
+            'sys.stderr.buffer.write(sys.argv[2].encode() + b":" + b"x" * 2097153)\n'
+            'sys.exit(2)\n')
+        child.chmod(0o700)
+        self.executor.tools['head_abench'] = child
+        retained, sizes, memory = [], [], []
+        tracemalloc.start()
+        try:
+            with patch.object(self.executor, 'selected_stream', return_value=0):
+                for index in range(32):
+                    record = {**self.record, 'file': f'failure-{index:02}.mp4'}
+                    with self.assertRaises(receipts.CommandFailure):
+                        self.executor('head_lib', record)
+                    latest = self.executor.failures[-1]
+                    self.assertTrue(base64.b64decode(latest['stderr_base64']).startswith(
+                        str(self.root / record['file']).encode() + b':'))
+                    self.assertEqual(latest['stderr_retained_bytes'], receipts.BUFFER_LIMIT)
+                    self.assertTrue(latest['truncated'])
+                    retained.append(len(self.executor.failures))
+                    sizes.append(sum(len(value['stderr_base64']) for value in self.executor.failures))
+                    gc.collect()
+                    memory.append(tracemalloc.get_traced_memory()[0])
+            self.assertEqual(retained, [1] * 32)
+            self.assertEqual(max(sizes), 4 * ((receipts.BUFFER_LIMIT + 2) // 3))
+            self.assertLess(max(memory[4:]) - min(memory[4:]), receipts.BUFFER_LIMIT)
+            self.assertEqual(list(self.root.glob('capacity-*')), [])
+        finally:
+            tracemalloc.stop()
+
+    def test_new_operation_drops_stale_diagnostics_before_preparation(self):
+        self.executor.failures = [{'stderr_base64': 'previous operation'}]
+        self.executor.last_diagnostic = {'stderr_base64': 'previous leaf'}
+        with patch.object(self.executor, 'selected_stream', side_effect=runner.failure('exit')):
+            with self.assertRaises(receipts.CommandFailure):
+                self.executor('head_lib', self.record)
+        self.assertEqual(self.executor.failures, [])
+        self.assertIsNone(self.executor.last_diagnostic)
 
     def test_expired_job_never_launches_a_child(self):
         self.executor.deadline = 0
