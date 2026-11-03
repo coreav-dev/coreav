@@ -263,6 +263,14 @@ class CliCoverage(unittest.TestCase):
                     return subprocess.CompletedProcess(argv, 4 if mutation == 'late-fallback' else 1,
                                                        b'', b'I/O error' if mutation == 'late-unrelated' else
                                                        b'video geometry, format or colour changes')
+                if Path(argv[-1]).name.startswith('terminal-colour-change-'):
+                    if mutation == 'colour-destination':
+                        Path(argv[-1]).write_text('replaced')
+                    if mutation == 'colour-fallback':
+                        (work / 'fallback.jsonl').write_text('{"not_run":"absent"}\n')
+                    return subprocess.CompletedProcess(argv, 0 if mutation == 'colour-success' else 1,
+                                                       b'', b'I/O error' if mutation == 'colour-unrelated' else
+                                                       b'conflicting stream and frame colour')
                 if '-y' in argv:
                     if mutation == 'destination' and argv[-1] != '-':
                         Path(argv[-1]).write_text('replaced')
@@ -282,6 +290,14 @@ class CliCoverage(unittest.TestCase):
                 observed['streams'][0]['pix_fmt'] = path.stem.removeprefix('source-')
             if path.name == 'changing.mkv':
                 observed['frames'] = [{'width': 32, 'height': 24}, {'width': 64, 'height': 24}]
+            if path.name == 'colour-changing.mkv':
+                matrices = ['bt709'] * 3 + ['smpte170m'] * 3
+                if mutation == 'colour-source':
+                    matrices = ['bt709'] * 6
+                observed['frames'] = [{'color_space': matrix, 'width': 32, 'height': 24,
+                                       'pix_fmt': 'yuv420p'} for matrix in matrices]
+                if mutation == 'colour-geometry':
+                    observed['frames'][-1]['width'] = 64
             return observed
 
         with patch.object(gate, 'run', side_effect=run), patch.object(gate, 'probe', side_effect=probe), \
@@ -316,6 +332,9 @@ class CliCoverage(unittest.TestCase):
         self.assertNotIn('-an', argv)
         self.assertIn({'case': 'terminal-frame-change',
                        'result': 'failed, destination preserved, no fallback'}, records)
+        for strict in (0, 1):
+            self.assertIn({'case': f'terminal-colour-change-{strict}',
+                           'result': 'failed, destination preserved, no fallback'}, records)
 
     def test_encoder_execution_fallback_and_destination_replacement_fail(self):
         for mutation in ('encoder', 'fallback', 'destination', 'late-fallback', 'late-fallback-log', 'late-destination'):
@@ -327,6 +346,13 @@ class CliCoverage(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(gate.GateError, 'mid-stream frame change'):
                 self.exercise(Path(directory), 'late-unrelated')
+
+    def test_midstream_colour_change_requires_the_actual_source_and_terminal_failure(self):
+        for mutation in ('colour-success', 'colour-unrelated', 'colour-source', 'colour-geometry',
+                         'colour-fallback', 'colour-destination'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(gate.GateError):
+                    self.exercise(Path(directory), mutation)
 
 
 if __name__ == '__main__':

@@ -344,6 +344,40 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
     require((fallback_log.stat().st_size if fallback_log.exists() else 0) == before,
             'mid-stream failure attempted fallback')
     records.append({'case': 'terminal-frame-change', 'result': 'failed, destination preserved, no fallback'})
+
+    parts = []
+    for matrix in ('bt709', 'smpte170m'):
+        part = work / f'colour-{matrix}.h264'
+        run([ffmpeg, '-nostdin', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=32x24:rate=25',
+             '-frames:v', '3', '-colorspace', matrix, '-c:v', 'libx264', '-bf', '0', '-threads', '1',
+             '-pix_fmt', 'yuv420p', part])
+        parts.append(bounded_bytes(part))
+    elementary = work / 'colour-changing.h264'
+    elementary.write_bytes(b''.join(parts))
+    changing = work / 'colour-changing.mkv'
+    run([ffmpeg, '-nostdin', '-v', 'error', '-fflags', '+genpts', '-r', '25', '-i', elementary,
+         '-map', '0:v:0', '-c:v', 'copy', changing])
+    observed = probe(ffprobe, changing)['frames']
+    require([frame.get('color_space') for frame in observed] ==
+            ['bt709'] * 3 + ['smpte170m'] * 3, 'mid-stream fixture did not change decoded colour')
+    require(all((frame.get('width'), frame.get('height'), frame.get('pix_fmt')) ==
+                (32, 24, 'yuv420p') for frame in observed), 'colour-change fixture changed geometry or format')
+    for strict in (False, True):
+        destination = work / f'terminal-colour-change-{int(strict)}.mkv'
+        destination.write_bytes(b'preserved destination')
+        before = fallback_log.stat().st_size if fallback_log.exists() else 0
+        result = run([coreav, *(['--strict-safe'] if strict else []), 'ffmpeg', '-y', '-i', changing,
+                      '-an', '-sn', '-dn', '-c:v', 'ffv1', destination], env=env, allow_failure=True,
+                     output_limit=65536)
+        require(result.returncode == 1 and not result.stdout and
+                (b'conflicting stream and frame colour' in result.stderr or
+                 b'video geometry, format or colour changes' in result.stderr),
+                f'mid-stream colour change must be terminal: {result.returncode}: {result.stderr!r}')
+        require(destination.read_bytes() == b'preserved destination', 'mid-stream colour change replaced the destination')
+        require((fallback_log.stat().st_size if fallback_log.exists() else 0) == before,
+                'mid-stream colour change attempted fallback')
+        records.append({'case': f'terminal-colour-change-{int(strict)}',
+                        'result': 'failed, destination preserved, no fallback'})
     require(not marker.exists(), 'an external encoder was invoked')
     if fallback_log.exists():
         for line in bounded_bytes(fallback_log, 1024 * 1024).splitlines():

@@ -263,7 +263,6 @@ struct NativeDecoder {
     /// Bytes of the length prefix of each NAL unit (`avcC`), or `None`
     /// when the packets are an Annex B byte stream.
     length_size: Option<usize>,
-    color: ColorInfo,
     /// The width and height the container declares, if it does
     /// ([`visible`]).
     shown: (Option<u32>, Option<u32>),
@@ -350,7 +349,6 @@ impl NativeDecoder {
             limits: limits.clone(),
             deadline: deadline(limits),
             length_size,
-            color: stream.color,
             shown: (stream.width, stream.height),
             ready: VecDeque::new(),
             marks: VecDeque::new(),
@@ -408,6 +406,25 @@ impl NativeDecoder {
         picture: &coreav_h264::Picture,
         pts: Option<i64>,
     ) -> Result<(), Error> {
+        let signal = picture.color();
+        let [top, bottom] = signal.chroma_location;
+        if top != bottom {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "different field chroma locations",
+            ));
+        }
+        let chroma_location = u8::try_from(top)
+            .ok()
+            .and_then(coreav_frame::ChromaLocation::from_code)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid chroma sample location"))?;
+        let color = ColorInfo {
+            primaries: Some(signal.primaries),
+            transfer: Some(signal.transfer),
+            matrix: Some(signal.matrix),
+            full_range: Some(signal.full_range),
+            chroma_location: Some(chroma_location),
+        };
         let (cb, cr) = picture.chroma();
         let luma = picture.luma();
         // What the container says it shows, where that is inside the
@@ -448,7 +465,7 @@ impl NativeDecoder {
         self.ready.push_back((
             Frame {
                 pts,
-                color: self.color,
+                color,
                 pixels: Pixels::Cpu(picture),
             },
             bytes,

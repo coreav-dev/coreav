@@ -11,10 +11,11 @@ pub(crate) const MAX_SPS: usize = 32;
 /// Picture parameter sets a stream may hold (clause 7.4.2.2).
 pub(crate) const MAX_PPS: usize = 256;
 
-/// The parts of the video usability information the decoder uses: the two
-/// hints that bound the decoded picture buffer (Annex E.2.1).
+/// The colour description and hints that bound the decoded picture buffer
+/// (Annex E.2.1).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Vui {
+    pub(crate) color: crate::ColorInfo,
     pub(crate) max_num_reorder_frames: Option<u32>,
     pub(crate) max_dec_frame_buffering: Option<u32>,
 }
@@ -187,8 +188,7 @@ fn skip_hrd(r: &mut BitReader) -> Result<()> {
     Ok(())
 }
 
-/// vui_parameters() (Annex E.1.1). Only the bitstream restriction's two
-/// buffering hints are kept.
+/// vui_parameters() (Annex E.1.1), retaining colour and buffering hints.
 fn parse_vui(r: &mut BitReader) -> Result<Vui> {
     let mut v = Vui::default();
     if r.flag()? {
@@ -201,15 +201,16 @@ fn parse_vui(r: &mut BitReader) -> Result<Vui> {
         r.u(1)?;
     }
     if r.flag()? {
-        // video_format, video_full_range_flag, then the colour description.
-        r.u(4)?;
+        r.u(3)?;
+        v.color.full_range = r.flag()?;
         if r.flag()? {
-            r.u(24)?;
+            v.color.primaries = r.u(8)? as u8;
+            v.color.transfer = r.u(8)? as u8;
+            v.color.matrix = r.u(8)? as u8;
         }
     }
     if r.flag()? {
-        r.ue()?;
-        r.ue()?;
+        v.color.chroma_location = [r.ue()?, r.ue()?];
     }
     if r.flag()? {
         r.u(32)?;
@@ -348,8 +349,7 @@ pub(crate) fn parse_sps(rbsp: &[u8]) -> Result<Sps> {
         sps.crop = parse_crop(&mut r, &sps)?;
     }
     if r.flag()? {
-        // A malformed video usability information does not stop decoding:
-        // only the buffering hints come from it.
+        // Malformed VUI retains the inferred colour and buffering defaults.
         sps.vui = parse_vui(&mut r).unwrap_or_default();
     }
     Ok(sps)
@@ -657,6 +657,58 @@ mod tests {
     /// 1.0, 11 by 9 macroblocks, log2_max_pic_order_cnt_lsb 6), as a
     /// decoder receives it: the RBSP after the NAL unit header.
     const SPS_QCIF: &[u8] = &[0x42, 0xc0, 0x0a, 0xed, 0x05, 0x89, 0xc8];
+
+    #[test]
+    fn vui_retains_picture_colour_and_infers_absent_fields() {
+        use crate::test_streams::Writer;
+        for (video, described, expected) in [
+            (false, false, crate::ColorInfo::default()),
+            (
+                true,
+                false,
+                crate::ColorInfo {
+                    full_range: true,
+                    ..crate::ColorInfo::default()
+                },
+            ),
+            (
+                true,
+                true,
+                crate::ColorInfo {
+                    primaries: 9,
+                    transfer: 16,
+                    matrix: 9,
+                    full_range: true,
+                    chroma_location: [2, 2],
+                },
+            ),
+        ] {
+            let mut bits = Writer::default();
+            bits.flag(false).flag(false).flag(video);
+            if video {
+                bits.u(3, 5).flag(expected.full_range).flag(described);
+                if described {
+                    bits.u(8, u32::from(expected.primaries))
+                        .u(8, u32::from(expected.transfer))
+                        .u(8, u32::from(expected.matrix));
+                }
+            }
+            bits.flag(described);
+            if described {
+                for location in expected.chroma_location {
+                    bits.ue(location);
+                }
+            }
+            for _ in 0..5 {
+                bits.flag(false);
+            }
+            let bytes = bits.finish();
+            assert_eq!(
+                parse_vui(&mut BitReader::new(&bytes)).unwrap().color,
+                expected
+            );
+        }
+    }
 
     #[test]
     fn a_baseline_sequence_parameter_set() {

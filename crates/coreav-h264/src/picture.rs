@@ -689,6 +689,33 @@ impl BandData {
     }
 }
 
+/// The active SPS colour description, including the defaults from Annex E.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ColorInfo {
+    /// `colour_primaries`, inferred as unspecified (2) when absent.
+    pub primaries: u8,
+    /// `transfer_characteristics`, inferred as unspecified (2) when absent.
+    pub transfer: u8,
+    /// `matrix_coefficients`, inferred as unspecified (2) when absent.
+    pub matrix: u8,
+    /// `video_full_range_flag`, inferred as false when absent.
+    pub full_range: bool,
+    /// Top- and bottom-field `chroma_sample_loc_type`, inferred as zero.
+    pub chroma_location: [u32; 2],
+}
+
+impl Default for ColorInfo {
+    fn default() -> Self {
+        Self {
+            primaries: 2,
+            transfer: 2,
+            matrix: 2,
+            full_range: false,
+            chroma_location: [0; 2],
+        }
+    }
+}
+
 /// A decoded picture: 8-bit 4:2:0 luma and chroma planes. A monochrome
 /// picture has them too, its chroma 128 throughout (`docs/design/h264.md`,
 /// "Monochrome").
@@ -722,6 +749,7 @@ pub struct Picture {
     /// What the caller attached to the NAL units this picture was decoded
     /// from ([`crate::Decoder::set_mark`]).
     pub(crate) mark: u64,
+    color: ColorInfo,
 }
 
 impl Picture {
@@ -772,10 +800,11 @@ impl Picture {
             poc: 0,
             slot: 0,
             mark: 0,
+            color: ColorInfo::default(),
         })
     }
 
-    /// The picture order count, cropping rectangle, slot and mark the
+    /// The picture order count, cropping rectangle, slot, mark and colour the
     /// decoder derived for this picture, set before it is shared: a shared
     /// picture's metadata does not change.
     pub(crate) fn with_output(
@@ -784,11 +813,13 @@ impl Picture {
         crop: [usize; 4],
         slot: u8,
         mark: u64,
+        color: ColorInfo,
     ) -> Picture {
         self.poc = poc;
         self.crop = crop;
         self.slot = slot;
         self.mark = mark;
+        self.color = color;
         self
     }
 
@@ -930,6 +961,11 @@ impl Picture {
     /// the packets and reads the mark back here.
     pub const fn mark(&self) -> u64 {
         self.mark
+    }
+
+    /// Colour from the SPS activated by this picture's first slice.
+    pub const fn color(&self) -> ColorInfo {
+        self.color
     }
 
     /// The luma plane, cropped.
