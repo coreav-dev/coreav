@@ -114,29 +114,37 @@ def extract(archive, destination):
     return root
 
 
-def run(command, env, timeout=RUN_TIMEOUT):
+def run(command, env, timeout=RUN_TIMEOUT, *, stdin=None, record=None):
     process = subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, text=True, start_new_session=True)
+                               stderr=subprocess.PIPE, stdin=stdin, text=True, start_new_session=True)
+    stdout, stderr = '', ''
+    timed_out = False
     try:
-        stdout, stderr = process.communicate(timeout=timeout)
-    except BaseException as error:
         try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            process.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            pass
-        finally:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except BaseException as error:
+            timed_out = isinstance(error, subprocess.TimeoutExpired)
             try:
-                os.killpg(process.pid, signal.SIGKILL)
+                os.killpg(process.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-            process.communicate()
-        if isinstance(error, subprocess.TimeoutExpired):
-            raise BuildError(f"command timed out after {timeout}s: {command[0]}") from error
-        raise
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                stdout, stderr = process.communicate()
+            if timed_out:
+                raise BuildError(f"command timed out after {timeout}s: {command[0]}") from error
+            raise
+    finally:
+        if record is not None:
+            record.update(pid=process.pid, exit_code=process.returncode, timed_out=timed_out,
+                          stdout=stdout, stderr=stderr)
     if process.returncode:
         raise BuildError(f"command failed ({process.returncode}): {command[0]}\n{stderr}")
     return stdout

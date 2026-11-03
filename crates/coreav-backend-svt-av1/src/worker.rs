@@ -24,7 +24,7 @@ pub fn run() -> Result<(), Error> {
     result.and(flushed)
 }
 
-fn encode<R: Read, W: Write>(input: R, output: &mut W) -> Result<(), Error> {
+pub(crate) fn encode<R: Read, W: Write>(input: R, output: &mut W) -> Result<(), Error> {
     let mut input = match InputReader::new(input) {
         Ok(input) => input,
         Err(error) => {

@@ -1,0 +1,9 @@
+# Codecs
+
+H.264, AAC, Opus, VP9, AC-3, MP3, and AudioToolbox behavior.
+
+| Rule | Enforced by |
+|---|---|
+| SVT-AV1 native fixture outcomes bind to a registered synthetic case, not merely a successful test process | `svt_av1_native_cases.py` checks counts, exact retained peaks, lifecycle records, child status and an absent process group. Synthetic orchestration regressions reject missing records, changed counts, wrong peaks, crashes and unregistered timeouts. The isolated Rust fixture observes retained-set overlap and input/EOF drops; actual four-target execution and independent decode remain separate gates |
+| Imported Cargo messages never establish current SVT-AV1 executable provenance | `svt_av1_native_cases.run` owns the pinned Cargo invocation from a clean committed revision into a previously absent unique target directory, captures that invocation's messages and status, checks its executable location and binds executable bytes to the revision, workflow attempt, roster, native prefix and toolchain before running cases. The CLI accepts no imported executable, messages or build record. The stale-message/executable replay regression rejects relabeling under a new revision and workflow; changed-context and artifact regressions reject incomplete or mismatched builds. This is a reviewed build-record boundary, not cryptographic source-to-binary attestation |
+| Pinned-build context fixtures compare canonical program paths even when the temporary directory is an alias | `test_context_verifies_the_clean_revision_and_pinned_compiler` resolves its fixture root and checks both direct and explicit symlink-alias toolchain paths, including wrong-release and wrong-commit refusals. Production path canonicalization remains unchanged; a temporary-directory spelling cannot prove program identity |

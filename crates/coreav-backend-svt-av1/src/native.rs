@@ -14,6 +14,19 @@ use crate::{
 const EMPTY: u32 = 0x8000_2033;
 pub(crate) const EOS: u32 = 1;
 
+#[cfg(test)]
+static HEADER_DROPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static PLANE_DROPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static OPEN_ATTEMPTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static LIVE_SESSIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static PEAK_SESSIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(test)]
+static RETAINED_SETS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 #[repr(C)]
 struct Config {
     width: u32,
@@ -138,6 +151,13 @@ impl Input {
 impl Drop for Input {
     fn drop(&mut self) {
         unsafe { coreav_svt_input_free(self.pointer.as_ptr()) };
+        #[cfg(test)]
+        {
+            HEADER_DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if !self.bytes.is_empty() {
+                PLANE_DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
     }
 }
 
@@ -180,6 +200,8 @@ impl Session {
     pub(crate) fn new(settings: Settings, budget: u64) -> Result<Self, Error> {
         version()?;
         let plan = retention(settings, budget)?;
+        #[cfg(test)]
+        assert_eq!(RETAINED_SETS.load(std::sync::atomic::Ordering::SeqCst), 0);
         let mut inputs = Vec::new();
         let count = usize::try_from(plan.pictures())
             .map_err(|_| Error::Limit("AV1 session count overflows"))?;
@@ -209,12 +231,20 @@ impl Session {
             chroma_position: u32::from(color.chroma_position()),
         };
         let mut status = 0;
+        #[cfg(test)]
+        OPEN_ATTEMPTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let pointer = unsafe { coreav_svt_open(&config, &mut status) };
         if status != 0 {
             return Err(Error::Native(status));
         }
         let handle = NonNull::new(pointer)
             .ok_or(Error::Output("native initialization returned no handle"))?;
+        #[cfg(test)]
+        {
+            let live = LIVE_SESSIONS.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            PEAK_SESSIONS.fetch_max(live, std::sync::atomic::Ordering::SeqCst);
+            RETAINED_SETS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
         Ok(Self {
             settings,
             plan,
@@ -259,6 +289,16 @@ impl Session {
     }
 
     pub(crate) fn submit(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
+        self.submit_with(bytes, |handle, input| unsafe {
+            coreav_svt_send(handle, input)
+        })
+    }
+
+    fn submit_with(
+        &mut self,
+        bytes: Vec<u8>,
+        send: impl FnOnce(*mut c_void, *mut c_void) -> u32,
+    ) -> Result<(), Error> {
         if self.phase != Phase::Input {
             return Err(Error::Invalid("AV1 session is not accepting pictures"));
         }
@@ -287,7 +327,7 @@ impl Session {
             self.phase = Phase::Failed;
             return Err(error);
         }
-        let status = unsafe { coreav_svt_send(handle.as_ptr(), pointer.as_ptr()) };
+        let status = send(handle.as_ptr(), pointer.as_ptr());
         if status != 0 {
             self.phase = Phase::Failed;
             return Err(Error::Native(status));
@@ -296,6 +336,13 @@ impl Session {
     }
 
     pub(crate) fn end_input(&mut self) -> Result<(), Error> {
+        self.end_input_with(|handle, input| unsafe { coreav_svt_send(handle, input) })
+    }
+
+    fn end_input_with(
+        &mut self,
+        send: impl FnOnce(*mut c_void, *mut c_void) -> u32,
+    ) -> Result<(), Error> {
         if self.phase != Phase::Input || self.submitted == 0 {
             self.phase = Phase::Failed;
             return Err(Error::Invalid(
@@ -309,7 +356,7 @@ impl Session {
             .and_then(Retained::get)
             .ok_or(Error::Invalid("AV1 EOF storage is gone"))?;
         self.phase = Phase::Drain;
-        let status = unsafe { coreav_svt_send(handle.as_ptr(), eof.pointer.as_ptr()) };
+        let status = send(handle.as_ptr(), eof.pointer.as_ptr());
         if status != 0 {
             self.phase = Phase::Failed;
             return Err(Error::Native(status));
@@ -318,6 +365,16 @@ impl Session {
     }
 
     pub(crate) fn receive(&mut self, packet_limit: usize) -> Result<Option<RawPacket>, Error> {
+        self.receive_with(packet_limit, |handle, done, packet| unsafe {
+            coreav_svt_receive(handle, done, packet)
+        })
+    }
+
+    fn receive_with(
+        &mut self,
+        packet_limit: usize,
+        receive: impl FnOnce(*mut c_void, u8, *mut Packet) -> u32,
+    ) -> Result<Option<RawPacket>, Error> {
         if self.phase == Phase::End {
             return Ok(None);
         }
@@ -334,13 +391,11 @@ impl Session {
             picture_type: 0,
             lease: ptr::null_mut(),
         };
-        let status = unsafe {
-            coreav_svt_receive(
-                self.handle()?.as_ptr(),
-                u8::from(self.phase == Phase::Drain),
-                &mut packet,
-            )
-        };
+        let status = receive(
+            self.handle()?.as_ptr(),
+            u8::from(self.phase == Phase::Drain),
+            &mut packet,
+        );
         if status == EMPTY && self.phase == Phase::Input {
             return Ok(None);
         }
@@ -383,6 +438,17 @@ impl Session {
     }
 
     fn close(&mut self) -> Result<(), Error> {
+        self.close_with(|handle| {
+            let status = unsafe { coreav_svt_close(handle) };
+            #[cfg(test)]
+            if status == 0 {
+                LIVE_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            }
+            status
+        })
+    }
+
+    fn close_with(&mut self, destroy: impl FnOnce(*mut c_void) -> u32) -> Result<(), Error> {
         let Some(handle) = self.handle.take() else {
             return Ok(());
         };
@@ -391,13 +457,17 @@ impl Session {
             .take()
             .ok_or(Error::Invalid("native AV1 owner is gone"))?;
         let result = retained.release_after(|| {
-            let status = unsafe { coreav_svt_close(handle.as_ptr()) };
+            let status = destroy(handle.as_ptr());
             if status == 0 {
                 Ok(())
             } else {
                 Err(Error::Native(status))
             }
         });
+        #[cfg(test)]
+        if result.is_ok() {
+            RETAINED_SETS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        }
         self.phase = if result.is_ok() {
             Phase::Destroyed
         } else {
@@ -450,3 +520,7 @@ fn copy_packet(packet: &Packet, packet_limit: usize) -> Result<RawPacket, Error>
         picture_type: packet.picture_type,
     })
 }
+
+#[cfg(test)]
+#[path = "native_fixtures.rs"]
+mod tests;
