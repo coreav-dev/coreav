@@ -24,7 +24,7 @@ from types import SimpleNamespace
 from evidence import Invalid, digest, file_hash, integer, keys, load, read, require, sha, write, write_bytes
 import judging
 import metrics
-from observations import BASELINE_FILES, capture_identity, identity as baseline_identity, trace, validate_requested
+from observations import BASELINE_FILES, GATE_FILES, capture_identity, encoder_identifier, identity as baseline_identity, trace, validate_requested
 from process import run
 from registration import CLASSES, COLOUR, ROOT, SCOPE, cadence_hint, clock, coverage, covered_class, git, host_observation, input_hashes, preflight, raw_size, roster_coverage, source_registration, validate
 import smoke
@@ -215,8 +215,7 @@ def native_facts(value, item, cell):
                           ("fps_num", item["rate"]["num"]), ("fps_den", item["rate"]["den"]),
                           ("bitrate", dict(CLASSES)[item["class"]]), ("submitted", item["frames"])):
         require(type(value[key]) is int and value[key] == expected, "native_settings")
-    require(type(value["encoder_id"]) is str and
-            re.fullmatch(r"[A-Za-z0-9_.-]{1,512}", value["encoder_id"]) is not None, "encoder_identity")
+    encoder_identifier(value["encoder_id"])
     expected = {"profile": "high", "reordering": False, "realtime": False, "keyframe_seconds": 2,
                 "expected_frame_rate_hint": cadence_hint(item),
                 "keyframe_frames": 2 * item["rate"]["num"] // item["rate"]["den"], "pixel_format": "i420",
@@ -863,7 +862,7 @@ def capacity(args, reg):
     units = [(item, side) for _ in reg["cells"] for item in reg["inputs"] for _ in range(6)
              for side in ("coreav", "ffmpeg")]
     units += [(item, side) for _ in reg["cells"] for item in reg["fixtures"].values() for side in ("coreav", "ffmpeg")]
-    metadata = 64 * SMALL
+    metadata = 64 * SMALL + 2 * 24 * sum(GATE_FILES.values())
     retained = sum(sum(output_limits(item, side, True).values()) + SMALL for item, side in units) + metadata
     scratch = RAW
     required = retained + scratch
@@ -973,6 +972,13 @@ def build_bundle(args):
         for source, name in ((args.before_gate, "before.json"), (args.after_gate, "after.json"),
                              (args.availability, "availability.json"), (args.fixture_capture, "fixtures.capture.json")):
             copy_immutable(source, args.output / name, args.resume)
+        for source, phase in ((args.before_gate, "before"), (args.after_gate, "after")):
+            name = f"gate-{phase}.artifacts"
+            destination = args.output / name
+            require(not destination.is_symlink() and all(not p.is_symlink() for p in destination.rglob("*")), "symlink")
+            shutil.copytree(source.parent / name, destination, symlinks=True, dirs_exist_ok=args.resume,
+                            copy_function=lambda source, target: copy_immutable(source, target, args.resume))
+            timing.bound_gate(args.output / (phase + ".json"), reg, reg_hash, phase)
         for cell in ("hardware", "software"):
             for side in ("coreav", "ffmpeg"):
                 name = f"preflight.{cell}.{side}"
@@ -985,7 +991,8 @@ def build_bundle(args):
         timing.availability_file(args.output / "availability.json", reg, args.root)
         preflight_directories = {f"preflight.{cell}.{side}.artifacts" for cell in ("hardware", "software")
                                  for side in ("coreav", "ffmpeg")}
-        require({p.name for p in args.output.iterdir()} <= expected_files | preflight_directories | {".campaign.lock"},
+        require({p.name for p in args.output.iterdir()} <= expected_files | preflight_directories |
+                {"gate-before.artifacts", "gate-after.artifacts", ".campaign.lock"},
                 "evidence_coverage")
         by_id = {item["id"]: item for item in reg["inputs"]}
         for position, call in enumerate(captured["records"]):

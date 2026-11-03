@@ -235,6 +235,7 @@ def validate_selection(value, frozen):
         ids.add(row["id"])
         require(row["disposition"] in ("header_refused", "failed", "verified", "unvisited"),
                 "freeze_selection_disposition")
+        require(row["class"] != 0 or row["disposition"] == "header_refused", "freeze_selection_class")
         require((row["reason"] is None and row["disposition"] in ("verified", "unvisited")) or
                 (row["disposition"] in ("header_refused", "failed") and type(row["reason"]) is str and
                  0 < len(row["reason"]) <= 256), "freeze_selection_reason")
@@ -283,10 +284,13 @@ def validate_uncovered(value, selection):
         require(row["disposition"] == expected, "freeze_uncovered_disposition")
         candidate = candidates.get(row["id"])
         require(candidate is not None and candidate["class"] == 2160 and
+                candidate["evidence_sha256"] == row["evidence_sha256"] and
                 candidate["reason"] == row["reason"] and candidate["disposition"] ==
                 ("header_refused" if expected == "reader_unsupported" else expected),
                 "freeze_uncovered_membership")
         counts[row["reason"]] += 1
+    require(ids == {row["id"] for row in selection["candidates"] if row["class"] == 2160},
+            "freeze_uncovered_membership")
     require(counts == Counter({None: 1, "missing_prefix_pictures_or_packet_metadata": 5,
                               "prefix_picture_duration_not_cfr": 5,
                               "trace_warning_or_error_before_sanitization": 4,

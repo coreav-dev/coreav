@@ -30,11 +30,11 @@ def thread_controls(value, registration):
             type(value["ffmpeg_input_decoder_threads"]) is int, "caller_settings")
 
 
-def gate(value, registration, phase):
+def gate(value, registration, phase, baseline_files):
     keys(value, "schema session_id phase registration_sha256 host tools settings_sha256 "
          "aa null observations started_ns ended_ns covered_classes uncovered_classes")
     require(coverage(value) == roster_coverage(registration), "class_coverage")
-    require(value["schema"] == "coreav.videotoolbox-host-gate/2" and
+    require(value["schema"] == "coreav.videotoolbox-host-gate/3" and
             value["session_id"] == registration["session_id"] and value["phase"] == phase,
             "gate_identity")
     digest(value["registration_sha256"])
@@ -78,7 +78,9 @@ def gate(value, registration, phase):
                 integer(pair[side + "_ended_ns"], pair[side + "_started_ns"], 2**63 - 1)
                 cache.pair(pair[side + "_cache_before"], pair[side + "_cache_after"], pair[side + "_started_ns"],
                            pair[side + "_ended_ns"], registration, registration["inputs"][0])
-                gate_baseline(pair[side + "_baseline"], registration, registration["inputs"][0], pair[side + "_ended_ns"])
+                descriptor = pair[side + "_baseline"]
+                require(descriptor["directory"] == f"gate-{phase}.artifacts/{arm}-{index}-{side}", "gate_artifact_identity")
+                gate_baseline(baseline_files(descriptor), registration, registration["inputs"][0], pair[side + "_ended_ns"])
         medians.append((statistics.median(left), statistics.median(right)))
         if arm == "aa":
             require(abs(medians[-1][0] / medians[-1][1] - 1) <= 0.03, "aa_gate")
@@ -115,7 +117,7 @@ def packet_facts(value, item, payload_bytes):
 def gate_baseline(value, registration, item, encoder_ended_ns):
     from observations import BASELINE_FILES, identity_record, trace, validate_requested
     from producer import packet_ledger
-    keys(value, "files specification output_sha256 payload_bytes packet_ledger packet_text")
+    keys(value, "files specification output_sha256 payload_bytes packet_text")
     require(type(value["files"]) is dict and set(value["files"]) == set(BASELINE_FILES), "identity_binding")
     files = value["files"]
     require(all(type(data) is str and len(data.encode()) <= BASELINE_FILES[name]
@@ -133,11 +135,11 @@ def gate_baseline(value, registration, item, encoder_ended_ns):
     integer(value["payload_bytes"], 1, 1024**3)
     require(type(value["packet_text"]) is str and len(value["packet_text"].encode()) <= 16 * 1024**2,
             "packet_clock_bounds")
-    require(packet_ledger(value["packet_text"].encode(), item, value["payload_bytes"]) == value["packet_ledger"],
-            "packet_clock")
+    packet_ledger(value["packet_text"].encode(), item, value["payload_bytes"])
 
 
 def conformance(value, item, cell, side, output_hash, registration):
+    from observations import encoder_identifier
     roster_coverage(registration)
     covered_class(item)
     keys(value, "schema input_id cell side output_sha256 raw_sha256 producer_sha256 decoders "
@@ -153,8 +155,8 @@ def conformance(value, item, cell, side, output_hash, registration):
             value["raw_sha256"] == item["raw_sha256"] and
             value["producer_sha256"] == registration["metric_tools"]["evidence_producer"],
             "evidence_binding")
-    require(type(value["encoder_id"]) is str and 0 < len(value["encoder_id"]) <= 512 and
-            value["hardware"] == cell, "encoder_identity")
+    encoder_identifier(value["encoder_id"])
+    require(value["hardware"] == cell, "encoder_identity")
     integer(value["level"], 1, 255)
     if side == "ffmpeg":
         from observations import identity_record, validate_requested

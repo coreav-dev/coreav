@@ -130,6 +130,7 @@ class SourceFreeze(unittest.TestCase):
         for mutate in (lambda r: r["candidates"].pop(),
                        lambda r: r["candidates"].__setitem__(1, copy.deepcopy(r["candidates"][0])),
                        lambda r: r["candidates"].reverse(),
+                       lambda r: next(row for row in r["candidates"] if row["class"] == 0).update(disposition="verified", reason=None),
                        lambda r: next(row for row in r["candidates"] if row["class"] == 360).update(disposition="unvisited")):
             value = copy.deepcopy(self.selection)
             mutate(value)
@@ -145,12 +146,18 @@ class SourceFreeze(unittest.TestCase):
         for mutate in (lambda r: r.update(verified_inputs=10), lambda r: r.update(verified_inputs=True),
                        lambda r: r["rows"].pop(), lambda r: r["rows"][1].update(reason="verified"),
                        lambda r: r["rows"][-1].update(disposition="failed"),
+                       lambda r: r["rows"][0].update(evidence_sha256=evidence.sha(b"changed")),
                        lambda r: r["rows"][0].update(id=evidence.sha(b"nonmember")),
                        lambda r: r["rows"].__setitem__(1, copy.deepcopy(r["rows"][0]))):
             changed = copy.deepcopy(value)
             mutate(changed)
             with self.assertRaises(evidence.Invalid):
                 source_freeze.validate_uncovered(changed, selection)
+        selection["candidates"].append({"id": evidence.sha(b"extra"), "class": 2160,
+                                         "disposition": "verified", "reason": None,
+                                         "evidence_sha256": evidence.sha(b"proof")})
+        with self.assertRaises(evidence.Invalid):
+            source_freeze.validate_uncovered(value, selection)
 
     def test_seal_binds_all_immutable_content_but_allows_materialized_locations(self):
         def git(_root, operation, *args):

@@ -63,8 +63,9 @@ def manifest(value, mode, hosted_software_exemption=False):
         require(type(value[field]) is int and value[field] == expected, "settings")
     require(value["hardware"] in ("hardware", "software", "unknown"), "hardware")
     encoder = value["encoder_id"]
-    require(encoder is None or (type(encoder) is str and 0 < len(encoder) <= 512
-                               and all(32 <= ord(c) < 127 for c in encoder)), "encoder_id")
+    if encoder is not None:
+        from observations import encoder_identifier
+        encoder_identifier(encoder)
     if value["status"] == "unavailable":
         require(value["unavailable_reason"] in ("no_encoder", "temporarily_unavailable"),
                 "availability")

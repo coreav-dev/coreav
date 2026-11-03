@@ -149,6 +149,14 @@ class FakeCommands:
 
 
 class Observability(unittest.TestCase):
+    def test_encoder_ids_are_bounded_opaque_utf8_not_path_tokens(self):
+        for identifier in ("opaque encoder / Main (é)", "a" * 4096, "é" * 2048):
+            parsed, _ = observations.trace(trace_bytes({"encoder_id": identifier}), spec())
+            self.assertEqual(parsed["encoder_id"], identifier)
+        for identifier in ("", "bad\0id", "bad\nid", "bad\rid", "a" * 4097, "é" * 2049, "\ud800"):
+            with self.assertRaises(evidence.Invalid):
+                observations.encoder_identifier(identifier)
+
     def test_unobserved_refusal_fields_never_establish_unavailability(self):
         value = spec()
         value["refusal_fields"] = None
@@ -330,7 +338,7 @@ class Observability(unittest.TestCase):
                         b"observed-encoder_id=actual.fake.encoder\n", trace_bytes({}),
                         trace_bytes(good) * 2,
                         trace_bytes(good) + trace_bytes({"encoder_id": "other.encoder"}),
-                        trace_bytes({"encoder_id": "bad/id"})):
+                        trace_bytes({"encoder_id": "bad\0id"})):
             with self.assertRaises(evidence.Invalid):
                 observations.trace(changed, spec())
         refusal = trace_bytes({"status": "no_encoder", "submitted": 0})

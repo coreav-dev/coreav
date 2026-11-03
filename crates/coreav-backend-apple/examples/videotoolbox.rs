@@ -470,12 +470,15 @@ mod driver {
             .unwrap();
             let done = encoder.complete().unwrap();
             assert_eq!(done.frames, 4);
+            let identifier = done.identity.encoder_id.as_deref().unwrap();
             assert_eq!(
                 encoder_hardware(
-                    done.identity.encoder_id.as_deref().unwrap(),
+                    identifier,
                     &Control::new(Instant::now() + Duration::from_secs(10)),
                 )
-                .unwrap(),
+                .unwrap_or_else(|error| {
+                    panic!("identity query failed for {identifier:?}: {error:?}");
+                }),
                 done.identity.hardware
             );
             assert_eq!(records.len(), 4);

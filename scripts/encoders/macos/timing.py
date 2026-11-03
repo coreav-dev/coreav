@@ -19,12 +19,20 @@ import tempfile
 import time
 
 from evidence import Invalid, digest, file_hash, keys, load, read
-from evidence import require, sha, verify, write
+from evidence import require, sha, verify, write, write_bytes
 from judging import conformance, deltas as metric_deltas, gate, quality, timings
 from process import run
 from registration import CLASSES, ROOT, SCOPE, caller_settings, command_templates, coverage, covered_class, git, hardware_fingerprint, input_hashes, preflight, raw_size, roster_coverage, source_registration
 import cache_residency as cache
-from observations import BASELINE_FILES, capture_identity, identity, validate_requested
+from observations import BASELINE_FILES, GATE_FILES, capture_identity, encoder_identifier, gate_baseline_files, identity, validate_requested
+
+GATE_REPORT_LIMIT = 4 * 1024**2
+
+
+def write_gate(path, value):
+    data = (json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
+    require(len(data) <= GATE_REPORT_LIMIT, "gate_report_limit")
+    write_bytes(path, data)
 
 
 def settings_hash(registration):
@@ -44,8 +52,11 @@ def warm(path, item):
 
 
 def bound_gate(path, registration, registration_hash, phase):
-    value = load(path)
-    median = gate(value, registration, phase)
+    value = load(path, GATE_REPORT_LIMIT)
+    median = gate(value, registration, phase, lambda descriptor: gate_baseline_files(Path(path).parent, descriptor))
+    directory = Path(path).parent / f"gate-{phase}.artifacts"
+    expected = {f"{arm}-{index}-{side}" for arm in ("aa", "null") for index in range(6) for side in ("a", "b")}
+    require(not directory.is_symlink() and {p.name for p in directory.iterdir()} == expected, "gate_artifact_coverage")
     require(value["registration_sha256"] == registration_hash and
             value["settings_sha256"] == settings_hash(registration), "gate_binding")
     return value, median
@@ -108,10 +119,10 @@ def availability(value, registration):
                         record["decoded_frames"] == 0 and record["pattern_identity"] is False and
                         record["drain_complete"] is False, "availability")
             else:
+                encoder_identifier(record["encoder_id"])
                 require(record["status"] == "encoded" and type(record["submitted"]) is int and
                         record["submitted"] == 4 and record["reason"] is None and
-                        record["hardware"] == cell and type(record["encoder_id"]) is str and
-                        0 < len(record["encoder_id"]) <= 512 and
+                        record["hardware"] == cell and
                         type(record["decoded_frames"]) is int and record["decoded_frames"] == 4 and
                         record["pattern_identity"] is True and record["drain_complete"] is True,
                         "availability")
@@ -170,9 +181,11 @@ def host_state(registration):
 
 
 def capture_gate(args):
+    require(not args.report.exists() and not (args.report.parent / f"gate-{args.phase}.artifacts").exists(),
+            "gate_output_exists")
     result = {"schema": "coreav.videotoolbox-host-gate-failure/1", "status": "failed",
               "phase": args.phase, "diagnostic": "gate_incomplete"}
-    write(args.report, result)
+    write_gate(args.report, result)
     try:
         reg = preflight(args.registration, args.root)
         cache.preflight(reg, args.root)
@@ -183,7 +196,7 @@ def capture_gate(args):
         input_hashes(args.root, reg)
         source = reg["inputs"][0]
         environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C", **reg["environment"]}
-        result = {"schema": "coreav.videotoolbox-host-gate/2", **roster_coverage(reg), "session_id": reg["session_id"],
+        result = {"schema": "coreav.videotoolbox-host-gate/3", **roster_coverage(reg), "session_id": reg["session_id"],
                   "phase": args.phase, "registration_sha256": reg_hash, "host": reg["host"],
                   "tools": reg["executables"], "settings_sha256": settings_hash(reg),
                   "aa": [], "null": [], "observations": host_state(reg),
@@ -200,18 +213,18 @@ def capture_gate(args):
                         warm(args.root / source["raw_file"], source)
                         before = cache.observe(reg, args.root, args.root / source["raw_file"], source)
                         pair[label + "_cache_before"] = before
-                        write(args.report, result)
+                        write_gate(args.report, result)
                         cache.validate(before, reg, source)
                         directory = temporary / f"{arm}-{iteration}-{label}"
                         directory.mkdir()
                         output = directory / "video.h264"
-                        command = commands(reg, source, "hardware", args.root, output, directory / "unused")["ffmpeg"]
+                        command = commands(reg, source, "hardware", args.root, output, directory / "packets.stats")["ffmpeg"]
                         pair[label + "_started_ns"] = time.time_ns()
                         pair[label + "_ns"] = run(command, directory, 300, env=environment)
                         pair[label + "_ended_ns"] = time.time_ns()
                         after = cache.observe(reg, args.root, args.root / source["raw_file"], source)
                         pair[label + "_cache_after"] = after
-                        write(args.report, result)
+                        write_gate(args.report, result)
                         cache.validate(after, reg, source)
                         require(output.stat().st_size > 0, "gate_output")
                         file_hash(output, 1024**3)
@@ -220,31 +233,37 @@ def capture_gate(args):
                         try:
                             capture_identity(directory, reg, args.root, spec, pair[label + "_ended_ns"], command, source, "hardware")
                         finally:
+                            relative_directory = f"gate-{args.phase}.artifacts/{arm}-{iteration}-{label}"
+                            retained = args.report.parent / relative_directory
+                            retained.mkdir(parents=True, exist_ok=False)
+                            files = {}
+                            for name, limit in GATE_FILES.items():
+                                if (directory / name).exists():
+                                    data = read(directory, name, limit)
+                                    (retained / name).write_bytes(data)
+                                    files[name] = {"sha256": sha(data), "bytes": len(data)}
                             pair[label + "_baseline"] = {
-                                "files": {name: read(directory, name, limit).decode("utf-8")
-                                          for name, limit in BASELINE_FILES.items() if (directory / name).exists()},
+                                "directory": relative_directory, "files": files,
                                 "specification": spec, "output_sha256": file_hash(output, 1024**3),
-                                "payload_bytes": output.stat().st_size, "packet_ledger": None,
-                                "packet_text": read(directory, "unused", 16 * 1024**2).decode("ascii")}
-                        pair[label + "_baseline"]["packet_ledger"] = packet_ledger(
-                            read(directory, "unused", 16 * 1024**2), source, output.stat().st_size)
+                                "payload_bytes": output.stat().st_size}
+                        packet_ledger(read(directory, "packets.stats", 16 * 1024**2), source, output.stat().st_size)
                         host_state(reg)
                         shutil.rmtree(directory)
                     result[arm].append(pair)
-                    write(args.report, result)
+                    write_gate(args.report, result)
                     del result["pending"]
         result["observations"] = host_state(reg)
         result["ended_ns"] = time.time_ns()
         require(file_hash(args.registration) == reg_hash, "registration_changed")
         input_hashes(args.root, reg)
         preflight(args.registration, args.root)
-        gate(result, reg, args.phase)
+        gate(result, reg, args.phase, lambda descriptor: gate_baseline_files(args.report.parent, descriptor))
     except BaseException:
         result = {"schema": "coreav.videotoolbox-host-gate-failure/1", "status": "failed",
                   "phase": args.phase, "diagnostic": "gate_failed", "retained": result}
         raise
     finally:
-        write(args.report, result)
+        write_gate(args.report, result)
 
 
 def execute(args):
@@ -435,7 +454,8 @@ def replay(args):
         require(len(names) == 10 + len(evidence["outputs"]) + len(evidence["fixtures"]), "evidence_duplicate")
         preflight_artifacts = {f"preflight.{cell}.{side}.artifacts" for cell in ("hardware", "software")
                                for side in ("coreav", "ffmpeg")}
-        require({p.name for p in args.evidence.iterdir()} == names | {"evidence.json", ".campaign.lock"} | preflight_artifacts,
+        gate_artifacts = {"gate-before.artifacts", "gate-after.artifacts"}
+        require({p.name for p in args.evidence.iterdir()} == names | {"evidence.json", ".campaign.lock"} | preflight_artifacts | gate_artifacts,
                 "evidence_coverage")
         require(read(args.evidence, ".campaign.lock", 0) == b"", "campaign_lock")
         verify(args.evidence, evidence["files"], names, 16 * 1024**2)

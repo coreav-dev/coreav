@@ -177,11 +177,11 @@ def proof(reg, source, side="coreav"):
     return result
 
 
-def baseline_gate(reg, source):
+def baseline_gate(reg, source, trace_suffix=""):
     def encoded(value):
         return json.dumps(value, sort_keys=True, indent=2) + "\n"
 
-    trace = "[h264_videotoolbox @ 0x1234] Init the encoder: synthetic.encoder\n"
+    trace = "[h264_videotoolbox @ 0x1234] Init the encoder: synthetic.encoder\n" + trace_suffix
     report = {"schema": "coreav.videotoolbox-encoder-identity/1", "encoder_id": "synthetic.encoder", "hardware": "hardware"}
     query = {"schema": "coreav.videotoolbox-identity-query/1", "encoder_id": "synthetic.encoder",
              "binary_sha256": reg["executables"]["coreav"]["sha256"], "host": reg["host"],
@@ -207,18 +207,36 @@ def baseline_gate(reg, source):
                               for n in range(source["frames"])]}
 
 
-def host_gate(reg, phase="before"):
+def host_gate(reg, root, phase="before", trace_suffix=""):
     pair = {"a_ns": 100, "b_ns": 100, "a_sha256": reg["executables"]["ffmpeg"]["sha256"],
             "b_sha256": reg["executables"]["ffmpeg"]["sha256"],
             "a_cache_before": cache_fact(reg["inputs"][0]), "a_cache_after": cache_fact(reg["inputs"][0], 120, 121),
             "b_cache_before": cache_fact(reg["inputs"][0]), "b_cache_after": cache_fact(reg["inputs"][0], 120, 121),
             "a_started_ns": 10, "a_ended_ns": 110, "b_started_ns": 10, "b_ended_ns": 110,
             "a_baseline": baseline_gate(reg, reg["inputs"][0]), "b_baseline": baseline_gate(reg, reg["inputs"][0])}
-    return {"schema": "coreav.videotoolbox-host-gate/2", **registration.coverage(reg), "session_id": reg["session_id"],
+    value = {"schema": "coreav.videotoolbox-host-gate/3", **registration.coverage(reg), "session_id": reg["session_id"],
             "phase": phase, "registration_sha256": h("registration"), "host": reg["host"],
             "tools": reg["executables"], "settings_sha256": timing.settings_hash(reg),
             "aa": [copy.deepcopy(pair) for _ in range(6)], "null": [copy.deepcopy(pair) for _ in range(6)],
             "observations": observation(), "started_ns": 1, "ended_ns": 2}
+    for arm in ("aa", "null"):
+        for index, row in enumerate(value[arm]):
+            for side in ("a", "b"):
+                baseline = baseline_gate(reg, reg["inputs"][0],
+                                         trace_suffix if (arm, index, side) == ("aa", 0, "a") else "")
+                name = f"gate-{phase}.artifacts/{arm}-{index}-{side}"
+                directory = root / name
+                directory.mkdir(parents=True)
+                files = {**baseline["files"], "packets.stats": baseline["packet_text"]}
+                descriptors = {}
+                for filename, text in files.items():
+                    data = text.encode()
+                    (directory / filename).write_bytes(data)
+                    descriptors[filename] = {"sha256": evidence.sha(data), "bytes": len(data)}
+                row[side + "_baseline"] = {"directory": name, "files": descriptors,
+                                          **{key: baseline[key] for key in
+                                             ("specification", "output_sha256", "payload_bytes")}}
+    return value
 
 
 def calls(reg):
@@ -707,23 +725,96 @@ class Judgments(unittest.TestCase):
 
     def test_host_gates_and_faults(self):
         reg = registered()
-        good = host_gate(reg)
-        judging.gate(good, reg, "before")
-        for mutate in (lambda r: r["aa"][0].update(a_ns=200),
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            good = host_gate(reg, root)
+            loader = lambda row: observations.gate_baseline_files(root, row)
+            judging.gate(good, reg, "before", loader)
+            for mutate in (lambda r: r["aa"][0].update(a_ns=200),
                        lambda r: [p.update(a_ns=104) for p in r["aa"]],
                        lambda r: [p.update(a_ns=90) for p in r["null"]],
                        lambda r: r["observations"].update(swap_bytes=1),
                        lambda r: r["observations"].update(throttled=True),
                        lambda r: r["observations"].update(competing_encoder=True),
                        lambda r: r["host"].update(os_build="changed"),
-                       lambda r: r.update(phase="after")):
-            changed = copy.deepcopy(good)
-            mutate(changed)
-            if changed["aa"][0]["a_ns"] == 200 and changed["aa"][1]["a_ns"] == 100:
-                judging.gate(changed, reg, "before")
-            else:
-                with self.assertRaises(evidence.Invalid):
-                    judging.gate(changed, reg, "before")
+                           lambda r: r.update(phase="after")):
+                changed = copy.deepcopy(good)
+                mutate(changed)
+                if changed["aa"][0]["a_ns"] == 200 and changed["aa"][1]["a_ns"] == 100:
+                    judging.gate(changed, reg, "before", loader)
+                else:
+                    with self.assertRaises(evidence.Invalid):
+                        judging.gate(changed, reg, "before", loader)
+
+    def test_large_gate_trace_stays_external_and_changed_artifacts_refuse(self):
+        reg = registered()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            value = host_gate(reg, root, trace_suffix=("diagnostic" * 512 + "\n") * 1000)
+            report = root / "before.json"
+            evidence.write(report, value)
+            self.assertLess(report.stat().st_size, 4 * 1024**2)
+            timing.bound_gate(report, reg, h("registration"), "before")
+            previous = report.read_bytes()
+            with self.assertRaises(evidence.Invalid):
+                timing.write_gate(report, {"oversized": "x" * timing.GATE_REPORT_LIMIT})
+            self.assertEqual(report.read_bytes(), previous)
+            descriptor = value["aa"][0]["a_baseline"]
+            target = root / descriptor["directory"] / "observations.txt"
+            self.assertGreater(target.stat().st_size, 4 * 1024**2)
+            target.write_bytes(target.read_bytes() + b"changed")
+            with self.assertRaises(evidence.Invalid):
+                timing.bound_gate(report, reg, h("registration"), "before")
+
+    def test_gate_capture_keeps_complete_artifacts_for_bound_replay(self):
+        reg = registered()
+        source = reg["inputs"][0]
+        baseline = baseline_gate(reg, source)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registration_path = root / "registration.json"
+            evidence.write(registration_path, reg)
+            evidence.write(root / reg["baseline_build"]["file"], {"observability": baseline["specification"]})
+            registration_hash = evidence.file_hash(registration_path)
+            args = SimpleNamespace(registration=registration_path, root=root, phase="before",
+                                   availability=root / "availability.json", ram_output=root,
+                                   report=root / "before.json")
+
+            def encode(argv, directory, _timeout, **_kwargs):
+                Path(argv[-1]).write_bytes(b"x" * baseline["payload_bytes"])
+                stats = Path(argv[argv.index("-stats_enc_post") + 1])
+                stats.write_text(baseline["packet_text"])
+                return 100
+
+            def identity(directory, _reg, _root, _spec, ended, argv, item, _cell):
+                files = copy.deepcopy(baseline["files"])
+                query = json.loads(files["identity-query.json"])
+                query["encoder_ended_ns"] = ended
+                query["output_sha256"] = evidence.file_hash(directory / "video.h264")
+                query["process"].update(started_ns=ended + 1, ended_ns=ended + 2)
+                files["identity-query.json"] = json.dumps(query, sort_keys=True, indent=2) + "\n"
+                files["requested.json"] = json.dumps(observations.requested(argv, item), sort_keys=True, indent=2) + "\n"
+                for name, text in files.items():
+                    (directory / name).write_text(text)
+
+            def resident(*_args):
+                instant = time.time_ns()
+                return cache_fact(source, instant, instant + 1)
+
+            with mock.patch.multiple(timing,
+                    preflight=mock.Mock(return_value=reg), input_hashes=mock.Mock(), warm=mock.Mock(),
+                    ram_volume=mock.Mock(), host_state=mock.Mock(return_value=observation()),
+                    availability_file=mock.Mock(return_value={"registration_sha256": registration_hash}),
+                    run=encode, capture_identity=identity), \
+                    mock.patch.object(timing.cache, "preflight"), \
+                    mock.patch.object(timing.cache, "observe", side_effect=resident):
+                timing.capture_gate(args)
+            value, _ = timing.bound_gate(args.report, reg, registration_hash, "before")
+            self.assertEqual(len(value["aa"]), 6)
+            self.assertEqual(len(value["null"]), 6)
+            descriptor = value["aa"][0]["a_baseline"]
+            self.assertEqual(set(descriptor["files"]), set(observations.GATE_FILES))
+            self.assertLess(args.report.stat().st_size, 4 * 1024**2)
 
     def test_timing_medians_classes_ci_and_no_hidden_failed_calls(self):
         reg = registered()

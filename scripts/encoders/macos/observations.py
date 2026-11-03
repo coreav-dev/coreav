@@ -5,13 +5,48 @@ from pathlib import Path
 import re
 import time
 
-from evidence import digest, file_hash, integer, keys, load, read, require, sha, write
+from evidence import Invalid, digest, file_hash, integer, keys, load, read, relative, require, sha, write
 from process import run
 from registration import cadence_hint, covered_class, host_observation
 
 LIMIT = 16 * 1024**2
 BASELINE_FILES = {name: LIMIT for name in ("observations.txt", "identity.json", "identity-query.json",
                                          "identity-out", "identity-error", "requested.json")}
+GATE_FILES = {**BASELINE_FILES, "packets.stats": LIMIT}
+
+
+def gate_baseline_files(root, value):
+    keys(value, "directory files specification output_sha256 payload_bytes")
+    relative(value["directory"])
+    directory = Path(root) / value["directory"]
+    require(not directory.is_symlink() and {p.name for p in directory.iterdir()} == set(GATE_FILES),
+            "gate_artifact_coverage")
+    keys(value["files"], " ".join(GATE_FILES))
+    files = {}
+    for name, limit in GATE_FILES.items():
+        descriptor = value["files"][name]
+        keys(descriptor, "sha256 bytes")
+        digest(descriptor["sha256"])
+        integer(descriptor["bytes"], 0, limit)
+        data = read(root, value["directory"] + "/" + name, limit)
+        require(len(data) == descriptor["bytes"] and sha(data) == descriptor["sha256"], "gate_artifact_changed")
+        try:
+            files[name] = data.decode("utf-8")
+        except UnicodeError:
+            raise Invalid("gate_artifact_encoding") from None
+    return {"files": {name: files[name] for name in BASELINE_FILES},
+            "packet_text": files["packets.stats"], "specification": value["specification"],
+            "output_sha256": value["output_sha256"], "payload_bytes": value["payload_bytes"]}
+
+
+def encoder_identifier(value):
+    require(type(value) is str and not any(c in value for c in "\0\r\n"), "encoder_identity")
+    try:
+        size = len(value.encode("utf-8"))
+    except UnicodeError:
+        raise Invalid("encoder_identity") from None
+    require(0 < size <= 4096, "encoder_identity")
+    return value
 
 
 def specification(value):
@@ -49,8 +84,7 @@ def trace(data, spec, failed=False):
         line = match[1]
         if line.startswith("Init the encoder: "):
             value = line.removeprefix("Init the encoder: ")
-            require(re.fullmatch(r"[A-Za-z0-9_.-]{1,512}", value) is not None, "encoder_identity")
-            identities.append(value)
+            identities.append(encoder_identifier(value))
         for field, rule in (spec["refusal_fields"] or {}).items():
             if line.startswith(rule["prefix"]) and line.endswith(rule["suffix"]):
                 end = len(line) - len(rule["suffix"]) if rule["suffix"] else len(line)

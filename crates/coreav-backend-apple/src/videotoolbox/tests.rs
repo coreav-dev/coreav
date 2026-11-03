@@ -12,20 +12,21 @@ static SERIAL: Mutex<()> = Mutex::new(());
 #[test]
 fn external_encoder_identity_queries_reject_unbounded_labels_and_closed_controls() {
     let control = Control::new(Instant::now() + Duration::from_secs(10));
-    for identifier in [
-        "",
-        "contains space",
-        "bad/path",
-        "nonascii-\u{00e9}",
-        &"a".repeat(513),
-    ] {
+    for identifier in ["", "contains\0nul", &"a".repeat(4097), &"é".repeat(2049)] {
         assert_eq!(encoder_hardware(identifier, &control), Err(Error::Input));
     }
     control.cancel();
-    assert_eq!(
-        encoder_hardware("com.apple.test", &control),
-        Err(Error::Cancelled)
-    );
+    for identifier in [
+        "com.apple.test",
+        "opaque encoder / Main (é)",
+        &"a".repeat(4096),
+        &"é".repeat(2048),
+    ] {
+        assert_eq!(
+            encoder_hardware(identifier, &control),
+            Err(Error::Cancelled)
+        );
+    }
     let expired = Control::new(Instant::now());
     assert_eq!(
         encoder_hardware("com.apple.test", &expired),
