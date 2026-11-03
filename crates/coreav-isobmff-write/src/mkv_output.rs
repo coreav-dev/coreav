@@ -97,6 +97,17 @@ impl MetadataBudget {
     }
 }
 
+/// The writer's refusal when copied audio cannot be mapped into Matroska.
+/// `Ok` when every named stream can be mapped, is not audio, or could not
+/// be read: a read failure stays on the writer's existing path. Reads
+/// descriptions only, so a caller can refuse before an encoder starts.
+pub fn copied_audio<S: Source>(source: &mut S, streams: &[usize]) -> Result<(), Error> {
+    match source::copied_audio_mapping(source, streams) {
+        Err(error @ Error::Unsupported { .. }) => Err(error),
+        _ => Ok(()),
+    }
+}
+
 /// Plans selected tracks and replacements, then streams their payloads to
 /// the output. Media stays in its original source or encoder spool.
 pub fn write_output<S: Source, R: Source, W: Write>(

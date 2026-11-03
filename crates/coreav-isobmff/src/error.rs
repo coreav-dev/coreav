@@ -6,6 +6,8 @@ use core::fmt;
 /// Which limit of [`crate::Limits`] a file exceeded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitKind {
+    /// Aggregate planning allocations.
+    PlanningBytes,
     /// `max_top_level_boxes`.
     TopLevelBoxes,
     /// `max_depth`.
@@ -176,8 +178,15 @@ impl fmt::Display for Warning {
 /// so file-controlled repetition (for example thousands of malformed codec
 /// configuration boxes) cannot grow the list. Every warning value is small
 /// and drawn from a short fixed set, so a track holds only a few.
-pub(crate) fn warn(warnings: &mut Vec<Warning>, warning: Warning) {
+pub(crate) fn warn_with_planning(
+    warnings: &mut Vec<Warning>,
+    warning: Warning,
+    planning: Option<&crate::PlanningBudget>,
+    offset: u64,
+) -> Result<(), Error> {
     if !warnings.contains(&warning) {
+        crate::planning::reserve(planning, warnings, 1, offset)?;
         warnings.push(warning);
     }
+    Ok(())
 }

@@ -275,6 +275,8 @@ pub fn request(
         left_out_covers: left_out_covers.clone(),
         opus,
         aac,
+        #[cfg(feature = "input-capture")]
+        input_capture: None,
         pixel_format,
         one_size: true,
         encoder,
@@ -298,7 +300,10 @@ const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 /// `mp4a` sample entry or Opus in an `Opus` one from MP4/MOV, AAC or Opus
 /// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`); the
 /// other audio the writer copies (FLAC, ALAC, AC-3, E-AC-3) is not taken
-/// next to an encoded video yet. The display transform is read whole: without
+/// next to an encoded video yet. Matroska output skips that MP4 list: the
+/// adapter's mapping check in [`check_source`] refuses what the writer
+/// cannot map, with the writer's error, before the encoder starts. The
+/// display transform is read whole: without
 /// `-noautorotate` `ffmpeg` applies any transform other than the identity
 /// to the frames, and with it `ffmpeg` writes the source's matrix, which
 /// the transcode writes the same only when the matrix has no translation or
@@ -411,8 +416,8 @@ fn evenly_spaced(mut pts: Vec<i64>) -> bool {
 /// aligned uncropped, `docs/design/transcode.md`, B9), a source not evenly
 /// spaced or whose reordered frames have no composition offsets, without
 /// `-fps_mode passthrough`, and a video stream the pipeline would not
-/// encode; and the copied audio the MP4 writer would fail on after the
-/// encode.
+/// encode; the copied audio the MP4 writer would fail on after the encode;
+/// and, for Matroska output, copied audio the writer cannot map.
 fn check_source(
     command: &Command,
     video: usize,
@@ -420,6 +425,17 @@ fn check_source(
     reordered: bool,
     input: &Path,
 ) -> Result<(), Stop> {
+    // The Matroska writer refuses an unmappable copied audio description
+    // only while writing, which is after the video encoder has run. Ask it
+    // first, and keep that refusal: the same error, before any encoder.
+    if command.muxer.matroska().is_some() {
+        let file = FileSource::open(input).map_err(WriteFailure::from)?;
+        if let Err(error) =
+            coreav_isobmff_write::mkv_output::copied_audio(&mut BufferedSource::new(file), audio)
+        {
+            return Err(Stop::from(WriteFailure::Rejected(Failure::Matroska(error))));
+        }
+    }
     let file = FileSource::open(input).map_err(WriteFailure::from)?;
     let Ok(stream) = coreav_thumbnail::video_stream(
         BufferedSource::new(file),
@@ -484,7 +500,26 @@ pub fn write(
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
+    write_inner(command, job, encoder, strict_safe, None)
+}
+
+pub(super) fn write_inner(
+    command: &Command,
+    job: &TranscodeJob,
+    encoder: Encoder,
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
     let request = request(command, job, encoder, strict_safe)?;
+    #[cfg(feature = "input-capture")]
+    let request = {
+        let mut request = request;
+        request.input_capture =
+            capture.map(|path| coreav_transcode::capture::Target(path.to_owned()));
+        request
+    };
+    #[cfg(not(feature = "input-capture"))]
+    let _ = capture;
     let input = Path::new(&command.input);
     let copied = if job.audio_encoder.is_some() {
         &[][..]
@@ -586,6 +621,33 @@ mod tests {
                 }
                 Err(_) => panic!("{name}: neither taken nor refused"),
             }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Copied ISO PCM into Matroska is the writer's mapping refusal, raised
+    /// from the preflight rather than after an encode.
+    #[test]
+    fn unmapped_copied_audio_is_refused_before_matroska_encode() {
+        let dir = std::env::temp_dir().join(format!("coreav-encode-mkv-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("pcm.mp4");
+        std::fs::write(&path, av_movie_with(audio_entry(b"sowt"), false)).unwrap();
+        let args = ["-i", "in.mp4", "-c:v", "libx264", "-c:a", "copy", "out.mkv"].map(String::from);
+        let command = super::super::args::parse(&args).unwrap();
+        let checked = check_source(&command, 0, &[1], false, &path);
+        match checked {
+            Err(Stop::Refused(Refusal::NotNative(refusal))) => {
+                assert!(
+                    refusal
+                        .message
+                        .contains("an ISO codec without a Matroska mapping"),
+                    "{}",
+                    refusal.message
+                );
+            }
+            Ok(()) => panic!("expected a refusal before encode"),
+            Err(_) => panic!("expected the writer's mapping refusal"),
         }
         std::fs::remove_dir_all(&dir).unwrap();
     }

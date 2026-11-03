@@ -19,6 +19,8 @@ knowledge_base:
   code_guidelines:
     filePatterns:
       - AGENTS.md
+      - files: docs/agents/*.md
+        applyTo: "**"
       - CONTRIBUTING.md
       - files: docs/design/**/*.md
         applyTo: "**"

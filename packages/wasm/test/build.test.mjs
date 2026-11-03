@@ -9,7 +9,19 @@ import { moduleHash } from "../scripts/fingerprint.mjs";
 import { EXNREF_PROBE } from "../src/internal.js";
 import { renderNotices } from "../../../scripts/notices/render.mjs";
 import { selectCrates } from "../../../scripts/notices/select.mjs";
+import { spawnSync } from "node:child_process";
 import { verifyPackage } from "../scripts/prepack.mjs";
+
+test("the shared wasm build selection is closed", () => {
+  const script = fileURLToPath(new URL("../scripts/build.sh", import.meta.url));
+  const text = readFileSync(script, "utf8");
+  assert.match(text, /--features native-h264/);
+  assert.match(text, /target\/wasm-h264/);
+  assert.doesNotMatch(text, /coreav-cli/);
+  const refused = spawnSync("bash", [script, "vp9"], { encoding: "utf8" });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /default or h264/);
+});
 
 test("the exception-reference probe is a valid type-only module", () => {
   const module = new WebAssembly.Module(EXNREF_PROBE);

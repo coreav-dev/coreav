@@ -5,6 +5,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BASE = runpy.run_path(str(ROOT / 'scripts/tests/test_notices_check.py'))
+RUNTIMES = runpy.run_path(str(ROOT / 'packages/cli/scripts/notices_check.py'))['runtime_sections']
 
 
 class RustDistributionNoticesCheck(unittest.TestCase):
@@ -18,7 +19,22 @@ class RustDistributionNoticesCheck(unittest.TestCase):
     def notices(self, target):
         return (f'Rust dependency notices for coreav on {target}.\n'
                 f'=== Rust standard library {self.pin["RUST_DIST_TOOLCHAIN"]} '
-                f'({self.pin["RUST_DIST_COMMIT"]}) (Rust toolchain) ===\n').encode()
+                f'({self.pin["RUST_DIST_COMMIT"]}) (Rust toolchain) ===\n'
+                + '\n'.join(RUNTIMES(target, self.pin['RUST_DIST_COMMIT']))).encode()
+
+    def test_rust_headers_do_not_cover_missing_or_changed_c_runtime_notices(self):
+        for target in ('x86_64-unknown-linux-musl', 'aarch64-unknown-linux-musl', 'wasm32-wasip1'):
+            notice = self.notices(target)
+            for section in RUNTIMES(target, self.pin['RUST_DIST_COMMIT']):
+                for value in (notice.replace(section.encode(), b''),
+                              notice.replace(section.encode(), section.replace('Permission', 'Restriction').encode(), 1)):
+                    with self.subTest(target=target):
+                        entries = self.fixture.files('package')
+                        entries['package/THIRD-PARTY-NOTICES.txt'] = value
+                        name = 'coreav-1.0.0.tgz' if target == 'wasm32-wasip1' else f'coreav-1.0.0-{target}.tar.gz'
+                        archive = self.fixture.tarball(name, entries)
+                        result = BASE['check']('--third-party', archive)
+                        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
 
     def archive(self, name, target):
         entries = self.fixture.files('package')

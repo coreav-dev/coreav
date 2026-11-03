@@ -12,6 +12,10 @@ on:
       - crates/coreav-transcode/**
       - scripts/avi_fixture_check.py
       - scripts/avi_v2_check.py
+      - scripts/gen-v2-fixtures.py
+      - scripts/v2_fixture_inputs.py
+      - tools/compat-corpus/v2-fixtures.json
+      - tools/compat-corpus/encode_breadth.py
       - scripts/oracle-ffmpeg.env
       - scripts/install-oracle-ffmpeg.sh
       - .github/workflows/avi-output.yml
@@ -60,6 +64,8 @@ jobs:
           scripts/gen-fixtures.sh "$RUNNER_TEMP/avi-fixtures"
           scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/avi-fixtures"
           scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/avi-fixtures"
+          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --out "$RUNNER_TEMP/avi-fixtures"
           sudo apt-get install -y --no-install-recommends nasm
           scripts/install-x264.sh "$RUNNER_TEMP/x264"
       - name: Evaluate registered AVI command rows

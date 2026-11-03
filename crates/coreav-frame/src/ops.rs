@@ -3,7 +3,9 @@
 
 use crate::color::{Levels, Matrix, row_to_rgb8};
 use crate::picture::zeros;
-use crate::resample::{Channel, Edge, Order, Source, Taps, resample, taps};
+use crate::resample::{
+    Channel, Edge, Order, Source, Taps, resample, resample_with_parallelism, taps,
+};
 use crate::{ChromaLocation, ColorInfo, Filter, FrameError, Picture, PixelFormat, Plane};
 
 /// A rectangle of a picture, in pixels.
@@ -288,6 +290,41 @@ impl Picture {
         color: &ColorInfo,
         chroma: ChromaUpsampling,
     ) -> Result<Picture, FrameError> {
+        self.resize_to_rgb_with_parallelism(width, height, filter, color, chroma, true)
+    }
+
+    #[doc(hidden)]
+    pub fn resize_to_rgb_single_thread(
+        &self,
+        width: u32,
+        height: u32,
+        filter: Filter,
+        color: &ColorInfo,
+        chroma: ChromaUpsampling,
+    ) -> Result<Picture, FrameError> {
+        if !matches!(
+            self.format(),
+            PixelFormat::Yuv {
+                chroma: crate::Chroma::Cs420 | crate::Chroma::Mono,
+                depth: 8,
+            }
+        ) {
+            return Err(FrameError::Unsupported(
+                "single-thread RGB conversion requires planar 8-bit 4:2:0 or monochrome",
+            ));
+        }
+        self.resize_to_rgb_with_parallelism(width, height, filter, color, chroma, false)
+    }
+
+    fn resize_to_rgb_with_parallelism(
+        &self,
+        width: u32,
+        height: u32,
+        filter: Filter,
+        color: &ColorInfo,
+        chroma: ChromaUpsampling,
+        parallel: bool,
+    ) -> Result<Picture, FrameError> {
         let format = self.format();
         if let PixelFormat::SemiPlanar { .. } = format {
             return self
@@ -323,7 +360,10 @@ impl Picture {
             dst_w
         };
         let sample = format.sample_bytes();
-        let mut channels: Vec<Vec<f32>> = Vec::with_capacity(3);
+        let mut channels: Vec<Vec<f32>> = Vec::new();
+        channels
+            .try_reserve_exact(format.plane_count())
+            .map_err(|_| FrameError::OutOfMemory)?;
         for plane in 0..format.plane_count() {
             let (fx, fy) = if plane == 0 { (0, 0) } else { (sx, sy) };
             let (src_w, src_h) = plane_dims(format, plane, self.width(), self.height())?;
@@ -333,7 +373,7 @@ impl Picture {
                     axis_taps(src_h, dst_h, lh, fy, siting.1, false, filter)?,
                 )
             } else if unscaled {
-                (nearest_taps(dst_w, fx), nearest_taps(dst_h, fy))
+                (nearest_taps(dst_w, fx)?, nearest_taps(dst_h, fy)?)
             } else {
                 (
                     pair_taps(src_w, chroma_w, lw, fx, siting.0, filter)?,
@@ -341,7 +381,13 @@ impl Picture {
                 )
             };
             let source = self.source(plane, src_w, 0, sample)?;
-            channels.push(resample(&source, &h, &v, Order::VerticalFirst)?);
+            channels.push(resample_with_parallelism(
+                &source,
+                &h,
+                &v,
+                Order::VerticalFirst,
+                parallel,
+            )?);
         }
         let matrix = if let PixelFormat::Gbr { .. } = format {
             Matrix::Identity
@@ -351,7 +397,11 @@ impl Picture {
         let levels = Levels::new(format.depth(), color.full_range.unwrap_or(false));
         let mid = f32::from(1u16 << (format.depth().clamp(8, 16) - 1));
         // Monochrome has no chroma planes: neutral chroma.
-        let neutral = vec![mid; dst_w];
+        let mut neutral = Vec::new();
+        neutral
+            .try_reserve_exact(dst_w)
+            .map_err(|_| FrameError::OutOfMemory)?;
+        neutral.resize(dst_w, mid);
         let empty: Vec<f32> = Vec::new();
         let (a, b, c) = match channels.as_slice() {
             [a, b, c] => (a.as_slice(), b.as_slice(), c.as_slice()),
@@ -455,8 +505,15 @@ impl Picture {
             PixelFormat::SemiPlanar { depth } if depth > 8 => 16 - u32::from(depth),
             _ => 0,
         };
+        let (height, _) = self
+            .plane_rows(plane)
+            .ok_or(FrameError::InvalidGeometry("no such plane"))?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(height)
+            .map_err(|_| FrameError::OutOfMemory)?;
+        rows.extend(self.rows(plane));
         Ok(Source {
-            rows: self.rows(plane).collect(),
+            rows,
             width,
             channel: Channel {
                 element,
@@ -526,13 +583,22 @@ fn ffmpeg_taps(src: usize, dst: usize, filter: Filter) -> Result<Vec<Taps>, Fram
 }
 
 /// Each output position reads the source sample `i >> shift`.
-fn nearest_taps(dst: usize, shift: u32) -> Vec<Taps> {
-    (0..dst)
-        .map(|i| Taps {
+fn nearest_taps(dst: usize, shift: u32) -> Result<Vec<Taps>, FrameError> {
+    let mut out = Vec::new();
+    out.try_reserve_exact(dst)
+        .map_err(|_| FrameError::OutOfMemory)?;
+    for i in 0..dst {
+        let mut weights = Vec::new();
+        weights
+            .try_reserve_exact(1)
+            .map_err(|_| FrameError::OutOfMemory)?;
+        weights.push(1.0);
+        out.push(Taps {
             start: i >> shift,
-            weights: vec![1.0],
-        })
-        .collect()
+            weights,
+        });
+    }
+    Ok(out)
 }
 
 /// Horizontal chroma taps of the FFmpeg-compatible mode: output chroma
@@ -860,6 +926,135 @@ mod tests {
             0,
             &[-0.0563, 0.1204, 0.4359, 0.4359, 0.1204, -0.0422, -0.0140],
         );
+    }
+
+    #[test]
+    fn single_thread_rgb_matches_native_for_profile_pictures() {
+        for chroma in [Chroma::Cs420, Chroma::Mono] {
+            let format = PixelFormat::Yuv { chroma, depth: 8 };
+            for (sw, sh, dw, dh) in [
+                (1, 1, 7, 5),
+                (1, 43, 37, 1),
+                (43, 1, 1, 37),
+                (17, 9, 11, 7),
+                (9, 17, 7, 11),
+                (33, 21, 33, 21),
+                (1024, 1024, 512, 512),
+            ] {
+                let picture = gradient(sw, sh, format);
+                for filter in [Filter::Bilinear, Filter::Bicubic, Filter::Area] {
+                    for upsampling in [ChromaUpsampling::Full, ChromaUpsampling::FfmpegCompatible] {
+                        let native = picture
+                            .resize_to_rgb(dw, dh, filter, &ColorInfo::default(), upsampling)
+                            .expect("native RGB");
+                        let serial = picture
+                            .resize_to_rgb_single_thread(
+                                dw,
+                                dh,
+                                filter,
+                                &ColorInfo::default(),
+                                upsampling,
+                            )
+                            .expect("single-thread RGB");
+                        assert_eq!(
+                            serial, native,
+                            "{sw}x{sh}->{dw}x{dh} {filter:?} {upsampling:?}"
+                        );
+                    }
+                }
+            }
+            let picture = gradient(17, 9, format);
+            for turns in 0..4 {
+                let rotated = picture.rotate(turns).expect("rotate");
+                for filter in [Filter::Bilinear, Filter::Bicubic, Filter::Area] {
+                    for upsampling in [ChromaUpsampling::Full, ChromaUpsampling::FfmpegCompatible] {
+                        let native = rotated
+                            .resize_to_rgb(13, 7, filter, &ColorInfo::default(), upsampling)
+                            .expect("native RGB");
+                        let serial = rotated
+                            .resize_to_rgb_single_thread(
+                                13,
+                                7,
+                                filter,
+                                &ColorInfo::default(),
+                                upsampling,
+                            )
+                            .expect("single-thread RGB");
+                        assert_eq!(serial, native, "rotation {turns} {filter:?} {upsampling:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn single_thread_rgb_keeps_colour_and_chroma_siting() {
+        let picture = gradient(19, 31, PixelFormat::YUV420P);
+        for location in [
+            ChromaLocation::Left,
+            ChromaLocation::Center,
+            ChromaLocation::TopLeft,
+            ChromaLocation::Top,
+            ChromaLocation::BottomLeft,
+            ChromaLocation::Bottom,
+        ] {
+            for matrix in [1, 5, 9] {
+                for full_range in [false, true] {
+                    let color = ColorInfo {
+                        matrix: Some(matrix),
+                        full_range: Some(full_range),
+                        chroma_location: Some(location),
+                        ..ColorInfo::default()
+                    };
+                    for filter in [Filter::Bilinear, Filter::Bicubic, Filter::Area] {
+                        for upsampling in
+                            [ChromaUpsampling::Full, ChromaUpsampling::FfmpegCompatible]
+                        {
+                            let native = picture
+                                .resize_to_rgb(37, 13, filter, &color, upsampling)
+                                .expect("native RGB");
+                            let serial = picture
+                                .resize_to_rgb_single_thread(37, 13, filter, &color, upsampling)
+                                .expect("single-thread RGB");
+                            assert_eq!(serial, native);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn single_thread_rgb_refuses_formats_outside_the_profile() {
+        for format in [
+            PixelFormat::Rgb24,
+            PixelFormat::Rgba,
+            PixelFormat::SemiPlanar { depth: 8 },
+            PixelFormat::Yuv {
+                chroma: Chroma::Cs420,
+                depth: 10,
+            },
+            PixelFormat::Yuv {
+                chroma: Chroma::Cs422,
+                depth: 8,
+            },
+            PixelFormat::Yuv {
+                chroma: Chroma::Cs444,
+                depth: 8,
+            },
+        ] {
+            let picture = gradient(7, 5, format);
+            assert!(matches!(
+                picture.resize_to_rgb_single_thread(
+                    3,
+                    2,
+                    Filter::Bicubic,
+                    &ColorInfo::default(),
+                    ChromaUpsampling::FfmpegCompatible,
+                ),
+                Err(FrameError::Unsupported(_))
+            ));
+        }
     }
 
     #[test]

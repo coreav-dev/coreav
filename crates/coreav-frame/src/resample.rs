@@ -100,7 +100,7 @@ pub(crate) fn taps(
         let lo = clamp_index((x - support).ceil(), last);
         let hi = clamp_index((x + support).floor(), last);
         let (first, end) = ((x - support).ceil(), (x + support).floor());
-        let mut weights = vec![0f32; hi.saturating_sub(lo) + 1];
+        let mut weights = floats(hi.saturating_sub(lo) + 1)?;
         let mut sum = 0f64;
         let mut j = first;
         while j <= end {
@@ -128,9 +128,11 @@ pub(crate) fn taps(
         if sum.abs() < 1e-9 {
             // No overlap (cannot happen for valid positions): nearest.
             let nearest = clamp_index(x.round(), last);
+            weights.truncate(1);
+            weights.fill(1.0);
             out.push(Taps {
                 start: nearest,
-                weights: vec![1.0],
+                weights,
             });
             continue;
         }
@@ -144,10 +146,12 @@ pub(crate) fn taps(
         let lead = weights.iter().take_while(|w| **w == 0.0).count();
         let trail = weights.iter().rev().take_while(|w| **w == 0.0).count();
         let keep = weights.len().saturating_sub(lead + trail).max(1);
-        let trimmed: Vec<f32> = weights.into_iter().skip(lead).take(keep).collect();
+        let end = lead.saturating_add(keep).min(weights.len());
+        weights.copy_within(lead..end, 0);
+        weights.truncate(end - lead);
         out.push(Taps {
             start: lo + lead,
-            weights: trimmed,
+            weights,
         });
     }
     Ok(out)
@@ -257,6 +261,16 @@ pub(crate) fn resample(
     vtaps: &[Taps],
     order: Order,
 ) -> Result<Vec<f32>, FrameError> {
+    resample_with_parallelism(src, htaps, vtaps, order, true)
+}
+
+pub(crate) fn resample_with_parallelism(
+    src: &Source<'_>,
+    htaps: &[Taps],
+    vtaps: &[Taps],
+    order: Order,
+    parallel: bool,
+) -> Result<Vec<f32>, FrameError> {
     let (dst_w, dst_h) = (htaps.len(), vtaps.len());
     let total = dst_w
         .checked_mul(dst_h)
@@ -280,7 +294,7 @@ pub(crate) fn resample(
                 .saturating_mul(htaps_len)
         }
     };
-    let threads = if work < PARALLEL_WORK {
+    let threads = if !parallel || work < PARALLEL_WORK {
         1
     } else {
         std::thread::available_parallelism()
@@ -413,12 +427,18 @@ fn resample_rows(
     vtaps: &[Taps],
     out: &mut [f32],
 ) -> Result<(), FrameError> {
-    let mut acc = vec![0f32; src.width];
+    let mut acc = floats(src.width)?;
     // Source rows converted to f32, for the rows the current output row's
     // taps cover; each source row is converted once per band, as the
     // window only moves down.
     let mut cache: VecDeque<(usize, Vec<f32>)> = VecDeque::new();
     let mut spare: Vec<Vec<f32>> = Vec::new();
+    cache
+        .try_reserve_exact(src.rows.len())
+        .map_err(|_| FrameError::OutOfMemory)?;
+    spare
+        .try_reserve_exact(src.rows.len())
+        .map_err(|_| FrameError::OutOfMemory)?;
     for (vt, line) in vtaps.iter().zip(out.chunks_exact_mut(htaps.len().max(1))) {
         while cache.front().is_some_and(|(y, _)| *y < vt.start) {
             if let Some((_, row)) = cache.pop_front() {
@@ -432,7 +452,10 @@ fn resample_rows(
             let index = match cached {
                 Some(index) => index,
                 None => {
-                    let mut row = spare.pop().unwrap_or_else(|| vec![0f32; src.width]);
+                    let mut row = match spare.pop() {
+                        Some(row) => row,
+                        None => floats(src.width)?,
+                    };
                     if let Some(bytes) = src.rows.get(y) {
                         src.channel.load(bytes, &mut row);
                     }

@@ -27,6 +27,7 @@ The media corpus that the correctness bars use is private and is never published
 | Page | What it measures |
 |---|---|
 | [`coreav ffprobe`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) | Which `ffprobe` command lines it covers, how often its values agree with `ffprobe`'s, and its speed |
+| [B4 development calibration](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe/round10-calibration.md) | The round 10 identical-argument controls, without a product speed verdict |
 
 ## Speed of the command
 
@@ -36,6 +37,17 @@ The media corpus that the correctness bars use is private and is never published
 | [Tool baselines](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/0001-baselines.md) | Timing baselines of the reference tools. No CoreAV code is measured. |
 
 ## Decoding and transcoding
+
+Current audio-output comparisons have narrowly scoped differences from pinned FFmpeg 9.0.2. The [audio-output divergence reference](https://github.com/coreav-dev/coreav/blob/main/docs/known-divergences-audio-output.md) records the commands, presentation rules, and assertions that reject changed oracle behavior:
+
+| Comparison | Difference |
+|---|---|
+| Generated Opus MP4 re-encoded to AAC or Opus | CoreAV preserves 96,000 presented samples; FFmpeg retains 96,648. The composed AAC check derives presentation from the source rather than that ordinary baseline. |
+| Generated Opus MP4 copied to Matroska | CoreAV carries the edit end as discard padding and presents 11,520 samples; FFmpeg presents 12,168. |
+| MP3 output at the registered frame-boundary lengths | CoreAV preserves the original sample count; FFmpeg's final-padding clamp adds from 1 through 46 samples. |
+| FLAC output with 1 through 15 samples | CoreAV writes a legal short final block; the default FFmpeg encoder refuses. Only the correctness reference uses an explicit block size, after reproducing that refusal. |
+
+These records do not change the historical measurements below, frozen judging inputs, or acceptance thresholds. [Float-to-PCM24 rounding](https://github.com/coreav-dev/coreav/blob/main/docs/known-divergences-decode-audio.md#float-to-pcm24-rounding) is documented separately and grants no oracle tolerance.
 
 | Page | What it measures |
 |---|---|

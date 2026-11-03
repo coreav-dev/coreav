@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { moduleEvidence, nativeEvidence, noticeSections, validateEvidence } from "../evidence.mjs";
+import { runtimeManifest } from "../runtime.mjs";
 
 const commit = "a".repeat(40);
 const context = {
@@ -59,6 +60,12 @@ const notices = () => [
   notice("dlmalloc 0.2.14", "Rust toolchain, crates.io", "MIT/Apache-2.0"),
   notice("serde 1.0.0"), notice("wasm-bindgen 0.2.129"),
 ].join("\n");
+
+test("Rust crate notices alone do not cover the linked C runtime", () => {
+  for (const target of ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl", "wasm32-wasip1"]) {
+    assert.throws(() => validateEvidence(evidence(), noticeSections(notices()), { ...context, target, commit: runtimeManifest.rustCommit }), /C runtime .*not covered/);
+  }
+});
 
 test("notice sections retain all three origins and grouped standard-library crate names", () => {
   const sections = noticeSections(notices() + notice("dlmalloc 0.2.14"));

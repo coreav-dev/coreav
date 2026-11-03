@@ -58,7 +58,7 @@ class AudioSourceDiagnostic(unittest.TestCase):
 
     def test_workflow_diagnostic_survives_test_failure_but_not_a_missing_build(self):
         workflow = SCRIPT.parents[1] / '.github/workflows/ci.yml'
-        job = workflow.read_text().split('\n  isobmff-decode:\n', 1)[1].split('\n  b9-shard:\n', 1)[0]
+        job = workflow.read_text().split('\n  isobmff-decode:\n', 1)[1].split('\n  transcode-compat-shard:\n', 1)[0]
         self.assertTrue('id: decode-build\n' in job, 'Give the diagnostic prerequisite build id: decode-build')
         step = job.split('- name: Observe decoder and AAC encoder boundaries on generated fixtures\n', 1)[1]
         step = step.split('\n      - ', 1)[0]

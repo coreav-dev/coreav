@@ -106,6 +106,7 @@ jobs:
             .context/**
             docs/spikes/**
             packages/wasm/**
+            packages/wasm-h264/**
       # The code that differs between Linux, macOS and Windows (the sandbox,
       # the processes it starts, positioned file reads, code that differs by
       # target architecture), the backends the
@@ -270,6 +271,9 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libopus,ffmpeg-fallback --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features aac,libopus,native-h264 --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --no-default-features --features cli,native-vp9 --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features native-vp9,native-h264,ffmpeg-fallback --all-targets -- -D warnings
+          cargo clippy -p coreav-decode-oracle --features native-vp9,native-h264 --all-targets -- -D warnings
           cargo test -p coreav-backend-libopus --features libopus
           cargo test -p coreav-worker --features libopus
       # The encoder programs of `coreav transcode`, black boxes for
@@ -299,6 +303,10 @@ jobs:
           cargo build -p coreav-cli
           python3 -I scripts/pcm_output_check.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/coreav-encoders" --out "$RUNNER_TEMP/pcm-output.json"
+      - name: Compare native FLAC output with the pinned oracle
+        run: |
+          python3 -I scripts/flac_output_check.py --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/coreav-encoders" --out "$RUNNER_TEMP/flac-output.json"
       # The Opus and AAC bars' source set, made by the pinned FFmpeg at a
       # second each, so a source its filter parser refuses fails here and
       # not in a judged run (docs/design/transcode.md, "Opus bars").
@@ -823,8 +831,8 @@ jobs:
           python3 -I tools/oracle/writer_kd_audit_cli.py --oracle text --coreav target/release/coreav \
             --media "$RUNNER_TEMP/coreav-fixtures" --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo"
       # Built on main for the cache only: isobmff-writers, isobmff-decode
-      # and b9-shard restore this job's Rust cache entry, and isobmff-decode and
-      # b9-shard run this build (docs/design/ci-checks.md, "Caches").
+      # and transcode-compat-shard restore this job's Rust cache entry, and isobmff-decode and
+      # transcode-compat-shard run this build (docs/design/ci-checks.md, "Caches").
       - name: Install libdav1d, libvpx and libopus for the cache
         if: github.ref == 'refs/heads/main'
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
@@ -1273,9 +1281,9 @@ jobs:
 
   # Bar B9, the longest check of the fixtures: each command line encodes
   # every fixture three times, one line scaling it to 1920 columns. A third
-  # of the fixtures a job; `b9` judges the bars once over all three
+  # of the fixtures a job; `transcode-compat` judges the bars once over all three
   # (docs/design/ci-checks.md, "The fixture jobs").
-  b9-shard:
+  transcode-compat-shard:
     needs: ci-changes
     strategy:
       fail-fast: false
@@ -1285,7 +1293,7 @@ jobs:
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-b9-shard-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      group: ${{ github.workflow }}-transcode-compat-shard-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -1320,14 +1328,22 @@ jobs:
         with:
           name: isobmff-fixture-set
           path: ${{ runner.temp }}/coreav-fixtures
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: composed-audio-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      - name: Use the registered comparator
+        run: chmod +x "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare"
       # The same build as isobmff-decode's.
       - name: Install libdav1d and libvpx
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
         run: |
           cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
-            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-cli/input-capture,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
             --target-dir target/fallback
+      - name: Check actual-stdin capture transport
+        run: cargo test --locked --release -p coreav-transcode --features input-capture --lib --target-dir target/fallback
       - name: Cache the x264 program
         id: x264-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -1343,33 +1359,40 @@ jobs:
       # encode with libx264, on the fixtures, each arm against FFmpeg running
       # the same command line. The ffmpeg arm names no x264 program, so the
       # pipeline falls back to the pinned FFmpeg's libx264.
-      - name: coreav ffmpeg with libx264 on a third of the fixtures (B9)
+      - name: Prove composed output identity and semantic mutations
+        run: |
+          python3 -I scripts/composed_audio_selftest.py \
+            --coreav target/fallback/release/coreav --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" --fixtures "$RUNNER_TEMP/coreav-fixtures"
+      - name: Run the registered composed compatibility check
         env:
           PYTHONDONTWRITEBYTECODE: '1'
           SHARD: ${{ matrix.shard }}
         run: |
           python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
+            --compat-check composed-opus-aac-v2 --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" \
             --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
             --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
-            --jobs 4 --shard "$SHARD/3" --out "$RUNNER_TEMP/coreav-b9"
-      - name: Keep the shard's evidence for b9
+            --jobs 4 --shard "$SHARD/3" --out "$RUNNER_TEMP/coreav-transcode-compat"
+      - name: Keep the shard's evidence for transcode-compat
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: b9-shard-${{ matrix.shard }}
-          path: ${{ runner.temp }}/coreav-b9/evidence
+          name: transcode-compat-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/coreav-transcode-compat/evidence
           retention-days: 1
 
   # B9's bars over the three shards' results, judged as one run judges
   # them (scripts/transcode_check.py --merge).
-  b9:
-    needs: [ci-changes, b9-shard]
+  transcode-compat:
+    needs: [ci-changes, transcode-compat-shard]
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     concurrency:
-      group: ${{ github.workflow }}-b9-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      group: ${{ github.workflow }}-transcode-compat-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1394,15 +1417,15 @@ jobs:
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: b9-shard-*
-          path: ${{ runner.temp }}/b9-shards
-      - name: Judge B9 over every shard
+          pattern: transcode-compat-shard-*
+          path: ${{ runner.temp }}/transcode-compat-shards
+      - name: Judge the registered compatibility check over every shard
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python3 -I scripts/transcode_check.py --out "$RUNNER_TEMP/coreav-b9" --merge \
-            "$RUNNER_TEMP/b9-shards/b9-shard-1" "$RUNNER_TEMP/b9-shards/b9-shard-2" "$RUNNER_TEMP/b9-shards/b9-shard-3"
-      - name: Check that B9 judged the pinned oracle
+          python3 -I scripts/transcode_check.py --compat-check composed-opus-aac-v2 --out "$RUNNER_TEMP/coreav-transcode-compat" --merge \
+            "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-1" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-2" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-3"
+      - name: Check the registered version and pinned oracle
         run: |
           python3 -I - <<'PY'
           import hashlib
@@ -1411,7 +1434,11 @@ jobs:
           import pathlib
           import subprocess
           root = pathlib.Path(os.environ['RUNNER_TEMP'])
-          run = json.loads((root / 'coreav-b9/run.json').read_text())
+          run = json.loads((root / 'coreav-transcode-compat/run.json').read_text())
+          registration = pathlib.Path('docs/design/composed-opus-aac-v2.json').read_bytes()
+          expected = {'version': 'composed-opus-aac-v2', 'registration_sha256': hashlib.sha256(registration).hexdigest()}
+          if run.get('compat_check') != expected:
+              raise SystemExit('the compatibility evidence has the wrong registered version')
           tools = run['tools'] if isinstance(run['tools'], list) else [run['tools']]
           for name in ('ffmpeg', 'ffprobe'):
               binary = root / 'coreav-oracle-bin' / name
@@ -1422,12 +1449,12 @@ jobs:
           if run['ffmpeg_version'] != version:
               raise SystemExit('B9 did not record the pinned FFmpeg version')
           PY
-      - name: Preserve the B9 evidence
+      - name: Preserve the registered compatibility evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: b9-evidence
-          path: ${{ runner.temp }}/coreav-b9/evidence
+          name: transcode-compat-evidence
+          path: ${{ runner.temp }}/coreav-transcode-compat/evidence
           if-no-files-found: ignore
   # docs/design/mkv.md: the Matroska and WebM fixtures through coreav-mkv and
   # the coreav binary, against the pinned ffprobe on every change (100% after
@@ -2265,7 +2292,8 @@ jobs:
           {
             echo "### Base commit (${BASE::12})"
             python3 -I scripts/bench_guard.py --coreav "$RUNNER_TEMP/coreav-base" $DECODER \
-              --fixtures "$RUNNER_TEMP/fixtures" --report-only --write "$RUNNER_TEMP/base.json"
+              --fixtures "$RUNNER_TEMP/fixtures" --report-only --write "$RUNNER_TEMP/base.json" \
+              --profile-dir "$RUNNER_TEMP/guard-profiles/base"
             if ! git diff --quiet "$BASE" HEAD -- bench/guard/baseline.json; then
               echo
               echo "**This pull request changes bench/guard/baseline.json.** Its description must state the unavoidable cost that moves the baseline (docs/design/benchmarks.md)."
@@ -2292,6 +2320,15 @@ jobs:
               exit 1
             fi
           fi
+      - name: Inspect startup linkage
+        run: |
+          for binary in "$RUNNER_TEMP/coreav-base" target/dist/coreav; do
+            if [ ! -x "$binary" ]; then continue; fi
+            echo "### Dynamic libraries: $binary"
+            readelf --wide --dynamic "$binary" | grep NEEDED
+            echo "### Undefined math symbols: $binary"
+            readelf --wide --dyn-syms "$binary" | awk '$7 == "UND" && $8 ~ /^(log|exp|pow|round|floor|ceil|sin|cos)/ { print $8 }'
+          done
       - name: Build the decoder binary
         # The cases that need a decoder (the thumbnail, the transcode, whose
         # encoder is the pinned ffmpeg on PATH, and AAC LC's decode-audio,
@@ -2317,9 +2354,27 @@ jobs:
             fi
             python3 -I scripts/bench_guard.py --coreav target/dist/coreav $DECODER \
               --fixtures "$RUNNER_TEMP/fixtures" --baseline "$AGAINST" \
-              --write "$RUNNER_TEMP/counts.json"
+              --write "$RUNNER_TEMP/counts.json" --profile-dir "$RUNNER_TEMP/guard-profiles/head"
           } | tee -a "$GITHUB_STEP_SUMMARY"
-      - if: always() && inputs.update
+      - name: Retain instruction attribution on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-guard-profiles
+          path: ${{ runner.temp }}/guard-profiles
+          retention-days: 5
+      - name: Attribute a startup regression
+        if: failure() && env.BASE != ''
+        run: |
+          for side in base head; do
+            binary=target/dist/coreav
+            if [ "$side" = base ]; then binary="$RUNNER_TEMP/coreav-base"; fi
+            if [ ! -x "$binary" ]; then continue; fi
+            profile="$RUNNER_TEMP/startup-$side.callgrind"
+            valgrind --tool=callgrind --callgrind-out-file="$profile" "$binary" --version > /dev/null
+            callgrind_annotate --auto=no --threshold=99 "$profile" | sed -n '1,65p'
+          done
+      - if: always() && (inputs.update || failure())
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bench-guard-counts
@@ -2365,7 +2420,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, transcode-compat-shard, transcode-compat, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard, main-cache]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

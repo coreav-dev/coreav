@@ -139,6 +139,8 @@ pub(super) fn write(
     let aac = coreav_transcode::AacAudio {
         stream: Some(stream),
         bitrate,
+        #[cfg(feature = "input-capture")]
+        input_capture: None,
     };
     let mp3 = coreav_transcode::mp3::Mp3Audio {
         stream: Some(stream),

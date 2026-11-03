@@ -44,8 +44,7 @@ const BLOCK: usize = 8;
 
 /// sin(πx), from the nearest integer's parity and the Taylor series of
 /// the remainder, |πr| ≤ π/2 (error below 10^-16).
-#[cfg(test)]
-fn sin_pi(x: f64) -> f64 {
+pub(crate) fn sin_pi(x: f64) -> f64 {
     let [value, ..] = sin_pi_block([x; BLOCK]);
     value
 }

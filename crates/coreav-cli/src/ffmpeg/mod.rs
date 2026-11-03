@@ -13,6 +13,8 @@
 pub mod args;
 mod audio;
 mod avi;
+#[cfg(feature = "input-capture")]
+mod capture;
 #[cfg(feature = "transcode")]
 pub mod encode;
 #[cfg(feature = "thumbnail")]
@@ -95,14 +97,16 @@ pub enum Job {
         /// Unselected cover pictures from input zero.
         left_out_covers: Vec<u64>,
     },
-    /// One audio stream decoded to signed 16-bit PCM, as WAV or raw bytes.
+    /// One lossless audio stream decoded to PCM for a native audio writer.
     Pcm {
         /// The input stream index.
         stream: usize,
         /// The duration limit in sample frames, or the whole presentation.
         samples: Option<u64>,
-        /// The selected stream's reported speaker positions for WAV.
+        /// The selected stream's reported speaker positions for the writer.
         mask: Option<u32>,
+        /// The exact integer representation supplied to the writer.
+        format: coreav_audio::SampleFormat,
     },
     /// Audio and video streams written as Matroska or WebM.
     MatroskaOutput {
@@ -208,7 +212,10 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le: the same PCM samples without a header
+  -f s16le after -i: the same PCM samples without a header
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
+  -ar RATE after -i with raw S16 input: native rate conversion
+  one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
@@ -245,17 +252,54 @@ See docs/design/compat-cli.md.
 /// is checked before decoding. Explicit encoders are checked before the input is read.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
+    run_inner(args, strict_safe, None)
+}
+
+/// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
+#[cfg(feature = "input-capture")]
+pub fn run_captured(
+    args: &[String],
+    strict_safe: StrictSafe,
+    directory: &Path,
+) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    let session = capture::Session::begin(directory, Path::new(&command.input))?;
+    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")))?;
+    session.seal(
+        &summary,
+        args,
+        Path::new(&command.input),
+        Path::new(&command.output),
+    )?;
+    Ok(summary)
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_inner(
+    args: &[String],
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
+    let command = args::parse(args)?;
+    if capture.is_some()
+        && (!command.more_inputs.is_empty()
+            || command.muxer.frames()
+            || matches!(command.demuxer, Some(Demuxer::S16le(_))))
+    {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
+    }
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) && !command.muxer.frames() {
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) && !command.muxer.frames()
+    {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
     let (list, force) = match command.demuxer {
+        Some(Demuxer::S16le(format)) => return pcm::write_raw(&command, format),
         Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
         Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
         Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),
@@ -297,8 +341,14 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
+        if capture.is_some() && transcode.audio_encoder != Some(args::AudioEncoder::Aac) {
+            return Err(Refusal::not_native("input capture without a native AAC encode").into());
+        }
         let encoder = encode::encoder(transcode, strict_safe)?;
-        return encode::write(&command, transcode, encoder, strict_safe);
+        return encode::write_inner(&command, transcode, encoder, strict_safe, capture);
+    }
+    if capture.is_some() {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {
@@ -379,7 +429,7 @@ pub fn plan(
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
     }
-    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) {
         return pcm::plan(command, report, &selected, list.is_some());
     }
     if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
@@ -482,25 +532,13 @@ pub fn plan(
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
     let decided = codecs(command, &output);
-    for (position, ((_, stream), codec)) in output.iter().zip(&decided).enumerate() {
-        if *codec == Some(Codec::Audio(args::AudioEncoder::Aac))
-            && stream.entries.iter().any(|(key, value)| {
-                *key == "codec_name" && matches!(value, Value::Str(name) if name == "opus")
-            })
-            && !command
-                .codecs
-                .iter()
-                .any(|(spec, _)| matching(spec, &output).contains(&position))
-        {
-            return Err(Refusal::not_native(
-                "default AAC encoding of an Opus source (its exact output has not been verified)",
-            ));
-        }
-    }
     if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
         ));
+    }
+    if decided.contains(&Some(Codec::Flac)) {
+        return Err(Refusal::not_native("FLAC encoding outside FLAC output"));
     }
     let coded = |wanted: Codec| -> Vec<usize> {
         output
@@ -905,6 +943,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
                 Some(Codec::Audio(args::AudioEncoder::Aac))
             }
             (Muxer::Mp3, StreamKind::Audio) => Some(Codec::Audio(args::AudioEncoder::Libmp3lame)),
+            (Muxer::Flac, StreamKind::Audio) => Some(Codec::Flac),
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
@@ -1206,7 +1245,7 @@ fn select_sources(
                 Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
                 _ => None,
             });
-            if matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+            if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac)
                 || codec.is_none_or(|c| TEXT_SUBTITLES.contains(&c))
             {
                 selected.push(*i);
@@ -1445,9 +1484,10 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         stream,
         samples,
         mask,
+        format,
     } = job
     {
-        return pcm::write(command, *stream, *samples, *mask);
+        return pcm::write(command, *stream, *samples, *mask, *format);
     }
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
@@ -1669,6 +1709,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unsupported_capture_is_refused_before_input_or_output_io() {
+        for line in [
+            "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
+            "-i missing-a.mp4 -frames:v 1 out.png",
+            "-f s16le -ar 8000 -ac 1 -i missing-a.pcm -f s16le out.pcm",
+        ] {
+            let args = line
+                .split_whitespace()
+                .map(String::from)
+                .collect::<Vec<_>>();
+            assert!(matches!(
+                run_inner(&args, StrictSafe::new(false), Some(Path::new("unused.f32"))),
+                Err(Stop::Refused(Refusal::NotNative(_)))
+            ));
+        }
+    }
+
+    #[test]
     fn default_codecs_plan_the_same_jobs_as_explicit_codecs() {
         use crate::ffprobe::model::Unit;
         let stream = |kind, entries| Stream {
@@ -1727,7 +1785,7 @@ mod tests {
     }
 
     #[test]
-    fn implicit_aac_refuses_opus_without_changing_explicit_choices() {
+    fn implicit_aac_takes_verified_opus_without_changing_explicit_choices() {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             streams: vec![
@@ -1776,21 +1834,13 @@ mod tests {
             "-c:v libx264",
             "-c:a:1 aac",
             "-c:0 libx264",
-            "-vn",
-            "-vn -c:a:1 aac",
+            "-c:a aac",
+            "-c:a:0 aac",
+            "-c:1 aac",
+            "-c:a copy -c:a aac",
         ] {
-            let Err(Refusal::NotNative(reason)) = plan_options(options, &report) else {
-                panic!("{options}: implicit Opus source was not refused");
-            };
-            assert!(
-                reason
-                    .message
-                    .contains("default AAC encoding of an Opus source")
-            );
-        }
-        for options in ["-c:a aac", "-c:a:0 aac", "-c:1 aac", "-c:a copy -c:a aac"] {
             let Job::Transcode(options) = plan_options(options, &report).unwrap() else {
-                panic!("{options}: explicit AAC was not planned");
+                panic!("{options}: AAC was not planned");
             };
             assert_eq!(options.audio_encoder, Some(args::AudioEncoder::Aac));
         }
@@ -1800,7 +1850,13 @@ mod tests {
             };
             assert_eq!(options.audio_encoder, None);
         }
-        for options in ["-vn -c:a aac", "-vn -c:a:0 aac", "-vn -c:0 aac"] {
+        for options in [
+            "-vn",
+            "-vn -c:a:1 aac",
+            "-vn -c:a aac",
+            "-vn -c:a:0 aac",
+            "-vn -c:0 aac",
+        ] {
             assert_eq!(
                 plan_options(options, &report).unwrap(),
                 Job::AudioEncode {

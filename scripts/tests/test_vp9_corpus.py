@@ -386,6 +386,33 @@ class Workflow(unittest.TestCase):
         from test_registered_candidate import load_workflow
         cls.workflow = load_workflow('vp9-corpus.yml')
 
+    def test_every_corpus_build_enables_native_boundary_comparisons(self):
+        commands = '\n'.join(step.get('run', '') for step in self.workflow['jobs']['contract']['steps'])
+        for command in ('test', 'clippy', 'build'):
+            lines = [line for line in commands.splitlines()
+                     if line.strip().startswith(f'cargo {command} ') and '-p coreav-vp9-corpus-oracle' in line]
+            self.assertEqual(len(lines), 1, command)
+            self.assertIn('--features native-vp9', lines[0],
+                          'enable native-vp9 so the corpus checks both full and keyframe-only boundary output')
+
+    def test_boundary_changes_start_corpus_and_vector_comparisons(self):
+        from test_registered_candidate import load_workflow
+        for workflow in (self.workflow, load_workflow('vp9-conformance.yml')):
+            triggers = workflow.get('on', workflow.get('true'))
+            for event in ('push', 'pull_request'):
+                for path in ('crates/coreav-backend-vp9/src/lib.rs', 'crates/coreav-decode/src/lib.rs',
+                             'crates/coreav-frame/src/picture.rs'):
+                    self.assertTrue(any(fnmatchcase(path, pattern) for pattern in triggers[event]['paths']), path)
+
+    def test_hosted_vectors_exercise_the_boundary_without_skipping_ignored_tests(self):
+        from test_registered_candidate import load_workflow
+        workflow = load_workflow('vp9-conformance.yml')
+        steps = workflow['jobs']['vectors']['steps']
+        boundary = [step for step in steps if '-p coreav-backend-vp9 --test vectors' in step.get('run', '')]
+        self.assertEqual(len(boundary), 1)
+        self.assertIn('--include-ignored', boundary[0]['run'])
+        self.assertIn('COREAV_VP9_VECTORS', boundary[0]['env'])
+
     def test_preflight_gates_acquisition_and_credentials_exist_only_in_fetch(self):
         jobs = self.workflow['jobs']
         self.assertEqual(jobs['corpus']['needs'], 'contract')
