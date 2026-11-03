@@ -45,3 +45,19 @@ Compare full raw output bytes, with no trimming, alignment or tolerance. Cover F
 Unit tests cover empty registrations, rejected decoder/precision/layout combinations, exact-stage composition, byte identity, partition-independent sequential rate conversion, output bounds and malformed frames. CLI tests require unsupported options and codecs to fall back with complete original stdin, strict-safe exit 4 without output, no fallback after output begins, quiet EPIPE including final-buffer flush, and unchanged existing WAV/raw file behavior.
 
 An oracle disagreement follows the specification and file bytes. Record a provable oracle defect without changing exact admission. Escalate a specification ambiguity rather than choosing undocumented arithmetic. Missing codec or resampler capabilities are separate work; this change registers none by assumption.
+
+## Initial platform checks
+
+The first generated stereo S16 probe at 48 kHz produced exact unchanged-rate mono S16 output, but every F32 mono sample differed. Neither observation authorizes combined mixing and rate conversion.
+
+The existing raw S16 kernel and the pinned macOS arm64 oracle produced equal lengths at 48 to 16 kHz, but 1,396 of 2,732 stereo samples differed by one S16 step. Its arithmetic remains unchanged. No changed-rate stage is registered for that platform. The existing Linux x86-64 evidence does not transfer to macOS. Complete decoded-S16 composition must pass the Linux oracle checks before its registration can be admitted; a failure disables that candidate rather than changing the numerical bar.
+
+## Float-preserving rate adapter
+
+A separate bounded investigation found the existing kernel's unquantized mono F32 adaptation equal to the Linux x86-64 oracle for seven isolated signals at 44.1 or 48 kHz to 16 kHz, including complete lengths and both F32 and S16 destinations. Those were rate-only comparisons over identical oracle-decoded float input, not an exact decoder or complete-command registration. The S16 API differed when the same floats were quantized before filtering.
+
+Include a bounded F32-input adapter in this implementation, sharing the existing kernel, rational positions, reflected edges, accumulation and drain. Preserve float samples until the final destination packing. Register candidate rate rows only for mono 44,100 or 48,000 Hz to 16,000 Hz, on the verified platform, and only after complete lossless-source commands pass. Other rates, channel conversions and platforms remain denied unless this change's independent generated checks establish a separate exact row. This adds no new coefficient recipe or numerical tolerance. Lossy decoders remain unregistered.
+
+The streaming engine must handle oversized chunks incrementally, preserve signed-zero and finite F32 sample bits on identity paths, bound startup and tail storage independently of duration, and drain exactly once. Check both F32 and S16 outputs against the oracle without passing native output through another audio conversion. Test short signals, irregular values, impulses, extrema, decoder block boundaries and multiple chunk partitions. F32 mixing is still a separate unregistered stage; mono input does not imply stereo input can use this path.
+
+Standalone WAV input is not covered in this change. It requires a bounded PCM source API in addition to native probing. A follow-up will add a WAV/PCM source adapter over the landed probe parser's data-span API and register the verified paths. Do not duplicate RIFF parsing or treat a report as decoded frames.
