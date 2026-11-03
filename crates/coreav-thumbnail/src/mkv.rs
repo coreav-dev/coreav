@@ -2,8 +2,8 @@
 //! asked for, read from the Cues' cluster when the file has Cues.
 
 use coreav_decode::{Codec, CodecConfig, ConfigKind, StreamConfig};
-use coreav_isobmff::Rational;
 use coreav_isobmff::access::AccessFormat;
+use coreav_isobmff::{PlanningBudget, Rational};
 use coreav_mkv::{Allowlist, Encoding, Packet, Segment, Source, TrackKind, probe};
 
 use crate::mp4::color_info;
@@ -18,10 +18,16 @@ pub(crate) fn plan<S: Source>(
     source: &mut S,
     options: &ThumbnailOptions,
     first: Option<usize>,
+    planning: Option<&PlanningBudget>,
 ) -> Result<Plan, Error> {
     let limits = &options.matroska_limits;
-    let allowlist = allowlist(options);
-    let segment = probe(&mut *source, limits, &allowlist)?;
+    let allowlist = allowlist_with_planning(options, planning)?;
+    let segment = match planning {
+        Some(planning) => {
+            coreav_mkv::probe_with_planning(&mut *source, limits, &allowlist, planning.clone())?
+        }
+        None => probe(&mut *source, limits, &allowlist)?,
+    };
     let track = segment
         .tracks
         .iter()
@@ -47,23 +53,26 @@ pub(crate) fn plan<S: Source>(
     })?;
     let prefix = match &track.encoding {
         Encoding::None => Vec::new(),
-        Encoding::HeaderStripping(bytes) => bytes.clone(),
+        Encoding::HeaderStripping(bytes) => crate::copy(planning, bytes)?,
         Encoding::Encrypted => return Err(Error::Unsupported("encrypted video".into())),
         Encoding::Zlib | Encoding::Unsupported => {
             return Err(Error::Unsupported("compressed video frames".into()));
         }
     };
-    let config = track.codec_private.as_ref().map(|data| CodecConfig {
-        kind: match codec {
-            Codec::H264 => ConfigKind::Avcc,
-            Codec::Hevc => ConfigKind::Hvcc,
-            Codec::Av1 => ConfigKind::Av1c,
-            Codec::ProRes => ConfigKind::ProResFourcc,
-            Codec::Mpeg4 => ConfigKind::Mpeg4Dsi,
-            _ => ConfigKind::MatroskaPrivate,
-        },
-        data: data.clone(),
-    });
+    let config = match track.codec_private.as_ref() {
+        Some(data) => Some(CodecConfig {
+            kind: match codec {
+                Codec::H264 => ConfigKind::Avcc,
+                Codec::Hevc => ConfigKind::Hvcc,
+                Codec::Av1 => ConfigKind::Av1c,
+                Codec::ProRes => ConfigKind::ProResFourcc,
+                Codec::Mpeg4 => ConfigKind::Mpeg4Dsi,
+                _ => ConfigKind::MatroskaPrivate,
+            },
+            data: crate::copy(planning, data)?,
+        }),
+        None => None,
+    };
     let rule = match (codec, &config) {
         (Codec::H264, Some(c)) => c
             .data
@@ -117,6 +126,7 @@ pub(crate) fn plan<S: Source>(
         color: color_info(track.color),
     };
     let start = start_time(&segment, source, limits);
+    crate::planning_check(planning)?;
     let at = start
         .checked_add(options.at)
         .ok_or_else(|| Error::Unsupported("time out of range".into()))?;
@@ -128,10 +138,22 @@ pub(crate) fn plan<S: Source>(
             options,
             None,
             Some(limit),
+            planning,
         )?,
-        None => packets(&segment, track.index, source, options, at, rule, &prefix)?,
+        None => packets(
+            &segment,
+            track.index,
+            source,
+            options,
+            at,
+            rule,
+            &prefix,
+            planning,
+        )?,
     };
-    let stated = vec![true; packets.len()];
+    let mut stated = Vec::new();
+    crate::reserve(planning, &mut stated, packets.len())?;
+    stated.resize(packets.len(), true);
     Ok(Plan {
         warnings: Vec::new(),
         stream_index: track.stream_index,
@@ -158,8 +180,15 @@ pub(crate) fn plan<S: Source>(
 
 /// The Matroska allowlist: the default, plus the long-tail video codecs
 /// the decode policy allows.
-fn allowlist(options: &ThumbnailOptions) -> Allowlist {
-    let mut codecs = Allowlist::default().codecs().to_vec();
+fn allowlist_with_planning(
+    options: &ThumbnailOptions,
+    planning: Option<&PlanningBudget>,
+) -> Result<Allowlist, Error> {
+    let defaults = match planning {
+        Some(planning) => Allowlist::default_with_planning(planning)?,
+        None => Allowlist::default(),
+    };
+    let mut codecs = crate::copy(planning, defaults.codecs())?;
     for (decode, mkv) in [
         (Codec::Mpeg4, coreav_mkv::Codec::Mpeg4),
         (Codec::Mpeg1Video, coreav_mkv::Codec::Mpeg1Video),
@@ -169,10 +198,14 @@ fn allowlist(options: &ThumbnailOptions) -> Allowlist {
         (Codec::Ffv1, coreav_mkv::Codec::Ffv1),
     ] {
         if options.policy.allowlist.allows(decode) {
+            crate::reserve(planning, &mut codecs, 1)?;
             codecs.push(mkv);
         }
     }
-    Allowlist::new(&codecs)
+    Ok(match planning {
+        Some(planning) => Allowlist::new_with_planning(&codecs, planning)?,
+        None => Allowlist::new(&codecs),
+    })
 }
 
 fn codec(codec: coreav_mkv::Codec) -> Option<Codec> {
@@ -218,6 +251,7 @@ fn start_time<S: Source>(
 /// The video track's packets around `at`: from the Cues' cluster at or
 /// before it (or the first cluster), until a keyframe presented after `at`
 /// and the frames it leads (`select`'s stop rule).
+#[allow(clippy::too_many_arguments)]
 fn packets<S: Source>(
     segment: &Segment,
     track: usize,
@@ -226,7 +260,9 @@ fn packets<S: Source>(
     at: Rational,
     rule: CutRule,
     prefix: &[u8],
+    planning: Option<&PlanningBudget>,
 ) -> Result<Listed, Error> {
+    crate::planning_check(planning)?;
     let limits = &options.matroska_limits;
     let number = segment.tracks.get(track).map(|t| t.number);
     let cluster = if segment.cues.is_some() {
@@ -249,12 +285,13 @@ fn packets<S: Source>(
             options,
             Some(at),
             None,
+            planning,
         )?;
         // The Cues led to no keyframe at or before the time (they point
         // past it, at a cluster without one, or at blocks whose coded data
         // does not start decoding, as a writer that flagged every block
         // leaves them): read from the start.
-        if cut_point_before(source, &samples, &packets, at, rule, prefix)? {
+        if cut_point_before_with_planning(source, &samples, &packets, at, rule, prefix, planning)? {
             return Ok((samples, packets, durations));
         }
     }
@@ -265,8 +302,9 @@ fn packets<S: Source>(
         options,
         Some(at),
         None,
+        planning,
     )?;
-    if cut_point_before(source, &samples, &packets, at, rule, prefix)? {
+    if cut_point_before_with_planning(source, &samples, &packets, at, rule, prefix, planning)? {
         return Ok((samples, packets, durations));
     }
     // No block at or before the time starts decoding: the stop rule would
@@ -279,6 +317,7 @@ fn packets<S: Source>(
         options,
         None,
         None,
+        planning,
     )
 }
 
@@ -289,6 +328,7 @@ fn packets<S: Source>(
 /// holds one costs one check; the order decides which block's error, such
 /// as a work limit, is met first, and a block before the one found is
 /// never read.
+#[cfg(test)]
 fn cut_point_before<S: Source>(
     source: &mut S,
     samples: &[Sample],
@@ -297,6 +337,19 @@ fn cut_point_before<S: Source>(
     rule: CutRule,
     prefix: &[u8],
 ) -> Result<bool, Error> {
+    cut_point_before_with_planning(source, samples, packets, at, rule, prefix, None)
+}
+
+fn cut_point_before_with_planning<S: Source>(
+    source: &mut S,
+    samples: &[Sample],
+    packets: &[PacketRef],
+    at: Rational,
+    rule: CutRule,
+    prefix: &[u8],
+    planning: Option<&PlanningBudget>,
+) -> Result<bool, Error> {
+    crate::planning_check(planning)?;
     let candidates = samples
         .iter()
         .enumerate()
@@ -309,7 +362,7 @@ fn cut_point_before<S: Source>(
         };
         // Matroska states every block's keyframe flag, so an unreadable
         // frame keeps it (`crate::cut_point`).
-        if crate::starts_decoding(source, rule, prefix, packet, true)? {
+        if crate::starts_decoding_with_planning(source, rule, prefix, packet, true, planning)? {
             return Ok(true);
         }
     }
@@ -327,7 +380,9 @@ fn read<S: Source>(
     options: &ThumbnailOptions,
     stop: Option<Rational>,
     limit: Option<usize>,
+    planning: Option<&PlanningBudget>,
 ) -> Result<Listed, Error> {
+    crate::planning_check(planning)?;
     let scale = i128::from(segment.timestamp_scale);
     let default_duration = segment.tracks.get(track).and_then(|t| t.default_duration);
     let mut samples = Vec::new();
@@ -367,6 +422,9 @@ fn read<S: Source>(
             .and_then(|(n, d)| n.checked_add(d))
             .and_then(nanos);
         let pts = p.pts.unwrap_or(p.block_timestamp);
+        crate::reserve(planning, &mut samples, 1)?;
+        crate::reserve(planning, &mut packets, 1)?;
+        crate::reserve(planning, &mut durations, 1)?;
         samples.push(Sample {
             time,
             end,

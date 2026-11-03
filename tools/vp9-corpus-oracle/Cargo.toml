@@ -12,7 +12,13 @@ publish = false
 name = "vp9-corpus-oracle"
 path = "src/main.rs"
 
+[features]
+native-vp9 = ["dep:coreav-backend-vp9", "dep:coreav-decode", "dep:coreav-frame"]
+
 [dependencies]
+coreav-backend-vp9 = { path = "../../crates/coreav-backend-vp9", optional = true }
+coreav-decode = { path = "../../crates/coreav-decode", optional = true }
+coreav-frame = { path = "../../crates/coreav-frame", optional = true }
 coreav-mkv = { path = "../../crates/coreav-mkv" }
 coreav-vp9 = { path = "../../crates/coreav-vp9" }
 md-5 = "0.10"

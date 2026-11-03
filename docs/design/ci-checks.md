@@ -208,7 +208,7 @@ safe direction.
 
 ## JavaScript package changes
 
-Changes confined to `packages/wasm/**` do not select the Rust suite or
+Changes confined to `packages/wasm/**` or `packages/wasm-h264/**` do not select the Rust suite or
 the native npm and Python packaging jobs. The npm and Python filters name
 `packages/cli/**`, whose build tools they consume, rather than every
 JavaScript package. Rust crate changes still select Rust CI, including

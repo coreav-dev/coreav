@@ -597,3 +597,17 @@ apply only to subsequent runs using their implementing tools.
 ## Deviations
 
 None yet.
+
+## Supplemental input registration, 2026-11-03
+
+Future runs using the implementing tools append the exact per-command
+tuples in [`v2-fixtures.md`](../../design/v2-fixtures.md) only after the
+original five-fixture traversal has no successful assignment. The new
+generator makes synthetic files, including declared local playlist
+dependencies. Staging preserves sparse raw input extents. The run records
+every added file's SHA-256 and the generator and tuple-table digests.
+
+This changes input availability, not the fixed command set, first-success
+rule, time limits, miss accounting or any output oracle. Existing successful
+assignments stay unchanged. Cases that media cannot repair remain no_input.
+It does not authorize editing earlier records or replaying a missed bar.

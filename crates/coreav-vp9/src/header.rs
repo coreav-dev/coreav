@@ -353,15 +353,20 @@ pub(crate) struct Parsed {
     pub(crate) probs: Option<(Contexts, Probs)>,
 }
 
-/// Reads the headers of the frame `data`, given the reference slots, what
-/// earlier headers left and the saved frame contexts.
-pub(crate) fn parse(
-    data: &[u8],
-    slots: &[Option<Slot>; 8],
-    carried: &Carried,
-    contexts: &Contexts,
-) -> Result<Parsed> {
-    let mut r = BitReader::new(data);
+enum Start {
+    Existing {
+        profile: u8,
+        slot: u8,
+    },
+    Coded {
+        profile: u8,
+        key: bool,
+        shown: bool,
+        resilient: bool,
+    },
+}
+
+fn start(r: &mut BitReader<'_>) -> Result<Start> {
     const H: &str = "the uncompressed header";
     if r.f(2, H)? != 2 {
         return Err(Error::Invalid("frame_marker is not 2"));
@@ -373,27 +378,94 @@ pub(crate) fn parse(
         return Err(Error::Invalid("reserved_zero is not 0"));
     }
     if r.bit(H)? {
-        let slot = r.f(3, H)? as u8;
-        let shown = slots
-            .get(usize::from(slot))
-            .copied()
-            .flatten()
-            .ok_or(Error::Invalid(
-                "show_existing_frame of an empty reference slot",
-            ))?;
-        return Ok(Parsed {
-            header: Header::ShowExisting {
-                profile,
-                slot,
-                width: shown.width,
-                height: shown.height,
-            },
-            probs: None,
+        return Ok(Start::Existing {
+            profile,
+            slot: r.f(3, H)? as u8,
         });
     }
-    let key_frame = !r.bit(H)?;
-    let show_frame = r.bit(H)?;
-    let error_resilient = r.bit(H)?;
+    Ok(Start::Coded {
+        profile,
+        key: !r.bit(H)?,
+        shown: r.bit(H)?,
+        resilient: r.bit(H)?,
+    })
+}
+
+pub(crate) enum KeyframeAction {
+    Decode,
+    Existing(u8),
+    Skip(u8),
+}
+
+pub(crate) fn keyframe_action(data: &[u8]) -> Result<KeyframeAction> {
+    const H: &str = "the uncompressed header";
+    let mut r = BitReader::new(data);
+    let (profile, shown, resilient) = match start(&mut r)? {
+        Start::Existing { profile: 0, slot } => return Ok(KeyframeAction::Existing(slot)),
+        Start::Existing { .. } => {
+            return Err(Error::Unsupported("pixel decoding outside profile 0"));
+        }
+        Start::Coded {
+            profile: 0,
+            key: true,
+            ..
+        } => return Ok(KeyframeAction::Decode),
+        Start::Coded {
+            profile,
+            shown,
+            resilient,
+            ..
+        } => (profile, shown, resilient),
+    };
+    if profile != 0 {
+        return Err(Error::Unsupported("pixel decoding outside profile 0"));
+    }
+    let intra_only = !shown && r.bit(H)?;
+    if !resilient {
+        r.f(2, H)?;
+    }
+    if intra_only {
+        frame_sync_code(&mut r)?;
+    }
+    Ok(KeyframeAction::Skip(r.f(8, H)? as u8))
+}
+
+/// Reads the headers of the frame `data`, given the reference slots, what
+/// earlier headers left and the saved frame contexts.
+pub(crate) fn parse(
+    data: &[u8],
+    slots: &[Option<Slot>; 8],
+    carried: &Carried,
+    contexts: &Contexts,
+) -> Result<Parsed> {
+    let mut r = BitReader::new(data);
+    const H: &str = "the uncompressed header";
+    let (profile, key_frame, show_frame, error_resilient) = match start(&mut r)? {
+        Start::Existing { profile, slot } => {
+            let shown = slots
+                .get(usize::from(slot))
+                .copied()
+                .flatten()
+                .ok_or(Error::Invalid(
+                    "show_existing_frame of an empty reference slot",
+                ))?;
+            return Ok(Parsed {
+                header: Header::ShowExisting {
+                    profile,
+                    slot,
+                    width: shown.width,
+                    height: shown.height,
+                },
+                probs: None,
+            });
+        }
+        Start::Coded {
+            profile,
+            key,
+            shown,
+            resilient,
+        } => (profile, key, shown, resilient),
+    };
     let mut intra_only = false;
     let mut reset_frame_context = 0;
     let color;

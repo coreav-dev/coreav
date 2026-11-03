@@ -11,10 +11,10 @@ use coreav_decode::Codec;
 use coreav_isobmff::Rational;
 #[cfg(feature = "thumbnail")]
 use coreav_isobmff::Source;
-#[cfg(feature = "thumbnail")]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
 use serde_json::Value;
 
-#[cfg(feature = "thumbnail")]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
 use crate::output::WriteFailure;
 
 /// The argument after which the `coreav` binary runs as a decode worker.
@@ -223,6 +223,7 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
     not(any(
         feature = "ffmpeg-fallback",
         feature = "native-h264",
+        feature = "native-vp9",
         feature = "dav1d",
         feature = "libvpx"
     )),
@@ -238,6 +239,8 @@ pub(crate) fn backends(
     let mut out = crate::strict_safe::Decoders::default();
     #[cfg(feature = "native-h264")]
     out.push(Box::new(coreav_backend_h264::NativeH264::new()));
+    #[cfg(feature = "native-vp9")]
+    out.push(Box::new(coreav_backend_vp9::NativeVp9::new()));
     #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
     if let Some(program) = this {
         use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
@@ -278,8 +281,9 @@ pub(crate) fn backends(
 }
 
 /// The summary document.
-#[cfg(feature = "thumbnail")]
-fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Value {
+#[doc(hidden)]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
+pub fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Value {
     use crate::native::rational;
     use crate::time::to_f64;
     serde_json::json!({
@@ -322,8 +326,9 @@ fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Val
 }
 
 /// The failure of a thumbnail.
-#[cfg(feature = "thumbnail")]
-pub(crate) fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
+#[doc(hidden)]
+#[cfg(any(feature = "thumbnail", feature = "thumbnail-summary"))]
+pub fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
     use crate::error::Failure;
     use coreav_thumbnail::Error;
     let failure = match error {

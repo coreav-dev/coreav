@@ -14,7 +14,8 @@ import { noticeSections, validateEvidence } from "../../../scripts/notices/evide
 export const PACKED = Object.freeze([
   "package/LICENSE-APACHE", "package/LICENSE-MIT", "package/NOTICE", "package/README.md",
   "package/THIRD-PARTY-NOTICES.txt", "package/package.json",
-  "package/src/api.js", "package/src/engine.js", "package/src/errors.js", "package/src/index.d.ts",
+  "package/src/bounded-source.js",
+  "package/src/api.js", "package/src/engine.js", "package/src/engine-core.js", "package/src/errors.js", "package/src/index.d.ts",
   "package/src/index.js", "package/src/internal.js", "package/src/node.d.ts", "package/src/node.js",
   "package/src/r2.js", "package/src/sources.js", "package/src/workers.d.ts", "package/src/workers.js",
   "package/wasm/build.js", "package/wasm/coreav.js", "package/wasm/coreav_bg.wasm",
@@ -85,7 +86,7 @@ export function archiveEntries(compressed) {
 }
 
 /** Validate the entire roster before npm is allowed to extract anything. */
-export function validateArchive(entries) {
+export function validateArchive(entries, packed = PACKED) {
   const seen = new Set();
   const files = new Map();
   for (const entry of entries) {
@@ -96,17 +97,17 @@ export function validateArchive(entries) {
     assert.ok(Number.isSafeInteger(mode) && mode >= 0 && mode <= 0o7777 && !(mode & 0o7133), `unsafe archive mode: ${path}`);
     assert.ok(!/\.env|\.dev\.vars|wrangler|node_modules|\.tgz|(?:^|\/)(?:test|examples|scripts)(?:\/|$)/i.test(path), `forbidden packed file: ${path}`);
     assert.ok(Number.isSafeInteger(size) && size >= 0 && bytes.byteLength === size, `incorrect archive size: ${path}`);
-    assert.ok(PACKED.includes(path), `unexpected packed file: ${path}`);
+    assert.ok(packed.includes(path), `unexpected packed file: ${path}`);
     files.set(path, bytes);
   }
-  assert.deepEqual([...files.keys()].sort(), [...PACKED].sort(), "packed file roster differs");
+  assert.deepEqual([...files.keys()].sort(), [...packed].sort(), "packed file roster differs");
   return files;
 }
 
-export function validateManifest(manifest, allowed) {
+export function validateManifest(manifest, allowed, name = "@coreav/wasm") {
   const keys = ["name", "version", "description", "license", "repository", "private", "type", "exports", "files", "engines", "scripts", "devDependencies"];
   assert.deepEqual(Object.keys(manifest).sort(), keys.sort(), "unexpected packed manifest fields (runtime dependencies and publishing hooks are forbidden)");
-  assert.equal(manifest.name, "@coreav/wasm");
+  assert.equal(manifest.name, name);
   assert.equal(manifest.private, true, "the package must remain private");
   assert.equal(manifest.type, "module");
   assert.equal(manifest.license, "MIT OR Apache-2.0");
@@ -134,6 +135,9 @@ export function validateProvenance(provenance, wasm, fingerprint, pins) {
   assert.match(pins.notices.raw.sha256, /^[a-f0-9]{64}$/, "missing raw module build provenance");
   assert.ok(Array.isArray(pins.notices.distribution.rustflags) && pins.notices.distribution.rustflags.every((flag) => typeof flag === "string" && !flag.startsWith("--remap-path-prefix")) && pins.notices.distribution.rustflags.some((flag, index) => flag === "-C" && pins.notices.distribution.rustflags[index + 1] === "target-feature=+simd128"), "missing SIMD build flags in provenance");
   assert.ok(provenance.rustc.startsWith(`rustc ${pins.rust} `), "build with the pinned WASM Rust toolchain");
+  if (pins.notices.distribution.features?.includes("native-h264")) {
+    assert.deepEqual(pins.notices.distribution.rustflags.slice(-4), ["-C", "opt-level=z", "-C", "target-feature=+simd128"], "build the H.264 module with its recorded size optimization");
+  }
   return hash;
 }
 
@@ -155,6 +159,19 @@ export function scanPaths(files, prefixes) {
 export function validateCompressedSize(raw, compressed) {
   assert.ok(Number.isSafeInteger(raw) && raw > 0 && Number.isSafeInteger(compressed) && compressed > 0, "invalid WASM size record");
   assert.ok(compressed <= SIZE_BAR, `shipped WASM is ${raw} bytes raw, ${compressed} bytes gzip -9 -n; limit ${SIZE_BAR}`);
+}
+
+export function validateFeatureClosure(record, features, rawPrefix) {
+  assert.deepEqual(record?.distribution?.features, features, "notice record feature closure differs");
+  assert.equal(record.distribution.package, "coreav-wasm");
+  assert.equal(record.distribution.defaultFeatures, true);
+  assert.equal(record.distribution.profile, "edge");
+  assert.equal(record.distribution.target, "wasm32-unknown-unknown");
+  assert.equal(record.distribution.features.includes("native-h264"), features.includes("native-h264"));
+  if (rawPrefix) {
+    assert.equal(record.raw.path.startsWith(rawPrefix), true, "raw module must stay in its own target directory");
+    assert.notEqual(record.raw.path, "target/wasm32-unknown-unknown/edge/coreav_wasm.wasm");
+  }
 }
 
 export function consumerEnv(env = process.env) {
@@ -191,22 +208,22 @@ function installedFiles(directory, prefix = "") {
   });
 }
 
-async function checkConsumer(consumer, tarball, files, manifest, hash, npm) {
+async function checkConsumer(consumer, tarball, files, manifest, hash, npm, identity) {
   const env = consumerEnv();
   assert.ok(!within(repo, realpathSync(consumer)), "consumer must be outside the repository");
-  writeFileSync(join(consumer, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: { "@coreav/wasm": pathToFileURL(tarball).href } }));
+  writeFileSync(join(consumer, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: { [identity.name]: pathToFileURL(tarball).href } }));
   const options = { cwd: consumer, env };
   run(process.execPath, [npm, "install", "--offline", "--no-audit", "--no-fund"], options);
   const modules = join(consumer, "node_modules");
   assert.deepEqual(readdirSync(modules).sort(), [".package-lock.json", "@coreav"].sort(), "consumer has runtime or development dependency leakage");
-  assert.deepEqual(readdirSync(join(modules, "@coreav")), ["wasm"]);
-  const installed = realpathSync(join(modules, "@coreav/wasm"));
+  assert.deepEqual(readdirSync(join(modules, "@coreav")), [identity.scope]);
+  const installed = realpathSync(join(modules, identity.name));
   assert.ok(within(consumer, installed), "installed package resolved outside consumer");
-  assert.deepEqual(installedFiles(installed).sort(), PACKED.map(path => path.slice(8)).sort(), "installed package roster differs from tarball");
+  assert.deepEqual(installedFiles(installed).sort(), identity.packed.map(path => path.slice(8)).sort(), "installed package roster differs from tarball");
   for (const [path, bytes] of files) assert.deepEqual(readFileSync(join(installed, path.slice(8))), bytes, `installed file differs: ${path}`);
   const tree = JSON.parse(run(process.execPath, [npm, "ls", "--all", "--json"], options));
-  assert.deepEqual(Object.keys(tree.dependencies), ["@coreav/wasm"]);
-  const dependency = tree.dependencies["@coreav/wasm"];
+  assert.deepEqual(Object.keys(tree.dependencies), [identity.name]);
+  const dependency = tree.dependencies[identity.name];
   assert.equal(dependency.version, manifest.version);
   assert.deepEqual(dependency.dependencies ?? {}, {}, "installed runtime graph must be empty");
 
@@ -214,54 +231,64 @@ async function checkConsumer(consumer, tarball, files, manifest, hash, npm) {
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 const installed = ${JSON.stringify(installed + sep)};
-for (const name of ["@coreav/wasm", "@coreav/wasm/node", "@coreav/wasm/workers"]) {
+for (const name of ${JSON.stringify([identity.name, `${identity.name}/node`, `${identity.name}/workers`])}) {
   assert.ok(realpathSync(fileURLToPath(import.meta.resolve(name))).startsWith(installed));
 }
 `;
   writeFileSync(join(consumer, "root.mjs"), `${common}
 let fetches = 0;
 globalThis.fetch = () => { fetches += 1; throw new Error("root import fetched bytes"); };
-const api = await import("@coreav/wasm");
+const api = await import(${JSON.stringify(identity.name)});
 assert.throws(() => api.moduleInfo(), /not loaded/);
 await assert.rejects(api.probe(api.bytesSource(new Uint8Array())), /not loaded/);
 assert.equal(fetches, 0);
 `);
   run(process.execPath, ["root.mjs"], options);
-  const { fixtures } = await import(new URL("../examples/test/synth.mjs", import.meta.url));
-  writeFileSync(join(consumer, "av.mp4"), fixtures().get("av.mp4"));
-  writeFileSync(join(consumer, "node.mjs"), `${common}
-import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-const api = await import("@coreav/wasm/node");
-const wasm = readFileSync(installed + "wasm/coreav_bg.wasm");
-assert.equal(api.moduleInfo().build, createHash("sha256").update(wasm).digest("hex"));
-assert.equal(api.moduleInfo().build, ${JSON.stringify(hash)});
+  if (identity.media) {
+    const { fixtures } = await import(new URL("../examples/test/synth.mjs", import.meta.url));
+    writeFileSync(join(consumer, "av.mp4"), fixtures().get("av.mp4"));
+  }
+  const media = identity.media ? `
 const source = api.bytesSource(readFileSync("av.mp4"));
 assert.equal(JSON.parse(await api.probeText(source)).schema, "coreav.probe/1");
 const clipped = await api.clip(source, { start: "0", end: "1" });
 const output = new Uint8Array(await new Response(clipped.body).arrayBuffer());
 assert.ok(output.byteLength > 0);
-await clipped.summary;
+await clipped.summary;` : `
+assert.equal(typeof api.thumbnail, "function");`;
+  writeFileSync(join(consumer, "node.mjs"), `${common}
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+const api = await import(${JSON.stringify(identity.name + "/node")});
+const wasm = readFileSync(installed + "wasm/coreav_bg.wasm");
+assert.equal(api.moduleInfo().build, createHash("sha256").update(wasm).digest("hex"));
+assert.equal(api.moduleInfo().build, ${JSON.stringify(hash)});${media}
 `);
   const flags = ["--experimental-wasm-jspi", "--experimental-wasm-exnref"];
   run(process.execPath, [...flags, "node.mjs"], options);
   writeFileSync(join(consumer, "deep.mjs"), `${common}
-for (const name of ["@coreav/wasm/src/engine.js", "@coreav/wasm/wasm/coreav_bg.wasm", "@coreav/wasm/package.json"]) {
+for (const name of ${JSON.stringify([`${identity.name}/src/engine.js`, `${identity.name}/wasm/coreav_bg.wasm`, `${identity.name}/package.json`])}) {
   await assert.rejects(import(name), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 }
 `);
   run(process.execPath, [...flags, "deep.mjs"], options);
-  for (const [program, message] of [[[...flags, "--input-type=module", "-e", 'delete WebAssembly.Suspending; await import("@coreav/wasm/node");'], /JSPI/], [["--experimental-wasm-jspi", "--no-experimental-wasm-exnref", "node.mjs"], /exception references/]]) {
+  const missingJspi = `${common}
+import { readFileSync } from "node:fs";
+const api = await import(${JSON.stringify(identity.name)});
+delete WebAssembly.Suspending;
+api.init(readFileSync(installed + "wasm/coreav_bg.wasm"));
+`;
+  for (const [program, message] of [[[...flags, "--input-type=module", "-e", missingJspi], /JSPI/], [["--experimental-wasm-jspi", "--no-experimental-wasm-exnref", "node.mjs"], /exception references/]]) {
     const refused = spawnSync(process.execPath, program, { ...options, encoding: "utf8", timeout: 30_000 });
     if (refused.error) throw refused.error;
     assert.notEqual(refused.status, 0, "installed Node loader accepted missing runtime support");
     assert.match(refused.stderr, message);
   }
-  run(process.execPath, [join(packageRoot, "scripts/check-types.mjs"), "--consumer", consumer], options);
-  await checkBundles(consumer, installed, hash);
+  run(process.execPath, [join(packageRoot, "scripts/check-types.mjs"), "--package", identity.name, "--consumer", consumer], options);
+  await checkBundles(consumer, installed, hash, identity);
 }
 
-async function checkBundles(consumer, installed, hash) {
+async function checkBundles(consumer, installed, hash, identity) {
   const require = createRequire(new URL("../examples/package.json", import.meta.url));
   const { build, stop } = await import(pathToFileURL(require.resolve("esbuild")));
   function inspect(result) {
@@ -277,7 +304,7 @@ async function checkBundles(consumer, installed, hash) {
     const root = await build({ absWorkingDir: consumer, entryPoints: [join(installed, "src/index.js")], bundle: true, write: false, outfile: join(consumer, "root-bundle.js"), format: "esm", platform: "neutral", metafile: true, logLevel: "silent" });
     inspect(root);
     assert.ok(!Object.keys(root.metafile.inputs).some(path => path.endsWith(".wasm")), "root graph must not import WASM");
-    writeFileSync(join(consumer, "worker.mjs"), 'export * from "@coreav/wasm/workers";\n');
+    writeFileSync(join(consumer, "worker.mjs"), `export * from ${JSON.stringify(`${identity.name}/workers`)};\n`);
     const modules = [];
     const worker = await build({
       absWorkingDir: consumer, entryPoints: [join(consumer, "worker.mjs")], bundle: true, write: false,
@@ -301,7 +328,24 @@ async function checkBundles(consumer, installed, hash) {
   }
 }
 
-export async function main(args = process.argv.slice(2)) {
+export function packageIdentity(profile = {}) {
+  const name = profile.name ?? "@coreav/wasm";
+  if (profile.sizeBar !== undefined && profile.sizeBar !== SIZE_BAR) throw new Error("the gzip bar cannot be relaxed");
+  if (profile.types === false) throw new Error("installed type validation cannot be skipped");
+  return {
+    name,
+    scope: name.slice(name.lastIndexOf("/") + 1),
+    packed: profile.packed ?? PACKED,
+    root: profile.root ?? packageRoot,
+    media: profile.media !== false,
+    types: profile.types !== false,
+    features: profile.features ?? null,
+    rawPrefix: profile.rawPrefix ?? null,
+  };
+}
+
+export async function main(args = process.argv.slice(2), profile = {}) {
+  const identity = packageIdentity(profile);
   assert.ok(Number(process.versions.node.split(".")[0]) >= 24, "check:package needs Node.js 24 or later");
   assert.ok(args.length === 0 || (args.length === 2 && args[0] === "--tarball"), "usage: check-package.mjs [--tarball PATH]");
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), "coreav-package-")));
@@ -312,26 +356,30 @@ export async function main(args = process.argv.slice(2)) {
     let tarball;
     if (args.length) tarball = realpathSync(resolve(args[1]));
     else {
-      const packed = JSON.parse(run(process.execPath, [npm, "pack", "--offline", "--json", "--pack-destination", scratch], { cwd: packageRoot, env }));
+      const packed = JSON.parse(run(process.execPath, [npm, "pack", "--offline", "--json", "--pack-destination", scratch], { cwd: identity.root, env }));
       assert.equal(packed.length, 1, "npm pack must produce one tarball");
       assert.equal(basename(packed[0].filename), packed[0].filename, "npm pack returned a nonlocal tarball name");
       tarball = join(scratch, packed[0].filename);
     }
     const compressed = readFileSync(tarball);
-    const files = validateArchive(archiveEntries(compressed));
+    const files = validateArchive(archiveEntries(compressed), identity.packed);
     const checkedTarball = join(scratch, "checked.tgz");
     writeFileSync(checkedTarball, compressed);
     const allowed = licensePolicy(repo).allowed;
     const manifest = JSON.parse(files.get("package/package.json"));
-    validateManifest(manifest, allowed);
+    validateManifest(manifest, allowed, identity.name);
     scanPaths(files, { home: homedir(), repo });
     const wasm = files.get("package/wasm/coreav_bg.wasm");
     const glue = files.get("package/wasm/coreav.js");
     const binaryen = /^BINARYEN_VERSION=([0-9]+)$/m.exec(readFileSync(join(repo, "scripts/binaryen.env"), "utf8"));
     const bindgen = /^wasm-bindgen = "=([^"]+)"$/m.exec(readFileSync(join(repo, "crates/coreav-wasm/Cargo.toml"), "utf8"));
     assert.ok(binaryen && bindgen, "missing tool pins");
-    const provenance = JSON.parse(readFileSync(join(packageRoot, "wasm/provenance.json"), "utf8"));
-    const expected = checkNotices(packageRoot, repo);
+    const provenance = JSON.parse(readFileSync(join(identity.root, "wasm/provenance.json"), "utf8"));
+    const expected = checkNotices(identity.root, repo);
+    if (identity.features) {
+      validateFeatureClosure(expected.record, identity.features, identity.rawPrefix);
+      assert.deepEqual(provenance.features, identity.features, "provenance feature closure differs");
+    }
     const hash = validateProvenance(provenance, wasm, files.get("package/wasm/build.js"), { binaryen: binaryen[1], bindgen: bindgen[1], rust: expected.tc.version, notices: expected.record });
     for (const name of ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"]) assert.deepEqual(files.get(`package/${name}`), readFileSync(join(repo, name)), `run npm run build: ${name} differs from the repository`);
     const notices = files.get("package/THIRD-PARTY-NOTICES.txt").toString("utf8");
@@ -341,7 +389,7 @@ export async function main(args = process.argv.slice(2)) {
     const gzip = bytes => execFileSync("gzip", ["-9", "-n", "-c"], { input: bytes, maxBuffer: 64 * 1024 * 1024, timeout: 30_000 }).length;
     const wasmGzip = gzip(wasm);
     validateCompressedSize(wasm.length, wasmGzip);
-    await checkConsumer(consumer, checkedTarball, files, manifest, hash, npm);
+    await checkConsumer(consumer, checkedTarball, files, manifest, hash, npm, identity);
     const evidence = Object.fromEntries(Object.entries(expected.evidence).map(([name, value]) => [name, value instanceof Map ? [...value].map(([crate, versions]) => ({ name: crate, versions: [...versions].sort() })) : [...value].sort()]));
     const record = {
       wasmBytes: wasm.length, wasmGzipBytes: wasmGzip, glueBytes: glue.length, glueGzipBytes: gzip(glue),

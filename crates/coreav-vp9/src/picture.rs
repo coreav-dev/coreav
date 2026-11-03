@@ -1,6 +1,7 @@
 //! The frame being decoded (`CurrFrame`) and the decoded frames the
 //! decoder hands out.
 
+use crate::header::{ColorConfig, ColorSpace};
 use crate::memory::Memory;
 use crate::{Error, LimitKind, Result};
 use coreav_kernels_vp9::Pixel;
@@ -55,11 +56,16 @@ impl<P: Sample> Planes<P> {
         &self,
         width: u32,
         height: u32,
-        bit_depth: u8,
-        subsampling_x: bool,
-        subsampling_y: bool,
+        color: ColorConfig,
         memory: &mut Memory,
     ) -> Result<Picture> {
+        let ColorConfig {
+            bit_depth,
+            subsampling_x,
+            subsampling_y,
+            color_space,
+            full_range,
+        } = color;
         let mut visible = |i: usize, plane: &Plane<P>| -> Result<Samples> {
             let (w, h) = if i == 0 {
                 (width, height)
@@ -89,6 +95,8 @@ impl<P: Sample> Planes<P> {
             bit_depth,
             subsampling_x,
             subsampling_y,
+            color_space,
+            full_range,
             planes: [visible(0, y)?, visible(1, u)?, visible(2, v)?],
         })
     }
@@ -138,6 +146,10 @@ pub struct Picture {
     pub subsampling_x: bool,
     /// `subsampling_y`: the U and V planes are `(height + 1) >> 1` high.
     pub subsampling_y: bool,
+    /// The frame's VP9 `color_space`.
+    pub color_space: ColorSpace,
+    /// The frame's VP9 `color_range`.
+    pub full_range: bool,
     /// The Y, U and V planes.
     pub planes: [Samples; 3],
 }
@@ -168,6 +180,8 @@ impl Picture {
             bit_depth: self.bit_depth,
             subsampling_x: self.subsampling_x,
             subsampling_y: self.subsampling_y,
+            color_space: self.color_space,
+            full_range: self.full_range,
         })
     }
 }
@@ -189,15 +203,22 @@ mod tests {
     fn odd_high_depth_planes_charge_superblock_padding_and_visible_samples() {
         let working = (128 * 64 + 2 * 64 * 32) * 2;
         let visible = (65 * 33 + 2 * 33 * 17) * 2;
+        let color = ColorConfig {
+            bit_depth: 10,
+            subsampling_x: true,
+            subsampling_y: true,
+            color_space: ColorSpace::Bt709,
+            full_range: false,
+        };
         let mut memory = Memory::new(working + visible - 1);
         let frame = Planes::<u16>::new(9, 5, true, true, &mut memory).unwrap();
         assert!(matches!(
-            frame.picture(65, 33, 10, true, true, &mut memory),
+            frame.picture(65, 33, color, &mut memory),
             Err(Error::Limit(LimitKind::MemoryBytes))
         ));
         let mut memory = Memory::new(working + visible);
         let frame = Planes::<u16>::new(9, 5, true, true, &mut memory).unwrap();
-        let picture = frame.picture(65, 33, 10, true, true, &mut memory).unwrap();
+        let picture = frame.picture(65, 33, color, &mut memory).unwrap();
         let Samples::High(y) = &picture.planes[0] else {
             panic!()
         };

@@ -4,14 +4,15 @@
 
 use crate::bitstream;
 use crate::ebml::{self, ElementHeader};
-use crate::error::{LimitKind, Warning, warn};
+use crate::error::{LimitKind, Warning};
 use crate::ids;
 use crate::meta::{Edition, Retained, Tag, parse_edition, parse_tag};
 use crate::packets::Packet;
+use crate::planning;
 use crate::reader::{Children, Counter, read_data, read_header};
 use crate::track::{Allowlist, Codec, DroppedTrack, Encoding, Track, parse_track_entry};
 use crate::{Error, Limits, Source};
-use coreav_isobmff::{FourCc, Profile, Rational};
+use coreav_isobmff::{FourCc, PlanningBudget, Profile, Rational};
 
 /// The `DocType` of the EBML header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,6 +100,7 @@ pub struct Segment {
     pub(crate) end: u64,
     /// `EBMLMaxSizeLength`.
     pub(crate) max_size_len: u8,
+    pub(crate) planning: Option<PlanningBudget>,
 }
 
 impl Segment {
@@ -170,7 +172,7 @@ pub fn probe<S: Source>(
     limits: &Limits,
     allowlist: &Allowlist,
 ) -> Result<Segment, Error> {
-    probe_segment(source, limits, allowlist, false)
+    probe_segment(source, limits, allowlist, false, None)
 }
 
 /// [`probe`], and also reads the metadata a caller describing the whole
@@ -184,7 +186,21 @@ pub fn probe_with_metadata<S: Source>(
     limits: &Limits,
     allowlist: &Allowlist,
 ) -> Result<Segment, Error> {
-    probe_segment(source, limits, allowlist, true)
+    probe_segment(source, limits, allowlist, true, None)
+}
+
+/// Probes using one shared, monotonic allocation account retained for indexes and packets.
+///
+/// Covers the probe, index and ordinary packet iterator used by bounded
+/// thumbnail planning. It does not cover caller-owned clones, source buffers,
+/// metadata probing, track scans or opt-in packet inflation.
+pub fn probe_with_planning<S: Source>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    planning: PlanningBudget,
+) -> Result<Segment, Error> {
+    probe_segment(source, limits, allowlist, false, Some(planning))
 }
 
 fn probe_segment<S: Source>(
@@ -192,7 +208,9 @@ fn probe_segment<S: Source>(
     limits: &Limits,
     allowlist: &Allowlist,
     metadata: bool,
+    planning: Option<PlanningBudget>,
 ) -> Result<Segment, Error> {
+    planning::check(planning.as_ref(), 0)?;
     let len = source.len()?;
     let mut magic = [0u8; 4];
     if len < 4 {
@@ -202,7 +220,8 @@ fn probe_segment<S: Source>(
     if u32::from_be_bytes(magic) != ids::EBML {
         return Err(Error::NotMatroska);
     }
-    let counter = Counter::new(limits.max_elements);
+    let mut counter = Counter::new(limits.max_elements);
+    counter.planning = planning.clone();
     counter.count(0)?;
     let header = read_header(&mut source, 0, len, 8)?;
     let data = read_data(
@@ -210,6 +229,7 @@ fn probe_segment<S: Source>(
         &header,
         limits.max_element_bytes,
         LimitKind::ElementBytes,
+        planning.as_ref(),
     )?;
     let ebml = parse_ebml_header(&data, &header, &counter)?;
 
@@ -244,7 +264,12 @@ fn probe_segment<S: Source>(
     let end = match declared_end {
         Some(end) if end <= len => end,
         Some(_) => {
-            warn(&mut warnings, Warning::TruncatedSegment);
+            planning::warn(
+                planning.as_ref(),
+                &mut warnings,
+                Warning::TruncatedSegment,
+                0,
+            )?;
             len
         }
         None => len,
@@ -260,6 +285,7 @@ fn probe_segment<S: Source>(
         retained: 0,
         warnings,
         metadata,
+        planning,
     };
     walk.linear()?;
     walk.follow_seek_heads()?;
@@ -317,11 +343,24 @@ fn read_frame_headers<S: Source>(
         ..*limits
     };
     // Per track: its first frame, and its first frame flagged a keyframe.
-    let mut first: Vec<(Option<Packet>, Option<Packet>)> = vec![(None, None); segment.tracks.len()];
+    let mut first: Vec<(Option<Packet>, Option<Packet>)> = Vec::new();
+    planning::exact(
+        segment.planning.as_ref(),
+        &mut first,
+        segment.tracks.len(),
+        segment.offset,
+    )?;
+    first.resize(segment.tracks.len(), (None, None));
     for packet in segment.packets(&mut *source, &peek) {
         let packet = match packet {
             Ok(packet) => packet,
             Err(error @ Error::Io(_)) => return Err(error),
+            Err(
+                error @ Error::LimitExceeded {
+                    limit: LimitKind::PlanningBytes,
+                    ..
+                },
+            ) => return Err(error),
             Err(_) => break,
         };
         let Some((any, key)) = first.get_mut(packet.track) else {
@@ -347,14 +386,18 @@ fn read_frame_headers<S: Source>(
     // A frame cut off by the end of the file is `None`.
     let read = |source: &mut S, track: &Track, packet: Packet| -> Result<Option<Vec<u8>>, Error> {
         let mut header = match &track.encoding {
-            Encoding::HeaderStripping(prefix) => prefix.clone(),
+            Encoding::HeaderStripping(prefix) => {
+                planning::copy(segment.planning.as_ref(), prefix, packet.offset)?
+            }
             _ => Vec::new(),
         };
         let stored = packet.stored_size.min(FRAME_HEADER_BYTES);
         let Ok(stored) = usize::try_from(stored) else {
             return Ok(None);
         };
-        let mut bytes = vec![0u8; stored];
+        let mut bytes = Vec::new();
+        planning::exact(segment.planning.as_ref(), &mut bytes, stored, packet.offset)?;
+        bytes.resize(stored, 0);
         match source
             .read_exact_at(packet.offset, &mut bytes)
             .map_err(Error::from)
@@ -363,16 +406,25 @@ fn read_frame_headers<S: Source>(
             Err(error @ Error::Io(_)) => return Err(error),
             Err(_) => return Ok(None),
         }
+        planning::reserve(
+            segment.planning.as_ref(),
+            &mut header,
+            bytes.len(),
+            packet.offset,
+        )?;
         header.extend_from_slice(&bytes);
         Ok(Some(header))
     };
+    let planning = segment.planning.clone();
     for (track, (any, key)) in segment.tracks.iter_mut().zip(first) {
         // The keyframe first; a stream's first frame is a key frame for
         // these codecs even where a writer left the flag unset.
         let fallback = any.filter(|a| key.is_none_or(|k| k.offset != a.offset));
         for packet in [key, fallback].into_iter().flatten() {
-            if read(source, track, packet)?.is_some_and(|frame| apply_frame(track, &frame)) {
-                break;
+            if let Some(frame) = read(source, track, packet)? {
+                if apply_frame(track, &frame, planning.as_ref())? {
+                    break;
+                }
             }
         }
     }
@@ -380,17 +432,28 @@ fn read_frame_headers<S: Source>(
 }
 
 /// Applies what one frame header says; whether it said anything.
-fn apply_frame(track: &mut Track, frame: &[u8]) -> bool {
+fn apply_frame(
+    track: &mut Track,
+    frame: &[u8],
+    planning: Option<&PlanningBudget>,
+) -> Result<bool, Error> {
     match track.codec {
-        Codec::Vp8 | Codec::Vp9 => apply_vpx(track, frame),
-        Codec::H264 => bitstream::h264_record(frame)
-            .is_some_and(|record| apply_record(track, FourCc(*b"avcC"), &record)),
+        Codec::Vp8 | Codec::Vp9 => Ok(apply_vpx(track, frame)),
+        Codec::H264 => match bitstream::h264_record_with_planning(frame, planning)? {
+            Some(record) => apply_record(track, FourCc(*b"avcC"), &record, planning),
+            None => Ok(false),
+        },
         Codec::Av1 => {
-            let stored = track.codec_private.clone().unwrap_or_default();
-            bitstream::av1_record(&stored, frame)
-                .is_some_and(|record| apply_record(track, FourCc(*b"av1C"), &record))
+            match bitstream::av1_record_with_planning(
+                track.codec_private.as_deref().unwrap_or_default(),
+                frame,
+                planning,
+            )? {
+                Some(record) => apply_record(track, FourCc(*b"av1C"), &record, planning),
+                None => Ok(false),
+            }
         }
-        _ => false,
+        _ => Ok(false),
     }
 }
 
@@ -421,18 +484,26 @@ fn apply_vpx(track: &mut Track, frame: &[u8]) -> bool {
 /// Applies a record built from the first keyframe: its parameter set gives
 /// the profile (it is what a decoder uses) and fills the colors `Colour`
 /// left unknown.
-fn apply_record(track: &mut Track, kind: FourCc, record: &[u8]) -> bool {
-    let Some(described) = coreav_isobmff::describe_config_record(kind, record) else {
-        return false;
+fn apply_record(
+    track: &mut Track,
+    kind: FourCc,
+    record: &[u8],
+    planning: Option<&PlanningBudget>,
+) -> Result<bool, Error> {
+    let Some(described) =
+        coreav_isobmff::describe_config_record_with_planning(kind, record, planning)
+            .map_err(|_| planning::limit(0))?
+    else {
+        return Ok(false);
     };
     if !described.parameter_set {
-        return false;
+        return Ok(false);
     }
     if described.profile.is_some() {
         track.profile = described.profile;
     }
-    track.fill_from_record(&described);
-    true
+    track.fill_from_record(&described, planning)?;
+    Ok(true)
 }
 
 /// A parser of one metadata element held in memory: its data, the data's
@@ -470,16 +541,16 @@ fn parse_ebml_header(
                     reason: "EBMLMaxIDLength below 4",
                 });
             }
-            ids::DOC_TYPE => doc_type = Some(ebml::string(d)),
+            ids::DOC_TYPE => doc_type = Some(d.split(|&b| b == 0).next().unwrap_or_default()),
             ids::DOC_TYPE_VERSION => version = ebml::uint(d, &h)?,
             ids::DOC_TYPE_READ_VERSION => read_version = ebml::uint(d, &h)?,
             ids::EBML_VERSION | ids::EBML_READ_VERSION | ids::EBML_MAX_ID_LENGTH => {}
             _ => {}
         }
     }
-    let doc_type = match doc_type.as_deref() {
-        Some("matroska") => DocType::Matroska,
-        Some("webm") => DocType::Webm,
+    let doc_type = match doc_type {
+        Some(b"matroska") => DocType::Matroska,
+        Some(b"webm") => DocType::Webm,
         _ => return Err(Error::NotMatroska),
     };
     // RFC 9559 7: versions 1 to 4 are defined.
@@ -543,6 +614,7 @@ struct Walk<'s, S> {
     /// Read `Tags`, `Chapters` and the attachments' UIDs and descriptions
     /// ([`probe_with_metadata`]).
     metadata: bool,
+    planning: Option<PlanningBudget>,
 }
 
 impl<S: Source> Walk<'_, S> {
@@ -555,7 +627,12 @@ impl<S: Source> Walk<'_, S> {
                 Ok(h) => h,
                 Err(Error::Truncated { .. }) if self.found.tracks.is_some() => {
                     // A header cut off at the end of a truncated file.
-                    warn(&mut self.warnings, Warning::TruncatedSegment);
+                    planning::warn(
+                        self.planning.as_ref(),
+                        &mut self.warnings,
+                        Warning::TruncatedSegment,
+                        0,
+                    )?;
                     break;
                 }
                 Err(error) => return Err(error),
@@ -576,7 +653,12 @@ impl<S: Source> Walk<'_, S> {
             if element_end > self.end {
                 if self.found.tracks.is_some() && !matches!(h.id, ids::INFO | ids::TRACKS) {
                     // Metadata cut off at the end of a truncated file.
-                    warn(&mut self.warnings, Warning::TruncatedSegment);
+                    planning::warn(
+                        self.planning.as_ref(),
+                        &mut self.warnings,
+                        Warning::TruncatedSegment,
+                        0,
+                    )?;
                     break;
                 }
                 return Err(Error::Truncated { offset: at });
@@ -591,6 +673,12 @@ impl<S: Source> Walk<'_, S> {
     fn top_level(&mut self, h: &ElementHeader) -> Result<(), Error> {
         match h.id {
             ids::SEEK_HEAD if !self.found.seek_heads.contains(&h.offset) => {
+                planning::reserve(
+                    self.planning.as_ref(),
+                    &mut self.found.seek_heads,
+                    1,
+                    h.offset,
+                )?;
                 self.found.seek_heads.push(h.offset);
                 self.seek_head(h)?;
             }
@@ -646,7 +734,12 @@ impl<S: Source> Walk<'_, S> {
             let h = match read_header(self.source, position, self.end, self.max_size_len) {
                 Ok(h) if h.id == id => h,
                 Ok(_) | Err(Error::Truncated { .. } | Error::InvalidElement { .. }) => {
-                    warn(&mut self.warnings, Warning::InvalidSeekEntry);
+                    planning::warn(
+                        self.planning.as_ref(),
+                        &mut self.warnings,
+                        Warning::InvalidSeekEntry,
+                        0,
+                    )?;
                     continue;
                 }
                 Err(error) => return Err(error),
@@ -660,7 +753,12 @@ impl<S: Source> Walk<'_, S> {
                 _ if matches!(id, ids::INFO | ids::TRACKS) => {
                     return Err(Error::Truncated { offset: position });
                 }
-                _ => warn(&mut self.warnings, Warning::InvalidSeekEntry),
+                _ => planning::warn(
+                    self.planning.as_ref(),
+                    &mut self.warnings,
+                    Warning::InvalidSeekEntry,
+                    0,
+                )?,
             }
         }
         Ok(())
@@ -672,6 +770,7 @@ impl<S: Source> Walk<'_, S> {
             h,
             self.limits.max_element_bytes,
             LimitKind::ElementBytes,
+            self.planning.as_ref(),
         )?;
         let mut entries = Vec::new();
         let mut invalid = false;
@@ -693,13 +792,27 @@ impl<S: Source> Walk<'_, S> {
             }
             let target = position.and_then(|p| self.data_offset.checked_add(p));
             match (id, target) {
-                (Some(id), Some(target)) if target < self.end => entries.push((id, target)),
+                (Some(id), Some(target)) if target < self.end => {
+                    planning::reserve(self.planning.as_ref(), &mut entries, 1, h.offset)?;
+                    entries.push((id, target));
+                }
                 _ => invalid = true,
             }
         }
         if invalid {
-            warn(&mut self.warnings, Warning::InvalidSeekEntry);
+            planning::warn(
+                self.planning.as_ref(),
+                &mut self.warnings,
+                Warning::InvalidSeekEntry,
+                0,
+            )?;
         }
+        planning::reserve(
+            self.planning.as_ref(),
+            &mut self.found.seek,
+            entries.len(),
+            h.offset,
+        )?;
         self.found.seek.extend(entries);
         Ok(())
     }
@@ -710,6 +823,7 @@ impl<S: Source> Walk<'_, S> {
             h,
             self.limits.max_element_bytes,
             LimitKind::ElementBytes,
+            self.planning.as_ref(),
         )?;
         let mut info = Info {
             timestamp_scale: 1_000_000,
@@ -735,9 +849,15 @@ impl<S: Source> Walk<'_, S> {
                     info.duration = Some(ebml::float(d, &c)?).filter(|v| v.is_finite() && *v > 0.0);
                 }
                 ids::DATE_UTC if d.len() == 8 => info.date_utc = Some(ebml::int(d, &c)?),
-                ids::TITLE => info.title = Some(ebml::string(d)),
-                ids::MUXING_APP => info.muxing_app = Some(ebml::string(d)),
-                ids::WRITING_APP => info.writing_app = Some(ebml::string(d)),
+                ids::TITLE => {
+                    info.title = Some(planning::string(self.planning.as_ref(), d, c.offset)?)
+                }
+                ids::MUXING_APP => {
+                    info.muxing_app = Some(planning::string(self.planning.as_ref(), d, c.offset)?)
+                }
+                ids::WRITING_APP => {
+                    info.writing_app = Some(planning::string(self.planning.as_ref(), d, c.offset)?)
+                }
                 _ => {}
             }
         }
@@ -762,7 +882,7 @@ impl<S: Source> Walk<'_, S> {
 
     fn retain_string(&mut self, data: &[u8], h: &ElementHeader) -> Result<String, Error> {
         self.retain(data.len(), h.offset)?;
-        Ok(ebml::string(data))
+        planning::string(self.planning.as_ref(), data, h.offset)
     }
 
     /// Visits the children of a known-sized master element through the
@@ -814,6 +934,7 @@ impl<S: Source> Walk<'_, S> {
                 &entry,
                 walk.limits.max_element_bytes,
                 LimitKind::ElementBytes,
+                walk.planning.as_ref(),
             )?;
             let track = parse_track_entry(
                 &data,
@@ -840,6 +961,7 @@ impl<S: Source> Walk<'_, S> {
                     reason: "duplicate TrackNumber",
                 });
             }
+            planning::reserve(walk.planning.as_ref(), &mut tracks, 1, entry.offset)?;
             tracks.push(track);
             Ok(())
         })?;
@@ -865,6 +987,7 @@ impl<S: Source> Walk<'_, S> {
                 &child,
                 walk.limits.max_element_bytes,
                 LimitKind::ElementBytes,
+                walk.planning.as_ref(),
             )?;
             let mut retained = Retained(0);
             let value = parse(
@@ -878,6 +1001,7 @@ impl<S: Source> Walk<'_, S> {
                 usize::try_from(retained.0).unwrap_or(usize::MAX),
                 child.offset,
             )?;
+            planning::reserve(walk.planning.as_ref(), &mut out, 1, child.offset)?;
             out.push(value);
             Ok(())
         })?;
@@ -886,6 +1010,12 @@ impl<S: Source> Walk<'_, S> {
 
     fn tags(&mut self, h: &ElementHeader) -> Result<(), Error> {
         let tags = self.small_children(h, ids::TAG, parse_tag)?;
+        planning::reserve(
+            self.planning.as_ref(),
+            &mut self.found.tag_list,
+            tags.len(),
+            h.offset,
+        )?;
         self.found.tag_list.extend(tags);
         Ok(())
     }
@@ -917,6 +1047,7 @@ impl<S: Source> Walk<'_, S> {
                             &field,
                             walk.limits.max_element_bytes,
                             LimitKind::ElementBytes,
+                            walk.planning.as_ref(),
                         )?;
                         let value = walk.retain_string(&data, &field)?;
                         if field.id == ids::FILE_NAME {
@@ -935,17 +1066,25 @@ impl<S: Source> Walk<'_, S> {
                             &field,
                             walk.limits.max_element_bytes,
                             LimitKind::ElementBytes,
+                            walk.planning.as_ref(),
                         )?;
                         attachment.description = Some(walk.retain_string(&data, &field)?);
                     }
                     ids::FILE_UID if walk.metadata => {
-                        let data = read_data(walk.source, &field, 8, LimitKind::ElementBytes)?;
+                        let data = read_data(
+                            walk.source,
+                            &field,
+                            8,
+                            LimitKind::ElementBytes,
+                            walk.planning.as_ref(),
+                        )?;
                         attachment.uid = Some(ebml::uint(&data, &field)?);
                     }
                     _ => {}
                 }
                 Ok(())
             })?;
+            planning::reserve(walk.planning.as_ref(), &mut files, 1, file.offset)?;
             files.push(attachment);
             Ok(())
         })?;
@@ -972,6 +1111,7 @@ impl<S: Source> Walk<'_, S> {
             track.stream_index = stream_index;
             if allowlist.allows(track.codec) {
                 track.index = tracks.len();
+                planning::reserve(self.planning.as_ref(), &mut tracks, 1, segment.offset)?;
                 tracks.push(track);
             } else if allowlist.is_strict() {
                 return Err(Error::CodecNotAllowed {
@@ -979,6 +1119,7 @@ impl<S: Source> Walk<'_, S> {
                     codec: track.codec,
                 });
             } else {
+                planning::reserve(self.planning.as_ref(), &mut dropped, 1, segment.offset)?;
                 dropped.push(DroppedTrack {
                     stream_index,
                     number: track.number,
@@ -1013,6 +1154,7 @@ impl<S: Source> Walk<'_, S> {
             warnings: self.warnings,
             end: self.end,
             max_size_len: self.max_size_len,
+            planning: self.planning,
         })
     }
 }

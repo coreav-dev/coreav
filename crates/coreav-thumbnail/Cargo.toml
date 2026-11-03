@@ -8,7 +8,14 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[features]
+default = ["jpeg-simd"]
+jpeg-simd = ["jpeg-encoder/simd"]
+native-h264 = ["dep:coreav-backend-h264", "dep:coreav-h264"]
+
 [dependencies]
+coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
+coreav-h264 = { path = "../coreav-h264", optional = true }
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame" }
 coreav-isobmff = { path = "../coreav-isobmff" }
@@ -18,7 +25,10 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["with-all
 # JPEG encoding; "(MIT OR Apache-2.0) AND IJG", IJG allowed
 # for this crate alone (deny.toml), its notice in NOTICE. Pinned: a new version
 # is reviewed before use (docs/design/thumbnails.md, "JPEG encoder").
-jpeg-encoder = { version = "=0.6.1", default-features = false, features = ["std", "simd"] }
+jpeg-encoder = { version = "=0.6.1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+sha2 = "0.10"
 
 [lints]
 workspace = true

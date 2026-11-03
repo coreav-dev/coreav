@@ -45,11 +45,22 @@ pub struct SegmentIndex {
 /// Parses a `sidx` payload. `payload_offset` is the absolute offset of the
 /// payload and `box_end` the offset just past the box (the anchor of
 /// `first_offset`); every referenced range must end within `file_len`.
+#[cfg(test)]
 pub(crate) fn parse_sidx(
     payload: &[u8],
     payload_offset: u64,
     box_end: u64,
     file_len: u64,
+) -> Result<SegmentIndex, Error> {
+    parse_sidx_with_planning(payload, payload_offset, box_end, file_len, None)
+}
+
+pub(crate) fn parse_sidx_with_planning(
+    payload: &[u8],
+    payload_offset: u64,
+    box_end: u64,
+    file_len: u64,
+    planning: Option<&crate::PlanningBudget>,
 ) -> Result<SegmentIndex, Error> {
     let invalid = |reason| Error::InvalidBox {
         offset: payload_offset,
@@ -76,7 +87,13 @@ pub(crate) fn parse_sidx(
     let mut offset = box_end.checked_add(first_offset).ok_or(Error::Overflow {
         offset: payload_offset,
     })?;
-    let mut references = Vec::with_capacity(usize::from(count));
+    let mut references = Vec::new();
+    crate::planning::reserve_exact(
+        planning,
+        &mut references,
+        usize::from(count),
+        payload_offset,
+    )?;
     for _ in 0..count {
         let word = b.u32()?;
         let duration = b.u32()?;
@@ -110,6 +127,25 @@ pub(crate) fn parse_sidx(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn index_references_are_charged_before_their_allocation() {
+        let payload = sidx(1, &[(10, 20)]);
+        let planning = crate::PlanningBudget::new(0);
+        let (result, counters) = coreav_counting_alloc::measure(|| {
+            parse_sidx_with_planning(&payload, 0, 100, 1000, Some(&planning))
+        });
+        assert!(matches!(
+            result,
+            Err(Error::LimitExceeded {
+                limit: crate::LimitKind::PlanningBytes,
+                ..
+            })
+        ));
+        assert_eq!(counters.allocations, 0);
+        assert_eq!(counters.reallocations, 0);
+        assert!(planning.failed());
+    }
 
     fn sidx(count: u16, refs: &[(u32, u32)]) -> Vec<u8> {
         let mut p = vec![0, 0, 0, 0];

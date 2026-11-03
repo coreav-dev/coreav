@@ -285,6 +285,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-backend-vp9"
+version = "0.0.1"
+dependencies = [
+ "coreav-decode",
+ "coreav-frame",
+ "coreav-vp9",
+ "md-5",
+ "serde_json",
+]
+
+[[package]]
 name = "coreav-cli"
 version = "0.0.1"
 dependencies = [
@@ -292,6 +303,7 @@ dependencies = [
  "coreav-audio",
  "coreav-avi",
  "coreav-backend-h264",
+ "coreav-backend-vp9",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
@@ -332,6 +344,7 @@ dependencies = [
  "coreav-backend-ffmpeg",
  "coreav-backend-h264",
  "coreav-backend-libvpx",
+ "coreav-backend-vp9",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
@@ -486,13 +499,16 @@ dependencies = [
 name = "coreav-thumbnail"
 version = "0.0.1"
 dependencies = [
+ "coreav-backend-h264",
  "coreav-decode",
  "coreav-frame",
+ "coreav-h264",
  "coreav-isobmff",
  "coreav-mkv",
  "image-webp",
  "jpeg-encoder",
  "miniz_oxide",
+ "sha2",
 ]
 
 [[package]]
@@ -541,6 +557,9 @@ dependencies = [
 name = "coreav-vp9-corpus-oracle"
 version = "0.0.1"
 dependencies = [
+ "coreav-backend-vp9",
+ "coreav-decode",
+ "coreav-frame",
  "coreav-mkv",
  "coreav-vp9",
  "md-5",
@@ -554,13 +573,17 @@ name = "coreav-wasm"
 version = "0.0.1"
 dependencies = [
  "coreav-cli",
+ "coreav-counting-alloc",
+ "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",
  "coreav-mkv",
  "coreav-policy",
  "coreav-text",
+ "coreav-thumbnail",
  "serde",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
 ]
 

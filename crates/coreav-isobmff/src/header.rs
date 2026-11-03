@@ -129,6 +129,16 @@ pub(crate) fn read_payload<S: crate::Source>(
     max: u64,
     limit: crate::LimitKind,
 ) -> Result<Vec<u8>, Error> {
+    read_payload_with_planning(source, header, max, limit, None)
+}
+
+pub(crate) fn read_payload_with_planning<S: crate::Source>(
+    source: &mut S,
+    header: &BoxHeader,
+    max: u64,
+    limit: crate::LimitKind,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Vec<u8>, Error> {
     let offset = header.offset;
     if header.payload_len() > max {
         return Err(Error::LimitExceeded { limit, offset });
@@ -136,6 +146,11 @@ pub(crate) fn read_payload<S: crate::Source>(
     let size = usize::try_from(header.payload_len())
         .map_err(|_| Error::LimitExceeded { limit, offset })?;
     let mut payload = Vec::new();
+    if let Some(planning) = planning {
+        planning
+            .reserve_exact(&mut payload, size)
+            .map_err(|_| crate::planning::limit(offset))?;
+    }
     payload
         .try_reserve_exact(size)
         .map_err(|_| Error::LimitExceeded { limit, offset })?;

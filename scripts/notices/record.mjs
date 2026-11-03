@@ -72,7 +72,7 @@ export function makeRecord(directory, repo, distribution, toolchain, artifact, r
     toolchain: { version: toolchain.version, commit: toolchain.commit },
     inputs, notices: sha(Buffer.from(text)),
     artifact: { path, sha256: sha(readRegular(directory, path)) },
-    sections: Object.fromEntries(["crates.io", "Rust toolchain", "Rust toolchain, crates.io"].map(origin => [origin, [...sections.values()].filter(section => section.origin === origin).length])),
+    sections: Object.fromEntries(["crates.io", "Rust toolchain", "Rust toolchain, crates.io", "C runtime"].map(origin => [origin, [...sections.values()].filter(section => section.origin === origin).length])),
     toolchainCrates: { inTree: closure.inTree.map(crate => crate.name).sort(), vendored: closure.vendored.map(crate => crate.name + " " + crate.version).sort() },
   };
   if (raw) {

@@ -371,7 +371,8 @@ pub fn open(
                 Support::Yes => match backend.open(stream, limits) {
                     Ok(decoder) => {
                         let decoder = Box::new(Checked {
-                            decoder,
+                            info: decoder.info().clone(),
+                            decoder: Some(decoder),
                             limits: limits.clone(),
                         });
                         return Ok(Opened { decoder, skipped });
@@ -422,31 +423,57 @@ pub fn open(
 /// that no backend can leave them out (`docs/design/decode.md`, "Codec
 /// allowlist and limits").
 struct Checked {
-    decoder: Box<dyn Decoder>,
+    decoder: Option<Box<dyn Decoder>>,
+    info: DecoderInfo,
     limits: Limits,
+}
+
+impl Checked {
+    fn call<T>(
+        &mut self,
+        operation: impl FnOnce(&mut dyn Decoder, &Limits) -> Result<T, Error>,
+    ) -> Result<T, Error> {
+        let decoder = self
+            .decoder
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "the decode request failed"))?;
+        let result = operation(decoder.as_mut(), &self.limits);
+        if result
+            .as_ref()
+            .is_err_and(|error| error.kind == ErrorKind::Limit)
+        {
+            self.decoder = None;
+        }
+        result
+    }
 }
 
 impl Decoder for Checked {
     fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
-        self.limits.check_packet(packet)?;
-        self.decoder.send_packet(packet)
+        self.call(|decoder, limits| {
+            limits.check_packet(packet)?;
+            decoder.send_packet(packet)
+        })
     }
 
     fn send_eof(&mut self) -> Result<(), Error> {
-        self.decoder.send_eof()
+        self.call(|decoder, _| decoder.send_eof())
     }
 
     fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
-        let frame = self.decoder.receive_frame()?;
-        if let Some(frame) = &frame {
-            self.limits
-                .check_frame(frame.width(), frame.height(), packed_bytes(frame))?;
-        }
-        Ok(frame)
+        self.call(|decoder, limits| {
+            let frame = decoder.receive_frame()?;
+            if let Some(frame) = &frame {
+                limits.check_frame(frame.width(), frame.height(), packed_bytes(frame))?;
+            }
+            Ok(frame)
+        })
     }
 
     fn info(&self) -> &DecoderInfo {
-        self.decoder.info()
+        self.decoder
+            .as_ref()
+            .map_or(&self.info, |decoder| decoder.info())
     }
 }
 

@@ -35,6 +35,9 @@ impl Movie {
     /// that iteration would read (external data, invalid tables). Building
     /// them reads each `stts` and `ctts` entry once, charged to `budget`.
     pub fn seeker(&self, index: usize, budget: &mut Budget) -> Result<Option<Seeker<'_>>, Error> {
+        if let Some(planning) = &self.planning {
+            planning.charge(0).map_err(|_| crate::planning::limit(0))?;
+        }
         let track = self.tracks.get(index).ok_or(Error::NoSuchTrack)?;
         if !track.tables_valid || track.external_data {
             return Ok(None);
@@ -52,6 +55,7 @@ impl Movie {
                 return Ok(None);
             };
             if count > 0 {
+                crate::planning::reserve(self.planning.as_ref(), &mut steps, 1, 0)?;
                 steps.push(Step { first, dts, delta });
             }
             first = first.saturating_add(count);
