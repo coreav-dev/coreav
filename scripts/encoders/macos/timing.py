@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Registered physical-host raw-driver timing and separate evidence replay.
+"""Prepared raw I420 encoder timing and separate evidence replay.
 
 No source acquisition, baseline build, host provisioning or acceptance evidence
 generation occurs here. Reports remain nonpassing until complete retained
@@ -22,8 +22,9 @@ from evidence import Invalid, digest, file_hash, keys, load, read
 from evidence import require, sha, verify, write
 from judging import conformance, deltas as metric_deltas, gate, quality, timings
 from process import run
-from registration import CLASSES, ROOT, caller_settings, command_templates, git, hardware_fingerprint, input_hashes, preflight, raw_size, source_registration
+from registration import CLASSES, ROOT, SCOPE, caller_settings, command_templates, coverage, covered_class, git, hardware_fingerprint, input_hashes, preflight, raw_size, roster_coverage, source_registration
 import cache_residency as cache
+from observations import BASELINE_FILES, capture_identity, identity, validate_requested
 
 
 def settings_hash(registration):
@@ -67,6 +68,7 @@ def ram_volume(directory):
 
 
 def commands(registration, item, cell, root, output, native_report):
+    covered_class(item)
     rate = item["rate"]
     values = {name: str(Path(root) / record["file"])
               for name, record in registration["executables"].items()}
@@ -84,8 +86,9 @@ def commands(registration, item, cell, root, output, native_report):
 
 
 def availability(value, registration):
-    keys(value, "schema session_id registration_sha256 cells")
-    require(value["schema"] == "coreav.videotoolbox-availability/1" and
+    keys(value, "schema session_id registration_sha256 cells covered_classes uncovered_classes")
+    require(coverage(value) == roster_coverage(registration), "class_coverage")
+    require(value["schema"] == "coreav.videotoolbox-availability/2" and
             value["session_id"] == registration["session_id"], "availability_binding")
     digest(value["registration_sha256"])
     keys(value["cells"], "hardware software")
@@ -124,8 +127,9 @@ def availability_file(path, registration, root=ROOT):
             retained = Path(path).parent / f"preflight.{cell}.{side}.json"
             require(file_hash(retained, 16 * 1024**2) == record["smoke_sha256"], "availability_hash")
             proof = load(retained)
-            keys(proof, "schema registration_sha256 producer_sha256 settings_sha256 result files")
-            require(proof["schema"] == "coreav.videotoolbox-preflight/1" and
+            keys(proof, "schema registration_sha256 producer_sha256 settings_sha256 result files covered_classes uncovered_classes")
+            require(coverage(proof) == coverage(registration), "class_coverage")
+            require(proof["schema"] == "coreav.videotoolbox-preflight/2" and
                     proof["registration_sha256"] == value["registration_sha256"] and
                     proof["producer_sha256"] == registration["metric_tools"]["evidence_producer"] and
                     proof["settings_sha256"] == settings_hash(registration) and
@@ -179,7 +183,7 @@ def capture_gate(args):
         input_hashes(args.root, reg)
         source = reg["inputs"][0]
         environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C", **reg["environment"]}
-        result = {"schema": "coreav.videotoolbox-host-gate/1", "session_id": reg["session_id"],
+        result = {"schema": "coreav.videotoolbox-host-gate/2", **roster_coverage(reg), "session_id": reg["session_id"],
                   "phase": args.phase, "registration_sha256": reg_hash, "host": reg["host"],
                   "tools": reg["executables"], "settings_sha256": settings_hash(reg),
                   "aa": [], "null": [], "observations": host_state(reg),
@@ -211,17 +215,23 @@ def capture_gate(args):
                         cache.validate(after, reg, source)
                         require(output.stat().st_size > 0, "gate_output")
                         file_hash(output, 1024**3)
-                        from observations import effective, trace
-                        from producer import packet_clock
-                        observed, _ = trace(read(directory, "stderr", 16 * 1024**2),
-                                            load(args.root / reg["baseline_build"]["file"])["observability"])
-                        effective(observed, source, "hardware", dict(CLASSES)[source["class"]])
-                        packet_clock(read(directory, "unused", 16 * 1024**2), source)
+                        from producer import packet_ledger
+                        spec = load(args.root / reg["baseline_build"]["file"])["observability"]
+                        try:
+                            capture_identity(directory, reg, args.root, spec, pair[label + "_ended_ns"], command, source, "hardware")
+                        finally:
+                            pair[label + "_baseline"] = {
+                                "files": {name: read(directory, name, limit).decode("utf-8")
+                                          for name, limit in BASELINE_FILES.items() if (directory / name).exists()},
+                                "specification": spec, "output_sha256": file_hash(output, 1024**3),
+                                "payload_bytes": output.stat().st_size, "packet_ledger": None,
+                                "packet_text": read(directory, "unused", 16 * 1024**2).decode("ascii")}
+                        pair[label + "_baseline"]["packet_ledger"] = packet_ledger(
+                            read(directory, "unused", 16 * 1024**2), source, output.stat().st_size)
                         host_state(reg)
                         shutil.rmtree(directory)
-                    if iteration:
-                        result[arm].append(pair)
-                        write(args.report, result)
+                    result[arm].append(pair)
+                    write(args.report, result)
                     del result["pending"]
         result["observations"] = host_state(reg)
         result["ended_ns"] = time.time_ns()
@@ -238,14 +248,16 @@ def capture_gate(args):
 
 
 def execute(args):
-    report = {"schema": "coreav.videotoolbox-timing/1", "status": "aborted",
-              "scope": "raw-driver-elementary-only", "diagnostic": "preflight", "records": [],
+    report = {"schema": "coreav.videotoolbox-timing/2", "status": "aborted",
+              "scope": SCOPE, "covered_classes": None, "uncovered_classes": None,
+              "diagnostic": "preflight", "records": [],
               "registration_sha256": None, "before_gate_sha256": None,
               "availability_sha256": None, "started_ns": time.time_ns(), "ended_ns": None}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     write(args.report, report)
     try:
         registration = preflight(args.registration, args.root)
+        report.update(coverage(registration))
         cache.preflight(registration, args.root)
         registration_hash = file_hash(args.registration)
         report["registration_sha256"] = registration_hash
@@ -283,6 +295,7 @@ def execute(args):
                                       "native_report_sha256": None, "started_ns": None,
                                       "ended_ns": None, "host_before": host_before, "host_after": None,
                                       "packet_clock_sha256": None, "observations_sha256": None,
+                                      "identity_query_sha256": None, "requested_sha256": None,
                                       "cache_before": None, "cache_after": None}
                             report["records"].append(record)
                             write(args.report, report)
@@ -307,13 +320,14 @@ def execute(args):
                                 if side == "coreav":
                                     record["native_report_sha256"] = sha(read(directory, "native.json", 16 * 1024**2))
                                 else:
-                                    from observations import effective, trace
-                                    observed, kept = trace(read(directory, "stderr", 16 * 1024**2),
-                                                          load(args.root / registration["baseline_build"]["file"])["observability"])
-                                    effective(observed, item, cell, dict(CLASSES)[item["class"]])
-                                    (directory / "observations.txt").write_bytes(kept)
+                                    from producer import packet_ledger
+                                    spec = load(args.root / registration["baseline_build"]["file"])["observability"]
+                                    capture_identity(directory, registration, args.root, spec, record["ended_ns"], command, item, cell)
+                                    packet_ledger(read(directory, "native.json", 16 * 1024**2), item, record["output_bytes"])
                                     record["packet_clock_sha256"] = sha(read(directory, "native.json", 4 * 1024**2))
-                                    record["observations_sha256"] = sha(kept)
+                                    record["observations_sha256"] = file_hash(directory / "observations.txt", 16 * 1024**2)
+                                    record["identity_query_sha256"] = file_hash(directory / "identity-query.json", 16 * 1024**2)
+                                    record["requested_sha256"] = file_hash(directory / "requested.json", 16 * 1024**2)
                                 retained = args.artifacts / call
                                 retained.mkdir()
                                 shutil.copyfile(output, retained / "video.h264")
@@ -323,9 +337,12 @@ def execute(args):
                                     require(file_hash(retained / "native.json") == record["native_report_sha256"], "copy_hash")
                                 else:
                                     shutil.copyfile(native, retained / "packets.stats")
-                                    shutil.copyfile(directory / "observations.txt", retained / "observations.txt")
+                                    for name in BASELINE_FILES:
+                                        shutil.copyfile(directory / name, retained / name)
                                     require(file_hash(retained / "packets.stats") == record["packet_clock_sha256"] and
-                                            file_hash(retained / "observations.txt") == record["observations_sha256"], "copy_hash")
+                                            file_hash(retained / "observations.txt") == record["observations_sha256"] and
+                                            file_hash(retained / "identity-query.json") == record["identity_query_sha256"] and
+                                            file_hash(retained / "requested.json") == record["requested_sha256"], "copy_hash")
                                 record["status"] = "success"
                             except Invalid as error:
                                 record["status"] = (error.code if error.code in
@@ -335,6 +352,17 @@ def execute(args):
                             finally:
                                 if record["started_ns"] is not None and record["ended_ns"] is None:
                                     record["ended_ns"] = time.time_ns()
+                                if side == "ffmpeg" and record["status"] != "success" and (directory / "identity-query.json").exists():
+                                    retained = args.artifacts / call
+                                    retained.mkdir(exist_ok=True)
+                                    failure_files = {"video.h264": 1024**3, "native.json": 16 * 1024**2, **BASELINE_FILES}
+                                    record["validation_failure_files"] = {}
+                                    for name, limit in failure_files.items():
+                                        if (directory / name).exists():
+                                            expected_hash = file_hash(directory / name, limit)
+                                            shutil.copyfile(directory / name, retained / name)
+                                            require(file_hash(retained / name, limit) == expected_hash, "copy_hash")
+                                            record["validation_failure_files"][name] = expected_hash
                                 write(args.report, report)
                             shutil.rmtree(directory)
         require(file_hash(args.registration) == registration_hash, "registration_changed")
@@ -349,7 +377,7 @@ def execute(args):
             "timeout", "child_crash", "child_failure", "process_infrastructure", "host_fault", "aa_gate",
             "null_gate", "dirty_checkout", "judged_event", "host_mismatch", "input_hash",
             "availability_mismatch", "tool_changed", "baseline_review", "ram_volume",
-            "ffmpeg_observability_missing", "ffmpeg_observation_changed", "ffmpeg_effective_settings",
+            "ffmpeg_observability_missing", "ffmpeg_observation_changed",
             "cache_observer_missing", "cache_observer_changed", "cache_observer_unsupported",
             "cache_observer_output", "cache_not_resident"} else "validation_failed"
         raise
@@ -359,13 +387,18 @@ def execute(args):
 
 
 def replay(args):
-    result = {"schema": "coreav.videotoolbox-speed-report/1", "status": "failed",
-              "scope": "raw-driver-elementary-only", "integrated_acceptance": "not_applicable",
-              "container_acceptance": "not_applicable", "diagnostic": "evidence_invalid"}
+    result = {"schema": "coreav.videotoolbox-speed-report/2", "status": "failed",
+              "scope": SCOPE, "covered_classes": None, "uncovered_classes": None,
+              "integrated_acceptance": "not_applicable",
+              "container_acceptance": "not_applicable", "diagnostic": "evidence_invalid",
+              "baseline_framework_settings": {"observation": "unobserved",
+                                               "requested_only": ["realtime", "nominal_frame_rate_hint", "rate_control"],
+                                               "literal_arguments": "retained_per_output"}}
     try:
         from producer import trusted_analysis_event, verify_campaign, verify_fixture_capture, verify_output
         trusted_analysis_event()
         registration = source_registration(args.registration, args.root)
+        result.update(roster_coverage(registration))
         if os.environ.get("GITHUB_ACTIONS"):
             require(os.environ.get("GITHUB_SHA") == git(args.root, "rev-parse", "HEAD").decode().strip(), "judged_event")
         require(file_hash(Path(__file__).with_name("producer.py")) ==
@@ -374,11 +407,12 @@ def replay(args):
         reg_hash = file_hash(args.registration)
         captured = load(args.capture, 16 * 1024**2)
         keys(captured, "schema status scope diagnostic records registration_sha256 before_gate_sha256 "
-             "availability_sha256 started_ns ended_ns")
-        require(captured["schema"] == "coreav.videotoolbox-timing/1" and
+             "availability_sha256 started_ns ended_ns covered_classes uncovered_classes")
+        require(coverage(captured) == coverage(registration), "class_coverage")
+        require(captured["schema"] == "coreav.videotoolbox-timing/2" and
                 captured["status"] == "awaiting_evidence" and
                 captured["registration_sha256"] == reg_hash and
-                captured["scope"] == "raw-driver-elementary-only", "capture_status")
+                captured["scope"] == SCOPE, "capture_status")
         summaries = timings(captured["records"], registration)
         expected_artifacts = {f"call-{index:04d}" for index in range(len(captured["records"]))}
         expected_artifacts |= {f"fixture.{cell}.{fixture}.{side}" for cell in registration["cells"]
@@ -386,8 +420,9 @@ def replay(args):
         require(not args.artifacts.is_symlink() and
                 {p.name for p in args.artifacts.iterdir()} == expected_artifacts, "artifact_coverage")
         evidence = load(args.evidence / "evidence.json", 16 * 1024**2)
-        keys(evidence, "schema registration_sha256 capture_sha256 files outputs fixtures")
-        require(evidence["schema"] == "coreav.videotoolbox-evidence/1" and
+        keys(evidence, "schema registration_sha256 capture_sha256 files outputs fixtures covered_classes uncovered_classes scope")
+        require(coverage(evidence) == coverage(registration) and evidence["scope"] == SCOPE, "class_coverage")
+        require(evidence["schema"] == "coreav.videotoolbox-evidence/2" and
                 evidence["registration_sha256"] == reg_hash and
                 evidence["capture_sha256"] == file_hash(args.capture), "evidence_binding")
         require(type(evidence["outputs"]) is dict and type(evidence["fixtures"]) is dict,
@@ -433,8 +468,12 @@ def replay(args):
                         "native_report_hash")
             else:
                 require(file_hash(args.artifacts / call / "packets.stats", 16 * 1024**2, root=args.artifacts) == record["packet_clock_sha256"] and
-                        file_hash(args.artifacts / call / "observations.txt", 16 * 1024**2, root=args.artifacts) == record["observations_sha256"],
+                        file_hash(args.artifacts / call / "observations.txt", 16 * 1024**2, root=args.artifacts) == record["observations_sha256"] and
+                        file_hash(args.artifacts / call / "identity-query.json", 16 * 1024**2, root=args.artifacts) == record["identity_query_sha256"] and
+                        file_hash(args.artifacts / call / "requested.json", 16 * 1024**2, root=args.artifacts) == record["requested_sha256"],
                         "baseline_evidence")
+                identity(args.artifacts / call, registration, record["cell"], observability,
+                         record["output_sha256"], record["ended_ns"])
             proof = load(args.evidence / evidence["outputs"][call], 16 * 1024**2)
             item = by_id[record["input_id"]]
             verify_output(proof, args.artifacts / call, args.root / item["raw_file"], item, record["cell"],
@@ -444,7 +483,7 @@ def replay(args):
             require(proof["payload_bytes"] == record["output_bytes"], "payload_size")
             output_values[record["cell"], record["input_id"], record["iteration"], record["side"]] = (metrics, proof["payload_bytes"])
         for cell in registration["cells"]:
-            deltas = {iteration: {height: [] for height, _ in CLASSES} for iteration in range(6)}
+            deltas = {iteration: {height: [] for height in registration["covered_classes"]} for iteration in range(6)}
             for item in registration["inputs"]:
                 for iteration in range(6):
                     coreav, ca_size = output_values[cell, item["id"], iteration, "coreav"]
@@ -475,7 +514,7 @@ def replay(args):
                         "fixture_payload_ratio")
                 fixture_deltas.append(metric_deltas(fixture_metrics["coreav"], fixture_metrics["ffmpeg"]))
             for values in deltas.values():
-                quality(values, fixture_deltas)
+                quality(values, fixture_deltas, registration)
         passed = all(cell["overall"]["bar_pass"] and all(c["bar_pass"] for c in cell["classes"].values())
                      for cell in summaries.values())
         result.update(status="pass" if passed else "bar_miss", diagnostic="complete",

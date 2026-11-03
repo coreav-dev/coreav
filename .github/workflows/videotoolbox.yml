@@ -16,6 +16,9 @@ on:
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
+      - scripts/install-oracle-ffmpeg-macos.sh
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle_pin_macos.py
       - scripts/rust-dist.env
       - .github/workflows/videotoolbox.yml
   pull_request:
@@ -31,6 +34,9 @@ on:
       - scripts/install-oracle-ffmpeg.sh
       - scripts/oracle-ffmpeg.env
       - scripts/oracle_pin.py
+      - scripts/install-oracle-ffmpeg-macos.sh
+      - scripts/oracle-ffmpeg-macos.env
+      - scripts/oracle_pin_macos.py
       - scripts/rust-dist.env
       - .github/workflows/videotoolbox.yml
   workflow_dispatch:
@@ -74,6 +80,15 @@ jobs:
               --mode "$mode" --output "captures/$mode" \
               --runner-image "macos-15-${ImageVersion:?runner image version is missing}" "$@"
           done
+      - name: Check pinned baseline identity and complete packet bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg-macos.sh "$RUNNER_TEMP/oracle-macos"
+          python3 scripts/encoders/macos/baseline_smoke.py \
+            --oracle-bin "$RUNNER_TEMP/oracle-macos" \
+            --exporter crates/coreav-backend-apple/target/dist/examples/videotoolbox \
+            --output captures/baseline
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

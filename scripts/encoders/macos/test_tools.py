@@ -4,6 +4,7 @@ import ast
 from contextlib import closing, redirect_stderr
 import copy
 import io
+import json
 import math
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evidence
 import judging
+import observations
 import process
 import registration
 import smoke
@@ -58,13 +60,22 @@ def item(index=0, height=240):
 
 
 def registered():
-    inputs = [item(f"{height}-{n}", height) for height in (240, 480, 900, 1200) for n in range(10)]
+    import source_freeze
+    inputs = [item(f"{height}-{n}", height) for height in (240, 480, 900) for n in range(10)]
+    for source in inputs:
+        source["frames"] = 300
+        source["source_frame_sha256"] = [h(f"frame{n}") for n in range(300)]
     inputs.sort(key=lambda row: (row["class"], h("coreav-encoders-v1:" + row["source_sha256"])))
-    fixture = item("fixture")
-    fixture = {k: fixture[k] for k in ("id", "class", "width", "height", "frames", "rate", "colour", "raw_file",
-                                       "raw_sha256", "source_frame_sha256", "source_tick")}
-    fixture["id"] = "fixture"
-    result = {"schema": "coreav.videotoolbox-registration/1", "candidate": "a" * 40,
+    fixtures = {name: {**value, "raw_file": f"raw/{name}.yuv"}
+                for name, value in source_freeze.fixtures().items()}
+    result = {"schema": "coreav.videotoolbox-registration/2", "candidate": "a" * 40,
+              "covered_classes": [360, 720, 1080],
+              "uncovered_classes": [{"class": 2160, "reason": "insufficient_verified_fixed_pool_inputs",
+                                     "verified_inputs": 1, "required_inputs": 10,
+                                     "failure_ledger": {"file": "uncovered.json", "sha256": h("uncovered"),
+                                                        "review_commit": "f" * 40}}],
+              "source_freeze": {"file": "source-freeze.json", "sha256": h("freeze"),
+                                 "review_commit": "f" * 40},
               "tooling": "b" * 40, "plan_sha256": h("plan"), "tools": {"tool.py": h("tool")},
               "host": {**registration.HOST, "os_build": "24G-test", "allocation_sha256": h("allocation"),
                        "hardware_sha256": h("hardware")},
@@ -74,12 +85,12 @@ def registered():
               "baseline_build": {"file": "build.json", "sha256": h("build"), "review_commit": "c" * 40},
               "coreav_builds": {host: {"file": f"{host}-build.json", "sha256": h(f"{host}-build"),
                                        "review_commit": "e" * 40} for host in ("macos", "linux")},
-              "eligibility": {"file": "eligible.json", "sha256": h("eligible"), "cutoff_commit": "d" * 40},
+              "eligibility": {"file": "eligible.json", "sha256": h("eligible"), "cutoff_commit": "f" * 40},
               "settings": dict(registration.SETTINGS),
               "environment": {"OMP_NUM_THREADS": "1", "VECLIB_MAXIMUM_THREADS": "1"},
               "cache_observer": {"file": "bin/cache-observer", "sha256": h("cache-observer"),
                                  "kind": "vmtouch-verbose/1", "page_size": 16384, "arguments": ["-v", "-m", "32G"]},
-              "cells": ["hardware"], "inputs": inputs, "fixtures": {"fixture": fixture},
+              "cells": ["hardware"], "inputs": inputs, "fixtures": fixtures,
               "metric_tools": {name: h(name) for name in
                                ("ffmpeg", "ffprobe", "coreav_decoder", "metrics", "model", "evidence_producer")},
               "session_id": "synthetic",
@@ -129,21 +140,26 @@ def proof(reg, source, side="coreav"):
     count = source["frames"]
     decoded = [h(f"decoded-{n}") for n in range(count)]
     result = {
-        "schema": "coreav.videotoolbox-output-evidence/1", "input_id": source["id"],
+        "schema": "coreav.videotoolbox-output-evidence/2", "input_id": source["id"],
+        "scope": registration.SCOPE, "class": source["class"],
         "cell": "hardware", "side": side, "output_sha256": h("output"),
         "raw_sha256": source["raw_sha256"], "producer_sha256": reg["metric_tools"]["evidence_producer"],
         "width": source["width"], "height": source["height"], "pixel_format": "yuv420p",
         "colour": dict(registration.COLOUR), "profile": "high", "reordering": False,
         "keyframe_max_frames": 60, "keyframe_max_seconds": 2,
         "encoder_id": "synthetic.encoder", "hardware": "hardware",
+        "level": 31, "baseline": None, "requested_settings": None, "packet_ledger": None, "packet_text": None,
         "frames": [{"id": n, "source_sha256": source["source_frame_sha256"][n],
                     "decoded_sha256": decoded[n], "pts": {"value": n, "scale": 30},
                     "duration": {"value": 1, "scale": 30}, "sync": n % 60 == 0}
                    for n in range(count)],
         "audio_offset_error": None, "audio_applicability": "not_applicable_raw_driver",
         "parameter_sets_agree": True, "sample_description_applicability": "not_applicable_elementary",
-        "payload_bytes": dict(registration.CLASSES)[source["class"]], "container_bytes": None,
-        "stream_clock": {"time_base": {"num": 1, "den": 30}, "advertised_rate": source["rate"]},
+        "payload_bytes": dict(registration.CLASSES)[source["class"]] * count * source["rate"]["den"] //
+                         (8 * source["rate"]["num"]), "container_bytes": None,
+        "stream_clock": {"demux_time_base_diagnostic": {"num": 1, "den": 30},
+                         "advertised_rate_diagnostic": source["rate"], "source_rate": source["rate"],
+                         "provenance": "native_report", "duration_provenance": "original_source_rational"},
         "retained": {},
         "decoders": {name: {"sha256": reg["metric_tools"]["ffmpeg" if name == "ffmpeg" else "coreav_decoder"],
                             "status": "complete", "frame_sha256": list(decoded),
@@ -161,16 +177,47 @@ def proof(reg, source, side="coreav"):
     return result
 
 
+def baseline_gate(reg, source):
+    def encoded(value):
+        return json.dumps(value, sort_keys=True, indent=2) + "\n"
+
+    trace = "[h264_videotoolbox @ 0x1234] Init the encoder: synthetic.encoder\n"
+    report = {"schema": "coreav.videotoolbox-encoder-identity/1", "encoder_id": "synthetic.encoder", "hardware": "hardware"}
+    query = {"schema": "coreav.videotoolbox-identity-query/1", "encoder_id": "synthetic.encoder",
+             "binary_sha256": reg["executables"]["coreav"]["sha256"], "host": reg["host"],
+             "trace_sha256": evidence.sha(trace.encode()), "output_sha256": h("gate-output"), "encoder_ended_ns": 110,
+             "process": {"arguments": ["/root/" + reg["executables"]["coreav"]["file"], "identify", "--encoder-id",
+                                       "synthetic.encoder", "--report", "/ram/identity.json"],
+                         "status": "success", "exit_code": 0, "started_ns": 111, "ended_ns": 112, "elapsed_ns": 1,
+                         "stdout_sha256": evidence.sha(b""), "stderr_sha256": evidence.sha(b""),
+                         "report_sha256": evidence.sha(encoded(report).encode())}}
+    command = timing.commands(reg, source, "hardware", Path("/root"), Path("/ram/video.h264"), Path("/ram/packets"))["ffmpeg"]
+    requests = observations.requested(command, source)
+    return {"files": {"identity.json": encoded(report), "identity-query.json": encoded(query),
+                      "observations.txt": trace, "identity-out": "", "identity-error": "", "requested.json": encoded(requests)},
+            "specification": {"schema": "coreav.videotoolbox-observability/2",
+                              "encoder_id": {"prefix": "Init the encoder: ", "suffix": ""},
+                              "refusal_fields": {name: {"prefix": f"observed-{name}=", "suffix": ""}
+                                                 for name in ("status", "submitted")}},
+            "output_sha256": h("gate-output"), "payload_bytes": 1000,
+            "packet_text": "".join(f"{n} 1/30 {n} {1001 - source['frames'] if n == 0 else 1}\n"
+                                   for n in range(source["frames"])),
+            "packet_ledger": [{"pts_value": n, "dts_value": n, "time_base": {"num": 1, "den": 30},
+                               "bytes": 1001 - source["frames"] if n == 0 else 1}
+                              for n in range(source["frames"])]}
+
+
 def host_gate(reg, phase="before"):
     pair = {"a_ns": 100, "b_ns": 100, "a_sha256": reg["executables"]["ffmpeg"]["sha256"],
             "b_sha256": reg["executables"]["ffmpeg"]["sha256"],
             "a_cache_before": cache_fact(reg["inputs"][0]), "a_cache_after": cache_fact(reg["inputs"][0], 120, 121),
             "b_cache_before": cache_fact(reg["inputs"][0]), "b_cache_after": cache_fact(reg["inputs"][0], 120, 121),
-            "a_started_ns": 10, "a_ended_ns": 110, "b_started_ns": 10, "b_ended_ns": 110}
-    return {"schema": "coreav.videotoolbox-host-gate/1", "session_id": reg["session_id"],
+            "a_started_ns": 10, "a_ended_ns": 110, "b_started_ns": 10, "b_ended_ns": 110,
+            "a_baseline": baseline_gate(reg, reg["inputs"][0]), "b_baseline": baseline_gate(reg, reg["inputs"][0])}
+    return {"schema": "coreav.videotoolbox-host-gate/2", **registration.coverage(reg), "session_id": reg["session_id"],
             "phase": phase, "registration_sha256": h("registration"), "host": reg["host"],
             "tools": reg["executables"], "settings_sha256": timing.settings_hash(reg),
-            "aa": [dict(pair) for _ in range(5)], "null": [dict(pair) for _ in range(5)],
+            "aa": [copy.deepcopy(pair) for _ in range(6)], "null": [copy.deepcopy(pair) for _ in range(6)],
             "observations": observation(), "started_ns": 1, "ended_ns": 2}
 
 
@@ -187,6 +234,8 @@ def calls(reg):
                                     "native_report_sha256": h("native") if side == "coreav" else None,
                                     "packet_clock_sha256": h("packets") if side == "ffmpeg" else None,
                                     "observations_sha256": h("observations") if side == "ffmpeg" else None,
+                                    "identity_query_sha256": h("identity-query") if side == "ffmpeg" else None,
+                                    "requested_sha256": h("requested") if side == "ffmpeg" else None,
                                     "started_ns": 10, "ended_ns": 110,
                                     "cache_before": cache_fact(source), "cache_after": cache_fact(source, 120, 121),
                                     "host_before": observation(), "host_after": observation()})
@@ -473,19 +522,17 @@ class Smoke(unittest.TestCase):
 
 class Registration(unittest.TestCase):
     def test_first_ten_are_selected_from_the_complete_frozen_eligible_pool(self):
-        reg = registered()
-        candidates = [{"sha256": source["id"], "width": source["width"], "height": source["height"],
-                       "frames": source["frames"], "rate": source["rate"], "pixel_format": "yuv420p",
-                       "sdr": True, "partition": "held_out"} for source in reg["inputs"]]
-        record = {"schema": "coreav.videotoolbox-eligibility/1", "candidates": candidates}
-        registration.eligible_roster(record, reg)
-        candidates[0]["partition"] = "training"
+        import source_freeze
+        from test_source_freeze import freeze_fixture
+        frozen, record = freeze_fixture(registered())
+        source_freeze.validate_selection(record, frozen)
+        record["candidates"][0]["id"] = h("training")
         with self.assertRaises(evidence.Invalid):
-            registration.eligible_roster(record, reg)
-        candidates[0]["partition"] = "held_out"
-        candidates.append(copy.deepcopy(candidates[0]))
+            source_freeze.validate_selection(record, frozen)
+        frozen, record = freeze_fixture(registered())
+        record["candidates"][1] = copy.deepcopy(record["candidates"][0])
         with self.assertRaises(evidence.Invalid):
-            registration.eligible_roster(record, reg)
+            source_freeze.validate_selection(record, frozen)
 
     def test_complete_roster_and_fixed_settings(self):
         record = registered()
@@ -504,6 +551,39 @@ class Registration(unittest.TestCase):
                      lambda r: r["metric_tools"].pop("model"),
                      lambda r: r.update(candidate=""), lambda r: r.update(extra=True)]
         for mutate in mutations:
+            changed = copy.deepcopy(record)
+            mutate(changed)
+            with self.assertRaises(evidence.Invalid):
+                registration.validate(changed)
+
+    def test_explicit_thirty_input_coverage_refuses_any_other_roster_or_declaration(self):
+        record = registered()
+        self.assertEqual(len(record["inputs"]), 30)
+        self.assertEqual(record["schema"], "coreav.videotoolbox-registration/2")
+        self.assertEqual(record["covered_classes"], [360, 720, 1080])
+        self.assertEqual({height: sum(source["class"] == height for source in record["inputs"])
+                          for height in record["covered_classes"]}, {360: 10, 720: 10, 1080: 10})
+        self.assertEqual(record["uncovered_classes"][0]["class"], 2160)
+        self.assertEqual(record["uncovered_classes"][0]["verified_inputs"], 1)
+        registration.validate(record)
+        for mutate in (lambda r: r.update(schema="coreav.videotoolbox-registration/1"),
+                       lambda r: r.pop("covered_classes"), lambda r: r.pop("uncovered_classes"),
+                       lambda r: r["covered_classes"].pop(),
+                       lambda r: r["covered_classes"].append(2160),
+                       lambda r: r.update(covered_classes=[360, 1080, 720]),
+                       lambda r: r.update(uncovered_classes=[]),
+                       lambda r: r["uncovered_classes"][0].update(reason="excluded_after_measurement"),
+                       lambda r: r["uncovered_classes"][0].update(verified_inputs=0),
+                       lambda r: r["uncovered_classes"][0].update(verified_inputs=True),
+                       lambda r: r["uncovered_classes"][0].update(required_inputs=1),
+                       lambda r: r["uncovered_classes"][0].pop("failure_ledger"),
+                       lambda r: r["uncovered_classes"][0]["failure_ledger"].pop("sha256"),
+                       lambda r: r["uncovered_classes"][0]["failure_ledger"].update(file="../ledger.json"),
+                       lambda r: r["uncovered_classes"][0]["failure_ledger"].update(review_commit="pending"),
+                       lambda r: r["inputs"].pop(),
+                       lambda r: r["inputs"].__setitem__(0, item("outside", 1200)),
+                       lambda r: r["inputs"][0].update(height=480, **{"class": 720}),
+                       lambda r: r["fixtures"]["fixture"].update(height=1200, **{"class": 2160})):
             changed = copy.deepcopy(record)
             mutate(changed)
             with self.assertRaises(evidence.Invalid):
@@ -541,6 +621,8 @@ class Judgments(unittest.TestCase):
         good = proof(reg, source)
         judging.conformance(good, source, "hardware", "coreav", h("output"), reg)
         mutations = [lambda r: r.update(output_sha256=h("wrong")),
+                     lambda r: r.update(scope="source-colour-preservation"),
+                     lambda r: r.update(**{"class": 2160}),
                      lambda r: r.update(raw_sha256=h("wrong")),
                      lambda r: r.update(hardware="unknown"),
                      lambda r: r.update(width=2), lambda r: r.update(reordering=True),
@@ -564,17 +646,64 @@ class Judgments(unittest.TestCase):
             with self.assertRaises(evidence.Invalid):
                 judging.conformance(changed, source, "hardware", "coreav", h("output"), reg)
 
+    def test_uncovered_class_never_reaches_a_command_or_output_judgment(self):
+        reg = registered()
+        source = item("uncovered", 1200)
+        value = proof(reg, source)
+        with self.assertRaises(evidence.Invalid):
+            judging.conformance(value, source, "hardware", "coreav", h("output"), reg)
+        with self.assertRaises(evidence.Invalid):
+            timing.commands(reg, source, "hardware", Path("/unused"), Path("/unused/output"), Path("/unused/report"))
+        source.update(**{"class": 1080})
+        with self.assertRaises(evidence.Invalid):
+            registration.covered_class(source)
+
+    def test_payload_bitrate_and_gop_bars_stay_exact_in_each_covered_class(self):
+        reg = registered()
+        self.assertEqual(dict(registration.CLASSES), {360: 1000000, 720: 3000000, 1080: 6000000, 2160: 20000000})
+        for height in registration.COVERED_CLASSES:
+            source = next(source for source in reg["inputs"] if source["class"] == height)
+            good = proof(reg, source)
+            target = dict(registration.CLASSES)[height]
+            nominal = target * source["frames"] * source["rate"]["den"] // (8 * source["rate"]["num"])
+            self.assertEqual(good["payload_bytes"], nominal)
+            for payload in (nominal * 9 // 10, nominal * 11 // 10):
+                value = copy.deepcopy(good)
+                value["payload_bytes"] = payload
+                judging.conformance(value, source, "hardware", "coreav", h("output"), reg)
+            for mutate in (lambda r: r.update(payload_bytes=nominal * 9 // 10 - 1),
+                           lambda r: r.update(payload_bytes=nominal * 11 // 10 + 1),
+                           lambda r: r.update(keyframe_max_frames=61),
+                           lambda r: r.update(keyframe_max_seconds=2.000001),
+                           lambda r: r["frames"][60].update(sync=False)):
+                changed = copy.deepcopy(good)
+                mutate(changed)
+                with self.subTest(height=height), self.assertRaises(evidence.Invalid):
+                    judging.conformance(changed, source, "hardware", "coreav", h("output"), reg)
+
     def test_quality_denominator_medians_and_fixture_floors(self):
         good = {"vmaf": 0, "psnr": 0, "ssim": 0}
         bad = {"vmaf": -2.01, "psnr": 0, "ssim": 0}
-        grouped = {height: [good] * 10 for height, _ in registration.CLASSES}
-        judging.quality(grouped, [good])
+        reg = registered()
+        grouped = {height: [good] * 10 for height in registration.COVERED_CLASSES}
+        judging.quality(grouped, [good], reg)
         for rows, fixtures in (({**grouped, 360: [good] * 9 + [bad]}, [good]), (grouped, [bad]),
                                ({**grouped, 360: [{"vmaf": -1.01, "psnr": 0, "ssim": 0}] * 10}, [good]),
                                ({}, [good]), (grouped, []),
-                               ({**grouped, 360: [good] * 9}, [good])):
+                               ({**grouped, 360: [good] * 9}, [good]),
+                               ({height: rows for height, rows in grouped.items() if height != 1080}, [good]),
+                               ({**grouped, 2160: [good] * 10}, [good])):
             with self.assertRaises(evidence.Invalid):
-                judging.quality(rows, fixtures)
+                judging.quality(rows, fixtures, reg)
+        boundary = {"vmaf": -1.0, "psnr": -0.10, "ssim": -0.001}
+        fixture_floor = {"vmaf": -2.0, "psnr": -0.50, "ssim": -0.005}
+        judging.quality({height: [boundary] * 10 for height in registration.COVERED_CLASSES}, [fixture_floor], reg)
+        for name, floor in (("vmaf", -1), ("psnr", -0.10), ("ssim", -0.001)):
+            with self.subTest(metric=name), self.assertRaises(evidence.Invalid):
+                judging.quality({**grouped, 1080: [{**good, name: floor - 0.000001}] * 10}, [good], reg)
+        for name, floor in (("vmaf", -2), ("psnr", -0.50), ("ssim", -0.005)):
+            with self.subTest(fixture_metric=name), self.assertRaises(evidence.Invalid):
+                judging.quality(grouped, [{**fixture_floor, name: floor - 0.000001}], reg)
 
     def test_host_gates_and_faults(self):
         reg = registered()
@@ -600,6 +729,12 @@ class Judgments(unittest.TestCase):
         reg = registered()
         records = calls(reg)
         result = judging.timings(records, reg)["hardware"]
+        self.assertEqual(result["overall"]["inputs"], 30)
+        self.assertEqual(set(result["classes"]), {"360", "720", "1080"})
+        self.assertTrue(all(group["inputs"] == 10 for group in result["classes"].values()))
+        self.assertEqual(result["covered_classes"], [360, 720, 1080])
+        self.assertEqual(result["uncovered_classes"], reg["uncovered_classes"])
+        self.assertEqual(result["scope"], "prepared-raw-i420-encoder-only")
         self.assertEqual(result["overall"]["median"], 0.9)
         self.assertEqual(result["overall"]["ci95"], [0.9, 0.9])
         self.assertEqual(result["overall"]["share_faster"], 1)
@@ -625,6 +760,17 @@ class Judgments(unittest.TestCase):
         self.assertTrue(result["overall"]["bar_pass"])
         self.assertFalse(result["classes"]["360"]["bar_pass"])
         self.assertFalse(judging.summary([1.0] * 10)["faster"])
+        self.assertTrue(judging.summary([1.0] * 10)["bar_pass"])
+        self.assertFalse(judging.summary([1.000001] * 10)["bar_pass"])
+        for mutate in (lambda r: r["inputs"].pop(),
+                       lambda r: r["inputs"].__setitem__(0, item("outside", 1200)),
+                       lambda r: r["inputs"][0].update(height=480, **{"class": 720}),
+                       lambda r: r["covered_classes"].pop(),
+                       lambda r: r["covered_classes"].append(2160)):
+            changed = copy.deepcopy(reg)
+            mutate(changed)
+            with self.assertRaises(evidence.Invalid):
+                judging.timings(calls(changed), changed)
 
 
 class Retention(unittest.TestCase):
@@ -694,8 +840,8 @@ class Retention(unittest.TestCase):
             reg["metric_tools"]["evidence_producer"] = evidence.file_hash(Path(timing.__file__).with_name("producer.py"))
             evidence.write(root / "build.json", {"observability": {}})
             evidence.write(root / "registration.json", reg)
-            captured = {"schema": "coreav.videotoolbox-timing/1", "status": "aborted",
-                        "scope": "raw-driver-elementary-only", "diagnostic": "timeout", "records": calls(reg),
+            captured = {"schema": "coreav.videotoolbox-timing/2", **registration.coverage(reg), "status": "aborted",
+                        "scope": registration.SCOPE, "diagnostic": "timeout", "records": calls(reg),
                         "registration_sha256": evidence.file_hash(root / "registration.json"),
                         "before_gate_sha256": h("before"), "availability_sha256": h("available"),
                         "started_ns": 3, "ended_ns": 4}
