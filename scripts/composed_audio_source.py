@@ -151,7 +151,7 @@ def source_reference(args, directory, source, index, channels, env):
         raw, _ = composed.bounded([args.ffprobe, '-v', 'error', '-select_streams', str(index),
             '-show_frames', '-show_streams', '-show_entries',
             'frame=pts,nb_samples:stream=index,codec_name,sample_rate,channels,time_base',
-            '-of', 'json', source], env)
+            '-of', 'json', *AUDIO_DECODE_INPUT, source], env)
         document = composed.json_document(raw)
         streams, decoded = document.get('streams'), document.get('frames')
         if not isinstance(streams, list) or len(streams) != 1 or not isinstance(streams[0], dict):

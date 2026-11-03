@@ -462,6 +462,7 @@ class SourcePresentation(unittest.TestCase):
                     if command[0] == 'ffmpeg':
                         kwargs['output'].write(struct.pack('<4f', 0, 1, 2, 3))
                         return b'', b''
+                    self.assertEqual(command[-3:], ['-threads:a', '1', path])
                     return json.dumps({'streams': [{'index': 2, 'codec_name': 'opus',
                         'channels': 1, 'sample_rate': '48000'}],
                         'frames': [{'pts': origin, 'nb_samples': count}]}).encode(), b''
