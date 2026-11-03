@@ -85,7 +85,7 @@ def method_identity():
              'scripts/oracle-audio-args.txt', 'scripts/oracle_pin.py', 'scripts/oracle-ffmpeg.env',
              'docs/design/png-bmp-yuv-v1.md')
     names += tuple(path.relative_to(ROOT).as_posix() for path in (ROOT / 'scripts').glob('composed_audio*.py'))
-    return {name: eb.sha256(ROOT / name) for name in names}
+    return {**{name: eb.sha256(ROOT / name) for name in names}, **eb.v2_fixture_inputs.provenance()}
 
 
 def digest(value):
@@ -539,6 +539,10 @@ def summarize(records, manifest):
             and all(manifest.get(k) == v for k, v in registration().items())
             and manifest.get('commandset_sha256') == eb.sha256(eb.SET)
             and manifest.get('methods') == method_identity(), 'method_identity')
+    inputs = manifest.get('inputs')
+    require(isinstance(inputs, dict) and set(inputs) == set(eb.INPUT_FILES)
+            and all(isinstance(sha, str) and re.fullmatch(r'[0-9a-f]{64}', sha) is not None
+                    for sha in inputs.values()), 'source_identity')
     require(all(isinstance(row, dict) and all(row.get(k) == v for k, v in registration().items())
                 and row.get('run_identity_sha256') == identity for row in records), 'receipt_binding')
     expected = dict(eb.commands('v2'))
@@ -563,7 +567,7 @@ def cmd_run(opts):
     programs = eb.oracle_programs(opts)
     opts.tools = {name: eb.sha256(getattr(opts, name)) for name in
                   ('coreav', 'harness', 'image_harness', 'ffmpeg', 'ffprobe', 'x264')}
-    fixtures = {name: eb.sha256(opts.fixtures / name) for name in eb.FIXTURES}
+    fixtures = {name: eb.sha256(opts.fixtures / name) for name in eb.INPUT_FILES}
     opts.methods = method_identity()
     require(opts.methods == LOADED_METHODS, 'method_identity')
     manifest = {'schema': 'coreav.image-run/1', **registration(), 'commandset_sha256': eb.sha256(eb.SET),
@@ -579,7 +583,7 @@ def cmd_run(opts):
     with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
         records = sorted(pool.map(lambda item: evaluate(opts, *item), eb.commands('v2')), key=lambda row: row['index'])
     require(opts.tools == {name: eb.sha256(getattr(opts, name)) for name in opts.tools}, 'receipt_binding')
-    require(fixtures == {name: eb.sha256(opts.fixtures / name) for name in eb.FIXTURES}, 'source_identity')
+    require(fixtures == {name: eb.sha256(opts.fixtures / name) for name in eb.INPUT_FILES}, 'source_identity')
     require(method_identity() == opts.methods and eb.sha256(opts.build_manifest) == manifest['build_manifest_sha256'],
             'method_identity')
     summary = summarize(records, manifest)

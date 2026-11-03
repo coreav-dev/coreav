@@ -14,6 +14,8 @@ Extend `codec-coverage` with an explicitly selected `png-bmp-yuv-v1` fixture-onl
 
 The workflow builds the normal release-full executable and ordinary copy harness, plus the image harness with release-full and input-capture, from that candidate. It produces the required image build record with binary, source, lockfile, feature, target and compiler identities. Caller-supplied executable paths and partial builds are not alternatives to this build contract.
 
+All three image-path executables use release-profile Linux GNU builds and the same pinned codec libraries, avoiding a target mismatch between the normal command and capture harness. The legacy release path keeps its existing musl distribution build and separate manifest.
+
 Generate the original and registered supplemental fixtures with the verified pinned FFmpeg 9.0.2 binaries. Verify supplemental reference assignments before starting the image runner. Invoke the runner with an explicit registration and fresh work directory. Retain its records, summary, manifest, build record, host information and complete per-command capture/process evidence, including failed acquisition evidence. The run remains separate from V1 and does not fetch held-out or corpus inputs.
 
 ## Verification and later results
@@ -21,3 +23,14 @@ Generate the original and registered supplemental fixtures with the verified pin
 Use only mocked acquisition and newly authored synthetic controls before merge. Regressions must reject missing supplemental inputs, missing helper or registry identities, changed input bytes and changed method identities. Execute the workflow's selection guards with pull-request, non-main, malformed-SHA and valid manual-dispatch cases, and prove that only the intended mode builds and invokes the image harness. Keep the source and host refusals covered.
 
 Check the frozen judging roster and command rows remain byte-identical. After this prerequisite merges, select one merged main commit, execute the combined V2 acquisition once and publish its observed counts and exact image diagnostics in a separate results pull request. A tooling fault is not a count or a reason to change acceptance.
+
+## Dispatch after merge
+
+Select the full SHA of main containing this integration, then run:
+
+```sh
+gh workflow run codec-coverage.yml --ref main \
+  -f set=v2 -f registration=png-bmp-yuv-v1 -f commit=SELECTED_MAIN_SHA
+```
+
+The workflow builds all required programs; it needs no corpus credentials for this fixture-only mode. Download `coverage-v2-images` and keep its complete evidence archive with the later results. A timeout, failed fixture preparation, failed capture, void summary or incomplete artifact is not a valid coverage result.
