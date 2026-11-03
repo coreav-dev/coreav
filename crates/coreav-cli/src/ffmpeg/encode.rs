@@ -275,6 +275,8 @@ pub fn request(
         left_out_covers: left_out_covers.clone(),
         opus,
         aac,
+        #[cfg(feature = "input-capture")]
+        input_capture: None,
         pixel_format,
         one_size: true,
         encoder,
@@ -484,7 +486,26 @@ pub fn write(
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
+    write_inner(command, job, encoder, strict_safe, None)
+}
+
+pub(super) fn write_inner(
+    command: &Command,
+    job: &TranscodeJob,
+    encoder: Encoder,
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
     let request = request(command, job, encoder, strict_safe)?;
+    #[cfg(feature = "input-capture")]
+    let request = {
+        let mut request = request;
+        request.input_capture =
+            capture.map(|path| coreav_transcode::capture::Target(path.to_owned()));
+        request
+    };
+    #[cfg(not(feature = "input-capture"))]
+    let _ = capture;
     let input = Path::new(&command.input);
     let copied = if job.audio_encoder.is_some() {
         &[][..]

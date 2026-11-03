@@ -13,6 +13,8 @@
 pub mod args;
 mod audio;
 mod avi;
+#[cfg(feature = "input-capture")]
+mod capture;
 #[cfg(feature = "transcode")]
 pub mod encode;
 #[cfg(feature = "thumbnail")]
@@ -245,7 +247,38 @@ See docs/design/compat-cli.md.
 /// is checked before decoding. Explicit encoders are checked before the input is read.
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
+    run_inner(args, strict_safe, None)
+}
+
+/// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
+#[cfg(feature = "input-capture")]
+pub fn run_captured(
+    args: &[String],
+    strict_safe: StrictSafe,
+    directory: &Path,
+) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    let session = capture::Session::begin(directory, Path::new(&command.input))?;
+    let summary = run_inner(args, strict_safe, Some(&directory.join("stdin.f32")))?;
+    session.seal(
+        &summary,
+        args,
+        Path::new(&command.input),
+        Path::new(&command.output),
+    )?;
+    Ok(summary)
+}
+
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn run_inner(
+    args: &[String],
+    strict_safe: StrictSafe,
+    capture: Option<&Path>,
+) -> Result<serde_json::Value, Stop> {
+    let command = args::parse(args)?;
+    if capture.is_some() && (!command.more_inputs.is_empty() || command.muxer.frames()) {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
+    }
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
@@ -297,8 +330,14 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
+        if capture.is_some() && transcode.audio_encoder != Some(args::AudioEncoder::Aac) {
+            return Err(Refusal::not_native("input capture without a native AAC encode").into());
+        }
         let encoder = encode::encoder(transcode, strict_safe)?;
-        return encode::write(&command, transcode, encoder, strict_safe);
+        return encode::write_inner(&command, transcode, encoder, strict_safe, capture);
+    }
+    if capture.is_some() {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {
@@ -482,21 +521,6 @@ pub fn plan(
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
     let decided = codecs(command, &output);
-    for (position, ((_, stream), codec)) in output.iter().zip(&decided).enumerate() {
-        if *codec == Some(Codec::Audio(args::AudioEncoder::Aac))
-            && stream.entries.iter().any(|(key, value)| {
-                *key == "codec_name" && matches!(value, Value::Str(name) if name == "opus")
-            })
-            && !command
-                .codecs
-                .iter()
-                .any(|(spec, _)| matching(spec, &output).contains(&position))
-        {
-            return Err(Refusal::not_native(
-                "default AAC encoding of an Opus source (its exact output has not been verified)",
-            ));
-        }
-    }
     if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
@@ -1669,6 +1693,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unsupported_capture_is_refused_before_input_or_output_io() {
+        for line in [
+            "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
+            "-i missing-a.mp4 -frames:v 1 out.png",
+        ] {
+            let args = line
+                .split_whitespace()
+                .map(String::from)
+                .collect::<Vec<_>>();
+            assert!(matches!(
+                run_inner(&args, StrictSafe::new(false), Some(Path::new("unused.f32"))),
+                Err(Stop::Refused(Refusal::NotNative(_)))
+            ));
+        }
+    }
+
+    #[test]
     fn default_codecs_plan_the_same_jobs_as_explicit_codecs() {
         use crate::ffprobe::model::Unit;
         let stream = |kind, entries| Stream {
@@ -1727,7 +1768,7 @@ mod tests {
     }
 
     #[test]
-    fn implicit_aac_refuses_opus_without_changing_explicit_choices() {
+    fn implicit_aac_takes_verified_opus_without_changing_explicit_choices() {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             streams: vec![
@@ -1776,21 +1817,13 @@ mod tests {
             "-c:v libx264",
             "-c:a:1 aac",
             "-c:0 libx264",
-            "-vn",
-            "-vn -c:a:1 aac",
+            "-c:a aac",
+            "-c:a:0 aac",
+            "-c:1 aac",
+            "-c:a copy -c:a aac",
         ] {
-            let Err(Refusal::NotNative(reason)) = plan_options(options, &report) else {
-                panic!("{options}: implicit Opus source was not refused");
-            };
-            assert!(
-                reason
-                    .message
-                    .contains("default AAC encoding of an Opus source")
-            );
-        }
-        for options in ["-c:a aac", "-c:a:0 aac", "-c:1 aac", "-c:a copy -c:a aac"] {
             let Job::Transcode(options) = plan_options(options, &report).unwrap() else {
-                panic!("{options}: explicit AAC was not planned");
+                panic!("{options}: AAC was not planned");
             };
             assert_eq!(options.audio_encoder, Some(args::AudioEncoder::Aac));
         }
@@ -1800,7 +1833,13 @@ mod tests {
             };
             assert_eq!(options.audio_encoder, None);
         }
-        for options in ["-vn -c:a aac", "-vn -c:a:0 aac", "-vn -c:0 aac"] {
+        for options in [
+            "-vn",
+            "-vn -c:a:1 aac",
+            "-vn -c:a aac",
+            "-vn -c:a:0 aac",
+            "-vn -c:0 aac",
+        ] {
             assert_eq!(
                 plan_options(options, &report).unwrap(),
                 Job::AudioEncode {

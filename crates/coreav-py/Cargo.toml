@@ -32,6 +32,7 @@ thumbnail = ["coreav-cli/thumbnail"]
 # `main.rs`'s `transcode` subcommand, as in coreav-cli: only with a decoder
 # backend, which the Python package does not ship.
 transcode = ["coreav-cli/transcode"]
+input-capture = ["coreav-cli/input-capture"]
 
 [dependencies]
 coreav-cli = { path = "../coreav-cli", default-features = false, features = ["net"] }
