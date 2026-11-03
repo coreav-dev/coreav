@@ -1302,7 +1302,10 @@ fn stream(
         e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
         let header = header_aspect(track.presentation_size, &matrix, w, h);
-        let (sar, dar) = match (d.pixel_aspect.or(info.sar).or(header), w, h) {
+        let aspect = d.pixel_aspect.or(info.sar).or(header).or_else(|| {
+            (d.codec == Codec::Av1 && d.parameter_set_size.is_some()).then_some((1, 1))
+        });
+        let (sar, dar) = match (aspect, w, h) {
             (Some((hs, vs)), Some(w), Some(h)) => (
                 ratio(u64::from(hs), u64::from(vs)),
                 compat::bounded_ratio(
