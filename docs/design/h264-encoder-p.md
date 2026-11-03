@@ -86,6 +86,17 @@ The P-picture layer additionally requires all of the following:
 - A rejected frame, allocation failure, or output-budget failure cannot advance GOP state or replace the reference. Retrying a valid frame matches a fresh encoder at the same successful prefix.
 - The similarity guard passes on the exact public head against the main allowlist. Its result records the checked commit without exposing comparison source. Every commit has a DCO sign-off.
 
+## P-picture implementation checklist
+
+This is the first commit of the P-picture layer. The normative rules and search choices above remain its contract. Implement and verify these units in order:
+
+1. Add `Gop::AllIntra` and a checked fixed IDR interval to settings. Keep all existing callers explicitly all-intra. Move the completed coded picture into the encoder's one-reference state only after every output check passes. Keep IDR identity, modulo-16 frame number, and the preceding macroblock's `MvCnt` transactional.
+2. Add P reference-slice headers, P_L0_16x16, derived P_Skip, skip-run emission, and the inter coded-block-pattern mapping. Keep normative motion prediction separate from the deterministic integer, half-sample, and quarter-sample search. Reconstruct every winning candidate through the scalar kernels.
+3. Extend candidate-local motion maps to 16x8, 8x16, and P_8x8 with every specified subpartition shape. Enforce the consecutive-count budget before cost comparison and retain the zero-count intra fallback. Include constrained-intra neighbour availability and inter deblocking strengths derived from the selected motion and nonzero luma blocks.
+4. Add a separate test-only sequence driver and untimed synthetic Actions conformance. Independently derive `MvCnt` from emitted syntax, including the last-P/first-P boundary, rather than trusting encoder instrumentation. Verify frame-number wrap, IDR boundaries, skipped tails, integer and fractional motion, partition coverage, crop, reference rollback, complete three-decoder sample equality, and the unchanged all-intra byte snapshot.
+
+No rate-control or CABAC implementation belongs in this layer. Its completion requires the exact-head guard against the main allowlist, not only a proposed allowlist preview. The layer remains unmerged until its independent review and the external stage-gate decision are complete.
+
 ## Next design-only slice
 
 Plan a bounded fixed-GOP rate controller after inter conformance. Its note must separate a target-rate policy from normative QP and buffer constraints, define failure and flush behavior, and propose synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
