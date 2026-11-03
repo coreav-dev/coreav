@@ -91,11 +91,11 @@ after reference assignment. This plan does not broaden either predicate.
 Indices are zero-based rows in the unchanged 630-command registration.
 A tuple lists files in first-placeholder order. A proposed tuple is an
 input-construction plan, not evidence that the command or candidate passes.
-Conditional tuples need focused reference diagnostics. A dash identifies
+Conditional tuples need focused reference diagnostics. `None` identifies
 a case for which media alone does not repair the stated blocker.
 
 | Index | Proposed input tuple | Reason or remaining blocker |
-|---|---|
+|---|---|---|
 | 8 | None | A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract. |
 | 14 | `v2_video_only.mp4` | Use a video-only H.264 file to remove the selected audio job without changing any option. |
 | 16 | `audio_aac.m4a`, `v2_still_rgba.png` | The existing concat adapter supplies two copies of the AAC audio file; the second input must accept image framerate. Both inputs are finite. |

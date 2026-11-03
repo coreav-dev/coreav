@@ -20,6 +20,16 @@ import avi_v2_check as avi
 
 
 class Registration(unittest.TestCase):
+    def test_inventory_has_a_three_column_gfm_table_delimiter(self):
+        lines = (ROOT / 'docs/design/v2-fixtures.md').read_text().splitlines()
+        header = lines.index('| Index | Proposed input tuple | Reason or remaining blocker |')
+        self.assertEqual(lines[header - 1], '')
+        self.assertRegex(lines[header + 1], r'^\|\s*:?-+:?\s*\|\s*:?-+:?\s*\|\s*:?-+:?\s*\|$')
+        rows = lines[header + 2:]
+        self.assertEqual(len(rows), 171)
+        for row in rows:
+            self.assertEqual(len(row.strip('|').split('|')), 3)
+
     def test_every_inventory_case_has_one_bound_registration(self):
         plan = (ROOT / 'docs/design/v2-fixtures.md').read_text()
         listed = [int(n) for n in re.findall(r'^\| (\d+) \|', plan, re.M)]
