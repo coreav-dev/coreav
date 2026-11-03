@@ -338,6 +338,23 @@ class Repository(unittest.TestCase):
                 self.assertTrue(found[0].startswith('deny.yml: required `deny`, so give the workflow '
                                                     'exactly `concurrency:'), found)
 
+    def test_macos_installers_track_only_their_own_required_inputs(self):
+        path = self.root / '.github/workflows/oracle-macos.yml'
+        original = path.read_text()
+        self.assertEqual(check.check(self.root), [])
+        pins = check.ORACLE_PINS[1]
+        for pin in pins:
+            with self.subTest(pin=pin):
+                path.write_text(original.replace(f'      - {pin}\n', ''))
+                found = check.check(self.root)
+                self.assertEqual(len(found), 2, found)
+                self.assertTrue(all(f'change of {pin} does not start it' in problem for problem in found), found)
+        path.write_text(original)
+        self.assertEqual(check.check(self.root), [])
+        installer = pins[1]
+        self.assertTrue(check.calls_installer(f"bash -c '{installer} /opt/bin'", installer))
+        self.assertFalse(check.calls_installer(f'bash -n {installer}', installer))
+
     def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
         workflows = self.root / '.github' / 'workflows'
         audio = workflows / 'audio-conformance.yml'
