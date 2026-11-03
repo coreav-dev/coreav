@@ -164,7 +164,7 @@ def build(args):
         try:
             with log.open('wb') as output:
                 command(['tar', '-xzf', archive, '-C', source, '--strip-components=1'], stdout=output, stderr=output)
-                configure = ['./configure', '--disable-everything', '--disable-autodetect', '--enable-decoder=vp9',
+                configure = ['./configure', '--cc=cc', '--disable-everything', '--disable-autodetect', '--enable-decoder=vp9',
                              '--enable-parser=vp9', '--enable-demuxer=matroska', '--enable-muxer=null,framemd5',
                              '--enable-encoder=rawvideo,wrapped_avframe', '--enable-protocol=file,pipe',
                              '--enable-filter=null,format,scale', '--disable-stripping', '--disable-debug', '--disable-doc']
@@ -181,6 +181,10 @@ def build(args):
     provenance.update(source_deleted_before_profiling=True, oracle_pin_sha256=run.digest(HERE / 'oracle-ffmpeg.env'),
                       symbol_source=dict(commit=recipe['ffmpeg_source_commit'],
                                          archive_sha256=recipe['ffmpeg_source_archive_sha256'],
+                                         compiler=subprocess.run(['cc', '--version'], capture_output=True, check=True,
+                                             timeout=60, env=env).stdout.decode().splitlines()[0],
+                                         assembler=subprocess.run(['nasm', '-v'], capture_output=True, check=True,
+                                             timeout=60, env=env).stdout.decode().strip(),
                                          configure=configure, debug_sections=False),
                       binaries={name: run.digest(out / 'bin' / name) for name in registration['arms'] + ['ffprobe']})
     run.write(out / 'builds.json', provenance)
