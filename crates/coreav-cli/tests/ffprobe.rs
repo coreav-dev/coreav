@@ -618,6 +618,78 @@ fn frames_coreav_cannot_decode_are_refused_before_anything_is_printed() {
 }
 
 #[test]
+fn transport_mp2_formats_follow_the_initial_program_declarations() {
+    for (layer, rate_index, codec, frame_len, bit_rate) in [
+        (0xfd, 0xa4, "mp2", 576, "192000"),
+        (0xfb, 0x94, "mp3", 384, "128000"),
+    ] {
+        let mut frame = vec![0; frame_len];
+        frame[..4].copy_from_slice(&[0xff, layer, rate_index, 0xc0]);
+        let frames = frame.repeat(2);
+        for first in [[3, 3], [3, 4], [4, 3], [4, 4]] {
+            for later in [3, 4] {
+                for early_pes in [false, true] {
+                    let mut mux = ts::Mux::default();
+                    mux.pat(&[(1, 0x1000), (2, 0x1001)]);
+                    mux.pmt(0x1000, 1, &[(first[0], 0x101), (first[1], 0x102)]);
+                    if early_pes {
+                        mux.pes(0x103, 0xc0, 85_680, &frames, true);
+                    }
+                    mux.pmt(0x1001, 2, &[(first[0], 0x101), (later, 0x103)]);
+                    for index in 0..12 {
+                        for pid in [0x101, 0x102, 0x103] {
+                            mux.pes(pid, 0xc0, 90_000 + index * 4320, &frames, true);
+                        }
+                    }
+                    let name = format!(
+                        "ffprobe-mpeg-formats-{layer}-{}-{}-{later}-{early_pes}.ts",
+                        first[0], first[1]
+                    );
+                    let path = file(&name, &mux.out);
+                    let r = ffprobe(&[
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "program=program_id:stream=id,codec_name,sample_fmt,sample_rate,channels,bit_rate",
+                        "-of",
+                        "json",
+                        &path.to_string_lossy(),
+                    ]);
+                    assert_eq!(r.code, 0, "{name}: {}", r.stderr);
+                    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+                    let streams = doc["streams"].as_array().unwrap();
+                    assert_eq!(streams.len(), 3, "{name}: {doc}");
+                    for (index, stream) in streams.iter().enumerate() {
+                        let integer = codec == "mp2" && (index == 2 || first[index] == 4);
+                        assert_eq!(
+                            stream,
+                            &serde_json::json!({
+                                "id": format!("0x{:x}", 0x101 + index),
+                                "codec_name": codec,
+                                "sample_fmt": if integer { "s16p" } else { "fltp" },
+                                "sample_rate": "48000",
+                                "channels": 1,
+                                "bit_rate": bit_rate,
+                            }),
+                            "{name}"
+                        );
+                    }
+                    assert_eq!(doc["programs"].as_array().unwrap().len(), 2, "{name}");
+                    for (program, indexes) in [(0, [0, 1]), (1, [0, 2])] {
+                        assert_eq!(doc["programs"][program]["program_id"], program + 1);
+                        assert_eq!(
+                            doc["programs"][program]["streams"],
+                            serde_json::json!([streams[indexes[0]], streams[indexes[1]]]),
+                            "{name}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
     // `ffprobe` numbers the streams of the first Program Map Table after
     // the PAT first, then the others where the file first shows them from

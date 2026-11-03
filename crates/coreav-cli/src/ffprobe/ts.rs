@@ -1866,6 +1866,9 @@ fn stream(
         let sample_fmt = match (facts.lpcm, lossless_bits(facts)) {
             (Some(l), _) if l.bits > 16 => Some("s32"),
             (_, Some(bits)) => Some(if bits > 16 { "s32p" } else { "s16p" }),
+            _ if codec_name == Some("mp2") && (st.stream_type == 0x04 || !st.with_first_table) => {
+                Some("s16p")
+            }
             _ => codec_name.and_then(|n| names::sample_fmt(n, None)),
         };
         e.push(("sample_fmt", sample_fmt.map_or(unknown(), s)));

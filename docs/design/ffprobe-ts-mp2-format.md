@@ -17,8 +17,12 @@ break the existing floating-point cases.
 ## Plan
 
 Use only the existing stream declaration and first-table provenance,
-with the resolved Layer II codec as the guard, if the independent
-controls confirm that these facts distinguish the observed formats.
+with the resolved Layer II codec as the guard. The pinned binary reports
+`s16p` for a type 0x04 declaration or a stream outside the first completed
+PMT after the PAT, and retains `fltp` for type 0x03 in that first table.
+Generated controls preserve this distinction with several streams in the
+first table and a shared PID in a later program. Actual Layer III stays
+`fltp` under both declarations and both program positions.
 Keep the choice in the transport ffprobe adapter rather than changing
 the shared codec-name defaults. The parser already exposes these facts;
 add no parser, read, decode operation, configuration field or retained
@@ -31,14 +35,15 @@ expand any comparison predicate to make neighboring keys pass.
 
 ## Verification
 
-Construct complete silent MP2 frames from their specified header and
-zero bit allocations. Check the generated inputs with the pinned binary
-before fixing the adapter, including a failing integer-format case and
-an unchanged floating-point case. Cover several streams in the first
-table, later tables, shared PIDs, both MPEG-audio declarations, and an
-actual Layer III negative control. Vary declarations while preserving
-the elementary frames so that payload corruption cannot explain the
-format difference.
+The regression constructs complete silent MPEG-1 frames at 48 kHz with
+zero bit allocations: Layer II at 192 kbit/s, and Layer III at 128 kbit/s
+with empty side information. The pinned binary confirms the expected
+flat and nested fields and decodes every audio stream without errors.
+The 32 cases combine both layers, both declarations for each of two
+streams in the first table, both declarations for a later stream, and
+a PES before or after the later PMT. A PID shared by both programs keeps
+its original format. Declaration changes preserve the elementary frames
+so that payload corruption cannot explain the format difference.
 
 Check the identified development multiplex only after verifying its
 non-holdout flag and full SHA-256. Compare every actual MP2 stream's flat
