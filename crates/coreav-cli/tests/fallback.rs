@@ -317,7 +317,14 @@ fn coreav_fallback_that_names_nothing_usable_is_never_replaced_by_path() {
         (no_program.as_str(), "which does not exist"),
     ] {
         let r = coreav(
-            &["ffmpeg", "-i", "in.mp4", "out.mkv"],
+            &[
+                "ffmpeg",
+                "-i",
+                "in.mp4",
+                "-c:v",
+                "unsupported-test-codec",
+                "out.mkv",
+            ],
             &[stand_in()],
             &[("COREAV_FALLBACK", named)],
         );

@@ -21,6 +21,9 @@ fn video(codec: CodecId) -> Track {
             width: 64,
             height: 48,
             display: Some((80, 48)),
+            colour: coreav_isobmff::Color::default(),
+            interlaced: 0,
+            field_order: 2,
         },
         default_duration_ns: Some(40_000_000),
         codec_delay_ns: 0,
@@ -78,6 +81,168 @@ fn output(tracks: &[Track], packets: &[Packet], options: Options) -> Vec<u8> {
     assert_eq!(size, layout.bytes());
     assert_eq!(bytes.len() as u64, size);
     bytes
+}
+
+#[test]
+fn video_colour_is_explicit_bounded_and_keeps_the_stored_code_points() {
+    use coreav_isobmff::Color;
+    for colour in [
+        Color::default(),
+        Color {
+            full_range: Some(false),
+            ..Color::default()
+        },
+        Color {
+            primaries: Some(9),
+            transfer: Some(16),
+            matrix: Some(1),
+            full_range: Some(true),
+        },
+    ] {
+        let mut track = video(CodecId::H264);
+        if let Media::Video { colour: c, .. } = &mut track.media {
+            *c = colour;
+        }
+        let packets = [packet(0, 0, true)];
+        let data = output(&[track.clone()], &packets, Options::default());
+        let segment = probe(
+            SliceSource::new(&data),
+            &Limits::default(),
+            &Allowlist::any(),
+        )
+        .unwrap();
+        assert_eq!(segment.tracks[0].colour, colour);
+        assert_eq!(
+            data.windows(2).any(|b| b == [0x55, 0xb0]),
+            colour != Color::default()
+        );
+        if let Some(full) = colour.full_range {
+            assert!(
+                data.windows(4)
+                    .any(|b| b == [0x55, 0xb9, 0x81, if full { 2 } else { 1 }])
+            );
+        }
+        if colour.primaries.is_some() {
+            for bytes in [
+                [0x55, 0xb1, 0x81, 1],
+                [0x55, 0xba, 0x81, 16],
+                [0x55, 0xbb, 0x81, 9],
+            ] {
+                assert!(data.windows(4).any(|b| b == bytes));
+            }
+        }
+        let retained = track.private.len() as u64
+            + track.language.len() as u64
+            + track.name.as_ref().map_or(0, |s| s.len() as u64)
+            + 256;
+        let limits = Limits {
+            max_retained_bytes: retained,
+            ..Limits::default()
+        };
+        assert!(plan(&[track.clone()], &packets, Options::default(), &limits).is_ok());
+        assert!(
+            plan(
+                &[track],
+                &packets,
+                Options::default(),
+                &Limits {
+                    max_retained_bytes: retained - 1,
+                    ..limits
+                }
+            )
+            .is_err()
+        );
+    }
+    for colour in [
+        Color {
+            matrix: Some(3),
+            ..Color::default()
+        },
+        Color {
+            transfer: Some(0),
+            ..Color::default()
+        },
+        Color {
+            primaries: Some(13),
+            ..Color::default()
+        },
+    ] {
+        let mut track = video(CodecId::H264);
+        if let Media::Video { colour: c, .. } = &mut track.media {
+            *c = colour;
+        }
+        assert!(
+            plan(
+                &[track],
+                &[packet(0, 0, true)],
+                Options::default(),
+                &Limits::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn video_scan_declarations_round_trip_and_invalid_values_are_refused() {
+    for (interlaced, field_order) in [
+        (0, 2),
+        (2, 2),
+        (1, 0),
+        (1, 1),
+        (1, 2),
+        (1, 6),
+        (1, 9),
+        (1, 14),
+        (2, 14),
+    ] {
+        let mut track = video(CodecId::Vp9);
+        if let Media::Video {
+            interlaced: i,
+            field_order: f,
+            ..
+        } = &mut track.media
+        {
+            *i = interlaced;
+            *f = field_order;
+        }
+        let data = output(&[track], &[packet(0, 0, true)], Options::default());
+        let segment = probe(
+            SliceSource::new(&data),
+            &Limits::default(),
+            &Allowlist::any(),
+        )
+        .unwrap();
+        let v = segment.tracks[0].video.as_ref().unwrap();
+        assert_eq!(
+            (v.interlaced, v.field_order),
+            (u64::from(interlaced), u64::from(field_order))
+        );
+        if interlaced != 0 {
+            assert!(data.windows(3).any(|b| b == [0x9a, 0x81, interlaced]));
+        }
+    }
+    for (interlaced, field_order) in [(3, 2), (1, 3), (1, 15)] {
+        let mut track = video(CodecId::Vp9);
+        if let Media::Video {
+            interlaced: i,
+            field_order: f,
+            ..
+        } = &mut track.media
+        {
+            *i = interlaced;
+            *f = field_order;
+        }
+        assert!(
+            plan(
+                &[track],
+                &[packet(0, 0, true)],
+                Options::default(),
+                &Limits::default()
+            )
+            .is_err()
+        );
+    }
 }
 
 #[test]
