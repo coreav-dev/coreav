@@ -251,7 +251,9 @@ pub fn probe_limited<'a, S: Source + 'a>(
         let bytes: &[u8] = bytes;
         let format = if bytes.starts_with(b"fLaC") {
             Some("FLAC")
-        } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WAVE") {
+        } else if matches!(bytes.get(..4), Some(b"RIFF" | b"RIFX" | b"RF64" | b"BW64"))
+            && bytes.get(8..12) == Some(b"WAVE")
+        {
             Some("WAV")
         } else if bytes.starts_with(b"ID3")
             || matches!(bytes, [0xff, b, c, ..] if b & 0xe0 == 0xe0 && b & 0x18 != 0x08 && b & 0x06 != 0 && c & 0xf0 != 0xf0 && c & 0x0c != 0x0c)

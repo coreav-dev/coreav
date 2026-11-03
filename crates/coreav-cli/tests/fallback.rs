@@ -364,6 +364,13 @@ fn unsupported_audio_containers_fall_back_without_changing_arguments() {
         ("audio.mp3", b"ID3\x04\0\0\0\0\0\0".as_slice(), "MP3"),
         ("audio.flac", b"fLaC\0\0\0\x22".as_slice(), "FLAC"),
         ("audio.wav", b"RIFF\x24\0\0\0WAVE".as_slice(), "WAV"),
+        ("big-endian.bin", b"RIFX\0\0\0\x24WAVE".as_slice(), "WAV"),
+        ("large.bin", b"RF64\xff\xff\xff\xffWAVE".as_slice(), "WAV"),
+        (
+            "broadcast.bin",
+            b"BW64\xff\xff\xff\xffWAVE".as_slice(),
+            "WAV",
+        ),
         ("audio.bin", b"\xff\xfb\x90\x00".as_slice(), "MP3"),
     ] {
         let path = dir.join(name);
