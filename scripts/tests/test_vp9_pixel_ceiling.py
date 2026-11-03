@@ -144,8 +144,17 @@ class Capture(unittest.TestCase):
         with mock.patch.object(runner.sys, 'platform', 'linux'), \
                 mock.patch.object(runner.platform, 'machine', return_value='x86_64'), \
                 mock.patch.object(runner, 'selection', return_value=(self.plan, self.rows)), \
+                mock.patch.object(runner.pathlib.Path, 'read_text', autospec=True,
+                                  side_effect=self.read_text), \
                 mock.patch.object(runner.subprocess, 'run', side_effect=self.child):
             runner.capture(self.args)
+
+    @staticmethod
+    def read_text(path, *args, **kwargs):
+        if str(path) == '/proc/cpuinfo':
+            return 'model name: test CPU\nflags: test\n'
+        with path.open(*args, **kwargs) as stream:
+            return stream.read()
 
     def test_complete_roster_has_counts_but_no_elapsed_metrics_or_input_identity(self):
         self.capture()

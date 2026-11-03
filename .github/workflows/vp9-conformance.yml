@@ -126,8 +126,18 @@ jobs:
             (
               cd "$RUNNER_TEMP/ceiling/$arm"
               cargo build --locked --profile dist -p coreav-decode-oracle --features native-vp9
+              cargo test --locked -p coreav-kernels-vp9 --lib --no-run
               rustc -Vv > compiler.txt
             )
+          done
+          (cd "$RUNNER_TEMP/ceiling/baseline" && cargo test --locked -p coreav-kernels-vp9 --lib)
+          cd "$RUNNER_TEMP/ceiling/ceiling"
+          for test in inter::tests::integer_positions_copy_visible_samples_and_leave_padding_alone filter::tests::a_small_step_between_flat_sides_is_smoothed; do
+            if cargo test --locked -p coreav-kernels-vp9 --lib "$test" -- --exact > "$RUNNER_TEMP/cutout-test.log" 2>&1; then
+              echo 'The deliberate pixel cutout unexpectedly passed its unchanged arithmetic test' >&2
+              exit 1
+            fi
+            grep -F 'test result: FAILED. 0 passed; 1 failed;' "$RUNNER_TEMP/cutout-test.log"
           done
       - name: Install the instruction counter
         run: |

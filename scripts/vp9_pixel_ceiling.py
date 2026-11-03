@@ -99,6 +99,8 @@ def prepare(args):
                    cwd=ROOT, check=True, timeout=120, env=environment())
     provenance = dict(baseline_commit=plan['baseline_commit'], plan_sha256=digest(PLAN),
                       driver_sha256=digest(pathlib.Path(__file__)), archive_sha256=digest(archive),
+                      tooling_commit=os.environ.get('GITHUB_SHA'),
+                      build=dict(profile='dist', features=['native-vp9'], rust_toolchain=plan['rust_toolchain']),
                       packets=PACKETS, indexes=list(INDEXES), arms={})
     for arm in ARMS:
         source = out / arm
@@ -189,6 +191,8 @@ def capture(args):
             for relative in provenance['arms'][arm]:
                 bundle.add(scratch / arm / relative, arcname=f'{arm}/{relative}')
     write(private / 'provenance.json', dict(provenance, binaries={a: digest(p) for a, p in binaries.items()},
+          cpu=[line.strip() for line in pathlib.Path('/proc/cpuinfo').read_text().splitlines()
+               if line.startswith(('model name', 'flags'))][:2],
           counter_version=subprocess.run(['valgrind', '--version'], capture_output=True, check=True,
                                          timeout=30, env=environment()).stdout.decode().strip()))
     for index, (row, entry) in enumerate(zip(wanted, listing)):
