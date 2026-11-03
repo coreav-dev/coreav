@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use coreav_backend_vp9::{NativeOptions, NativeVp9};
-use coreav_decode::{Backend, Codec, Limits, Packet, StreamConfig};
+use coreav_decode::{Codec, Limits, Packet, Policy, StreamConfig};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
@@ -18,17 +18,23 @@ fuzz_target!(|data: &[u8]| {
         max_frame_bytes: 256 * 256 * 2,
         max_decoded_bytes: 1 << 20,
         max_pending_bytes: 1 << 20,
-        max_packet_bytes: 4096,
+        max_packet_bytes: 1024,
         max_memory_bytes: 32 << 20,
         timeout: Duration::from_millis(200),
         ..Limits::default()
     };
-    let Ok(mut decoder) = NativeVp9::with_options(NativeOptions {
+    let backend = NativeVp9::with_options(NativeOptions {
         keyframes_only: options & 1 != 0,
-    })
-    .open(&StreamConfig::new(Codec::Vp9), &limits) else {
+    });
+    let Ok(opened) = coreav_decode::open(
+        &StreamConfig::new(Codec::Vp9),
+        &Policy::default(),
+        &limits,
+        &[&backend],
+    ) else {
         return;
     };
+    let mut decoder = opened.decoder;
     let mut failed = false;
     if options & 2 != 0 {
         failed = decoder

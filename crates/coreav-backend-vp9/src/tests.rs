@@ -23,6 +23,54 @@ fn open(limits: Limits) -> Box<dyn Decoder> {
 }
 
 #[test]
+fn public_packet_limit_failure_prevents_drain_retry_and_eof() {
+    for first in 0..3 {
+        let backend = NativeVp9::new();
+        let mut opened = coreav_decode::open(
+            &StreamConfig::new(Codec::Vp9),
+            &coreav_decode::Policy::default(),
+            &Limits {
+                max_packet_bytes: 15,
+                ..Limits::default()
+            },
+            &[&backend],
+        )
+        .unwrap();
+        opened.decoder.send_packet(&packet(&KEY, 0)).unwrap();
+        assert_eq!(
+            opened
+                .decoder
+                .send_packet(&packet(&[0; 16], 1))
+                .unwrap_err()
+                .kind,
+            ErrorKind::Limit
+        );
+        match first {
+            0 => assert_eq!(
+                opened
+                    .decoder
+                    .send_packet(&packet(&KEY, 2))
+                    .unwrap_err()
+                    .kind,
+                ErrorKind::InvalidData
+            ),
+            1 => assert_eq!(
+                opened.decoder.receive_frame().unwrap_err().kind,
+                ErrorKind::InvalidData
+            ),
+            _ => assert_eq!(
+                opened.decoder.send_eof().unwrap_err().kind,
+                ErrorKind::InvalidData
+            ),
+        }
+        assert!(opened.decoder.receive_frame().is_err());
+        assert!(opened.decoder.send_packet(&packet(&KEY, 3)).is_err());
+        assert!(opened.decoder.send_eof().is_err());
+        assert_eq!(opened.decoder.info().backend, BackendKind::Native);
+    }
+}
+
+#[test]
 fn selection_admits_absent_metadata_without_retrying_after_packet_failure() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
