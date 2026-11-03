@@ -252,6 +252,8 @@ class Diagnostics(unittest.TestCase):
         swapped[first], swapped[first + 1] = swapped[first + 1], swapped[first]
         mutations.append(swapped)
         mutations.append(original[:-1])
+        mutations.append([*original[:-1], 0])
+        mutations.append([None, *original[1:]])
         for value in (float('nan'), float('inf'), 0, -1, True):
             rows = copy.deepcopy(original)
             rows[first]['wall'] = value

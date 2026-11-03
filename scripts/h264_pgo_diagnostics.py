@@ -316,6 +316,7 @@ def audit(root, plan):
     path = root / 'diagnostics.jsonl'
     require(path.stat().st_size <= MAX_LOG, 'diagnostic log exceeds budget')
     events = [json.loads(line) for line in path.read_text().splitlines()]
+    require(all(isinstance(event, dict) for event in events), 'diagnostic events must be objects')
     require(events and events[-1].get('kind') in ('complete', 'failed'), 'missing diagnostic terminal event')
     terminal = events[-1]
     expected = roster(plan)

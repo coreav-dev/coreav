@@ -1,5 +1,7 @@
 """Media-free tests of the registered PGO evidence boundary."""
 import ast
+from contextlib import redirect_stderr
+import io
 import json
 import subprocess
 from pathlib import Path
@@ -56,6 +58,10 @@ class PgoRound(unittest.TestCase):
         registry['other-draws']['hashes'].append('b' * 12)
         self.assertEqual(round_tool.allocate([candidate | {'sha256': 'b' * 12 + 'c' * 52}], registry, self.plan), [])
         with self.assertRaises(ValueError):
+            round_tool.exclusions(sorted(round_tool.COVERAGE))
+        with self.assertRaises(ValueError):
+            round_tool.exclusion_registry(sorted(round_tool.COVERAGE))
+        with self.assertRaises(ValueError):
             round_tool.allocate([candidate, candidate], registry, self.plan)
         del registry['encoder-sets']
         with self.assertRaises(ValueError):
@@ -88,6 +94,23 @@ class PgoRound(unittest.TestCase):
                 round_tool.write(root / 'reserved-inputs.json', evidence | change)
                 with self.subTest(change=change), self.assertRaises(ValueError):
                     round_tool.reserved_evidence(root, self.plan, receipt)
+
+    def test_malformed_identity_or_provider_returns_incomplete_not_a_speed_miss(self):
+        for bad in (None, 1, [], {}):
+            with self.subTest(identity=bad), self.assertRaises(ValueError):
+                round_tool.source_identity(bad)
+            with self.subTest(provider=bad), self.assertRaises(ValueError):
+                round_tool.host({'machine_type': bad})
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for malformed in (lambda *_: round_tool.source_identity(1),
+                              lambda *_: round_tool.host({'machine_type': 1})):
+                with mock.patch.object(sys, 'argv', ['pgo', 'audit', str(root)]), \
+                     mock.patch.object(round_tool, 'audit', side_effect=malformed), redirect_stderr(io.StringIO()):
+                    self.assertEqual(round_tool.main(), 2)
+                self.assertEqual(json.loads((root / 'failure.json').read_text()),
+                                 {'status': 'incomplete', 'speed_verdict': None})
+                self.assertFalse((root / 'summary.json').exists())
 
     def test_schedule_has_every_cell_once_and_is_deterministic(self):
         rows = [{'label': f'h{i:03}'} for i in range(64)]
@@ -281,16 +304,17 @@ class PgoRound(unittest.TestCase):
                 with mock.patch.object(build_tool, 'training_roster', return_value=approved), \
                      mock.patch.object(diagnostics, 'verify'), \
                      mock.patch.object(diagnostics, 'audit', return_value={'status': 'complete', 'gates_h264': False,
-                                                                         'guards': {'probe': False}}):
+                                                                         'commands': {'probe': {'1': {'guard': False}}}}):
                     return round_tool.audit(root, plan, allocation_sha256)
             save(events)
             checked = audited()
             self.assertTrue(checked['pass'])
             self.assertFalse(checked['diagnostics']['gates_h264'])
-            self.assertFalse(checked['diagnostics']['guards']['probe'])
-            round_tool.write(root / 'binding.json', binding | {'files': {}, 'tools': {}})
-            with self.assertRaises(ValueError):
-                audited()
+            self.assertFalse(checked['diagnostics']['commands']['probe']['1']['guard'])
+            for change in ({'files': {}, 'tools': {}}, {'files': list(binding['files'])}, {'tools': list(binding['tools'])}):
+                round_tool.write(root / 'binding.json', binding | change)
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    audited()
 
             round_tool.write(root / 'binding.json', binding)
             old_profile = (root / 'profile.profdata').read_bytes()

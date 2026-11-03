@@ -192,7 +192,8 @@ def verify_allocation(root, plan, expected, revision=None):
     reservation_receipt(root, plan)
     reserved_evidence(root, plan, receipt)
     population, snapshots = population_files(root, receipt, plan)
-    require(set(contract['files']) == set(allocation_files(snapshots)), 'incomplete allocation inventory')
+    require(isinstance(contract['files'], dict) and set(contract['files']) == set(allocation_files(snapshots)),
+            'incomplete allocation inventory')
     require(all(digest(root / n) == sha for n, sha in contract['files'].items()), 'frozen allocation artifact changed')
     selected = json.loads((root / 'allocation.json').read_text())
     require(selected == allocate(population['candidates'], json.loads((root / 'exclusions.json').read_text()), plan),
@@ -259,7 +260,7 @@ def reference_evidence(refs):
 
 
 def exclusions(registry):
-    require(set(registry) == COVERAGE, 'exclusion registry must cover all four input owners')
+    require(isinstance(registry, dict) and set(registry) == COVERAGE, 'exclusion registry must cover all four input owners')
     result = {key: set() for key in ('hashes', 'identities', 'groups')}
     for record in registry.values():
         require(set(record) == {'commitment', *result}, 'incomplete exclusion component')
@@ -271,12 +272,13 @@ def exclusions(registry):
 
 
 def source_identity(url):
+    require(isinstance(url, str) and bool(url), 'source identity must be a nonempty string')
     value = urllib.parse.urlsplit(url)
     return urllib.parse.urlunsplit((value.scheme.lower(), value.netloc.lower(), value.path, value.query, ''))
 
 
 def exclusion_registry(owners):
-    require(set(owners) == COVERAGE, 'exclusion owners are incomplete')
+    require(isinstance(owners, dict) and set(owners) == COVERAGE, 'exclusion owners are incomplete')
     result = {}
     for owner, paths in owners.items():
         found = {key: set() for key in ('hashes', 'identities', 'groups')}
@@ -358,11 +360,17 @@ def roster(rows, registry, plan):
     return {r['label']: r['class'] for r in rows}
 
 
-def host(instance):
-    require(instance['machine_type'].endswith('/c4-standard-16') or instance['machine_type'] == 'c4-standard-16', 'wrong machine')
+def provider_host(instance):
+    require(isinstance(instance, dict) and isinstance(instance.get('machine_type'), str) and
+            (instance['machine_type'].endswith('/c4-standard-16') or instance['machine_type'] == 'c4-standard-16'), 'wrong machine')
     require(instance['provisioning'] == 'STANDARD', 'timing requires on-demand')
     features = instance['advanced_machine_features']
-    require(features['threadsPerCore'] == 1 and features['turboMode'] == 'ALL_CORE_MAX', 'wrong provider CPU settings')
+    require(isinstance(features, dict) and type(features['threadsPerCore']) is int and
+            features['threadsPerCore'] == 1 and features['turboMode'] == 'ALL_CORE_MAX', 'wrong provider CPU settings')
+
+
+def host(instance):
+    provider_host(instance)
     require('8581C' in Path('/proc/cpuinfo').read_text(), 'wrong CPU model')
     require(os.sched_getaffinity(0) == set(range(8)), 'require eight dedicated physical cores')
     topology = [Path(f'/sys/devices/system/cpu/cpu{c}/topology/thread_siblings_list').read_text().strip() for c in range(8)]
@@ -484,8 +492,9 @@ def audit(root, plan, allocation_sha256):
     refs = json.loads((root / 'references.json').read_text())
     classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
     reference_evidence(refs)
-    require(set(binding['files']) == set(evidence_inventory(rows, refs)), 'incomplete artifact inventory')
-    require(set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py',
+    require(isinstance(binding['files'], dict) and set(binding['files']) == set(evidence_inventory(rows, refs)),
+            'incomplete artifact inventory')
+    require(isinstance(binding['tools'], dict) and set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py',
                                     'scripts/h264_parity_bars.py', 'scripts/h264_pgo_diagnostics.py'},
             'incomplete tool inventory')
     require(binding['plan'] == digest(PLAN), 'registration changed')
@@ -507,10 +516,9 @@ def audit(root, plan, allocation_sha256):
     require(len(hosts) == 2 and [r['phase'] for r in hosts] == ['before', 'after'] and events[0]['kind'] == 'host', 'missing host evidence')
     for entry in hosts:
         provider = entry['instance']
-        require(provider == json.loads((root / 'instance.json').read_text()) and provider['provisioning'] == 'STANDARD' and
-                provider['advanced_machine_features']['threadsPerCore'] == 1 and
-                provider['advanced_machine_features']['turboMode'] == 'ALL_CORE_MAX', 'invalid provider host')
-        require(provider['machine_type'].split('/')[-1] == 'c4-standard-16' and entry['affinity'] == list(range(8))
+        provider_host(provider)
+        require(provider == json.loads((root / 'instance.json').read_text()), 'invalid provider host')
+        require(entry['affinity'] == list(range(8))
                 and entry['topology'] == [str(c) for c in range(8)] and entry['cpu'] == '8581C', 'wrong host class')
     checks = [r for r in events if r['kind'] == 'qualification']
     wanted = {(r['label'], a, t) for r in rows for a in ARMS for t in (1, 8)}
