@@ -75,3 +75,51 @@ The installation retains `LICENSE.md`, `LICENSE-BSD2.md`, and `PATENTS.md`, plus
 ## Specification
 
 The readers are written from the [approved AV1 specification](https://aomediacodec.github.io/av1-spec/av1-spec.pdf), sections 4.10, 5.2, 5.3, 5.5, 6.2.2, and 6.4, and the published HTML specification's [OBU header semantics](https://aomediacodec.github.io/av1-spec/#obu-header-semantics). The configuration record follows the [AV1 ISO Media File Format binding](https://aomediacodec.github.io/av1-isobmff/), section 2.3. Other encoders' wrappers are not implementation references.
+
+## Phase 1 implementation plan
+
+This plan precedes the runtime implementation. It covers a safe native wrapper, sandboxed encoding, MP4 output, and explicit `coreav transcode --video av1` selection in one change. Existing H.264 output remains the default. Windows, AV1 output from the compatibility command, ten-bit input, HDR, and quality or speed acceptance runs are outside this implementation.
+
+### Establish the native contracts before FFI
+
+Only the pinned recipe's installed public headers and the upstream `v4.2.0` documentation under `Docs/` supply API contracts. AV1 syntax and MP4 mapping come from the specifications linked above. Native implementation sources and other projects' integrations are not references. Hosted native smoke artifacts retain installed headers and the installation manifest for reproducible citations. Those headers are not committed to this repository.
+
+Input-picture reuse remains a blocking API question at the plan checkpoint. Before writing runtime FFI, record the exact installed-header or API-documentation lines that establish how long the picture descriptor, planes, and application-private data must live. A successful submission or a packet with the same presentation timestamp is not evidence of release unless the API contract says so. If the permitted material supplies no release event or synchronous-copy guarantee, stop implementation at that boundary rather than infer one from another wrapper or an experiment.
+
+SVT's level of parallelism is not a thread count. [`Docs/Parameters.md`, lines 375–403 at `v4.2.0`](https://gitlab.com/AOMediaCodec/SVT-AV1/-/blob/v4.2.0/Docs/Parameters.md#L375-403) states that higher levels create more threads and retain more pictures. Lines 384–387 explicitly say that the level neither targets a thread count nor constrains logical processors. The `--pin` behavior in lines 400–403 restricts eligible cores, not the number of threads. The backend must not translate CoreAV's `--threads N` into parallelism level N or report that value as a thread limit. Initially, an explicit thread-count request is refused for AV1. The effective summary records the chosen parallelism level separately from a null thread limit. Native configuration fields and their ranges are checked against the installed headers before this setting is finalized.
+
+### Wrapper ownership
+
+The optional native feature links only the exact verified static recipe installation. No system-library, dynamic-library, or runtime-download fallback is added. The Rust glue retains its existing licence. The wrapper accepts checked, owned eight-bit planar 4:2:0 SDR pictures and validated settings, never a media file or a compressed source packet.
+
+A session owns its native handle, configuration, every retained input allocation, and each output buffer until its documented release point. Its state distinguishes accepting input, draining, completed, and failed. Initialization failure cleans up partial ownership. Failure is terminal. No submission or output follows it. Finalization signals EOF once, drains through the encoder's end marker, releases every native output exactly once, and destroys the session before releasing any input that may still be borrowed. The session has no concurrent native calls and does not expose raw pointers.
+
+Every actual Rust FFI site and lint exception receives its safety precondition in `docs/unsafe-sites.md` in the same commit as its code. The native wrapper, build integration, licence inputs, and inventory receive the shared integration owner's exact-diff review before commit. The existing global safety and licence checks remain enabled.
+
+### Worker and packet boundaries
+
+The release path always reexecutes the CLI as a private encoder worker under the existing sandbox launcher. The worker receives settings, sequential picture identities, and checked raw planes. One bounded writer queue and a concurrent bounded output reader prevent pipe deadlock. The existing process keeper owns the deadline, process group, stderr tail, cancellation, and reaping. A worker cannot publish files or receive the source container. Strict-safe keeps its existing platform memory-enforcement requirements.
+
+The worker protocol has a versioned header, bounded records, explicit picture identity and packet extents, and an unambiguous completed-drain record. Neither worker-supplied flags nor native timestamps alone certify a valid output sample. The parent checks every record, consumes the stream to its final boundary, and rejects unknown, duplicate, missing, extra, truncated, or out-of-range data. Count, packet, total-byte, retained-frame, and metadata limits are charged before allocation.
+
+The safe AV1 reader validates OBU framing and sequence configuration, then establishes complete samples, presentation identity, decode order, and random access under the selected prediction structure. It checks the emitted geometry, bit depth, chroma format, range, and colour description against the request. Unsupported frame structures are refused, not guessed from packet flags. A configuration change or incomplete drain fails the entire job. Codec-neutral submission and packet ledgers continue to own work and timing accounting. Encoded sample payloads are spooled rather than accumulated in memory.
+
+### MP4 and command integration
+
+The MP4 writer builds an `av01` sample entry and `av1C` from validated output. It follows the binding's temporal-unit/sample rules and sync-sample requirements. Configuration OBUs and sample payloads obey that binding rather than the external H.264 transport's Annex B conventions. Existing replacement timing, metadata handling, copied audio, temporary-output publication, and destination-preservation rules remain shared.
+
+Both `--encoder auto` with `--video av1` and explicit `--encoder svt-av1` select the built-in backend when compiled for a supported Unix target. An explicit incompatible encoder, unsupported setting, or unavailable build fails before media reads where the failure is parameter-known. Header-known incompatibilities fail before decoding. Decoded-only incompatibilities fail before the first submission. No fallback follows an accepted frame. Preset 8 and CRF 32 are AV1 defaults only. Explicit numeric presets accept 0 through 13 and CRF accepts 0 through 63. No bit-depth, range, frame-rate, or geometry conversion is implicit.
+
+New encoded-stream metadata uses `coreav.transcode/2`, with its schema, examples, serializers, and tests updated together. It reports the backend that actually ran, native version, software kind, sandbox isolation, and effective settings. Existing summaries keep their version 1 contract. The compatibility command's vocabulary does not change. Release-owner coordination precedes opening the implementation pull request.
+
+### Verification sequence
+
+1. Obtain installed-header evidence, resolve input ownership, and finalize the native configuration in this note before runtime FFI.
+2. Test wrapper initialization, repeated submission, drain, cleanup, invalid settings, and allocation limits. Exercise the real native library on all four Unix release targets.
+3. Test malformed worker records and AV1 output, count and identity mismatches, configuration changes, incomplete EOF, worker crashes, timeouts, slow sinks, and destination preservation. Add affected parser fuzz targets without a long fuzz campaign.
+4. Produce synthetic raw-picture fixtures with distinct frames. Decode every encoded output with the pinned oracle FFmpeg and an independent AV1 decoder. Compare the two reconstructions, presented frame count and order, geometry, colour and timestamps. This checks correctness, not lossy equality with source pixels or encoded-byte identity.
+5. Check the actual MP4 sample entry, `av1C`, sample extents, decode and presentation times, sync samples, duration, and copied-audio packets. Exercise MP4 and Matroska sources, empty and one-frame input, delayed output, and unsupported input properties.
+6. Build and run native encode/decode smoke checks for Linux musl and macOS on x86-64 and AArch64, covering default and full release integration. Keep unsupported builds and strict-safe refusals tested.
+7. Run formatting, clippy, targeted tests, schema/help checks, native notice and unsafe inventories, the public-text checks, and the similarity guard. Merge current main before opening the single pull request.
+
+These checks establish implementation correctness only. They do not satisfy or claim the separate A1–A6 quality, speed, size, or held-out acceptance results in the encoder contract.
