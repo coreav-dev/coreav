@@ -136,7 +136,7 @@ test("the install script leaves the launcher for another version's binary, or no
 test("reinstall restores the WASI launcher after the optional binary is removed or rejected", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-restore-"));
   try {
-    for (const failure of ["removed", "wrong version", "cannot execute"]) {
+    for (const failure of ["removed", "wrong version", "cannot execute", "version command failed"]) {
       rmSync(join(scratch, "node_modules"), { recursive: true, force: true });
       const copy = installed(scratch, bin);
       cpSync(join(root, "wasm"), join(copy, "wasm"), { recursive: true });
@@ -146,11 +146,12 @@ test("reinstall restores the WASI launcher after the optional binary is removed 
       assert.equal(realpathSync(command), realpathSync(binary));
       if (failure === "removed") rmSync(dirname(dirname(binary)), { recursive: true, force: true });
       else if (failure === "wrong version") writeFileSync(binary, "#!/bin/sh\necho coreav 9.9.9\n");
-      else chmodSync(binary, 0o644);
+      else if (failure === "cannot execute") chmodSync(binary, 0o644);
+      else writeFileSync(binary, `#!/bin/sh\necho coreav ${pkg.version}\necho rejected-native-binary >&2\nexit 1\n`);
       const done = run(process.execPath, [join(copy, "install.js")]);
       assert.equal(done.status, 0, done.stderr.toString());
       assert.equal(realpathSync(command), realpathSync(join(copy, "lib", "main.js")));
-      assert.deepEqual(run(command, ["--version"], { COREAV_BINARY: join(scratch, "missing") }), run(bin, ["--version"]));
+      assert.deepEqual(run(command, ["--version"], { COREAV_BINARY: "" }), run(bin, ["--version"]));
     }
   } finally {
     rmSync(scratch, { recursive: true, force: true });

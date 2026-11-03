@@ -7,7 +7,7 @@
 // `coreav` command itself (Windows, or installs without scripts), npm's
 // `coreav` runs this file, which starts the binary.
 
-const { spawn } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const { constants } = require("node:os");
 
 /** Platforms with a native package: `${process.platform}-${process.arch}`. */
@@ -23,7 +23,10 @@ function nativeBinary({ override = true } = {}) {
   if (!PLATFORMS.includes(platform)) return null;
   const name = process.platform === "win32" ? "coreav.exe" : "coreav";
   try {
-    return require.resolve(`@coreav/cli-${platform}/bin/${name}`);
+    const binary = require.resolve(`@coreav/cli-${platform}/bin/${name}`);
+    const { version } = require("../package.json");
+    const printed = execFileSync(binary, ["--version"], { encoding: "utf8", stdio: "pipe", timeout: 30000, windowsHide: true }).trim();
+    return printed === `coreav ${version}` ? binary : null;
   } catch {
     return null;
   }

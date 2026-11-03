@@ -100,10 +100,10 @@ esbuild and Biome:
   command, and it ends as the binary ended, also when a signal ended it.
   Without a binary it runs the WASI build. It also falls back to the WASI
   build when the binary cannot be spawned (`ENOENT`, `EACCES`, or an
-  error that `spawn` throws at once, as macOS does for `ENOEXEC`). A binary
-  that starts and then fails is not retried; on Linux, one of another
-  architecture starts through `/bin/sh` and exits 126. The install script
-  has run the binary once already. On Windows only SIGINT and SIGTERM are
+  error that `spawn` throws at once, as macOS does for `ENOEXEC`). A command
+  that starts and then fails is not retried. The shared version check first
+  rejects platform binaries that cannot run, including wrong-architecture
+  binaries that exit 126 through `/bin/sh` on Linux. On Windows only SIGINT and SIGTERM are
   forwarded. These cases go through it:
   - Windows, where npm's command shims always run Node;
   - installs without scripts (`--ignore-scripts`), and package managers
@@ -112,6 +112,12 @@ esbuild and Biome:
 
   It costs about 28 ms of Node start-up per call. `COREAV_BINARY` names
   another binary, for tests and for platforms the packages do not cover.
+  The launcher and installer now share the platform binary's version
+  validation in `nativeBinary`. The Node path runs a bounded `--version`
+  check before each command and falls back to WASI if it fails or differs.
+  The historical start-up measurements below predate that extra process.
+  The installed direct native command does not pay this check per call.
+  An explicit `COREAV_BINARY` override bypasses platform-package validation.
 - **The binaries** are `coreav` built with the workspace's `dist` profile
   (what is shipped: the release profile optimized across crates, `lto =
   "fat"`, one codegen unit), stripped for the package
@@ -276,10 +282,10 @@ install both tarballs in an empty project. Count regular-file sizes under
 builds have different sizes.
 
 The postinstall script remains necessary to avoid starting Node for every
-native Unix call. With pnpm 10, add `coreav` to `onlyBuiltDependencies` in
-`pnpm-workspace.yaml`. With pnpm 11 and later, use `allowBuilds: { coreav: true }`
-instead. Then run `pnpm rebuild coreav`. With Bun, run `bun pm trust coreav`.
-If scripts stay blocked, the launcher still works.
+native Unix call. The [platform page](https://coreav.dev/docs/platforms#install-scripts)
+owns the version-specific pnpm approval settings. After setting approval,
+run `pnpm rebuild coreav`. With Bun, run `bun pm trust coreav`. If scripts
+stay blocked, the launcher still works.
 
 ### Build
 

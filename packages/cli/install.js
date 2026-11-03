@@ -7,7 +7,6 @@
 // package, or with a binary that does not run here. It never fails the
 // install.
 
-const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -20,14 +19,7 @@ function install() {
   const { nativeBinary } = require("./lib/main.js");
   // This platform's package only, never a binary named by the environment.
   const binary = nativeBinary({ override: false });
-  let destination = path.join(__dirname, "lib", "main.js");
-  if (binary !== null) {
-    try {
-      const { version } = require("./package.json");
-      const printed = execFileSync(binary, ["--version"], { encoding: "utf8", timeout: 30000 }).trim();
-      if (printed === `coreav ${version}`) destination = binary;
-    } catch {}
-  }
+  const destination = binary ?? path.join(__dirname, "lib", "main.js");
   const target = path.join(__dirname, "bin", "coreav");
   // A name of this process's own, so that installs into the same directory
   // at once do not write one file.

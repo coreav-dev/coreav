@@ -37,25 +37,13 @@ Cargo puts `coreav` in `~/.cargo/bin`. [Install](https://coreav.dev/docs/install
 
 The npm package needs Node.js 20 or later. Without install scripts, its Node.js launcher still runs the native binary, or WebAssembly where no native package exists. On Linux and macOS, allowing the install script makes `coreav` start the native binary directly instead. The script uses the installed platform package and downloads nothing.
 
-For pnpm 10, add `coreav` to `onlyBuiltDependencies` in your project's `pnpm-workspace.yaml`, then run `pnpm rebuild coreav`:
-
-```yaml
-onlyBuiltDependencies:
-  - coreav
-```
-
-For pnpm 11 and later, use `allowBuilds` in `pnpm-workspace.yaml` instead. Set it before installing to avoid `ERR_PNPM_IGNORED_BUILDS`, or run `pnpm rebuild coreav` after adding it to an existing installation:
-
-```yaml
-allowBuilds:
-  coreav: true
-```
+For pnpm, follow the [version-specific approval settings](https://coreav.dev/docs/platforms#install-scripts), preserving any existing approvals, then run `pnpm rebuild coreav`.
 
 For Bun, run `bun pm trust coreav` in the project. This runs the script and adds `coreav` to `trustedDependencies` in `package.json` for future installs.
 
 [Platforms](https://coreav.dev/docs/platforms) covers the native and WebAssembly builds.
 
-After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the WebAssembly launcher.
+After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the Node launcher, which falls back to WebAssembly.
 
 ## Usage
 

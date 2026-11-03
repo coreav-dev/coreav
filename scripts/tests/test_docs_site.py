@@ -83,13 +83,18 @@ class DocsSite(unittest.TestCase):
                 self.assertFalse('per decoder call' in text, f'{name}: the native H.264 deadline is not renewed for each call')
 
     def test_pnpm_approval_documents_both_supported_settings(self):
-        for name in ('docs-site/platforms.mdx', 'packages/cli/README.md', 'docs/design/npm-cli.md'):
+        platform = (SITE / 'platforms.mdx').read_text()
+        for fact in ('pnpm 10.0 through 10.4', 'pnpm 10.5 through 10.x', 'pnpm 11 and later',
+                     'onlyBuiltDependencies', 'allowBuilds', 'package.json', 'pnpm-workspace.yaml',
+                     'preserve existing approvals', 'copy the complete list', 'pnpm rebuild coreav'):
+            self.assertIn(fact, platform, f'docs-site/platforms.mdx: restore the approval rule {fact}')
+        for name in ('packages/cli/README.md', 'docs/design/npm-cli.md'):
             text = (ROOT / name).read_text()
             with self.subTest(page=name):
-                self.assertRegex(text, r'pnpm 10[\s\S]{0,180}onlyBuiltDependencies',
-                                 f'{name}: document pnpm 10 onlyBuiltDependencies')
-                self.assertRegex(text, r'pnpm 11[\s\S]{0,180}allowBuilds',
-                                 f'{name}: document pnpm 11 and later allowBuilds')
+                self.assertIn('https://coreav.dev/docs/platforms#install-scripts', text,
+                              f'{name}: link the one owner of version-specific pnpm settings')
+                self.assertNotRegex(text, r'onlyBuiltDependencies|allowBuilds',
+                                    f'{name}: keep version-specific pnpm settings only on the platform page')
                 self.assertIn('pnpm rebuild coreav', text,
                               f'{name}: tell existing installations to run pnpm rebuild coreav')
 

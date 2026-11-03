@@ -4,7 +4,7 @@ Documentation-site prose, schema wording, and design-note updates.
 
 | Rule | Enforced by |
 |---|---|
-| Install-script approval instructions distinguish pnpm 10's `onlyBuiltDependencies` from pnpm 11 and later's `allowBuilds` | `test_pnpm_approval_documents_both_supported_settings` in `scripts/tests/test_docs_site.py` checks the platform page, package README and design note. External package-manager versions cannot be enforced by the CLI's types |
+| The platform page alone owns version-specific pnpm approval settings and preserves existing approvals; the package README and design note link it | `test_pnpm_approval_documents_both_supported_settings` in `scripts/tests/test_docs_site.py` checks pnpm 10.0–10.4, 10.5–10.x and 11+, list preservation and links from both consumers. A single documentation owner prevents divergent copies; external package-manager versions cannot be enforced by the CLI's types |
 | The verdict reference lists every reason phase in emission order, including unidentified streams kept in `streams` | Not enforced: judgment. The `Order` section of `docs/schema/verdict-v1.md` must match both evaluators; prose completeness cannot be inferred from their control flow |
 | The documentation site's links into the repository and between pages resolve, without the `/docs` base path | `scripts/tests/test_docs_site.py` (`deny.yml`); Mintlify's link check (`docs-site.yml`, not required) |
 | Every measurement page is listed in the documentation site's index | `test_every_measurement_page_is_listed` in `scripts/tests/test_docs_site.py` (`deny.yml`) names the missing page and the row to add |
