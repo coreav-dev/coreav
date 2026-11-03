@@ -60,6 +60,8 @@ The initial quantiser chooses the nearest signed coefficient level to the ideal 
 
 G1 uses a fixed luma QP for the sequence, restricted to 10 through 51. The restriction avoids the low-QP CAVLC DC representability issue called out in clauses 8.5.10 and 8.5.11. Map chroma QP through the normative nonlinear table with zero offset. Signal `slice_qp_delta = QP - 26` and zero `mb_qp_delta` where that syntax is present. There is no CRF, ABR, per-block QP change, VBV, or bitrate target.
 
+Clause A.3.1(n) separately limits each `macroblock_layer` to 3,200 bits. The shared counting and emission traversal rejects oversized candidates before mode comparison. If no candidate fits, the whole picture returns `Error::MacroblockLimit` without advancing sequence state or returning partial output. Fixed QP with no I_PCM means that some dense content at low QP is refused even when its format and coefficient values are supported. A later slice may add I_PCM or a per-macroblock QP raise; neither fallback is implemented here or silently added to the fixed-QP evaluation method. See the [bit-limit fix](h264-encoder-macroblock-limit.md).
+
 For every winning block, inverse-scan levels, apply the appropriate inverse scaling and DC transform, apply the integer inverse 4x4 transform, add prediction, and clip samples exactly as clause 8.5 requires. Store this result for the next prediction. Preserve the complete encoder reconstruction until all three decoders have compared it. Transform tests cover basis impulses, signed extrema, DC-only blocks, all six QP remainders, chroma-QP transitions, and padded boundaries.
 
 ## NAL and entropy writing
@@ -126,7 +128,7 @@ Both arms receive the identical prepared planar frame bytes, dimensions, frame c
 
 Every G1 measurement run is blocked until a separate freeze PR merges. This plan fixes the selection method, not an already acquired byte set. The freeze supplies a machine-readable roster and byte manifest with full SHA-256 per original source and per prepared reference, byte counts, selected stream, first frame, frame count, original and prepared geometry, original timing and colour declarations, preparation commands and conventions, parent identity, neutral label, and split. Hash Y then Cb then Cr in presentation order without headers or padding. Hash the ordered manifest as well. Source identities, acquisition chains, licence evidence, and the neutral-label mapping remain private. Public records use neutral labels and hashes only. The G0 validation sets are not eligible for encoder evaluation.
 
-Select 24 independent references delivered uncompressed as raw planes or Y4M, or as production-grade masters. Exclude sources documented as derived from a consumer or low-bitrate lossy delivery. Production acquisition need not have been lossless. Record the documented chain privately, including acquisition compression or production mezzanine stages, rather than claim that uncompressed delivery proves lossless history. Use no two excerpts from one parent sequence and no duplicates across the training and held-out sets.
+Select 22 independent references delivered uncompressed as raw planes or Y4M, or as production-grade masters. Exclude sources documented as derived from a consumer or low-bitrate lossy delivery. Production acquisition need not have been lossless. Record the documented chain privately, including acquisition compression or production mezzanine stages, rather than claim that uncompressed delivery proves lossless history. Use no two excerpts from one parent sequence and no duplicates across the training and held-out sets.
 
 Eligible rights are public domain, CC0, CC BY, or terms that explicitly allow internal R&D. Record whether redistribution is allowed or the source must remain private. Non-commercial, research-only, standards-only, or unclear terms remain excluded unless the maintainer decides otherwise before inclusion. A readable download URL is not permission.
 
@@ -134,7 +136,7 @@ Use exactly the first 60 presented frames of each source. Sixty independently co
 
 Preparation uses the pinned FFmpeg 9.0.2 and an explicitly frozen crop, scale, and conversion filter chain to produce progressive 8-bit `yuv420p` within the encoder's geometry bounds. Declare crop coordinates, target dimensions, scaling kernel, input interpretation, output range and colour convention, chroma siting, precision, and rounding. Where source metadata is absent, record both the absence and the preparation assumption, not an invented source declaration. Freeze every command and prepared-plane hash before any encode. No automatic format conversion, denoising, or result-dependent preparation is permitted. Both encoders receive those same bytes without further conversion.
 
-The four prepared-resolution groups are R1, height at most 360; R2, height 361 through 720; R3, height 721 through 1080 and width at most 1440; and R4, height 721 through 1080 and width above 1440. The following content classes describe pixel characteristics, not source origins. Each class supplies exactly one independent clip in each of its three listed resolution groups, so each resolution group has six clips. If sourcing cannot fill a group after the permitted preparation, report its missing slot count and propose the smallest group amendment before freezing. Do not guess a replacement rule or shrink a quota silently.
+The four prepared-resolution groups are R1, height at most 360; R2, height 361 through 720; R3, height 721 through 1080 and width at most 1440; and R4, height 721 through 1080 and width above 1440. The following content classes describe pixel characteristics, not source origins. Each class supplies exactly one independent clip in each of its listed resolution groups. C5 and C6 have two slots each; every other class has three. R1 and R2 have six clips each, and R3 and R4 have five each. If sourcing cannot fill a group after the permitted preparation, report its missing slot count and propose the smallest group amendment before freezing. Do not guess a replacement rule or shrink a quota silently.
 
 | Class | Required picture characteristic | Resolution slots |
 |---|---|---|
@@ -142,8 +144,8 @@ The four prepared-resolution groups are R1, height at most 360; R2, height 361 t
 | C2 | Large flat regions with sharp boundaries | R2, R3, R4 |
 | C3 | Dense thin edges or small high-contrast detail | R3, R4, R1 |
 | C4 | Fine irregular texture without dominant grain | R4, R1, R2 |
-| C5 | Persistent fine noise or grain | R1, R2, R3 |
-| C6 | Rapid motion with fine spatial detail | R2, R3, R4 |
+| C5 | Persistent fine noise or grain | R1, R2 |
+| C6 | Rapid motion with fine spatial detail | R2, R3 |
 | C7 | A cut, fade, or large illumination transition in the selected frames | R3, R4, R1 |
 | C8 | Low-motion pictures with detailed stable regions | R4, R1, R2 |
 
@@ -151,9 +153,9 @@ Before any encode or quality score, the sourcing task commits the eligible inven
 
 Before slot selection, treat candidates with identical prepared bytes as one content item, regardless of parent. Keep only the candidate with the lexicographically smallest pair of lowercase full-original SHA-256 and stable UTF-8 parent identifier; refuse an unresolved tie. Record this encoder-blind choice in the inventory and exclude every other copy from all slots.
 
-Process slots in class order and the table's listed resolution order. For each slot, consider eligible prepared references with a pre-registered match to that class and resolution, excluding every parent selected in an earlier slot. Sort them by SHA-256 of the UTF-8 string `coreav-h264-g1-v1:` followed by the lowercase prepared-reference hash and take the first eligible candidate. A reference that also matches an earlier class remains eligible for a later slot if its parent was not selected earlier. Earlier class quotas are filled first; no parent fills more than one slot. If any slot is empty, sourcing remains incomplete. No quota or denominator shrinks. Assign labels `G1-01` through `G1-24` in slot order. Within each class, the selected clip with the smallest selection hash is training and the other two are held out. This keeps eight training and sixteen held-out clips, with no family overlap.
+Process slots in class order and the table's listed resolution order. For each slot, consider eligible prepared references with a pre-registered match to that class and resolution, excluding every parent selected in an earlier slot. Sort them by SHA-256 of the UTF-8 string `coreav-h264-g1-v1:` followed by the lowercase prepared-reference hash and take the first eligible candidate. A reference that also matches an earlier class remains eligible for a later slot if its parent was not selected earlier. Earlier class quotas are filled first; no parent fills more than one slot. If any slot is empty, sourcing remains incomplete. No quota or denominator shrinks. Assign labels `G1-01` through `G1-22` in slot order. Within each class, the selected clip with the smallest selection hash is training and every other selected clip is held out. This keeps eight training and fourteen held-out clips, with no family overlap. C5 and C6 each contribute one held-out clip; every other class contributes two. This reduces their held-out coverage and changes the acceptance population from sixteen clips to fourteen without changing the metrics or pass bars.
 
-Training may guide correctness and mode-cost changes only after the freeze merges. The sixteen held-out clips may not guide quantisation, mode choice, or baseline settings. Commit the candidate revision and binary hashes before exposing held-out results. Run every held-out clip at all five QPs once as the judged arm. Report the eight training clips separately without pooling them into the acceptance median. Generated edge fixtures supplement conformance but do not replace this roster.
+Training may guide correctness and mode-cost changes only after the freeze merges. The fourteen held-out clips may not guide quantisation, mode choice, or baseline settings. Commit the candidate revision and binary hashes before exposing held-out results. Run every held-out clip at all five QPs once as the judged arm. Report the eight training clips separately without pooling them into the acceptance median. Generated edge fixtures supplement conformance but do not replace this roster.
 
 ### Metrics and BD-rate method
 
@@ -175,7 +177,7 @@ For each clip and metric, order the five points by increasing quality. Rates mus
 
 Interpolate natural log rate as a function of quality with monotone piecewise cubic Hermite interpolation, using the shape-preserving PCHIP slopes and analytic piecewise-polynomial integration. Integrate only over the common quality interval. Require its width to be at least half the smaller arm's quality span. BD-rate is `100 * (exp(mean(log(rate_ours) - log(rate_x264))) - 1)`. Positive values mean more bits for our encoder. Do not fit a single cubic polynomial. Freeze and test the interpolation implementation on identical curves and constant-rate-ratio curves before encoding.
 
-Compute each metric's median over all sixteen held-out per-clip percentages, averaging the middle two sorted values. Publish every per-clip result, group medians, maximum, and completeness counts beside the overall median. A strong median cannot hide a conformance failure or missing cell.
+Compute each metric's median over all fourteen held-out per-clip percentages, averaging the middle two sorted values. Publish every per-clip result, group medians, maximum, and completeness counts beside the overall median. A strong median cannot hide a conformance failure or missing cell.
 
 ### Failure rules and execution
 

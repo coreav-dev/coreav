@@ -44,7 +44,11 @@ The MP4 file has its movie header first (faststart). A stream other than video t
 
 ## Check an upload against a policy
 
-A policy is a `coreav.policy/1` JSON file. The repository has an example, [`web-upload.json`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-examples/web-upload.json).
+A policy is a `coreav.policy/1` JSON file. Download the example policy into your working directory first. This also works with an installed package, without a source checkout:
+
+```sh
+curl --fail --location --output web-upload.json https://raw.githubusercontent.com/coreav-dev/coreav/main/docs/schema/policy-examples/web-upload.json
+```
 
 ```console
 $ coreav check --policy web-upload.json input.mp4

@@ -142,6 +142,10 @@ jobs:
         run: cargo clippy --locked -p coreav-cli --no-default-features --features cli --target wasm32-wasip1 -- -D warnings
       - name: Build the WASI module
         run: packages/cli/scripts/build.sh
+      - name: Test compatibility without networking or process launching
+        env:
+          COREAV_TEST_WASI: ${{ github.workspace }}/packages/cli/wasm/coreav.wasm
+        run: cargo test --locked -p coreav-cli --no-default-features --features cli --test wasi_compat --test fallback
       - name: Install zig (the musl C compiler of the Linux packages)
         run: |
           python3 -m venv "$RUNNER_TEMP/zig"

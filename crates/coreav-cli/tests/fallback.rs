@@ -107,6 +107,570 @@ fn coreav(args: &[&str], path: &[&Path], env: &[(&str, &str)]) -> Run {
 }
 
 #[test]
+fn file_protocol_and_downstream_copy_options_run_natively() {
+    let dir = tmp("file-protocol");
+    let input = movie(&dir);
+    let input_url = format!("file:{input}");
+    for flags in [
+        vec![],
+        vec!["-dn"],
+        vec!["-ignore_unknown"],
+        vec!["-dn", "-ignore_unknown"],
+    ] {
+        let output = dir.join(format!("out-{}.mp4", flags.join("")));
+        let output_url = format!("file:{}", output.display());
+        let mut args = vec![
+            "--strict-safe",
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "repeat+info",
+            "-i",
+            &input_url,
+            "-map",
+            "0",
+        ];
+        args.extend(flags);
+        args.extend(["-c", "copy", "-movflags", "+faststart", &output_url]);
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        assert!(r.stderr.is_empty(), "{}", r.stderr);
+        assert!(output.exists());
+    }
+    let r = coreav(
+        &[
+            "--strict-safe",
+            "ffprobe",
+            "-hide_banner",
+            "-show_format",
+            "-show_streams",
+            "-print_format",
+            "json",
+            &input_url,
+        ],
+        &[stand_in()],
+        &[],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let json: Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!(json["format"]["filename"], input_url);
+    assert!(!json["streams"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn file_protocol_names_literal_paths_not_pipes_or_escaped_urls() {
+    let dir = tmp("file-protocol-literals");
+    for name in ["-", "pipe:0", "with%20space.mp4"] {
+        std::fs::write(dir.join(name), av_movie_with(aac_entry(), false)).unwrap();
+        let input = format!("file:{name}");
+        let r = Command::new(bin())
+            .current_dir(&dir)
+            .args([
+                "--strict-safe",
+                "ffmpeg",
+                "-y",
+                "-i",
+                &input,
+                "-c",
+                "copy",
+                "-f",
+                "mp4",
+                "file:output:literal.mp4",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(
+            r.status.code(),
+            Some(0),
+            "{name}: {}",
+            String::from_utf8_lossy(&r.stderr)
+        );
+        assert!(r.stdout.is_empty());
+        assert!(dir.join("output:literal.mp4").exists());
+    }
+    let r = Command::new(bin())
+        .current_dir(&dir)
+        .args([
+            "--strict-safe",
+            "ffmpeg",
+            "-y",
+            "-i",
+            "file:with%20space.mp4",
+            "-c",
+            "copy",
+            "-f",
+            "mp4",
+            "file:-",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        r.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&r.stderr)
+    );
+    assert!(r.stdout.is_empty());
+    assert!(dir.join("-").exists());
+}
+
+#[test]
+fn ignore_unknown_does_not_discard_an_unsupported_selected_codec() {
+    let dir = tmp("ignore-unknown-selected");
+    let input = dir.join("unknown.mp4");
+    std::fs::write(&input, common::av_movie(b"xxxx")).unwrap();
+    let output = dir.join("out.mp4");
+    std::fs::write(&output, b"keep existing output").unwrap();
+    let r = coreav(
+        &[
+            "--strict-safe",
+            "ffmpeg",
+            "-y",
+            "-i",
+            input.to_str().unwrap(),
+            "-map",
+            "0",
+            "-ignore_unknown",
+            "-c",
+            "copy",
+            output.to_str().unwrap(),
+        ],
+        &[stand_in()],
+        &[],
+    );
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert_eq!(std::fs::read(&output).unwrap(), b"keep existing output");
+}
+
+#[test]
+fn documented_log_flags_and_numeric_levels_are_not_usage_errors() {
+    let dir = tmp("log-level-syntax");
+    let input = movie(&dir);
+    for level in [
+        "repeat+info",
+        "level+warning",
+        "+level",
+        "repeat",
+        "repeat+level+debug",
+        "-repeat+info",
+        "time+datetime+info",
+        "repeat+-8",
+        "+32",
+        "-8",
+        "2147483648",
+        "++32",
+        " 32",
+        "repeatinfo",
+        "levelrepeat",
+        "repeat+",
+        "+",
+        "",
+    ] {
+        for tool in ["ffprobe", "ffmpeg"] {
+            let output = dir.join("out.mp4");
+            let args = if tool == "ffprobe" {
+                vec!["--strict-safe", tool, "-v", level, "-show_streams", &input]
+            } else {
+                vec![
+                    "--strict-safe",
+                    tool,
+                    "-y",
+                    "-loglevel",
+                    level,
+                    "-i",
+                    &input,
+                    "-c",
+                    "copy",
+                    output.to_str().unwrap(),
+                ]
+            };
+            let r = coreav(&args, &[stand_in()], &[]);
+            assert_eq!(r.code, 0, "{tool} {level}: {}", r.stderr);
+        }
+    }
+    for level in [
+        "info+repeat",
+        "repeat+bogus",
+        "--8",
+        "repeat++",
+        "32foo",
+        "32 ",
+    ] {
+        let r = coreav(
+            &["ffprobe", "-v", level, "-show_streams", &input],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(r.code, 2, "{level}: {}", r.stderr);
+        assert!(!r.stderr.contains("ran "));
+    }
+}
+
+#[test]
+fn values_outside_the_native_numeric_grammar_reach_fallback() {
+    let dir = tmp("numeric-fallback");
+    let input = movie(&dir);
+    for (option, value) in [
+        ("-threads", "1+1"),
+        ("-max_muxing_queue_size", "1k"),
+        ("-frames:v", "-1"),
+        ("-ac", "2.0"),
+        ("-t", "+1"),
+        ("-t", "1.s"),
+        ("-t", "1.1234567891ms"),
+        ("-segment_time", "+1"),
+        ("-map", "[filtered]"),
+        ("-t", "00:00:01ms"),
+        ("-t", "00:00:01us"),
+        ("-t", "1:00:00s"),
+        ("-t", "00:00:01.5ms"),
+        ("-t", " 1"),
+        ("-ss", "\t1"),
+        ("-to", "00:00:01ms"),
+        ("-r", "30-1"),
+        ("-r", "30/2-1"),
+        ("-r", "PI"),
+        ("-r", "E"),
+        ("-r", "PHI"),
+        ("-r", "1/2/3"),
+        ("-r", "1k"),
+        ("-r", " 30"),
+        ("-r", "30 "),
+        ("-r", "0x1e"),
+        ("-map", " 0"),
+        ("-map", "\t0"),
+        ("-map", "0x0"),
+        ("-update", "2"),
+        ("-update", "-1"),
+        ("-segment_time", "0"),
+        ("-segment_time", "0.0"),
+        ("-segment_time", " 1"),
+        ("-segment_time", "00:00:01ms"),
+    ] {
+        let output = dir.join("out.mp4");
+        let args = [
+            "ffmpeg",
+            "-i",
+            &input,
+            option,
+            value,
+            "-c",
+            "copy",
+            output.to_str().unwrap(),
+        ];
+        for strict in [false, true] {
+            let env = if strict {
+                vec![("COREAV_STRICT_SAFE", "1")]
+            } else {
+                vec![]
+            };
+            let r = coreav(&args, &[stand_in()], &env);
+            assert_eq!(
+                r.code,
+                if strict { 4 } else { 7 },
+                "{option} {value}: {}",
+                r.stderr
+            );
+            if !strict {
+                assert!(
+                    r.stdout.contains(&format!("{option} {value}")),
+                    "{}",
+                    r.stdout
+                );
+            }
+            assert!(!output.exists());
+        }
+    }
+}
+
+#[cfg(feature = "transcode")]
+#[test]
+fn audio_encoder_value_limits_are_not_usage_errors() {
+    let dir = tmp("audio-value-fallback");
+    let input = dir.join("in.mp4");
+    std::fs::write(
+        &input,
+        av_movie_with(
+            common::lossless_entry(b"fLaC", common::dfla(48_000, 16)),
+            false,
+        ),
+    )
+    .unwrap();
+    let output = dir.join("out.mp3");
+    for (option, value) in [
+        ("-b:a", "128000+0"),
+        ("-b:a", "128k+32k"),
+        ("-b:a", " 128k"),
+        ("-q:a", "10"),
+        ("-q:a", "-1"),
+        ("-q:a", "NaN"),
+        ("-q:a", "inf"),
+    ] {
+        let args = [
+            "ffmpeg",
+            "-i",
+            input.to_str().unwrap(),
+            "-vn",
+            "-c:a",
+            "libmp3lame",
+            option,
+            value,
+            output.to_str().unwrap(),
+        ];
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{option} {value}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("{option} {value}")));
+        assert!(!output.exists());
+    }
+}
+
+#[test]
+fn alternate_base_map_indexes_are_not_decimal_input_indexes() {
+    let dir = tmp("map-base-fallback");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let mut args = vec!["ffmpeg"];
+    for _ in 0..9 {
+        args.extend(["-i", input.as_str()]);
+    }
+    args.extend(["-map", "010", "-c", "copy", output.to_str().unwrap()]);
+    for strict in [false, true] {
+        let env = if strict {
+            vec![("COREAV_STRICT_SAFE", "1")]
+        } else {
+            vec![]
+        };
+        let r = coreav(&args, &[stand_in()], &env);
+        assert_eq!(r.code, if strict { 4 } else { 7 }, "{}", r.stderr);
+        if !strict {
+            assert!(r.stdout.contains("-map 010"));
+        }
+        assert!(!output.exists());
+    }
+}
+
+#[cfg(feature = "transcode")]
+#[test]
+fn encoder_preset_names_outside_native_set_reach_fallback() {
+    let dir = tmp("preset-value-fallback");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    for preset in ["FAST", "Fast"] {
+        let r = coreav(
+            &[
+                "ffmpeg",
+                "-i",
+                &input,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                output.to_str().unwrap(),
+            ],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(r.code, 7, "{preset}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("-preset {preset}")));
+        assert!(!output.exists());
+    }
+}
+
+#[test]
+fn unsupported_audio_containers_fall_back_without_changing_arguments() {
+    let dir = tmp("audio-container-fallback");
+    for (name, bytes, format) in [
+        ("audio.mp3", b"ID3\x04\0\0\0\0\0\0".as_slice(), "MP3"),
+        ("audio.flac", b"fLaC\0\0\0\x22".as_slice(), "FLAC"),
+        ("audio.wav", b"RIFF\x24\0\0\0WAVE".as_slice(), "WAV"),
+        ("big-endian.bin", b"RIFX\0\0\0\x24WAVE".as_slice(), "WAV"),
+        ("large.bin", b"RF64\xff\xff\xff\xffWAVE".as_slice(), "WAV"),
+        (
+            "broadcast.bin",
+            b"BW64\xff\xff\xff\xffWAVE".as_slice(),
+            "WAV",
+        ),
+        ("audio.bin", b"\xff\xfb\x90\x00".as_slice(), "MP3"),
+    ] {
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        let input = format!("file:{}", path.display());
+        let output = dir.join("out.mp4");
+        for args in [
+            vec![
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_format",
+                "-show_streams",
+                "-of",
+                "json",
+                &input,
+            ],
+            vec![
+                "ffmpeg",
+                "-i",
+                &input,
+                "-c",
+                "copy",
+                output.to_str().unwrap(),
+            ],
+        ] {
+            let r = coreav(&args, &[stand_in()], &[]);
+            assert_eq!(r.code, 7, "{name}: {}", r.stderr);
+            assert!(r.stdout.contains(&input), "{}", r.stdout);
+            let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+            assert_eq!(r.code, 4, "{name}: {}", r.stderr);
+            assert!(r.stderr.contains(format), "{}", r.stderr);
+            assert!(!r.stderr.contains("Invalid data"));
+            assert!(!output.exists());
+        }
+    }
+    let path = dir.join("broken.mp3");
+    std::fs::write(&path, b"not a media container").unwrap();
+    let r = coreav(
+        &["ffprobe", "-show_streams", path.to_str().unwrap()],
+        &[stand_in()],
+        &[],
+    );
+    assert_eq!(r.code, 1, "{}", r.stderr);
+    assert!(r.stderr.contains("Invalid data"));
+}
+
+#[test]
+fn no_section_fallback_notice_suggests_native_sections() {
+    let dir = tmp("no-section-hint");
+    let input = movie(&dir);
+    let r = coreav(&["ffprobe", &input], &[stand_in()], &[]);
+    assert_eq!(r.code, 7);
+    let notice = r.stderr.lines().next().unwrap();
+    assert!(notice.contains("-show_format -show_streams"), "{notice}");
+}
+
+#[test]
+fn changed_probe_budgets_and_thread_counts_still_use_fallback() {
+    let dir = tmp("probe-tuning-fallback");
+    let input = movie(&dir);
+    for (option, value) in [
+        ("-probesize", "32"),
+        ("-probesize", "1G"),
+        ("-analyzeduration", "1"),
+        ("-analyzeduration", "200M"),
+        ("-threads", "0"),
+        ("-threads", "2"),
+    ] {
+        let args = ["ffprobe", option, value, "-show_streams", &input];
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{option} {value}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("{option} {value}")));
+        let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{option} {value}: {}", r.stderr);
+    }
+}
+
+#[test]
+fn probe_value_syntax_outside_native_parsers_is_not_a_usage_error() {
+    let dir = tmp("probe-value-fallback");
+    let input = movie(&dir);
+    for (option, value) in [
+        ("-of", "default=nokey=yes"),
+        ("-of", "csv=s=\\|"),
+        ("-of", "csv=s=\\t"),
+        ("-of", "csv=s='|'"),
+        ("-of", "flat=s=\\."),
+        ("-of", "compact=e='csv'"),
+        ("-of", "compact=e=\\c"),
+        ("-read_intervals", "%+1s"),
+    ] {
+        let args = ["ffprobe", option, value, "-show_streams", &input];
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{option} {value}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("{option} {value}")));
+        let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{option} {value}: {}", r.stderr);
+    }
+}
+
+#[cfg(not(feature = "net"))]
+#[test]
+fn url_inputs_without_networking_are_usage_errors() {
+    for args in [
+        vec!["ffprobe", "https://example.invalid/in.mp4"],
+        vec!["ffprobe", "-show_streams", "https://example.invalid/in.mp4"],
+        vec![
+            "ffprobe",
+            "-of",
+            "default=nokey=yes",
+            "https://example.invalid/in.mp4",
+        ],
+        vec![
+            "ffprobe",
+            "https://example.invalid/in.mp4",
+            "-of",
+            "default=nokey=yes",
+        ],
+        vec![
+            "ffmpeg",
+            "-vf",
+            "null",
+            "-i",
+            "https://example.invalid/in.mp4",
+            "out.mp4",
+        ],
+        vec![
+            "ffmpeg",
+            "-i",
+            "https://example.invalid/in.mp4",
+            "-vf",
+            "null",
+            "out.mp4",
+        ],
+        vec![
+            "ffmpeg",
+            "-i",
+            "https://example.invalid/in.mp4",
+            "-c",
+            "copy",
+            "out.mp4",
+        ],
+    ] {
+        for strict in [false, true] {
+            let env = if strict {
+                vec![("COREAV_STRICT_SAFE", "1")]
+            } else {
+                vec![]
+            };
+            let r = coreav(&args, &[stand_in()], &env);
+            assert_eq!(r.code, 2, "{args:?}: {}", r.stderr);
+            assert!(r.stderr.contains("network"), "{}", r.stderr);
+            assert!(!r.stderr.contains("ran "));
+            assert!(!r.stderr.contains("No such file"));
+            assert!(r.stdout.is_empty());
+        }
+    }
+}
+
+#[cfg(not(feature = "net"))]
+#[test]
+fn url_option_values_are_not_mistaken_for_url_inputs() {
+    for tool in ["ffprobe", "ffmpeg"] {
+        let r = coreav(
+            &[
+                tool,
+                "-user_agent",
+                "https://example.invalid/agent",
+                "in.mp4",
+            ],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert!(r.stdout.contains("https://example.invalid/agent"));
+    }
+}
+
+#[test]
 fn frame_metadata_refusals_reach_fallback_before_output() {
     let dir = tmp("frame-metadata");
     let input = movie(&dir);
@@ -490,13 +1054,18 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
     let log = work.join("fallback.log");
     let log = log.to_str().unwrap();
     let input = format!("{}/MARKER-in.mp4", work.display());
+    let source = if cfg!(feature = "net") {
+        "https://example.com/a.mp4?token=MARKER"
+    } else {
+        input.as_str()
+    };
     let commands: [&[&str]; 3] = [
         &[
             "ffmpeg",
             "-headers",
             "Authorization: Bearer MARKER",
             "-i",
-            "https://example.com/a.mp4?token=MARKER",
+            source,
             "-metadata",
             "title=MARKER",
             "-map",
@@ -735,8 +1304,6 @@ fn coreav_ffmpeg_runs_ffmpeg_for_what_it_refuses_once_the_input_is_read() {
 fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
     let dir = stand_in().to_str().unwrap();
     for args in [
-        ["ffmpeg", "-i", "file:in.mp4", "-c", "copy", "out.mp4"],
-        ["ffmpeg", "-i", "in.mp4", "-c", "copy", "file:out.mp4"],
         [
             "ffmpeg",
             "-i",

@@ -107,8 +107,9 @@ pub struct Stream {
     pub start: Option<i64>,
     /// Where its last access unit ends, from the tail of the file (90 kHz).
     pub end: Option<i64>,
-    /// The timestamp of that access unit (90 kHz): `end` minus it is the
-    /// unit's duration.
+    /// The timestamp paired with the selected `end` (90 kHz), or the latest
+    /// observed tail timestamp when no end could be inferred. Only a known
+    /// end and its paired timestamp establish a unit duration.
     pub last_pts: Option<i64>,
     /// Where the file first shows the stream (a byte offset). For a
     /// stream [`Stream::with_first_table`], the packet that completed that
@@ -435,7 +436,7 @@ impl Learn {
 struct TailEnds {
     /// Where the stream's last access unit ends.
     ends: Vec<Option<i64>>,
-    /// The timestamp of that unit.
+    /// The timestamp paired with the end, or the latest observation without one.
     lasts: Vec<Option<i64>>,
     /// Every presentation time read.
     times: Vec<Vec<i64>>,
@@ -459,9 +460,15 @@ impl TailEnds {
             if end.is_some() {
                 continue;
             }
-            *end = longer.ends.get(index).copied().flatten();
+            let next_end = longer.ends.get(index).copied().flatten();
+            *end = next_end;
             if let Some(last) = self.lasts.get_mut(index) {
-                *last = longer.lasts.get(index).copied().flatten();
+                let next_last = longer.lasts.get(index).copied().flatten();
+                *last = if next_end.is_some() {
+                    next_last
+                } else {
+                    (*last).max(next_last)
+                };
             }
         }
     }
@@ -636,14 +643,12 @@ fn finish_ends(tail: &Demux, learnt: &[Learn], out: &mut TailEnds, durationless:
                         .filter(|ticks| (1..=90_000).contains(ticks))
                 })
         });
-        if let (Some(&last), Some(step), Some(end), Some(last_pts)) = (
-            sorted.last(),
-            step,
-            out.ends.get_mut(index),
-            out.lasts.get_mut(index),
-        ) {
+        let (Some(&last), Some(last_pts)) = (sorted.last(), out.lasts.get_mut(index)) else {
+            continue;
+        };
+        *last_pts = Some(last);
+        if let (Some(step), Some(end)) = (step, out.ends.get_mut(index)) {
             *end = Some(last + step);
-            *last_pts = Some(last);
         }
     }
 }
@@ -1110,6 +1115,37 @@ pub(crate) fn pes_span(codec: Codec, payload: &[u8], stream_rate: Option<u32>) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tail_retries_preserve_observations_and_selected_pairs() {
+        for (end, last, next_end, next_last, expected_end, expected_last) in [
+            (None, Some(100), None, None, None, Some(100)),
+            (None, Some(100), None, Some(90), None, Some(100)),
+            (None, Some(100), None, Some(110), None, Some(110)),
+            (None, Some(100), Some(200), Some(170), Some(200), Some(170)),
+            (
+                Some(150),
+                Some(120),
+                Some(250),
+                Some(230),
+                Some(150),
+                Some(120),
+            ),
+        ] {
+            let mut shorter = TailEnds {
+                ends: vec![end],
+                lasts: vec![last],
+                times: Vec::new(),
+            };
+            shorter.fill_from(TailEnds {
+                ends: vec![next_end],
+                lasts: vec![next_last],
+                times: Vec::new(),
+            });
+            assert_eq!(shorter.ends.first().copied().flatten(), expected_end);
+            assert_eq!(shorter.lasts.first().copied().flatten(), expected_last);
+        }
+    }
 
     #[test]
     fn wrap_correction() {

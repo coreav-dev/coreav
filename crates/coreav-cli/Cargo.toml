@@ -19,6 +19,12 @@ path = "src/main.rs"
 # npm package, docs/design/npm-cli.md).
 required-features = ["cli"]
 
+[[test]]
+name = "image_capture"
+path = "tests/image_capture.rs"
+harness = false
+required-features = ["input-capture"]
+
 [features]
 default = ["cli", "net"]
 # The command-line parser. The library (probing a `Source` and the JSON
@@ -50,7 +56,7 @@ thumbnail-summary = ["dep:coreav-thumbnail"]
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
 # backend feature turns it on.
 transcode = ["thumbnail", "dep:coreav-transcode"]
-input-capture = ["transcode", "coreav-transcode/input-capture"]
+input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
 dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
@@ -100,6 +106,7 @@ rustls-native-certs = { version = "0.8", optional = true }
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls-no-provider"], optional = true }
 url = { version = "2", optional = true }
 serde_json = { workspace = true }
+sha2 = { version = "0.10", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }

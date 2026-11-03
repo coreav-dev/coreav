@@ -1,0 +1,74 @@
+{
+  "schema": "opus-speed-plan/1",
+  "round": 4,
+  "provenance_commit": "a8285aba10b93824e1bea094a8a99b571447fa02",
+  "exclusions_sha256": "cd2c837d040ce36a76f57d07ff7d1d30ac4c47e8f5364635636d5bb6a34e39d3",
+  "capacity": {
+    "receipt": "bench/audio-decode/evidence/opus-round4-retention-capacity.json",
+    "receipt_sha256": "25dedb041f8d5c309929ee1d6b288ec842b3711843daf2623a7cb5dcb9d7164e",
+    "binding": "bench/audio-decode/evidence/opus-round4-retention-binding.json",
+    "binding_sha256": "0b025177262378d1dead1faae85de8d5ae31e30898f59f2f09273c66940542b7"
+  },
+  "base_commit": "b2725e0b4fbc623278d049cb87daed484cd5df8a",
+  "head_commit": "3f7ed8d3123307ea9fb18db398352828a71912b3",
+  "draw": {
+    "number": 10,
+    "salt": "coreav-corpus-v2-heldout-audio-decode-4:",
+    "minimum_sources": 100,
+    "target_sources": 120,
+    "class_maximum": 60,
+    "source_maximum": 16,
+    "group_maximum": 3,
+    "bytes_maximum": 200000000,
+    "seconds_minimum": 5,
+    "seconds_maximum": 1800,
+    "exclude_through_draw": 9
+  },
+  "engines": [
+    "head_lib",
+    "base_lib",
+    "lav_lib",
+    "head_dec",
+    "base_dec",
+    "lav_dec",
+    "head_cli",
+    "ffmpeg_cli"
+  ],
+  "warmups": 1,
+  "rounds": 5,
+  "bootstrap": {
+    "seed": 206,
+    "resamples": 10000
+  },
+  "bars": {
+    "celt_decoder_lav_below": 1.0,
+    "silk_decoder_base_at_most": 1.02,
+    "hybrid_decoder_base_at_most": 1.02,
+    "library_lav_at_most": 1.0
+  },
+  "minimums": {
+    "celt": 90,
+    "celt_per_class": 40,
+    "silk": 20,
+    "hybrid": 20
+  },
+  "host": {
+    "cpu": "Intel Xeon Platinum 8581C",
+    "smt": false,
+    "machine": "c4-standard-4",
+    "provisioning": "STANDARD",
+    "affinity_cpu": 1
+  },
+  "call_limits": {
+    "seconds": 900,
+    "address_space_bytes": 8589934592,
+    "temporary_output_bytes": 4294967296
+  },
+  "shards": 4,
+  "shard_seconds": 16200,
+  "vm_seconds": 18000,
+  "allowance": {
+    "path": "bench/audio-decode/evidence/opus-round4-retention-allowance.json",
+    "sha256": "2e0ca54a2281571fdd15ec867cf07276e3258bcef46fd2ed86c9fca4eb32bc5e"
+  }
+}

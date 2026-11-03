@@ -1,0 +1,2170 @@
+{
+  "outcomes": [
+    {
+      "case": "16-1-44100",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "44100",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/44100",
+          "duration_ts": 1,
+          "duration": "0.000023"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "16-2-48000",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 15,
+          "duration": "0.000313"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "16-3-96000",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "96000",
+          "channels": 3,
+          "channel_layout": "3.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/96000",
+          "duration_ts": 16,
+          "duration": "0.000167"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "16-4-12345",
+      "samples": 4095,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "12345",
+          "channels": 4,
+          "channel_layout": "quad",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/12345",
+          "duration_ts": 4095,
+          "duration": "0.331713"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "16-5-8000",
+      "samples": 4096,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/8000",
+          "duration_ts": 4096,
+          "duration": "0.512000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "back-surround-16-5-1",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/8000",
+          "duration_ts": 1,
+          "duration": "0.000125"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-16-5-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/8000",
+          "duration_ts": 15,
+          "duration": "0.001875"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-16-5-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/8000",
+          "duration_ts": 16,
+          "duration": "0.002000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "16-6-44100",
+      "samples": 4097,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/44100",
+          "duration_ts": 4097,
+          "duration": "0.092902"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "back-surround-16-6-1",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/44100",
+          "duration_ts": 1,
+          "duration": "0.000023"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-16-6-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/44100",
+          "duration_ts": 15,
+          "duration": "0.000340"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-16-6-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/44100",
+          "duration_ts": 16,
+          "duration": "0.000363"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "16-7-48000",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 7,
+          "channel_layout": "6.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "16-8-96000",
+      "samples": 4097,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "96000",
+          "channels": 8,
+          "channel_layout": "7.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/96000",
+          "duration_ts": 4097,
+          "duration": "0.042677"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-1-44100",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "44100",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/44100",
+          "duration_ts": 1,
+          "duration": "0.000023"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "24-2-48000",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 15,
+          "duration": "0.000313"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "24-3-96000",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "96000",
+          "channels": 3,
+          "channel_layout": "3.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/96000",
+          "duration_ts": 16,
+          "duration": "0.000167"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-4-12345",
+      "samples": 4095,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "12345",
+          "channels": 4,
+          "channel_layout": "quad",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/12345",
+          "duration_ts": 4095,
+          "duration": "0.331713"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-5-8000",
+      "samples": 4096,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/8000",
+          "duration_ts": 4096,
+          "duration": "0.512000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "back-surround-24-5-1",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/8000",
+          "duration_ts": 1,
+          "duration": "0.000125"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-24-5-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/8000",
+          "duration_ts": 15,
+          "duration": "0.001875"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-24-5-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "8000",
+          "channels": 5,
+          "channel_layout": "5.0",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/8000",
+          "duration_ts": 16,
+          "duration": "0.002000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-6-44100",
+      "samples": 4097,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/44100",
+          "duration_ts": 4097,
+          "duration": "0.092902"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "back-surround-24-6-1",
+      "samples": 1,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/44100",
+          "duration_ts": 1,
+          "duration": "0.000023"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-24-6-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/44100",
+          "duration_ts": 15,
+          "duration": "0.000340"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "back-surround-24-6-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "44100",
+          "channels": 6,
+          "channel_layout": "5.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/44100",
+          "duration_ts": 16,
+          "duration": "0.000363"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-7-48000",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 7,
+          "channel_layout": "6.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "24-8-96000",
+      "samples": 4097,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "96000",
+          "channels": 8,
+          "channel_layout": "7.1",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/96000",
+          "duration_ts": 4097,
+          "duration": "0.042677"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tiny-boundary-16-2",
+      "samples": 2,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 2,
+          "duration": "0.000042"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-3",
+      "samples": 3,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 3,
+          "duration": "0.000063"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-4",
+      "samples": 4,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 4,
+          "duration": "0.000083"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-5",
+      "samples": 5,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 5,
+          "duration": "0.000104"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-6",
+      "samples": 6,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 6,
+          "duration": "0.000125"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-7",
+      "samples": 7,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 7,
+          "duration": "0.000146"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-8",
+      "samples": 8,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8,
+          "duration": "0.000167"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-9",
+      "samples": 9,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 9,
+          "duration": "0.000188"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-10",
+      "samples": 10,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 10,
+          "duration": "0.000208"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-11",
+      "samples": 11,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 11,
+          "duration": "0.000229"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-12",
+      "samples": 12,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 12,
+          "duration": "0.000250"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-13",
+      "samples": 13,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 13,
+          "duration": "0.000271"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-14",
+      "samples": 14,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 14,
+          "duration": "0.000292"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 15,
+          "duration": "0.000313"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-16-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 16,
+          "duration": "0.000333"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tiny-boundary-16-17",
+      "samples": 17,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 17,
+          "duration": "0.000354"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tiny-boundary-24-2",
+      "samples": 2,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 2,
+          "duration": "0.000042"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-3",
+      "samples": 3,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 3,
+          "duration": "0.000063"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-4",
+      "samples": 4,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 4,
+          "duration": "0.000083"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-5",
+      "samples": 5,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 5,
+          "duration": "0.000104"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-6",
+      "samples": 6,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 6,
+          "duration": "0.000125"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-7",
+      "samples": 7,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 7,
+          "duration": "0.000146"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-8",
+      "samples": 8,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8,
+          "duration": "0.000167"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-9",
+      "samples": 9,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 9,
+          "duration": "0.000188"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-10",
+      "samples": 10,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 10,
+          "duration": "0.000208"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-11",
+      "samples": 11,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 11,
+          "duration": "0.000229"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-12",
+      "samples": 12,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 12,
+          "duration": "0.000250"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-13",
+      "samples": 13,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 13,
+          "duration": "0.000271"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-14",
+      "samples": 14,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 14,
+          "duration": "0.000292"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-15",
+      "samples": 15,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 15,
+          "duration": "0.000313"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [
+        "-frame_size",
+        "4096"
+      ],
+      "default_reference_refused": true
+    },
+    {
+      "case": "tiny-boundary-24-16",
+      "samples": 16,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 16,
+          "duration": "0.000333"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tiny-boundary-24-17",
+      "samples": 17,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 1,
+          "channel_layout": "mono",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 17,
+          "duration": "0.000354"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tones-16",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-0",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-1",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-2",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-3",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-4",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-5",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-6",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-7",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-16-8",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "cap-16",
+      "samples": 480,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 480,
+          "duration": "0.010000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "empty-16",
+      "samples": 0,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": null,
+          "duration": null
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "zero-input-16",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "seek-input-16",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "mp4-16",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "tones-24",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-0",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-1",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-2",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-3",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-4",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-5",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-6",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-7",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "options-24-8",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "cap-24",
+      "samples": 480,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 480,
+          "duration": "0.010000"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "empty-24",
+      "samples": 0,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": null,
+          "duration": null
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "zero-input-24",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "seek-input-24",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "mp4-24",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s32",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "24",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "strip-tags",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "strip-stream-tags",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    },
+    {
+      "case": "omit-cover",
+      "samples": 8243,
+      "fields": {
+        "stream": {
+          "codec_name": "flac",
+          "sample_fmt": "s16",
+          "sample_rate": "48000",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "bits_per_raw_sample": "16",
+          "time_base": "1/48000",
+          "duration_ts": 8243,
+          "duration": "0.171729"
+        },
+        "tags": {}
+      },
+      "result": "equal",
+      "reference_options": [],
+      "default_reference_refused": false
+    }
+  ]
+}

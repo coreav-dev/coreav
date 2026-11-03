@@ -218,7 +218,13 @@ pub fn request(
     let preset = match preset {
         None => "medium".to_owned(),
         Some(p) if PRESETS.contains(&p.as_str()) => p.clone(),
-        Some(p) => return Err(Refusal::Usage(format!("Invalid preset '{p}' for libx264."))),
+        Some(p) => {
+            return Err(refused(
+                "-preset",
+                p,
+                "a preset outside the native preset names",
+            ));
+        }
     };
     let threads = match threads.as_deref() {
         None | Some("auto" | "0") => None,

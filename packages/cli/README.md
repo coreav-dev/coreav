@@ -21,11 +21,31 @@
 
 ## Installation
 
+Today you can only build CoreAV from source. Release binaries and the npm package come with 0.1.0.
+
+With Rust 1.89 or later, git, and a C compiler installed:
+
 ```sh
-npm install -g coreav
+git clone https://github.com/coreav-dev/coreav
+cd coreav
+cargo install --locked --path crates/coreav-cli --profile dist
 ```
 
-The package installs the native `coreav` binary on Linux, macOS and Windows, and runs the same command as WebAssembly on other platforms. It needs Node.js 20 or later. To try it without installing, run `npx coreav probe input.mp4`. [Platforms](https://coreav.dev/docs/platforms) has the details.
+Cargo puts `coreav` in `~/.cargo/bin`. [Install](https://coreav.dev/docs/install) covers build features and the planned npm and GitHub Releases packages.
+
+### Install scripts with pnpm and Bun
+
+The npm package needs Node.js 20 or later. Without install scripts, its Node.js launcher still runs the native binary, or WebAssembly where no native package exists. On Linux and macOS, allowing the install script makes `coreav` start the native binary directly instead. The script uses the installed platform package and downloads nothing.
+
+For pnpm, follow the [version-specific approval settings](https://coreav.dev/docs/platforms#install-scripts), preserving any existing approvals, then run `pnpm rebuild coreav`.
+
+For Bun, run `bun pm trust coreav` in the project. This runs the script and adds `coreav` to `trustedDependencies` in `package.json` for future installs.
+
+If your project relies on Bun's default trusted packages, [preserve the required defaults](https://coreav.dev/docs/platforms#install-scripts) in that explicit list.
+
+[Platforms](https://coreav.dev/docs/platforms) covers the native and WebAssembly builds.
+
+After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the Node launcher, which falls back to WebAssembly.
 
 ## Usage
 

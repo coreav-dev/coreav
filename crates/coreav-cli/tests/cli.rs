@@ -1349,6 +1349,21 @@ fn small_ts(prefix: usize) -> Vec<u8> {
 }
 
 #[test]
+fn remux_names_the_unsupported_transport_stream_input() {
+    let input = file("remux-unsupported.ts", &small_ts(0));
+    let output = output("remux-unsupported.mp4");
+    let result = remux(&[input.to_str().unwrap(), output.to_str().unwrap()]);
+    let error = assert_error(&result, 1, "unsupported_feature");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("MPEG-TS input is not remuxed yet")
+    );
+    assert!(!output.exists());
+}
+
+#[test]
 fn transport_streams_print_their_own_schema() {
     let path = file("small.ts", &small_ts(0));
     let run = run(&[], &path);
@@ -1985,6 +2000,22 @@ fn fixture_remuxes_match_the_schema() {
     // A fixture set without MP4, MOV or M4A files (the Matroska fixtures)
     // has nothing to remux.
     assert!(candidates == 0 || remuxed > 0, "no fixture was remuxed");
+}
+
+#[test]
+fn file_and_slice_matroska_remux_are_byte_identical() {
+    let data = mkv::small_webm();
+    let input = file("remux_file_and_slice.webm", &data);
+    let options = coreav_isobmff_write::MatroskaRemuxOptions::default();
+    let allowlist = coreav_mkv::Allowlist::default();
+    let mut from_file = Vec::new();
+    assert!(coreav_cli::remux::run_matroska(&input, &options, &allowlist, &mut from_file).is_ok());
+    let mut from_slice = Vec::new();
+    assert!(
+        coreav_cli::remux::run_matroska_slice(&data, &options, &allowlist, &mut from_slice).is_ok()
+    );
+    assert!(!from_file.is_empty());
+    assert_eq!(from_file, from_slice);
 }
 
 #[test]

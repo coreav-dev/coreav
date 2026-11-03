@@ -46,6 +46,14 @@ SILK and Hybrid differ inside the presentation, not just at EOF. In a black-box 
 
 CELT's MP4 in-presentation F32 maximum difference was 1.19209e-7. Matroska's largest difference (0.00249358) occurred in the terminal extension; its first 192,000 scalar samples retained the tiny MP4 maximum. The terminal waveform needs separate investigation and is not waived as harmless rounding. Both Opus presentation rows remain ineligible. If CoreAV's count differs from the stream's specified pre-skip and end trim, that is a correctness bug, never a permitted divergence.
 
+## Opus MP4 PCM decode honors the edit window
+
+For generated 100 ms mono inputs at 48 kHz, `coreav decode-audio --format f32 INPUT OUTPUT.wav` presents the finite edit's exact 4,800 samples. Default pinned FFmpeg 9.0.2 decoding to `-f f32le` writes 5,448 samples for SILK and Hybrid encodes and 5,640 for low-delay CELT. Their six packets each decode to 5,760 samples; the rate-1 edit starts at media time 312 or 120 and ends at 5,112 or 4,920. The oracle retains the rest of that final packet. This is not permission for CoreAV to present the tail or to accept an incorrect count.
+
+[Opus in ISOBMFF sections 4.3.2 and 4.4](https://opus-codec.org/docs/opus_in_isobmff.html#4.4) assign whole-playback startup and terminal trimming to the edit list and make dOps PreSkip informative for that purpose. Changing only PreSkip from its original value to 3,840 must not change the finite edit's presented samples. Before the correction, CoreAV shortened the 4,800-sample SILK edit to 1,272 samples. That was a correctness bug, not a valid oracle divergence.
+
+[`opus_mp4_presentation.py`](../scripts/opus_mp4_presentation.py) verifies the source's movie and media clocks, rate-1 edit, mono configuration, packet payload locations, mode and decoded packet durations before comparing counts. It requires complete native S16 and F32 output at one and eight threads, unchanged by informational PreSkip, and exact prefix identity when the edit end is shortened. Its packet-boundary controls set edit duration to 5,448 or 5,640: both native and default oracle counts must then agree. The finite-edit cases require the pinned oracle's full packet tail; any other count fails. These generated controls do not change the existing decoder waveform thresholds or any frozen comparison.
+
 ## Opus MP4 re-encoding preserves the source edit
 
 The generated two-second mono Opus MP4 presents 96,000 samples at 48 kHz. Its movie and media timescales are both 48,000. Its single rate-1 edit starts at media time 312 and lasts 96,000 ticks; `dOps` pre-skip is 312. FFprobe reports `start_pts=0`, `duration_ts=96000`, and `initial_padding=312` for this source.
