@@ -20,6 +20,7 @@ import vp9_pixel_round as run
 import vp9_pixel_build as build
 import vp9_pixel_profiles as profiles
 import oracle_audio
+import composed_audio
 
 CANDIDATE = '1' * 40
 
@@ -409,6 +410,12 @@ class Replay(unittest.TestCase):
 
 
 class WorkAndProfiles(unittest.TestCase):
+    def test_inherited_audio_policy_remains_frozen_while_the_command_uses_its_owner(self):
+        composed_audio.check_policy()
+        for hashed in (False, True):
+            command = run.ffmpeg_command(pathlib.Path('/bundle'), 'ffmpeg-pinned', pathlib.Path('/input'), 80, hashed)
+            self.assertEqual(command[command.index('-i') - 2:command.index('-i')], ['-threads:a', '1'])
+
     def test_video_only_command_registration_preserves_mapping_and_audio_exclusion(self):
         for hashed in (False, True):
             command = run.ffmpeg_command(pathlib.Path('/bundle'), 'ffmpeg-pinned', pathlib.Path('/input'), 80, hashed)

@@ -24,9 +24,10 @@ PLAN_PATH = pathlib.Path('docs/measurements/vp9-pixel-round/plan.json')
 RECIPE_PATH = pathlib.Path('docs/measurements/vp9-pixel-round/build.json')
 CAPTURE_SCRIPTS = ('vp9_pixel_round.py', 'vp9_pixel_profiles.py', 'vp9_pixel_build.py',
                    'vp9_pixel_ceiling.py', 'vp9_pixel_job.sh',
-                   'oracle_pin.py', 'oracle-ffmpeg.env')
+                   'oracle_pin.py', 'oracle-ffmpeg.env', 'oracle_audio.py', 'oracle-audio-args.txt')
 sys.path.insert(0, str(HERE))
 import vp9_pixel_profiles as profiles
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 
 def require(condition, reason):
@@ -123,7 +124,7 @@ def native_command(root, arm, clip, hashed=False):
 def ffmpeg_command(root, arm, clip, loops, hashed=False):
     command = ['taskset', '-c', '0', str(root / 'bin' / arm), '-v', 'error', '-nostdin',
                '-noautorotate', '-c:v', 'vp9', '-threads', '1', '-stream_loop', str(loops - 1),
-               '-i', str(clip), '-map', '0:v:0', '-an', '-sn', '-dn', '-fps_mode', 'passthrough',
+               *AUDIO_DECODE_INPUT, '-i', str(clip), '-map', '0:v:0', '-an', '-sn', '-dn', '-fps_mode', 'passthrough',
                '-frames:v', str(120 * loops), '-enc_time_base:v', 'demux']
     return command + (['-f', 'framemd5', '-'] if hashed
                       else ['-nostats', '-progress', 'pipe:1', '-f', 'null', '-'])
