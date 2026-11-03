@@ -32,7 +32,7 @@ def main():
     artifacts = [json.loads(line) for line in opts.build_log.read_text().splitlines() if line.startswith('{')]
     opts.harness, = [a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact'
                     and a.get('target', {}).get('name') == 'ffmpeg' and a.get('executable')]
-    for name in v2.FIXTURES:
+    for name in v2.INPUT_FILES:
         assert (opts.fixtures / name).is_file(), name
     opts.work.mkdir(parents=True, exist_ok=True)
     opts.env = v2.environment()
@@ -48,7 +48,8 @@ def main():
     report = {'scope': 'AVI subset of the registered V2 commands', 'decoded_oracle_present': decoded_oracle,
               'program_sha256': {k: digest(getattr(opts, k)) for k in ('coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264')},
               'evaluator_sha256': digest(v2.__file__),
-              'fixture_sha256': {k: digest(opts.fixtures / k) for k in v2.FIXTURES}, 'records': records}
+              'fixture_sha256': {k: digest(opts.fixtures / k) for k in v2.INPUT_FILES},
+              'fixture_registration': v2.v2_fixture_inputs.provenance(), 'records': records}
     try:
         for index, entry in rows:
             record = v2.evaluate(opts, index, entry)

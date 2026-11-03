@@ -36,7 +36,8 @@ codec-coverage-plan.md, "V2, encode breadth" and "V3, the native share").
         container and class, the misses by code, the options CoreAV refused,
         and the per-encoder groups, from the records of a run.
 
-The runs use the five fixtures only and read no corpus file. FFmpeg, ffprobe
+The runs use generated fixtures only, trying the original five before the
+registered supplemental tuples, and read no corpus file. FFmpeg, ffprobe
 and x264 are black boxes. Python 3 standard library only.
 """
 import argparse
@@ -63,10 +64,12 @@ import opus_encode_check as opus  # noqa: E402
 import r3  # noqa: E402
 import release_round  # noqa: E402
 import transcode_check  # noqa: E402
+import v2_fixture_inputs
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 SET = HERE / 'commands-0.1.0' / 'coverage.json'
 FIXTURES = ('basic.mp4', 'mkv_h264_aac.mkv', 'webm_vp9_opus.webm', 'ts_h264_aac.ts', 'audio_aac.m4a')
+INPUT_FILES = (*FIXTURES, *v2_fixture_inputs.FILES)
 RATE_44100 = frozenset({'basic.mp4'})
 PLACEHOLDER = re.compile(r'INPUT[23]?')
 REFERENCE_SECONDS = 120
@@ -154,7 +157,7 @@ def stage(args, assignment, fixtures, directory):
         folder = directory / placeholder
         folder.mkdir(parents=True)
         copy = folder / name
-        shutil.copyfile(fixtures / name, copy)
+        v2_fixture_inputs.stage(name, fixtures, folder)
         paths[placeholder] = str(release_round.concat_list(folder, copy) if placeholder in lists else copy)
     return paths
 
@@ -425,7 +428,7 @@ def choose(opts, entry, base):
     None."""
     if unreachable(entry['output']) or 'OUTPUT' not in entry['args']:
         return None
-    for n, assignment in enumerate(assignments(entry['args'])):
+    for n, assignment in enumerate([*assignments(entry['args']), *v2_fixture_inputs.assignments(entry)]):
         run = prepare(opts, entry, base, f'ffmpeg{n}', assignment)
         ran = execute([opts.ffmpeg] + run.args, run.cwd, opts.env, REFERENCE_SECONDS, entry['output'] == '-')
         if succeeded(ran, entry['output'], run.cwd):
@@ -828,7 +831,7 @@ def brief(summary):
 
 
 def cmd_run(opts):
-    missing = [name for name in FIXTURES if not (opts.fixtures / name).is_file()]
+    missing = [name for name in INPUT_FILES if not (opts.fixtures / name).is_file()]
     if missing:
         print(f'UNMEASURED: no fixture {", ".join(missing)} in {opts.fixtures}')
         return release_round.UNMEASURED
@@ -852,7 +855,8 @@ def cmd_run(opts):
     summary['programs'] = {name: sha256(getattr(opts, name)) for name in ('coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264')}
     summary['reference_programs'] = programs
     summary['encoder_ffmpeg'] = programs['ffmpeg']
-    summary['fixtures'] = {name: sha256(opts.fixtures / name) for name in FIXTURES}
+    summary['fixtures'] = {name: sha256(opts.fixtures / name) for name in INPUT_FILES}
+    summary['fixture_registration'] = v2_fixture_inputs.provenance()
     opts.summary.write_text(json.dumps(summary, indent=1) + '\n')
     return brief(summary)
 

@@ -60,6 +60,13 @@ on:
       - scripts/install-x264.sh
       - scripts/clip_check.py
       - scripts/codec_coverage_gcp.py
+      - scripts/gen-v2-fixtures.py
+      - scripts/v2_fixture_inputs.py
+      - scripts/v2_fixture_check.py
+      - scripts/tests/test_v2_fixture_inputs.py
+      - scripts/tests/test_gen_v2_fixtures.py
+      - tools/compat-corpus/v2-fixtures.json
+      - docs/design/v2-fixtures.md
       - scripts/extract_check.py
       - scripts/join_check.py
       - scripts/mkv_remux_check.py
@@ -486,6 +493,8 @@ jobs:
           scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/fixtures"
           scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/fixtures"
+          python3 -I scripts/gen-v2-fixtures.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --out "$RUNNER_TEMP/fixtures"
       - name: Record the host and the fixtures
         run: |
           mkdir -p "$RUNNER_TEMP/public"
@@ -498,6 +507,13 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/oracle:$PATH"
           python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_encode_breadth.py'
+          python3 -I -m unittest discover -s scripts/tests -p 'test_v2_fixture_inputs.py'
+          python3 -I -m unittest discover -s scripts/tests -p 'test_gen_v2_fixtures.py'
+      - name: Verify supplemental reference assignments
+        run: |
+          python3 -I scripts/v2_fixture_check.py --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/fixture-check" \
+            --report "$RUNNER_TEMP/public/v2-fixture-reference.json"
       - name: V2 and V3, encode breadth and the native share
         env:
           PYTHONDONTWRITEBYTECODE: '1'
