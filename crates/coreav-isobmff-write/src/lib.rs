@@ -43,6 +43,7 @@ pub mod hls;
 mod join;
 mod m4a;
 mod matroska;
+pub mod mkv_output;
 mod moov;
 pub mod mux;
 mod rational;

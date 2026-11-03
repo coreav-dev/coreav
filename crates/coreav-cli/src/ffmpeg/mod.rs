@@ -106,6 +106,13 @@ pub enum Job {
         /// The exact integer representation supplied to the writer.
         format: coreav_audio::SampleFormat,
     },
+    /// Audio and video streams written as Matroska or WebM.
+    MatroskaOutput {
+        /// Selected source stream positions in output order.
+        streams: Vec<usize>,
+        /// Matroska source rather than ISO media.
+        matroska: bool,
+    },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
         /// The tracks, in the output's order, a stream mapped twice twice.
@@ -196,6 +203,7 @@ Experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files.
 The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
+  a copy to .mkv, .mka or .webm (or -f matroska/webm): container output
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
   .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
@@ -204,7 +212,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
-Builds with a decoder backend also encode the video with -c:v libx264.
+Builds with a decoder backend also encode the video with -c:v libx264
+into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
+codec explicitly because its Vorbis default is not implemented.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
@@ -594,6 +604,17 @@ pub fn plan(
             at: SplitAt::Every(command.segment_time),
         }));
     }
+    if command.muxer.matroska().is_some() {
+        if trims {
+            return Err(Refusal::not_native(
+                "seeking or trimming into Matroska output",
+            ));
+        }
+        return Ok(Job::MatroskaOutput {
+            streams: selected,
+            matroska: container == Container::Matroska,
+        });
+    }
     if trims {
         if container != Container::Isobmff {
             return Err(Refusal::not_native("clipping a Matroska or WebM input"));
@@ -733,9 +754,14 @@ fn transcode_job(
             "encoding a stream other than video with libx264",
         ));
     }
-    if command.muxer != Muxer::Mp4 {
+    if command.muxer != Muxer::Mp4 && command.muxer.matroska().is_none() {
         return Err(Refusal::not_native(
             "an encoded output other than one MP4 file",
+        ));
+    }
+    if command.muxer == Muxer::Webm {
+        return Err(Refusal::not_native(
+            "H.264 video in WebM (WebM permits VP8, VP9 or AV1)",
         ));
     }
     if trims {
@@ -898,6 +924,13 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
         for position in matching(spec, output) {
             if let Some(slot) = decided.get_mut(position) {
                 *slot = Some(*codec);
+            }
+        }
+    }
+    if command.muxer == Muxer::Matroska {
+        for (slot, (_, stream)) in decided.iter_mut().zip(output) {
+            if slot.is_none() && stream.kind == StreamKind::Video && !stream.attached_pic {
+                *slot = Some(Codec::Libx264);
             }
         }
     }
@@ -1099,6 +1132,30 @@ const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "w
 /// largest picture or the most channels, the first of equals), less the
 /// disabled types. Each needs an explicit codec or a supported muxer default.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
+    let explicit_subtitle_codec = command
+        .codecs
+        .iter()
+        .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None));
+    if command.maps.is_empty()
+        && command.muxer.matroska().is_some()
+        && !command.no_subtitle
+        && streams.iter().any(|stream| {
+            stream.kind == StreamKind::Subtitle
+                && (explicit_subtitle_codec
+                    || stream
+                        .entries
+                        .iter()
+                        .find_map(|(key, value)| match value {
+                            Value::Str(codec) if *key == "codec_name" => Some(codec.as_str()),
+                            _ => None,
+                        })
+                        .is_none_or(|codec| TEXT_SUBTITLES.contains(&codec)))
+        })
+    {
+        return Err(Refusal::not_native(
+            "automatically selecting a subtitle stream for Matroska or WebM output (use -sn or an explicit audio/video map)",
+        ));
+    }
     select_sources(
         command,
         &streams.iter().collect::<Vec<_>>(),
@@ -1113,7 +1170,9 @@ fn select_sources(
 ) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().copied().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
-        StreamKind::Video => command.no_video,
+        StreamKind::Video => {
+            command.no_video || command.maps.is_empty() && command.muxer == Muxer::MatroskaAudio
+        }
         StreamKind::Audio => command.no_audio,
         StreamKind::Subtitle => command.no_subtitle,
         StreamKind::Data => command.no_data,
@@ -1448,6 +1507,31 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .collect();
             crate::remux::run_inputs(&paths, streams, left_out_covers, &allowlist, out)
                 .map(|summary| crate::remux::document(&summary, &RemuxOptions::default()))
+        }
+        Job::MatroskaOutput { streams, matroska } => {
+            let source = coreav_isobmff::BufferedSource::new(
+                FileSource::open(input).map_err(WriteFailure::from)?,
+            );
+            coreav_isobmff_write::mkv_output::write_output(
+                source,
+                &coreav_isobmff_write::mkv_output::OutputOptions {
+                    matroska_source: *matroska,
+                    doc_type: command
+                        .muxer
+                        .matroska()
+                        .unwrap_or(coreav_mkv::DocType::Matroska),
+                    streams: Some(streams.clone()),
+                },
+                &Limits::default(),
+                &coreav_mkv::Limits::default(),
+                coreav_isobmff_write::Replacements::<coreav_isobmff::SliceSource<'_>> {
+                    video: None,
+                    audio: None,
+                },
+                out,
+            )
+            .map(|_| serde_json::Value::Null)
+            .map_err(|e| WriteFailure::Rejected(Failure::Matroska(e)))
         }
         Job::Remux {
             streams,

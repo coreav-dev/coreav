@@ -264,6 +264,14 @@ pub trait Kernels: Send + Sync + 'static {
         intra::intra8x8_mb(self, dst, modes, coeffs, nz);
     }
 
+    /// Intra_4x4 prediction of a checked 4x4 view (clause 8.3.1.2).
+    /// Availability includes the block-order restriction on top-right samples.
+    fn intra4x4(&self, mut dst: IntraMut<'_>, mode: u8) {
+        if dst.n() == 4 {
+            intra::pred4x4(&mut dst, mode);
+        }
+    }
+
     /// Intra_16x16 prediction of a 16x16 view (clause 8.3.3), in
     /// Intra16x16PredMode `mode`. A view of another size is left unchanged.
     fn intra16x16(&self, mut dst: IntraMut<'_>, mode: u8) {

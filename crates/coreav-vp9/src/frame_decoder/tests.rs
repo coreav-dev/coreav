@@ -7,14 +7,137 @@ const KEY: [u8; 15] = [
     0x82, 0x49, 0x83, 0x42, 0x40, 0x03, 0xf0, 0x02, 0xf5, 0x80, 0x07, 0x80, 0x00, 0x01, 0x00,
 ];
 
+fn key_allocation_bytes() -> u64 {
+    (core::mem::size_of::<&[u8]>()
+        + core::mem::size_of::<Picture>()
+        + 64 * 64
+        + 2 * 32 * 32
+        + 48 * core::mem::size_of::<ModeInfo>()
+        + 8
+        + 8
+        + 3 * 16
+        + 1024
+        + 1024 * 8
+        + 2 * (64 * 48 + 2 * 32 * 24)) as u64
+}
+
+#[test]
+fn the_budget_includes_working_planes_history_and_the_output_copy() {
+    let needed = key_allocation_bytes();
+    let mut d = FrameDecoder::new(Limits {
+        max_memory_bytes: needed - 1,
+        ..Limits::default()
+    });
+    assert_eq!(d.decode(&KEY), Err(Error::Limit(LimitKind::MemoryBytes)));
+    assert!(d.previous.is_none());
+    assert!(d.references.iter().all(Option::is_none));
+    assert!(d.slots.iter().all(Option::is_none));
+    d.limits.max_memory_bytes = needed;
+    assert_eq!(d.decode(&KEY).unwrap().len(), 1);
+    let references = d.references.clone();
+    let contexts = d.contexts.clone();
+    let history = d.previous.as_ref().unwrap().modes.as_ptr();
+    assert_eq!(d.decode(&KEY), Err(Error::Limit(LimitKind::MemoryBytes)));
+    assert_eq!(d.references, references);
+    assert_eq!(d.contexts, contexts);
+    assert_eq!(d.previous.as_ref().unwrap().modes.as_ptr(), history);
+    d.limits.max_memory_bytes =
+        needed + (64 * 48 + 2 * 32 * 24 + 48 * core::mem::size_of::<ModeInfo>()) as u64;
+    assert!(d.decode(&KEY).is_ok());
+}
+
+#[test]
+fn eight_distinct_reference_capacities_are_charged_before_an_output() {
+    let mut d = FrameDecoder::new(Limits::default());
+    d.decode(&KEY).unwrap();
+    for slot in 0..8 {
+        let mut packet = segment_packet(true, false, 64, false, false);
+        let flags = 1u8 << slot;
+        packet[1] |= flags >> 2;
+        packet[2] |= flags << 6;
+        d.decode(&packet).unwrap();
+    }
+    assert_eq!(d.references.iter().flatten().count(), 8);
+    let mut retained = Memory::new(u64::MAX);
+    for picture in d.references.iter().flatten() {
+        picture.charge(&mut retained).unwrap();
+    }
+    let picture_bytes = 64 * 48 + 2 * 32 * 24;
+    let history_bytes = 48 * core::mem::size_of::<ModeInfo>();
+    d.limits.max_memory_bytes = (8 * picture_bytes + history_bytes - 1) as u64;
+    assert_eq!(d.decode(&[0x88]), Err(Error::Limit(LimitKind::MemoryBytes)));
+    d.limits.max_memory_bytes = (8 * picture_bytes
+        + history_bytes
+        + core::mem::size_of::<&[u8]>()
+        + core::mem::size_of::<Picture>()
+        + picture_bytes) as u64;
+    assert!(d.decode(&[0x88]).is_ok());
+}
+
+#[test]
+fn superframe_output_copies_share_one_packet_budget() {
+    let mut d = FrameDecoder::new(Limits::default());
+    d.decode(&KEY).unwrap();
+    let packet = [
+        0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0xc7, 1, 1, 1, 1, 1, 1, 1, 1, 0xc7,
+    ];
+    let bytes = 64 * 48 + 2 * 32 * 24;
+    let needed = (bytes
+        + 48 * core::mem::size_of::<ModeInfo>()
+        + 8 * (core::mem::size_of::<&[u8]>() + core::mem::size_of::<Picture>() + bytes))
+        as u64;
+    d.limits.max_memory_bytes = needed - 1;
+    assert_eq!(d.decode(&packet), Err(Error::Limit(LimitKind::MemoryBytes)));
+    d.limits.max_memory_bytes = needed;
+    assert_eq!(d.decode(&packet).unwrap().len(), 8);
+}
+
+#[test]
+fn memory_failure_in_a_later_member_keeps_the_earlier_frame_committed() {
+    let mut packet = KEY.to_vec();
+    packet.extend_from_slice(&KEY);
+    packet.extend_from_slice(&[0xc1, 15, 15, 0xc1]);
+    let first_member = key_allocation_bytes()
+        + (core::mem::size_of::<&[u8]>() + core::mem::size_of::<Picture>()) as u64;
+    let mut d = FrameDecoder::new(Limits {
+        max_memory_bytes: first_member,
+        ..Limits::default()
+    });
+    assert_eq!(d.decode(&packet), Err(Error::Limit(LimitKind::MemoryBytes)));
+    assert_eq!(d.references.iter().flatten().count(), 1);
+    assert!(d.previous.as_ref().unwrap().key);
+    d.limits.max_memory_bytes = Limits::default().max_memory_bytes;
+    assert_eq!(d.decode(&[0x88]).unwrap().len(), 1);
+}
+
+#[test]
+fn resolution_changes_keep_old_reference_and_history_charges_until_commit() {
+    let mut d = decoder_with_segment_history();
+    let packet = segment_packet(true, false, 80, true, true);
+    let references = d.references.clone();
+    let slots = d.reference_slots;
+    let modes = d.previous.as_ref().unwrap().modes.as_ptr();
+    let segments = d.segment_ids.clone();
+    d.limits.max_memory_bytes = key_allocation_bytes();
+    assert_eq!(d.decode(&packet), Err(Error::Limit(LimitKind::MemoryBytes)));
+    assert_eq!(d.references, references);
+    assert_eq!(d.reference_slots, slots);
+    assert_eq!(d.segment_ids, segments);
+    assert_eq!(d.previous.as_ref().unwrap().modes.as_ptr(), modes);
+    d.limits.max_memory_bytes = Limits::default().max_memory_bytes;
+    assert!(d.decode(&packet).is_ok());
+}
+
 #[test]
 fn refreshed_slots_share_private_pictures_and_outputs_do_not_alias_them() {
     let mut d = FrameDecoder::new(Limits::default());
     let expected = d.decode(&KEY).unwrap().pop().unwrap();
-    let first = d.references[0].as_ref().unwrap();
-    for reference in d.references.iter().flatten() {
-        assert!(Arc::ptr_eq(first, reference));
-    }
+    assert_eq!(d.references.iter().flatten().count(), 1);
+    assert!(
+        d.reference_slots
+            .iter()
+            .all(|slot| *slot == d.reference_slots[0])
+    );
     let mut handed_out = d.decode(&[0x88]).unwrap().pop().unwrap();
     if let Samples::Eight(samples) = &mut handed_out.planes[0] {
         samples.fill(3);
@@ -33,7 +156,7 @@ fn hidden_frames_refresh_references_without_show_existing_advancing_history() {
     assert!(!p.shown && p.key);
     let old_modes = p.modes.as_ptr();
     let old_contexts = d.contexts.clone();
-    let stored = d.references[0].as_ref().unwrap().as_ref().clone();
+    let stored = d.references[0].as_ref().unwrap().clone();
     assert_eq!(d.decode(&[0x88]).unwrap(), vec![stored]);
     assert_eq!(d.previous.as_ref().unwrap().modes.as_ptr(), old_modes);
     assert!(!d.previous.as_ref().unwrap().shown);
@@ -60,7 +183,7 @@ fn errors_leave_slots_contexts_carried_values_and_history_unchanged() {
     assert_eq!(d.carried, carried);
     assert_eq!(d.previous.as_ref().unwrap().modes.as_ptr(), modes);
     for (a, b) in d.references.iter().zip(&references) {
-        assert!(Arc::ptr_eq(a.as_ref().unwrap(), b.as_ref().unwrap()));
+        assert_eq!(a, b);
     }
 }
 
@@ -258,18 +381,21 @@ fn segment_reference_and_skip_features_replace_their_entropy_syntax() {
         panic!()
     };
     compressed.reference_mode = crate::ReferenceMode::Compound;
-    let (_, probs) = *parsed.probs.unwrap();
+    let (_, probs) = parsed.probs.unwrap();
     let (_, tiles) = decode::<u8>(
         &[0],
         &header,
         &probs,
         compressed,
         TileContext {
-            references: &d.references,
+            references: &core::array::from_fn::<_, 8, _>(|i| {
+                d.reference_slots[i].and_then(|index| d.references[index].as_ref())
+            }),
             previous: None,
             previous_segments: &d.segment_ids,
             reference_mode: crate::ReferenceMode::Compound,
         },
+        &mut Memory::new(u64::MAX),
     )
     .unwrap();
     assert!(

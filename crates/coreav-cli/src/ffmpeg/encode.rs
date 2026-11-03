@@ -265,6 +265,7 @@ pub fn request(
         }
     };
     Ok(Request {
+        matroska_output: command.muxer.matroska(),
         crf,
         bitrate,
         preset,
@@ -320,18 +321,19 @@ fn check_container(
             ) else {
                 return refused("a source whose track matrix could not be read");
             };
-            let copied = audio.iter().all(|i| {
-                movie.tracks.iter().any(|t| {
-                    t.stream_index == *i
-                        && matches!(
-                            (t.description.codec, &t.description.fourcc.0),
-                            (
-                                coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
-                                b"mp4a"
-                            ) | (coreav_isobmff::Codec::Opus, b"Opus")
-                        )
-                })
-            });
+            let copied = command.muxer.matroska().is_some()
+                || audio.iter().all(|i| {
+                    movie.tracks.iter().any(|t| {
+                        t.stream_index == *i
+                            && matches!(
+                                (t.description.codec, &t.description.fourcc.0),
+                                (
+                                    coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
+                                    b"mp4a"
+                                ) | (coreav_isobmff::Codec::Opus, b"Opus")
+                            )
+                    })
+                });
             if !copied {
                 return refused(NOT_COPIED);
             }
@@ -364,12 +366,13 @@ fn check_container(
             ) else {
                 return refused("a source whose projection could not be read");
             };
-            let copied = audio.iter().all(|i| {
-                segment.tracks.iter().any(|t| {
-                    t.stream_index == *i
-                        && matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus)
-                })
-            });
+            let copied = command.muxer.matroska().is_some()
+                || audio.iter().all(|i| {
+                    segment.tracks.iter().any(|t| {
+                        t.stream_index == *i
+                            && matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus)
+                    })
+                });
             if !copied {
                 return refused(NOT_COPIED);
             }
