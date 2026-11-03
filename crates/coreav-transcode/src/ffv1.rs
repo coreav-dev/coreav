@@ -43,6 +43,8 @@ impl Default for Options {
 pub enum Error {
     /// A source or requested transformation outside the supported subset.
     Unsupported(&'static str),
+    /// A decoded frame violates an encode that has already started.
+    InvalidFrame(&'static str),
     /// An index, spool, dimension, timestamp or allocation bound was exceeded.
     Limit,
     /// The command deadline elapsed.
@@ -64,7 +66,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unsupported(why) => write!(f, "FFV1: {why}"),
+            Self::Unsupported(why) | Self::InvalidFrame(why) => write!(f, "FFV1: {why}"),
             Self::Limit => f.write_str("FFV1 resource or arithmetic limit exceeded"),
             Self::Timeout => f.write_str("FFV1 command deadline exceeded"),
             Self::Source(e) => write!(f, "{e}"),
@@ -85,6 +87,7 @@ impl Error {
         use coreav_decode::ErrorKind;
         match self {
             Self::Unsupported(_) => ErrorKind::Unsupported,
+            Self::InvalidFrame(_) => ErrorKind::InvalidData,
             Self::Limit => ErrorKind::Limit,
             Self::Timeout => ErrorKind::Timeout,
             Self::Encode(coreav_ffv1::Error::Unsupported(_)) => ErrorKind::Unsupported,
@@ -225,7 +228,7 @@ fn expected(
     Ok(values)
 }
 
-fn colour(stream: ColorInfo, frame: ColorInfo) -> Result<ColorInfo, Error> {
+fn colour(stream: ColorInfo, frame: ColorInfo) -> Result<ColorInfo, &'static str> {
     if [
         (stream.primaries, frame.primaries),
         (stream.transfer, frame.transfer),
@@ -242,7 +245,7 @@ fn colour(stream: ColorInfo, frame: ColorInfo) -> Result<ColorInfo, Error> {
             .zip(frame.chroma_location)
             .is_some_and(|(a, b)| a != b)
     {
-        return Err(Error::Unsupported("conflicting stream and frame colour"));
+        return Err("conflicting stream and frame colour");
     }
     Ok(stream.or(frame))
 }
@@ -289,44 +292,54 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
+    fn refused(&self, why: &'static str) -> Error {
+        if self.encoder.is_some() {
+            Error::InvalidFrame(why)
+        } else {
+            Error::Unsupported(why)
+        }
+    }
+
+    fn decode_error(&self, mut error: coreav_decode::Error) -> Error {
+        if self.encoder.is_some()
+            && matches!(
+                error.kind,
+                coreav_decode::ErrorKind::Unsupported | coreav_decode::ErrorKind::CodecNotAllowed
+            )
+        {
+            error.kind = coreav_decode::ErrorKind::InvalidData;
+        }
+        Error::Decode(error)
+    }
+
     fn take(&mut self, frame: Frame) -> Result<(), Error> {
         deadline(self.deadline)?;
         let pts = frame
             .pts
-            .ok_or(Error::Unsupported("decoded frame has no timestamp"))?;
+            .ok_or_else(|| self.refused("decoded frame has no timestamp"))?;
         let Some(wanted) = self.expected.get(self.packets.len()) else {
-            return Err(Error::Unsupported(
-                "decoder returned extra presented frames",
-            ));
+            return Err(self.refused("decoder returned extra presented frames"));
         };
         if pts != wanted.pts {
-            return Err(Error::Unsupported(
-                "decoder did not preserve complete presentation order",
-            ));
+            return Err(self.refused("decoder did not preserve complete presentation order"));
         }
         if self
             .options
             .pixel_format
             .is_some_and(|f| f != frame.format())
         {
-            return Err(Error::Unsupported(
-                "requested pixel format requires conversion",
-            ));
+            return Err(self.refused("requested pixel format requires conversion"));
         }
-        let colour = colour(self.stream_colour, frame.color)?;
+        let colour = colour(self.stream_colour, frame.color).map_err(|why| self.refused(why))?;
         if colour.matrix == Some(0) {
-            return Err(Error::Unsupported(
-                "RGB colour representation is not supported",
-            ));
+            return Err(self.refused("RGB colour representation is not supported"));
         }
         let shape = (frame.width(), frame.height(), frame.format(), colour);
         if self.shape.is_some_and(|s| s != shape) {
-            return Err(Error::Unsupported(
-                "video geometry, format or colour changes",
-            ));
+            return Err(self.refused("video geometry, format or colour changes"));
         }
         let Pixels::Cpu(picture) = frame.pixels else {
-            return Err(Error::Unsupported("FFV1 requires CPU-owned planar pixels"));
+            return Err(self.refused("FFV1 requires CPU-owned planar pixels"));
         };
         if self.encoder.is_none() {
             let encoder = coreav_ffv1::Encoder::new(
@@ -550,18 +563,26 @@ pub fn transcode<S: Source, W: Write>(
                 keyframe: packet.keyframe,
                 discard: false,
             })
-            .map_err(Error::Decode)?;
-        while let Some(frame) = decoder.receive_frame().map_err(Error::Decode)? {
+            .map_err(|error| run.decode_error(error))?;
+        while let Some(frame) = decoder
+            .receive_frame()
+            .map_err(|error| run.decode_error(error))?
+        {
             run.take(frame)?;
         }
     }
-    decoder.send_eof().map_err(Error::Decode)?;
-    while let Some(frame) = decoder.receive_frame().map_err(Error::Decode)? {
+    decoder
+        .send_eof()
+        .map_err(|error| run.decode_error(error))?;
+    while let Some(frame) = decoder
+        .receive_frame()
+        .map_err(|error| run.decode_error(error))?
+    {
         run.take(frame)?;
     }
     drop(decoder);
     if run.packets.len() != count {
-        return Err(Error::Unsupported("decoder omitted presented frames"));
+        return Err(run.refused("decoder omitted presented frames"));
     }
     run.spool.flush().map_err(io)?;
     let track = run
@@ -725,6 +746,109 @@ mod tests {
         assert!(matches!(run.take(frame(0, 4)), Err(Error::Limit)));
         assert_eq!(run.packets.len(), 0);
         assert_eq!(run.bytes, 0);
+    }
+
+    #[test]
+    fn late_frame_changes_are_terminal_without_publishing_another_packet() {
+        let options = Options {
+            progressive: true,
+            pixel_format: Some(PixelFormat::YUV420P),
+            ..Options::default()
+        };
+        let times = [
+            Expected {
+                pts: 0,
+                time_ns: 0,
+                duration_ns: Some(40_000_000),
+            },
+            Expected {
+                pts: 40,
+                time_ns: 40_000_000,
+                duration_ns: None,
+            },
+        ];
+        let original = ColorInfo {
+            primaries: Some(1),
+            ..ColorInfo::default()
+        };
+        let changed = ColorInfo {
+            primaries: Some(9),
+            ..original
+        };
+        let yuv444 = PixelFormat::Yuv {
+            chroma: coreav_frame::Chroma::Cs444,
+            depth: 8,
+        };
+        for (index, (width, format, color)) in [
+            (8, PixelFormat::YUV420P, original),
+            (4, yuv444, original),
+            (4, PixelFormat::YUV420P, changed),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let path = std::env::temp_dir()
+                .join(format!("coreav-ffv1-late-{}-{index}", std::process::id()));
+            let spool = crate::pipeline::Spool::create(&path, "test").unwrap();
+            let mut run = Run {
+                options: &options,
+                expected: &times,
+                packets: reserve(2).unwrap(),
+                offsets: reserve(2).unwrap(),
+                encoder: None,
+                track: None,
+                shape: None,
+                aspect: Some((1, 1)),
+                stream_colour: original,
+                spool: spool.handle().unwrap(),
+                bytes: 0,
+                deadline: Instant::now() + std::time::Duration::from_secs(5),
+            };
+            let frame = |pts, width, format, color| Frame {
+                pts: Some(pts),
+                color,
+                pixels: coreav_frame::Picture::zeroed(width, 4, format)
+                    .unwrap()
+                    .into(),
+            };
+            assert_eq!(
+                run.take(frame(0, 4, yuv444, original)).unwrap_err().kind(),
+                coreav_decode::ErrorKind::Unsupported
+            );
+            assert_eq!(
+                run.decode_error(coreav_decode::Error::new(
+                    coreav_decode::ErrorKind::Unsupported,
+                    "unsupported source"
+                ))
+                .kind(),
+                coreav_decode::ErrorKind::Unsupported
+            );
+            run.take(frame(0, 4, PixelFormat::YUV420P, original))
+                .unwrap();
+            for kind in [
+                coreav_decode::ErrorKind::Unsupported,
+                coreav_decode::ErrorKind::CodecNotAllowed,
+            ] {
+                assert_eq!(
+                    run.decode_error(coreav_decode::Error::new(kind, "changed source"))
+                        .kind(),
+                    coreav_decode::ErrorKind::InvalidData
+                );
+            }
+            assert_eq!(
+                run.decode_error(coreav_decode::Error::new(
+                    coreav_decode::ErrorKind::Timeout,
+                    "expired source"
+                ))
+                .kind(),
+                coreav_decode::ErrorKind::Timeout
+            );
+            let before = run.bytes;
+            let error = run.take(frame(40, width, format, color)).unwrap_err();
+            assert_eq!(error.kind(), coreav_decode::ErrorKind::InvalidData);
+            assert_eq!(run.packets.len(), 1);
+            assert_eq!(run.bytes, before);
+        }
     }
 
     #[test]

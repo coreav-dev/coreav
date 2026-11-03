@@ -242,6 +242,8 @@ class CliCoverage(unittest.TestCase):
         def run(argv, **kwargs):
             argv = [str(value) for value in argv]
             commands.append((argv, kwargs))
+            if argv[0] == 'ffmpeg' and argv[-1].endswith('.h264'):
+                Path(argv[-1]).write_bytes(b'synthetic packet')
             if argv[0] == 'coreav':
                 env = kwargs['env']
                 if '-y' in argv:
@@ -253,6 +255,13 @@ class CliCoverage(unittest.TestCase):
                 self.assertEqual(env['COREAV_FALLBACK'], str(work / 'absent-fallback'))
                 if mutation == 'encoder':
                     (work / 'encoder-invoked').write_text('invoked')
+                if argv[-1].endswith('terminal-frame-change.mkv'):
+                    if mutation == 'late-fallback-log':
+                        (work / 'fallback.jsonl').write_text('{"not_run":"absent"}\n')
+                    if mutation == 'late-destination':
+                        Path(argv[-1]).write_text('replaced')
+                    return subprocess.CompletedProcess(argv, 4 if mutation == 'late-fallback' else 1,
+                                                       b'', b'video geometry changes')
                 if '-y' in argv:
                     if mutation == 'destination' and argv[-1] != '-':
                         Path(argv[-1]).write_text('replaced')
@@ -270,6 +279,8 @@ class CliCoverage(unittest.TestCase):
                 observed['streams'][0]['codec_name'] = 'h264'
             if path.name.startswith('source-'):
                 observed['streams'][0]['pix_fmt'] = path.stem.removeprefix('source-')
+            if path.name == 'changing.mkv':
+                observed['frames'] = [{'width': 32, 'height': 24}, {'width': 64, 'height': 24}]
             return observed
 
         with patch.object(gate, 'run', side_effect=run), patch.object(gate, 'probe', side_effect=probe), \
@@ -302,9 +313,11 @@ class CliCoverage(unittest.TestCase):
             self.assertNotIn(disabled, argv)
         argv = next(argv for argv, _ in commands if argv[-1].endswith('cli-mp4-4.mkv'))
         self.assertNotIn('-an', argv)
+        self.assertIn({'case': 'terminal-frame-change',
+                       'result': 'failed, destination preserved, no fallback'}, records)
 
     def test_encoder_execution_fallback_and_destination_replacement_fail(self):
-        for mutation in ('encoder', 'fallback', 'destination'):
+        for mutation in ('encoder', 'fallback', 'destination', 'late-fallback', 'late-fallback-log', 'late-destination'):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 with self.assertRaises(gate.GateError):
                     self.exercise(Path(directory), mutation)
