@@ -25,6 +25,9 @@ def cases():
         if incoming != outgoing and (incoming, outgoing) in RATES:
             for frames in (0, 21, 22, 100):
                 yield incoming, outgoing, 1, 'constant', frames, 'wav'
+    for rate in (48000, 48001, 64000, 65535, 65536, 96000):
+        for channels in (1, 2):
+            yield rate, rate, channels, 'constant', 257, 'wav'
 
 
 def digest(path):

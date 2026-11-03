@@ -107,6 +107,36 @@ fn short_raw_inputs_keep_the_compatibility_startup_and_drain_lengths() {
 }
 
 #[test]
+fn high_rate_raw_wav_publishes_its_layout_without_changing_samples() {
+    let dir = scratch("high-rate");
+    for (channels, mask) in [(1u16, 4u32), (2, 3)] {
+        let input = dir.join(format!("input-{channels}.pcm"));
+        let output = dir.join(format!("output-{channels}.wav"));
+        let samples: Vec<u8> = (0..257 * channels)
+            .flat_map(|n| (n as i16 - 128).to_le_bytes())
+            .collect();
+        std::fs::write(&input, &samples).unwrap();
+        success(run(
+            &input,
+            &output,
+            &["-f", "s16le", "-ar", "96000", "-ac", &channels.to_string()],
+            &[],
+        ));
+        let bytes = std::fs::read(output).unwrap();
+        assert_eq!(
+            u16::from_le_bytes(bytes[20..22].try_into().unwrap()),
+            0xFFFE
+        );
+        assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), mask);
+        assert_eq!(
+            u32::from_le_bytes(bytes[64..68].try_into().unwrap()) as usize,
+            samples.len()
+        );
+        assert_eq!(&bytes[68..], samples);
+    }
+}
+
+#[test]
 fn unsupported_raw_options_never_replace_an_output() {
     let dir = scratch("refusals");
     let input = dir.join("input.pcm");
