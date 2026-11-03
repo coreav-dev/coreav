@@ -518,6 +518,9 @@ pub fn parse_duration(text: &str) -> Result<Rational, bool> {
         if !digits(hours, usize::MAX) || !sexagesimal(minutes) || !sexagesimal(seconds) {
             return Err(false);
         }
+        if hours.len() > 9 {
+            return Err(true);
+        }
         if fraction.is_some_and(|f| !f.bytes().all(|b| b.is_ascii_digit())) {
             return Err(false);
         }
@@ -1361,6 +1364,7 @@ mod tests {
         assert_eq!(parse_duration("00:59.5"), Ok(q(119, 2)));
         assert_eq!(parse_duration("0:5"), Ok(q(5, 1)));
         assert_eq!(parse_duration("100:00:00"), Ok(q(360_000, 1)));
+        assert_eq!(parse_duration("1000000000:00:00"), Err(true));
         for bad in [
             "", "1:2:3:4", "1:234", "a", "1e3", ".5", "1:00:", "00:99", "00:60", "60:00",
             "1:00:60", "01:60:00", "00:60.5", "1.5:00", "5:", ":5",
