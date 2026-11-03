@@ -17,3 +17,24 @@ fn mpeg1_admission_checks_every_complete_frame() {
     assert!(!mpeg1_frames(&[]));
     assert!(!mpeg1_frames(&[0xff, 0xfb, 0, 0]));
 }
+
+#[test]
+fn thread_counts_outside_the_native_limit_are_fallback_not_usage() {
+    for (count, expected) in [("17", 4), ("invalid", 2)] {
+        let args = [
+            "-threads",
+            count,
+            "-i",
+            "missing.mka",
+            "-f",
+            "f32le",
+            "pipe:",
+        ]
+        .map(str::to_owned);
+        let refusal = args::parse(&args);
+        assert!(matches!(
+            (refusal, expected),
+            (Err(Refusal::NotNative(_)), 4) | (Err(Refusal::Usage(_)), 2)
+        ));
+    }
+}

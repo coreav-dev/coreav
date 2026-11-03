@@ -199,10 +199,8 @@ fn raw_stdin_writes_before_eof_without_a_whole_input_spool() {
 
 #[test]
 fn tiny_pcm_stdout_reports_a_closed_reader_during_final_flush() {
+    use std::io::Write;
     use std::process::Stdio;
-    let dir = scratch("pcm-closed-stdout");
-    let input = dir.join("tiny.raw");
-    std::fs::write(&input, [0x12, 0x34]).unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
         .args([
             "--strict-safe",
@@ -215,13 +213,20 @@ fn tiny_pcm_stdout_reports_a_closed_reader_during_final_flush() {
             "1",
             "-i",
         ])
-        .arg(&input)
+        .arg("pipe:")
         .args(["-f", "s16le", "pipe:"])
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
     drop(child.stdout.take());
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&[0x12, 0x34])
+        .unwrap();
     let result = child.wait_with_output().unwrap();
     assert_eq!(result.status.code(), Some(141), "{result:?}");
     assert!(result.stderr.is_empty(), "{result:?}");

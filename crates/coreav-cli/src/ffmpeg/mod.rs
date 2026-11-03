@@ -277,7 +277,7 @@ pub fn run_spooled(
     strict_safe: StrictSafe,
     input: &Path,
 ) -> Result<serde_json::Value, Stop> {
-    run_with_input(args, strict_safe, None, Some(input))
+    run_with_input(args, strict_safe, None, None, Some(input))
 }
 
 /// Runs a native AAC encode with an opt-in, call-bound actual-stdin receipt.
@@ -328,7 +328,7 @@ fn run_inner(
     capture: Option<&Path>,
     image_capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
-    run_with_input(args, strict_safe, capture, None)
+    run_with_input(args, strict_safe, capture, image_capture, None)
 }
 
 #[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
@@ -336,6 +336,7 @@ fn run_with_input(
     args: &[String],
     strict_safe: StrictSafe,
     capture: Option<&Path>,
+    image_capture: Option<&Path>,
     spooled: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
     let mut command = args::parse(args)?;

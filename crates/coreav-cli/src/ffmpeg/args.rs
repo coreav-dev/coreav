@@ -827,11 +827,15 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 let count = if text == "auto" {
                     Some(0)
                 } else {
-                    text.parse::<u32>().ok().and_then(|count| usize::try_from(count).ok())
+                    text.parse::<u32>()
+                        .ok()
+                        .and_then(|count| usize::try_from(count).ok())
                 };
                 let count = count.ok_or_else(|| usage("Invalid input thread count."))?;
                 if count > coreav_audio::MAX_THREADS {
-                    return Err(Refusal::not_native("more than sixteen audio decoder workers"));
+                    return Err(Refusal::not_native(
+                        "more than sixteen audio decoder workers",
+                    ));
                 }
                 command.input_threads = Some(count);
             }
