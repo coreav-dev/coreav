@@ -8,6 +8,8 @@ Represent the residual method explicitly: four-bit parameters permit Rice parame
 
 Choose the complete residual representation by exact encoded bit cost, including method, partition order, every parameter, escape width and payload. A mean-derived Rice parameter may seed an exact search, but must not cap the result at 14 or replace cost comparison. Rice cost is discrete convex in its parameter, so walking to the adjacent minimum gives the global minimum without evaluating every legal parameter. Tests compare that result with independent exhaustive enumeration. Keep deterministic ties: the lower parameter wins within a partition, Rice wins an equal-cost tie with an escape, the lower partition order wins, and the four-bit method wins equal complete costs.
 
+For `n` folded residuals `v`, payload cost is `C(k) = n * (k + 1) + sum(v >> k)`. Its forward difference is `n - sum(ceil((v >> k) / 2))`, which is nondecreasing as `k` increases. Thus a local minimum is global. Walking left across equal costs retains the lowest minimizing parameter.
+
 Keep the existing partition-order search from zero through four and its block divisibility and predictor warm-up rules. Keep fixed orders zero through four, LPC orders one through eight, coefficient precision, shifts, residual bounds, stereo selection, block sizes, metadata, sample feeding and atomic publication unchanged. Do not add an encoder option or widen source admission. Do not optimize residual generation in this change.
 
 The writer emits the selected method and either the existing Rice code or the exact signed escaped residual. Folding and unfolding use integer arithmetic and retain the RFC's signed-32 residual bound, excluding the most negative value. All code remains safe Rust.
