@@ -12,9 +12,18 @@ const workersPackage = require.resolve("@cloudflare/workers-types/package.json")
 const workersMetadata = JSON.parse(readFileSync(workersPackage, "utf8"));
 const workersEntry = resolve(dirname(workersPackage), workersMetadata.types ?? "index.d.ts");
 const args = process.argv.slice(2);
-assert.ok(args.length === 0 || (args.length === 2 && args[0] === "--consumer"), "usage: check-types.mjs [--consumer DIR]");
-const consumer = args.length === 2 ? realpathSync(resolve(args[1])) : null;
-const directory = mkdtempSync(join(consumer ?? join(packageRoot, "test"), ".coreav-types-"));
+let consumer = null;
+let packageName = "@coreav/wasm";
+for (let index = 0; index < args.length; index += 1) {
+  if (args[index] === "--consumer" && args[index + 1]) consumer = realpathSync(resolve(args[++index]));
+  else if (args[index] === "--package" && args[index + 1]) packageName = args[++index];
+  else throw new Error("usage: check-types.mjs [--package NAME] [--consumer DIR]");
+}
+assert.ok(packageName.startsWith("@") && packageName.includes("/"), "package name must be a scoped package");
+export function rewritePackage(text, name = packageName) {
+  if (name === "@coreav/wasm") return text;
+  return text.replace(/(["'])@coreav\/wasm(?=\/|["'])/g, (_, quote) => quote + name);
+}
 const cases = [
   { name: "root-node", fixture: "types.mts", workers: false },
   { name: "workers", fixture: "types-workers.mts", workers: true },
@@ -24,7 +33,8 @@ const cases = [
     setup: [
       'import { bytesSource, probe, ffprobe } from "@coreav/wasm";',
       'const source = bytesSource(new Uint8Array());',
-    ],
+      ...(packageName.endsWith("wasm-h264") ? ['import { thumbnail } from "@coreav/wasm-h264";'] : []),
+    ].map(line => rewritePackage(line)),
     invalid: [
       'import { r2Source as rootR2Source } from "@coreav/wasm";',
       'import { r2Source as nodeR2Source } from "@coreav/wasm/node";',
@@ -33,17 +43,21 @@ const cases = [
       'probe(source, { format: "native" });',
       'ffprobe(source, { allow: ["h264"] });',
       'ffprobe(source, { scanFragments: true });',
-    ],
+      ...(packageName.endsWith("wasm-h264") ? [
+        'import { diagnostics } from "@coreav/wasm-h264";',
+        'thumbnail(source, { width: 1 });',
+      ] : []),
+    ].map(line => rewritePackage(line)),
   },
   {
     name: "invalid-workers",
     workers: true,
     setup: [
-      'import { r2Source } from "@coreav/wasm/workers";',
+      rewritePackage('import { r2Source } from "@coreav/wasm/workers";'),
       'declare const kv: KVNamespace;',
       'declare const bucket: R2Bucket;',
     ],
-    invalid: ['r2Source(kv, "key");', 'r2Source(bucket, 1);'],
+    invalid: ['r2Source(kv, "key");', 'r2Source(bucket, 1);'].concat(packageName.endsWith("wasm-h264") ? ['import { diagnostics } from "@coreav/wasm-h264";'] : []),
   },
 ];
 
@@ -54,10 +68,11 @@ function within(directory, path) {
 
 function checkResolution(output, workers) {
   if (!consumer) return;
-  const source = realpathSync(join(consumer, "node_modules/@coreav/wasm/src"));
+  const installedPackage = join(consumer, "node_modules", ...packageName.split("/"));
+  const source = realpathSync(join(installedPackage, "src"));
   assert.ok(within(consumer, source), "the installed declarations must not link outside the consumer");
   const declarations = output.split(/\r?\n/).filter(line => isAbsolute(line) && line.endsWith(".d.ts")).map(path => realpathSync(path));
-  const packageDeclarations = declarations.filter(path => within(join(packageRoot, "src"), path) || path.includes(`${sep}${join("node_modules", "@coreav", "wasm")}${sep}`));
+  const packageDeclarations = declarations.filter(path => within(join(packageRoot, "src"), path) || path.includes(`${sep}${join(installedPackage)}${sep}`) || path.startsWith(installedPackage + sep));
   assert.ok(packageDeclarations.length > 0, "--listFiles did not report installed package declarations");
   for (const path of packageDeclarations) {
     assert.ok(within(source, path), `declaration escaped the installed package: ${path}`);
@@ -68,11 +83,20 @@ function checkResolution(output, workers) {
   }
 }
 
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const directory = mkdtempSync(join(consumer ?? join(packageRoot, "test"), ".coreav-types-"));
 try {
   for (const test of cases) {
     const file = join(directory, `${test.name}.mts`);
     if (test.fixture) {
-      copyFileSync(join(packageRoot, "test", test.fixture), file);
+      let text = rewritePackage(readFileSync(join(packageRoot, "test", test.fixture), "utf8"));
+      if (packageName.endsWith("wasm-h264") && test.name === "root-node") {
+        text += `\nimport { thumbnail } from ${JSON.stringify(packageName)};\nimport { thumbnail as nodeThumbnail } from ${JSON.stringify(`${packageName}/node`)};\nawait thumbnail(source, { at: "1", format: "jpeg", filter: "bicubic", chroma: "full" });\nawait nodeThumbnail(source, { at: 1, height: 8, format: "jpg" });\n`;
+      }
+      if (packageName.endsWith("wasm-h264") && test.name === "workers") {
+        text += `\nimport { bytesSource as workerBytes, thumbnail as workerThumbnail } from ${JSON.stringify(`${packageName}/workers`)};\nawait workerThumbnail(workerBytes(new Uint8Array()), { at: "0", filter: "area", chroma: "native" });\n`;
+      }
+      writeFileSync(file, text);
     } else {
       assert.ok(test.invalid.every(line => !line.includes("\n")), "each invalid case must occupy one line");
       writeFileSync(file, [...test.setup, ...test.invalid, ""].join("\n"));
@@ -110,4 +134,5 @@ try {
   }
 } finally {
   rmSync(directory, { recursive: true, force: true });
+}
 }

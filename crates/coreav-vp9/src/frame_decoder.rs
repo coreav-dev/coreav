@@ -33,6 +33,7 @@ pub struct FrameDecoder {
     reference_slots: [Option<usize>; 8],
     previous: Option<Previous>,
     segment_ids: Vec<u8>,
+    keyframes_only: bool,
 }
 
 impl FrameDecoder {
@@ -47,7 +48,15 @@ impl FrameDecoder {
             reference_slots: [None; 8],
             previous: None,
             segment_ids: Vec::new(),
+            keyframes_only: false,
         }
+    }
+
+    /// Decodes keyframes only. Skipped coded frames invalidate refreshed
+    /// slots, so a shown reference cannot return an obsolete keyframe.
+    pub fn with_keyframes_only(mut self) -> Self {
+        self.keyframes_only = true;
+        self
     }
 
     /// Decodes the shown pictures of a packet, in order. Hidden coded
@@ -55,23 +64,88 @@ impl FrameDecoder {
     /// A failed frame changes no state; earlier successful members of a
     /// superframe remain committed.
     pub fn decode(&mut self, packet: &[u8]) -> Result<Vec<Picture>> {
-        if packet.len() > self.limits.max_packet_bytes {
-            return Err(Error::Limit(LimitKind::PacketBytes));
-        }
+        self.decode_with_budget(packet, true, self.limits.max_memory_bytes, u64::MAX)
+    }
+
+    /// Heap capacities retained between packets, excluding earlier outputs.
+    pub fn retained_memory_bytes(&self) -> Result<u64> {
         let mut memory = Memory::new(self.limits.max_memory_bytes);
+        self.charge_retained(&mut memory)?;
+        Ok(memory.used())
+    }
+
+    fn charge_retained(&self, memory: &mut Memory) -> Result<()> {
         for reference in self.references.iter().flatten() {
-            reference.charge(&mut memory)?;
+            reference.charge(memory)?;
         }
         if let Some(previous) = &self.previous {
             memory.charge::<ModeInfo>(previous.modes.capacity())?;
         }
-        memory.charge::<u8>(self.segment_ids.capacity())?;
+        memory.charge::<u8>(self.segment_ids.capacity())
+    }
+
+    /// Decodes with a per-call memory allowance no larger than this
+    /// decoder's limit. With `output` false, references and probabilities
+    /// advance normally, but shown samples are not copied for export.
+    /// A boundary uses the allowance to account for its pending frames.
+    /// Packed frames above `max_frame_bytes` are refused before allocating
+    /// their reconstruction buffers, including hidden coded frames.
+    pub fn decode_with_budget(
+        &mut self,
+        packet: &[u8],
+        output: bool,
+        max_memory_bytes: u64,
+        max_frame_bytes: u64,
+    ) -> Result<Vec<Picture>> {
+        if packet.len() > self.limits.max_packet_bytes {
+            return Err(Error::Limit(LimitKind::PacketBytes));
+        }
+        let mut memory = Memory::new(max_memory_bytes.min(self.limits.max_memory_bytes));
+        self.charge_retained(&mut memory)?;
         let frames = superframe::split_with_memory(packet, &mut memory)?;
-        let mut output = memory.empty(frames.len())?;
+        let mut pictures = memory.empty(frames.len())?;
         for bytes in frames {
+            if self.keyframes_only {
+                match header::keyframe_action(bytes)? {
+                    header::KeyframeAction::Decode => {}
+                    header::KeyframeAction::Existing(slot) => {
+                        if self
+                            .reference_slots
+                            .get(usize::from(slot))
+                            .copied()
+                            .flatten()
+                            .is_none()
+                        {
+                            continue;
+                        }
+                    }
+                    header::KeyframeAction::Skip(flags) => {
+                        for (i, (slot, reference)) in self
+                            .slots
+                            .iter_mut()
+                            .zip(&mut self.reference_slots)
+                            .enumerate()
+                        {
+                            if flags >> i & 1 == 1 {
+                                *slot = None;
+                                *reference = None;
+                            }
+                        }
+                        for (i, reference) in self.references.iter_mut().enumerate() {
+                            if !self.reference_slots.contains(&Some(i)) {
+                                *reference = None;
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
             let parsed = header::parse(bytes, &self.slots, &self.carried, &self.contexts)?;
             let (h, compressed) = match parsed.header {
-                Header::ShowExisting { slot, .. } => {
+                Header::ShowExisting { slot, profile, .. } => {
+                    if profile != 0 {
+                        return Err(Error::Unsupported("pixel decoding outside profile 0"));
+                    }
                     let index = self
                         .reference_slots
                         .get(usize::from(slot))
@@ -83,7 +157,10 @@ impl FrameDecoder {
                         .get(index)
                         .and_then(Option::as_ref)
                         .ok_or(Error::Invalid("an unavailable shown reference"))?;
-                    output.push(reference.copy(&mut memory)?);
+                    check_frame_bytes(reference.width, reference.height, max_frame_bytes)?;
+                    if output {
+                        pictures.push(reference.copy(&mut memory)?);
+                    }
                     continue;
                 }
                 Header::Frame {
@@ -94,6 +171,7 @@ impl FrameDecoder {
             if h.profile != 0 {
                 return Err(Error::Unsupported("pixel decoding outside profile 0"));
             }
+            check_frame_bytes(h.width, h.height, max_frame_bytes)?;
             let (mut contexts, probs) = parsed
                 .probs
                 .ok_or(Error::Invalid("missing frame probabilities"))?;
@@ -144,7 +222,7 @@ impl FrameDecoder {
             if h.refresh_frame_context {
                 contexts.save(h.frame_context_idx, refreshed);
             }
-            let shown = if h.show_frame {
+            let shown = if h.show_frame && output {
                 Some(picture.copy(&mut memory)?)
             } else {
                 None
@@ -209,11 +287,20 @@ impl FrameDecoder {
                 modes: tiles.modes,
             });
             if let Some(picture) = shown {
-                output.push(picture);
+                pictures.push(picture);
             }
         }
-        Ok(output)
+        Ok(pictures)
     }
+}
+
+fn check_frame_bytes(width: u32, height: u32, max: u64) -> Result<()> {
+    let bytes = u64::from(width) * u64::from(height)
+        + 2 * u64::from(width.div_ceil(2)) * u64::from(height.div_ceil(2));
+    if bytes > max {
+        return Err(Error::Limit(LimitKind::FrameBytes));
+    }
+    Ok(())
 }
 
 fn decode<P: Sample>(
@@ -242,17 +329,7 @@ fn decode<P: Sample>(
         memory,
     )?;
     loop_filter::apply(h, &tiles.modes, &mut frame)?;
-    Ok((
-        frame.picture(
-            h.width,
-            h.height,
-            c.bit_depth,
-            c.subsampling_x,
-            c.subsampling_y,
-            memory,
-        )?,
-        tiles,
-    ))
+    Ok((frame.picture(h.width, h.height, c, memory)?, tiles))
 }
 
 #[cfg(test)]

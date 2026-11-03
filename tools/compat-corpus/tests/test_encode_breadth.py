@@ -266,7 +266,7 @@ class Stubs(unittest.TestCase):
         (d / 'copy_check.py').write_text(CHECK.replace('{py}', sys.executable))
         self.fixtures = d / 'fixtures'
         self.fixtures.mkdir()
-        for name in eb.FIXTURES:
+        for name in eb.INPUT_FILES:
             (self.fixtures / name).write_bytes(b'x')
         self.config = {'argv_log': str(d / 'argv.log'), 'x264_marker': str(d / 'x264.ran'), 'accept': None,
                        'mapping': MAPPING, 'listing': LISTING,
@@ -984,7 +984,8 @@ class Cli(Stubs):
         self.assertEqual([r['index'] for r in rows], [0, 1])
         summary = json.loads((self.dir / 'out' / 's.json').read_text())
         self.assertEqual(set(summary['programs']), {'coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264'})
-        self.assertEqual(set(summary['fixtures']), set(eb.FIXTURES))
+        self.assertEqual(set(summary['fixtures']), set(eb.INPUT_FILES))
+        self.assertEqual(summary['fixture_registration'], eb.v2_fixture_inputs.provenance())
         self.assertEqual(summary['schema'], 'coreav.encode-breadth/1')
         self.assertEqual(summary['reference_programs'], {'ffmpeg': {'version': 'stand-in'}})
         self.assertEqual(summary['encoder_ffmpeg'], summary['reference_programs']['ffmpeg'])

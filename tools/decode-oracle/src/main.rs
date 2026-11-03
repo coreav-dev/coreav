@@ -170,10 +170,11 @@ fn run(args: &[String]) -> Result<Value, String> {
         options: worker,
     };
     let native_backend = native_h264()?;
-    let backends: [&dyn Backend; 1] = if native {
-        [native_backend.as_ref()]
+    let native_vp9_backend = native_vp9();
+    let backends: Vec<&dyn Backend> = if native {
+        vec![native_backend.as_ref(), native_vp9_backend.as_ref()]
     } else {
-        [&sandboxed]
+        vec![&sandboxed]
     };
     let mut opened: Box<dyn Decoder> = if native {
         coreav_decode::open(&stream, &options.policy, &options.decode_limits, &backends)
@@ -469,11 +470,21 @@ fn native_h264() -> Result<Box<dyn Backend>, String> {
     Ok(Box::new(Unavailable(coreav_decode::BackendKind::Native)))
 }
 
-/// A backend that supports nothing, in a build without it.
-#[cfg(not(all(feature = "dav1d", feature = "native-h264")))]
+/// The native profile-0 VP9 backend, for `--backend native`.
+#[cfg(feature = "native-vp9")]
+fn native_vp9() -> Box<dyn Backend> {
+    Box::new(coreav_backend_vp9::NativeVp9::new())
+}
+
+#[cfg(not(feature = "native-vp9"))]
+fn native_vp9() -> Box<dyn Backend> {
+    Box::new(Unavailable(coreav_decode::BackendKind::Native))
+}
+
+#[cfg(not(all(feature = "dav1d", feature = "native-h264", feature = "native-vp9")))]
 struct Unavailable(coreav_decode::BackendKind);
 
-#[cfg(not(all(feature = "dav1d", feature = "native-h264")))]
+#[cfg(not(all(feature = "dav1d", feature = "native-h264", feature = "native-vp9")))]
 impl Backend for Unavailable {
     fn kind(&self) -> coreav_decode::BackendKind {
         self.0

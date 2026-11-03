@@ -125,25 +125,41 @@ pub(crate) fn vp8(frame: &[u8]) -> Option<FrameInfo> {
 /// holding the first H.264 sequence parameter set (Annex B start codes or
 /// 4-byte lengths), or the stored `av1C` header followed by the first AV1
 /// sequence header OBU.
+#[cfg(test)]
 pub(crate) fn h264_record(frame: &[u8]) -> Option<Vec<u8>> {
-    let sps = nal_units(frame).find(|nal| nal.first().is_some_and(|h| h & 0x1f == 7))?;
-    let [_, profile, compatibility, level, ..] = *sps else {
-        return None;
+    h264_record_with_planning(frame, None).ok().flatten()
+}
+
+pub(crate) fn h264_record_with_planning(
+    frame: &[u8],
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Result<Option<Vec<u8>>, crate::Error> {
+    let Some(sps) = nal_units(frame).find(|nal| nal.first().is_some_and(|h| h & 0x1f == 7)) else {
+        return Ok(None);
     };
-    let len = u16::try_from(sps.len()).ok()?.to_be_bytes();
-    let mut record = vec![1, profile, compatibility, level, 0xFF, 0xE1];
+    let [_, profile, compatibility, level, ..] = *sps else {
+        return Ok(None);
+    };
+    let Ok(len) = u16::try_from(sps.len()) else {
+        return Ok(None);
+    };
+    let len = len.to_be_bytes();
+    let mut record = Vec::new();
+    crate::planning::exact(planning, &mut record, sps.len().saturating_add(9), 0)?;
+    record.extend_from_slice(&[1, profile, compatibility, level, 0xFF, 0xE1]);
     record.extend_from_slice(&len);
     record.extend_from_slice(sps);
     record.push(0);
-    Some(record)
+    Ok(Some(record))
 }
 
 /// The NAL units of an H.264 access unit: split at Annex B start codes when
 /// it starts with one, else by 4-byte big-endian lengths.
-fn nal_units(frame: &[u8]) -> Box<dyn Iterator<Item = &[u8]> + '_> {
-    if frame.starts_with(&[0, 0, 1]) || frame.starts_with(&[0, 0, 0, 1]) {
-        let mut rest = frame;
-        Box::new(core::iter::from_fn(move || {
+fn nal_units(frame: &[u8]) -> impl Iterator<Item = &[u8]> + '_ {
+    let annex_b = frame.starts_with(&[0, 0, 1]) || frame.starts_with(&[0, 0, 0, 1]);
+    let mut rest = frame;
+    core::iter::from_fn(move || {
+        if annex_b {
             let start = start_code_end(rest)?;
             let body = rest.get(start..)?;
             let end = (0..body.len())
@@ -153,17 +169,14 @@ fn nal_units(frame: &[u8]) -> Box<dyn Iterator<Item = &[u8]> + '_> {
             rest = body.get(end..)?;
             // Trailing zero bytes before a 4-byte start code belong to it.
             Some(nal.strip_suffix(&[0]).unwrap_or(nal))
-        }))
-    } else {
-        let mut rest = frame;
-        Box::new(core::iter::from_fn(move || {
+        } else {
             let len = u32::from_be_bytes(rest.get(..4)?.try_into().ok()?);
             let end = 4usize.checked_add(usize::try_from(len).ok()?)?;
             let nal = rest.get(4..end)?;
             rest = rest.get(end..)?;
             Some(nal)
-        }))
-    }
+        }
+    })
 }
 
 fn start_code_end(bytes: &[u8]) -> Option<usize> {
@@ -179,10 +192,24 @@ fn start_code_end(bytes: &[u8]) -> Option<usize> {
 /// See [`h264_record`]: `header` is the stored `av1C` (at least its 4-byte
 /// header); the frame's OBUs follow it as configuration OBUs, which the
 /// `av1C` reader walks to the first sequence header.
+#[cfg(test)]
 pub(crate) fn av1_record(header: &[u8], frame: &[u8]) -> Option<Vec<u8>> {
-    let mut record = header.get(..4)?.to_vec();
+    av1_record_with_planning(header, frame, None).ok().flatten()
+}
+
+pub(crate) fn av1_record_with_planning(
+    header: &[u8],
+    frame: &[u8],
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Result<Option<Vec<u8>>, crate::Error> {
+    let Some(header) = header.get(..4) else {
+        return Ok(None);
+    };
+    let mut record = Vec::new();
+    crate::planning::exact(planning, &mut record, frame.len().saturating_add(4), 0)?;
+    record.extend_from_slice(header);
     record.extend_from_slice(frame);
-    Some(record)
+    Ok(Some(record))
 }
 
 #[cfg(test)]

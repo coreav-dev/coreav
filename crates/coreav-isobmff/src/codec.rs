@@ -71,6 +71,45 @@ pub struct Allowlist {
 }
 
 impl Allowlist {
+    const DEFAULT_CODECS: &'static [Codec] = &[
+        Codec::H264,
+        Codec::Hevc,
+        Codec::Av1,
+        Codec::Vp9,
+        Codec::ProRes,
+        Codec::Aac,
+        Codec::Mp3,
+        Codec::Opus,
+        Codec::Flac,
+        Codec::Alac,
+        Codec::Ac3,
+        Codec::Eac3,
+        Codec::Pcm,
+        Codec::TimedText,
+        Codec::Timecode,
+    ];
+
+    /// Builds the default allowlist with its codec array charged before allocation.
+    pub fn default_with_planning(planning: &crate::PlanningBudget) -> Result<Self, Error> {
+        Self::new_with_planning(Self::DEFAULT_CODECS, planning)
+    }
+    /// Builds an allowlist with its owned codec array charged before allocation.
+    pub fn new_with_planning(
+        codecs: &[Codec],
+        planning: &crate::PlanningBudget,
+    ) -> Result<Self, Error> {
+        let mut kept = Vec::new();
+        let count = codecs.iter().filter(|c| **c != Codec::Other).count();
+        planning
+            .reserve_exact(&mut kept, count)
+            .map_err(|_| crate::planning::limit(0))?;
+        kept.extend(codecs.iter().copied().filter(|c| *c != Codec::Other));
+        Ok(Self {
+            codecs: kept,
+            strict: false,
+            listing: false,
+        })
+    }
     /// An allowlist of exactly these codecs, dropping other streams.
     pub fn new(codecs: &[Codec]) -> Self {
         Self {
@@ -122,23 +161,7 @@ impl Allowlist {
 
 impl Default for Allowlist {
     fn default() -> Self {
-        Self::new(&[
-            Codec::H264,
-            Codec::Hevc,
-            Codec::Av1,
-            Codec::Vp9,
-            Codec::ProRes,
-            Codec::Aac,
-            Codec::Mp3,
-            Codec::Opus,
-            Codec::Flac,
-            Codec::Alac,
-            Codec::Ac3,
-            Codec::Eac3,
-            Codec::Pcm,
-            Codec::TimedText,
-            Codec::Timecode,
-        ])
+        Self::new(Self::DEFAULT_CODECS)
     }
 }
 
@@ -412,6 +435,7 @@ pub(crate) fn parse_sample_entry(
     offset: u64,
     layout: EntryLayout,
     warnings: &mut Vec<Warning>,
+    planning: Option<&crate::PlanningBudget>,
 ) -> Result<SampleDescription, Error> {
     let mut bytes = Bytes::new(entry, offset);
     bytes.skip(4)?;
@@ -473,7 +497,7 @@ pub(crate) fn parse_sample_entry(
             if desc.codec_config.is_none() && CONFIG_BOXES.contains(&&kind.0) {
                 desc.codec_config = Some(CodecConfig {
                     kind,
-                    data: payload.to_vec(),
+                    data: crate::planning::copy(planning, payload, offset)?,
                 });
             }
             // The size comes from the first record of the codec's own type,
@@ -494,15 +518,17 @@ pub(crate) fn parse_sample_entry(
             if layout == EntryLayout::Visual {
                 if ENTRY_BOXES.contains(&&kind.0) {
                     if !desc.entry_boxes.iter().any(|b| b.kind == kind) {
+                        crate::planning::reserve(planning, &mut desc.entry_boxes, 1, offset)?;
                         desc.entry_boxes.push(CodecConfig {
                             kind,
-                            data: payload.to_vec(),
+                            data: crate::planning::copy(planning, payload, offset)?,
                         });
                     }
                 } else if !CONFIG_BOXES.contains(&&kind.0)
                     && desc.other_boxes.len() < MAX_OTHER_BOXES
                     && !desc.other_boxes.contains(&kind)
                 {
+                    crate::planning::reserve(planning, &mut desc.other_boxes, 1, offset)?;
                     desc.other_boxes.push(kind);
                 }
             }
@@ -516,7 +542,12 @@ pub(crate) fn parse_sample_entry(
             if let Some((parsed, consistent)) = wanted {
                 if profile.is_none() {
                     if parsed.is_none() || !consistent {
-                        crate::error::warn(warnings, Warning::MalformedCodecConfig(kind));
+                        crate::error::warn_with_planning(
+                            warnings,
+                            Warning::MalformedCodecConfig(kind),
+                            planning,
+                            offset,
+                        )?;
                     }
                     profile = Some(parsed);
                 }
@@ -553,13 +584,23 @@ pub(crate) fn parse_sample_entry(
                 b"hvcC" => {
                     codec_range = bitstream::hevc_full_range(payload);
                     if codec_range.is_none() {
-                        crate::error::warn(warnings, Warning::MalformedCodecConfig(kind));
+                        crate::error::warn_with_planning(
+                            warnings,
+                            Warning::MalformedCodecConfig(kind),
+                            planning,
+                            offset,
+                        )?;
                     }
                 }
                 b"av1C" => {
                     codec_range = bitstream::av1_full_range(payload);
                     if codec_range.is_none() {
-                        crate::error::warn(warnings, Warning::MalformedCodecConfig(kind));
+                        crate::error::warn_with_planning(
+                            warnings,
+                            Warning::MalformedCodecConfig(kind),
+                            planning,
+                            offset,
+                        )?;
                     }
                 }
                 b"vpcC" => {
@@ -588,6 +629,7 @@ pub(crate) fn parse_sample_entry(
                 }
                 _ => {}
             }
+            Ok(())
         },
     )?;
     if desc.color.full_range.is_none() {
@@ -598,12 +640,27 @@ pub(crate) fn parse_sample_entry(
             desc.configured_sample_rate = Some(config.sample_rate);
             desc.configured_bits = Some(config.bits);
         }
-        Some((kind, None)) => crate::error::warn(warnings, Warning::MalformedCodecConfig(kind)),
+        Some((kind, None)) => crate::error::warn_with_planning(
+            warnings,
+            Warning::MalformedCodecConfig(kind),
+            planning,
+            offset,
+        )?,
         None if desc.codec == Codec::Flac => {
-            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"dfLa")));
+            crate::error::warn_with_planning(
+                warnings,
+                Warning::MalformedCodecConfig(FourCc(*b"dfLa")),
+                planning,
+                offset,
+            )?;
         }
         None if fourcc.0 == *b"alac" => {
-            crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"alac")));
+            crate::error::warn_with_planning(
+                warnings,
+                Warning::MalformedCodecConfig(FourCc(*b"alac")),
+                planning,
+                offset,
+            )?;
         }
         None => {}
     }
@@ -619,7 +676,12 @@ pub(crate) fn parse_sample_entry(
         Codec::Aac => {
             let parsed = esds.as_ref().and_then(|e| e.aac);
             if parsed.is_none() {
-                crate::error::warn(warnings, Warning::MalformedCodecConfig(FourCc(*b"esds")));
+                crate::error::warn_with_planning(
+                    warnings,
+                    Warning::MalformedCodecConfig(FourCc(*b"esds")),
+                    planning,
+                    offset,
+                )?;
             }
             // The sample entry's channel count is definitive only for codecs
             // that do not record their own output configuration (ISO/IEC
@@ -896,6 +958,18 @@ pub fn describe_config_record(kind: FourCc, record: &[u8]) -> Option<ConfigRecor
     })
 }
 
+/// Describes a configuration without heap scratch and preserves sticky planning failure.
+pub fn describe_config_record_with_planning(
+    kind: FourCc,
+    record: &[u8],
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<ConfigRecord>, crate::PlanningLimit> {
+    if let Some(planning) = planning {
+        planning.charge(0)?;
+    }
+    Ok(describe_config_record(kind, record))
+}
+
 /// Whether the first sequence parameter set of an `hvcC` payload has a
 /// conformance window that leaves no picture, which ITU-T H.265 7.4.3.2.1
 /// does not allow: such a stream is not valid HEVC. `false` when the
@@ -911,23 +985,58 @@ pub fn avc_max_num_ref_frames(avcc: &[u8]) -> Option<u32> {
     bitstream::avc_max_num_ref_frames(avcc)
 }
 
+/// Reads the reference bound without heap scratch and preserves sticky planning failure.
+pub fn avc_max_num_ref_frames_with_planning(
+    avcc: &[u8],
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<u32>, crate::PlanningLimit> {
+    if let Some(planning) = planning {
+        planning.charge(0)?;
+    }
+    Ok(avc_max_num_ref_frames(avcc))
+}
+
 /// The sequence and picture parameter set NAL units of an `avcC` payload
 /// (ISO/IEC 14496-15 5.3.3.1), in its order and without their lengths;
 /// `None` when the record ends inside them.
 pub fn avc_parameter_sets(avcc: &[u8]) -> Option<Vec<&[u8]>> {
+    avc_parameter_sets_with_planning(avcc, None).ok().flatten()
+}
+
+/// Lists parameter-set slices with every descriptor-array growth charged first.
+pub fn avc_parameter_sets_with_planning<'a>(
+    avcc: &'a [u8],
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<Vec<&'a [u8]>>, crate::PlanningLimit> {
+    if let Some(planning) = planning {
+        planning.charge(0)?;
+    }
     let mut sets = Vec::new();
     let mut at = 5usize;
     for mask in [0x1f, 0xff] {
-        let count = avcc.get(at)? & mask;
+        let Some(count) = avcc.get(at).map(|count| count & mask) else {
+            return Ok(None);
+        };
         at += 1;
         for _ in 0..count {
-            let len = usize::from(crate::bytes::be_u16_at(avcc, at)?);
-            let end = at.checked_add(2)?.checked_add(len)?;
-            sets.push(avcc.get(at + 2..end)?);
+            let Some(len) = crate::bytes::be_u16_at(avcc, at).map(usize::from) else {
+                return Ok(None);
+            };
+            let Some(end) = at.checked_add(2).and_then(|at| at.checked_add(len)) else {
+                return Ok(None);
+            };
+            let Some(unit) = avcc.get(at + 2..end) else {
+                return Ok(None);
+            };
+            match planning {
+                Some(planning) => planning.reserve(&mut sets, 1)?,
+                None => sets.try_reserve(1).map_err(|_| crate::PlanningLimit)?,
+            }
+            sets.push(unit);
             at = end;
         }
     }
-    Some(sets)
+    Ok(Some(sets))
 }
 
 /// `num_units_in_tick` and `time_scale` of the first sequence parameter
@@ -1430,7 +1539,7 @@ fn visit_children(
     data: &[u8],
     offset: u64,
     depth: u32,
-    visit: &mut dyn FnMut(FourCc, &[u8]),
+    visit: &mut impl FnMut(FourCc, &[u8]) -> Result<(), Error>,
 ) -> Result<(), Error> {
     let mut bytes = Bytes::new(data, offset);
     while bytes.remaining() >= 8 {
@@ -1446,7 +1555,7 @@ fn visit_children(
         if kind == FourCc(*b"wave") && depth > 0 {
             visit_children(payload, 0, depth - 1, visit)?;
         } else {
-            visit(kind, payload);
+            visit(kind, payload)?;
         }
     }
     Ok(())
@@ -1460,6 +1569,18 @@ fn visit_children(
 /// `CodecPrivate`, which stores the same records.
 pub fn parameter_set_color(kind: FourCc, record: &[u8]) -> Option<Color> {
     signalled_color(&kind.0, record)
+}
+
+/// Reads parameter-set colour without heap scratch and preserves sticky planning failure.
+pub fn parameter_set_color_with_planning(
+    kind: FourCc,
+    record: &[u8],
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<Color>, crate::PlanningLimit> {
+    if let Some(planning) = planning {
+        planning.charge(0)?;
+    }
+    Ok(parameter_set_color(kind, record))
 }
 
 /// [`parameter_set_color`] by the record's type.

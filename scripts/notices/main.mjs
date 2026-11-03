@@ -6,6 +6,7 @@ import { licensePolicy, renderNotices, renderToolchain } from "./render.mjs";
 import { toolchain, projectGraph, toolchainCrates, vendoredCrates, inTreeCrates, prepareFlags } from "./select.mjs";
 import { moduleEvidence, nativeEvidence, noticeSections, validateEvidence } from "./evidence.mjs";
 import { makeRecord, verifyRecord, buildScript, NOTICE_FILE, RECORD_FILE } from "./record.mjs";
+import { renderRuntimes } from "./runtime.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -45,13 +46,13 @@ function compute(directory, repo, distribution, artifact, raw) {
   const repoNotice = readFileSync(join(repo, "NOTICE"), "utf8");
   const header = distribution.package === "coreav-wasm"
     ? "Rust dependency notices for this WebAssembly build.\nThe standard-library target closure is a superset of linker-retained code.\nCoreAV's own licence and notices are in LICENSE-MIT, LICENSE-APACHE and NOTICE.\n\n"
-    : "Rust dependency notices for coreav on " + distribution.target + ".\nThe standard-library target closure is a superset of linker-retained code.\nCoreAV's own terms are in LICENSE-MIT, LICENSE-APACHE and NOTICE.\nC library notices are in NOTICE and licenses/ where shipped; C runtime coverage is described in docs/release/notices.md.\n\n";
-  const text = header + renderNotices(graph.crates, policy, repoNotice) + "\n" + renderToolchain(tc, inTreeCrates(tc.library, closure.inTree), policy) + "\n" + renderNotices(vendoredCrates(tc.library, closure.vendored, repo), policy, repoNotice);
+    : "Rust dependency notices for coreav on " + distribution.target + ".\nThe standard-library target closure is a superset of linker-retained code.\nCoreAV's own terms are in LICENSE-MIT, LICENSE-APACHE and NOTICE.\nC library notices are in NOTICE and licenses/ where shipped; C runtime notices follow where required.\n\n";
+  const text = header + renderNotices(graph.crates, policy, repoNotice) + "\n" + renderToolchain(tc, inTreeCrates(tc.library, closure.inTree), policy) + "\n" + renderNotices(vendoredCrates(tc.library, closure.vendored, repo), policy, repoNotice) + "\n" + renderRuntimes(distribution.target, tc.commit);
   const packed = readFileSync(artifact);
   const wasm = distribution.target.startsWith("wasm32-");
   if (wasm && !raw) throw new Error("keep the raw module for independent notice evidence");
   const evidence = wasm ? moduleEvidence(packed, readFileSync(raw)) : nativeEvidence(packed);
-  const context = { version: tc.version, commit: tc.commit, members: graph.members, memberPaths: graph.memberPaths, library: new Set(readdirSync(tc.library, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name)) };
+  const context = { target: distribution.target, version: tc.version, commit: tc.commit, members: graph.members, memberPaths: graph.memberPaths, library: new Set(readdirSync(tc.library, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name)) };
   const sections = noticeSections(text);
   validateEvidence(evidence, sections, context);
   const record = makeRecord(directory, repo, distribution, tc, artifact, raw, text, sections, closure);

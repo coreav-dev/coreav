@@ -2,7 +2,7 @@
 
 use crate::error::LimitKind;
 use crate::fragment::Fragment;
-use crate::header::{read_header, read_payload};
+use crate::header::read_header;
 use crate::movie::{EditList, Movie, Track, TrackKind};
 use crate::tables::{Bounds, Cursor, Position, RawSample, Work};
 use crate::{Error, FourCc, Limits, Rational, Source};
@@ -188,11 +188,22 @@ impl Movie {
         limits: &Limits,
         budget: &'a mut Budget,
     ) -> Result<Packets<'a, S>, Error> {
+        if let Some(planning) = &self.planning {
+            planning.charge(0).map_err(|_| crate::planning::limit(0))?;
+        }
         let track = self.tracks.get(index).ok_or(Error::NoSuchTrack)?;
         let usable = track.tables_valid && !track.external_data;
         let (mut timeline, window) = Timeline::for_track(track, self.timescale);
         let spans = if timeline == Timeline::Spans {
-            Span::for_track(track, self.timescale).unwrap_or_else(|| {
+            let spans = Span::for_track(track, self.timescale, self.planning.as_ref());
+            if self
+                .planning
+                .as_ref()
+                .is_some_and(crate::PlanningBudget::failed)
+            {
+                return Err(crate::planning::limit(0));
+            }
+            spans.unwrap_or_else(|| {
                 timeline = Timeline::Unknown;
                 Vec::new()
             })
@@ -261,6 +272,13 @@ impl Movie {
     ) -> Result<Packets<'a, S>, Error> {
         let mut packets = self.packets(index, source, limits, budget)?;
         packets.skip_to(start)?;
+        if self
+            .planning
+            .as_ref()
+            .is_some_and(crate::PlanningBudget::failed)
+        {
+            return Err(crate::planning::limit(0));
+        }
         Ok(packets)
     }
 }
@@ -379,17 +397,18 @@ impl<S: Source> Packets<'_, S> {
                     offset: at,
                 });
             }
-            let payload = read_payload(
+            let payload = crate::header::read_payload_with_planning(
                 &mut self.source,
                 &header,
                 self.limits.max_box_bytes,
                 LimitKind::BoxBytes,
+                self.movie.planning.as_ref(),
             )?;
             let Some(trex) = self.track.trex else {
                 return Ok(None);
             };
             let boxes = Cell::new(0u64);
-            let fragment = Fragment::parse(
+            let fragment = Fragment::parse_with_planning(
                 payload,
                 header.offset,
                 header.payload_offset(),
@@ -397,6 +416,7 @@ impl<S: Source> Packets<'_, S> {
                 trex,
                 &self.movie.all_trex,
                 &boxes,
+                self.movie.planning.as_ref(),
             )?;
             self.budget.work.add(boxes.get())?;
             self.fragment = Some(fragment);
@@ -453,6 +473,15 @@ impl<S: Source> Packets<'_, S> {
     pub fn next_run(&mut self, max: u32) -> Option<Result<SampleRun, Error>> {
         if self.failed {
             return None;
+        }
+        if self
+            .movie
+            .planning
+            .as_ref()
+            .is_some_and(crate::PlanningBudget::failed)
+        {
+            self.failed = true;
+            return Some(Err(crate::planning::limit(0)));
         }
         let result = match self.next_raw(max) {
             Ok(Some(raw)) => self.run(raw),
@@ -692,6 +721,15 @@ impl<S: Source> Iterator for Packets<'_, S> {
         if self.failed {
             return None;
         }
+        if self
+            .movie
+            .planning
+            .as_ref()
+            .is_some_and(crate::PlanningBudget::failed)
+        {
+            self.failed = true;
+            return Some(Err(crate::planning::limit(0)));
+        }
         let result = match self.next_raw(1) {
             Ok(Some(raw)) => self.packet(raw),
             Ok(None) => return None,
@@ -739,7 +777,11 @@ struct Span {
 impl Span {
     /// The media edits of the track's list in order, each with its window
     /// and shift; `None` when a value does not fit.
-    fn for_track(track: &Track, movie_timescale: u32) -> Option<Vec<Self>> {
+    fn for_track(
+        track: &Track,
+        movie_timescale: u32,
+        planning: Option<&crate::PlanningBudget>,
+    ) -> Option<Vec<Self>> {
         let ticks = |movie_ticks: u64| {
             let num = i128::from(movie_ticks).checked_mul(i128::from(track.timescale))?;
             Rational::new(num, u64::from(movie_timescale))
@@ -751,6 +793,7 @@ impl Span {
             if edit.media_time != -1 {
                 let start = Rational::from_int(i128::from(edit.media_time));
                 let presented_at = ticks(at)?;
+                crate::planning::reserve(planning, &mut spans, 1, 0).ok()?;
                 spans.push(Self {
                     start: edit.media_time,
                     end: start.checked_add(ticks(edit.segment_duration)?)?,

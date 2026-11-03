@@ -13,6 +13,8 @@ use coreav_vp9::{Decoder, FrameDecoder, Header, Picture, Samples};
 use md5::{Digest, Md5};
 use serde_json::{Value, json};
 
+#[cfg(feature = "native-vp9")]
+mod boundary;
 mod known_tail;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,6 +94,8 @@ fn measure(path: &Path, scope: Scope, output: &mut impl Write) -> Result<(), Str
     }
     let limits = coreav_vp9::Limits::default();
     let mut decoder = FrameDecoder::new(limits);
+    #[cfg(feature = "native-vp9")]
+    let mut boundary = boundary::Boundary::new(scope)?;
     let mut inspection = Decoder::new(limits);
     let mut coverage = Coverage::default();
     let mut packets = segment.packets(&mut source, &container_limits);
@@ -141,12 +145,16 @@ fn measure(path: &Path, scope: Scope, output: &mut impl Write) -> Result<(), Str
             .source_mut()
             .read_append(packet.offset, size, &mut bytes)
             .map_err(|e| e.to_string())?;
-        for header in inspection.read_headers(&bytes).map_err(|e| e.to_string())? {
+        let headers = inspection.read_headers(&bytes).map_err(|e| e.to_string())?;
+        for header in &headers {
             if let Header::Frame { header, .. } = header {
-                coverage.observe(&header);
+                coverage.observe(header);
             }
         }
-        for picture in decoder.decode(&bytes).map_err(|e| e.to_string())? {
+        let pictures = decoder.decode(&bytes).map_err(|e| e.to_string())?;
+        #[cfg(feature = "native-vp9")]
+        boundary.check(&bytes, pts, &headers, &pictures)?;
+        for picture in pictures {
             let (size, md5) = packed(&picture)?;
             emit(
                 output,
@@ -159,6 +167,8 @@ fn measure(path: &Path, scope: Scope, output: &mut impl Write) -> Result<(), Str
             frames += 1;
         }
     }
+    #[cfg(feature = "native-vp9")]
+    boundary.finish()?;
     emit(
         output,
         json!({
@@ -288,6 +298,8 @@ mod tests {
             bit_depth: 8,
             subsampling_x: true,
             subsampling_y: true,
+            color_space: coreav_vp9::ColorSpace::Unknown,
+            full_range: false,
             planes: [
                 Samples::Eight(vec![1; 9]),
                 Samples::Eight(vec![2; 4]),

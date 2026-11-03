@@ -15,6 +15,8 @@ pub enum LimitKind {
     PacketBytes,
     /// `max_memory_bytes`, arithmetic overflow, or a refused allocation.
     MemoryBytes,
+    /// A caller's packed-frame byte allowance.
+    FrameBytes,
 }
 
 impl LimitKind {
@@ -25,6 +27,7 @@ impl LimitKind {
             LimitKind::Pixels => "max_pixels",
             LimitKind::PacketBytes => "max_packet_bytes",
             LimitKind::MemoryBytes => "max_memory_bytes",
+            LimitKind::FrameBytes => "max_frame_bytes",
         }
     }
 }

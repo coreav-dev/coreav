@@ -28,8 +28,47 @@ pub(crate) fn applied(
     keyframe: &[u8],
     container: ColorInfo,
 ) -> ColorInfo {
+    let described = matches!(codec, Codec::H264 | Codec::Hevc | Codec::Av1)
+        .then(|| record(config))
+        .flatten();
+    applied_record(codec, described, keyframe, container)
+}
+
+pub(crate) fn applied_with_planning(
+    codec: Codec,
+    config: Option<&CodecConfig>,
+    keyframe: &[u8],
+    container: ColorInfo,
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Result<ColorInfo, crate::Error> {
+    let Some(planning) = planning else {
+        return Ok(applied(codec, config, keyframe, container));
+    };
+    let described = if matches!(codec, Codec::H264 | Codec::Hevc | Codec::Av1) {
+        match config.and_then(|config| record_kind(config).map(|kind| (kind, config))) {
+            Some((kind, config)) => coreav_isobmff::parameter_set_color_with_planning(
+                kind,
+                &config.data,
+                Some(planning),
+            )
+            .map_err(|_| crate::planning_limit())?
+            .map(record_color),
+            None => None,
+        }
+    } else {
+        None
+    };
+    Ok(applied_record(codec, described, keyframe, container))
+}
+
+fn applied_record(
+    codec: Codec,
+    described: Option<ColorInfo>,
+    keyframe: &[u8],
+    container: ColorInfo,
+) -> ColorInfo {
     match codec {
-        Codec::H264 => match record(config) {
+        Codec::H264 => match described {
             Some(set) => {
                 let described = set.primaries.is_some();
                 let pick = |own: Option<u8>, other: Option<u8>| if described { own } else { other };
@@ -43,12 +82,12 @@ pub(crate) fn applied(
             }
             None => container,
         },
-        Codec::Hevc => record(config).map_or(container, |set| ColorInfo {
+        Codec::Hevc => described.map_or(container, |set| ColorInfo {
             full_range: Some(set.full_range.unwrap_or(false)),
             chroma_location: container.chroma_location,
             ..set
         }),
-        Codec::Av1 => record(config).map_or(container, |set| ColorInfo {
+        Codec::Av1 => described.map_or(container, |set| ColorInfo {
             chroma_location: container.chroma_location,
             ..set
         }),
@@ -68,21 +107,28 @@ pub(crate) fn applied(
 /// The raw colour description of the record's parameter set.
 fn record(config: Option<&CodecConfig>) -> Option<ColorInfo> {
     let config = config?;
-    let kind = match config.kind {
+    let kind = record_kind(config)?;
+    parameter_set_color(kind, &config.data).map(record_color)
+}
+
+fn record_kind(config: &CodecConfig) -> Option<FourCc> {
+    Some(match config.kind {
         ConfigKind::Avcc => FourCc(*b"avcC"),
         ConfigKind::Hvcc => FourCc(*b"hvcC"),
         ConfigKind::Av1c => FourCc(*b"av1C"),
         _ => return None,
-    };
-    let c = parameter_set_color(kind, &config.data)?;
+    })
+}
+
+fn record_color(c: coreav_isobmff::Color) -> ColorInfo {
     let code = |v: Option<u16>| v.and_then(|v| u8::try_from(v).ok());
-    Some(ColorInfo {
+    ColorInfo {
         primaries: code(c.primaries),
         transfer: code(c.transfer),
         matrix: code(c.matrix),
         full_range: c.full_range,
         chroma_location: None,
-    })
+    }
 }
 
 /// A big-endian bit reader.
