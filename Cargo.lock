@@ -285,6 +285,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-backend-svt-av1"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-backend-vp9"
 version = "0.0.1"
 dependencies = [
@@ -516,6 +520,7 @@ name = "coreav-transcode"
 version = "0.0.1"
 dependencies = [
  "coreav-audio",
+ "coreav-backend-svt-av1",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",

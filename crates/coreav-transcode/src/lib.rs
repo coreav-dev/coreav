@@ -24,6 +24,8 @@
 pub mod aac;
 pub mod annexb;
 pub mod audio;
+#[cfg(feature = "svt-av1")]
+pub mod av1;
 #[cfg(feature = "input-capture")]
 pub mod capture;
 pub mod contract;

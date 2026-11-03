@@ -1,6 +1,6 @@
 # SVT-AV1 output validation
 
-The [encoder contract](../encoders.md) defines the backend's scope and acceptance bars. This crate implements bounded AV1 low-overhead OBU framing and sequence-header configuration reads for 8-bit 4:2:0 SDR output. It does not link SVT-AV1, encode frames, or enable an encoder in the CLI.
+The [encoder contract](../encoders.md) defines the backend's scope and acceptance bars. This crate implements bounded AV1 framing, sequence and frame-header validation, complete temporal-unit samples, and a feature-gated native worker for 8-bit 4:2:0 SDR output. Parser-only builds link no native library. Native runtime correctness and release linkage remain unverified; the CLI encoder is not enabled yet.
 
 ## Framing is a separate boundary
 
@@ -20,14 +20,15 @@ Sequence maximum dimensions are upper bounds, not the dimensions of every decode
 
 The four-byte `av1C` header comes from checked profile, level, tier, bit-depth, and chroma fields. It is not a complete MP4 sample description. Its optional initial presentation delay is absent: the sequence's initial display delay counts frames, while the container's initial presentation delay counts samples and cannot be derived without sample grouping.
 
-## Standalone verification
+## Safe verification
 
-Until workspace registration, the crate owns its manifest and lockfile. Its local lint configuration retains the workspace's production restrictions. Verification uses:
+The crate is a workspace member and uses the root lockfile. Its local lint configuration retains the workspace's production restrictions and scopes the native exception to its private module. The fuzz project keeps its separate lockfile. Safe verification uses:
 
 ```sh
 cargo fmt --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --check
 cargo clippy --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path crates/coreav-backend-svt-av1/Cargo.toml --locked
+cargo test -p coreav-transcode --features svt-av1 --test av1 --test contracts --locked
 cargo deny --all-features --manifest-path crates/coreav-backend-svt-av1/fuzz/Cargo.toml check licenses
 ```
 
@@ -35,11 +36,13 @@ Construction checks the packet byte limit. Iteration checks each OBU and its cou
 
 The hostile-output fixtures check truncated input, invalid headers and lengths, and exact limit boundaries. The `fuzz/` project exposes the `obu` and `sequence` targets for affected-target CI. The framing target checks finite iteration, caller bounds, layer-ID ranges, and terminal errors. The sequence target parses arbitrary payloads behind a valid sequence-OBU header and checks configuration bounds. These are correctness checks, not encoder acceptance results. None of bars A1 through A6 has been measured by this unit.
 
-## Native integration remains separate
+## Runtime acceptance remains separate
 
-The Rust crate has no FFI sites or native dependencies and needs no licence exception yet. A production wrapper PR must carry its actual FFI files and unsafe-site rows together. The integration owner supplies and checks those rows before opening and signs off on the PR afterward. The separate backend-scoped BSD-3-Clause-Clear exception remains a prerequisite for that production PR. SVT-AV1 distributions retain the upstream copyright, licence, and AOM Patent License 1.0 notices. These requirements do not change the licence of CoreAV's own glue code.
+The optional native feature builds the C bridge against the verified recipe installation. Actual FFI files and their safety rows are recorded together in `docs/unsafe-sites.md`. The backend-scoped licence checker validates the native dependency separately from Rust licensing. SVT-AV1 distributions retain the upstream copyright, licence, and AOM Patent License 1.0 notices. These requirements do not change the licence of CoreAV's own glue code.
 
-The worker protocol, sandboxed worker entry, raw-frame driver, conformance and quality drivers, and measurement-only in-process arm are not implemented by this unit. The in-process arm must never become a release feature or the default path.
+The versioned worker protocol and backend-local stdio entry are implemented, with synthetic native-fixture tooling whose execution remains gated. The safe parent `coreav-transcode::av1::OutputSink` validates complete samples into one bounded spool and binds them to the completed submission ledger by replaying one payload at a time. It constructs `av1C` from the four-byte checked header followed by the complete validated sequence OBU. Segment-local native assertions never replace global source timestamps. Synthetic tests cover continuous variable clocks with positive and negative origins, exact final duration and sync positions, changed configuration, reset global identities, invalid native assertions, incomplete output, count mismatches, spool extents and terminal failure classification. They do not decode entropy-coded tiles or run SVT-AV1.
+
+Private CLI dispatch, the complete source-to-MP4 pipeline, independent decoder gates, release packaging and required four-target native runtime coverage remain incomplete. No quality or speed campaign is authorized by these source tests. A measurement-only in-process arm must never become a release feature or the default path.
 
 ## Static library build
 
