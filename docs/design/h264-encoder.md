@@ -1,8 +1,8 @@
 # H.264 encoder: G1 intra-only design
 
-Status: Pre-implementation design and acceptance protocol. This note adds no encoder or command-line option. G1 asks whether a safe scalar intra encoder can produce conforming pictures within the objective rate-distortion bar below. It does not establish perceptual quality.
+Status: Safe scalar implementation spike and pre-registered acceptance protocol. The opt-in library adds no product command-line option. The measurement driver stays closed until a complete freeze is merged. No objective quality or speed result is established here. G1 asks whether the encoder can produce conforming pictures within the objective rate-distortion bar below. It does not establish perceptual quality.
 
-The planned crate is `crates/coreav-h264-encoder`. It is opt-in in the full build only. The default build links no still-patented codec. G1 does not change `coreav ffmpeg`, `coreav ffprobe`, transcode selection, containers, or release packaging. See the [backend design](encoders.md) for those separate contracts.
+The crate is `crates/coreav-h264-encoder`. It is opt-in in the full build only. The default build links no still-patented codec. G1 does not change `coreav ffmpeg`, `coreav ffprobe`, transcode selection, containers, or release packaging. See the [backend design](encoders.md) for those separate contracts.
 
 ## Specification and provenance
 
@@ -74,6 +74,22 @@ All VLC mappings come from specification tables. Tests exhaust the finite coeffi
 
 ## Pre-registered G1 acceptance
 
+### Implementation decisions
+
+The library's `full` feature enables encoding and its scalar-kernel dependency. Its default feature set is empty. Neither product release feature nor the CLI depends on it. The patent-free graph check registers the crate independently of its feature state.
+
+Each `Encoder::encode` call builds an access unit and its reconstruction privately. Frame and byte counters advance only after all three complete NALs pass the access-unit and cumulative limits. A failed call preserves the next IDR identifier. Macroblock trials use fixed-size stack tiles with reconstructed reference halos. Candidate coefficient and mode state is separate from committed top and left state.
+
+The flat scaling list simplifies the ordinary inverse scale exactly to `level * v * 2^(QP/6)`. Ordinary quantisation uses the forward transform's even/odd normalization factors 4 and 5. For the raw Hadamard of unquantised block DC sums, luma DC quantises `H*M*H / (v*2^(QP/6))`, while chroma DC quantises `2*H2*M*H2 / (v*2^(QPC/6))`. Normative inverse rounding remains separate. All inverse-transform stages are checked before calling `Scalar`.
+
+Greedy I_4x4 decisions count the selected mode syntax and a complete residual-block payload, including a zero block's coefficient token. The coded-block-pattern decision is deferred until macroblock comparison. That comparison counts the exact complete emitted macroblock, including conditional zero-block tokens and chroma. This makes the block-search estimate explicit without claiming a globally optimal search.
+
+Level enforcement caps each access unit at 1,000,000 NAL bytes, or the caller's smaller limit. This caps every nominal 30/1 removal interval at the level 5.1 VCL bitrate and below its CPB capacity. Annex A.3.1 defines `fR = 1/172` for progressive frames, so its initial-picture minimum-compression bound is at least `192 * 983040 / 172` bytes even for a small picture. The bitrate-derived ceiling is smaller. Geometry checks also enforce MaxFS, MaxMBPS, dimension, and DPB bounds. Annex B delimiters remain outside the library's byte budgets but inside measured rate.
+
+The test-only raw driver compares encoder reconstruction with the independent CoreAV decoder. `h264-encoder.yml` runs synthetic and existing generated-fixture conformance with the pinned FFmpeg and black-box JM decoder on Linux Actions. The JM archive digest is in `scripts/jm-decoder.env`; each build records its compiler, command, and executable digest. No studied encoder source or technique note is used.
+
+The measurement driver and its freeze interface are described in [the harness contract](h264-encoder-harness.md). It builds no roster, acquires no media, and refuses absent, unmerged, or changed freeze data before encoding. Its curve fixtures are synthetic mathematical data, not G1 observations.
+
 These are acceptance bars, not results. G0 gave the quality judge no vote authority. SSIMULACRA2 and XPSNR are objective measurements here, not validated substitutes for viewers. Neither an agent judgement, a visual inspection, nor a metric average establishes perceptual parity.
 
 | Check | Required result |
@@ -86,7 +102,7 @@ These are acceptance bars, not results. G0 gave the quality judge no vote author
 
 ### Oracle and baseline pins
 
-FFmpeg is the exact binary verified by `scripts/oracle-ffmpeg.env` and `scripts/oracle_pin.py`, currently 9.0.2, build `n9.0.2-17-g2a571b6068`. Do not replace it with a system installation. Its software H.264 decoder runs with one thread, no hardware acceleration, and strict error reporting, producing native `yuv420p` without filters or format conversion.
+FFmpeg is the exact binary verified by `scripts/oracle-ffmpeg.env` and `scripts/oracle_pin.py`, currently 9.0.2, build `n9.0.2-17-g2a571b6068`. Do not replace it with a system installation. Its software H.264 decoder runs with one thread, no hardware acceleration, and strict error reporting, producing native `yuv420p` without filters or format conversion. The supplemental full-range signalling fixture may use the decoder's native `yuvj420p` alias for the same 8-bit planar 4:2:0 byte layout. The harness checks the native format and range with the pinned ffprobe and disables automatic conversion. The limited-range G1 measurement convention is unchanged.
 
 x264 is core 165 at `X264_COMMIT` in that same pin file, currently `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee`. Build the test-only CLI with `scripts/install-x264.sh` without reading source. Reusing the repository's oracle pin avoids an unrelated baseline and ties the CLI to the pinned FFmpeg's libx264. Record the executable hash, build configuration, and effective version. A pin change requires a pre-run protocol amendment, not an unrecorded upgrade.
 
@@ -131,9 +147,11 @@ The four prepared-resolution groups are R1, height at most 360; R2, height 361 t
 | C7 | A cut, fade, or large illumination transition in the selected frames | R3, R4, R1 |
 | C8 | Low-motion pictures with detailed stable regions | R4, R1, R2 |
 
-Before any encode or quality score, the sourcing task commits the eligible inventory, licence decisions, parent grouping, class assignments, and exclusions. Class assignment is based only on reference pictures. If a sequence fits multiple classes, assign the lowest numbered class with a required slot, before hash selection. No assignment can use encoded output or an RD result.
+Before any encode or quality score, the sourcing task commits the eligible inventory, licence decisions, parent grouping, every supported class match, and exclusions. Class matches are based only on reference pictures and must remain valid after the frozen preparation for that resolution. Record all supported matches before hash selection; a match is not yet an assignment. No match or assignment can use encoded output or an RD result.
 
-For each class and resolution slot, sort candidates by SHA-256 of the UTF-8 string `coreav-h264-g1-v1:` followed by the lowercase prepared-reference hash and take the first eligible candidate. Process slots in class order and the table's listed resolution order. Exclude a parent already selected in an earlier slot. If any slot is empty, sourcing remains incomplete. No quota or denominator shrinks. Assign labels `G1-01` through `G1-24` in that order. Within each class, the selected clip with the smallest selection hash is training and the other two are held out. This fixes eight training and sixteen held-out clips, with no family overlap.
+Before slot selection, treat candidates with identical prepared bytes as one content item, regardless of parent. Keep only the candidate with the lexicographically smallest pair of lowercase full-original SHA-256 and stable UTF-8 parent identifier; refuse an unresolved tie. Record this encoder-blind choice in the inventory and exclude every other copy from all slots.
+
+Process slots in class order and the table's listed resolution order. For each slot, consider eligible prepared references with a pre-registered match to that class and resolution, excluding every parent selected in an earlier slot. Sort them by SHA-256 of the UTF-8 string `coreav-h264-g1-v1:` followed by the lowercase prepared-reference hash and take the first eligible candidate. A reference that also matches an earlier class remains eligible for a later slot if its parent was not selected earlier. Earlier class quotas are filled first; no parent fills more than one slot. If any slot is empty, sourcing remains incomplete. No quota or denominator shrinks. Assign labels `G1-01` through `G1-24` in slot order. Within each class, the selected clip with the smallest selection hash is training and the other two are held out. This keeps eight training and sixteen held-out clips, with no family overlap.
 
 Training may guide correctness and mode-cost changes only after the freeze merges. The sixteen held-out clips may not guide quantisation, mode choice, or baseline settings. Commit the candidate revision and binary hashes before exposing held-out results. Run every held-out clip at all five QPs once as the judged arm. Report the eight training clips separately without pooling them into the acceptance median. Generated edge fixtures supplement conformance but do not replace this roster.
 
@@ -189,4 +207,4 @@ No other encoder implementation was studied for this design. No source-derived t
 
 Before implementation merges, merge both this committed design and the encoder similarity-guard coverage. The separate sourcing and freeze PR must then merge the exact roster, byte hashes, complete JM, metric and x264 pins, preparation and conversion commands, and a run-entry check. That check refuses every G1 measurement run if the merged manifest or an artifact digest is absent or inconsistent, if a slot or split is incomplete, or if a required licence decision is missing. It must reject an unmerged manifest, not merely accept any file on a candidate branch. Test both missing-manifest and digest-mismatch refusals before enabling a run. No G1 encode or quality measurement may precede that merged freeze.
 
-The freeze is a mechanical application of the rules above. Any change to content quotas, eligibility, baseline, metrics, ladder, split, or failure handling requires an explicit protocol amendment before encoder results are exposed. Before held-out acceptance, also commit the driver and candidate revision. This note does not claim those run artifacts, an encoder, or an acceptance result already exist.
+The freeze is a mechanical application of the rules above. Any change to content quotas, eligibility, baseline, metrics, ladder, split, or failure handling requires an explicit protocol amendment before encoder results are exposed. Before held-out acceptance, also commit the driver and candidate revision. This implementation does not establish those frozen run artifacts or an acceptance result.

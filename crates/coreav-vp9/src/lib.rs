@@ -35,6 +35,7 @@
 //! ```
 
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_types))]
 
 mod adapt;
 mod bits;
@@ -46,6 +47,7 @@ mod frame_decoder;
 mod header;
 mod limits;
 mod loop_filter;
+mod memory;
 mod mv;
 mod picture;
 mod probs;

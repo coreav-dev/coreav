@@ -5,6 +5,7 @@ use crate::error::{Error, LimitKind, Result};
 use crate::header::{self, Carried, FrameHeader, Header, Slot};
 use crate::limits::Limits;
 use crate::loop_filter;
+use crate::memory::Memory;
 use crate::picture::{Picture, Planes, Sample};
 use crate::probs::{Contexts, Probs};
 use crate::superframe;
@@ -49,8 +50,9 @@ impl Decoder {
         if packet.len() > self.limits.max_packet_bytes {
             return Err(Error::Limit(LimitKind::PacketBytes));
         }
-        let frames = superframe::split(packet)?;
-        let mut headers = Vec::with_capacity(frames.len());
+        let mut memory = Memory::new(self.limits.max_memory_bytes);
+        let frames = superframe::split_with_memory(packet, &mut memory)?;
+        let mut headers = memory.empty(frames.len())?;
         for frame in frames {
             let mut parsed = header::parse(frame, &self.slots, &self.carried, &self.contexts)?;
             if let (
@@ -64,18 +66,18 @@ impl Decoder {
             ) = (&mut parsed.header, parsed.probs)
             {
                 self.limits.check_size(h.width, h.height)?;
-                let (mut contexts, probs) = *probs;
+                let (mut contexts, probs) = probs;
                 if h.is_intra() {
                     let tiles = frame
                         .get(h.uncompressed_size + usize::from(h.compressed_header_size)..)
                         .unwrap_or_default();
                     let (clean, decoded) = if h.color.bit_depth == 8 {
-                        decode_intra::<u8>(tiles, h, &probs, compressed.tx_mode)?
+                        decode_intra::<u8>(tiles, h, &probs, compressed.tx_mode, &mut memory)?
                     } else {
-                        decode_intra::<u16>(tiles, h, &probs, compressed.tx_mode)?
+                        decode_intra::<u16>(tiles, h, &probs, compressed.tx_mode, &mut memory)?
                     };
                     *tiles_end_cleanly = Some(clean);
-                    *picture = Some(Box::new(decoded));
+                    *picture = Some(decoded);
                 }
                 if h.refresh_frame_context {
                     contexts.save(h.frame_context_idx, probs);
@@ -106,9 +108,16 @@ fn decode_intra<P: Sample>(
     h: &FrameHeader,
     probs: &Probs,
     tx_mode: TxMode,
+    memory: &mut Memory,
 ) -> Result<(bool, Picture)> {
     let c = h.color;
-    let mut frame = Planes::<P>::new(h.mi_cols(), h.mi_rows(), c.subsampling_x, c.subsampling_y);
+    let mut frame = Planes::<P>::new(
+        h.mi_cols(),
+        h.mi_rows(),
+        c.subsampling_x,
+        c.subsampling_y,
+        memory,
+    )?;
     let decoded = tile::read(
         tiles,
         h,
@@ -121,6 +130,7 @@ fn decode_intra<P: Sample>(
             previous_segments: &[],
             reference_mode: crate::compressed::ReferenceMode::Single,
         },
+        memory,
     )?;
     loop_filter::apply(h, &decoded.modes, &mut frame)?;
     Ok((
@@ -131,6 +141,40 @@ fn decode_intra<P: Sample>(
             c.bit_depth,
             c.subsampling_x,
             c.subsampling_y,
-        ),
+            memory,
+        )?,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inspection_refuses_memory_without_publishing_the_failed_frame() {
+        let key = [
+            0x82, 0x49, 0x83, 0x42, 0x40, 0x03, 0xf0, 0x02, 0xf5, 0x80, 0x07, 0x80, 0x00, 0x01,
+            0x00,
+        ];
+        let mut decoder = Decoder::new(Limits {
+            max_memory_bytes: 0,
+            ..Limits::default()
+        });
+        assert_eq!(
+            decoder.read_headers(&key),
+            Err(Error::Limit(LimitKind::MemoryBytes))
+        );
+        assert!(decoder.slots.iter().all(Option::is_none));
+        decoder.limits.max_memory_bytes = Limits::default().max_memory_bytes;
+        assert_eq!(decoder.read_headers(&key).unwrap().len(), 1);
+        let slots = decoder.slots;
+        let contexts = decoder.contexts.clone();
+        decoder.limits.max_memory_bytes = 10_000;
+        assert_eq!(
+            decoder.read_headers(&key),
+            Err(Error::Limit(LimitKind::MemoryBytes))
+        );
+        assert_eq!(decoder.slots, slots);
+        assert_eq!(decoder.contexts, contexts);
+    }
 }

@@ -38,6 +38,12 @@ pub enum Muxer {
     Mp3,
     /// `segment`, writing MP4 segments.
     Segment,
+    /// Matroska output, with H.264 and Vorbis defaults.
+    Matroska,
+    /// Audio-only automatic selection for .mka.
+    MatroskaAudio,
+    /// WebM with its restricted codec set.
+    Webm,
     /// `wav` (`.wav`), with signed 16-bit PCM by default.
     Wav,
     /// Headerless signed 16-bit little-endian PCM (`-f s16le`).
@@ -54,6 +60,14 @@ impl Muxer {
     /// Whether this muxer writes decoded video rather than a remux.
     pub fn frames(self) -> bool {
         matches!(self, Self::Image2 | Self::Rawvideo | Self::Yuv4mpeg)
+    }
+    /// Matroska output profile, when selected.
+    pub fn matroska(self) -> Option<coreav_mkv::DocType> {
+        match self {
+            Self::Matroska | Self::MatroskaAudio => Some(coreav_mkv::DocType::Matroska),
+            Self::Webm => Some(coreav_mkv::DocType::Webm),
+            _ => None,
+        }
     }
 }
 
@@ -911,6 +925,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
         && !command.muxer.frames()
+        && command.muxer != Muxer::Matroska
     {
         return Err(not_native(
             option,
@@ -1060,6 +1075,9 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "png" | "bmp" => Some(Muxer::Image2),
         "yuv" => Some(Muxer::Rawvideo),
         "y4m" => Some(Muxer::Yuv4mpeg),
+        "mkv" => Some(Muxer::Matroska),
+        "mka" => Some(Muxer::MatroskaAudio),
+        "webm" => Some(Muxer::Webm),
         _ => None,
     }
 }
@@ -1076,10 +1094,12 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("image2") => Ok(Muxer::Image2),
         Some("rawvideo") => Ok(Muxer::Rawvideo),
         Some("yuv4mpegpipe") => Ok(Muxer::Yuv4mpeg),
+        Some("matroska") => Ok(Muxer::Matroska),
+        Some("webm") => Ok(Muxer::Webm),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),
@@ -1377,11 +1397,11 @@ mod tests {
             named("-filter:v", None)
         );
         assert_eq!(
-            option("-i in.mp4 -c copy -f matroska out.mkv"),
-            named("-f", Some("matroska"))
+            option("-i in.mp4 -c copy -f unsupported-test-muxer out.unsupported"),
+            named("-f", Some("unsupported-test-muxer"))
         );
         for text in [
-            "-i in.mp4 -c copy out.mkv",
+            "-i in.mp4 -c copy out.unsupported",
             "-i in.mp4 -i b.mp4 -c copy out.mp4",
             "-i - -c copy out.mp4",
             "-i in.mp4 -c copy -",
