@@ -149,6 +149,27 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_record_admits_only_the_qualified_mp3_presentation() {
+        let mp3 = admission(Codec::Mp3, "mp4");
+        assert_eq!(
+            mp3,
+            Some(Admission {
+                codec: Codec::Mp3,
+                kind: DecoderEligibilityKind::Conformance,
+                requirements: vec![Requirement::Mpeg1Layer3, Requirement::SupportedMp4Timeline],
+            })
+        );
+        for codec in [Codec::Mp3, Codec::Opus] {
+            assert!(admission(codec, "matroska").is_none());
+        }
+        assert!(admission(Codec::Opus, "mp4").is_none());
+        #[cfg(feature = "aac")]
+        for container in ["mp4", "matroska"] {
+            assert!(admission(Codec::Aac, container).is_none());
+        }
+    }
+
+    #[test]
     fn empty_missing_unknown_and_disabled_entries_deny() {
         for text in [
             "{}",

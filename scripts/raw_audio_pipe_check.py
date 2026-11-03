@@ -31,6 +31,100 @@ def native_command(coreav, before, input_path, after, output):
     return [str(coreav), "ffmpeg", *before, "-i", str(input_path), *after, str(output)]
 
 
+def wav_samples(path):
+    data = path.read_bytes()
+    if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise AssertionError("native decoder reference is not WAV")
+    offset = 12
+    while offset + 8 <= len(data):
+        size = int.from_bytes(data[offset + 4:offset + 8], "little")
+        end = offset + 8 + size
+        if end > len(data):
+            raise AssertionError("native decoder reference has a truncated chunk")
+        if data[offset:offset + 4] == b"data":
+            return data[offset + 8:end]
+        offset = end + size % 2
+    raise AssertionError("native decoder reference has no samples")
+
+
+def require_refusal(command, env, data=None):
+    refused = subprocess.run(command, input=data, capture_output=True, env=env, timeout=30)
+    if refused.returncode != 4 or refused.stdout:
+        raise AssertionError(f"unregistered path did not refuse cleanly: {command}")
+
+
+def conformance_paths(coreav, oracle, root):
+    ffmpeg = oracle / "ffmpeg"
+    env = {**os.environ, "COREAV_STRICT_SAFE": "1",
+           "COREAV_FALLBACK": str(root / "missing-fallback")}
+    fallback = root / "ffmpeg"
+    fallback.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\nexit 7\n", encoding="utf-8")
+    fallback.chmod(0o700)
+    replay_env = {**env, "COREAV_FALLBACK": str(fallback)}
+    replay_env.pop("COREAV_STRICT_SAFE", None)
+    count = 0
+    for channels, rate in [(1, 44100), (2, 48000)]:
+        samples = b"".join(struct.pack("<h", (i * 7919 % 50001) - 25000)
+                           for i in range(8192 * channels))
+        source = root / f"mp3-{channels}.s16"
+        source.write_bytes(samples)
+        encoded = root / f"mp3-{channels}.mp4"
+        run([ffmpeg, "-v", "error", "-f", "s16le", "-ar", str(rate), "-ac", str(channels),
+             *AUDIO_DECODE_INPUT, "-i", source, "-c:a", "libmp3lame", encoded])
+        for form, width in [("f32le", 4), ("s16le", 2)]:
+            reference = root / f"native-{channels}-{form}.wav"
+            run([coreav, "decode-audio", "--threads", "2", "--format", form[:3],
+                 encoded, reference], env=env)
+            expected = wav_samples(reference)
+            if len(expected) != 8192 * channels * width:
+                raise AssertionError("MP3 presentation did not preserve its finite edit count")
+            after = ["-f", form]
+            for input_path, data in [(encoded, None), ("pipe:", encoded.read_bytes())]:
+                actual = run(native_command(coreav, ["-threads", "2"], input_path, after, "pipe:"),
+                             data=data, env=env)
+                require_equal(actual, expected, "MP3 packing against native conformance decoder")
+                count += 1
+            output = root / f"mp3-{channels}-{form}.raw"
+            run(native_command(coreav, [], encoded, after, output), env=env)
+            require_equal(output.read_bytes(), expected, "MP3 native file packing")
+            count += 1
+            command = native_command(coreav, [], encoded, ["-ar", "16000", *after], "pipe:")
+            if channels == 1 and (sys.platform, platform.machine()) == ("linux", "x86_64"):
+                floats = root / "native-floats.raw"
+                floats.write_bytes(wav_samples(root / "native-1-f32le.wav"))
+                converted = run([ffmpeg, "-v", "error", "-f", "f32le", "-ar", str(rate),
+                                 "-ac", "1", *AUDIO_DECODE_INPUT, "-i", floats,
+                                 "-ar", "16000", *after, "pipe:"])
+                require_equal(run(command, env=env), converted,
+                              "MP3 exact rate stage over identical native decoded floats")
+            else:
+                require_refusal(command, env)
+            count += 1
+        require_refusal(native_command(coreav, [], encoded, ["-ac", str(3 - channels),
+                                                            "-f", "f32le"], "pipe:"), env)
+        count += 1
+    for encoder, rate, containers in [("libmp3lame", 22050, ["mp4"]),
+                                       ("libmp3lame", 44100, ["mka"]),
+                                       ("aac", 44100, ["mp4", "mka"]),
+                                       ("libopus", 48000, ["mp4", "mka"])]:
+        for container in containers:
+            encoded = root / f"refused-{encoder}-{rate}.{container}"
+            run([ffmpeg, "-v", "error", "-f", "s16le", "-ar", str(rate), "-ac", "1",
+                 *AUDIO_DECODE_INPUT, "-i", root / "mp3-1.s16", "-c:a", encoder, encoded])
+            for form in ["f32le", "s16le"]:
+                command = native_command(coreav, [], "pipe:", ["-f", form], "pipe:")
+                require_refusal(command, env, encoded.read_bytes())
+                count += 1
+                replay = subprocess.run(command, input=encoded.read_bytes(), capture_output=True,
+                                        env=replay_env, timeout=30)
+                expected = ("\n".join(command[2:]) + "\n").encode() + encoded.read_bytes()
+                if replay.returncode != 7 or replay.stdout != expected:
+                    raise AssertionError(f"decoder replay failed ({replay.returncode}): "
+                                         f"{replay.stderr[-2000:].decode(errors='replace')}")
+                count += 1
+    return count
+
+
 def check(coreav, oracle, root, smoke=False):
     ffmpeg = oracle / "ffmpeg"
     env = {**os.environ, "COREAV_STRICT_SAFE": "1",
@@ -107,7 +201,10 @@ def main():
         raise SystemExit("\n".join(problems))
     with tempfile.TemporaryDirectory(prefix="coreav-raw-audio-") as directory:
         count = check(args.coreav.resolve(), args.oracle_bin.resolve(), Path(directory), args.smoke)
+        conformance = conformance_paths(args.coreav.resolve(), args.oracle_bin.resolve(),
+                                        Path(directory))
     print(f"raw audio pipes: {count} exact-output and eligibility checks passed")
+    print(f"raw audio pipes: {conformance} conformance-path and refusal checks passed")
 
 
 if __name__ == "__main__":
