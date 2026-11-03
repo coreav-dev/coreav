@@ -6,6 +6,16 @@ primitives. Built on the Matroska demuxer (`design/mkv.md`) and the shared MP4
 writer of the full-file remux (`design/remux.md`, the `mux` module); there
 is no second MP4 writer.
 
+## Linux sequential-read hint acceptance plan
+
+The local full-file remux may advise sequential access on its input handle before wrapping it in `FileSource`. Use the existing safe rustix API on Linux only. Advice failure must not reject a readable source, and other platforms, library sources, probes and seek-heavy operations keep their existing behavior. The hint must not change parsing, packet order, output bytes or memory bounds.
+
+Before measuring, freeze the current main baseline and candidate commits and executable hashes. Build both with the same compiler, GNU target, default features and `dist` profile. Compare them once on one on-demand fixed-class c4-standard-8 host with SMT off, pinning each tool to one physical core and the serial driver to another. Use one fixed development H.264/AAC input of approximately 1.1 GB and its untimed stream-copy Matroska derivative, never a held-out or judged input. Record input and derivative hashes before timing.
+
+Run ten alternating baseline/candidate pairs for cold cache and ten for warm cache. Reverse order on alternate pairs. Before each cold invocation, run `sync` and drop the page cache as root; before each warm invocation, sync and read the whole input. Time process creation through blocking process reap, excluding validation and the later sync. Record every invocation, exit status, output length and SHA-256, and fully scan each output with the pinned ffprobe for stream and packet counts. Report median and range per arm and cache state.
+
+Accept only if all calls succeed, every output is byte-identical across both arms, the candidate/baseline median elapsed-time ratio is at most **0.85 cold** and at most **1.01 warm**. These are development acceptance checks, not population speed claims or FFmpeg comparisons. A missed bar is final for this candidate; repeat only for a documented host failure, not a narrow miss. No timing from instrumented calls enters the verdict. A separate untimed syscall check must confirm the Linux hint is issued on the source handle and a forced advice error remains nonfatal.
+
 ## What it does
 
 `remux_matroska(source, limits, allowlist, options, out)` in
