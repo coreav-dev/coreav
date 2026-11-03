@@ -2,7 +2,7 @@
 
 ## Scope
 
-Report the number of track-reference stream groups in the ISO base
+Report the number of timecode track-reference stream groups in the ISO base
 media adapter's existing `format.nb_stream_groups` field. It is currently
 always zero. Generated linked, independently linked, shared, unlinked
 and missing-target timecode relationships produce 1, 2, 1, 0 and 0 with
@@ -23,7 +23,7 @@ relationships. The stream-group count itself is a pinned-probe output
 convention, not another box field.
 
 The existing bounded metadata reader already retains the track IDs,
-reference types and target IDs. Compute one scalar in `IsoMeta::read`
+reference types and target IDs. Compute one optional count in `IsoMeta::read`
 from that snapshot and pass it to the ISO format builder. Do not
 infer groups from a timecode tag or decoded sample: a relationship can
 exist without readable timecode sample data, and unsupported tracks
@@ -36,17 +36,24 @@ those alternatives in favor of the single derived scalar.
 
 ## Relationship policy
 
-Before implementation, vary reference types, repeated references,
-several target IDs, shared targets, missing IDs, target ordering and
-unsupported track descriptions with generated inputs. Establish which
-reference kinds the pinned binary groups and whether identity depends
-on the target alone or also on the reference kind. Count resolved
-groups, not references, source tracks or standalone timecode entries.
+Generated controls distinguish reference kinds, repeated references,
+several target IDs, sharing, missing IDs, ordering and unsupported track
+descriptions. Collect the IDs whose first sample-entry kind is `tmcd`,
+then remove each ID when a retained `tmcd` reference names it. Count only
+successful removals: shared targets form one group, several resolved
+targets form several groups, and unrelated references form none.
+The target handler and timecode timing fields do not determine grouping.
+Do not filter through selected or supported streams or infer IDs from
+stream indexes. The lookup is O(tracks + reference IDs), and its size
+is bounded by the retained target tracks.
 
-Use a bounded lookup over the already retained IDs rather than a
-quadratic cross-product of tracks and references. Preserve the metadata
-reader's current partial-data, limit and I/O-error behavior. Add no
-parser, source read, new budget or decoder operation.
+An incomplete snapshot cannot establish a count, including known zero.
+Represent it as `None` and use the existing unavailable-value writer
+behavior: omit the JSON field and print `N/A` in the default writer.
+The reader already skips a `tref` payload over 4096 bytes; correct its
+completeness flag on that existing skip rather than rereading it or
+raising the limit. Other partial-data and I/O-error behavior remains
+unchanged. Add no parser, source read, new budget or decoder operation.
 
 ## Verification
 
@@ -54,7 +61,9 @@ First demonstrate the hard-coded-zero failure through the CLI with a
 generated linked-target case. Exercise sharing and duplication so an
 implementation that counts links cannot pass. Check noncontiguous
 track IDs, target-before-source ordering, missing and unrelated targets,
-unlinked timecode tracks and stream selection. Confirm that the
+unlinked timecode tracks and stream selection. Check both sides of the
+existing reference-size bound so skipped links never become known zero.
+Confirm that the
 unsupported group-listing flag is still refused before file access.
 
 Check the selected development reproduction only after revalidating
