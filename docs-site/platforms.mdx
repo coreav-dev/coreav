@@ -53,7 +53,7 @@ onlyBuiltDependencies:
   - coreav
 ```
 
-If pnpm 10 already has `onlyBuiltDependencies` in `package.json`, add `coreav` there instead. A workspace list replaces that list rather than merging it. To migrate to the workspace file, copy the complete list and remove the old setting.
+If pnpm 10 already has `onlyBuiltDependencies` in `package.json`, add `coreav` there instead. Do not split approvals between files. To migrate to the workspace file, copy the complete list and remove the old setting.
 
 For pnpm 11 and later, use `pnpm-workspace.yaml`:
 
