@@ -844,6 +844,10 @@ build's decoders take must decode and agree.
   command to success (exit 0, the output written). CoreAV runs the command
   on that input only, writing where `OUTPUT` stands in the command's
   `output`.
+  For subsequent runs, the supplemental input registration in
+  [`v2-fixtures.md`](v2-fixtures.md) adds only its explicit per-command
+  tuples after every assignment above has failed. It leaves every legacy
+  first-success choice and every output predicate unchanged.
 - **Counted.** A command counts when, on its input, `coreav ffmpeg` exits 0
   and:
   - the fallback log has no line for it;
