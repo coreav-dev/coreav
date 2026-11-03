@@ -364,8 +364,7 @@ fn unspecified_primaries_cannot_signal_derived_colour_matrices() {
     }
 }
 
-#[test]
-fn a_small_textured_picture_uses_the_level_ceiling_not_a_raw_size_fraction() {
+fn dense_bytes() -> [u8; 384] {
     let mut state = 17u32;
     let mut bytes = [0u8; 384];
     for value in &mut bytes {
@@ -374,16 +373,22 @@ fn a_small_textured_picture_uses_the_level_ceiling_not_a_raw_size_fraction() {
         state ^= state << 5;
         *value = state as u8;
     }
+    bytes
+}
+
+#[test]
+fn a_small_textured_picture_uses_the_level_ceiling_not_a_raw_size_fraction() {
+    let bytes = dense_bytes();
     let picture = Picture {
         y: Plane::new(&bytes[..256], 16, 16, 16).unwrap(),
         cb: Plane::new(&bytes[256..320], 8, 8, 8).unwrap(),
         cr: Plane::new(&bytes[320..], 8, 8, 8).unwrap(),
     };
-    let mut encoder = Encoder::new(settings(16, 16, 10), Limits::default()).unwrap();
+    let mut encoder = Encoder::new(settings(16, 16, 16), Limits::default()).unwrap();
     let au = encoder.encode(picture).unwrap();
     assert!(au.nals.iter().map(Vec::len).sum::<usize>() > 192);
     let mut limited = Encoder::new(
-        settings(16, 16, 10),
+        settings(16, 16, 16),
         Limits {
             access_unit_bytes: 192,
             ..Limits::default()
@@ -391,4 +396,40 @@ fn a_small_textured_picture_uses_the_level_ceiling_not_a_raw_size_fraction() {
     )
     .unwrap();
     assert_eq!(limited.encode(picture).unwrap_err(), Error::Limit);
+}
+
+#[test]
+fn dense_low_qp_content_is_refused_without_advancing_sequence_state() {
+    let bytes = dense_bytes();
+    let dense = Picture {
+        y: Plane::new(&bytes[..256], 16, 16, 16).unwrap(),
+        cb: Plane::new(&bytes[256..320], 8, 8, 8).unwrap(),
+        cr: Plane::new(&bytes[320..], 8, 8, 8).unwrap(),
+    };
+    let flat = [128; 384];
+    let picture = Picture {
+        y: Plane::new(&flat[..256], 16, 16, 16).unwrap(),
+        cb: Plane::new(&flat[256..320], 8, 8, 8).unwrap(),
+        cr: Plane::new(&flat[320..], 8, 8, 8).unwrap(),
+    };
+    let mut encoder = Encoder::new(settings(16, 16, 10), Limits::default()).unwrap();
+    let mut reference = Encoder::new(settings(16, 16, 10), Limits::default()).unwrap();
+    assert_eq!(encoder.encode(dense).unwrap_err(), Error::MacroblockLimit);
+    let first = encoder.encode(picture).unwrap();
+    let expected = reference.encode(picture).unwrap();
+    assert_eq!(first.nals, expected.nals);
+    assert_eq!(first.reconstruction, expected.reconstruction);
+    let expected = reference.encode(picture).unwrap();
+    encoder.limits.frames = 2;
+    encoder.limits.total_bytes = first
+        .nals
+        .iter()
+        .chain(&expected.nals)
+        .map(Vec::len)
+        .sum::<usize>() as u64;
+    assert_eq!(encoder.encode(dense).unwrap_err(), Error::MacroblockLimit);
+    let second = encoder.encode(picture).unwrap();
+    assert_eq!(second.nals, expected.nals);
+    assert_eq!(second.reconstruction, expected.reconstruction);
+    assert_eq!(encoder.encode(picture).unwrap_err(), Error::Limit);
 }

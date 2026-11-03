@@ -1,6 +1,6 @@
 # H.264 intra macroblock bit limit
 
-Status: Implementation plan for a G1 correctness fix. The encoder remains opt-in, safe scalar, fixed QP, intra-only, and CAVLC. No fallback, evaluation input, quality metric, or speed measurement is added.
+Status: Implemented G1 correctness fix. The encoder remains opt-in, safe scalar, fixed QP, intra-only, and CAVLC. No fallback, evaluation input, quality metric, or speed measurement is added.
 
 ## Defect and normative requirement
 
