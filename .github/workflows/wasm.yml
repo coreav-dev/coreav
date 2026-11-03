@@ -227,7 +227,19 @@ jobs:
         run: |
           set -euo pipefail
           private="$RUNNER_TEMP/thumbnail-preflight"
-          cargo build --locked -p coreav-edge-native --features native-h264 --profile edge --target-dir target/edge-h264
+          cargo tree --locked --color never -p coreav-edge-native --no-default-features --features native-h264 -e features -i jpeg-encoder > "$private/native-jpeg-features.txt"
+          grep -F 'jpeg-encoder feature "std"' "$private/native-jpeg-features.txt" > /dev/null
+          if grep -F 'jpeg-encoder feature "simd"' "$private/native-jpeg-features.txt" > /dev/null; then
+            echo 'the native portable-encoder reference must not enable JPEG SIMD'
+            exit 1
+          fi
+          cargo tree --locked --color never -p coreav-cli --no-default-features --features native-h264 -e features -i jpeg-encoder > "$private/production-jpeg-features.txt"
+          if ! grep -F 'jpeg-encoder feature "simd"' "$private/production-jpeg-features.txt" > /dev/null; then
+            echo 'ordinary native thumbnails must enable JPEG SIMD'
+            exit 1
+          fi
+          cargo test --locked -p coreav-thumbnail --no-default-features --lib jpeg::tests::portable_output_does_not_depend_on_cpu_dispatch > "$private/portable-jpeg.log" 2>&1
+          cargo build --locked -p coreav-edge-native --no-default-features --features native-h264 --profile edge --target-dir target/edge-h264
           cargo test --locked -p coreav-wasm --features native-h264 --test thumbnail_contract --no-run --message-format=json > "$private/test-build.json"
           test_binary=$(python3 -c 'import json,sys; rows=[json.loads(line) for line in open(sys.argv[1])]; matches=[r["executable"] for r in rows if r.get("reason")=="compiler-artifact" and r.get("target",{}).get("name")=="thumbnail_contract" and r.get("executable")]; assert len(matches)==1; print(matches[0])' "$private/test-build.json")
           if ! "$test_binary" > "$private/native-contract.log" 2>&1; then

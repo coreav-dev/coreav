@@ -42,6 +42,41 @@ pub(crate) fn encode_into(
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "jpeg-simd"))]
+    #[test]
+    fn portable_output_does_not_depend_on_cpu_dispatch() {
+        use sha2::{Digest, Sha256};
+
+        let mut picture = Picture::zeroed(8, 8, PixelFormat::Rgb24).expect("picture");
+        for y in 0..8 {
+            for (x, pixel) in picture
+                .row_mut(0, y)
+                .expect("row")
+                .chunks_exact_mut(3)
+                .enumerate()
+            {
+                pixel.copy_from_slice(&[
+                    (37 * x + 13 * y) as u8,
+                    (11 * x + 53 * y + 7) as u8,
+                    (71 * x + 19 * y + 101) as u8,
+                ]);
+            }
+        }
+        let encoded = encode(&picture, 100).expect("JPEG");
+        assert_eq!(encoded.len(), 898);
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&encoded)),
+            "539b88e1b5f6aa0bd095d9e0edb0c5f9c403020c1efc8d7caf6d7b18c3c091f3",
+        );
+        let bounded = crate::BuiltinEncoder {
+            format: crate::ImageFormat::Jpeg,
+            quality: 100,
+        }
+        .encode_bounded(&picture, 4 << 20)
+        .expect("bounded JPEG");
+        assert_eq!(bounded, encoded);
+    }
+
     #[test]
     fn encodes_markers_and_sizes() {
         for (w, h) in [(1, 1), (17, 9), (320, 180), (333, 187)] {

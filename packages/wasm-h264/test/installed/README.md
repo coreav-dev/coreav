@@ -1,12 +1,12 @@
 # Installed H.264 preflight
 
-This Linux-only driver compares the installed, optimized tarball with the native build of the same bounded operation. It is not a hosted Workers verdict. Do not run it, the fixture generator, or the ignored media tests on a personal device. The registered bars and the sixteen decoder-free gates are unchanged.
+This Linux-only driver compares the installed, optimized tarball with the native portable-encoder test reference of the same bounded operation. Both use JPEG `std` without `simd`; ordinary native thumbnails keep SIMD. Every image byte and summary field still has to agree, except for `decoder.name`. It is not a hosted Workers verdict. Do not run it, the fixture generator, or the ignored media tests on a personal device. The registered bars and the sixteen decoder-free gates are unchanged.
 
 ## Inputs
 
 - Use the Node pin from `.github/workflows/wasm.yml` and `npm ci --prefix packages/wasm/examples` for its existing pinned esbuild/workerd dependencies.
 - Build and pack the H.264 package through its distribution script. Capture the existing package check privately: `env -u GITHUB_STEP_SUMMARY node packages/wasm-h264/scripts/check-package.mjs --tarball "$TARBALL" > "$PRIVATE/package-record.json"`. This record must describe the same tarball, module, edge profile, feature closure and pinned compiler/optimizer/bindings generator.
-- Build the native `edge-native` reference with `native-h264`, and the Linux-only `coreav-wasm` `thumbnail_contract` integration-test executable with that feature. The counting allocator is in the test executable, not the reference executable.
+- Build the native reference with `cargo build --locked -p coreav-edge-native --no-default-features --features native-h264 --profile edge --target-dir target/edge-h264`. Its resolved `jpeg-encoder` feature graph must include `std` and exclude `simd`. Build this package separately: a workspace-wide build can unify the ordinary CLI's additive SIMD feature into the reference. Build the Linux-only `coreav-wasm` `thumbnail_contract` integration-test executable with `native-h264` too. The counting allocator is in the test executable, not the reference executable.
 - Install both programs from `scripts/oracle-ffmpeg.env` with the existing oracle installer and the pinned x264 executable with `scripts/install-x264.sh`. No other multimedia implementation is a reference.
 
 All directories below must be outside the checkout. Capture directories and their contents remain private.

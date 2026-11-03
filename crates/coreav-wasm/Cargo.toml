@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 native-h264 = ["dep:coreav-thumbnail", "coreav-thumbnail/native-h264", "dep:coreav-frame", "coreav-cli/thumbnail-summary"]
 
 [dependencies]
-coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
+coreav-thumbnail = { path = "../coreav-thumbnail", optional = true, default-features = false }
 coreav-frame = { path = "../coreav-frame", optional = true }
 coreav-isobmff = { path = "../coreav-isobmff" }
 coreav-isobmff-write = { path = "../coreav-isobmff-write" }
