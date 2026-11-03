@@ -102,6 +102,66 @@ fn complete_roundtrips_include_all_channels_widths_and_block_tails() {
 }
 
 #[test]
+fn escaped_and_five_bit_files_decode_completely_with_the_independent_oracle() {
+    let Some(program) = std::env::var_os("COREAV_FFMPEG") else {
+        assert!(
+            std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the verified oracle"
+        );
+        return;
+    };
+    for bits in [16, 24] {
+        let samples: Vec<u8> = (0..4096i64)
+            .flat_map(|index| {
+                let value = if bits == 16 {
+                    index * 3 - 6000
+                } else {
+                    let p = index % 4093;
+                    (p * p * 13 + p * 71) % ((1 << 24) - 1) - ((1 << 23) - 1)
+                };
+                value.to_le_bytes().into_iter().take(bits / 8)
+            })
+            .collect();
+        let bytes = encode(format(1, bits as u16, 48000), &samples);
+        let decoded = support::decode_raw(&bytes).unwrap();
+        assert_eq!(decoded.samples, 4096);
+        assert_eq!(decoded.crc_failures, 0);
+        assert_eq!(decoded.info.channels, 1);
+        assert_eq!(decoded.info.sample_rate, 48000);
+        assert_eq!(usize::from(decoded.info.bits_per_sample), bits);
+        assert_eq!(decoded.info.md5, support::md5(&samples));
+        assert_eq!(decoded.md5, decoded.info.md5);
+        let sample_format = format!("s{bits}le");
+        let codec = format!("pcm_{sample_format}");
+        let mut child = std::process::Command::new(&program)
+            .args(["-v", "error", "-xerror", "-err_detect", "crccheck+explode"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .args([
+                "-i",
+                "pipe:0",
+                "-c:a",
+                &codec,
+                "-f",
+                &sample_format,
+                "pipe:1",
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        std::io::Write::write_all(&mut child.stdin.take().unwrap(), &bytes).unwrap();
+        let result = child.wait_with_output().unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(result.stdout, samples);
+    }
+}
+
+#[test]
 fn back_surround_layouts_have_an_explicit_rfc_channel_mask() {
     for (channels, field) in [
         (5, b"WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x0037"),

@@ -1855,7 +1855,10 @@ stream oracle checks. The other fields include:
   full-range 8-bit 4:2:0 H.264 and H.265, as `ffprobe` names it. Without a
   reordering depth in the H.264 VUI, `has_b_frames` is the depth the first
   packets' presentation order shows.
-- `sample_aspect_ratio`: the `pasp` box, else the stream's VUI.
+- `sample_aspect_ratio`: the `pasp` box, else the stream's VUI or the
+  track's presentation geometry. Configured AV1 defaults to square pixels
+  when none of those signals supplies a ratio; see
+  [ISO AV1 aspect ratios](ffprobe-aspect-ratio.md).
 - `r_frame_rate`: an estimate from the decode times of the first 21
   packets, as for Matroska (`mkv::estimate_rate`): among the standard
   rates (twelfths of a frame per second, whole rates, NTSC rates) whose

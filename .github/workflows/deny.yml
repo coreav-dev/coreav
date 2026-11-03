@@ -155,6 +155,15 @@ jobs:
           python3 -m pip install --quiet --require-hashes -r bench/audio-decode/requirements.txt
           python3 -I -m unittest discover -s bench/audio-decode/tests -p 'test_*.py'
           python3 -I bench/audio-decode/capacity.py check-registrations
+      - name: Check registered Opus timing and reporting
+        if: steps.result.outputs.reuse != 'true'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          OPENBLAS_NUM_THREADS: '1'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --require-hashes -r bench/opus-speed/requirements.txt
+          python3 -I -m unittest discover -s bench/opus-speed/tests -p 'test_*.py'
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         if: steps.result.outputs.reuse != 'true'
       # The fuzz projects are outside the workspace; check their own license

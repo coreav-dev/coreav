@@ -230,11 +230,14 @@ class Executor:
         self.repo, self.media, self.work = pathlib.Path(repo), pathlib.Path(media), pathlib.Path(work)
         self.tools, self.limits, self.deadline = tools, limits, deadline
         self.streams = {}
+        self.failures = []
+        self.last_diagnostic = None
         spec = importlib.util.spec_from_file_location('capacity_opus_identity', self.repo / 'scripts/opus_identity.py')
         self.identity = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.identity)
 
     def invoke(self, operation, role, argv, timeout=None, stdout_path=None):
+        self.last_diagnostic = None
         remaining = self.deadline - time.monotonic()
         if remaining <= 0:
             raise failure('job_deadline')
@@ -244,10 +247,14 @@ class Executor:
             call_limit = min(call_limit, timeout)
         deadline_limited = remaining < call_limit
         try:
-            return receipts.invoke(operation, role, argv, min(call_limit, remaining), stdout_path=stdout_path)
+            result = receipts.invoke(operation, role, argv, min(call_limit, remaining), stdout_path=stdout_path)
+            if result.stderr:
+                self.last_diagnostic = receipts.private_failure(receipts.CommandFailure(result.receipt, result.stderr))
+            return result
         except receipts.CommandFailure as error:
+            self.failures.append(receipts.private_failure(error))
             if deadline_limited and error.receipt['outcome'] == 'timeout':
-                raise receipts.CommandFailure({**error.receipt, 'outcome': 'job_deadline'}) from None
+                raise receipts.CommandFailure({**error.receipt, 'outcome': 'job_deadline'}, stderr=error.stderr) from None
             raise
 
     def selected_stream(self, record):
@@ -271,6 +278,8 @@ class Executor:
         return selected
 
     def __call__(self, operation, record):
+        self.failures.clear()
+        self.last_diagnostic = None
         stream = self.selected_stream(record)
         source, channels = self.media / record['file'], record['channels']
         with tempfile.TemporaryDirectory(prefix='capacity-', dir=self.work) as directory:

@@ -426,17 +426,6 @@ fn decode_mp4<'scope, 'env, S: Source>(
                 timescale,
                 u64::from(movie.timescale),
             );
-            // Opus's priming samples are never presented: a window that
-            // starts inside the pre-skip starts after it, as for a file
-            // whose edit list starts at media time 0 and leaves the
-            // pre-skip to `dOps`.
-            let pre_skip = stream.pre_skip;
-            for piece in &mut stream.out.plan {
-                if let Piece::Media { from, to } = piece {
-                    *from = (*from).max(pre_skip);
-                    *to = (*to).max(*from);
-                }
-            }
             // Past the last media edit nothing is presented: packets that
             // start at or after its end are not decoded, by their
             // timestamps, nor frames cut from packets, by their own
