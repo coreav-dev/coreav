@@ -337,7 +337,8 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
     before = fallback_log.stat().st_size if fallback_log.exists() else 0
     result = run([coreav, 'ffmpeg', '-y', '-i', changing, '-an', '-sn', '-dn', '-c:v', 'ffv1', destination],
                  env=env, allow_failure=True, output_limit=65536)
-    require(result.returncode == 1 and not result.stdout and result.stderr,
+    require(result.returncode == 1 and not result.stdout and
+            b'video geometry, format or colour changes' in result.stderr,
             f'mid-stream frame change must be terminal: {result.returncode}: {result.stderr!r}')
     require(destination.read_bytes() == b'preserved destination', 'mid-stream failure replaced the destination')
     require((fallback_log.stat().st_size if fallback_log.exists() else 0) == before,

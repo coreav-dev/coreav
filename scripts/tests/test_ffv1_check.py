@@ -261,7 +261,8 @@ class CliCoverage(unittest.TestCase):
                     if mutation == 'late-destination':
                         Path(argv[-1]).write_text('replaced')
                     return subprocess.CompletedProcess(argv, 4 if mutation == 'late-fallback' else 1,
-                                                       b'', b'video geometry changes')
+                                                       b'', b'I/O error' if mutation == 'late-unrelated' else
+                                                       b'video geometry, format or colour changes')
                 if '-y' in argv:
                     if mutation == 'destination' and argv[-1] != '-':
                         Path(argv[-1]).write_text('replaced')
@@ -321,6 +322,11 @@ class CliCoverage(unittest.TestCase):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 with self.assertRaises(gate.GateError):
                     self.exercise(Path(directory), mutation)
+
+    def test_midstream_failure_rejects_an_unrelated_terminal_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(gate.GateError, 'mid-stream frame change'):
+                self.exercise(Path(directory), 'late-unrelated')
 
 
 if __name__ == '__main__':
