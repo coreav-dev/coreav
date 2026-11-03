@@ -66,6 +66,11 @@ def slugs(markdown):
 
 
 class DocsSite(unittest.TestCase):
+    def test_raw_audio_distinguishes_integer_copy_from_float_packing(self):
+        text = (SITE / 'commands/ffmpeg.mdx').read_text()
+        self.assertIn('S16 output copies integer bytes without a floating-point conversion', text)
+        self.assertIn('F32 output scales the input samples to floats', text)
+
     def test_raw_audio_documents_platform_gates_only_for_changed_rates(self):
         text = (SITE / 'commands/ffmpeg.mdx').read_text()
         self.assertIn('Changed-rate headerless output requires the platform-specific exact registration', text)

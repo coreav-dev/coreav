@@ -310,6 +310,45 @@ fn tiny_pcm_stdout_reports_a_closed_reader_during_final_flush() {
 
 #[cfg(unix)]
 #[test]
+fn encoded_stdin_fallback_replaces_the_process_without_leaving_its_spool() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    let dir = scratch("pcm-stdin-exec");
+    let (input, _) = fixture(&dir, false);
+    let bytes = std::fs::read(input).unwrap();
+    let fallback = dir.join("ffmpeg");
+    let record = dir.join("pid");
+    let temporary = dir.join("temporary");
+    std::fs::create_dir(&temporary).unwrap();
+    std::fs::write(
+        &fallback,
+        "#!/bin/sh\nprintf '%s' \"$$\" > \"$PID_RECORD\"\ncat\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(["ffmpeg", "-i", "pipe:", "-ac", "1", "-f", "f32le", "pipe:"])
+        .env("COREAV_FALLBACK", &fallback)
+        .env("PID_RECORD", &record)
+        .env("TMPDIR", &temporary)
+        .env_remove("COREAV_STRICT_SAFE")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    child.stdin.take().unwrap().write_all(&bytes).unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, bytes);
+    assert_eq!(std::fs::read_to_string(record).unwrap(), pid.to_string());
+    assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
+}
+
+#[cfg(unix)]
+#[test]
 fn consumed_encoded_stdin_reaches_fallback_with_original_arguments() {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;

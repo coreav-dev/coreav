@@ -32,6 +32,8 @@ Recognize only stdin descriptors `-`, `pipe:` and `pipe:0` and stdout descriptor
 
 Container input requires positioned reads, so spool **encoded input only** to an exclusively created temporary file using bounded reads and a fixed byte cap. Keep ownership through native preflight and execution, remove it on every exit, and replay it from offset zero if native preflight refuses. The fallback retains the original argument vector. Do not send fallback an exhausted stdin or a temporary filename in place of the person's pipe argument. Explicit raw S16 stdin can stream directly after its declared format and full command have passed eligibility.
 
+On Unix, unlink the named spool while retaining its open replay descriptor, then reuse the existing fallback `exec` owner. No parent process needs to wait or retain a named temporary file. On other platforms, retain the spawn-and-wait adapter and close the owned spool before deletion.
+
 For decoded files and spooled containers, validate the complete presentation with a discard sink before committing stdout. This bounded-memory extra decode avoids late unsupported features causing partial native bytes followed by fallback bytes. Do not buffer decoded audio as an alternative. Failures after output starts are terminal and never invoke fallback. Document the extra decode cost; no speed claim is planned.
 
 File output retains atomic replacement, overwrite and alias checks. Raw stdout uses the shared buffered binary writer, checks flush errors, emits no summary to stdout, and returns 141 without diagnostics on EPIPE. Apply packet and output-sample limits to both preflight and execution. Explicit raw stdin with malformed trailing frames fails rather than retrying an already consumed stream.

@@ -105,6 +105,9 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                     .as_mut()
                     .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))
                     .and_then(|file| file.rewind().and_then(|()| file.try_clone()));
+                #[cfg(unix)]
+                let replay =
+                    replay.and_then(|file| std::fs::remove_file(&input.path).map(|()| file));
                 match replay {
                     Ok(file) => fallback_cmd::refuse_with_input(
                         Tool::Ffmpeg,

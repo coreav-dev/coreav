@@ -173,16 +173,18 @@ def check(coreav, oracle, root, smoke=False):
                 after = ["-ar", "16000", "-ac", str(channels), "-f", output_format]
                 expected = run([ffmpeg, "-v", "error", *before, *AUDIO_DECODE_INPUT,
                                 "-i", input_path, *after, "pipe:"])
-                command = native_command(coreav, before, "pipe:", after, "pipe:")
+                command = native_command(coreav, ["-threads", "1", *before], "pipe:", after, "pipe:")
                 if (sys.platform, platform.machine()) != ("linux", "x86_64"):
                     refused = subprocess.run(command, input=input_path.read_bytes(),
                                              capture_output=True, env=env, timeout=30)
-                    if refused.returncode != 4 or refused.stdout:
+                    if (refused.returncode != 4 or refused.stdout
+                            or b"unregistered exact raw" not in refused.stderr
+                            or b"rate conversion" not in refused.stderr):
                         raise AssertionError("unregistered platform rate stage did not refuse cleanly")
                     fallback_env = {**env, "COREAV_FALLBACK": str(ffmpeg)}
                     fallback_env.pop("COREAV_STRICT_SAFE", None)
                     for input_name, data in [(input_path, None), ("pipe:", input_path.read_bytes())]:
-                        fallback = native_command(coreav, [*AUDIO_DECODE_INPUT, *before],
+                        fallback = native_command(coreav, ["-threads", "1", *before],
                                                   input_name, after, "pipe:")
                         actual = run(fallback, data=data, env=fallback_env)
                         require_equal(actual, expected, "unregistered platform oracle fallback")
