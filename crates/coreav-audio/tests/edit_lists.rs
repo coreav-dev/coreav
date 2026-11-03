@@ -115,10 +115,10 @@ fn mp4(count: usize, edits: Option<&[(u64, i64)]>, movie_timescale: u32) -> Vec<
 /// An MP4 Opus file of `count` mono 20 ms packets with a pre-skip of
 /// `PRE_SKIP` samples, each packet one empty CELT frame (RFC 6716 3.2.1),
 /// which decodes to silence.
-fn opus_mp4(count: usize, edits: Option<&[(u64, i64)]>) -> Vec<u8> {
+fn opus_mp4(count: usize, edits: Option<&[(u64, i64)]>, pre_skip: u16) -> Vec<u8> {
     let frames = vec![vec![0xF8]; count];
     let mut dops = vec![0, 1];
-    dops.extend_from_slice(&PRE_SKIP.to_be_bytes());
+    dops.extend_from_slice(&pre_skip.to_be_bytes());
     dops.extend_from_slice(&48_000u32.to_be_bytes());
     dops.extend_from_slice(&[0, 0, 0]);
     let entry = sample_entry(b"Opus", 48_000, &bx(b"dOps", &dops));
@@ -269,17 +269,53 @@ fn without_an_edit_list_every_sample_is_written() {
 }
 
 #[test]
-fn opus_priming_samples_are_never_presented() {
+fn opus_edits_own_presentation_and_missing_edits_keep_legacy_preskip() {
     let length = |edits: Option<&[(u64, i64)]>| {
-        let (summary, samples) = run(&opus_mp4(10, edits), 1, &Limits::default()).unwrap();
+        let (summary, samples) =
+            run(&opus_mp4(10, edits, PRE_SKIP), 1, &Limits::default()).unwrap();
         assert_eq!(summary.timeline.start, 0);
         samples.len()
     };
     let pre_skip = usize::from(PRE_SKIP);
     assert_eq!(length(None), 9600 - pre_skip);
-    assert_eq!(length(Some(&[(190, 0)])), 9120 - pre_skip);
+    assert_eq!(length(Some(&[(190, 0)])), 9120);
     assert_eq!(length(Some(&[(180, 312)])), 8640);
-    assert_eq!(length(Some(&[(180, 100)])), 8640 + 100 - pre_skip);
+    assert_eq!(length(Some(&[(180, 100)])), 8640);
+}
+
+#[test]
+fn informative_opus_preskip_cannot_shorten_a_finite_edit() {
+    for format in [SampleFormat::S16, SampleFormat::F32] {
+        for threads in [1, 8] {
+            let mut baseline = None;
+            for pre_skip in [0, PRE_SKIP, 3840] {
+                let file = opus_mp4(6, Some(&[(100, 312)]), pre_skip);
+                let mut sink = Keep::default();
+                let options = Options {
+                    threads,
+                    format,
+                    ..Options::default()
+                };
+                let summary = decode(
+                    SliceSource::new(&file),
+                    &options,
+                    &Limits::default(),
+                    &mut sink,
+                )
+                .unwrap();
+                assert_eq!(summary.samples, 4800);
+                assert_eq!(summary.timeline.start, 0);
+                assert!(summary.timeline.silence.is_empty());
+                assert!(summary.warnings.is_empty());
+                let width = if format == SampleFormat::S16 { 2 } else { 4 };
+                assert_eq!(sink.0.len(), 4800 * width);
+                match &baseline {
+                    Some(bytes) => assert_eq!(&sink.0, bytes),
+                    None => baseline = Some(sink.0),
+                }
+            }
+        }
+    }
 }
 
 #[test]

@@ -204,15 +204,14 @@ video presentation times those commands give.
   `media_time` converted the same way from the first packet's timestamp;
   a media time before it (a fragment's decode time above 0) starts the
   window before the media, which still ends where the edit ends.
-- **Priming samples are never presented**: Opus's pre-skip (RFC 7845
-  4.2) is the decoder's priming, not audio, so a media edit whose window
-  starts inside it starts after it, and a track without an edit list
-  starts after it. The Opus-in-ISOBMFF mapping leaves the pre-skip to the
-  edit list (its `PreSkip` is informative), but `ffmpeg` 7.0.2 writes
-  Opus edit lists from media time 0 and drops the `dOps` pre-skip when it
-  reads them; files that skip it in the edit list decode as before.
-  Rejected: presenting them, which puts the priming (6.5 ms from libopus)
-  before the audio of every such file and delays the audio by as much.
+- **Opus startup and terminal trimming**: a supported edit list owns the
+  whole-playback window. Opus-in-ISOBMFF sections 4.3.2 and 4.4 make
+  `dOps.PreSkip` informative for this purpose; it cannot clamp that
+  window's beginning or shorten its duration. Without a supported edit,
+  the existing legacy behavior drops PreSkip, with an ignored-edit
+  warning for unsupported lists. This is not a claim that such files
+  satisfy the mapping's required edit-list structure. See
+  [Opus MP4 presentation](opus-mp4-presentation.md).
 - **Missing media is not padded**: the clock holds while the media covers
   each window. A window that starts before the first packet, or reaches
   past the last sample, writes only the samples there are, so the output
