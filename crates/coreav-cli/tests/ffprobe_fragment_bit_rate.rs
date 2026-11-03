@@ -7,8 +7,17 @@ mod common;
 use common::fragments::{Fragmented, Track};
 use common::{bx, cat, full, u32s};
 use coreav_isobmff::{Allowlist, FragmentTotals, Limits, Movie, SliceSource, Source};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+struct FixtureDir(PathBuf);
+
+impl Drop for FixtureDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 fn fragment(sequence: u32, start: u64, samples: &[(u32, u32)], explicit: bool) -> Vec<u8> {
     let build = |offset: u32| {
@@ -80,7 +89,15 @@ fn movie(indexed: bool, start: u64, explicit: bool, first_duration: u32) -> Vec<
 }
 
 fn stream(name: &str, bytes: &[u8]) -> serde_json::Value {
-    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "fragment-bit-rate-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir(&dir).unwrap();
+    let dir = FixtureDir(dir);
+    let path = dir.0.join(name);
     std::fs::write(&path, bytes).unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_coreav"))
         .args([
