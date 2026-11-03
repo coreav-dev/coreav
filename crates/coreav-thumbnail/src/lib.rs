@@ -60,6 +60,7 @@ use coreav_isobmff::{PlanningBudget, Rational, Source};
 pub use bmp::encode as encode_bmp;
 #[cfg(feature = "native-h264")]
 pub use bounded::{thumbnail_bounded, thumbnail_bounded_with_budgets};
+pub use color::frame_color;
 pub use image::{BuiltinEncoder, ImageEncoder, ImageFormat};
 pub use png::encode as encode_png;
 pub use png::encode_with_aspect as encode_png_with_aspect;
@@ -785,8 +786,9 @@ impl Prepared {
         backends: &[&dyn Backend],
     ) -> Result<DecodedThumbnail, Error> {
         let Self { plan, choice } = self;
-        let (frame, decoder, skipped, packets_decoded) =
+        let (mut frame, decoder, skipped, packets_decoded) =
             decode(source, &plan, choice, options, backends)?;
+        frame.color = frame_color(plan.stream.codec, frame.color, plan.stream.color);
         let time = plan
             .samples
             .get(choice.target)
@@ -1744,6 +1746,46 @@ mod skip_tests {
         assert_eq!(decoded.decode_start, options.at);
         assert!(decoded.keyframe);
         assert_eq!(decoded.packet, (0, 1));
+    }
+
+    #[test]
+    fn h264_thumbnail_inherits_applied_container_colour() {
+        let mut plan = preparation_plan();
+        let color = ColorInfo {
+            primaries: Some(1),
+            transfer: Some(1),
+            matrix: Some(1),
+            full_range: Some(true),
+            chroma_location: Some(coreav_frame::ChromaLocation::Center),
+        };
+        plan.stream.color = color;
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        let backend = Recorder(Arc::new(Mutex::new(Vec::new())));
+        let decoded = Prepared {
+            plan,
+            choice: Choice {
+                start: 0,
+                target: 0,
+            },
+        }
+        .decode(&mut SliceSource::new(&[0; 6]), &options, &[&backend])
+        .expect("decoded");
+        assert_eq!(decoded.frame.color, color);
+        let picture = decoded.frame.to_cpu().expect("picture");
+        let expected = picture
+            .rotate(1)
+            .expect("rotate")
+            .resize_to_rgb(2, 4, options.filter, &color, options.chroma)
+            .expect("rgb");
+        let actual = render(&decoded.frame, decoded.display, &options).expect("render");
+        let encoder = BuiltinEncoder {
+            format: ImageFormat::Png,
+            quality: 91,
+        };
+        assert_eq!(
+            encoder.encode(&actual).expect("actual"),
+            encoder.encode(&expected).expect("expected")
+        );
     }
 
     #[test]

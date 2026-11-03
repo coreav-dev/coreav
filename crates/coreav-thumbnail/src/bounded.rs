@@ -74,7 +74,7 @@ pub fn thumbnail_bounded_with_budgets<S: Source>(
         discard: false,
     })?;
     decoder.send_eof()?;
-    let frame = decoder.receive_frame()?.ok_or_else(no_frame)?;
+    let mut frame = decoder.receive_frame()?.ok_or_else(no_frame)?;
     if frame.pts != Some(packet.pts) || decoder.receive_frame()?.is_some() {
         return Err(no_frame());
     }
@@ -87,6 +87,7 @@ pub fn thumbnail_bounded_with_budgets<S: Source>(
     };
     let stream_index = plan.stream_index;
     let warnings = std::mem::take(&mut plan.warnings);
+    frame.color = crate::frame_color(plan.stream.codec, frame.color, plan.stream.color);
     drop(plan);
     drop(planning);
     let rgb = render_bounded(&frame, display, options)?;
