@@ -55,7 +55,7 @@ class Host(Binaries, unittest.TestCase):
     def test_the_host_names_the_binaries_and_the_fixtures(self):
         fixtures = self.dir / 'fixtures'
         fixtures.mkdir()
-        for name in ccg.FIXTURES:
+        for name in ccg.fixture_files():
             (fixtures / name).write_bytes(name.encode())
         h = ccg.host('v2-v3', self.bin, fixtures, self.bin)
         self.assertEqual(h['ffmpeg']['ffprobe']['version'], f'ffprobe version {BUILD_ID} Copyright')
@@ -78,7 +78,7 @@ class Manifest(unittest.TestCase):
                  'evidence_key_sha256': self.KEY}
         ff = {n: {'sha256': '5' * 64, 'version': f'{n} version {BUILD_ID}'} for n in ('ffmpeg', 'ffprobe')}
         hosts = [{'job': 'v1-0', 'ffmpeg': ff}, {'job': 'v1-1', 'ffmpeg': ff},
-                 {'job': 'v2-v3', 'ffmpeg': ff, 'fixtures': {n: '6' * 64 for n in ccg.FIXTURES}}]
+                 {'job': 'v2-v3', 'ffmpeg': ff, 'fixtures': {n: '6' * 64 for n in ccg.fixture_files()}}]
         counts = [{'shard': 0, 'files': 2, 'records': 2, 'pending': 0}, {'shard': 1, 'files': 2, 'records': 1,
                                                                            'pending': 1}]
         return build, hosts, counts
@@ -324,7 +324,8 @@ class Trigger(unittest.TestCase):
             'scripts/gen-fixtures-ts.sh', 'tools/compat-corpus/tests/test_decode_breadth.py',
             'tools/compat-corpus/tests/test_decode_breadth_fixtures.py',
             'tools/compat-corpus/tests/test_encode_breadth.py', 'tools/decode-oracle/src/stream.rs',
-            'crates/coreav-cli/tests/ffmpeg.rs', '.github/workflows/codec-coverage.yml'}
+            'crates/coreav-cli/tests/ffmpeg.rs', '.github/workflows/codec-coverage.yml',
+            'docs/design/composed-opus-aac-v2.json'}
         patterns = self.patterns()
         for rel in sorted(wanted):
             self.assertTrue((ROOT / rel).exists(), rel)

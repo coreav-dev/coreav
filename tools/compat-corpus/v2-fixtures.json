@@ -1,0 +1,1388 @@
+{
+  "schema": "coreav.v2-fixture-inputs/1",
+  "commands_sha256": "077ed478f4693c5612ec3d018c9d3bbe96125a80eb635322ddf3d68dec6894c3",
+  "dependencies": {
+    "v2_hls_local.m3u8": [
+      "v2_hls_segment.ts"
+    ],
+    "v2_still_rgba%03d.png": [
+      "v2_still_rgba000.png"
+    ]
+  },
+  "sparse": [
+    "v2_raw_yuv420p_400x300_long.yuv"
+  ],
+  "cases": [
+    {
+      "index": 8,
+      "identity_sha256": "36f3b0507a87aff41e5c2341367cd0104b637591569fef0501b914d0d5b24a02",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 14,
+      "identity_sha256": "8709985f2ca3d8925793989ba40b7bd7371289751c4aafdd18983ec46c6f131c",
+      "assignments": [
+        [
+          "v2_video_only.mp4"
+        ]
+      ],
+      "reason": "Use a video-only H.264 file to remove the selected audio job without changing any option."
+    },
+    {
+      "index": 16,
+      "identity_sha256": "29fed87a7393c34d2a885d1b2e03d7922e38a56a6233793b3e6a1810750ed9a7",
+      "assignments": [
+        [
+          "audio_aac.m4a",
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "The existing concat adapter supplies two copies of the AAC audio file; the second input must accept image framerate. Both inputs are finite."
+    },
+    {
+      "index": 17,
+      "identity_sha256": "5a88129a27a6989447e20988556cdcbf47063ba94c9d477abf8e4106b6b2d531",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 18,
+      "identity_sha256": "abc0ef5f96cf27f98dde9e3cddcadec688883c85fef15ac9d4e36fa914270361",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png",
+          "v2_audio_opus_long.ogg"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 19,
+      "identity_sha256": "7f850046cf490094aa449653d484e02bb699d119406e1290bfba105881c37397",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 20,
+      "identity_sha256": "59e13cf4fe48d846198ec22d941c35a28ad03670066e51d15c874539ad663763",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 21,
+      "identity_sha256": "ed54776c72c6cc18c747bacc97effce75930860eda0fa66d54302ec40ff23d19",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png",
+          "v2_audio_aac_long.m4a"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 22,
+      "identity_sha256": "f75ed7a5270bf1ae338bfc79048ba4de921841bbe726de08fd7dc26bd47b812c",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 23,
+      "identity_sha256": "f828e1394f7b97f9d0d128f0c569c87d209136e75315be2ea0ed22f8ca4558c6",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 24,
+      "identity_sha256": "3d4732334750cd12503f112b6137765c55457f2b7dccf7240b4e5bb7ca8eada3",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 26,
+      "identity_sha256": "4225ec81909ae76f891ae7fbdd8f8b9e5f2de9d0613e74ed9bca6ab016198cdd",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "The registered seek is beyond the original two/three-second video fixtures. A 5027-second small H.264 video at 25 fps covers the largest seek, 01:23:45, and the short extraction windows."
+    },
+    {
+      "index": 29,
+      "identity_sha256": "de47bbfc6d1e245a1576a32bce904d563b4f6382b0b0c07a2c06cd9c1c3009d1",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "The registered seek is beyond the original two/three-second video fixtures. A 5027-second small H.264 video at 25 fps covers the largest seek, 01:23:45, and the short extraction windows."
+    },
+    {
+      "index": 53,
+      "identity_sha256": "c26e9c3d5dc73df40e029c85976f3da972be8fba46df38145e95d3a9730d4b80",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 54,
+      "identity_sha256": "30c6ade5a2f625d979c884c12beceb29024a224929c21c12264f98df0bb786a1",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 55,
+      "identity_sha256": "c37bd69f84c595f0b35e277c336bd5b1b481223c69072cd23ccebbe18cc42d38",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 62,
+      "identity_sha256": "b9a6e1379e4d562f917aa1ef02e73f534ffca3ba8a4f571aeeeb5cacff2fb52b",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Four audio streams are required by 0:a:0 through 0:a:3; the fixed extra WAV output paths remain unchanged."
+    },
+    {
+      "index": 63,
+      "identity_sha256": "4bb53132033665a76024ae96a9b4e183879de3d137d41c8ff468bc03f206442f",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "0:a:3 requires the fourth audio track. Its registered output is OUTPUT.m4a, despite container being labeled MP4."
+    },
+    {
+      "index": 65,
+      "identity_sha256": "edc0353920bf37f904beab90104bc151ad75d4c17fe68236863e26033655259f",
+      "assignments": [
+        [
+          "v2_audio_opus_long.ogg"
+        ]
+      ],
+      "reason": "An audio-only Opus source avoids copying VP9 into Ogg; 130 seconds covers the fixed 62.5-second seek plus 63.25 seconds."
+    },
+    {
+      "index": 72,
+      "identity_sha256": "84f02ef14a42886115ee5e5522274a5fa97f801496db8934b7183219c0be4f1e",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 81,
+      "identity_sha256": "2efc6cad65297b9b32310c13db4b164d94dbe8feda66418d2943f240ad85aaec",
+      "assignments": [
+        [
+          "v2_video_only.mp4"
+        ]
+      ],
+      "reason": "Try a video-only source so no audio encoder is resolved. If the fixed encoder option is still rejected, retain the diagnostic and no_input."
+    },
+    {
+      "index": 82,
+      "identity_sha256": "9bb4b34d54d82c0a435990a4bf2cf716a8ec89482478f1b252a450dad08e6b2f",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 84,
+      "identity_sha256": "9cda1bd752747eb32276cff963791a2bc621d84097b180e671e6681a29bccd99",
+      "assignments": [
+        [
+          "v2_still_rgba.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "The first input must be a loopable still image and the second a finite audio file; shortest bounds the loop."
+    },
+    {
+      "index": 85,
+      "identity_sha256": "9c7d05c8a29d625ffb4d0742f6f731a6a42766c73d259967951ae17815e38add",
+      "assignments": [
+        [
+          "v2_still_rgba.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "The first input must be a loopable still image and the second a finite audio file; shortest bounds the loop."
+    },
+    {
+      "index": 104,
+      "identity_sha256": "170caed6cd2e52a27ebd2c6bc45d3ad24a0759ff8b26deec99011ac5faac6fd8",
+      "assignments": [
+        [
+          "v2_raw_yuv420p_1280x720.yuv"
+        ]
+      ],
+      "reason": "The SAME INPUT placeholder is opened as 1280x720 yuv420p video and 48-kHz stereo s16le PCM. One deterministic byte file must be valid for both reads; do not split this into two assignments."
+    },
+    {
+      "index": 113,
+      "identity_sha256": "81247437bea10ba842650728dd8ba000c3c52a8526bf7d80a672fc5f63546de4",
+      "assignments": [
+        [
+          "v2_raw_yuv420p16le_1280x720.yuv"
+        ]
+      ],
+      "reason": "Supply at least one complete 1280x720 planar 16-bit yuv420p16le frame."
+    },
+    {
+      "index": 114,
+      "identity_sha256": "26216eef7e44412bc4078d2a86bf4b1b130bb08994e015b70cd97b278eea5042",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "The registered seek is beyond the original two/three-second video fixtures. A 5027-second small H.264 video at 25 fps covers the largest seek, 01:23:45, and the short extraction windows."
+    },
+    {
+      "index": 121,
+      "identity_sha256": "04a2df5c28ea073a160caa162b34a54ff32511ac3945108fb99648a64101fff0",
+      "assignments": [],
+      "reason": "A required numeric argument is a literal template or invalid size token; fixture contents cannot supply its value."
+    },
+    {
+      "index": 128,
+      "identity_sha256": "66fb848c3274b97413ef94ea7473dcb2ce4c4f6eb5e04060cf128f52eb85199f",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "The registered seek is beyond the original two/three-second video fixtures. A 5027-second small H.264 video at 25 fps covers the largest seek, 01:23:45, and the short extraction windows."
+    },
+    {
+      "index": 129,
+      "identity_sha256": "6335831dab99802adb7e8bb8608823055fdc64968609c75fda7666e4c16bcaca",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 133,
+      "identity_sha256": "ff0c8ba899804697240624ec8ae7211890d4f3e4f032da3495bc47355d7c10dc",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 137,
+      "identity_sha256": "ebd5f6f28aa3befad9e095b87afb9fb0bd053f052e1799f868862f5ef85875fc",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3",
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "The fixed maps require stream 0 of the first file to be MP3 audio and stream 0 of the second to be a JPEG cover image for MP3 stream copy."
+    },
+    {
+      "index": 146,
+      "identity_sha256": "7f5953e806d31635a00ab9f9d7ab0b8e086610e0066fcd7a3f73fbb249f2385d",
+      "assignments": [
+        [
+          "v2_raw_yuv420p_1920x1080.yuv"
+        ]
+      ],
+      "reason": "Supply at least one complete 1920x1080 yuv420p frame."
+    },
+    {
+      "index": 148,
+      "identity_sha256": "2c70d1ac8a67c084d628f624c875be175059e9446bc85ad99149ff57b30f2527",
+      "assignments": [],
+      "reason": "A focused pinned-oracle smoke shows the pinned GIF command exits 0 but writes the literal OUTPUT%02d.gif. produced requires digits where %02d stands and therefore rejects that output."
+    },
+    {
+      "index": 150,
+      "identity_sha256": "f9f68a158d35cd49762fcbcc58bb7c69cad6de476d0a651965291d124da55872",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 151,
+      "identity_sha256": "7c9168910affc476c24f4cdcc8428c4b269845d6f5d72f6ef4f1defd85cd0542",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 152,
+      "identity_sha256": "37df8124ae2033b6e26b7f50940ca65087bac6ba5056982e4464ea975392d9c5",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 172,
+      "identity_sha256": "9f5f5ce26fe184acfc0b85c87a6c92818e7aca8af57366f30dfedaf8c4cff722",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 173,
+      "identity_sha256": "f31b1ca7afe4dd62e9744cace81dde47b0dd841d97ed041b0a12b5a51f88153f",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 178,
+      "identity_sha256": "cd2a779783aff4b9b0c6ec455b5072067bcadca5e303b86b83fd9cbec8892405",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 186,
+      "identity_sha256": "0146bada919253a8aa2c6afd90bfcd6c7535baa13a14e06afeabb3251f735147",
+      "assignments": [],
+      "reason": "The row requires a legacy/external AAC encoder, libfdk_aac or libfaac; 186 additionally needs a second-pass log. New source media does not install encoders or create pass state."
+    },
+    {
+      "index": 189,
+      "identity_sha256": "db9d08d2cc936442957e5f1b9b00168e54887d809d034bc90e414dbb7de4c515",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 190,
+      "identity_sha256": "453ffe1282a64dce8892cc34909e02ac53db9a3a55c4cbdeba26f6983981f782",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 191,
+      "identity_sha256": "9876913c9b1bf1df8f4155245616ff9f725378d5cafad3a1e6bd87e4544442e9",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 192,
+      "identity_sha256": "8a297f4615196b18a715ec27750decaed956fa3b9f61ee03372418e7459d97bc",
+      "assignments": [
+        [
+          "audio_aac.m4a",
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "Mapping input 1 first makes a single JPEG picture output stream 0, where attached_pic is applied. Input 0 supplies AAC audio."
+    },
+    {
+      "index": 193,
+      "identity_sha256": "23166c70c351bf1294a3c5a48449535b9b30e528e0714b059ea7661da829721f",
+      "assignments": [],
+      "reason": "The row has no OUTPUT token and an empty registered output; choose returns None before any fixture assignment is attempted."
+    },
+    {
+      "index": 195,
+      "identity_sha256": "8764bb30898fc6f19de3f779aa60b7e748dfa66d7844195d5e928423f9622e33",
+      "assignments": [],
+      "reason": "The input option is protocol-specific, RTSP transport or HTTP headers, while the contract permits only local media files."
+    },
+    {
+      "index": 197,
+      "identity_sha256": "7590853e331d3b1271f655eeb2c8551c613d37dd7d692927fc4ec8bb14dcaee3",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "The registered seek is beyond the original two/three-second video fixtures. A 5027-second small H.264 video at 25 fps covers the largest seek, 01:23:45, and the short extraction windows."
+    },
+    {
+      "index": 206,
+      "identity_sha256": "0c264089d953140b9ec759feed46ecd8dbba1e8210c7eb2d717f7a86bceaa68f",
+      "assignments": [],
+      "reason": "The literal output encoder names videocodec and audiocodec are unresolved templates. A media output needs at least one valid selected encoder."
+    },
+    {
+      "index": 228,
+      "identity_sha256": "3a883b4097d324b84774c3b8fb229345a818d49263037602851ad4f9392e3450",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 230,
+      "identity_sha256": "e7fb44c51de787c19848322d02203f2bf55d723a92fa4a441d854cceef8e15f0",
+      "assignments": [
+        [
+          "v2_mpeg_ps_video.mpg"
+        ]
+      ],
+      "reason": "The forced mpeg input demuxer needs MPEG program-stream bytes, not MP4/Matroska/TS."
+    },
+    {
+      "index": 233,
+      "identity_sha256": "de24a6a36b9e111224ccbaa793421d5067404ece322677493b3fd185d4fda706",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 235,
+      "identity_sha256": "d4d238dd0aafd87f27216469d0c5fbe88c79544bf74b617ecc7b32964192204e",
+      "assignments": [
+        [
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "A single-frame JPEG source fits the unnumbered OUTPUT.jpg; 235 must copy JPEG rather than an H.264 stream."
+    },
+    {
+      "index": 245,
+      "identity_sha256": "c88d9ae30c8b9b7c5b29a44f21efa96303f5e93337574e5256267a048cbc8d14",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "image2pipe can read a complete encoded PNG from a regular file. No pipe or command rewrite is needed."
+    },
+    {
+      "index": 250,
+      "identity_sha256": "b71fae6518f2f52b4b4efbe2c90b2092096da783c93ad650ddfed7a7bc34e609",
+      "assignments": [
+        [
+          "v2_raw_bgr24_640x480.raw"
+        ]
+      ],
+      "reason": "Supply a complete 640x480 packed bgr24 frame."
+    },
+    {
+      "index": 257,
+      "identity_sha256": "eaf0a3672c958e3faaaac56d822a16db6dac7194bbb14c376c2a5c394c38f179",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 260,
+      "identity_sha256": "9bdb8a70a2ab380889847b92a840245df410954495ce28248f343e4e2362e7d7",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 261,
+      "identity_sha256": "2ba4ce5853b6c27d855c2f03df9b1d8e5b6e0ae53622f4e78c59a6112095bac4",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 262,
+      "identity_sha256": "47fb9c2aece0a5f17df41989062ce68eae11afb83a6c1e937a17d6872d628c8f",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 266,
+      "identity_sha256": "ced018b4a557a4d5dec2577f813fc9e79bfd1da00e4e168c93fb480e679cca4e",
+      "assignments": [
+        [
+          "v2_hls_local.m3u8"
+        ]
+      ],
+      "reason": "allowed_extensions belongs to a playlist demuxer. A local HLS playlist plus local segments is a plausible offline source."
+    },
+    {
+      "index": 275,
+      "identity_sha256": "8d23193b6e07270e43fdd0988578926754a2aae1b8b6b0a331c44b738390c43b",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 276,
+      "identity_sha256": "b554cd746da39ffd47145b73abf170f47d9f1a8e7b5699c54e79890c7bb94780",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 288,
+      "identity_sha256": "47629c283cb06d5b1c0955c20a62b40b85add2f222b62ae07e22ea69fe43fd27",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 298,
+      "identity_sha256": "646e21ef3bd33ba511aa32d78ffaff451a48bfae4d3c91481595c9e30ddc73ce",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 300,
+      "identity_sha256": "f12bf165ee329ef418645e96d16f27af152859fa46650b3933defd5e3fbde236",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 301,
+      "identity_sha256": "cad556dd8624d34dc7ca5a0150f355b15ea252d7a87f2112f4495243289d94d1",
+      "assignments": [],
+      "reason": "The pinned VP8 encoder rejects the fixed yuva420p output with its default auto_alt_ref setting: Transparency encoding with auto_alt_ref does not work. Media cannot change that encoder configuration."
+    },
+    {
+      "index": 302,
+      "identity_sha256": "b15d4811304989abb2eb4194c152350b06a81c7357efb23cf7841304bc2f1e9a",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A PNG with alpha is a file-backed image2 source for yuva420p output."
+    },
+    {
+      "index": 305,
+      "identity_sha256": "d466c44de31d30cdaf12be10a8f68c9dbae593e82b60fdcce8ce9c2145ed01cf",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 306,
+      "identity_sha256": "274b5d9aca65f833eb858fc99bf794e89bbe017626b979a193697f0acd468641",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3",
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "The fixed maps require stream 0 of the first file to be MP3 audio and stream 0 of the second to be a JPEG cover image for MP3 stream copy."
+    },
+    {
+      "index": 308,
+      "identity_sha256": "b2193f380cfe8531d2e5902ed2b19f4479b5bc6800ed02be5b1772d57f77d7b0",
+      "assignments": [
+        [
+          "basic.mp4",
+          "v2_raw_rgb32_800x550.raw"
+        ]
+      ],
+      "reason": "Keep input 0 as ordinary media and supply input 1 as complete 800x550 rgb32 frames."
+    },
+    {
+      "index": 309,
+      "identity_sha256": "0599b723ff068e9213052d07640068cc9fa2c2b69417efc23e5b02f622ed9562",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 312,
+      "identity_sha256": "3f609621cda885632c26a844cd3b9a115ca226a1678f02baf6a9651882fa1208",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 313,
+      "identity_sha256": "4ed946d4bad78e71e05122d540eed369c9b75079d8019636c2fa93b84e8d3d1d",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 314,
+      "identity_sha256": "20982bdaa0569f24173b2a7c96b85b6179ddd1a0e5474efda64e8ab875e92059",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 315,
+      "identity_sha256": "d583c7d07b8296431731adb716f99c369057cc605f2f176d7e8e1ddd5ff5145a",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 316,
+      "identity_sha256": "b719592a3c8fdc36ef29b44487359c6f7c64b8e4071776737963b40b2b280ada",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 317,
+      "identity_sha256": "8d2a935efbe6f893b36f905da99defac9074f4e6dbc139a3ef120e448aff9734",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Use stable stream order v0,a0,a1,a2,a3 with four AAC audio tracks; absolute stream 3 is audio. This satisfies the missing absolute/typed map indices."
+    },
+    {
+      "index": 318,
+      "identity_sha256": "3f1c1fca0fbe56225d38f90ad5a49b2ad9f1c9542d40aa2ddf42bf71e35fe6ef",
+      "assignments": [],
+      "reason": "-s uses a multiplication sign in 320\u00d7240 rather than the dimension separator x, and singlejpeg is a legacy muxer spelling. A longer input cannot repair either argument."
+    },
+    {
+      "index": 320,
+      "identity_sha256": "e62e941f01b6bf267bf69eddd22f26f59a3457c30d8e5c2625d2e527395d0232",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 323,
+      "identity_sha256": "cc681ac122d9ae484bb5b1133d22a4c0fdf1d78ecced8d9224036e2d0f614d03",
+      "assignments": [],
+      "reason": "The HLS segment filename is the literal FILE with no sequence template, while no single_file flag is set. New input media cannot change that output template."
+    },
+    {
+      "index": 326,
+      "identity_sha256": "2d5709052b9270d8f08be26e0c5822edf48f606bc3a6ece7e16684c3fcd23621",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 333,
+      "identity_sha256": "d8ba3498b4e9c076607d32913b33f62525e06ea26f12ea071c83fabe566bd54f",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A still-image demuxer supports -loop 1; the registered -t bounds the output."
+    },
+    {
+      "index": 337,
+      "identity_sha256": "99b62ad0b90664510dcccd482827688ddcf197e065a5d5acb8fd27c814513111",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 338,
+      "identity_sha256": "b97f33951cc6327ba5ec7b586d4c2d492c3935772728692f56c39abb8bf693b8",
+      "assignments": [],
+      "reason": "The fixed -vsync option is rejected by the pinned FFmpeg 9 oracle. A new source file cannot repair an unrecognized option."
+    },
+    {
+      "index": 339,
+      "identity_sha256": "058c4050b65d3882f70533031d25b1915f63cb2495c98c0b1630ac3ce4917f80",
+      "assignments": [],
+      "reason": "The fixed -vsync option is rejected by the pinned FFmpeg 9 oracle. A new source file cannot repair an unrecognized option."
+    },
+    {
+      "index": 345,
+      "identity_sha256": "cef2d658ab16f144284e614e0dab990c93e28af3fbbe57ae811949eac43e4072",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 347,
+      "identity_sha256": "fff1e1963d2aff8837acaed605658c700d6f73cb085d748bb1734879594eb22b",
+      "assignments": [
+        [
+          "v2_audio_opus_long.ogg"
+        ]
+      ],
+      "reason": "An audio-only Opus source avoids copying VP9 into Ogg; 130 seconds covers the fixed 62.5-second seek plus 63.25 seconds."
+    },
+    {
+      "index": 348,
+      "identity_sha256": "4ca15c29a7813c6130d48931a51c663afb554eec2befca490b06dcd4054eec76",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 350,
+      "identity_sha256": "25da5296ccd5905ebd4adf3c8425499e48bd57924b713a3fcfbc804209271b25",
+      "assignments": [],
+      "reason": "The fixed -vsync option is rejected by the pinned FFmpeg 9 oracle; the legacy -vpre also needs preset state. Raw 720x576 bytes cannot repair either."
+    },
+    {
+      "index": 358,
+      "identity_sha256": "e763d5dd0e35fe5b6deca2d42584ce723c5034c8c26c6c0754c67573caac80b8",
+      "assignments": [],
+      "reason": "The output is pipe:1, but execute captures stdout only for output == -. produced then looks for a file literally named pipe:1, so fixture bytes cannot satisfy succeeded."
+    },
+    {
+      "index": 361,
+      "identity_sha256": "ca4091514166a8473bd4be37cdb49a2b37145d13b4db5227ef826413a114dc4a",
+      "assignments": [],
+      "reason": "-stream_loop -1 has no duration/frame/output bound. Repeating a valid seekable file does not terminate within the registered reference timeout."
+    },
+    {
+      "index": 363,
+      "identity_sha256": "8fc234dd7b0f5ff6829c04f86d7ffad7c90c63415f928fc64a305e6cc3c3c1ae",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Use stable stream order v0,a0,a1,a2,a3 with four AAC audio tracks; absolute stream 3 is audio. This satisfies the missing absolute/typed map indices."
+    },
+    {
+      "index": 365,
+      "identity_sha256": "297dd131ba5b80e9ee71ddd7b10bbbe95211e14e33c1aec2c4b79472c2dbd5e2",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 367,
+      "identity_sha256": "821769250f424aa9ef053259c6fe6d1884634bf92681b5dfd079fd26a709c3be",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 372,
+      "identity_sha256": "3ccdf231222f2e31a1e49267750ad8d34867ed235f84740ee1c3d56334a4e619",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 373,
+      "identity_sha256": "82ce1ac443bef8cb206a668c5f3b80470733aa669589a0ef4803e7d813256de0",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 376,
+      "identity_sha256": "eaec36e962883f86918a100b164497e61a3e031aa833234b6fffdd16905786cd",
+      "assignments": [],
+      "reason": "HEVC NVENC requires an available NVIDIA backend and its registered options; a new file cannot provide hardware or encoder support."
+    },
+    {
+      "index": 380,
+      "identity_sha256": "484b0871afe2e0a22da1c9251f172adde9bfab316f132c05be8f3408b965d222",
+      "assignments": [],
+      "reason": "The fixed disposition:s:s:0 stream specifier repeats the stream type. The pinned oracle rejects it with Stream type specified multiple times, independently of subtitle media."
+    },
+    {
+      "index": 383,
+      "identity_sha256": "1c3e524321ddcb64288206120d2a60bffefa0f9c96127ddb0de3da16c0ab7a09",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 389,
+      "identity_sha256": "147b834025b61f0ffbc4d2b7392dbcd8e63788992557f47385c7d85c3d2d4543",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 391,
+      "identity_sha256": "25ee21bfae857f27308005322fba9dc496e8b33ccaf27b972fe301af88878568",
+      "assignments": [],
+      "reason": "The row has no OUTPUT token and an empty registered output; choose returns None before any fixture assignment is attempted."
+    },
+    {
+      "index": 393,
+      "identity_sha256": "e481be2306c33b10d25fb18e8f8d9f8ee231d5a54d00fc87796ac5e69aea5a3d",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "-map 0 and MP3 copy need an audio-only MP3 source, not video plus AAC. Metadata mapping to stream 0 is then defined."
+    },
+    {
+      "index": 397,
+      "identity_sha256": "4ff5329fafd251e60931ba670ed8fdd8fd61aaa58e638cf11718d8120ebf6ff4",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 398,
+      "identity_sha256": "b13afb57ea5065187b0d53aad55d38f5dde5aa2bda0b95b1f19d5ca36446a0f4",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 402,
+      "identity_sha256": "499be3daf6c17277a148856f1fab2865653e15ccd6a22089a4f1ee358da888d1",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Provide video and an AAC audio track tagged language=eng so the nonoptional metadata stream map matches."
+    },
+    {
+      "index": 403,
+      "identity_sha256": "8799c527fbbb28b86aebdf6efa9635fd487db94169b109adf36c785ffa21e726",
+      "assignments": [],
+      "reason": "The fixed HTTP headers option is not accepted for local file input, including a fully local HLS playlist. The pinned oracle rejects it with Option headers not found."
+    },
+    {
+      "index": 409,
+      "identity_sha256": "311f632c97238c21a34f70163c02e9e4303dabc387d4520fb524b738a8e55f69",
+      "assignments": [],
+      "reason": "An output-only option is grouped before an input: -vframes for the raw-image rows, -shortest for 550. Input bytes cannot change option placement."
+    },
+    {
+      "index": 410,
+      "identity_sha256": "7fe5c469a36201914da655cc6a1fd36df86ae51cffaf4bfb9a5cd6b55524379a",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 416,
+      "identity_sha256": "50a71844eb97f6a8254a68dfe75c96413e3dee7cff9617905c5b6551f5ab2df2",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Use stable stream order v0,a0,a1,a2,a3 with four AAC audio tracks; absolute stream 3 is audio. This satisfies the missing absolute/typed map indices."
+    },
+    {
+      "index": 418,
+      "identity_sha256": "bf83541245cc7c8751dd94d63d6035c0a8fb08a264068e1247505f7fdc8211ea",
+      "assignments": [],
+      "reason": "-b:v is the literal $bitrate, not a number; -pass 2 also requires a prior pass log that fixture staging does not provide."
+    },
+    {
+      "index": 423,
+      "identity_sha256": "a8d6b72859f11407ed76dcf9e4e5ae049b2153cff514909cefadc925874327c1",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 424,
+      "identity_sha256": "df3177be508393fedf8409050ceb83a3d92efbe86fbaa40d5b13bdb9a954b3af",
+      "assignments": [],
+      "reason": "There is no INPUT placeholder. Fixed ellipsis prose cannot be replaced by a fixture; 424 also uses OUTPUT as the value of -probesize."
+    },
+    {
+      "index": 425,
+      "identity_sha256": "952595407551695a498d0063b3dbe3de808568cf4e9e86d9a21e457355025894",
+      "assignments": [],
+      "reason": "There is no INPUT placeholder. Fixed ellipsis prose cannot be replaced by a fixture; 424 also uses OUTPUT as the value of -probesize."
+    },
+    {
+      "index": 431,
+      "identity_sha256": "acfd3c05bd0ad5dfac2d31735be2b00774bef841f0793db8325d140770534658",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 436,
+      "identity_sha256": "7d407eaf2f78f94a9c3beca4a74dca1691c8924f2e56dd6f8362a6e3bf1ede8a",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 441,
+      "identity_sha256": "c23ce2b6912bc92576647818e45126f84a3c252a04b86926765f815a34362cc1",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3",
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "MP3 audio must survive the fixed 5-to-13-second input range; the second file must be a JPEG cover for the copied stream 1."
+    },
+    {
+      "index": 442,
+      "identity_sha256": "56d56f3f0f130dacb5eda1e48590f93ea7f3f5563cf596b9fcaea0c8e4295c61",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 444,
+      "identity_sha256": "592ebfcd1d0eedb424a70ac6c1f1d5115c0666af1e30eb6d48be6ad4bd568753",
+      "assignments": [],
+      "reason": "The row requires a legacy/external AAC encoder, libfdk_aac or libfaac; 186 additionally needs a second-pass log. New source media does not install encoders or create pass state."
+    },
+    {
+      "index": 445,
+      "identity_sha256": "b27db3d1d656bb3210ecc946305a5a2512b885ecd0da4e977f597596525412ce",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 448,
+      "identity_sha256": "e791add17cdc835462185f0f1a9d5b8497e0ac230062ea1c6909878b960054a6",
+      "assignments": [],
+      "reason": "An output-only option is grouped before an input: -vframes for the raw-image rows, -shortest for 550. Input bytes cannot change option placement."
+    },
+    {
+      "index": 449,
+      "identity_sha256": "b672367df1b84ee0a4afa3273a599b69084faf2b3643f4874ed872653055d749",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 450,
+      "identity_sha256": "3233f01172048e2799eb163436f9aca97a97b0e027e6ccc90f4ed8137f0b4e0c",
+      "assignments": [
+        [
+          "v2_raw_yuv420p_400x300_long.yuv"
+        ]
+      ],
+      "reason": "Use a sparse zero-filled 4352-second 400x300 yuv420p file at the raw demuxer default 25 fps. Preserve sparse extents while staging; no timeline header is fabricated."
+    },
+    {
+      "index": 453,
+      "identity_sha256": "6ffb5894902ddbb6919a6091f2a7383084307dab4dcbe177cea5ee8bd9c64eaf",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 459,
+      "identity_sha256": "d9614fd955190a24f36d03440381123f752fd3ddb195770cb46757b83642daa7",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 462,
+      "identity_sha256": "d0e837cd90c8537c48e26ec2b337813f002f61134c9e4095ac4310a9092e6fbc",
+      "assignments": [],
+      "reason": "The wallclock input option replaces packet timestamps with epoch time. AVI rejects the resulting frame gap as Too large number of skipped frames for both H.264 video and MP3 audio; media bytes cannot change that clock."
+    },
+    {
+      "index": 465,
+      "identity_sha256": "5c54245e031e08398143dc02ee0b6a159e581ecf0a859516dd957e05c3626826",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 466,
+      "identity_sha256": "bd157890a8818311fac6e924ff40abb80c3e95127c3dc761f17ee7dbe18b067c",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 472,
+      "identity_sha256": "ddf8551c2eb510604e29c66571cc961d659c7076e24e5acd63965d375cd8aeaf",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A still-image demuxer supports -loop 1; the registered -t bounds the output."
+    },
+    {
+      "index": 486,
+      "identity_sha256": "ec8a71806ff07d51c464bb4052d47c2bce98a6a1c80d59298a48f1d574391108",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 487,
+      "identity_sha256": "45832a75d5c35367b2d5d951c3918533039a6d71700e7ef2c462ee9b81386504",
+      "assignments": [
+        [
+          "basic.mp4",
+          "v2_subtitles.srt"
+        ]
+      ],
+      "reason": "The second input must be a real SRT subtitle file; the original pool has no subtitle streams."
+    },
+    {
+      "index": 490,
+      "identity_sha256": "8163d6aa962ef2990bb411f2c42fe6360ae39a054c3eb7a9f95ba64a28d7fa8b",
+      "assignments": [],
+      "reason": "Forced rawvideo input has no video_size/-s. Headerless raw bytes cannot declare their own geometry; output pixel-format options do not provide the input size."
+    },
+    {
+      "index": 492,
+      "identity_sha256": "b95a1e0926b7caa1dfd2717155c7ab16635e221310670fd60ab278dde249ecbb",
+      "assignments": [
+        [
+          "v2_video_long.mp4"
+        ]
+      ],
+      "reason": "A source extending beyond five seconds avoids shifting every original frame before zero with -itsoffset -5."
+    },
+    {
+      "index": 493,
+      "identity_sha256": "14e5d75e6be41c4a78dfba6da52fdb3855d27519e690c65e95bf55cc9eb583df",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 494,
+      "identity_sha256": "465a72dec0ea6fbd3e5c5c7ebc9d112e21b508c57e75be2ff00be518b6e916fd",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 495,
+      "identity_sha256": "f7169b6ca40791ba1f68ea49ea9c6c86c12b17bae11904a5ee810a60f8390dd9",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 500,
+      "identity_sha256": "d88c8435b9838815b4f058e57a022c2897fd1fe08c13c449a00283c11b407545",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 506,
+      "identity_sha256": "2369fb9ab7fc2552fc2a2a8cd65f8dd44c5a3500fb293ecc9b7768c9a9620f77",
+      "assignments": [
+        [
+          "v2_still_rgba.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "Use a loopable still plus a finite audio file copied to Matroska."
+    },
+    {
+      "index": 508,
+      "identity_sha256": "556670fb1596eec2200e6af1129f07be477237b064065cfb34d4a250c9cbdead",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3",
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "The fixed maps require stream 0 of the first file to be MP3 audio and stream 0 of the second to be a JPEG cover image for MP3 stream copy."
+    },
+    {
+      "index": 520,
+      "identity_sha256": "cc2651a0f97fc1d945ef46fa550136c1f2f0e7327b7093318b31509724aba004",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 521,
+      "identity_sha256": "278bc322540f4a8378495dd8bcbd114aef740f6d6e4c933b2d6fdf5f510f4126",
+      "assignments": [
+        [
+          "v2_still_rgba%03d.png"
+        ]
+      ],
+      "reason": "Use an image2-selected percent-pattern PNG plus its numbered sibling. Glob inputs match the real percent-named PNG; sequence input reads the numbered frame."
+    },
+    {
+      "index": 522,
+      "identity_sha256": "2c9e0e39023a8bfdb1e8360dd14b13f5496abaeb7ddc926e8157a8c6b26b79c2",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 528,
+      "identity_sha256": "3fbe6ae641c027cee09c147b8cac9f427a5e25c16f44fb5e816d963f9edf30fa",
+      "assignments": [],
+      "reason": "A focused pinned-oracle smoke shows the pinned reference rejects the forced u16le muxer with the explicitly selected pcm_s16le codec as incompatible."
+    },
+    {
+      "index": 529,
+      "identity_sha256": "e564f72c0579bb3aaef8fb4c2be9fc8ee49e199cb0bc5c86f73177d31995518d",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 530,
+      "identity_sha256": "b375970f17a87c556a4183f2e00e982fa2fb0c4422832d8a4a8767d6e5631fdb",
+      "assignments": [],
+      "reason": "The row uses a legacy option or stream-map spelling, such as sameq, updatefirst, vfilters, newvideo/newaudio or 0.0. A media-shape change does not implement that option."
+    },
+    {
+      "index": 535,
+      "identity_sha256": "b49307646ba49ec9c494faa6fb5dc87a89118604c146d66900e0a546df9fd2b8",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 537,
+      "identity_sha256": "d539e27eab8e249dbce75d5465887672ca601bc374e620a669dc0c11be59f8f5",
+      "assignments": [],
+      "reason": "The literal activation_bytes value secret is not a synthetic media-shape requirement. Do not introduce DRM-protected media or credentials to satisfy it."
+    },
+    {
+      "index": 540,
+      "identity_sha256": "11aa074a7043df095b0d6de623918eff431904626311412b95907a83c032db09",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    },
+    {
+      "index": 547,
+      "identity_sha256": "dd7dfacd82536e0b1da6d608a60f1d2a85980d7fe7966365725400cd48821d7b",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 548,
+      "identity_sha256": "c2c329e354acc5bc24fa08009f7db76f56bf5914a0bcc7e878b58ac9a1b035d8",
+      "assignments": [
+        [
+          "v2_subtitles_movtext.mp4"
+        ]
+      ],
+      "reason": "A focused pinned-oracle smoke shows a focused pinned reference succeeds with a synthetic mov_text MP4 and mov2textsub into rawvideo. The missing subtitle-bearing source is a credible file-shape gap."
+    },
+    {
+      "index": 550,
+      "identity_sha256": "27429420924516ec7aecf2d6dd0a73bf67425f61e8864c7b0b58eb8256cda289",
+      "assignments": [],
+      "reason": "An output-only option is grouped before an input: -vframes for the raw-image rows, -shortest for 550. Input bytes cannot change option placement."
+    },
+    {
+      "index": 551,
+      "identity_sha256": "800c8cd6502b24b6ba5bc5a884ff73379149d4bd12d7967210a00e6997f1bf21",
+      "assignments": [],
+      "reason": "Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair."
+    },
+    {
+      "index": 554,
+      "identity_sha256": "53b586cd67209a9adf14e53b7834376dbd3f738735f0fe444e330b7b54e29d64",
+      "assignments": [
+        [
+          "v2_video_only.mp4"
+        ]
+      ],
+      "reason": "Use a video-only H.264 file to remove the selected audio job without changing any option."
+    },
+    {
+      "index": 557,
+      "identity_sha256": "9230e4624cf12a793e5bd891f702d61e74f1bc5159080f41ace5c2b9a71cccb7",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "Use stable stream order v0,a0,a1,a2,a3 with four AAC audio tracks; absolute stream 3 is audio. This satisfies the missing absolute/typed map indices."
+    },
+    {
+      "index": 560,
+      "identity_sha256": "c0e15517d7c97ed8e7b31c2de21094046ffa23f8faa44741809704e127f37f71",
+      "assignments": [],
+      "reason": "A required numeric argument is a literal template or invalid size token; fixture contents cannot supply its value."
+    },
+    {
+      "index": 565,
+      "identity_sha256": "79b43720c70cfb91065beb09e0adc5c14d8a2023939a02e4e0abdd00a7a8b235",
+      "assignments": [
+        [
+          "v2_still_rgb.jpg"
+        ]
+      ],
+      "reason": "A single-frame JPEG source fits the unnumbered OUTPUT.jpg; 235 must copy JPEG rather than an H.264 stream."
+    },
+    {
+      "index": 566,
+      "identity_sha256": "d0a8274b9ca994e2fdf67128d1aa2b6382f14af36e27d9b5778aa134ccad0fe2",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 576,
+      "identity_sha256": "98e9a6255793ce84e72f136c9f6da8e8f29f77038f877fb33f7f8e213e375d6d",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "image2pipe can read a complete encoded PNG from a regular file. No pipe or command rewrite is needed."
+    },
+    {
+      "index": 577,
+      "identity_sha256": "c1482f2652f2cc8454725339e892c35945d61bf2514b75ba9d10c22ddde3485f",
+      "assignments": [
+        [
+          "v2_still_rgba.png"
+        ]
+      ],
+      "reason": "A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence."
+    },
+    {
+      "index": 582,
+      "identity_sha256": "3e55882eba29bcd4525a30ff81732b91106e5dcd4a8b844eee39a655d7d94b1b",
+      "assignments": [
+        [
+          "v2_still_rgba.png",
+          "audio_aac.m4a"
+        ]
+      ],
+      "reason": "The first input must be a loopable still image and the second a finite audio file; shortest bounds the loop."
+    },
+    {
+      "index": 583,
+      "identity_sha256": "71c74c876dee9795ac247460cd4660d339a5b1cda6ff65585e0e037d56d9f29f",
+      "assignments": [],
+      "reason": "The fixed -vsync option is rejected by the pinned FFmpeg 9 oracle. A new source file cannot repair an unrecognized option."
+    },
+    {
+      "index": 584,
+      "identity_sha256": "697df5574e34ad9f714c0f3aa7d6a011a9c825fb7bb02a85ac0618225d7d8fdb",
+      "assignments": [],
+      "reason": "A required numeric argument is a literal template or invalid size token; fixture contents cannot supply its value."
+    },
+    {
+      "index": 587,
+      "identity_sha256": "a8e0da83c18f2cbd8e89db094ef1060fb1d22eaf79022698d95fd57948560f0e",
+      "assignments": [
+        [
+          "v2_audio_mp3_long.mp3"
+        ]
+      ],
+      "reason": "MP3 stream copy needs an MP3 audio-only source; all original audio fixtures are AAC or Opus. Use a 480-second source for every fixed seek/range in this family."
+    },
+    {
+      "index": 589,
+      "identity_sha256": "880f8ece825553ef52d71d1583a92645c2acd41981a1ed34cc704b1228ab3230",
+      "assignments": [],
+      "reason": "-s is literal ${VRES}x${HRES}; output-only -vframes also stands before the input. A raw file cannot repair these arguments."
+    },
+    {
+      "index": 590,
+      "identity_sha256": "5f803db3d36801b06494b2683e90d2e5d0a9afdf885da0127320754defd99055",
+      "assignments": [],
+      "reason": "An output-only option is grouped before an input: -vframes for the raw-image rows, -shortest for 550. Input bytes cannot change option placement."
+    },
+    {
+      "index": 591,
+      "identity_sha256": "f79ab110753f470fd03795923eb5d5e3259016d6986935b76531e5fe061daf35",
+      "assignments": [],
+      "reason": "The fixed relative ./flash-mp4.ffpreset is resolved in an empty output working directory. stage copies only INPUT files elsewhere; it cannot populate this non-input file."
+    },
+    {
+      "index": 592,
+      "identity_sha256": "be38d5f42498c2d0a2fe625f0a1eee3e2efbf73c36f38bd284c076c307c2163d",
+      "assignments": [
+        [
+          "v2_subtitles.srt"
+        ]
+      ],
+      "reason": "A focused pinned-oracle smoke shows a focused pinned reference succeeds copying an SRT subtitle source to the fixed rawvideo muxer with map 0:s."
+    },
+    {
+      "index": 605,
+      "identity_sha256": "7f083b9ccca01f0042d1af897499ade67b033a29647c4051c766723804616f86",
+      "assignments": [
+        [
+          "v2_video_hevc.mp4"
+        ]
+      ],
+      "reason": "The existing concat adapter must list a HEVC-bearing MP4 twice for hevc_mp4toannexb; H.264 input is not sufficient."
+    },
+    {
+      "index": 613,
+      "identity_sha256": "6b623aca02d34fbe452bcfe395ae913fea49007b6a84e100ffc78ffb404b8330",
+      "assignments": [
+        [
+          "v2_multi_audio_eng.mp4"
+        ]
+      ],
+      "reason": "0:a:1 requires at least two source audio tracks. With four tracks, -c:a:2 aac applies to the third original audio output; all other tracks remain copy jobs."
+    },
+    {
+      "index": 617,
+      "identity_sha256": "93b880fcd39965fd31e988a5eb42d8d6ff50334ebcc45d95448bec5d4b4cf764",
+      "assignments": [],
+      "reason": "A forced lavfi input consumes a filtergraph expression, not a media filepath. No normal synthetic media file can satisfy this under the required file-only placeholder contract."
+    },
+    {
+      "index": 620,
+      "identity_sha256": "c02dccbe4df7cf8be5c1e95eff3866120985901a47a8fc22da0222fbe39a08ba",
+      "assignments": [],
+      "reason": "The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it."
+    },
+    {
+      "index": 621,
+      "identity_sha256": "ab5fdf14584406b70c562d3945ad27e0e82a58b6a11bdc35cc325f443e9fefb8",
+      "assignments": [],
+      "reason": "Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens."
+    }
+  ]
+}

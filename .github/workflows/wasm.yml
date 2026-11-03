@@ -7,16 +7,21 @@ on:
     branches: [main]
     paths:
       - packages/wasm/**
+      - packages/wasm-h264/**
       - crates/**
       - tools/edge-native/**
+      - tools/counting-alloc/**
       - tools/*/Cargo.toml
       - NOTICE
       - docs/design/wasm-memory-bars.md
+      - docs/design/wasm-thumbnail-memory-bars.md
       - .github/scripts/wasm-memory-failure.cjs
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/wasm-thumbnail-fixtures.py
+      - scripts/install-x264.sh
       - scripts/chap_craft.py
       - scripts/colr_craft.py
       - scripts/elst_craft.py
@@ -36,16 +41,21 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - packages/wasm/**
+      - packages/wasm-h264/**
       - crates/**
       - tools/edge-native/**
+      - tools/counting-alloc/**
       - tools/*/Cargo.toml
       - NOTICE
       - docs/design/wasm-memory-bars.md
+      - docs/design/wasm-thumbnail-memory-bars.md
       - .github/scripts/wasm-memory-failure.cjs
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/gen-fixtures.sh
+      - scripts/wasm-thumbnail-fixtures.py
+      - scripts/install-x264.sh
       - scripts/chap_craft.py
       - scripts/colr_craft.py
       - scripts/elst_craft.py
@@ -83,12 +93,14 @@ jobs:
           node-version: '24.22.1'
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm
       - run: npm test --prefix packages/wasm && npm run test:types --prefix packages/wasm
+      - run: npm test --prefix packages/wasm-h264 && npm run test:types --prefix packages/wasm-h264
+      - run: python3 -m unittest discover -s scripts/tests -p test_wasm_thumbnail_fixtures.py
       - run: npm test --prefix packages/wasm/examples
 
   wasm-module:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
       contents: read
       issues: write
@@ -143,12 +155,11 @@ jobs:
           key: ${{ steps.fixtures-key.outputs.key }}
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         id: oracle-cache
-        if: steps.fixtures.outputs.cache-hit != 'true'
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
           key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned fixture generator
-        if: steps.fixtures.outputs.cache-hit != 'true' && steps.oracle-cache.outputs.cache-hit != 'true'
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Generate required fixtures
         if: steps.fixtures.outputs.cache-hit != 'true'
@@ -193,8 +204,60 @@ jobs:
         run: |
           tarball="$WASM_PACKAGE"
           npm run check --prefix packages/wasm/examples -- --edge-native "$PWD/target/edge/edge-native" --tarball "$tarball"
+      - name: Verify the installed H.264 package
+        id: installed_h264
+        run: |
+          set -euo pipefail
+          private="$RUNNER_TEMP/thumbnail-preflight"
+          mkdir -p "$private"
+          npm run build --prefix packages/wasm-h264
+          (cd packages/wasm-h264 && npm pack --json --pack-destination "$RUNNER_TEMP") > "$private/pack.json"
+          tarball="$RUNNER_TEMP/$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1]))[0].filename' "$private/pack.json")"
+          env -u GITHUB_STEP_SUMMARY node packages/wasm-h264/scripts/check-package.mjs --tarball "$tarball" > "$private/package-record.json"
+          echo "WASM_H264_PACKAGE=$tarball" >> "$GITHUB_ENV"
+      - name: Install the pinned thumbnail fixture encoder
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/thumbnail-x264"
+      - name: Preflight the installed thumbnail profile
+        id: thumbnails
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          private="$RUNNER_TEMP/thumbnail-preflight"
+          cargo tree --locked --color never -p coreav-edge-native --no-default-features --features native-h264 -e features -i jpeg-encoder > "$private/native-jpeg-features.txt"
+          grep -F 'jpeg-encoder feature "std"' "$private/native-jpeg-features.txt" > /dev/null
+          if grep -F 'jpeg-encoder feature "simd"' "$private/native-jpeg-features.txt" > /dev/null; then
+            echo 'the native portable-encoder reference must not enable JPEG SIMD'
+            exit 1
+          fi
+          cargo tree --locked --color never -p coreav-cli --no-default-features --features native-h264 -e features -i jpeg-encoder > "$private/production-jpeg-features.txt"
+          if ! grep -F 'jpeg-encoder feature "simd"' "$private/production-jpeg-features.txt" > /dev/null; then
+            echo 'ordinary native thumbnails must enable JPEG SIMD'
+            exit 1
+          fi
+          cargo test --locked -p coreav-thumbnail --no-default-features --lib jpeg::tests::portable_output_does_not_depend_on_cpu_dispatch -- --exact > "$private/portable-jpeg.log" 2>&1
+          if ! grep -F 'test result: ok. 1 passed; 0 failed; 0 ignored;' "$private/portable-jpeg.log" > /dev/null; then
+            echo 'the portable JPEG golden must run exactly once; check its exact test name'
+            exit 1
+          fi
+          cargo build --locked -p coreav-edge-native --no-default-features --features native-h264 --profile edge --target-dir target/edge-h264
+          cargo test --locked -p coreav-wasm --features native-h264 --test thumbnail_contract --no-run --message-format=json > "$private/test-build.json"
+          test_binary=$(python3 -c 'import json,sys; rows=[json.loads(line) for line in open(sys.argv[1])]; matches=[r["executable"] for r in rows if r.get("reason")=="compiler-artifact" and r.get("target",{}).get("name")=="thumbnail_contract" and r.get("executable")]; assert len(matches)==1; print(matches[0])' "$private/test-build.json")
+          if ! "$test_binary" > "$private/native-contract.log" 2>&1; then
+            echo 'thumbnail native contract failed'
+            grep '^test .*FAILED' "$private/native-contract.log" || true
+            grep '^thumbnail-contract step=' "$private/native-contract.log" | tail -1 || true
+            exit 1
+          fi
+          COREAV_THUMBNAIL_HOSTILE_DIR="$private/hostile" "$test_binary" --ignored --exact export_synthetic_contract_fixtures > "$private/hostile-export.log" 2>&1
+          python3 scripts/wasm-thumbnail-fixtures.py --oracle-bin "$RUNNER_TEMP/coreav-oracle-bin" --x264 "$RUNNER_TEMP/thumbnail-x264/x264" --hostile-manifest "$private/hostile/hostile.json" --output "$private/fixtures"
+          COREAV_THUMBNAIL_MANIFEST="$private/fixtures/manifest.json" COREAV_THUMBNAIL_ALLOCATION_REPORT="$private/allocations.json" "$test_binary" --ignored --exact generated_4k_refusals_allocate_no_decoded_frame > "$private/allocations.log" 2>&1
+          node packages/wasm-h264/test/installed/check.mjs --fixtures "$private/fixtures" --tarball "$WASM_H264_PACKAGE" --package-record "$private/package-record.json" --edge-native "$PWD/target/edge-h264/edge/edge-native" --allocation-report "$private/allocations.json" --allocation-binary "$test_binary" --host-cases packages/wasm-h264/test/installed-host-cases.mjs --oracle-bin "$RUNNER_TEMP/coreav-oracle-bin" --output "$private/capture"
       - name: Record a release-blocking failure
-        if: failure() && (steps.installed.outcome == 'failure' || steps.examples.outcome == 'failure')
+        if: failure() && (steps.installed.outcome == 'failure' || steps.examples.outcome == 'failure' || steps.installed_h264.outcome == 'failure' || steps.thumbnails.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |

@@ -133,17 +133,7 @@ fn decode_intra<P: Sample>(
         memory,
     )?;
     loop_filter::apply(h, &decoded.modes, &mut frame)?;
-    Ok((
-        decoded.clean,
-        frame.picture(
-            h.width,
-            h.height,
-            c.bit_depth,
-            c.subsampling_x,
-            c.subsampling_y,
-            memory,
-        )?,
-    ))
+    Ok((decoded.clean, frame.picture(h.width, h.height, c, memory)?))
 }
 
 #[cfg(test)]

@@ -84,7 +84,10 @@ impl Picture {
         if width == 0 || height == 0 {
             return Err(FrameError::InvalidGeometry("width or height of 0"));
         }
-        let mut planes = Vec::with_capacity(format.plane_count());
+        let mut planes = Vec::new();
+        planes
+            .try_reserve_exact(format.plane_count())
+            .map_err(|_| FrameError::OutOfMemory)?;
         for index in 0..format.plane_count() {
             let stride = format
                 .row_bytes(index, width, height)

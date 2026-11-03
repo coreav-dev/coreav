@@ -32,6 +32,8 @@ that ran and whether it was the fallback. The Rust API is
 `coreav_thumbnail::thumbnail(source, &options)`, which returns the image
 bytes and the same facts.
 
+Internally, preparation owns the container plan and selected packet range through decoding, including the native retry. Consuming preparation returns only the selected identity, display geometry, decoded frame and decoder results. The packet tables and configurations are released before rendering, and the decoded frame is released before image encoding. This separates allocation lifetimes without establishing the aggregate allocation bounds required by the [WASM thumbnail plan](wasm-thumbnail-memory-bars.md).
+
 **Which stream.** By default the video stream FFmpeg chooses by default:
 the one with the highest resolution, the first of those on a tie
 (documented `ffmpeg` behaviour); `--stream N` names another.
@@ -574,6 +576,7 @@ JPEG thumbnails are encoded by the `jpeg-encoder` crate 0.6.1 (vstroebel), pinne
   - IJG asks binary distributions to state "This software is based in part on the work of the Independent JPEG Group". `NOTICE` holds it, and `docs/release/notices.md` lists the distributions that ship it.
   - The crate has no dependencies of its own, and `cargo deny check` passes on the graph with it.
 - **Pinned.** A new version changes the bytes of every JPEG, so it is reviewed and the image bars are run again before the pin moves. Its SIMD paths are the crate's own `unsafe`, as for any dependency; CoreAV adds none.
+- **Build configuration.** `coreav-thumbnail` enables `jpeg-simd` by default, and the CLI's `thumbnail` feature explicitly retains it. The WASM H.264 package and its native portable-encoder test reference disable this feature. SIMD and portable JPEG transforms can round differently, so exact cross-target bytes are compared only against the portable reference. Ordinary native JPEG encoding is unchanged.
 - **Image agreement**, at the default 91, on corpus v1's development set (I3, 735 files with images; `docs/spikes/thumbnail-bench/evidence/images-jpeg-encoder-q91.jsonl`). The bar is at least 98% of files at 28 dB or more, and each class's median of CoreAV's PSNR minus FFmpeg's JPEG's at least 0:
   - 729 files (99.18%) are at least 28 dB: the bar needs 721 of 735, so 8 files of margin (1.18 points);
   - per-class medians are AV1 1.514, H.264 1.385, HEVC 1.392, ProRes 1.403, VP8 0.932 and VP9 0.762 dB. The thinnest margin is VP9's, 0.76 dB;

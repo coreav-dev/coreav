@@ -14,6 +14,8 @@ use coreav_isobmff::Rational;
 /// The container family `-f` names before the input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Demuxer {
+    /// Explicit signed-16 little-endian audio with declared rate and channels.
+    S16le(coreav_audio::raw::RawS16Format),
     /// `mov,mp4,m4a,3gp,3g2,mj2` and its aliases.
     Isobmff,
     /// `matroska,webm` and its aliases.
@@ -36,6 +38,8 @@ pub enum Muxer {
     Ipod,
     /// `mp3` (`.mp3`): one Layer III stream.
     Mp3,
+    /// Native FLAC (`.flac`).
+    Flac,
     /// `segment`, writing MP4 segments.
     Segment,
     /// Matroska output, with H.264 and Vorbis defaults.
@@ -121,6 +125,8 @@ pub struct Map {
 /// What a codec option asks for its streams.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Codec {
+    /// The native lossless FLAC encoder.
+    Flac,
     /// Audio encoders supported by the AVI and PCM writers.
     AviAudio(AviAudio),
     /// `copy`.
@@ -533,6 +539,55 @@ fn time(option: &str, value: &str) -> Result<Rational, Refusal> {
     })
 }
 
+fn audio_rate(text: &str) -> Option<u32> {
+    let (number, scale) = match text.as_bytes().last() {
+        Some(b'k' | b'K') => (text.get(..text.len() - 1)?, 1_000u128),
+        Some(b'M') => (text.get(..text.len() - 1)?, 1_000_000),
+        Some(b'G') => (text.get(..text.len() - 1)?, 1_000_000_000),
+        _ => (text, 1),
+    };
+    let (whole, fraction) = number.split_once('.').unwrap_or((number, ""));
+    if (whole.is_empty() && fraction.is_empty())
+        || !whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let denominator = 10u128.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+    let whole = if whole.is_empty() {
+        0
+    } else {
+        whole.parse::<u128>().ok()?
+    };
+    let fraction = if fraction.is_empty() {
+        0
+    } else {
+        fraction.parse::<u128>().ok()?
+    };
+    let value = whole
+        .checked_mul(denominator)?
+        .checked_add(fraction)?
+        .checked_mul(scale)?;
+    if value % denominator != 0 {
+        return None;
+    }
+    u32::try_from(value / denominator)
+        .ok()
+        .filter(|rate| *rate > 0)
+}
+
+fn rate(option: &str, text: &str) -> Result<u32, Refusal> {
+    audio_rate(text).ok_or_else(|| {
+        not_native(
+            option,
+            Some(text),
+            "the sample rate must be a positive whole number of Hz",
+        )
+    })
+}
+
 /// The options given for one file, in order.
 type Group<'a> = Vec<(&'a str, Option<&'a str>)>;
 
@@ -660,6 +715,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         segment_time: Rational::from_int(2),
         overwrite,
     };
+    let input_format = input_options
+        .iter()
+        .rev()
+        .find_map(|(option, value)| (*option == "-f").then_some(*value).flatten());
+    let raw = input_format == Some("s16le");
+    let mut input_rate = None;
+    let mut input_channels = None;
     let mut safe = None;
     for (option, value) in input_options {
         let text = value.unwrap_or_default();
@@ -667,7 +729,16 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-ss" => command.input_seek = Some(time(option, text)?),
             "-t" => command.input_duration = Some(time(option, text)?),
             "-to" => command.input_until = Some(time(option, text)?),
-            "-f" => command.demuxer = Some(demuxer(text)?),
+            "-f" => {}
+            "-ar" if raw => input_rate = Some(rate(option, text)?),
+            "-ac" if raw => {
+                input_channels = Some(
+                    text.parse::<u16>()
+                        .ok()
+                        .filter(|n| *n > 0)
+                        .ok_or_else(|| usage("Invalid audio channel count."))?,
+                )
+            }
             "-fflags" if matches!(text, "+genpts" | "genpts") => {}
             "-fflags" => {
                 return Err(not_native(
@@ -688,6 +759,19 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
+    command.demuxer = if raw {
+        let (Some(rate), Some(channels)) = (input_rate, input_channels) else {
+            return Err(Refusal::not_native(
+                "raw PCM input without explicit -ar and -ac",
+            ));
+        };
+        Some(Demuxer::S16le(
+            coreav_audio::raw::RawS16Format::new(rate, channels)
+                .map_err(|error| not_native("-f", Some("s16le"), &error.to_string()))?,
+        ))
+    } else {
+        input_format.map(demuxer).transpose()?
+    };
     match (&mut command.demuxer, safe) {
         (Some(Demuxer::Concat { safe }), Some(given)) => *safe = given,
         (_, Some(_)) => return Err(usage("Option safe not found.")),
@@ -715,6 +799,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),
+                "flac" => Codec::Flac,
                 "pcm_s16le" => Codec::AviAudio(AviAudio::PcmS16),
                 "pcm_u8" => Codec::AviAudio(AviAudio::PcmU8),
                 "png" => Codec::Video(VideoEncoder::Png),
@@ -724,7 +809,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus, aac or libmp3lame",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with flac, libopus, aac or libmp3lame",
                     ));
                 }
             };
@@ -825,16 +910,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-t" => command.duration = Some(time(option, text)?),
             "-to" => command.until = Some(time(option, text)?),
             "-f" => format = Some(text),
-            "-ar" => {
-                command.sample_rate =
-                    Some(text.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
-                        not_native(
-                            option,
-                            Some(text),
-                            "PCM output takes a positive integer source rate",
-                        )
-                    })?)
-            }
+            "-ar" => command.sample_rate = Some(rate(option, text)?),
             "-ac" => {
                 command.channels = Some(
                     text.parse::<u16>()
@@ -949,22 +1025,24 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an audio encoder option, and coreav ffmpeg encodes audio with libopus, aac or libmp3lame",
         ));
     }
-    if !matches!(command.muxer, Muxer::Avi | Muxer::Wav | Muxer::S16le)
-        && command
-            .codecs
-            .iter()
-            .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
+    if !matches!(
+        command.muxer,
+        Muxer::Avi | Muxer::Wav | Muxer::S16le | Muxer::Flac
+    ) && command
+        .codecs
+        .iter()
+        .any(|(_, codec)| matches!(codec, Codec::AviAudio(_)))
     {
         return Err(Refusal::not_native(
             "PCM encoding to an unsupported container",
         ));
     }
-    if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::Flac) {
         if movflags {
             return Err(not_native(
                 "-movflags",
                 None,
-                "it is not an option of PCM output",
+                "it is not an option of native audio output",
             ));
         }
     } else if command.sample_rate.is_some() {
@@ -1035,7 +1113,7 @@ fn demuxer(name: &str) -> Result<Demuxer, Refusal> {
         _ => Err(not_native(
             "-f",
             Some(name),
-            "coreav ffmpeg reads MP4/MOV, Matroska and WebM",
+            "coreav ffmpeg reads MP4/MOV, Matroska, WebM or explicit s16le with -ar and -ac",
         )),
     }
 }
@@ -1073,6 +1151,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "mp4" => Some(Muxer::Mp4),
         "m4a" => Some(Muxer::Ipod),
         "mp3" => Some(Muxer::Mp3),
+        "flac" => Some(Muxer::Flac),
         "avi" => Some(Muxer::Avi),
         "wav" => Some(Muxer::Wav),
         "png" | "bmp" => Some(Muxer::Image2),
@@ -1090,6 +1169,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("mp4") => Ok(Muxer::Mp4),
         Some("ipod") => Ok(Muxer::Ipod),
         Some("mp3") => Ok(Muxer::Mp3),
+        Some("flac") => Ok(Muxer::Flac),
         Some("avi") => Ok(Muxer::Avi),
         Some("wav") => Ok(Muxer::Wav),
         Some("s16le") => Ok(Muxer::S16le),
@@ -1102,7 +1182,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),

@@ -26,6 +26,8 @@
 pub mod aac;
 pub mod annexb;
 pub mod audio;
+#[cfg(feature = "input-capture")]
+pub mod capture;
 pub mod contract;
 pub mod encoder;
 pub mod ffv1;

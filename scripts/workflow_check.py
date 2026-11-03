@@ -116,6 +116,8 @@ UNLISTED = '# workflow-check: not required'
 # The oracle FFmpeg's pin and its installer: a workflow that runs the
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
+ORACLE_PINS = (ORACLE_PIN, ('scripts/oracle-ffmpeg-macos.env', 'scripts/install-oracle-ffmpeg-macos.sh',
+                            'scripts/oracle_pin_macos.py', 'scripts/oracle-ffmpeg.env', 'scripts/oracle_pin.py'))
 STOPS_SHELL = ('help', 'version', 'dump-strings', 'dump-po-strings')
 TAKES_OPERAND = ('rcfile', 'init-file')
 
@@ -155,7 +157,7 @@ def commands(line):
     return [command for command in out if command]
 
 
-def calls_installer(line):
+def calls_installer(line, installer=ORACLE_PIN[1]):
     """True when a command of a script line runs the installer: as a command,
     or through `bash` or `sh` (after `sudo`) as its script or in the string of
     `-c`. The options are read the way bash reads them, so the ones that stop the
@@ -166,16 +168,16 @@ def calls_installer(line):
     `--` ends the options, and the word after them is the script (or, with
     `-c`, the command string).
     """
-    return any(runs_installer(words) for words in commands(line))
+    return any(runs_installer(words, installer) for words in commands(line))
 
 
-def runs_installer(words):
+def runs_installer(words, installer=ORACLE_PIN[1]):
     if words[:1] == ['sudo']:
         words = words[1:]
     if not words:
         return False
     if words[0] not in ('bash', 'sh'):
-        return words[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
+        return words[0] in (installer, './' + installer)
     noexec = command_string = stdin = False
     i = 1
     while i < len(words):
@@ -210,8 +212,8 @@ def runs_installer(words):
     if noexec or not rest or (stdin and not command_string):
         return False
     if command_string:
-        return calls_installer(rest[0])
-    return rest[0] in (ORACLE_PIN[1], './' + ORACLE_PIN[1])
+        return calls_installer(rest[0], installer)
+    return rest[0] in (installer, './' + installer)
 
 
 def load_changed_paths(root):
@@ -610,8 +612,11 @@ def check(root):
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
         entries = yaml_entries(path.read_text(encoding='utf-8'))
-        if not isinstance(entries, str) and any(
-                calls_installer(script) for entry in entries if 'run' in entry for script in entry['run'].splitlines()):
+        for pins in ORACLE_PINS:
+            if isinstance(entries, str) or not any(
+                    calls_installer(script, pins[1]) for entry in entries if 'run' in entry
+                    for script in entry['run'].splitlines()):
+                continue
             filters = trigger_filters(path.read_text(encoding='utf-8'))
             if isinstance(filters, str):
                 problems.append(f'{path.name}: {filters}')
@@ -625,7 +630,7 @@ def check(root):
                 except SystemExit as error:
                     problems.append(f'{path.name}: {key} of `{event}`: {error}')
                     continue
-                for pin in ORACLE_PIN:
+                for pin in pins:
                     if any(r.match(pin) for r in regexes) == (key == 'paths-ignore'):
                         fix = 'take it out of' if key == 'paths-ignore' else 'add it to'
                         problems.append(f'{path.name}: runs the oracle FFmpeg installer, but a change of {pin} '

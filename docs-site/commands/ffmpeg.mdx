@@ -21,7 +21,8 @@ import Help from '/snippets/help/ffmpeg.mdx';
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
 | One audio stream to `.wav` or `-f wav` | Signed 16-bit little-endian PCM, the default codec for WAV |
-| One audio stream with `-f s16le` | The same PCM samples without a header |
+| One audio stream with `-f s16le` after `-i` | The same PCM samples without a header |
+| `-f s16le -ar RATE -ac CHANNELS` before `-i`, to WAV or raw S16 | Explicit mono/stereo raw input, with optional output rate conversion |
 
 In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. In strict-safe mode no `ffmpeg` program runs: the command line needs an `x264` program and a backend other than `ffmpeg-fallback` that decodes the video, and is refused with exit status 4 otherwise ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
@@ -45,7 +46,7 @@ Any other command line is refused in strict-safe mode, and goes to the real `ffm
 
 ## PCM audio output
 
-WAV and raw PCM output run natively for FLAC tracks in MP4, MOV or Matroska, including in strict-safe mode. MP3, Opus and AAC sources keep the existing external FFmpeg fallback, or are refused in strict-safe mode. Native PCM and ALAC source decoding is not supported. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
+WAV and raw PCM output run natively for FLAC tracks in MP4, MOV or Matroska, including in strict-safe mode. MP3, Opus and AAC sources keep the existing external FFmpeg fallback, or are refused in strict-safe mode. PCM and ALAC tracks in containers are not supported. Automatic selection chooses one audio stream, preferring the default disposition, then the most channels. `-map` can select another audio stream. Video and cover pictures are not selected automatically for these outputs.
 
 ```sh
 coreav --strict-safe ffmpeg -i input.mka output.wav
@@ -53,7 +54,7 @@ coreav --strict-safe ffmpeg -i input.mp4 -acodec pcm_s16le -f s16le output.raw
 coreav --strict-safe ffmpeg -i input.mka -ss 0 -t 30 output.wav
 ```
 
-The rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, mixing, resampling, raw input, multiple output files and other PCM codecs are not supported.
+For those FLAC sources, the rate and channel count stay unchanged. `-ar` is accepted only at the source rate. `-ac` is accepted only for a mono or stereo source with that same channel count. A zero output `-ss` and `-t` or `-to` can limit the output from its start when the duration is a whole sample count. Input `-ss 0` is supported only for FLAC. Input `-t 0` means unlimited input, while output `-t 0` writes an empty stream. An effective `-to 0` is an error. The decoder still reads the whole input. Nonzero seeking, mixing, FLAC-source resampling, multiple output files and other PCM codecs are not supported.
 
 Output `-threads` is accepted but does not change PCM serialization or start encoder workers.
 
@@ -97,6 +98,35 @@ Raw output keeps the decoder's pixel format. `-pix_fmt` must name that format; i
 [The frame-output design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/frame-output.md) records the correctness bars and limits.
 
 Timeout scope depends on the decoder backend. On clock-supported targets the native H.264 backend uses a 60-second decoder-session deadline, set when the decoder opens and reused by later calls. A slow output sink can make the next decoder call time out. The command adds no separate wall-clock deadline. Decoded bytes remain limited to 4 GiB per decoder. A failed binary-stdout write or final flush fails the command; a closed pipe exits with status 141.
+
+### Raw signed-16 input
+
+Declare signed 16-bit little-endian samples explicitly before `-i`, including both the rate and channel count. The file's extension does not select or override its interpretation. Rates are positive integral Hz; decimal SI forms such as `44.1k` are accepted. Only mono or stereo is native, with unchanged channels, at 1,000 to 768,000 Hz.
+
+```sh
+coreav --strict-safe ffmpeg -f s16le -ar 44.1k -ac 2 -i input.pcm output.wav
+coreav --strict-safe ffmpeg -f s16le -ar 8000 -ac 2 -i input.pcm -ar 44100 output.wav
+```
+
+An unchanged rate copies integer bytes without a floating-point conversion. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. The same atomic WAV/raw output owner handles both paths.
+
+Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other sample formats, FLAC or lossy output, filters, dither or soxr. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
+
+## FLAC audio output
+
+`.flac` or `-f flac` selects CoreAV's native FLAC encoder, also available with `-c:a flac` or `-acodec flac`. It runs in default builds and strict-safe mode without an external program. Native input is currently limited to FLAC tracks with 16-bit or 24-bit samples in MP4, MOV or Matroska. The encoder preserves every sample, the source rate and the FLAC speaker order.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mka output.flac
+coreav --strict-safe ffmpeg -i input.mp4 -map 0:a:0 -c:a flac output.flac
+coreav --strict-safe ffmpeg -i input.mka -vn -map_metadata -1 -t 30 output.flac
+```
+
+The encoder chooses constant, verbatim, fixed or linear prediction with partitioned Rice residuals. It writes STREAMINFO with the completed sample count and MD5. Its default compression settings are fixed; compression-level options are not supported. Output `-threads` is accepted but does not start encoder workers.
+
+Rate and channel conversion, nonzero seeking, custom metadata copying and chapters remain unsupported. The PCM duration and zero-time rules above also apply to FLAC. For an input with custom global tags, use `-map_metadata -1`. MP3, AAC and Opus sources keep refusal and the existing external fallback. A selected video or cover picture is refused because PICTURE output is not implemented. Use `-vn` or an audio-only `-map` to omit it explicitly. A speaker layout outside the FLAC channel order is also refused.
+
+The [FLAC output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/flac-output.md) describes the encoder and the registered size and speed comparisons. These comparisons are not a speed claim.
 
 ## Examples
 

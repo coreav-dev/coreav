@@ -1,5 +1,9 @@
 # Corpora
 
+## H.264 PGO allocation
+
+`h264-pgo-heldout-v1` is a fresh reserved H.264-decode allocation. It does not reuse training inputs, earlier speed draws, encoder inputs, or another operation's allocation. Its fixed seed, sixty-four-file class quotas, exclusion checks, admission rules, and one-run performance bars are in [the PGO plan](design/h264-pgo-release.md). Both its reservation and that plan must merge before listing, drawing, or opening media. A short class or a failed qualification leaves the evaluation incomplete; it does not permit replacing inputs after decoding starts.
+
 CoreAV is measured against a private measurement corpus of real media files,
 against one synthetic set of browser recordings, and against one set of real
 command lines. This page is the public record of what those measurements

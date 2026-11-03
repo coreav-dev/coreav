@@ -307,14 +307,16 @@ STATS = re.compile(r'^\{"remote_stats":(\{.*\})\}$', re.MULTILINE)
 REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
-def instructions(coreav, args):
+def instructions(coreav, args, *, profile=None):
     """The instructions `coreav ARGS` executes, or the error. With a fallback
     that names no program, so that a command that stopped being native fails
     here instead of being handed to FFmpeg; not in strict-safe mode, which
     would also refuse the FFmpeg decoder and encoder of the thumbnail and
     transcode cases (docs/design/compat-cli.md, "Strict-safe mode")."""
+    if profile is not None:
+        profile.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run(
-        ["valgrind", "--tool=cachegrind", "--cache-sim=no", "--cachegrind-out-file=/dev/null",
+        ["valgrind", "--tool=cachegrind", "--cache-sim=no", f"--cachegrind-out-file={profile or '/dev/null'}",
          coreav, *args],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=600,
         env={**{k: v for k, v in os.environ.items() if k != "COREAV_STRICT_SAFE"},
@@ -649,6 +651,8 @@ def main():
                         help="a build with a decoder backend, for the cases that need one (DECODER_CASES)")
     parser.add_argument("--baseline", default=ROOT / "bench/guard/baseline.json", type=pathlib.Path)
     parser.add_argument("--write", type=pathlib.Path)
+    parser.add_argument("--profile-dir", type=pathlib.Path,
+                        help="retain each counted invocation's function-level Cachegrind profile")
     parser.add_argument("--report-only", action="store_true",
                         help="print and write the counts without comparing (the base side of a pull request)")
     args = parser.parse_args()
@@ -672,7 +676,9 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
     not_generated = generate(work)
     not_generated.update(craft(work))
     rows, failed, broken = [], [], []
-    startup, error = instructions(args.coreav, ["--version"])
+    profile_dir = getattr(args, "profile_dir", None)
+    startup, error = instructions(args.coreav, ["--version"],
+                                  profile=profile_dir / "startup.cg" if profile_dir else None)
     if error:
         print(f"coreav --version failed: {error}", file=sys.stderr)
         return 1
@@ -685,7 +691,8 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
     counts = {}
     decoder_startup = None
     if args.decoder_coreav:
-        decoder_startup, error = instructions(args.decoder_coreav, ["--version"])
+        decoder_startup, error = instructions(args.decoder_coreav, ["--version"],
+                                              profile=profile_dir / "decoder-startup.cg" if profile_dir else None)
         if error:
             print(f"the decoder build's --version failed: {error}", file=sys.stderr)
             return 1
@@ -737,7 +744,8 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
         command = []
         for a in template:
             command.extend(prepared[a] if a in prepared else [argument(a, path, index, out)])
-        total, error = instructions(coreav, command)
+        total, error = instructions(coreav, command,
+                                    profile=profile_dir / f"{name}.cg" if profile_dir else None)
         if error and args.report_only:
             # The base commit of a pull request that adds the case (a new
             # command): nothing to compare it with.

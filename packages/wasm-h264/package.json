@@ -1,0 +1,50 @@
+{
+  "name": "@coreav/wasm-h264",
+  "version": "0.0.1",
+  "description": "CoreAV H.264 thumbnail operations as a private WebAssembly library",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coreav-dev/coreav.git",
+    "directory": "packages/wasm-h264"
+  },
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./workers": {
+      "types": "./src/workers.d.ts",
+      "default": "./src/workers.js"
+    },
+    "./node": {
+      "types": "./src/node.d.ts",
+      "default": "./src/node.js"
+    }
+  },
+  "files": [
+    "src",
+    "wasm/coreav.js",
+    "wasm/build.js",
+    "wasm/coreav_bg.wasm",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "NOTICE",
+    "THIRD-PARTY-NOTICES.txt"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "build": "bash ../wasm/scripts/build.sh h264",
+    "test": "node --test test/thumbnail.test.mjs test/broker.test.mjs test/package.test.mjs test/node-wiring.test.mjs test/node-lifecycle.test.mjs test/installed-host-cases.test.mjs test/installed/ledger.test.mjs test/installed/pixels.test.mjs test/installed/worker.test.mjs",
+    "test:module": "node --experimental-wasm-jspi --experimental-wasm-exnref --test test/module.test.mjs",
+    "test:types": "node scripts/check-types.mjs",
+    "check:package": "node scripts/check-package.mjs",
+    "prepack": "node scripts/prepack.mjs"
+  }
+}

@@ -18,6 +18,7 @@ default = []
 dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d", "coreav-worker/dav1d"]
 # CoreAV's native H.264 decoder, in-process (`--backend native`).
 native-h264 = ["dep:coreav-backend-h264"]
+native-vp9 = ["dep:coreav-backend-vp9"]
 # libvpx, in the worker and in-process (links the system's libvpx).
 libvpx = ["dep:coreav-backend-libvpx", "coreav-backend-libvpx/libvpx", "coreav-worker/libvpx"]
 
@@ -25,6 +26,7 @@ libvpx = ["dep:coreav-backend-libvpx", "coreav-backend-libvpx/libvpx", "coreav-w
 coreav-backend-dav1d = { path = "../../crates/coreav-backend-dav1d", optional = true }
 coreav-backend-ffmpeg = { path = "../../crates/coreav-backend-ffmpeg" }
 coreav-backend-h264 = { path = "../../crates/coreav-backend-h264", optional = true }
+coreav-backend-vp9 = { path = "../../crates/coreav-backend-vp9", optional = true }
 coreav-backend-libvpx = { path = "../../crates/coreav-backend-libvpx", optional = true }
 coreav-decode = { path = "../../crates/coreav-decode" }
 coreav-frame = { path = "../../crates/coreav-frame" }

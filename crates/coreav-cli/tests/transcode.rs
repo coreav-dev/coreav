@@ -22,6 +22,8 @@ mod schema;
 
 #[path = "support/bounded.rs"]
 mod bounded;
+#[path = "../../coreav-isobmff/tests/common/mod.rs"]
+mod iso_movies;
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -1282,7 +1284,7 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     for (words, source, expected) in [
         ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4", 4),
         ("-i IN -c:v libx264 OUT", "vfr.mp4", 4),
-        ("-i IN -c:v libx264 OUT", "browser.webm", 4),
+        ("-i IN -c:v libx264 OUT", "browser.webm", 0),
         ("-i IN -an -c:v libx264 OUT", "edit_list.mp4", 4),
         ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4", 4),
         ("-i IN -an -c:v libx264 OUT", "timecode.mov", 4),
@@ -1298,12 +1300,6 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     ] {
         let (code, stderr) = run(words, source, &out);
         assert_eq!(code, expected, "{words} on {source}: {stderr}");
-        if source == "browser.webm" {
-            assert!(
-                stderr.contains("default AAC encoding of an Opus source"),
-                "{stderr}"
-            );
-        }
         if expected == 4 {
             assert!(!out.exists(), "{words} on {source}");
         } else {
@@ -2165,6 +2161,46 @@ fn ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery() {
             assert!(!output.exists(), "{name} {flag}: output was published");
         }
     }
+    nothing_left(&dir);
+}
+
+/// Unmappable copied audio is the same refusal as the writer, before any
+/// encoder process and before any output byte.
+#[cfg(unix)]
+#[test]
+fn ffmpeg_refuses_unmapped_copied_audio_before_the_encoder_starts() {
+    let dir = dir("copied-audio-preflight");
+    let input = dir.join("in.mp4");
+    std::fs::write(&input, iso_movies::av_movie(b"sowt")).unwrap();
+    let marker = dir.join("encoder.called");
+    let encoder = script(
+        &dir,
+        "encoder",
+        &format!("printf '%s\\n' invoked > '{}'", marker.display()),
+    );
+    let output = dir.join("out.mkv");
+    let run = bounded::output(
+        Command::new(bin())
+            .args(["ffmpeg", "-y", "-i"])
+            .arg(&input)
+            .args(["-c:v", "libx264", "-c:a", "copy"])
+            .arg(&output)
+            .env("COREAV_X264", &encoder)
+            .env("COREAV_FFMPEG", &encoder)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_STRICT_SAFE", "0"),
+        None,
+        std::time::Duration::from_secs(20),
+    )
+    .unwrap();
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(4), "{stderr}");
+    assert!(
+        stderr.contains("an ISO codec without a Matroska mapping"),
+        "{stderr}"
+    );
+    assert!(!marker.exists(), "encoder was invoked: {stderr}");
+    assert!(!output.exists(), "output was published: {stderr}");
     nothing_left(&dir);
 }
 

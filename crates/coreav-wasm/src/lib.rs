@@ -20,5 +20,8 @@
 
 pub mod ops;
 
+#[cfg(feature = "native-h264")]
+mod thumbnail;
+
 #[cfg(target_arch = "wasm32")]
 mod bindings;

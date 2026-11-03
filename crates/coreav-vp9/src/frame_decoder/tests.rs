@@ -22,6 +22,72 @@ fn key_allocation_bytes() -> u64 {
 }
 
 #[test]
+fn the_frame_byte_allowance_precedes_reconstruction_and_checks_shown_references() {
+    let mut decoder = FrameDecoder::new(Limits::default());
+    assert_eq!(
+        decoder.decode_with_budget(&KEY, true, 1024, 4607),
+        Err(Error::Limit(LimitKind::FrameBytes))
+    );
+    assert_eq!(decoder.retained_memory_bytes().unwrap(), 0);
+    assert_eq!(decoder.decode(&KEY).unwrap().len(), 1);
+    assert_eq!(
+        decoder.decode_with_budget(&[0x88], true, 8 << 30, 4607),
+        Err(Error::Limit(LimitKind::FrameBytes))
+    );
+    assert_eq!(decoder.decode(&[0x88]).unwrap().len(), 1);
+}
+
+#[test]
+fn keyframe_only_skips_invalidate_exactly_the_refreshed_slots() {
+    for flags in 0u8..=255 {
+        let mut full = FrameDecoder::new(Limits::default());
+        let expected = full.decode(&KEY).unwrap();
+        let mut keys = FrameDecoder::new(Limits::default()).with_keyframes_only();
+        assert_eq!(keys.decode(&KEY).unwrap(), expected);
+        let skipped = [0x86, flags >> 2, flags << 6];
+        assert!(keys.decode(&skipped).unwrap().is_empty());
+        for slot in 0..8 {
+            let shown = [0x88 | slot];
+            let output = keys.decode(&shown).unwrap();
+            if flags >> slot & 1 == 1 {
+                assert!(output.is_empty());
+            } else {
+                assert_eq!(output, expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn keyframe_only_refuses_truncated_skip_prefixes_and_nonzero_profiles() {
+    let mut keys = FrameDecoder::new(Limits::default()).with_keyframes_only();
+    keys.decode(&KEY).unwrap();
+    for packet in [&[0x86][..], &[0x86, 0][..], &[0x80][..], &[0x98][..]] {
+        assert!(keys.decode(packet).is_err());
+    }
+    assert_eq!(keys.decode(&[0x88]).unwrap().len(), 1);
+    let mut empty = FrameDecoder::new(Limits::default()).with_keyframes_only();
+    assert!(empty.decode(&[0x88]).unwrap().is_empty());
+}
+
+#[test]
+fn discarded_frames_keep_references_without_allocating_output_sample_copies() {
+    let budget = key_allocation_bytes() - (64 * 48 + 2 * 32 * 24);
+    let mut d = FrameDecoder::new(Limits::default());
+    assert!(
+        d.decode_with_budget(&KEY, false, budget, u64::MAX)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(d.decode(&[0x88]).unwrap().len(), 1);
+    let mut d = FrameDecoder::new(Limits::default());
+    assert_eq!(
+        d.decode_with_budget(&KEY, true, budget, u64::MAX),
+        Err(Error::Limit(LimitKind::MemoryBytes))
+    );
+}
+
+#[test]
 fn the_budget_includes_working_planes_history_and_the_output_copy() {
     let needed = key_allocation_bytes();
     let mut d = FrameDecoder::new(Limits {

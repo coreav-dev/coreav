@@ -42,6 +42,11 @@ class PackageFilters(unittest.TestCase):
                    'packages/wasm/test/streams.test.mjs', 'docs/design/wasm.md']
         self.assertEqual(self.selected(changed), dict.fromkeys(self.filters, False))
 
+    def test_h264_package_changes_do_not_run_native_suites(self):
+        changed = ['packages/wasm-h264/src/node.js', 'packages/wasm-h264/package.json',
+                   'packages/wasm-h264/test/installed/check.mjs']
+        self.assertEqual(self.selected(changed), dict.fromkeys(self.filters, False))
+
     def test_wasm_triggers_cover_module_fixture_inputs(self):
         helpers = re.findall(r'\$SCRIPTS/([A-Za-z0-9_.-]+)',
                              (ROOT / 'scripts/gen-fixtures.sh').read_text())
@@ -123,6 +128,10 @@ class PackageFilters(unittest.TestCase):
                          if step.get('name') == 'Verify the installed package')
         examples = next(step for step in steps
                         if step.get('name') == 'Judge the registered memory gates')
+        installed_h264 = next(step for step in steps
+                              if step.get('name') == 'Verify the installed H.264 package')
+        thumbnails = next(step for step in steps
+                          if step.get('name') == 'Preflight the installed thumbnail profile')
         reporter = next(step for step in steps
                         if step.get('name') == 'Record a release-blocking failure')
         evaluate = '''
@@ -136,14 +145,26 @@ for (const [name, installed, examples, failed, expected] of [
   ['earlier failure with both checks skipped must not report', 'skipped', 'skipped', true, false],
   ['cancellation still requires manual reporting', 'cancelled', 'skipped', false, false]
 ]) {
-  const steps = { [config.installed]: { outcome: installed }, [config.examples]: { outcome: examples } };
+  const steps = { [config.installed]: { outcome: installed }, [config.examples]: { outcome: examples },
+    [config.installedH264]: { outcome: 'skipped' }, [config.thumbnails]: { outcome: 'skipped' } };
   assert.equal(condition(steps, () => failed), expected, name);
+}
+for (const name of [config.installedH264, config.thumbnails]) {
+  const steps = Object.fromEntries([config.installed, config.examples, config.installedH264, config.thumbnails].map(id => [id, { outcome: 'skipped' }]));
+  steps[name].outcome = 'failure';
+  assert.equal(condition(steps, () => true), true, name + ' failure must report');
+  steps[name].outcome = 'success';
+  assert.equal(condition(steps, () => false), false);
+  steps[name].outcome = 'cancelled';
+  assert.equal(condition(steps, () => false), false);
 }
 '''
         result = subprocess.run(['node', '-e', evaluate], input=json.dumps({
             'condition': reporter['if'],
             'installed': installed.get('id', 'unidentified_installed'),
             'examples': examples['id'],
+            'installedH264': installed_h264['id'],
+            'thumbnails': thumbnails['id'],
         }), text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

@@ -20,6 +20,22 @@ SPEC.loader.exec_module(release_set)
 
 
 class InstructionTolerance(unittest.TestCase):
+    def test_profile_capture_changes_only_the_destination_not_the_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = pathlib.Path(directory) / "profiles" / "case.cg"
+            result = SimpleNamespace(returncode=0, stderr="==42== I refs: 7,654\n")
+            with patch.object(bench_guard.subprocess, "run", return_value=result) as run:
+                plain = bench_guard.instructions("coreav", ["probe", "fixture.mp4"])
+                captured = bench_guard.instructions("coreav", ["probe", "fixture.mp4"], profile=profile)
+            self.assertEqual(plain, (7654, None))
+            self.assertEqual(captured, plain)
+            before, after = run.call_args_list
+            self.assertEqual(before.kwargs, after.kwargs)
+            expected = list(before.args[0])
+            expected[3] = f"--cachegrind-out-file={profile}"
+            self.assertEqual(after.args[0], expected)
+            self.assertTrue(profile.parent.is_dir())
+
     def test_exact_boundary_and_adjacent_counts(self):
         for name in ("start-up", "decoder", "case"):
             for count, expected in ((94_999, "faster: the baseline can be lowered"),
@@ -67,7 +83,8 @@ class FfmpegGuard(unittest.TestCase):
                 startup = baseline["startup"]
                 before = baseline["cases"][name]["instructions"]
                 expected = {name: {"instructions": before, "sha256": bench_guard.hashlib.sha256(fixture.read_bytes()).hexdigest()}}
-                args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work, report_only=False, write=None)
+                args = SimpleNamespace(coreav="coreav", decoder_coreav=None, fixtures=work,
+                                       report_only=False, write=None, profile_dir=work / "profiles")
                 for count, exit_code in ((before + math.floor(before * baseline["tolerance"]) - 1, 0),
                                          (before + math.ceil(before * 0.10), 1)):
                     output, errors = io.StringIO(), io.StringIO()
@@ -79,6 +96,8 @@ class FfmpegGuard(unittest.TestCase):
                          contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
                         result = bench_guard.run_cases(args, baseline, baseline["tolerance"], expected, {}, work)
                     self.assertEqual(result, exit_code, output.getvalue() + errors.getvalue())
+                    self.assertEqual(measured.call_args_list[0].kwargs["profile"], work / "profiles/startup.cg")
+                    self.assertEqual(measured.call_args.kwargs["profile"], work / "profiles" / f"{name}.cg")
                     self.assertTrue(all("{" not in arg for arg in measured.call_args.args[1]))
                     if exit_code:
                         row = next(line for line in output.getvalue().splitlines() if line.startswith(f"| {name} |"))

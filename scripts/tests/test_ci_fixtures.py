@@ -28,7 +28,7 @@ class SharedFixtures(unittest.TestCase):
     def test_consumers_start_beside_the_other_checks(self):
         jobs = self.workflow['jobs']
         self.assertNotIn('isobmff-fixture-set', jobs)
-        for name in ('isobmff-writers', 'isobmff-decode', 'b9-shard'):
+        for name in ('isobmff-writers', 'isobmff-decode', 'transcode-compat-shard'):
             with self.subTest(job=name):
                 self.assertEqual(jobs[name]['needs'], 'ci-changes')
                 downloads = [s for s in jobs[name]['steps']
@@ -57,7 +57,8 @@ class SharedFixtures(unittest.TestCase):
         self.assertNotIn('restore-keys', restore['with'])
         generate, = [s for s in steps if s.get('name') == 'Generate all required fixtures']
         save, = [s for s in steps if s.get('name') == 'Save the fixtures']
-        publish, = [s for s in steps if s.get('uses', '').startswith('actions/upload-artifact@')]
+        publish, = [s for s in steps if s.get('uses', '').startswith('actions/upload-artifact@')
+                    and s.get('with', {}).get('name') == 'isobmff-fixture-set']
         for ref, hit in itertools.product(('refs/heads/main', 'refs/pull/1/merge',
                                            'refs/heads/gh-readonly-queue/main/group'), ('true', 'false')):
             context = {'github': {'ref': ref}, 'steps': {'fixtures': {'outputs': {'cache-hit': hit}}}}

@@ -1,5 +1,6 @@
-export function registeredBars(markdown) {
-  const begin = "<!-- wasm-memory-bars:begin -->", end = "<!-- wasm-memory-bars:end -->";
+export function registeredBars(markdown, marker = "wasm-memory-bars") {
+  if (!/^[a-z0-9-]+$/.test(marker)) throw new Error("memory registry marker is invalid");
+  const begin = `<!-- ${marker}:begin -->`, end = `<!-- ${marker}:end -->`;
   if (markdown.split(begin).length !== 2 || markdown.split(end).length !== 2 || markdown.indexOf(begin) > markdown.indexOf(end)) throw new Error("memory registry markers are invalid");
   const block = markdown.slice(markdown.indexOf(begin) + begin.length, markdown.indexOf(end));
   const match = /^\s*```json\r?\n([\s\S]*?)\r?\n```\s*$/.exec(block);
