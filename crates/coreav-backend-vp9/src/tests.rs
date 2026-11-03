@@ -23,6 +23,50 @@ fn open(limits: Limits) -> Box<dyn Decoder> {
 }
 
 #[test]
+fn selection_admits_absent_metadata_without_retrying_after_packet_failure() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct FallbackProbe(AtomicUsize);
+    impl Backend for FallbackProbe {
+        fn kind(&self) -> BackendKind {
+            BackendKind::Fallback
+        }
+        fn supports(&self, _: &StreamConfig, _: &StreamTraits) -> Support {
+            Support::Yes
+        }
+        fn open(&self, _: &StreamConfig, _: &Limits) -> Result<Box<dyn Decoder>, Error> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(unsupported("fallback probe"))
+        }
+    }
+    let native = NativeVp9::new();
+    let fallback = FallbackProbe(AtomicUsize::new(0));
+    let mut stream = StreamConfig::new(Codec::Vp9);
+    let policy = coreav_decode::Policy::default();
+    let mut opened =
+        coreav_decode::open(&stream, &policy, &Limits::default(), &[&native, &fallback]).unwrap();
+    opened.decoder.send_packet(&packet(&KEY, 0)).unwrap();
+    assert_eq!(
+        opened
+            .decoder
+            .send_packet(&packet(&[0x98], 1))
+            .unwrap_err()
+            .kind,
+        ErrorKind::Unsupported
+    );
+    assert!(opened.decoder.receive_frame().is_err());
+    assert_eq!(fallback.0.load(Ordering::SeqCst), 0);
+    stream.config = Some(CodecConfig {
+        kind: ConfigKind::Vpcc,
+        data: vec![1, 0, 0, 0, 1, 10, 0x80, 2, 2, 2, 0, 0],
+    });
+    assert!(
+        coreav_decode::open(&stream, &policy, &Limits::default(), &[&native, &fallback]).is_err()
+    );
+    assert_eq!(fallback.0.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn declared_dimensions_are_checked_even_when_only_one_is_known() {
     for width in [true, false] {
         let mut stream = StreamConfig::new(Codec::Vp9);
