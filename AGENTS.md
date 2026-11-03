@@ -8,9 +8,9 @@ When a review corrects a mistake, fix it and add its row to the area file it bel
 
 | File | What it covers |
 |---|---|
-| [docs/agents/ci.md](docs/agents/ci.md) | Workflow required checks, DCO, pinned actions, merge-group reuse, and workspace lints. |
+| [docs/agents/ci.md](docs/agents/ci.md) | Workflow required checks, path filters, DCO, pinned actions, merge-group reuse, and workspace lints. |
 | [docs/agents/codecs.md](docs/agents/codecs.md) | H.264, AAC, Opus, VP9, AC-3, MP3, and AudioToolbox behavior. |
-| [docs/agents/compat-corpus.md](docs/agents/compat-corpus.md) | Corpus exclusions, compatibility workflows, and fixture comparisons. |
+| [docs/agents/compat-corpus.md](docs/agents/compat-corpus.md) | Corpus exclusions, compatibility workflows, fixture comparisons, and the B4 and R4 drivers. |
 | [docs/agents/containers.md](docs/agents/containers.md) | ISO BMFF, Matroska, MPEG-TS, and AVI. |
 | [docs/agents/docs.md](docs/agents/docs.md) | Documentation-site prose, schema wording, and design-note updates. |
 | [docs/agents/ffmpeg-cli.md](docs/agents/ffmpeg-cli.md) | CLI and ffprobe behavior, the FFmpeg pin, and fallback names. |
@@ -18,4 +18,4 @@ When a review corrects a mistake, fix it and add its row to the area file it bel
 | [docs/agents/public-text.md](docs/agents/public-text.md) | Pull request title, body, and issue-reference text. |
 | [docs/agents/release-and-notices.md](docs/agents/release-and-notices.md) | Licenses, distribution notices, and package rehearsal. |
 | [docs/agents/transcode.md](docs/agents/transcode.md) | Encode path, sandboxed workers, and audio-encode selection. |
-| [docs/agents/wasm.md](docs/agents/wasm.md) | The WASM module, its HTTP source, and its workflow triggers. |
+| [docs/agents/wasm.md](docs/agents/wasm.md) | The WASM module and its HTTP source. |
