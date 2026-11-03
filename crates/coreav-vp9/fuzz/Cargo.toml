@@ -15,6 +15,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 coreav-vp9 = { path = ".." }
+coreav-kernels-vp9 = { path = "../../coreav-kernels-vp9" }
 
 [[bin]]
 name = "headers"
@@ -29,6 +30,13 @@ unsafe_code = "forbid"
 [[bin]]
 name = "frames"
 path = "fuzz_targets/frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "interpolation"
+path = "fuzz_targets/interpolation.rs"
 test = false
 doc = false
 bench = false

@@ -79,13 +79,15 @@ impl<P: Sample> Planes<P> {
                 .checked_mul(h as usize)
                 .ok_or(Error::Limit(LimitKind::MemoryBytes))?;
             let mut samples = memory.empty(len)?;
-            samples.extend(
-                plane
-                    .samples
-                    .chunks(plane.stride.max(1))
-                    .take(h as usize)
-                    .flat_map(|row| row.iter().take(w as usize).copied()),
-            );
+            for row in plane.samples.chunks(plane.stride.max(1)).take(h as usize) {
+                let row = row
+                    .get(..w as usize)
+                    .ok_or(Error::Invalid("visible plane row"))?;
+                samples.extend_from_slice(row);
+            }
+            if samples.len() != len {
+                return Err(Error::Invalid("visible plane rows"));
+            }
             Ok(P::samples(samples))
         };
         let [y, u, v] = &self.planes;
@@ -223,5 +225,64 @@ mod tests {
             panic!()
         };
         assert_eq!(y.len(), 65 * 33);
+    }
+
+    #[test]
+    fn bulk_visible_rows_preserve_samples_order_and_capacity_charges() {
+        fn check<P: Sample>(width: u32, height: u32, color: ColorConfig, value: fn(usize) -> P) {
+            let mut memory = Memory::new(u64::MAX);
+            let mut frame = Planes::<P>::new(
+                width.div_ceil(8),
+                height.div_ceil(8),
+                color.subsampling_x,
+                color.subsampling_y,
+                &mut memory,
+            )
+            .unwrap();
+            for (i, plane) in frame.planes.iter_mut().enumerate() {
+                for (j, sample) in plane.samples.iter_mut().enumerate() {
+                    *sample = value(i * 17071 + j);
+                }
+            }
+            let before = memory.used();
+            let picture = frame.picture(width, height, color, &mut memory).unwrap();
+            let mut charged = 0;
+            for (i, samples) in picture.planes.iter().enumerate() {
+                let actual = P::plane(samples).unwrap();
+                let (w, h) = if i == 0 {
+                    (width, height)
+                } else {
+                    (
+                        width.div_ceil(1 << u32::from(color.subsampling_x)),
+                        height.div_ceil(1 << u32::from(color.subsampling_y)),
+                    )
+                };
+                let stride = frame.planes[i].stride;
+                let expected: Vec<P> = (0..h as usize)
+                    .flat_map(|r| (0..w as usize).map(move |c| value(i * 17071 + r * stride + c)))
+                    .collect();
+                assert_eq!(actual, expected);
+                charged += match samples {
+                    Samples::Eight(s) => s.capacity() as u64,
+                    Samples::High(s) => (s.capacity() * 2) as u64,
+                };
+            }
+            assert_eq!(memory.used() - before, charged);
+        }
+        for (width, height) in [(1, 1), (3, 5), (63, 65), (65, 33)] {
+            for subsampling_x in [false, true] {
+                for subsampling_y in [false, true] {
+                    let color = ColorConfig {
+                        bit_depth: 10,
+                        subsampling_x,
+                        subsampling_y,
+                        color_space: ColorSpace::Bt709,
+                        full_range: true,
+                    };
+                    check(width, height, color, |i| i as u8);
+                    check(width, height, color, |i| i as u16);
+                }
+            }
+        }
     }
 }

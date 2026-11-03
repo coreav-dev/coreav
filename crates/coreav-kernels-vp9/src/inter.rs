@@ -130,6 +130,241 @@ pub fn predict_inter<P: Pixel>(
     bit_depth: BitDepth,
     compound: bool,
 ) {
+    if sampling.step_x == 16 && sampling.step_y == 16 {
+        let interior = Interior::new(&dst, src, sampling, bit_depth);
+        unscaled(dst, src, sampling, filter, bit_depth, compound, interior);
+    } else {
+        scaled(dst, src, sampling, filter, bit_depth, compound);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Interior {
+    left: usize,
+    top: usize,
+    #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+    horizontal: Option<crate::simd::Avx2>,
+}
+
+impl Interior {
+    fn new<P: Pixel>(
+        dst: &PredictionMut<'_, P>,
+        src: ReferencePlane<'_, P>,
+        sampling: Sampling,
+        bit_depth: BitDepth,
+    ) -> Option<Self> {
+        if sampling.step_x != 16 || sampling.step_y != 16 {
+            return None;
+        }
+        let horizontal = sampling.x & 15 != 0;
+        let vertical = sampling.y & 15 != 0;
+        let left = (i64::from(sampling.x) >> 4) - if horizontal { 3 } else { 0 };
+        let top = (i64::from(sampling.y) >> 4) - if vertical { 3 } else { 0 };
+        let right = left + dst.width as i64 + if horizontal { 7 } else { 0 };
+        let bottom = top + dst.height as i64 + if vertical { 7 } else { 0 };
+        if left < 0 || top < 0 || right > src.width as i64 || bottom > src.height as i64 {
+            return None;
+        }
+        #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+        let horizontal_kernel = if bit_depth == BitDepth::Eight
+            && horizontal
+            && dst.width >= 8
+            && P::bytes(src.samples).is_some()
+        {
+            crate::simd::Avx2::detect()
+        } else {
+            None
+        };
+        #[cfg(not(all(target_arch = "x86_64", not(feature = "safe"))))]
+        let _ = bit_depth;
+        Some(Self {
+            left: left as usize,
+            top: top as usize,
+            #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+            horizontal: horizontal_kernel,
+        })
+    }
+}
+
+fn combine<P: Pixel>(sample: &mut P, predicted: P, bit_depth: BitDepth, compound: bool) {
+    *sample = if compound {
+        P::clip(
+            round2(i64::from(predicted.get()) + i64::from(sample.get()), 1),
+            bit_depth,
+        )
+    } else {
+        predicted
+    };
+}
+
+fn horizontal_row<P: Pixel>(
+    output: &mut [P],
+    src: ReferencePlane<'_, P>,
+    position: (i64, i64),
+    weights: &[i16; 8],
+    phase: usize,
+    bit_depth: BitDepth,
+    interior: Option<Interior>,
+) {
+    if let Some(interior) = interior {
+        let start = interior.top * src.stride + interior.left;
+        let count = output.len() + if phase == 0 { 0 } else { 7 };
+        let row = src.samples.get(start..start + count).unwrap_or_default();
+        if phase == 0 {
+            for (sample, source) in output.iter_mut().zip(row) {
+                *sample = P::clip(i64::from(source.get()), bit_depth);
+            }
+        } else {
+            #[allow(unused_mut)]
+            let mut completed = 0;
+            #[cfg(all(target_arch = "x86_64", not(feature = "safe")))]
+            if let Some((kernel, bytes)) = interior.horizontal.zip(P::bytes(row)) {
+                for (group, window) in output.chunks_exact_mut(8).zip(bytes.windows(15).step_by(8))
+                {
+                    let Some(window) = window.first_chunk::<15>() else {
+                        break;
+                    };
+                    for (sample, sum) in group.iter_mut().zip(kernel.horizontal(window, weights)) {
+                        *sample = P::clip(round2(i64::from(sum), 7), bit_depth);
+                    }
+                    completed += 8;
+                }
+            }
+            for (sample, window) in output
+                .iter_mut()
+                .skip(completed)
+                .zip(row.windows(8).skip(completed))
+            {
+                let sum = window
+                    .iter()
+                    .zip(weights)
+                    .map(|(p, &w)| i64::from(p.get()) * i64::from(w))
+                    .sum();
+                *sample = P::clip(round2(sum, 7), bit_depth);
+            }
+        }
+        return;
+    }
+    let (x, y) = position;
+    for (c, sample) in output.iter_mut().enumerate() {
+        let sum = if phase == 0 {
+            src.sample(x + c as i64, y) * 128
+        } else {
+            weights
+                .iter()
+                .enumerate()
+                .map(|(t, &w)| i64::from(w) * src.sample(x + c as i64 + t as i64 - 3, y))
+                .sum()
+        };
+        *sample = P::clip(round2(sum, 7), bit_depth);
+    }
+}
+
+fn unscaled<P: Pixel>(
+    dst: PredictionMut<'_, P>,
+    src: ReferencePlane<'_, P>,
+    sampling: Sampling,
+    filter: InterpFilter,
+    bit_depth: BitDepth,
+    compound: bool,
+    interior: Option<Interior>,
+) {
+    let phase_x = (sampling.x & 15) as usize;
+    let phase_y = (sampling.y & 15) as usize;
+    let x = i64::from(sampling.x) >> 4;
+    let y = i64::from(sampling.y) >> 4;
+    if phase_x == 0 && phase_y == 0 {
+        for (r, row) in dst
+            .samples
+            .chunks_mut(dst.stride)
+            .take(dst.height)
+            .enumerate()
+        {
+            let source = interior.and_then(|p| {
+                let start = (p.top + r) * src.stride + p.left;
+                src.samples.get(start..start + dst.width)
+            });
+            for (c, sample) in row.iter_mut().take(dst.width).enumerate() {
+                let value = source.and_then(|s| s.get(c)).map_or_else(
+                    || src.sample(x + c as i64, y + r as i64),
+                    |p| i64::from(p.get()),
+                );
+                combine(sample, P::clip(value, bit_depth), bit_depth, compound);
+            }
+        }
+        return;
+    }
+    let taps = SUBPEL_FILTERS.get(filter as usize);
+    let weights_x = taps
+        .and_then(|t| t.get(phase_x))
+        .copied()
+        .unwrap_or_default();
+    let weights_y = taps
+        .and_then(|t| t.get(phase_y))
+        .copied()
+        .unwrap_or_default();
+    let extra = if phase_y == 0 { 0 } else { 7 };
+    let mut intermediate = [[P::default(); 64]; 8];
+    for r in 0..dst.height + extra {
+        let row = intermediate
+            .get_mut(r & 7)
+            .and_then(|row| row.get_mut(..dst.width))
+            .unwrap_or_default();
+        horizontal_row(
+            row,
+            src,
+            (x, y + r as i64 - if phase_y == 0 { 0 } else { 3 }),
+            &weights_x,
+            phase_x,
+            bit_depth,
+            interior.map(|p| Interior {
+                top: p.top + r,
+                ..p
+            }),
+        );
+        if r < extra {
+            continue;
+        }
+        let output_row = r - extra;
+        let start = output_row * dst.stride;
+        let output = dst
+            .samples
+            .get_mut(start..start + dst.width)
+            .unwrap_or_default();
+        for (c, sample) in output.iter_mut().enumerate() {
+            let predicted = if phase_y == 0 {
+                intermediate
+                    .get(r & 7)
+                    .and_then(|row| row.get(c))
+                    .copied()
+                    .unwrap_or_default()
+            } else {
+                let sum = weights_y
+                    .iter()
+                    .enumerate()
+                    .map(|(t, &w)| {
+                        i64::from(w)
+                            * intermediate
+                                .get((output_row + t) & 7)
+                                .and_then(|row| row.get(c))
+                                .map_or(0, |p| i64::from(p.get()))
+                    })
+                    .sum();
+                P::clip(round2(sum, 7), bit_depth)
+            };
+            combine(sample, predicted, bit_depth, compound);
+        }
+    }
+}
+
+fn scaled<P: Pixel>(
+    dst: PredictionMut<'_, P>,
+    src: ReferencePlane<'_, P>,
+    sampling: Sampling,
+    filter: InterpFilter,
+    bit_depth: BitDepth,
+    compound: bool,
+) {
     let taps = SUBPEL_FILTERS.get(filter as usize);
     let weights = |phase: usize| {
         taps.and_then(|table| table.get(phase))

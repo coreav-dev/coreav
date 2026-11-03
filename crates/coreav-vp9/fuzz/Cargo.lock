@@ -41,6 +41,7 @@ dependencies = [
 name = "coreav-vp9-fuzz"
 version = "0.0.0"
 dependencies = [
+ "coreav-kernels-vp9",
  "coreav-vp9",
  "libfuzzer-sys",
 ]

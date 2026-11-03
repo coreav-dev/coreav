@@ -13,10 +13,10 @@ name: vp9-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "scripts/fuzz_run.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "scripts/fuzz_run.sh", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   schedule:
     - cron: '41 6 * * 3'
   workflow_dispatch:
@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   vectors:
-    if: inputs.mode != 'ceiling' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    if: inputs.mode != 'ceiling'
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +53,32 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Compare automatic arithmetic with literal references
+        run: cargo test --locked --release -p coreav-kernels-vp9 --lib -- --nocapture
+      - name: Require direct AVX2 arithmetic execution on Linux
+        if: runner.os == 'Linux'
+        env:
+          COREAV_REQUIRE_AVX2: '1'
+        run: cargo test --locked --release -p coreav-kernels-vp9 --lib detected_avx2_executes_exact_signed_sums_and_lane_order -- --nocapture
+      - name: Check runtime fallback on a CPU without AVX2
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends qemu-user
+          cargo test --locked --release -p coreav-kernels-vp9 --lib --no-run --message-format=json > "$RUNNER_TEMP/arithmetic.jsonl"
+          python3 -I - "$RUNNER_TEMP/arithmetic.jsonl" <<'PY'
+          import json, os, subprocess, sys
+          rows = [json.loads(line) for line in open(sys.argv[1])]
+          programs = [row['executable'] for row in rows if row.get('reason') == 'compiler-artifact'
+                      and row.get('profile', {}).get('test') and row.get('executable')]
+          if len(programs) != 1:
+              raise SystemExit('missing unique arithmetic test binary')
+          subprocess.run(['qemu-x86_64', '-cpu', 'Nehalem', programs[0]], check=True, timeout=180,
+                         env=dict(os.environ, COREAV_REQUIRE_NO_AVX2='1'))
+          PY
+      - name: Compare scalar-only arithmetic with literal references
+        run: cargo test --locked --release -p coreav-kernels-vp9 --features safe --lib
       - name: Install the PDF reader on Linux
         if: runner.os == 'Linux'
         run: |
@@ -102,6 +128,37 @@ jobs:
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
         run: cargo test --locked --release -p coreav-backend-vp9 --test vectors -- --include-ignored --nocapture
+      - name: Compare scalar-only vector frames without changing comparators
+        env:
+          COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
+        run: |
+          set -euo pipefail
+          cargo test --locked --release -p coreav-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
+          cargo test --locked --release -p coreav-backend-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
+
+  interpolation-fuzz:
+    if: inputs.mode != 'ceiling'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install the pinned fuzz toolchain
+        run: scripts/fuzz_run.sh setup
+      - name: Build the interpolation differential target
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'crates/coreav-vp9/fuzz interpolation' > "$RUNNER_TEMP/interpolation-plan.txt"
+          scripts/fuzz_run.sh build "$RUNNER_TEMP/interpolation-plan.txt"
+      - name: Compare automatic and scalar interpolation for C3
+        env:
+          ASAN_OPTIONS: quarantine_size_mb=64
+        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/interpolation-fuzz"
 
   pixel-ceiling:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ceiling'
