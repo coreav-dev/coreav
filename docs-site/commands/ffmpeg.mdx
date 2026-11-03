@@ -96,7 +96,7 @@ coreav --strict-safe ffmpeg -f s16le -ar 8000 -ac 2 -i input.pcm -ar 44100 outpu
 
 An unchanged rate copies integer bytes without a floating-point conversion. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. The same atomic WAV/raw output owner handles both paths.
 
-Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other sample formats, lossy encoders, filters, dither or soxr. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
+Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other sample formats, FLAC or lossy output, filters, dither or soxr. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
 
 ## FLAC audio output
 

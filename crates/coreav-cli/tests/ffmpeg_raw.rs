@@ -146,6 +146,7 @@ fn unsupported_raw_options_never_replace_an_output() {
     for after in [
         vec!["-c", "copy"],
         vec!["-c:a", "aac"],
+        vec!["-c:a", "flac"],
         vec!["-ac", "1"],
         vec!["-ar", "44099"],
         vec!["-ar", "44100.5"],
@@ -154,6 +155,7 @@ fn unsupported_raw_options_never_replace_an_output() {
         vec!["-t", "0"],
         vec!["-af", "volume=2"],
         vec!["-f", "mp4"],
+        vec!["-f", "flac"],
         vec!["-an"],
     ] {
         let mut options = vec!["-y"];

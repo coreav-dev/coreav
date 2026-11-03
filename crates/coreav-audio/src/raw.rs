@@ -141,6 +141,7 @@ impl RawS16Plan {
                 }
             }
             Some(rate) => {
+                let mut pcm = crate::Pcm::new();
                 let center = (rate.length / 2 - 1) as u64;
                 let half = rate.length as u64 / 2;
                 let mut position = 0u64;
@@ -153,7 +154,11 @@ impl RawS16Plan {
                         .and_then(|n| n.checked_mul(frame))
                         .ok_or(Error::LimitExceeded(LimitKind::PacketBytes))?;
                     let bytes = reader.window(first * frame as u64, count)?;
-                    for channel in 0..usize::from(self.input.channels) {
+                    for (channel, sample_out) in pcm
+                        .float_buffer(usize::from(self.input.channels), 1)
+                        .iter_mut()
+                        .enumerate()
+                    {
                         let mut lanes = [0.0f32; 8];
                         for (i, &weight) in rate.row(phase)?.iter().enumerate() {
                             let at = i as i128 + i128::from(position) - i128::from(center);
@@ -188,8 +193,10 @@ impl RawS16Plan {
                             .first()
                             .copied()
                             .ok_or(Error::Invalid("raw PCM accumulator"))?;
-                        output.extend_from_slice(&crate::convert::to_i16(value).to_le_bytes());
+                        *sample_out = value;
                     }
+                    let at = output.len();
+                    crate::convert::interleave(&pcm, 0, 1, SampleFormat::S16, &mut output, at);
                     if output.len() + frame > self.capacity {
                         sink.write(&output)?;
                         output.clear();
