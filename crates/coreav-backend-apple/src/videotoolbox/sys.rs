@@ -114,6 +114,13 @@ unsafe extern "C" {
     fn CFNumberCreate(allocator: Ref, kind: isize, value: Ref) -> Ref;
     fn CFNumberGetValue(number: Ref, kind: isize, value: *mut c_void) -> u8;
     fn CFStringGetTypeID() -> usize;
+    fn CFStringCreateWithBytes(
+        allocator: Ref,
+        bytes: *const u8,
+        length: isize,
+        encoding: u32,
+        external: u8,
+    ) -> Ref;
     fn CFStringGetLength(string: Ref) -> isize;
     fn CFStringGetBytes(
         string: Ref,
@@ -1010,6 +1017,33 @@ fn initialized_bytes(length: usize) -> Result<Vec<u8>, Error> {
         .map_err(|_| Error::Allocation)?;
     bytes.resize(length, 0);
     Ok(bytes)
+}
+
+pub(super) fn encoder_hardware(identifier: &str, control: &Control) -> Result<Hardware, Error> {
+    let identifier = controlled(control, || unsafe {
+        let value = CFStringCreateWithBytes(
+            ptr::null(),
+            identifier.as_ptr(),
+            isize::try_from(identifier.len()).map_err(|_| Error::Limit)?,
+            0x08000100,
+            0,
+        );
+        if value.is_null() {
+            return Err(Error::Allocation);
+        }
+        Owned::adopt(value)
+    })?;
+    let list = controlled(control, || unsafe {
+        let mut list = ptr::null();
+        status(
+            Operation::Query,
+            VTCopyVideoEncoderList(ptr::null(), &mut list),
+        )?;
+        Owned::adopt(list)
+    })?;
+    controlled(control, || unsafe {
+        hardware_from_list(identifier.get(), list.get(), control)
+    })
 }
 
 /// # Safety

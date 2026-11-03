@@ -154,6 +154,25 @@ pub struct Identity {
     pub hardware: Hardware,
 }
 
+/// Resolves an externally observed EncoderID through the current encoder list.
+///
+/// Exactly one match with an explicit hardware flag is required. This query
+/// does not create a session or infer status from a requested preference.
+pub fn encoder_hardware(identifier: &str, control: &Control) -> Result<Hardware, Error> {
+    if identifier.is_empty()
+        || identifier.len() > 512
+        || !identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return Err(Error::Input);
+    }
+    match sys::encoder_hardware(identifier, control) {
+        Err(Error::MissingHardwareFlag) => Err(Error::UnknownHardware),
+        result => result,
+    }
+}
+
 /// Exact nonnegative time in a positive media timescale.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Time {

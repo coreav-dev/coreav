@@ -9,6 +9,30 @@ mod headers;
 
 static SERIAL: Mutex<()> = Mutex::new(());
 
+#[test]
+fn external_encoder_identity_queries_reject_unbounded_labels_and_closed_controls() {
+    let control = Control::new(Instant::now() + Duration::from_secs(10));
+    for identifier in [
+        "",
+        "contains space",
+        "bad/path",
+        "nonascii-\u{00e9}",
+        &"a".repeat(513),
+    ] {
+        assert_eq!(encoder_hardware(identifier, &control), Err(Error::Input));
+    }
+    control.cancel();
+    assert_eq!(
+        encoder_hardware("com.apple.test", &control),
+        Err(Error::Cancelled)
+    );
+    let expired = Control::new(Instant::now());
+    assert_eq!(
+        encoder_hardware("com.apple.test", &expired),
+        Err(Error::Deadline)
+    );
+}
+
 #[derive(Clone, Copy)]
 enum Mode {
     Immediate,

@@ -13,6 +13,7 @@ fn main() {
         println!(
             "videotoolbox compare --source RAW --decoded RAW --width N --height N --frames N --report JSON"
         );
+        println!("videotoolbox identify --encoder-id ID --report JSON");
         return;
     }
     let result = if std::env::args().nth(1).as_deref() == Some("decode") {
@@ -40,7 +41,7 @@ mod driver {
     use coreav_backend_apple::h264::Sync;
     use coreav_backend_apple::videotoolbox::{
         Availability, Completion, Control, Encoder, Error, Frame, Hardware, HardwarePolicy,
-        Identity, Limits, Packet, Settings, Time,
+        Identity, Limits, Packet, Settings, Time, encoder_hardware,
     };
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
@@ -295,6 +296,26 @@ mod driver {
                 return Err("repeated option".into());
             }
         }
+        if command == "identify" {
+            let identifier = options.remove("--encoder-id").ok_or("missing EncoderID")?;
+            let report = options.remove("--report").ok_or("missing report")?;
+            if !options.is_empty() {
+                return Err("unknown identity-query option".into());
+            }
+            let control = Control::new(Instant::now() + Duration::from_secs(10));
+            let hardware = match encoder_hardware(&identifier, &control).map_err(native)? {
+                Hardware::Hardware => "hardware",
+                Hardware::Software => "software",
+                Hardware::Unknown => {
+                    return Err("cannot establish encoder-list hardware status".into());
+                }
+            };
+            return document(
+                Path::new(&report),
+                &json!({"schema": "coreav.videotoolbox-encoder-identity/1",
+                        "encoder_id": identifier, "hardware": hardware}),
+            );
+        }
         let mode = options
             .remove("--mode")
             .ok_or("missing implementation mode")?;
@@ -449,6 +470,14 @@ mod driver {
             .unwrap();
             let done = encoder.complete().unwrap();
             assert_eq!(done.frames, 4);
+            assert_eq!(
+                encoder_hardware(
+                    done.identity.encoder_id.as_deref().unwrap(),
+                    &Control::new(Instant::now() + Duration::from_secs(10)),
+                )
+                .unwrap(),
+                done.identity.hardware
+            );
             assert_eq!(records.len(), 4);
             for (id, record) in records.iter().enumerate() {
                 assert_eq!(record["id"], json!(id));
