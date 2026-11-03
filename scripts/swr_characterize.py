@@ -140,9 +140,7 @@ def capture(ffmpeg, directory, wave='initial'):
     root = Path(__file__).resolve().parents[1]
     provenance = {
         'schema': 'coreav/swr-characterization/1',
-        'source': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
         'ffmpeg_sha256': hashlib.sha256(ffmpeg.read_bytes()).hexdigest(),
-        'ffmpeg_version': subprocess.check_output([str(ffmpeg), '-version'], timeout=10, text=True),
         'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'plan_sha256': hashlib.sha256((root / 'docs/design/audio-swr-parity-plan.md').read_bytes()).hexdigest(),
         'complete': False,
@@ -151,6 +149,10 @@ def capture(ffmpeg, directory, wave='initial'):
                     if line.split(':', 1)[0].strip() in ('model name', 'flags')),
     }
     try:
+        provenance['source'] = subprocess.check_output(
+            ['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True, timeout=10).strip()
+        provenance['ffmpeg_version'] = subprocess.check_output(
+            [str(ffmpeg), '-version'], timeout=10, text=True)
         for index, case in enumerate(cases(wave)):
             incoming, outgoing, source, target, channels, name, length, scalar, block = case
             remaining = 300 - (time.monotonic() - started)

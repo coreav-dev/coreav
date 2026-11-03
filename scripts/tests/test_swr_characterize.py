@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -16,6 +17,35 @@ import swr_characterize as swr
 
 
 class Characterization(unittest.TestCase):
+    def test_provenance_command_timeouts_retain_an_incomplete_capture(self):
+        for failed in ('git', 'ffmpeg'):
+            with self.subTest(failed=failed), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                binary = root / 'ffmpeg'
+                binary.write_bytes(b'stand-in')
+                out = root / 'capture'
+                calls = []
+
+                def lookup(args, **options):
+                    calls.append((args, options))
+                    self.assertEqual(options['timeout'], 10)
+                    if Path(args[0]).name == failed:
+                        raise subprocess.TimeoutExpired(args, options['timeout'])
+                    return 'a' * 40
+
+                with patch.object(swr, 'verify_bin', return_value=[]), \
+                     patch.object(Path, 'read_text', return_value='model name: test\nflags: fma'), \
+                     patch.object(swr.subprocess, 'check_output', side_effect=lookup), \
+                     patch.object(swr.subprocess, 'run') as run:
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        swr.capture(binary, out)
+                run.assert_not_called()
+                self.assertEqual(len(calls), 1 if failed == 'git' else 2)
+                provenance = json.loads((out / 'provenance.json').read_text())
+                self.assertFalse(provenance['complete'])
+                self.assertEqual(provenance['cases'], 0)
+                self.assertEqual(json.loads((out / 'cases.json').read_text()), [])
+
     def test_every_wave_is_unique_and_within_the_registered_call_cap(self):
         for wave, count in (('initial', 540), ('confirmation', 570), ('raw-confirmation', 714)):
             cases = list(swr.cases(wave))

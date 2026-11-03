@@ -181,5 +181,5 @@ fn replay_the_captured_raw_s16_cases() {
         );
         count += 1;
     }
-    assert_eq!(count, 56);
+    assert_eq!(count, 60);
 }

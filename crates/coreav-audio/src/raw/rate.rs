@@ -17,7 +17,9 @@ impl Rate {
         let phases = output / a;
         let step = input / a;
         let cutoff = (0.97 * f64::from(output) / f64::from(input)).min(1.0);
-        let mut length = (32.0 / cutoff).ceil() as usize;
+        let width = 32.0 / cutoff;
+        let whole = width as usize;
+        let mut length = whole + usize::from((whole as f64) < width);
         length += length % 2;
         if phases > 1024 || length > 4096 || u64::from(phases) * length as u64 > 65_536 {
             return Err(Error::Unsupported(
@@ -32,10 +34,10 @@ impl Rate {
             let x = cutoff * position;
             let sinc = if x == 0.0 {
                 1.0
-            } else if x.fract() == 0.0 {
+            } else if x == x as i64 as f64 {
                 0.0
             } else {
-                (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
+                crate::resample::sin_pi(x) / (std::f64::consts::PI * x)
             };
             let window = position / half;
             let window = bessel(9.0 * (1.0 - window * window).max(0.0).sqrt()) / divisor;

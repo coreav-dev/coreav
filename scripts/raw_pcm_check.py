@@ -17,7 +17,7 @@ from swr_characterize import RATES, pcm, signal
 
 
 def cases():
-    for incoming, outgoing in [*RATES, (11025, 48000), (48000, 32000), (96000, 44100), (44100, 96000)]:
+    for incoming, outgoing in [*RATES, (11025, 48000), (48000, 32000), (96000, 44100), (44100, 96000), (19400, 1400)]:
         for channels in (1, 2):
             for name, frames in (('lcg-full', 1025), ('extrema', 257)):
                 for kind in ('wav', 'raw'):

@@ -176,7 +176,7 @@ impl RawS16Plan {
                             let lane = lanes
                                 .get_mut(i % 8)
                                 .ok_or(Error::Invalid("raw PCM accumulator"))?;
-                            *lane = sample.mul_add(weight, *lane);
+                            *lane = finite_mul_add(sample, weight, *lane);
                         }
                         for width in [4, 2, 1] {
                             let (left, right) = lanes.split_at_mut(width);
@@ -209,6 +209,24 @@ impl RawS16Plan {
             output: self.output,
         })
     }
+}
+
+fn finite_mul_add(a: f32, b: f32, c: f32) -> f32 {
+    let product = f64::from(a) * f64::from(b);
+    let sum = product + f64::from(c);
+    let added = sum - product;
+    let error = (product - (sum - added)) + (f64::from(c) - added);
+    let bits = sum.to_bits();
+    let odd = if error != 0.0 && bits & 1 == 0 {
+        if error.is_sign_positive() == sum.is_sign_positive() {
+            f64::from_bits(bits + 1)
+        } else {
+            f64::from_bits(bits - 1)
+        }
+    } else {
+        sum
+    };
+    odd as f32
 }
 
 struct Reader<S> {
@@ -253,5 +271,67 @@ impl<S: Source> Reader<S> {
         self.bytes
             .get(start..start + count)
             .ok_or(Error::Invalid("raw PCM read range"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::finite_mul_add;
+
+    #[test]
+    fn finite_fused_arithmetic_matches_single_rounding() {
+        let edge = [
+            0.0,
+            -0.0,
+            f32::from_bits(1),
+            -f32::from_bits(1),
+            f32::from_bits(0x007f_ffff),
+            -f32::from_bits(0x007f_ffff),
+            f32::MIN_POSITIVE,
+            f32::MAX,
+            f32::MIN,
+            1.0,
+            -1.0,
+            2.0,
+            -2.0,
+            f32::from_bits(1.0f32.to_bits() + 1),
+            f32::from_bits(1.0f32.to_bits() - 1),
+        ];
+        let check = |a: f32, b: f32, c: f32| {
+            assert_eq!(
+                finite_mul_add(a, b, c).to_bits(),
+                a.mul_add(b, c).to_bits(),
+                "{a:?} * {b:?} + {c:?}"
+            );
+        };
+        for a in edge {
+            for b in edge {
+                for c in edge {
+                    check(a, b, c);
+                }
+            }
+        }
+        for exponent in -125..126 {
+            let a = 1.5 * 2.0f32.powi(exponent);
+            let small = 2.0f32.powi((exponent - 80).max(-149));
+            for b in [f32::from_bits(0x3f80_0001), f32::from_bits(0x3f80_0003)] {
+                for sign in [-1.0, 1.0] {
+                    for c in [0.0, small, -small] {
+                        check(sign * a, b, sign * c);
+                    }
+                }
+            }
+        }
+        let mut state = 0x82a7_43cdu32;
+        let mut value = || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            f32::from_bits(state)
+        };
+        for _ in 0..100_000 {
+            let (a, b, c) = (value(), value(), value());
+            if a.is_finite() && b.is_finite() && c.is_finite() {
+                check(a, b, c);
+            }
+        }
     }
 }

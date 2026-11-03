@@ -13,9 +13,10 @@ import raw_pcm_check as check
 class RawPcm(unittest.TestCase):
     def test_roster_is_complete_and_unique(self):
         cases = list(check.cases())
-        self.assertEqual(len(cases), 152)
-        self.assertEqual(len(set(cases)), 152)
-        self.assertEqual(sum(kind == 'raw' for *_, kind in cases), 56)
+        self.assertEqual(len(cases), 160)
+        self.assertEqual(len(set(cases)), 160)
+        self.assertEqual(sum(kind == 'raw' for *_, kind in cases), 60)
+        self.assertEqual(sum((incoming, outgoing) == (19400, 1400) for incoming, outgoing, *_ in cases), 8)
         self.assertTrue(all(frames or kind == 'wav' for _, _, _, _, frames, kind in cases))
 
     def exercise(self, wrong_sample=False, wrong_fields=False):
