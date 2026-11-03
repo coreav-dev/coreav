@@ -278,6 +278,8 @@ class Executor:
         return selected
 
     def __call__(self, operation, record):
+        self.failures.clear()
+        self.last_diagnostic = None
         stream = self.selected_stream(record)
         source, channels = self.media / record['file'], record['channels']
         with tempfile.TemporaryDirectory(prefix='capacity-', dir=self.work) as directory:
