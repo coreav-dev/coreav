@@ -2,7 +2,7 @@
 
 Plan committed before implementation and generated comparisons. Refs coreav-dev/coreav#25. Review this plan commit before the implementation commits.
 
-`coreav ffmpeg` will accept raw `f32le` and `s16le` output, including standard output, with optional output `-ar` and `-ac` and input `-threads`. A command runs natively only when every stage has an exact registration against the pinned FFmpeg 9.0.2. Otherwise it uses the existing fallback, or exits 4 under `--strict-safe`. No numerical tolerance applies.
+`coreav ffmpeg` will accept raw `f32le` and `s16le` output, including standard output, with optional output `-ar` and `-ac` and input `-threads`. A command runs natively only when every stage has an eligibility registration against the pinned FFmpeg 9.0.2. Channel conversion, rate conversion and packing require exact registration. Decoder registration distinguishes `exact` and `conformance`, as described below. Otherwise the command uses the existing fallback, or exits 4 under `--strict-safe`.
 
 ## Existing components
 
@@ -61,3 +61,11 @@ Include a bounded F32-input adapter in this implementation, sharing the existing
 The streaming engine must handle oversized chunks incrementally, preserve signed-zero and finite F32 sample bits on identity paths, bound startup and tail storage independently of duration, and drain exactly once. Check both F32 and S16 outputs against the oracle without passing native output through another audio conversion. Test short signals, irregular values, impulses, extrema, decoder block boundaries and multiple chunk partitions. F32 mixing is still a separate unregistered stage; mono input does not imply stereo input can use this path.
 
 Standalone WAV input is not covered in this change. It requires a bounded PCM source API in addition to native probing. A follow-up will add a WAV/PCM source adapter over the landed probe parser's data-span API and register the verified paths. Do not duplicate RIFF parsing or treat a report as decoded frames.
+
+## Decoder conformance registrations
+
+The decoder policy now permits two eligibility kinds. `exact` requires identical decoded samples. `conformance` permits the decoder's registered specification-conformance criterion and explicitly documents its sample divergence from the default oracle. This exception belongs only to the decoder stage. It never admits an unregistered downmix, rate conversion, presentation policy or packing operation.
+
+Consume a separately reviewed machine-readable per-decoder eligibility record when that record has merged. Its decoder eligibility and presentation eligibility are independent. Missing entries, unknown kinds and disabled decoder or presentation entries deny admission. Keep lossy decoders on fallback until their record is merged and its runtime predicates are implemented. In particular, decoder conformance alone cannot authorize Opus pre-skip, end trimming or drain.
+
+Current active paths remain byte-exact FLAC and declared raw S16. Any later active conformance-only path must be identified as such in the command documentation and pull request. Neither near-equality of S16 output nor an alternative oracle decoder qualifies as exactness.
