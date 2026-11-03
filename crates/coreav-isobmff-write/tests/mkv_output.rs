@@ -12,7 +12,7 @@ mod common;
 mod mkv;
 mod movies;
 use coreav_isobmff::{Limits, SliceSource};
-use coreav_isobmff_write::mkv_output::{OutputOptions, write_output};
+use coreav_isobmff_write::mkv_output::{OutputOptions, copied_audio, write_output};
 use coreav_isobmff_write::{
     AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements,
 };
@@ -676,6 +676,25 @@ fn iso_duplicate_headers_obey_the_same_retained_metadata_budget() {
             ..
         })
     ));
+}
+
+#[test]
+fn copied_audio_preflight_matches_the_writer_refusal() {
+    let sowt = common::av_movie(b"sowt");
+    let early = copied_audio(&mut SliceSource::new(&sowt), &[1]);
+    let late = copy(&sowt);
+    match (early, late) {
+        (
+            Err(coreav_mkv::Error::Unsupported { reason: early }),
+            Err(coreav_mkv::Error::Unsupported { reason: late }),
+        ) => {
+            assert_eq!(early, late);
+            assert_eq!(early, "an ISO codec without a Matroska mapping");
+        }
+        (early, late) => panic!("expected the same unsupported refusal, got {early:?} / {late:?}"),
+    }
+    let aac = movies::movie(&[movies::aac_audio(4, Vec::new())]);
+    assert!(copied_audio(&mut SliceSource::new(&aac), &[0]).is_ok());
 }
 
 #[test]
