@@ -51,6 +51,16 @@ class DecoderEligibility(unittest.TestCase):
         self.assertEqual(eligibility.heading_anchors(
             '# AAC-LC\n```\n## Not a heading\n```\n## AAC-LC\n'), {'aac-lc', 'aac-lc-1'})
 
+    def test_fences_close_only_with_the_same_character_and_sufficient_length(self):
+        for opening, interior, closing in [('````', '```', '`````'),
+                                            ('~~~', '```', '~~~'),
+                                            ('```', '~~~', '```')]:
+            with self.subTest(opening=opening, interior=interior):
+                markdown = f'{opening}text\n{interior}\n## Hidden\n{closing}\n## Visible\n'
+                self.assertEqual(eligibility.heading_anchors(markdown), {'visible'})
+        self.assertEqual(eligibility.heading_anchors(
+            '  ````\n````not a closer\n## Hidden\n  ````\n  ## Visible\n'), {'visible'})
+
     def test_opus_presentation_cannot_be_enabled_by_its_vector_pass(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')
         self.assertTrue(opus['decoder_eligible'])
