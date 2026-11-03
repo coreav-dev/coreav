@@ -687,8 +687,14 @@ struct Analysis {
     /// The stream of the PES packet being read, and where it starts.
     current: Option<(usize, u64)>,
     bytes: u64,
-    /// The analysis ended.
-    over: bool,
+    /// The reason analysis ended.
+    over: Option<AnalysisStop>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AnalysisStop {
+    Time,
+    Bytes,
 }
 
 /// How far the analysis reads into a stream, in 90 kHz ticks: past five
@@ -709,16 +715,20 @@ impl Analysis {
         duration: Option<i64>,
         payload_bytes: usize,
     ) -> bool {
-        if self.over {
+        if self.over.is_some() {
             return false;
         }
         let new = starts || self.current.is_none_or(|(s, _)| s != stream);
-        if self.current.is_some() && new {
-            let past = self.bytes > ANALYSIS_BYTES
-                || self.durations.iter().any(|ticks| *ticks > ANALYSIS_SPAN);
-            if past {
-                self.over = true;
-                return false;
+        if self.current.is_some() {
+            let bytes = new && self.bytes > ANALYSIS_BYTES;
+            let time = self.durations.iter().any(|ticks| *ticks > ANALYSIS_SPAN);
+            if bytes || time {
+                self.over = Some(if bytes {
+                    AnalysisStop::Bytes
+                } else {
+                    AnalysisStop::Time
+                });
+                return !new;
             }
         }
         if new {
@@ -883,9 +893,9 @@ fn head<S: Source>(
             }
             continue;
         }
-        let was_over = analysis.over;
-        let completing_admitted =
-            packet.split || admitted_pes == Some((packet.stream, packet.pes_offset));
+        let was_over = analysis.over.is_some();
+        let packet_pes = (packet.stream, packet.pes_offset);
+        let completing_admitted = packet.split || admitted_pes == Some(packet_pes);
         if let Some(h) = streams.get_mut(packet.stream) {
             let keep = h.unit.is_none()
                 && packet.data.len() <= MAX_KEPT_UNIT
@@ -974,18 +984,26 @@ fn head<S: Source>(
                 duration,
                 packet.data.len(),
             );
-            if analysed || (!was_over && completing_admitted) {
+            if !was_over
+                && (analysed || analysis.over == Some(AnalysisStop::Time) || completing_admitted)
+            {
                 note_aac_rate(h, st.codec, &packet);
             }
             if analysed {
-                admitted_pes = Some((packet.stream, packet.pes_offset));
+                admitted_pes = Some(packet_pes);
             }
             if keep {
                 h.unit = Some(packet.data);
             }
         }
-        if analysis.over && !was_over && completing_admitted {
-            for buffered in packets.buffered_packets().filter(|p| p.pes_offset <= end) {
+        if analysis.over.is_some()
+            && !was_over
+            && (analysis.over == Some(AnalysisStop::Time) || completing_admitted)
+        {
+            for buffered in packets
+                .buffered_packets()
+                .filter(|p| (p.stream, p.pes_offset) == packet_pes)
+            {
                 if let (Some(h), Some(st)) = (
                     streams.get_mut(buffered.stream),
                     ts.streams.get(buffered.stream),
@@ -1008,7 +1026,7 @@ fn head<S: Source>(
         // names; when it found none, the head waits a little longer for
         // them.
         let named = !ts.services.is_empty() || !packets.services().is_empty();
-        let done = done && (analysis.over || !adts);
+        let done = done && (analysis.over.is_some() || !adts);
         if done && (named || packet.pes_offset > ts.first_packet.saturating_add(SDT_WAIT)) {
             whole = false;
             eof = false;
@@ -2990,7 +3008,7 @@ mod tests {
         let mut a = Analysis::default();
         assert!(a.note(0, 1 << 40, true, None, 1));
         assert!(a.note(0, (1 << 40) + 188, true, None, 1));
-        assert!(!a.over);
+        assert!(a.over.is_none());
         let mut a = Analysis::default();
         assert!(a.note(0, 0, true, None, 5_000_000));
         assert!(a.note(0, 188, true, None, 1));
@@ -3003,6 +3021,21 @@ mod tests {
         assert!(a.note(0, 0, false, None, 4));
         assert_eq!(a.bytes, u64::MAX);
         assert!(!a.note(0, 188, true, None, 0));
+        assert_eq!(a.over, Some(AnalysisStop::Bytes));
+    }
+
+    #[test]
+    fn media_time_is_checked_before_each_packet_period_is_charged() {
+        let mut a = Analysis::default();
+        assert!(a.note(0, 0, true, Some(450_001), 100));
+        assert!(a.over.is_none());
+        assert!(a.note(0, 0, false, Some(1_920), 100));
+        assert_eq!(a.over, Some(AnalysisStop::Time));
+        assert_eq!(a.durations, vec![450_001]);
+        assert_eq!(a.bytes, 100);
+        assert!(!a.note(0, 0, false, Some(1_920), 100));
+        assert_eq!(a.durations, vec![450_001]);
+        assert_eq!(a.bytes, 100);
     }
 
     #[test]

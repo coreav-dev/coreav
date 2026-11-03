@@ -2010,19 +2010,26 @@ headers and picture timing, MPEG-1/2 sequence headers, audio frame
 headers), streams numbered as `ffprobe` numbers them (which removes
 `KD-TS-STREAM-ORDER` for this command), and packets in `ffprobe`'s order
 with the "MPEGTS Stream ID" side data and its rebuilt decode times
-(`docs/design/mpegts.md`). The `bit_rate` of ADTS AAC is a running mean
-over the frames `ffprobe`'s analysis reads: whole PES packets in file
-order, up to and including the first after which some stream's latest
-decoding time lies more than five seconds (450,000 ticks, strictly) past
-its first timed frame's presentation time, or the first that starts past
-five million bytes (a 35 Mb/s stream crafted for it; of two AAC streams
-past that limit, `ffprobe` counts a few more frames of the second, which
-this window does not model); each frame's rate is its
-`frame_length` bytes over 1024 samples at its sampling rate, and the mean
-is truncated toward zero at every frame (`m += (rate − m) / n`). It agrees
-on every AAC transport stream of the fixtures and on 11 of the 14 AAC
-files of the development set; on the others `ffprobe`'s mean starts or
-ends at frames this window does not explain.
+(`docs/design/mpegts.md`). The `bit_rate` of ADTS AAC is a running integer
+mean of complete frame rates: `frame_length` bytes over 1024 samples at
+the header's sampling rate, truncated toward zero at every frame
+(`m += (rate − m) / n`). Analysis counts consumed payload bytes rather
+than physical transport offsets and known media periods rather than
+timestamp gaps. The initial PES initializes each stream's clock; the
+five-second check runs before charging every subsequent fetched packet.
+When time expires, complete eligible headers already parsed for that
+packet's PES are observed once before the rate freezes. A borrowed view
+neither reads nor consumes packets, and only that stream and PES offset
+are included: a later PES queued by the same read is not another admitted
+observation. The separate five-million-byte payload stop does not admit
+an unrelated new PES. Split frames whose headers were already read are
+excluded, as is the first complete frame after an initial raw tail;
+later frames without physical positions still count. The independent
+eight-MiB head limit is unchanged, unknown codec periods are not guessed,
+and single-frame clock-initialization exceptions remain outside this
+model. These analysis and eligibility rules match observed pinned-probe
+behavior, not a transport bit-rate field required by the specification
+(`docs/design/ffprobe-ts-aac-rate.md`).
 
 Streams are numbered in two steps, as if `ffprobe` read the file twice:
 first the streams of the first Program Map Table completed after the PAT,

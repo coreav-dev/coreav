@@ -12,6 +12,9 @@ Keep the existing five-second media limit, five-million-byte payload
 limit and independent eight-MiB transport head limit. Charge returned
 packet payload lengths, not their physical transport offsets. Accumulate
 known packet or configured picture periods, not timestamp gaps. The
+time check runs before charging each fetched packet's period, including
+later units of the same PES. A separate stop reason distinguishes this
+media frontier from payload exhaustion at a PES boundary. The
 initial PES configures a stream's clock with or without video; existing
 single-frame initialization exceptions are not extended by this model.
 Unknown codec periods remain unknown rather than receiving a guessed
@@ -36,8 +39,11 @@ The reader retains ownership of every packet and its existing memory
 limits. The adapter takes this view once, when analysis first closes,
 and applies its existing complete-frame and split-frame checks to the
 current packet and buffered packets within the head byte boundary when
-they complete an already-admitted PES or a carried frame. A new,
-unadmitted PES is not included merely because its packets were fetched.
+they belong to the current time frontier or complete an already-admitted
+PES or a carried frame. The view is restricted to that stream and PES
+offset: a later, unrelated PES is not included merely because its
+packets were queued by the same read. Payload exhaustion alone does not
+admit a fresh PES.
 Later metadata discovery cannot change the frozen rate. Other metadata,
 packet output, timestamp selection and hard read limits remain unchanged.
 
@@ -58,6 +64,10 @@ queue neither reads the source nor changes the subsequent packet list.
 Vary the first two complete frame sizes independently with and without
 leading bytes: only the first complete frame after a leading tail is
 excluded. Vary the tail's length without changing that exclusion.
+Keep a 44.1 kHz, twelve-frames-per-PES rate transition and an unbounded
+PES whose completion queues a later bounded PES as regressions. Both
+must fail before their respective fixes. Frame-size changes in the
+unadmitted PES must not change the frozen mean.
 
 Run the transport tests, neighboring ffprobe tests, formatting and
 targeted all-target Clippy. Recheck the identified development
