@@ -31,36 +31,44 @@ def toolchain():
             'unset target-specific Cargo overrides')
     home = Path(os.environ.get('CARGO_HOME', str(Path.home() / '.cargo')))
     require(not (home / 'config').exists() and not (home / 'config.toml').exists(), 'use a Cargo home without configuration overrides')
-    version = subprocess.check_output(['rustc', '+' + TOOLCHAIN, '-vV'], text=True)
+    version = subprocess.check_output(['rustc', '+' + TOOLCHAIN, '-vV'], text=True, timeout=30)
     require(f'commit-hash: {RUST_COMMIT}' in version and f'LLVM version: {LLVM}' in version and
             f'host: {TARGET}' in version, 'wrong compiler identity')
-    sysroot = Path(subprocess.check_output(['rustc', '+' + TOOLCHAIN, '--print', 'sysroot'], text=True).strip())
+    sysroot = Path(subprocess.check_output(['rustc', '+' + TOOLCHAIN, '--print', 'sysroot'], text=True, timeout=30).strip())
     profdata = sysroot / 'lib/rustlib' / TARGET / 'bin/llvm-profdata'
-    profile_version = subprocess.check_output([str(profdata), '--version'], text=True)
+    profile_version = subprocess.check_output([str(profdata), '--version'], text=True, timeout=30)
     require(LLVM in profile_version, 'install matching llvm-tools-preview')
     linker = shutil.which('cc')
     require(linker is not None, 'C linker driver is missing')
     return profdata, {'rustc': version, 'profdata': profile_version, 'profdata_sha256': digest(profdata),
                       'rustc_sha256': digest(sysroot / 'bin/rustc'), 'cargo_sha256': digest(sysroot / 'bin/cargo'),
                       'linker_sha256': digest(Path(linker).resolve()),
-                      'linker_version': subprocess.check_output([linker, '--version'], text=True)}
+                      'linker_version': subprocess.check_output([linker, '--version'], text=True, timeout=30)}
 
 
 def source_identity(source):
-    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=source), 'source checkout must be clean')
+    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=source, timeout=30), 'source checkout must be clean')
     def git(*args):
-        return subprocess.check_output(['git', *args], cwd=source, text=True).strip()
+        return subprocess.check_output(['git', *args], cwd=source, text=True, timeout=30).strip()
     require(not any((p / '.cargo' / n).exists() for p in (source, *source.parents) for n in ('config', 'config.toml')),
             'repository Cargo overrides are not part of this recipe')
     return {'commit': git('rev-parse', 'HEAD'), 'tree': git('rev-parse', 'HEAD^{tree}'),
             'lock_sha256': digest(source / 'Cargo.lock')}
 
 
-def compile_binary(source, destination, flags, historical=False):
+def compile_binary(source, destination, flags, historical=False, artifact='decode'):
+    require(artifact in ('decode', 'cli') and not (historical and artifact != 'decode'), 'unsupported build artifact')
     destination.mkdir(parents=True, exist_ok=False)
     target = destination / 'target'
-    command = ['cargo', '+' + TOOLCHAIN, 'build', '--locked', '--profile', 'dist',
-               '-p', 'coreav-h264', '--example', 'decode']
+    command = ['cargo', '+' + TOOLCHAIN, 'build', '--locked', '--profile', 'dist']
+    if artifact == 'decode':
+        command += ['-p', 'coreav-h264', '--example', 'decode']
+        suffix = 'dist/examples/decode'
+        name = 'decode'
+    else:
+        command += ['-p', 'coreav-cli', '--bin', 'coreav', '--features', 'native-h264']
+        suffix = 'dist/coreav'
+        name = 'coreav'
     if not historical:
         command += ['--target', TARGET]
         flags = ['--remap-path-prefix=' + str(source) + '=/coreav-source', *flags]
@@ -68,10 +76,10 @@ def compile_binary(source, destination, flags, historical=False):
                         'LLVM_PROFILE_FILE': str(destination / 'build-only-%m-%p.profraw')}
     with (destination / 'build.log').open('w') as log:
         subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=900)
-    binary = target / ('' if historical else TARGET) / 'dist/examples/decode'
-    shutil.copy2(binary, destination / 'decode')
-    return {'command': command, 'flags': flags, 'sha256': digest(destination / 'decode'),
-            'bytes': (destination / 'decode').stat().st_size}
+    binary = target / ('' if historical else TARGET) / suffix
+    shutil.copy2(binary, destination / name)
+    return {'command': command, 'flags': flags, 'sha256': digest(destination / name),
+            'bytes': (destination / name).stat().st_size}
 
 
 def training_roster(source):
@@ -136,10 +144,17 @@ def collect(source, out, media, profdata, tools):
             value = execute([str(out / 'optimized/decode'), '--threads', str(threads), '--frames', str(row['frames']), str(media / name)], maximum=4 << 30)
             reference = next(r for r in records if r['input'] == name and r['threads'] == threads)
             require((value['bytes'], value['sha256']) == (reference['bytes'], reference['output_sha256']), 'PGO output differs')
+    cli_base = compile_binary(source, out / 'cli-base', [], artifact='cli')
+    cli_pgo = compile_binary(source, out / 'cli-optimized', ['-Cprofile-use=' + str(merged),
+                              '-Cllvm-args=-pgo-warn-missing-function'], artifact='cli')
+    cli_independent = compile_binary(source, out / 'cli-independent', ['-Cprofile-use=' + str(merged),
+                                      '-Cllvm-args=-pgo-warn-missing-function'], artifact='cli')
+    require(cli_pgo['sha256'] == cli_independent['sha256'], 'independent diagnostic CLI rebuild differs')
     write(out / 'build.json', {'schema': 1, 'source': identity, 'tools': tools, 'training': records,
           'profile_sha256': digest(merged), 'base': base, 'generate': generate,
           'pgo': optimized, 'independent': independent, 'independent_match': True,
-          'recipe_sha256': digest(Path(__file__))})
+          'recipe_sha256': digest(Path(__file__)), 'cli': {'features': ['native-h264'], 'base': cli_base,
+          'pgo': cli_pgo, 'independent': cli_independent, 'independent_match': True}})
 
 
 def reproduce(source, out, profile, tools):

@@ -1,5 +1,7 @@
 """Media-free tests of the registered PGO evidence boundary."""
+import ast
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -11,6 +13,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import h264_parity_bars as bars
 import h264_pgo_round as round_tool
 import h264_pgo_build as build_tool
+import h264_pgo_diagnostics as diagnostics
 
 
 class PgoRound(unittest.TestCase):
@@ -50,6 +53,8 @@ class PgoRound(unittest.TestCase):
         self.assertEqual(round_tool.allocate([candidate], registry, self.plan), [candidate])
         self.assertEqual(round_tool.allocate([candidate | {'groups': ['old-group']}], registry, self.plan), [])
         self.assertEqual(round_tool.allocate([candidate | {'sha256': 'a' * 64}], registry, self.plan), [])
+        registry['other-draws']['hashes'].append('b' * 12)
+        self.assertEqual(round_tool.allocate([candidate | {'sha256': 'b' * 12 + 'c' * 52}], registry, self.plan), [])
         with self.assertRaises(ValueError):
             round_tool.allocate([candidate, candidate], registry, self.plan)
         del registry['encoder-sets']
@@ -63,6 +68,27 @@ class PgoRound(unittest.TestCase):
         candidate = {'identity': 'https://EXAMPLE.test/a#fragment', 'groups': ['new']}
         self.assertEqual(round_tool.allocate([candidate], registry, self.plan), [])
 
+    def test_standing_reserved_hashes_cannot_be_omitted_from_the_registry(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            receipt = {'commit': 'a' * 40, 'manifest_sha256': 'b' * 64}
+            evidence = {'schema': 1, 'allocation': self.plan['allocation'], **receipt,
+                        'frozen_sha256': 'c' * 64, 'marked_rows': 1, 'frozen_rows': 1,
+                        'hashes': ['d' * 64, 'e' * 64]}
+            registry = {c: {'commitment': 'a' * 64, 'hashes': ['d' * 64], 'identities': ['old'], 'groups': ['old']}
+                        for c in round_tool.COVERAGE}
+            round_tool.write(root / 'reserved-inputs.json', evidence)
+            round_tool.write(root / 'exclusions.json', registry)
+            with self.assertRaisesRegex(ValueError, 'omits standing'):
+                round_tool.reserved_evidence(root, self.plan, receipt)
+            registry['other-draws']['hashes'].append('e' * 64)
+            round_tool.write(root / 'exclusions.json', registry)
+            self.assertEqual(round_tool.reserved_evidence(root, self.plan, receipt), evidence)
+            for change in ({'marked_rows': 0}, {'frozen_rows': 0}, {'manifest_sha256': 'f' * 64}, {'hashes': []}):
+                round_tool.write(root / 'reserved-inputs.json', evidence | change)
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    round_tool.reserved_evidence(root, self.plan, receipt)
+
     def test_schedule_has_every_cell_once_and_is_deterministic(self):
         rows = [{'label': f'h{i:03}'} for i in range(64)]
         cells = round_tool.schedule(rows, self.plan)
@@ -72,9 +98,9 @@ class PgoRound(unittest.TestCase):
         self.assertEqual(len(cells), len(keys))
 
     def test_process_failures_and_raw_overflow_cannot_be_fast_samples(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(subprocess.CalledProcessError):
             round_tool.execute([sys.executable, '-c', 'raise SystemExit(1)'])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(subprocess.CalledProcessError):
             round_tool.execute([sys.executable, '-c', 'print("unexpected", file=__import__("sys").stderr)'])
         with self.assertRaises(ValueError):
             round_tool.execute([sys.executable, '-c', 'print("x" * 1000)'], maximum=10)
@@ -117,6 +143,34 @@ class PgoRound(unittest.TestCase):
                 value = build_tool.compile_binary(root / 'source', root / 'new', ['-Cprofile-generate=/profiles'])
             self.assertEqual(value['sha256'], round_tool.digest(root / 'new/decode'))
 
+    def test_pgo_subprocess_probes_and_builds_have_finite_timeouts(self):
+        for name in ('h264_pgo_build.py', 'h264_pgo_round.py', 'h264_pgo_diagnostics.py'):
+            for call in ast.walk(ast.parse((ROOT / 'scripts' / name).read_text())):
+                if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and
+                        isinstance(call.func.value, ast.Name) and call.func.value.id == 'subprocess' and
+                        call.func.attr in ('run', 'check_output')):
+                    continue
+                limit = next((k.value for k in call.keywords if k.arg == 'timeout'), None)
+                with self.subTest(file=name, line=call.lineno):
+                    self.assertIsInstance(limit, ast.Constant, 'add a finite timeout to this subprocess call')
+                    self.assertIs(type(limit.value), int)
+                    self.assertGreater(limit.value, 0)
+
+    def test_cli_companion_is_explicit_and_does_not_change_the_example_target(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            def fake_run(command, **kwargs):
+                self.assertIn('coreav-cli', command)
+                self.assertEqual(command[command.index('--features') + 1], 'native-h264')
+                self.assertNotIn('--example', command)
+                self.assertEqual(command[-2:], ['--target', build_tool.TARGET])
+                binary = root / 'new/target' / build_tool.TARGET / 'dist/coreav'
+                binary.parent.mkdir(parents=True)
+                binary.write_bytes(b'compiled CLI')
+            with mock.patch.object(build_tool.subprocess, 'run', side_effect=fake_run):
+                value = build_tool.compile_binary(root / 'source', root / 'new', [], artifact='cli')
+            self.assertEqual(value['sha256'], round_tool.digest(root / 'new/coreav'))
+
     def test_audit_refuses_missing_duplicate_aborted_and_changed_evidence(self):
         plan = self.plan | {'count_per_class': 1, 'rounds': 2, 'bootstrap_replicates': 20}
         registry = {c: {'commitment': 'f' * 64, 'hashes': ['f' * 64], 'identities': ['old'], 'groups': ['old']}
@@ -130,7 +184,11 @@ class PgoRound(unittest.TestCase):
             round_tool.write(root / 'roster.json', rows)
             round_tool.write(root / 'exclusions.json', registry)
             round_tool.write(root / 'reservation-receipt.json', {'allocation': plan['allocation'], 'commit': 'a' * 40,
-                              'manifest_sha256': 'b' * 64, 'count_per_class': 1, 'population': 'neutral-population'})
+                              'manifest_sha256': 'b' * 64, 'count_per_class': 1, 'population': 'neutral-population',
+                              'checker': {'path': 'scripts/check.py', 'sha256': 'c' * 64}})
+            round_tool.write(root / 'reserved-inputs.json', {'schema': 1, 'allocation': plan['allocation'], 'commit': 'a' * 40,
+                             'manifest_sha256': 'b' * 64, 'frozen_sha256': 'e' * 64,
+                             'marked_rows': 1, 'frozen_rows': 1, 'hashes': ['f' * 64]})
             provider = {'machine_type': 'c4-standard-16', 'provisioning': 'STANDARD',
                         'advanced_machine_features': {'threadsPerCore': 1, 'turboMode': 'ALL_CORE_MAX'}}
             round_tool.write(root / 'instance.json', provider)
@@ -160,16 +218,27 @@ class PgoRound(unittest.TestCase):
                           'field_order': 'progressive', 'profile': 'High', 'width': r['width'], 'height': r['height'], 'frames': 1}}
                          for r in rows]
             round_tool.write(root / 'collection.json', decisions)
-            for name in ('base', 'pgo', 'independent', 'profile.profdata', 'ffmpeg', 'ffprobe', 'aa', 'null'):
+            for name in ('base', 'pgo', 'independent', 'profile.profdata', 'ffmpeg', 'ffprobe', 'aa', 'null',
+                         'cli-base', 'cli-pgo', 'cli-independent', *diagnostics.FILES):
+                (root / name).parent.mkdir(exist_ok=True)
                 (root / name).write_bytes(b'bound-artifact-placeholder')
             sha = round_tool.digest(root / 'pgo')
+            base_flags = ['--remap-path-prefix=/source=/coreav-source']
+            pgo_flags = [*base_flags, '-Cprofile-use=/profile.profdata', '-Cllvm-args=-pgo-warn-missing-function']
+            cli_command = ['cargo', '+1.99.1', 'build', '--locked', '--profile', 'dist', '-p', 'coreav-cli',
+                           '--bin', 'coreav', '--features', 'native-h264', '--target', build_tool.TARGET]
             build = {'schema': 1, 'source': {'commit': 'c' * 40, 'lock_sha256': round_tool.digest(ROOT / 'Cargo.lock')},
                      'recipe_sha256': round_tool.digest(ROOT / 'scripts/h264_pgo_build.py'), 'independent_match': True,
-                     'pgo': {'sha256': sha}, 'independent': {'sha256': sha}, 'base': {'sha256': sha},
+                     'pgo': {'sha256': sha, 'flags': pgo_flags}, 'independent': {'sha256': sha},
+                     'base': {'sha256': sha, 'flags': base_flags},
                      'profile_sha256': round_tool.digest(root / 'profile.profdata'),
                      'tools': {'rustc': 'release: 1.99.1', 'profdata': '23.1.1'},
                      'training': [{'input': n, 'threads': t, 'input_sha256': r['es_sha256'], 'bytes': 1}
-                                  for n, r in approved.items() for t in (1, 8)]}
+                                  for n, r in approved.items() for t in (1, 8)],
+                     'cli': {'features': ['native-h264'], 'independent_match': True,
+                             'base': {'sha256': sha, 'command': cli_command, 'flags': base_flags},
+                             'pgo': {'sha256': sha, 'command': cli_command, 'flags': pgo_flags},
+                             'independent': {'sha256': sha, 'command': cli_command, 'flags': pgo_flags}}}
             round_tool.write(root / 'build.json', build)
             contract = {'schema': 1, 'plan': round_tool.digest(round_tool.PLAN), 'revision': 'c' * 40,
                         'files': {n: round_tool.digest(root / n) for n in round_tool.allocation_files(['snapshots/s0000.json'])}}
@@ -177,7 +246,7 @@ class PgoRound(unittest.TestCase):
             allocation_sha256 = round_tool.digest(root / 'allocation-contract.json')
             binding = {'plan': round_tool.digest(round_tool.PLAN), 'revision': 'c' * 40, 'allocation_sha256': allocation_sha256,
                        'tools': {f'scripts/{n}': round_tool.digest(ROOT / 'scripts' / n) for n in
-                                 ('h264_pgo_round.py', 'h264_pgo_build.py', 'h264_parity_bars.py')},
+                                 ('h264_pgo_round.py', 'h264_pgo_build.py', 'h264_parity_bars.py', 'h264_pgo_diagnostics.py')},
                        'files': {n: round_tool.digest(root / n) for n in round_tool.evidence_inventory(rows, refs)}}
             round_tool.write(root / 'binding.json', binding)
             events = [{'kind': 'host', 'phase': 'before', 'instance': provider, 'affinity': list(range(8)),
@@ -203,15 +272,22 @@ class PgoRound(unittest.TestCase):
                           for row in rows for t in (1, 8) for a in round_tool.ARMS)
             events.extend({'kind': 'timed', **cell, 'wall': 0.95 if cell['arm'] == 'pgo' else 1.0}
                           for cell in round_tool.schedule(rows, plan))
-            events.extend([{'kind': 'health', 'phase': 'after', 'references': references},
+            events.extend([{'kind': 'diagnostics', 'status': 'complete'},
+                           {'kind': 'health', 'phase': 'after', 'references': references},
                            events[0] | {'phase': 'after'}, {'kind': 'complete'}])
             def save(values):
                 (root / 'events.jsonl').write_text(''.join(json.dumps(v) + '\n' for v in values))
             def audited():
-                with mock.patch.object(build_tool, 'training_roster', return_value=approved):
+                with mock.patch.object(build_tool, 'training_roster', return_value=approved), \
+                     mock.patch.object(diagnostics, 'verify'), \
+                     mock.patch.object(diagnostics, 'audit', return_value={'status': 'complete', 'gates_h264': False,
+                                                                         'guards': {'probe': False}}):
                     return round_tool.audit(root, plan, allocation_sha256)
             save(events)
-            self.assertTrue(audited()['pass'])
+            checked = audited()
+            self.assertTrue(checked['pass'])
+            self.assertFalse(checked['diagnostics']['gates_h264'])
+            self.assertFalse(checked['diagnostics']['guards']['probe'])
             round_tool.write(root / 'binding.json', binding | {'files': {}, 'tools': {}})
             with self.assertRaises(ValueError):
                 audited()
@@ -232,6 +308,7 @@ class PgoRound(unittest.TestCase):
                 round_tool.selection(rows, candidates, bad, registry, plan)
             timed = next(i for i, r in enumerate(events) if r['kind'] == 'timed')
             for broken in (events[:timed] + events[timed + 1:],
+                           [r for r in events if not (r['kind'] == 'qualification' and r['label'] == rows[0]['label'])],
                            events[:timed] + [events[timed]] + events[timed:],
                            events[:-1] + [{'kind': 'abort'}],
                            [r for r in events if r['kind'] != 'health'][:-1] +
@@ -251,7 +328,8 @@ class PgoRound(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             round_tool.write(root / 'reservation-receipt.json', {'allocation': self.plan['allocation'],
-                             'commit': 'a' * 40, 'manifest_sha256': 'b' * 64, 'count_per_class': 16, 'population': 'neutral'})
+                             'commit': 'a' * 40, 'manifest_sha256': 'b' * 64, 'count_per_class': 16, 'population': 'neutral',
+                             'checker': {'path': 'scripts/check.py', 'sha256': 'c' * 64}})
             with mock.patch.object(round_tool, 'merged', return_value='a' * 40), \
                  mock.patch.object(round_tool, 'reservation', side_effect=ValueError('not merged')) as reserved, \
                  mock.patch.object(round_tool, 'execute') as child:

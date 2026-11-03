@@ -23,11 +23,15 @@ The command builds unprofiled and instrumented artifacts with explicit `--target
 
 The command also rebuilds the optimized artifact in another empty target directory and requires byte equality. It checks optimized output against the unprofiled output for every training input at both thread counts. No timing comparison occurs in this command.
 
+It also builds diagnostic-only CLI companions with default features plus `native-h264`: an unprofiled CLI, a CLI using the same retained decoder profile, and an independently rebuilt PGO CLI that must match byte for byte. These are not `release-full` packages, and the diagnostics never train the profile.
+
 On success, `/build/pgo-clean/build.json` records the commands, compiler and linker identities, source and lockfile identities, training input and output hashes, each raw profile, the merged-profile hash, and the binary hashes. Keep this receipt together with `profile.profdata`, `profiles/`, the binaries, and logs. The optimized example is `/build/pgo-clean/optimized/decode`. A compiler, target, source, profile or flag change creates a new artifact and needs new qualification.
 
 An untimed recipe check at source `50581ac8d546cc88efb97bfa485aea6db9d5fa16` collected exactly 32 decoder profiles, with no `build_script_build` functions. Its merged-profile SHA-256 was `2c4008c9f692c6de69c3839205f9b94d3319ab7781b16a9a56e4a7d229571d49`. The optimized and separate-target-directory rebuild both hashed to `3d4a10c5a452f32b528c95e4661bf236f0b42be1bfe7943d228dd626e45a1cbf`. The recipe's complete training-output checks passed. This checks construction and byte preservation, not a speed claim.
 
 A separate clean build host reproduced that optimized hash using the retained profile. All 96 native and pinned-oracle byte, hash and frame-count checks agreed across sixteen training inputs at both thread counts. [The neutral evidence record](design/evidence/h264-pgo-build.json) retains each call's result. Those training checks use the existing training diagnostic policy for known oracle messages; the later held-out executor permits no stderr exception.
+
+That construction evidence predates the CLI companion addition. It does not verify a companion build or diagnostic fixture. The merged-source build, independent companion rebuild and real diagnostic qualification remain post-merge work.
 
 Profile generation at eight threads can produce different branch counts on another run. Rebuilding with the same retained profile, not regenerating it, is the byte-reproducibility contract. The independent target-directory rebuild is not a claim of cross-platform compiler reproducibility.
 
@@ -51,15 +55,18 @@ Two clean builds in Debian 13 reproduced that exact SHA-256. Both used the retai
 
 Both the allocation reservation and the plan PR must be merged. Freeze acquisition metadata, its exclusion registry, the complete roster and the clean build receipt before running CoreAV on the allocation. Use the same merged revision for the recipe and executor. Run the registered timing procedure only on the designated on-demand host.
 
-The executor expects a new directory containing `roster.json`, `exclusions.json`, four approved training `references.json`, the provider's `instance.json`, the clean `build.json`, `base`, `pgo`, its `independent` rebuild, `profile.profdata`, the verified `ffmpeg` and `ffprobe`, identical base copies named `aa` and `null`, and `media/<neutral label>.h264`.
+The executor expects a new directory containing `roster.json`, `exclusions.json`, four approved training `references.json`, the provider's `instance.json`, the clean `build.json`, `base`, `pgo`, its `independent` rebuild, `profile.profdata`, the verified `ffmpeg` and `ffprobe`, identical base copies named `aa` and `null`, and `media/<neutral label>.h264`. Stage the companion binaries as `cli-base`, `cli-pgo`, and `cli-independent`. After both merges, prepare the fixed synthetic diagnostics with `python3 -I scripts/h264_pgo_diagnostics.py prepare /evaluation`; preparation verifies the merged reservation and pinned oracle. Keep its complete `diagnostics/` inventory.
 
-Create `reservation-checkout.json` with the allocation repository's clean checkout path under `checkout` and the manifest's relative path under `manifest`. The checkout needs read access to its `origin/main`. The `allocate` and `run` commands fetch both repositories' main branches and refuse an unmerged revision or a mismatched reservation. `allocate` writes `reservation-receipt.json`; the executor verifies it again against the actual allocation checkout before touching the host or media. Do not substitute a hand-written receipt.
+Create `reservation-checkout.json` with the allocation repository's clean checkout path under `checkout`, the manifest's relative path under `manifest`, and the reserved-input metadata path under `frozen`. The checkout needs read access to its `origin/main` and must be updated to fetched main before freezing the registry. The commands refuse an unmerged revision or mismatched reservation. `registry` executes the reservation's exact committed exclusion checker and writes `reservation-receipt.json` and `reserved-inputs.json`; allocation and execution verify those results again. Do not substitute hand-written receipts. The checker validates the frozen metadata identity and includes both spent and still-reserved inputs.
 
 Stage `population.json` with the allocation label, the reservation's population label, neutral snapshot names and hashes under `snapshots`, and candidate `identity` and `groups` records under `candidates`. Keep the referenced metadata snapshots in `snapshots/`. Generate `exclusions.json` with the `registry` action from all four required owners' registered inventory roots in `registry-inputs.json`. The reservation's acquisition procedure defines those inventories and the fixed population. Do not replace them with a smaller scan.
+
+The registry also scans the standing reservation manifest and frozen metadata automatically. Their required content hashes cannot be omitted from the exclusion set. Both receipts, the diagnostic fixtures and all three CLI binaries enter the content-bound allocation contract.
 
 Before acquiring media, run `allocate` and record the printed contract digest with the committed listing. This freezes `allocation-contract.json`, the profile, binaries, registry, and population. Acquisition writes `collection.json` as an ordered allocation prefix. Each decision retains `identity`, `source_sha256`, `capture_status`, complete `metadata`, and `status`; an exclusion also carries its checked `reason`. Metadata carries codec, planar format, field order, profile, width, height, and positive presented `frames`. The executor derives the selected roster from these decisions rather than trusting a separately supplied list.
 
 ```sh
+python3 -I scripts/h264_pgo_round.py registry /evaluation
 python3 -I scripts/h264_pgo_round.py allocate /evaluation
 # Record the printed digest before acquiring media.
 python3 -I scripts/h264_pgo_round.py run /evaluation --allocation-sha256 "$ALLOCATION_SHA256"
@@ -67,3 +74,5 @@ python3 -I scripts/h264_pgo_round.py audit /evaluation --allocation-sha256 "$ALL
 ```
 
 Exit 0 means both PGO bars passed, 1 means a complete run missed a bar, and 2 means the run is incomplete or invalid. Retain `events.jsonl`, bindings and logs in all cases. A miss does not authorize a rerun. Publish results separately, with neutral labels and no private paths or acquisition details.
+
+Diagnostics run after the H.264 timings and before the final host-health checks. Keep `diagnostics.jsonl` and the summary's separate diagnostic result even when a guard fails. A CLI exit, unexpected stderr or explicit diagnostic-output failure yields an incomplete diagnostic result without changing the H.264 verdict. Timeouts, operating-system errors and contract failures propagate and invalidate the shared run.

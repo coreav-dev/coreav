@@ -12,6 +12,7 @@ import signal
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import urllib.parse
@@ -41,9 +42,9 @@ def write(path, value):
 
 def merged(checkout=ROOT):
     subprocess.run(['git', 'fetch', '--quiet', 'origin', 'main'], cwd=checkout, check=True, timeout=120)
-    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout), 'source must be clean')
+    require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout, timeout=30), 'source must be clean')
     subprocess.run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'], cwd=checkout, check=True, timeout=30)
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True).strip()
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True, timeout=30).strip()
 
 
 def reservation(root, plan, commit=None):
@@ -52,33 +53,75 @@ def reservation(root, plan, commit=None):
     relative = Path(config['manifest'])
     require(not relative.is_absolute() and '..' not in relative.parts and relative.parts,
             'reservation manifest must stay inside its checkout')
-    current = merged(checkout)
+    head = merged(checkout)
+    current = subprocess.check_output(['git', 'rev-parse', 'origin/main'], cwd=checkout, text=True, timeout=30).strip()
+    require(commit is not None or head == current, 'update allocation checkout to fetched main before freezing')
     commit = current if commit is None else commit
     require(re.fullmatch('[0-9a-f]{40}', commit) is not None, 'invalid reservation revision')
     subprocess.run(['git', 'merge-base', '--is-ancestor', commit, 'origin/main'], cwd=checkout, check=True, timeout=30)
-    entry = subprocess.check_output(['git', 'ls-tree', commit, '--', relative.as_posix()], cwd=checkout, text=True)
+    entry = subprocess.check_output(['git', 'ls-tree', commit, '--', relative.as_posix()], cwd=checkout, text=True, timeout=30)
     require(entry.startswith('100644 blob ') and len(entry.splitlines()) == 1, 'reservation manifest must be a tracked regular file')
-    raw = subprocess.check_output(['git', 'cat-file', 'blob', f'{commit}:{relative.as_posix()}'], cwd=checkout)
+    raw = subprocess.check_output(['git', 'cat-file', 'blob', f'{commit}:{relative.as_posix()}'], cwd=checkout, timeout=30)
     allocation = json.loads(raw)['allocations'][plan['allocation']]
     require(allocation['operation'] == 'h264-decode' and allocation['status'] == 'reserved' and
             allocation['holdout'] is True and allocation['spent'] is False and
             allocation['seed'] == plan['draw_seed'] and allocation['count_per_class'] == plan['count_per_class'],
             'allocation reservation differs from the public plan')
+    checker = Path(allocation['exclusion_checker'])
+    require(not checker.is_absolute() and '..' not in checker.parts and checker.suffix == '.py',
+            'allocation checker must stay inside its checkout')
+    entry = subprocess.check_output(['git', 'ls-tree', commit, '--', checker.as_posix()], cwd=checkout, text=True, timeout=30)
+    require(entry.startswith('100644 blob ') and len(entry.splitlines()) == 1, 'allocation checker must be tracked')
+    code = subprocess.check_output(['git', 'cat-file', 'blob', f'{commit}:{checker.as_posix()}'], cwd=checkout, timeout=30)
     return {'allocation': plan['allocation'], 'commit': commit, 'manifest_sha256': hashlib.sha256(raw).hexdigest(),
-            'population': allocation['population'], 'count_per_class': plan['count_per_class']}
+            'population': allocation['population'], 'count_per_class': plan['count_per_class'],
+            'checker': {'path': checker.as_posix(), 'sha256': hashlib.sha256(code).hexdigest()}}
 
 
 def reservation_receipt(root, plan):
     value = json.loads((root / 'reservation-receipt.json').read_text())
-    require(set(value) == {'allocation', 'commit', 'manifest_sha256', 'population', 'count_per_class'} and
+    require(set(value) == {'allocation', 'commit', 'manifest_sha256', 'population', 'count_per_class', 'checker'} and
             isinstance(value['population'], str) and value['population'] and
             value['allocation'] == plan['allocation'] and value['count_per_class'] == plan['count_per_class'] and
             re.fullmatch('[0-9a-f]{40}', value['commit']) is not None and
             re.fullmatch('[0-9a-f]{64}', value['manifest_sha256']) is not None, 'missing merged allocation receipt')
+    checker = value['checker']
+    require(set(checker) == {'path', 'sha256'} and isinstance(checker['path'], str) and
+            re.fullmatch('[0-9a-f]{64}', checker['sha256']) is not None, 'missing allocation checker identity')
+
+
+def reserved_inputs(root, plan, receipt):
+    config = json.loads((root / 'reservation-checkout.json').read_text())
+    checkout = Path(config['checkout']).resolve()
+    code = subprocess.check_output(['git', 'cat-file', 'blob', f"{receipt['commit']}:{receipt['checker']['path']}"], cwd=checkout, timeout=30)
+    require(hashlib.sha256(code).hexdigest() == receipt['checker']['sha256'], 'allocation checker changed')
+    with tempfile.TemporaryDirectory() as directory:
+        checker = Path(directory) / 'check.py'
+        checker.write_bytes(code)
+        raw = subprocess.check_output([sys.executable, '-I', str(checker), '--repo', str(checkout),
+                                       '--commit', receipt['commit'], '--allocation', plan['allocation'],
+                                       '--frozen', str(Path(config['frozen']).resolve())], timeout=120)
+    return json.loads(raw)
+
+
+def reserved_evidence(root, plan, receipt):
+    value = json.loads((root / 'reserved-inputs.json').read_text())
+    require(set(value) == {'schema', 'allocation', 'commit', 'manifest_sha256', 'frozen_sha256',
+                           'marked_rows', 'frozen_rows', 'hashes'} and value['schema'] == 1 and
+            value['allocation'] == plan['allocation'] and value['commit'] == receipt['commit'] and
+            value['manifest_sha256'] == receipt['manifest_sha256'], 'standing exclusion evidence differs')
+    require(re.fullmatch('[0-9a-f]{64}', value['frozen_sha256']) is not None and
+            all(type(value[k]) is int and value[k] > 0 for k in ('marked_rows', 'frozen_rows')) and
+            isinstance(value['hashes'], list) and bool(value['hashes']) and
+            all(re.fullmatch('[0-9a-f]{64}', h) is not None for h in value['hashes']) and
+            value['hashes'] == sorted(set(value['hashes'])), 'standing exclusion inventory is incomplete')
+    require(set(value['hashes']) <= exclusions(json.loads((root / 'exclusions.json').read_text()))['hashes'],
+            'registry omits standing spent or reserved inputs')
+    return value
 
 
 def build_evidence(root, revision):
-    from h264_pgo_build import training_roster, TOOLCHAIN, LLVM
+    from h264_pgo_build import training_roster, TOOLCHAIN, LLVM, TARGET
     build = json.loads((root / 'build.json').read_text())
     require(build['schema'] == 1 and build['source']['commit'] == revision and
             build['source']['lock_sha256'] == digest(ROOT / 'Cargo.lock') and build['independent_match'] is True and
@@ -92,13 +135,25 @@ def build_evidence(root, revision):
     require(len(training) == 32 and {(r['input'], r['threads']) for r in training} ==
             {(s, t) for s in approved for t in (1, 8)}, 'incomplete profile training')
     require(all(r['input_sha256'] == approved[r['input']]['es_sha256'] and r['bytes'] > 0 for r in training), 'training bytes differ')
+    cli = build['cli']
+    features = json.loads(PLAN.read_text())['diagnostics']['cli_features']
+    require(cli['features'] == features and cli['independent_match'] is True, 'diagnostic CLI configuration differs')
+    require(cli['pgo']['sha256'] == cli['independent']['sha256'] == digest(root / 'cli-pgo') ==
+            digest(root / 'cli-independent') and cli['base']['sha256'] == digest(root / 'cli-base'), 'diagnostic CLI artifacts differ')
+    command = ['cargo', '+' + TOOLCHAIN, 'build', '--locked', '--profile', 'dist', '-p', 'coreav-cli',
+               '--bin', 'coreav', '--features', ','.join(features), '--target', TARGET]
+    require(all(cli[a]['command'] == command for a in ('base', 'pgo', 'independent')) and
+            cli['base']['flags'] == build['base']['flags'] and
+            cli['pgo']['flags'] == cli['independent']['flags'] == build['pgo']['flags'], 'diagnostic CLI build flags differ')
     return build
 
 
 def evidence_inventory(rows, refs):
+    from h264_pgo_diagnostics import FILES
     names = ['roster.json', 'exclusions.json', 'references.json', 'instance.json', 'build.json',
-             'reservation-receipt.json', 'allocation-contract.json', 'collection.json', 'base', 'pgo', 'independent',
+             'reservation-receipt.json', 'reserved-inputs.json', 'allocation-contract.json', 'collection.json', 'base', 'pgo', 'independent',
              'profile.profdata', 'ffmpeg', 'ffprobe', 'aa', 'null']
+    names += ['cli-base', 'cli-pgo', 'cli-independent', *FILES]
     names += ['media/' + r['label'] + '.h264' for r in rows + refs]
     require(len(names) == len(set(names)), 'input label overlaps a reference')
     return names
@@ -120,11 +175,13 @@ def population_files(root, receipt, plan):
 
 
 def allocation_files(snapshots):
-    return ['population.json', 'allocation.json', 'exclusions.json', 'build.json', 'reservation-receipt.json',
-            'base', 'pgo', 'independent', 'profile.profdata', *snapshots]
+    from h264_pgo_diagnostics import FILES
+    return ['population.json', 'allocation.json', 'exclusions.json', 'build.json', 'reservation-receipt.json', 'reserved-inputs.json',
+            'base', 'pgo', 'independent', 'profile.profdata', 'cli-base', 'cli-pgo', 'cli-independent', *FILES, *snapshots]
 
 
 def verify_allocation(root, plan, expected, revision=None):
+    from h264_pgo_diagnostics import verify
     require(expected is not None and re.fullmatch('[0-9a-f]{64}', expected) is not None and
             digest(root / 'allocation-contract.json') == expected, 'allocation contract differs from registered digest')
     contract = json.loads((root / 'allocation-contract.json').read_text())
@@ -133,6 +190,7 @@ def verify_allocation(root, plan, expected, revision=None):
     require(revision is None or contract['revision'] == revision, 'allocation source changed')
     receipt = json.loads((root / 'reservation-receipt.json').read_text())
     reservation_receipt(root, plan)
+    reserved_evidence(root, plan, receipt)
     population, snapshots = population_files(root, receipt, plan)
     require(set(contract['files']) == set(allocation_files(snapshots)), 'incomplete allocation inventory')
     require(all(digest(root / n) == sha for n, sha in contract['files'].items()), 'frozen allocation artifact changed')
@@ -140,6 +198,7 @@ def verify_allocation(root, plan, expected, revision=None):
     require(selected == allocate(population['candidates'], json.loads((root / 'exclusions.json').read_text()), plan),
             'allocation differs from deterministic exclusion and order')
     build_evidence(root, contract['revision'])
+    verify(root, plan)
     return selected
 
 
@@ -354,7 +413,8 @@ def execute(argv, maximum=0, timeout=180, capture=False):
                             else:
                                 error.extend(data)
                                 require(len(error) <= 65536, 'diagnostic output exceeds budget')
-                    require(process.wait() == 0 and not error, 'decoder exit or unexpected diagnostic')
+                    if process.wait() != 0 or error:
+                        raise subprocess.CalledProcessError(process.returncode, argv, stderr=bytes(error))
                     value = {'wall': elapsed, 'bytes': size, 'sha256': h.hexdigest()}
                     return value | {'stdout': output.decode('utf-8')} if capture else value
                 finally:
@@ -415,6 +475,7 @@ def verdict(one, eight, plan):
 
 
 def audit(root, plan, allocation_sha256):
+    import h264_pgo_diagnostics as diagnostics
     binding = json.loads((root / 'binding.json').read_text())
     require(set(binding) == {'plan', 'revision', 'tools', 'files', 'allocation_sha256'} and
             binding['allocation_sha256'] == allocation_sha256, 'incomplete binding schema')
@@ -424,7 +485,8 @@ def audit(root, plan, allocation_sha256):
     classes = roster(rows, json.loads((root / 'exclusions.json').read_text()), plan)
     reference_evidence(refs)
     require(set(binding['files']) == set(evidence_inventory(rows, refs)), 'incomplete artifact inventory')
-    require(set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py', 'scripts/h264_parity_bars.py'},
+    require(set(binding['tools']) == {'scripts/h264_pgo_round.py', 'scripts/h264_pgo_build.py',
+                                    'scripts/h264_parity_bars.py', 'scripts/h264_pgo_diagnostics.py'},
             'incomplete tool inventory')
     require(binding['plan'] == digest(PLAN), 'registration changed')
     for name, expected in binding['files'].items():
@@ -439,7 +501,7 @@ def audit(root, plan, allocation_sha256):
     events = [json.loads(line) for line in (root / 'events.jsonl').read_text().splitlines()]
     require(events and events[-1] == {'kind': 'complete'}, 'incomplete or aborted run')
     require(not any(r['kind'] == 'abort' for r in events), 'aborted run')
-    require(all(r['kind'] in {'host', 'metadata', 'qualification', 'calibration-call', 'calibration', 'health', 'warmup', 'timed', 'complete'}
+    require(all(r['kind'] in {'host', 'metadata', 'qualification', 'calibration-call', 'calibration', 'health', 'warmup', 'timed', 'diagnostics', 'complete'}
                 for r in events), 'unknown event kind')
     hosts = [r for r in events if r['kind'] == 'host']
     require(len(hosts) == 2 and [r['phase'] for r in hosts] == ['before', 'after'] and events[0]['kind'] == 'host', 'missing host evidence')
@@ -451,6 +513,9 @@ def audit(root, plan, allocation_sha256):
         require(provider['machine_type'].split('/')[-1] == 'c4-standard-16' and entry['affinity'] == list(range(8))
                 and entry['topology'] == [str(c) for c in range(8)] and entry['cpu'] == '8581C', 'wrong host class')
     checks = [r for r in events if r['kind'] == 'qualification']
+    wanted = {(r['label'], a, t) for r in rows for a in ARMS for t in (1, 8)}
+    require(len(checks) == len(wanted) and {(r['label'], r['arm'], r['threads']) for r in checks} == wanted,
+            'incomplete qualification')
     metadata = [r for r in events if r['kind'] == 'metadata']
     require(len(metadata) == len(rows) and {r['label'] for r in metadata} == set(classes), 'missing metadata checks')
     for row in rows:
@@ -458,9 +523,6 @@ def audit(root, plan, allocation_sha256):
         meta_index = next(i for i, r in enumerate(events) if r['kind'] == 'metadata' and r['label'] == row['label'])
         first_check = next(i for i, r in enumerate(events) if r['kind'] == 'qualification' and r['label'] == row['label'])
         require(meta_index < first_check, 'input metadata followed qualification')
-    wanted = {(r['label'], a, t) for r in rows for a in ARMS for t in (1, 8)}
-    require(len(checks) == len(wanted) and {(r['label'], r['arm'], r['threads']) for r in checks} == wanted,
-            'incomplete qualification')
     for row in rows:
         cells = [r for r in checks if r['label'] == row['label']]
         require(len({(r['bytes'], r['sha256'], r['frames']) for r in cells}) == 1, 'raw output mismatch')
@@ -504,6 +566,11 @@ def audit(root, plan, allocation_sha256):
     require(indices['calibration'][-1] < indices['health'][0] < indices['qualification'][0] and
             indices['qualification'][-1] < indices['warmup'][0] and indices['warmup'][-1] < indices['timed'][0] and
             indices['timed'][-1] < indices['health'][1] < indices['host'][1] < indices['complete'][0], 'event phase order differs')
+    diagnostic_markers = [i for i, r in enumerate(events) if r['kind'] == 'diagnostics']
+    require(len(diagnostic_markers) == 1 and indices['timed'][-1] < diagnostic_markers[0] < indices['health'][1],
+            'missing or misplaced diagnostic phase')
+    diagnostic_result = diagnostics.audit(root, plan)
+    require(events[diagnostic_markers[0]]['status'] == diagnostic_result['status'], 'diagnostic terminal status differs')
     for threads in (1, 8):
         for cls in bars.CLASSES:
             before = health[0]['references'][str(threads)][cls]
@@ -524,10 +591,12 @@ def audit(root, plan, allocation_sha256):
         result[str(threads)] = {'comparisons': comparisons, 'calls': calls}
     result['pass'] = verdict(result['1']['comparisons']['pgo/base']['groups']['overall'],
                              result['8']['comparisons']['pgo/base']['groups'], plan)
+    result['diagnostics'] = diagnostic_result
     return result
 
 
 def run(root, plan, allocation_sha256):
+    import h264_pgo_diagnostics as diagnostics
     revision = merged()
     out = root / 'events.jsonl'
     with out.open('x', buffering=1) as log:
@@ -538,6 +607,8 @@ def run(root, plan, allocation_sha256):
             receipt = json.loads((root / 'reservation-receipt.json').read_text())
             require(receipt == reservation(root, plan, receipt['commit']),
                     'allocation is not reserved on its merged main')
+            require(reserved_evidence(root, plan, receipt) == reserved_inputs(root, plan, receipt),
+                    'standing exclusion source differs from allocation')
             candidates = verify_allocation(root, plan, allocation_sha256, revision)
             instance = json.loads((root / 'instance.json').read_text())
             emit({'kind': 'host', 'phase': 'before', **host(instance)})
@@ -555,7 +626,8 @@ def run(root, plan, allocation_sha256):
             for row in rows + refs:
                 require(digest(root / 'media' / (row['label'] + '.h264')) == row['sha256'], 'input changed')
             write(root / 'binding.json', {'plan': digest(PLAN), 'revision': revision, 'allocation_sha256': allocation_sha256,
-                  'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py', ROOT / 'scripts/h264_pgo_build.py')},
+                  'tools': {str(p.relative_to(ROOT)): digest(p) for p in (Path(__file__), ROOT / 'scripts/h264_parity_bars.py',
+                             ROOT / 'scripts/h264_pgo_build.py', ROOT / 'scripts/h264_pgo_diagnostics.py')},
                   'files': {n: digest(root / n) for n in names}})
             for threads in (1, 8):
                 for comparison, arm in (('aa', 'aa'), ('null', 'null')):
@@ -598,6 +670,8 @@ def run(root, plan, allocation_sha256):
             for cell in schedule(rows, plan):
                 value = execute(command(root, lookup[cell['label']], cell['arm'], cell['threads'], False, plan))
                 emit({'kind': 'timed', **cell, **value})
+            status = diagnostics.run(root, plan, execute)
+            emit({'kind': 'diagnostics', 'status': status})
             health('after')
             emit({'kind': 'host', 'phase': 'after', **host(instance)})
             emit({'kind': 'complete'})
@@ -617,14 +691,29 @@ def main():
     try:
         if args.action == 'registry':
             owners = json.loads((root / 'registry-inputs.json').read_text())
-            write(root / 'exclusions.json', exclusion_registry(owners))
+            receipt = reservation(root, plan)
+            value = reserved_inputs(root, plan, receipt)
+            config = json.loads((root / 'reservation-checkout.json').read_text())
+            owners['other-draws'] = [*owners['other-draws'], config['frozen'],
+                                    str(Path(config['checkout']) / config['manifest'])]
+            registry = exclusion_registry(owners)
+            component = registry['other-draws']
+            component['hashes'] = sorted(set(component['hashes']) | set(value['hashes']))
+            component['commitment'] = hashlib.sha256(json.dumps([component['commitment'], value], sort_keys=True).encode()).hexdigest()
+            write(root / 'reservation-receipt.json', receipt)
+            write(root / 'reserved-inputs.json', value)
+            write(root / 'exclusions.json', registry)
+            reserved_evidence(root, plan, receipt)
             return 0
         if args.action == 'allocate':
+            from h264_pgo_diagnostics import verify
             revision = merged()
             build_evidence(root, revision)
+            verify(root, plan)
             require(not (root / 'allocation-contract.json').exists(), 'allocation is already frozen')
             receipt = reservation(root, plan)
-            write(root / 'reservation-receipt.json', receipt)
+            require(receipt == json.loads((root / 'reservation-receipt.json').read_text()), 'reservation changed; rebuild registry')
+            require(reserved_evidence(root, plan, receipt) == reserved_inputs(root, plan, receipt), 'standing exclusions changed')
             population, snapshots = population_files(root, receipt, plan)
             write(root / 'allocation.json', allocate(population['candidates'], json.loads((root / 'exclusions.json').read_text()), plan))
             contract = {'schema': 1, 'plan': digest(PLAN), 'revision': revision,
