@@ -30,6 +30,8 @@ def validate(record):
         codecs.add(codec)
         require(row['kind'] in ('exact', 'conformance'), 'unknown comparison kind')
         require(type(row['decoder_eligible']) is bool, 'eligibility must be boolean')
+        require(codec != 'aac' or not row['decoder_eligible'],
+                'AAC eligibility requires a registered ISO conformance procedure')
         require(isinstance(row['limitations'], list) and all(
             isinstance(value, str) and value for value in row['limitations']),
             'limitations must contain nonempty strings')

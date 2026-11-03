@@ -54,6 +54,14 @@ class DecoderEligibility(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'profile predicate'):
             eligibility.validate(self.record)
 
+    def test_aac_project_comparator_cannot_grant_iso_eligibility(self):
+        aac = next(row for row in self.record['decoders'] if row['codec'] == 'aac')
+        self.assertFalse(aac['decoder_eligible'])
+        self.assertTrue(all(not row['eligible'] for row in aac['presentations']))
+        aac['decoder_eligible'] = True
+        with self.assertRaisesRegex(ValueError, 'ISO conformance procedure'):
+            eligibility.validate(self.record)
+
     def test_record_changes_start_all_three_conformance_jobs(self):
         workflow = (eligibility.ROOT / '.github/workflows/audio-conformance.yml').read_text()
         for event in ('push:', 'pull_request:'):

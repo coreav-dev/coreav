@@ -61,12 +61,13 @@ The initial requirements are deliberately conservative:
   exact count, including empty edits and terminal trimming.
 
 Unknown predicates fail closed. A consumer may refuse a narrower scope.
-Neither Matroska presentation nor Opus presentation is enabled initially.
+Only MPEG-1 Layer III MP4 presentation is enabled initially. AAC and
+Opus presentation remain disabled, as does Matroska presentation.
 This does not remove support from the separate `decode-audio` command.
 
 ## Conformance gates
 
-All three decoder runs already exist in
+All three decoder test-vector runs already exist in
 [`audio-conformance.yml`](../../.github/workflows/audio-conformance.yml).
 Changing this record starts those jobs. A registration is mergeable only
 when its conformance job passes at the proposed head; a stored boolean is
@@ -142,6 +143,14 @@ the oracle's random waveform. Fewer blocks are reported, not silently
 treated as waveform agreement. See the complete
 [AAC-LC bars](audio-decode.md#aac-lc-bars) for the comparator's scope.
 
+These are existing project acceptance criteria. Using ISO bitstreams with
+them does not establish that the comparator implements the applicable
+ISO/IEC 14496-4 acceptance procedure. That mapping has not been proven,
+so `decoder_eligible` and both AAC presentation rows remain false. Public
+reference waveforms are available, but the standard's applicable
+acceptance procedure must be established and run in CI before enabling
+AAC. A waveform gate borrowed from MP3 is not a substitute.
+
 The existing additional FFmpeg agreement, exact presentation-length and
 thread-invariance gates remain required. The reference-alignment search
 does not grant the PCM command permission to shift or truncate samples.
@@ -153,4 +162,5 @@ at `3316fa3895075ebe61d0d0204d0d45eeaa3840e5` passed all three jobs:
 MP3 RMS 5.365e-8 and maximum 4.172e-7; Opus all 24 comparisons passed
 (minimum printed quality 96.2); AAC 336 LC decodes, 105 named HE-AAC
 refusals and zero failures. This is prior evidence, not a claim that a
-future source revision has passed. The PR's own CI must run again.
+future source revision has passed. The PR's own CI must run again. The
+AAC result is a project-gate pass, not registered ISO conformance eligibility.

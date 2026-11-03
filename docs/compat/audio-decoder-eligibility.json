@@ -27,13 +27,13 @@
     {
       "codec": "aac",
       "kind": "conformance",
-      "decoder_eligible": true,
+      "decoder_eligible": false,
       "presentations": [
-        { "container": "mp4", "eligible": true, "requirements": ["aac_lc", "supported_mp4_timeline"] },
+        { "container": "mp4", "eligible": false, "requirements": [] },
         { "container": "matroska", "eligible": false, "requirements": [] }
       ],
       "evidence": "docs/design/lossy-pcm-eligibility.md#aac-lc",
-      "limitations": ["Requires an AAC-enabled build and supported AAC-LC configuration", "HE-AAC is not registered", "PNS waveform is not an exactness contract", "Not byte-identical to FFmpeg"]
+      "limitations": ["ISO/IEC 14496-4 acceptance procedure has not been established by the existing project comparator", "AAC remains ineligible pending that proof", "HE-AAC is not registered", "Not byte-identical to FFmpeg"]
     }
   ]
 }
