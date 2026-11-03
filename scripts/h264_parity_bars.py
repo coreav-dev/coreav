@@ -227,6 +227,82 @@ def interval(values, seed):
     return medians[int(0.025 * RESAMPLES)], medians[int(0.975 * RESAMPLES) - 1]
 
 
+def paired_round_summary(times, streams, new, old, rounds, seed, resamples):
+    """Bootstrap `times[(stream, arm)][round]` with shared paired-round indices."""
+    groups = {c: sorted(s for s, cls in streams.items() if cls == c) for c in CLASSES}
+    if any(not v for v in groups.values()) or rounds < 1 or resamples < 1:
+        raise Refused('paired rounds require all four classes and positive counts')
+    for stream in streams:
+        for arm in (new, old):
+            cells = times.get((stream, arm), {})
+            if set(cells) != set(range(rounds)) or not all(positive(v) for v in cells.values()):
+                raise Refused('paired rounds require complete finite positive cells')
+    ratios = {s: statistics.median(times[s, new].values()) /
+              statistics.median(times[s, old].values()) for s in streams}
+    distributions = {c: [] for c in (*CLASSES, 'overall')}
+    rng = random.Random(seed)
+    for _ in range(resamples):
+        total = []
+        for cls, members in groups.items():
+            sample = []
+            for _ in members:
+                stream = rng.choice(members)
+                indices = rng.choices(range(rounds), k=rounds)
+                sample.append(statistics.median(times[stream, new][r] for r in indices) /
+                              statistics.median(times[stream, old][r] for r in indices))
+            distributions[cls].append(statistics.median(sample))
+            total.extend(sample)
+        distributions['overall'].append(statistics.median(total))
+    result = {}
+    for cls, values in distributions.items():
+        values.sort()
+        bounds = []
+        for fraction in (0.025, 0.975):
+            pos = fraction * (len(values) - 1)
+            low = int(pos)
+            high = min(low + 1, len(values) - 1)
+            bounds.append(values[low] + (values[high] - values[low]) * (pos - low))
+        members = list(streams) if cls == 'overall' else groups[cls]
+        result[cls] = {'n': len(members), 'median': statistics.median(ratios[s] for s in members),
+                       'ci95': bounds, 'faster': sum(ratios[s] < 1 for s in members)}
+    return {'groups': result, 'per_stream': ratios}
+
+
+def paired_command_summary(times, new, old, rounds, seed, resamples):
+    """Ratio of medians, resampling paired round indices, never commands or files."""
+    if not isinstance(rounds, int) or isinstance(rounds, bool) or rounds < 1 or \
+            not isinstance(resamples, int) or isinstance(resamples, bool) or resamples < 1:
+        raise Refused('paired commands require positive round and resample counts')
+    if new == old or set(times) != {new, old}:
+        raise Refused('paired commands require exactly two distinct arms')
+    for values in times.values():
+        if set(values) != set(range(rounds)) or any(type(r) is not int for r in values) or \
+                not all(positive(v) for v in values.values()):
+            raise Refused('paired commands require complete finite positive cells')
+    rng = random.Random(seed)
+    distribution = []
+    for _ in range(resamples):
+        indices = rng.choices(range(rounds), k=rounds)
+        distribution.append(statistics.median(times[new][r] for r in indices) /
+                            statistics.median(times[old][r] for r in indices))
+    if not all(positive(value) for value in distribution):
+        raise Refused('paired command ratios must remain finite and positive')
+    distribution.sort()
+    bounds = []
+    for fraction in (0.025, 0.975):
+        pos = fraction * (len(distribution) - 1)
+        low = int(pos)
+        high = min(low + 1, len(distribution) - 1)
+        bounds.append(distribution[low] + (distribution[high] - distribution[low]) * (pos - low))
+    calls = {}
+    for arm, cells in times.items():
+        values = [cells[r] for r in range(rounds)]
+        calls[arm] = {'values': values, 'median': statistics.median(values),
+                      'min': min(values), 'max': max(values), 'range': max(values) - min(values)}
+    return {'rounds': rounds, 'median': calls[new]['median'] / calls[old]['median'],
+            'ci95': bounds, 'calls': calls}
+
+
 def analyze(spec, d):
     """The summary of every call whose reports exist, and the verdict of every bar: True, False, or None
     (pending: a call it reads has no report)."""

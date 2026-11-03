@@ -2,8 +2,9 @@
 //! interleaved little-endian PCM.
 //!
 //! The header carries `WAVE_FORMAT_EXTENSIBLE` with the channel mask when
-//! there are more than two channels or more than 16 bits per sample, as
-//! Microsoft's WAVE format notes ask, and the plain `WAVE_FORMAT_PCM` (1)
+//! there are more than two channels, more than 16 bits per sample or a rate
+//! above 48 kHz. The high-rate choice preserves the pinned oracle's explicit
+//! speaker layout. Otherwise it uses the plain `WAVE_FORMAT_PCM` (1)
 //! or `WAVE_FORMAT_IEEE_FLOAT` (3) otherwise. The sizes are written as
 //! `0xFFFFFFFF` while the length is unknown (a pipe), the convention
 //! streaming writers use, and patched once it is known; a length past the
@@ -17,7 +18,7 @@ use std::io::Write;
 /// the speaker positions `mask` (`dwChannelMask`), for `data_bytes` bytes
 /// of samples, or an unknown length: 44 bytes for the plain formats, 68
 /// for the extensible one. Its length depends only on the format and the
-/// channel count, so it can be rewritten in place once the length is known.
+/// channel count and rate, so it can be rewritten in place once the length is known.
 pub fn header(
     format: SampleFormat,
     channels: u16,
@@ -28,7 +29,7 @@ pub fn header(
     let bits = format.bits();
     let block_align = channels.saturating_mul(bits / 8);
     let byte_rate = sample_rate.saturating_mul(u32::from(block_align));
-    let extensible = channels > 2 || bits > 16;
+    let extensible = channels > 2 || bits > 16 || sample_rate > 48_000;
     let tag: u16 = match (extensible, format) {
         (true, _) => 0xFFFE,
         (false, SampleFormat::F32) => 3,
@@ -168,5 +169,32 @@ mod tests {
             u32::from_le_bytes(wide[64..68].try_into().unwrap()),
             u32::MAX
         );
+    }
+
+    #[test]
+    fn high_rate_integer_headers_store_the_known_speaker_layout() {
+        for rate in [48_000, 48_001, 64_000, 65_535, 65_536, 96_000] {
+            for (channels, mask) in [(1, 4), (2, 3)] {
+                let header = header(SampleFormat::S16, channels, rate, mask, Some(12));
+                let tag = u16::from_le_bytes(header[20..22].try_into().unwrap());
+                if rate == 48_000 {
+                    assert_eq!(tag, 1);
+                    assert_eq!(header.len(), 44);
+                } else {
+                    assert_eq!(tag, 0xFFFE);
+                    assert_eq!(header.len(), 68);
+                    assert_eq!(u16::from_le_bytes(header[38..40].try_into().unwrap()), 16);
+                    assert_eq!(u32::from_le_bytes(header[40..44].try_into().unwrap()), mask);
+                    assert_eq!(u16::from_le_bytes(header[44..46].try_into().unwrap()), 1);
+                    assert_eq!(&header[60..64], b"data");
+                    assert_eq!(u32::from_le_bytes(header[64..68].try_into().unwrap()), 12);
+                }
+                assert_eq!(
+                    u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize,
+                    header.len() + 4
+                );
+                assert_eq!(u32::from_le_bytes(header[24..28].try_into().unwrap()), rate);
+            }
+        }
     }
 }
