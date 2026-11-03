@@ -2603,6 +2603,22 @@ fn ffmpeg_mp3_sources_and_refusals_are_build_aware() {
         assert_eq!(audio_floats(&tools, &out).len(), 96000, "{name}");
     }
     let source = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let quality_reference = dir.join("quality-reference.mp3");
+    let mut oracle = Command::new(&tools.ffmpeg);
+    oracle
+        .args(["-v", "error", "-y"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .arg("-i")
+        .arg(&source)
+        .args(["-vn", "-c:a", "libmp3lame", "-q:a", "NaN", "-t", "0.02"])
+        .arg(&quality_reference);
+    let accepted = bounded::output(&mut oracle, None, std::time::Duration::from_secs(30)).unwrap();
+    assert!(
+        accepted.status.success(),
+        "the pinned FFmpeg accepts this quality: {}",
+        String::from_utf8_lossy(&accepted.stderr)
+    );
+    assert!(quality_reference.exists());
     let no_encoder = script(&dir, "no-mp3-encoder", "exit 0");
     let invalid = script(
         &dir,
@@ -2619,7 +2635,7 @@ fn ffmpeg_mp3_sources_and_refusals_are_build_aware() {
         ("absent", no_encoder.as_path(), vec![], 4),
         ("invalid", invalid.as_path(), vec![], 1),
         ("flood", flood.as_path(), vec![], 1),
-        ("quality", tools.ffmpeg.as_path(), vec!["-q:a", "NaN"], 2),
+        ("quality", tools.ffmpeg.as_path(), vec!["-q:a", "NaN"], 4),
         ("rate", tools.ffmpeg.as_path(), vec!["-b:a", "1k"], 4),
         ("trim", tools.ffmpeg.as_path(), vec!["-t", "1"], 4),
     ] {

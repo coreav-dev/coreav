@@ -1008,13 +1008,17 @@ status 4**, a status no other `coreav` command uses, so a script can tell
 "not supported here" from a failure. Rejected: reusing 1 (a rejected file)
 or 2 (a usage error), which would make a refusal look like a bad file or a
 typo. The other statuses keep their meaning in every `coreav` command: 1 the
-input was rejected (not a container `coreav ffprobe` reads, or invalid; the
+input was rejected (unrecognized or invalid; the
 message names the input, as `ffprobe`'s does), 2 a malformed command (a
 missing value, a second input, a value that does not parse; `ffprobe` also
 refuses those), 3 the input could not be read (missing, unreadable, a
 failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
+
+Recognized standalone MP3, FLAC and WAV inputs are unsupported containers, not invalid files: they use the FFmpeg fallback, or exit 4 when strict-safe mode or an unavailable fallback prevents it. Builds without networking refuse URL inputs with status 2 before opening an input, consistently with `coreav probe`; they are not missing local files and do not produce status 3. The WebAssembly build cannot start another process, so a command needing FFmpeg exits 4 even when the host has FFmpeg installed.
+
+Audio bitrate and quality expressions outside the native numeric grammar are passed unchanged to FFmpeg, whose exit status is preserved. Strict-safe mode refuses them with status 4 without attempting to validate FFmpeg's expression grammar.
 
 A refusal while the command line is parsed comes before the input is
 opened. A refusal while the job is planned or run comes once the input is

@@ -170,6 +170,14 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    #[cfg(not(feature = "net"))]
+    if options.input.starts_with("http://") || options.input.starts_with("https://") {
+        message(
+            "ffprobe",
+            "this build has no network; URL inputs are not supported",
+        );
+        return ExitCode::from(EXIT_USAGE);
+    }
     if !options.sections {
         let refusal = NotNative::property(
             "no section",
@@ -236,7 +244,7 @@ fn describe(failure: &Failure) -> (i64, String) {
 }
 
 fn local(input: &str, options: &ffprobe::args::Options) -> Result<(), Outcome> {
-    let path = Path::new(input);
+    let path = Path::new(input.strip_prefix("file:").unwrap_or(input));
     let size = std::fs::metadata(path)
         .map_err(|e| Outcome::Read(Failure::io(e)))?
         .len();
