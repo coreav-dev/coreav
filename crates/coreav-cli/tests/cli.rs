@@ -1988,6 +1988,22 @@ fn fixture_remuxes_match_the_schema() {
 }
 
 #[test]
+fn file_and_slice_matroska_remux_are_byte_identical() {
+    let data = mkv::small_webm();
+    let input = file("remux_file_and_slice.webm", &data);
+    let options = coreav_isobmff_write::MatroskaRemuxOptions::default();
+    let allowlist = coreav_mkv::Allowlist::default();
+    let mut from_file = Vec::new();
+    assert!(coreav_cli::remux::run_matroska(&input, &options, &allowlist, &mut from_file).is_ok());
+    let mut from_slice = Vec::new();
+    assert!(
+        coreav_cli::remux::run_matroska_slice(&data, &options, &allowlist, &mut from_slice).is_ok()
+    );
+    assert!(!from_file.is_empty());
+    assert_eq!(from_file, from_slice);
+}
+
+#[test]
 fn remux_webm_to_mp4() {
     let input = file("remux_in.webm", &mkv::small_webm());
     let out = output("remux_webm_out.mp4");

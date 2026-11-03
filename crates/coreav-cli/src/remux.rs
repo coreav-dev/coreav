@@ -253,8 +253,12 @@ pub fn run_matroska<W: Write>(
     allowlist: &coreav_mkv::Allowlist,
     out: W,
 ) -> Result<MatroskaRemuxSummary, ClipFailure> {
+    let file =
+        std::fs::File::open(path).map_err(|e| ClipFailure::Rejected(Failure::library(e.into())))?;
+    #[cfg(target_os = "linux")]
+    let _ = rustix::fs::fadvise(&file, 0, None, rustix::fs::Advice::Sequential);
     let source = coreav_mkv::BufferedSource::new(
-        FileSource::open(path).map_err(|e| ClipFailure::Rejected(Failure::library(e)))?,
+        FileSource::from_file(file).map_err(|e| ClipFailure::Rejected(Failure::library(e)))?,
     );
     Ok(remux_matroska(
         source,
