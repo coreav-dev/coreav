@@ -1949,7 +1949,13 @@ mod tests {
             std::sync::Arc::new(
                 crate::picture::Picture::black(1, 1, &limits)
                     .expect("a picture")
-                    .with_output(i32::from(slot), [0; 4], slot, 0),
+                    .with_output(
+                        i32::from(slot),
+                        [0; 4],
+                        slot,
+                        0,
+                        crate::ColorInfo::default(),
+                    ),
             )
         };
         let list = |base: u8| -> Vec<RefPic> {

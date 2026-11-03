@@ -2,6 +2,9 @@
 //! or the independently derived compatibility rate conversion.
 
 mod rate;
+mod stream;
+
+pub use stream::{RawF32Format, RawF32Output, RawF32Stream, RawS16Output, RawS16Stream};
 
 use crate::{Error, LimitKind, Limits, OutputFormat, SampleFormat, Sink};
 use coreav_isobmff::Source;
@@ -28,6 +31,16 @@ impl RawS16Format {
             ));
         }
         Ok(Self { rate, channels })
+    }
+
+    /// The declared sample rate in Hz.
+    pub fn rate(self) -> u32 {
+        self.rate
+    }
+
+    /// The declared channel count.
+    pub fn channels(self) -> u16 {
+        self.channels
     }
 }
 
@@ -154,47 +167,22 @@ impl RawS16Plan {
                         .and_then(|n| n.checked_mul(frame))
                         .ok_or(Error::LimitExceeded(LimitKind::PacketBytes))?;
                     let bytes = reader.window(first * frame as u64, count)?;
-                    for (channel, sample_out) in pcm
-                        .float_buffer(usize::from(self.input.channels), 1)
-                        .iter_mut()
-                        .enumerate()
-                    {
-                        let mut lanes = [0.0f32; 8];
-                        for (i, &weight) in rate.row(phase)?.iter().enumerate() {
-                            let at = i as i128 + i128::from(position) - i128::from(center);
-                            let at = if at < 0 {
-                                -at
-                            } else if at >= i128::from(self.input_frames) {
-                                2 * i128::from(self.input_frames) - 1 - at
-                            } else {
-                                at
-                            };
-                            let at = usize::try_from(at - i128::from(first))
-                                .ok()
+                    render(
+                        rate,
+                        position,
+                        phase,
+                        self.input_frames,
+                        pcm.float_buffer(usize::from(self.input.channels), 1),
+                        |at, channel| {
+                            let at = at
+                                .checked_sub(first)
+                                .and_then(|n| usize::try_from(n).ok())
                                 .and_then(|n| n.checked_mul(frame))
                                 .and_then(|n| n.checked_add(channel * 2))
                                 .ok_or(Error::Invalid("raw PCM window"))?;
-                            let sample = match bytes.get(at..at + 2) {
-                                Some([a, b]) => f32::from(i16::from_le_bytes([*a, *b])) / 32_768.0,
-                                _ => return Err(Error::Invalid("raw PCM window")),
-                            };
-                            let lane = lanes
-                                .get_mut(i % 8)
-                                .ok_or(Error::Invalid("raw PCM accumulator"))?;
-                            *lane = finite_mul_add(sample, weight, *lane);
-                        }
-                        for width in [4, 2, 1] {
-                            let (left, right) = lanes.split_at_mut(width);
-                            for (a, b) in left.iter_mut().zip(right) {
-                                *a += *b;
-                            }
-                        }
-                        let value = lanes
-                            .first()
-                            .copied()
-                            .ok_or(Error::Invalid("raw PCM accumulator"))?;
-                        *sample_out = value;
-                    }
+                            sample(bytes, at)
+                        },
+                    )?;
                     let at = output.len();
                     crate::convert::interleave(&pcm, 0, 1, SampleFormat::S16, &mut output, at);
                     if output.len() + frame > self.capacity {
@@ -216,6 +204,53 @@ impl RawS16Plan {
             output: self.output,
         })
     }
+}
+
+fn sample(bytes: &[u8], at: usize) -> Result<f32, Error> {
+    match bytes.get(at..at + 2) {
+        Some([a, b]) => Ok(f32::from(i16::from_le_bytes([*a, *b])) / 32_768.0),
+        _ => Err(Error::Invalid("raw PCM window")),
+    }
+}
+
+fn render(
+    rate: &Rate,
+    position: u64,
+    phase: u64,
+    input_frames: u64,
+    output: &mut [f32],
+    mut sample: impl FnMut(u64, usize) -> Result<f32, Error>,
+) -> Result<(), Error> {
+    let center = (rate.length / 2 - 1) as u64;
+    for (channel, sample_out) in output.iter_mut().enumerate() {
+        let mut lanes = [0.0f32; 8];
+        for (i, &weight) in rate.row(phase)?.iter().enumerate() {
+            let at = i as i128 + i128::from(position) - i128::from(center);
+            let at = if at < 0 {
+                -at
+            } else if at >= i128::from(input_frames) {
+                2 * i128::from(input_frames) - 1 - at
+            } else {
+                at
+            };
+            let at = u64::try_from(at).map_err(|_| Error::Invalid("raw PCM window"))?;
+            let lane = lanes
+                .get_mut(i % 8)
+                .ok_or(Error::Invalid("raw PCM accumulator"))?;
+            *lane = finite_mul_add(sample(at, channel)?, weight, *lane);
+        }
+        for width in [4, 2, 1] {
+            let (left, right) = lanes.split_at_mut(width);
+            for (a, b) in left.iter_mut().zip(right) {
+                *a += *b;
+            }
+        }
+        *sample_out = lanes
+            .first()
+            .copied()
+            .ok_or(Error::Invalid("raw PCM accumulator"))?;
+    }
+    Ok(())
 }
 
 fn finite_mul_add(a: f32, b: f32, c: f32) -> f32 {

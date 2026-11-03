@@ -2902,7 +2902,6 @@ color_range
 color_space
 color_transfer
 comment
-compatible_brands
 compilation
 composer
 copyright
@@ -2956,7 +2955,6 @@ gapless_playback
 gbrp
 genre
 grouping
-handler_name
 has_b_frames
 hd_video
 hearing_impaired
@@ -2973,7 +2971,6 @@ is_avc
 karaoke
 key_frame
 keywords
-language
 level
 location
 loro_cmixlev
@@ -2982,7 +2979,6 @@ lossless
 ltrt_cmixlev
 ltrt_surmixlev
 lyrics
-major_brand
 make
 max_average
 max_bit_rate
@@ -2991,9 +2987,7 @@ max_content
 media_type
 metadata
 mime_codec_string
-mimetype
 min_bitrate
-minor_version
 model
 monow
 mp1
@@ -3015,7 +3009,6 @@ original
 original_artist
 original_format
 original_source
-packets_and_frames
 pal8
 pcr_pid
 pict_type
@@ -3043,7 +3036,6 @@ qtrle
 quarter_sample
 r_frame_rate
 rating
-reel_name
 refs
 repeat_pict
 rgb24
@@ -3070,7 +3062,6 @@ sort_show
 start
 start_pts
 start_time
-stereo_mode
 still_image
 stream_index
 svq1
@@ -3085,7 +3076,6 @@ ts_id
 ts_packetsize
 type
 vbv_delay
-vendor_id
 view
 view_ids_available
 view_pos_available
@@ -3095,7 +3085,6 @@ vp8
 warning
 width
 yaw
-yuv
 yuv410p
 yuv422p10le
 yuv444p12le

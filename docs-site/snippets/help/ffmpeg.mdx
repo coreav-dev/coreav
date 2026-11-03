@@ -13,13 +13,23 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le after -i: the same PCM samples without a header
-  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
-  -ar RATE after -i with raw S16 input: native rate conversion
+  -f s16le or -f f32le after -i: headerless PCM to a file or stdout
+  raw audio stdout names: -, pipe: or pipe:1
+  encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
+    including streaming stdin without a whole-input spool
+  -threads 0..16 or auto before -i: audio decoder workers
+  raw audio requires registered decoder eligibility; channel conversion,
+    rate conversion and packing require exact registrations
+  MPEG-1 MP3 in MP4 is conformance-only, not byte-exact; AAC/Opus stay refused
+  changed-rate stages are restricted to verified Linux x86-64
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
+They also encode one progressive 8-bit planar YUV video stream with
+-c:v ffv1 into .mkv, without an external encoder. Exclude other streams
+with -an, -sn and -dn or a video-only -map. No pixel conversion is added.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
@@ -34,7 +44,7 @@ Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints no status text on success; rawvideo pipes write binary stdout.
+Prints no status text on success; raw audio and rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg

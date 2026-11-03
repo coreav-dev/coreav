@@ -76,4 +76,4 @@ pub use limits::Limits;
 pub use nal::{
     AnnexB, AnnexBUnits, LengthPrefixedUnits, NalHeader, NalKind, annex_b, length_prefixed, rbsp,
 };
-pub use picture::{MOTION_BYTES_PER_MB, Picture, PlaneRef};
+pub use picture::{ColorInfo, MOTION_BYTES_PER_MB, Picture, PlaneRef};

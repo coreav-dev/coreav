@@ -96,13 +96,20 @@ fn short_raw_inputs_keep_the_compatibility_startup_and_drain_lengths() {
         let input = dir.join(format!("{frames}.pcm"));
         let output = dir.join(format!("{frames}.raw"));
         std::fs::write(&input, [0u8, 32].repeat(frames)).unwrap();
-        success(run(
+        let result = run(
             &input,
             &output,
             &["-f", "s16le", "-ar", &incoming.to_string(), "-ac", "1"],
             &["-ar", &outgoing.to_string(), "-f", "s16le"],
-        ));
-        assert_eq!(std::fs::read(output).unwrap(), [0u8, 32].repeat(expected));
+        );
+        if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            success(result);
+            assert_eq!(std::fs::read(output).unwrap(), [0u8, 32].repeat(expected));
+        } else {
+            assert_eq!(result.status.code(), Some(4), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert!(!output.exists());
+        }
     }
 }
 

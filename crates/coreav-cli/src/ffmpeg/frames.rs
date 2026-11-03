@@ -219,6 +219,7 @@ pub(super) fn write(
     let mut decoder = opened.decoder;
     let mut run = Run {
         command,
+        stream: &video.stream,
         encoder,
         pixel_aspect: video.pixel_aspect,
         quarter_turns: video.quarter_turns,
@@ -315,6 +316,7 @@ pub(super) fn write(
 
 struct Run<'a> {
     command: &'a Command,
+    stream: &'a coreav_decode::StreamConfig,
     encoder: VideoEncoder,
     pixel_aspect: Option<(u64, u64)>,
     quarter_turns: u8,
@@ -353,7 +355,7 @@ impl Run<'_> {
         }
     }
 
-    fn take_frame(&mut self, frame: Frame) -> Result<(), Stop> {
+    fn take_frame(&mut self, mut frame: Frame) -> Result<(), Stop> {
         if self.complete() {
             return Ok(());
         }
@@ -398,6 +400,8 @@ impl Run<'_> {
             )));
         }
         self.input_shape = Some(input_shape);
+        frame.color =
+            coreav_thumbnail::frame_color(self.stream.codec, frame.color, self.stream.color);
         let mut picture = frame.to_cpu().map_err(frame_error)?.into_owned();
         let turns = if self.command.noautorotate {
             0
@@ -763,8 +767,10 @@ mod tests {
         )
         .unwrap();
         let original_shape = (2, 2, PixelFormat::Rgb24);
+        let stream = coreav_decode::StreamConfig::new(coreav_decode::Codec::H264);
         let mut run = Run {
             command: &command,
+            stream: &stream,
             encoder: VideoEncoder::Rawvideo,
             pixel_aspect: None,
             quarter_turns: 0,

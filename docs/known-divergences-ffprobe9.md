@@ -5,6 +5,16 @@ been corrected. Matching values need no exception. The limitation notes at
 the end of this page are not fixture exceptions and do not turn a failed
 key comparison into agreement.
 
+## Extensible WAVE PCM storage width
+
+[Microsoft's WAVEFORMATEXTENSIBLE specification](https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatextensible), Members and Remarks, defines `wBitsPerSample` as the storage container width and `wValidBitsPerSample` as the precision within it. The complete PCM subtype GUID identifies integer samples. Reducing valid precision does not change storage width or block alignment.
+
+A generated stereo 48 kHz WAVE file uses PCM subtype bytes `0100000000001000800000aa00389b71`, a 32-bit container, 24 valid bits, channel mask 3, block alignment 8 and 3,840 data bytes. It stores 480 sample frames. Pinned FFmpeg 9.0.2 reports `pcm_f24le`, `flt` and 640 sample frames. CoreAV reports signed 32-bit storage and 480 sample frames. Its raw-bit field follows the same storage-width convention as the otherwise identical 32-valid-bit control.
+
+`scripts/standalone_audio_probe_check.py` asserts the source fields, the exact oracle disagreement and the complete native report against that control in both default and JSON output. This is not a tolerance for other WAV inputs or a change to any frozen compatibility record. All ordinary standalone-audio fixtures still require byte-identical output.
+
+RIFX and a truncated WAVE payload ending inside an interleaved sample frame remain on fallback. Their probing semantics are not covered by this exception.
+
 ## AV1 codec-string colour and chroma
 
 The [AV1 ISOBMFF binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
