@@ -17,6 +17,13 @@ single-frame initialization exceptions are not extended by this model.
 Unknown codec periods remain unknown rather than receiving a guessed
 duration.
 
+Keep a stream's initial raw tail separate from its complete AAC frames.
+When the packet listing begins with bytes before its first ADTS header,
+the first complete frame initializes rate observation but does not enter
+the integer mean. Later complete frames do, even when their packets have
+no physical position. This eligibility state does not change packet
+output or the media-duration clock.
+
 When analysis closes,
 the packet reader may already have parsed several complete audio frames
 from the PES packet that completed a carried frame. Those queued headers
@@ -48,6 +55,9 @@ headers count once, split frames and incomplete successors do not count,
 and later unparsed input cannot change the result. Include no-split,
 audio-only and multiple-program controls. Verify that borrowing the
 queue neither reads the source nor changes the subsequent packet list.
+Vary the first two complete frame sizes independently with and without
+leading bytes: only the first complete frame after a leading tail is
+excluded. Vary the tail's length without changing that exclusion.
 
 Run the transport tests, neighboring ffprobe tests, formatting and
 targeted all-target Clippy. Recheck the identified development
