@@ -281,7 +281,7 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
 
     source = sources[0]
     for suffix in ('mp4', 'webm', 'avi', 'mka', 'arbitrary'):
-        refuse(f'container-{suffix}', source, suffix=suffix)
+        refuse(f'container-{suffix}', source, ['-map', '0:v:0'], suffix=suffix)
     refuse('stdout', source, stdout=True)
     refuse('explicit-stdout', source, ['-f', 'matroska'], stdout=True)
     refuse('explicit-arbitrary', source, ['-f', 'matroska'], suffix='arbitrary')
