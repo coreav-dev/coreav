@@ -212,9 +212,9 @@ fn configuration(encoder: &Encoder) {
     assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid - 1));
     assert_eq!(r.symbol(&mut s, false), i64::from(encoder.grid - 1));
     assert_eq!(r.symbol(&mut s, false), 1);
-    let mut q = [128; 32];
     let mut scale = 1;
     for table in 0..5 {
+        let mut q = [128; 32];
         let mut entries = Vec::new();
         let mut count = 0;
         while entries.len() < 128 {
@@ -327,7 +327,8 @@ fn reconstruct(encoder: &Encoder, packet: &[u8], source: &Picture) {
                 }
             }
         }
-        assert!(reader.at <= bytes.len() + 1);
+        assert!(!reader.bit(&mut 129));
+        assert_eq!(reader.at, bytes.len() + 1);
     }
 }
 

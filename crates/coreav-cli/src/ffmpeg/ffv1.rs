@@ -166,13 +166,7 @@ pub(super) fn write(
                 backends.explain(WriteFailure::Rejected(failure))
             })
     });
-    match result {
-        Err(WriteFailure::Rejected(Failure::Unsupported(why))) => Err(Refusal::NotNative(
-            crate::fallback::NotNative::property("an unsupported FFV1 source", why),
-        )
-        .into()),
-        result => result.map_err(super::Stop::from),
-    }
+    result.map_err(|failure| super::encode::failed(failure, None))
 }
 
 #[cfg(test)]

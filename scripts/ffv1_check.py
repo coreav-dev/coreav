@@ -246,7 +246,8 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
     for container in ('mp4', 'mkv'):
         source = work / f'source.{container}'
         run([ffmpeg, '-nostdin', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=32x24:rate=25',
-             '-frames:v', '3', '-vf', 'setsar=4/3', '-c:v', 'libx264', '-crf', '23', '-bf', '0',
+             '-frames:v', '3', '-vf', 'setsar=4/3,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709',
+             '-c:v', 'libx264', '-crf', '23', '-bf', '0',
              '-threads', '1', '-pix_fmt', 'yuv420p', '-color_range', 'tv', '-colorspace', 'bt709',
              '-color_trc', 'bt709', '-color_primaries', 'bt709', source])
         expected = source_expectation(container, probe(ffprobe, source))

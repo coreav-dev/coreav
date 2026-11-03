@@ -283,6 +283,10 @@ class CliCoverage(unittest.TestCase):
             commands, records = self.exercise(Path(directory))
         exact = [row['case'] for row in records if row['result'] == 'exact']
         self.assertEqual(exact, [f'cli-{container}-{index}' for container in ('mp4', 'mkv') for index in range(5)])
+        for container in ('mp4', 'mkv'):
+            argv = next(argv for argv, _ in commands if argv[-1].endswith(f'source.{container}'))
+            self.assertEqual(argv[argv.index('-vf') + 1],
+                             'setsar=4/3,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709')
         modes = {kwargs['env']['COREAV_STRICT_SAFE'] for argv, kwargs in commands
                  if argv[0] == 'coreav' and '-y' not in argv}
         self.assertEqual(modes, {'0', '1'})

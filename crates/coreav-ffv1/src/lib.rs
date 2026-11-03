@@ -143,14 +143,14 @@ impl Encoder {
         for value in [grid - 1, grid - 1, 1] {
             coder.unsigned(&mut state, value)?;
         }
-        let mut quant_state = [128; 32];
         for _ in 0..3 {
+            let mut quant_state = [128; 32];
             for run in [0, 2, 123] {
                 coder.unsigned(&mut quant_state, run)?;
             }
         }
         for _ in 0..2 {
-            coder.unsigned(&mut quant_state, 127)?;
+            coder.unsigned(&mut [128; 32], 127)?;
         }
         coder.bit(state.first_mut().ok_or(Error::InvalidFrame)?, false)?;
         coder.unsigned(&mut state, 1)?;
@@ -263,6 +263,7 @@ impl Encoder {
                         }
                     }
                 }
+                coder.bit(&mut 129, false)?;
                 coder.finish()?;
                 let size = bytes
                     .len()
