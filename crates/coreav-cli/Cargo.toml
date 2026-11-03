@@ -34,6 +34,8 @@ ffmpeg-fallback = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker
 # in this process. Opt-in and never in a default build: decoding H.264 may
 # need a patent licence where you are (docs/design/h264.md, "Packaging").
 native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
+# Experimental native profile-0 VP9, not in a default or release build.
+native-vp9 = ["thumbnail", "transcode", "dep:coreav-backend-vp9"]
 # Thumbnails (frame decoding, resampling, image encoding); a decoder backend
 # feature turns it on. Without it there is no `coreav thumbnail` subcommand
 # and the code is not linked, which keeps every command's start-up at its
@@ -88,6 +90,7 @@ coreav-frame = { path = "../coreav-frame", optional = true }
 coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
 coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
+coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
 coreav-worker = { path = "../coreav-worker", optional = true }
 clap = { workspace = true, optional = true }
 coreav-range = { path = "../coreav-range", optional = true }

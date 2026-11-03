@@ -213,7 +213,11 @@ packet sent and every frame received, whatever the backend checks: the
 decoder it returns wraps the backend's, so no backend can leave them out.
 A backend checks them too where it can refuse earlier (a stated picture
 size before it allocates) and for a caller that opens it directly. The
-other limits are the backend's to enforce:
+other limits are the backend's to enforce.
+
+A `Limit` error from the decoder returned by `open` ends that session, whether the wrapper or the backend detected it. The wrapper drops the backend and its queued output, preserving the original error for the failing call. Later packet, EOF and frame calls return `InvalidData`; `info()` remains available. A caller must open a new decoder to continue. This is not a recoverable backpressure signal. The wrapper adds a state check and a limit-result check per call, and retains one metadata-string copy per opened session so failure cleanup needs no additional metadata allocation.
+
+The defaults are:
 
 | Limit | Default | Why |
 |---|---|---|
