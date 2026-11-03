@@ -592,12 +592,8 @@
     {
       "index": 301,
       "identity_sha256": "cad556dd8624d34dc7ca5a0150f355b15ea252d7a87f2112f4495243289d94d1",
-      "assignments": [
-        [
-          "v2_still_rgba.png"
-        ]
-      ],
-      "reason": "A PNG with alpha is a file-backed image2 source for yuva420p output."
+      "assignments": [],
+      "reason": "The pinned VP8 encoder rejects the fixed yuva420p output with its default auto_alt_ref setting: Transparency encoding with auto_alt_ref does not work. Media cannot change that encoder configuration."
     },
     {
       "index": 302,

@@ -1,6 +1,8 @@
 """Supplemental inputs preserve legacy choices, bytes and registered identities."""
 import ast
+import contextlib
 import hashlib
+import io
 import itertools
 import json
 from pathlib import Path
@@ -17,6 +19,7 @@ import encode_breadth as v2
 import v2_fixture_inputs as inputs
 import v2_fixture_check as check
 import avi_v2_check as avi
+import oracle_pin_macos
 
 
 class Registration(unittest.TestCase):
@@ -159,6 +162,26 @@ class Staging(unittest.TestCase):
 
 
 class ReferenceDiagnostics(unittest.TestCase):
+    def test_an_unexpected_reference_failure_still_fails_the_cli_and_keeps_its_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            report = root / 'report.json'
+            result = {'index': 17, 'ok': False, 'attempts': [
+                {'assignment': ['v2_still_rgba%03d.png'], 'exit': 8, 'timed_out': False,
+                 'output_written': False, 'ok': False, 'stderr': 'unexpected input failure'}]}
+            argv = ['v2_fixture_check.py', '--ffmpeg', str(root / 'ffmpeg'), '--fixtures', str(root),
+                    '--work', str(root / 'work'), '--report', str(report), '--only', '17']
+            stderr = io.StringIO()
+            with mock.patch.object(sys, 'argv', argv), \
+                    mock.patch.object(check.oracle_pin, 'verify_bin', return_value=[]), \
+                    mock.patch.object(oracle_pin_macos, 'verify_bin', return_value=[]), \
+                    mock.patch.object(check, 'verify', return_value=result), \
+                    contextlib.redirect_stderr(stderr):
+                self.assertEqual(check.main(), 1)
+            self.assertEqual(json.loads(report.read_text())['cases'], [result])
+            self.assertIn('stage=reference case=17 reason=no_successful_supplemental_tuple', stderr.getvalue())
+            self.assertIn('unexpected input failure', stderr.getvalue())
+
     def test_avi_hashes_the_complete_input_without_reading_it_into_memory(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'sparse'

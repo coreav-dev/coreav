@@ -161,7 +161,7 @@ a case for which media alone does not repair the stated blocker.
 | 288 | None | Legacy -vpre/-fpre preset files, encoder names or old encoder options require non-media state or option support. A fixture alone is not a defensible repair. |
 | 298 | None | The forced capture input is a live device, display or audio server, not a media file. No file-only fixture assignment rescues it. |
 | 300 | `v2_still_rgba.png` | A single image file lets image2 consume the registered framerate or image demuxer options. An exact filename also matches a glob or single-file sequence. |
-| 301 | `v2_still_rgba.png` | A PNG with alpha is a file-backed image2 source for yuva420p output. |
+| 301 | None | The pinned VP8 encoder rejects the fixed yuva420p output with its default auto_alt_ref setting: Transparency encoding with auto_alt_ref does not work. Media cannot change that encoder configuration. |
 | 302 | `v2_still_rgba.png` | A PNG with alpha is a file-backed image2 source for yuva420p output. |
 | 305 | None | Literal prose, ellipses, shell fragments or unregistered extra output tokens remain in argv. A new INPUT file cannot repair these tokens. |
 | 306 | `v2_audio_mp3_long.mp3`, `v2_still_rgb.jpg` | The fixed maps require stream 0 of the first file to be MP3 audio and stream 0 of the second to be a JPEG cover image for MP3 stream copy. |
