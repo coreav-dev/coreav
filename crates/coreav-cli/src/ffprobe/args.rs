@@ -308,7 +308,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                             "-f",
                             Some(other),
                             format!(
-                                "'-f {other}' is not supported: coreav ffprobe reads mov,mp4,m4a,3gp,3g2,mj2, matroska,webm and mpegts"
+                                "'-f {other}' is not supported: coreav ffprobe reads mov,mp4,m4a,3gp,3g2,mj2, matroska,webm, mpegts, wav and flac"
                             ),
                         ));
                     }
@@ -730,6 +730,23 @@ mod tests {
 
     fn args(text: &str) -> Vec<String> {
         text.split(' ').map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn unsupported_format_message_lists_accepted_formats() {
+        let Err(Refusal::Unsupported(refusal)) = parse(&args("-f unsupported in.audio")) else {
+            panic!("unsupported format must be refused");
+        };
+        for format in [
+            "mov,mp4,m4a,3gp,3g2,mj2",
+            "matroska,webm",
+            "mpegts",
+            "wav",
+            "flac",
+        ] {
+            assert!(parse(&args(&format!("-f {format} in.audio"))).is_ok());
+            assert!(refusal.message.contains(format), "missing {format}");
+        }
     }
 
     #[test]
