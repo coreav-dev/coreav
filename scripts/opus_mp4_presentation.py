@@ -102,7 +102,9 @@ def wav_samples(data):
 
 
 def check(coreav, oracle, work):
-    verify_bin(oracle)
+    errors = list(verify_bin(oracle))
+    if errors:
+        raise ValueError('unverified oracle: ' + '; '.join(errors))
     work.mkdir(parents=True, exist_ok=True)
     pcm = work / 'source.f32'
     pcm.write_bytes(b''.join(struct.pack('<f', .2 * math.sin(2 * math.pi * 440 * n / 48000))

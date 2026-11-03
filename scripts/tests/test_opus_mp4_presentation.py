@@ -1,7 +1,9 @@
 import importlib.util
 from pathlib import Path
 import struct
+import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'opus_mp4_presentation.py'
@@ -31,6 +33,19 @@ def source():
 
 
 class OpusMp4Presentation(unittest.TestCase):
+    def test_oracle_diagnostics_are_consumed_before_work_is_created(self):
+        def rejected(_):
+            yield 'wrong oracle version'
+
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory) / 'cases'
+            with mock.patch.object(presentation, 'verify_bin', side_effect=rejected), \
+                    mock.patch.object(presentation, 'run', side_effect=AssertionError('unexpected process')) as launch:
+                with self.assertRaisesRegex(ValueError, 'unverified oracle'):
+                    presentation.check(Path('native'), Path('oracle'), work)
+            launch.assert_not_called()
+            self.assertFalse(work.exists())
+
     def test_metadata_driver_runs_in_audio_conformance_ci(self):
         workflow = (SCRIPT.parent.parent / '.github/workflows/audio-conformance.yml').read_text()
         self.assertEqual(workflow.count('"scripts/opus_mp4_presentation.py"'), 2)
