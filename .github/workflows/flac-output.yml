@@ -9,9 +9,11 @@ on:
       - crates/coreav-audio/**
       - crates/coreav-cli/src/ffmpeg/**
       - scripts/flac_output_check.py
+      - scripts/flac_output_identity.py
       - scripts/flac_output_measure.py
       - scripts/tests/test_flac_output_measure.py
       - scripts/tests/test_flac_output_check.py
+      - scripts/tests/test_flac_output_identity.py
       - scripts/oracle_audio.py
       - scripts/oracle-audio-args.txt
       - scripts/oracle_pin.py
@@ -57,6 +59,23 @@ jobs:
           cargo test --locked --no-fail-fast -p coreav-audio --lib --test flac_encode
       - name: Build the native compatibility command
         run: cargo build --locked -p coreav-cli
+      - name: Require byte-identical residual optimization
+        run: |
+          python3 -I -m unittest discover -s scripts/tests -p test_flac_output_identity.py
+          baseline=$(python3 -I scripts/flac_output_identity.py --baseline)
+          reference="$RUNNER_TEMP/flac-reference"
+          git fetch --no-tags --depth=1 origin "$baseline"
+          git worktree add --detach "$reference" "$baseline"
+          test "$(git -C "$reference" rev-parse HEAD)" = "$baseline"
+          mkdir -p "$reference/crates/coreav-audio/examples"
+          cp crates/coreav-audio/examples/flac_identity.rs "$reference/crates/coreav-audio/examples/flac_identity.rs"
+          cargo build --locked --release -p coreav-audio --example flac_identity
+          CARGO_TARGET_DIR="$RUNNER_TEMP/flac-reference-target" cargo build --locked --release \
+            --manifest-path "$reference/Cargo.toml" -p coreav-audio --example flac_identity
+          python3 -I scripts/flac_output_identity.py \
+            --reference "$RUNNER_TEMP/flac-reference-target/release/examples/flac_identity" \
+            --candidate target/release/examples/flac_identity --candidate-commit "$(git rev-parse HEAD)" \
+            --producer crates/coreav-audio/examples/flac_identity.rs --out "$RUNNER_TEMP/flac-identity.json"
       - name: Compare complete output with the independent decoder
         run: |
           python3 -I -m unittest discover -s scripts/tests -p test_flac_output_check.py
@@ -84,6 +103,7 @@ jobs:
           name: flac-output
           path: |
             ${{ runner.temp }}/flac-correctness.json
+            ${{ runner.temp }}/flac-identity.json
             ${{ runner.temp }}/flac-smoke.json
             ${{ runner.temp }}/flac-measurement.json
           if-no-files-found: ignore
