@@ -231,11 +231,17 @@ impl Worker {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Trim {
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+}
+
 /// A packet handed to the pool.
 struct Pending {
     data: Vec<u8>,
     duration: Option<u64>,
-    discard: u64,
+    trim: Trim,
 }
 
 /// Packets for one thread, in stream order.
@@ -436,21 +442,21 @@ impl Output {
         result: Result<Decoded, Error>,
         bytes: &[u8],
         duration: Option<u64>,
-        discard: u64,
+        trim: Trim,
         sink: &mut dyn Sink,
     ) -> Result<(), Error> {
         self.packets += 1;
-        match result {
+        let (frames, bytes) = match result {
             Ok(decoded) => {
                 self.crc_failures += u64::from(!decoded.crc_ok);
                 self.trailing += u64::from(decoded.trailing);
                 self.last_frames = decoded.frames;
-                self.emit(decoded.frames.saturating_sub(discard), Some(bytes), sink)
+                (decoded.frames, Some(bytes))
             }
             // Limits, and streams the decoder refuses as a whole (a frame
             // that changes the format), end the request; anything else is a
             // damaged packet.
-            Err(error @ (Error::LimitExceeded(_) | Error::Unsupported(_))) => Err(error),
+            Err(error @ (Error::LimitExceeded(_) | Error::Unsupported(_))) => return Err(error),
             Err(error) => {
                 self.concealed += 1;
                 if self.concealed > self.limits.max_decode_errors {
@@ -458,9 +464,20 @@ impl Output {
                 }
                 self.first_error.get_or_insert_with(|| error.to_string());
                 let frames = duration.unwrap_or(self.last_frames).min(MAX_CONCEALED);
-                self.emit(frames.saturating_sub(discard), None, sink)
+                (frames, None)
             }
-        }
+        };
+        let start = trim.start.min(frames);
+        let kept = frames.saturating_sub(start).saturating_sub(trim.end);
+        let bytes = bytes.map(|bytes| {
+            let frame =
+                usize::from(self.output.channels).saturating_mul(self.output.format.bytes());
+            let offset = usize::try_from(start)
+                .unwrap_or(usize::MAX)
+                .saturating_mul(frame);
+            bytes.get(offset..).unwrap_or_default()
+        });
+        self.emit(kept, bytes, sink)
     }
 
     /// Writes what the timeline keeps of a packet's `frames` samples per
@@ -856,20 +873,24 @@ impl<'scope> Stream<'scope> {
 
     /// Takes one packet. `duration` is its length in samples per channel
     /// when the container states it, used to conceal a packet that fails;
-    /// `discard` samples are dropped from its end. With one thread the
-    /// packet is decoded at once; with more, it goes to the pool, and is
+    /// `trim` selects samples to drop from its beginning and end. With one
+    /// thread the packet is decoded at once; with more, it goes to the pool, and is
     /// written in order once decoded.
     pub(crate) fn packet(
         &mut self,
         data: &[u8],
         duration: Option<u64>,
-        discard: u64,
+        trim: Trim,
         sink: &mut dyn Sink,
     ) -> Result<(), Error> {
         let Some(mut reframer) = self.reframer.take() else {
-            return self.decode_packet(data, duration, discard, sink);
+            return self.decode_packet(data, duration, trim, sink);
         };
-        let result = if reframer.passes(data) {
+        let passes = reframer.passes(data);
+        if (trim.start != 0 || trim.end != 0) && !passes {
+            return Err(Error::Unsupported("audio padding on reframed packets"));
+        }
+        let result = if passes {
             // After frames were cut, `decode_mp4` no longer stops by
             // timestamps: a whole packet past `end` is dropped here.
             if self.end.is_some_and(|end| self.position >= end) {
@@ -878,7 +899,7 @@ impl<'scope> Stream<'scope> {
                 self.position = self
                     .position
                     .saturating_add(self.worker.frames_hint(data).unwrap_or(0));
-                self.decode_packet(data, duration, discard, sink)
+                self.decode_packet(data, duration, trim, sink)
             }
         } else {
             // The frames cut from the bytes: their lengths and times come
@@ -894,7 +915,7 @@ impl<'scope> Stream<'scope> {
                 self.position = self
                     .position
                     .saturating_add(self.worker.frames_hint(&frame).unwrap_or(0));
-                result = self.decode_packet(&frame, None, 0, sink);
+                result = self.decode_packet(&frame, None, Trim::default(), sink);
             }
             self.frame = frame;
             result
@@ -907,7 +928,7 @@ impl<'scope> Stream<'scope> {
         &mut self,
         data: &[u8],
         duration: Option<u64>,
-        discard: u64,
+        trim: Trim,
         sink: &mut dyn Sink,
     ) -> Result<(), Error> {
         let Some(pool) = self.pool.as_mut() else {
@@ -915,7 +936,7 @@ impl<'scope> Stream<'scope> {
             // takes the packet's samples from its start by their count.
             let mut bytes = core::mem::take(&mut self.bytes);
             let result = self.worker.decode(data, &mut bytes, 0);
-            let written = self.out.commit(result, &bytes, duration, discard, sink);
+            let written = self.out.commit(result, &bytes, duration, trim, sink);
             self.bytes = bytes;
             return written;
         };
@@ -936,7 +957,7 @@ impl<'scope> Stream<'scope> {
         pool.job.push(Pending {
             data: buffer,
             duration,
-            discard,
+            trim,
         });
         pool.handed += 1;
         pool.job_cost = pool.job_cost.saturating_add(packet_cost);
@@ -956,7 +977,7 @@ impl<'scope> Stream<'scope> {
         if let Some(mut reframer) = self.reframer.take() {
             let mut frame = core::mem::take(&mut self.frame);
             if reframer.rest(&mut frame) && !self.end.is_some_and(|end| self.position >= end) {
-                self.decode_packet(&frame, None, 0, sink)?;
+                self.decode_packet(&frame, None, Trim::default(), sink)?;
             }
         }
         if let Some(mut pool) = self.pool.take() {
@@ -1031,7 +1052,7 @@ fn submit(
         pool.prime.push(Pending {
             data: buffer,
             duration: pending.duration,
-            discard: pending.discard,
+            trim: pending.trim,
         });
     }
     let position = pool
@@ -1098,7 +1119,7 @@ fn commit_ready(pool: &mut Pool<'_>, out: &mut Output, sink: &mut dyn Sink) -> R
         for ((result, end), pending) in done.results.into_iter().zip(done.packets) {
             let bytes = done.bytes.get(start..end).unwrap_or_default();
             start = end;
-            out.commit(result, bytes, pending.duration, pending.discard, sink)?;
+            out.commit(result, bytes, pending.duration, pending.trim, sink)?;
             spare(pool, pending.data);
         }
         for pending in done.prime {

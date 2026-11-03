@@ -8,7 +8,7 @@
 //! asked [`SampleFormat`] to a [`Sink`], such as [`crate::WavSink`].
 
 use crate::conversion::Converter;
-use crate::stream::{Declared, Piece, Stream};
+use crate::stream::{Declared, Piece, Stream, Trim};
 use crate::{Error, LimitKind, Limits, Warning};
 use coreav_isobmff::{self as mp4, Source};
 use coreav_mkv as mkv;
@@ -467,7 +467,7 @@ fn decode_mp4<'scope, 'env, S: Source>(
             break;
         }
         let duration = scale(u64::from(packet.duration), rate, timescale);
-        stream.packet(&data, Some(duration), 0, sink)?;
+        stream.packet(&data, Some(duration), Trim::default(), sink)?;
         next = match next_mp4(&mut packets, &mut data, limits) {
             Ok(next) => next,
             Err(error) => {
@@ -586,7 +586,7 @@ fn decode_matroska<'scope, 'env, S: Source>(
         None => sink,
     };
     let rate = u64::from(stream.out.format.sample_rate);
-    // `CodecDelay` (RFC 9559 5.1.4.1.24): samples to drop from the start;
+    // `CodecDelay` (RFC 9559 5.1.4.1.25): samples to drop from the start;
     // without one, the codec's own priming samples (Opus's pre-skip).
     let delay = match track.codec_delay {
         0 => stream.pre_skip,
@@ -607,13 +607,23 @@ fn decode_matroska<'scope, 'env, S: Source>(
                     .default_duration
                     .map(|ns| scale(ns, rate, 1_000_000_000))
             });
-        // `DiscardPadding` (RFC 9559 5.1.3.5.4): samples to drop from the
-        // end of this frame.
-        let discard = packet
-            .discard_padding
-            .and_then(|ns| u64::try_from(ns).ok())
-            .map_or(0, |ns| scale(ns, rate, 1_000_000_000));
-        stream.packet(&data, duration, discard, sink)?;
+        let padding = packet.discard_padding.unwrap_or(0);
+        if padding != 0 && packet.frames_in_block != 1 {
+            return Err(Error::Unsupported("audio padding on laced blocks"));
+        }
+        let samples = scale(padding.unsigned_abs(), rate, 1_000_000_000);
+        let trim = if padding < 0 {
+            Trim {
+                start: samples,
+                end: 0,
+            }
+        } else {
+            Trim {
+                start: 0,
+                end: samples,
+            }
+        };
+        stream.packet(&data, duration, trim, sink)?;
         next = match next_mkv(&mut packets, track.index, prefix, &mut data, limits) {
             Ok(next) => next,
             Err(error) => {
