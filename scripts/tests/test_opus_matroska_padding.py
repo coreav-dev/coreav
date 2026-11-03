@@ -1,7 +1,9 @@
 import importlib.util
 from pathlib import Path
 import struct
+import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'opus_matroska_padding.py'
@@ -21,6 +23,19 @@ def page(body, lengths, flags=0, granule=0):
 
 
 class OpusMatroskaPadding(unittest.TestCase):
+    def test_oracle_diagnostics_are_consumed_before_work_is_created(self):
+        def rejected(_):
+            yield 'wrong oracle version'
+
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory) / 'cases'
+            with mock.patch.object(padding, 'verify_bin', side_effect=rejected), \
+                    mock.patch.object(padding, 'run', side_effect=AssertionError('unexpected process')) as launch:
+                with self.assertRaisesRegex(ValueError, 'unverified oracle'):
+                    padding.check(Path('native'), Path('oracle'), work)
+            launch.assert_not_called()
+            self.assertFalse(work.exists())
+
     def test_ogg_packet_continuation_and_eos_supply_known_presentation(self):
         packet = b'\xf8' + b'\0' * 255
         data = page(HEAD, [len(HEAD)], flags=2) + page(b'OpusTags', [8]) \
