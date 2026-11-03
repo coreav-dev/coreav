@@ -17,16 +17,19 @@ import time
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / 'bench/audio-decode'))
 import capacity
 import oracle
 import receipts
 import run as capacity_run
+import allowance
 
 CLASSES = ('mp4', 'matroska')
 GATES = ('raw_identity', 'cli_identity', 'oracle')
 ENGINES = ('head_lib', 'base_lib', 'lav_lib', 'head_dec', 'base_dec', 'lav_dec', 'head_cli', 'ffmpeg_cli')
 COMPLETE = ('timed', 'oracle_disagreement', 'derivation_failed')
+DERIVATION_FAILURES = ('flac_encode_failed', 'no_audio_stream', 'encode_failed')
 
 
 class Failure(Exception):
@@ -38,7 +41,7 @@ class Failure(Exception):
             'omitted_input', 'changed_qualified_runtime', 'host_not_registered_on_demand',
             'missing_checkpoint_credentials', 'incomplete_timed_work', 'changed_input_bytes',
             'invalid_gate_work', 'identity_mismatch', 'inconsistent_gate_work', 'invalid_completed_record',
-            'changed_registered_inputs'}
+            'changed_registered_inputs', 'invalid_allowance', 'roster_exceeds_allowance'}
         self.code = code if isinstance(code, str) and code in allowed else 'internal_error'
         super().__init__(self.code)
 
@@ -57,7 +60,7 @@ def load_plan(path):
     plan = capacity.load(path)
     fields = {'schema', 'round', 'provenance_commit', 'exclusions_sha256', 'capacity',
               'base_commit', 'head_commit', 'draw', 'engines', 'warmups', 'rounds', 'bootstrap',
-              'bars', 'minimums', 'host', 'call_limits', 'shards', 'shard_seconds', 'vm_seconds'}
+              'bars', 'minimums', 'host', 'call_limits', 'shards', 'shard_seconds', 'vm_seconds', 'allowance'}
     if (not isinstance(plan, dict) or set(plan) != fields or plan['schema'] != 'opus-speed-plan/1'
             or plan['round'] != 4 or plan['engines'] != list(ENGINES)
             or plan['warmups'] != 1 or plan['rounds'] != 5 or plan['shards'] != 4
@@ -74,7 +77,8 @@ def load_plan(path):
             or [capacity.digest(path) for path in paths] != [refs['receipt_sha256'], refs['binding_sha256']]):
         raise Failure('changed_capacity_reference')
     binding = capacity.load(paths[1])
-    capacity.validate_capacity(capacity.load(paths[0]), binding)
+    receipt = capacity.load(paths[0])
+    capacity.validate_capacity(receipt, binding)
     limits = plan['call_limits']
     if (limits != {'seconds': binding['limits']['per_call_seconds'],
                    'address_space_bytes': binding['limits']['memory_bytes'],
@@ -100,6 +104,17 @@ def load_plan(path):
             or plan['host'] != {'cpu': 'Intel Xeon Platinum 8581C', 'smt': False,
                                 'machine': 'c4-standard-4', 'provisioning': 'STANDARD', 'affinity_cpu': 1}):
         raise Failure('invalid_judgment_plan')
+    ref = plan['allowance']
+    try:
+        if not isinstance(ref, dict) or set(ref) != {'path', 'sha256'} or not valid_sha(ref['sha256']):
+            raise ValueError
+        path = (ROOT / ref['path']).resolve()
+        if ROOT not in path.parents or capacity.digest(path) != ref['sha256']:
+            raise ValueError
+        previous = capacity.load(ROOT / 'bench/audio-decode/evidence/opus-round4-binding.json')
+        plan['_allowance'] = allowance.prepare(capacity.load(path), binding, receipt, previous)
+    except (ValueError, KeyError, TypeError, AttributeError, capacity.Invalid):
+        raise Failure('invalid_allowance') from None
     return plan, binding
 
 
@@ -156,19 +171,24 @@ def input_records(document, expected, exclusions, plan):
         identity = key(record)
         if identity not in wanted or identity in found or record.get('set') != 'derived':
             raise Failure('unexpected_or_duplicate_input')
-        if not isinstance(record.get('status'), str) or not record['status']:
+        if record.get('status') not in ('ok', *DERIVATION_FAILURES):
             raise Failure('missing_derivation_outcome')
         if record['status'] == 'ok':
             if (not valid_sha(record.get('sha256')) or record['sha256'] in known
                     or type(record.get('channels')) is not int or record['channels'] not in (1, 2)
                     or record.get('kbps') not in (12, 24, 32, 64, 128, 256)
                     or record.get('frame_ms') not in (2.5, 5, 10, 20, 40, 60)
+                    or not capacity.positive(record.get('raw_frames')) or not capacity.positive(record.get('file_bytes'))
                     or not isinstance(record.get('file'), str)):
                 raise Failure('invalid_or_spent_prepared_input')
             classification(record)
         found[identity] = record
     if set(found) != wanted:
         raise Failure('omitted_input')
+    try:
+        allowance.admit(found, expected, plan)
+    except (KeyError, TypeError, ValueError):
+        raise Failure('roster_exceeds_allowance') from None
     return found
 
 
@@ -227,13 +247,15 @@ class Store:
 
 
 def blank(record):
+    if record.get('status') not in ('ok', *DERIVATION_FAILURES):
+        raise Failure('missing_derivation_outcome')
     result = {'source_sha256': record['source_sha256'], 'class': record['class'], 'status': 'pending',
               'gates': {name: {'status': 'not_run', 'result': None, 'error': None} for name in GATES},
               'warmup': {}, 'rounds': [], 'ns': {}, 'failure': None}
     if record['status'] != 'ok':
         result['status'] = 'derivation_failed'
         return result
-    result.update({name: record[name] for name in ('sha256', 'channels', 'kbps', 'frame_ms', 'packets')})
+    result.update({name: record[name] for name in ('sha256', 'channels', 'kbps', 'frame_ms', 'packets', 'raw_frames', 'file_bytes')})
     result['mode'], result['toc_frame_ms'] = classification(record)
     return result
 
@@ -259,6 +281,7 @@ def gate_valid(record):
         lengths = samples['ours'] == samples['ref']
         default_length = samples['default'] == samples['ref']
     return (raw['passed'] and cli['passed'] and raw['packets'] == sum(record['packets'].values())
+            and raw['frames'] == record['raw_frames']
             and raw['channels'] == cli['channels'] == record['channels']
             and cli['output_bytes'] >= cli['frames'] * record['channels'] * 2 + 44
             and samples['ours'] == cli['frames'] and detail['length_ok'] == lengths
@@ -308,11 +331,12 @@ def record_valid(record, plan):
                     and set(record['gates']) == set(GATES)
                     and all(slot == {'status': 'not_run', 'result': None, 'error': None}
                             for slot in record['gates'].values()))
-        fields |= {'sha256', 'channels', 'kbps', 'frame_ms', 'packets', 'mode', 'toc_frame_ms', 'stream'}
+        fields |= {'sha256', 'channels', 'kbps', 'frame_ms', 'packets', 'mode', 'toc_frame_ms', 'stream', 'raw_frames', 'file_bytes'}
         if (set(record) != fields or not valid_sha(record['sha256'])
                 or type(record['channels']) is not int or record['channels'] not in (1, 2)
                 or record['kbps'] not in (12, 24, 32, 64, 128, 256)
                 or record['frame_ms'] not in (2.5, 5, 10, 20, 40, 60)
+                or not capacity.positive(record['raw_frames']) or not capacity.positive(record['file_bytes'])
                 or (record['mode'], record['toc_frame_ms']) != classification(record) or not gate_valid(record)
                 or type(record.get('stream')) is not int or record['stream'] < 0):
             return False
@@ -398,12 +422,12 @@ def timed_call(execute, name, source, stream, work, record):
                        '-ar', '48000', '-ac', str(record['channels']), output]
             operation = 'capacity.ffmpeg'
         started = time.perf_counter_ns()
-        execute.invoke(operation, role, command)
+        done = execute.invoke(operation, role, command)
         ns = time.perf_counter_ns() - started
         try:
             info = capacity_run.wav_info(output, record['channels'])
         except receipts.CommandFailure as error:
-            raise receipts.CommandFailure({**error.receipt, 'operation': operation, 'tool': role}) from None
+            raise receipts.CommandFailure({**error.receipt, 'operation': operation, 'tool': role}, stderr=done.stderr) from None
         value = {'ok': True, 'ns': ns, **info}
         output.unlink()
     else:
@@ -415,17 +439,17 @@ def timed_call(execute, name, source, stream, work, record):
         try:
             parsed = receipts.decode_json(done.stdout)
         except BaseException as error:
-            raise receipts.CommandFailure(receipts.exception_receipt(error, operation, role)) from None
+            raise receipts.CommandFailure(receipts.exception_receipt(error, operation, role), stderr=done.stderr) from None
         fields = {'ok', 'ns', 'samples'} | ({'bytes'} if name.endswith('_lib') else set())
         if name in ('head_lib', 'base_lib'):
             fields |= {'warnings'}
         if name.startswith('lav_'):
             fields |= {'errors'} | ({'packets'} if name == 'lav_dec' else set())
         if not isinstance(parsed, dict) or set(parsed) != fields:
-            raise receipts.CommandFailure(receipts.receipt(operation, role, 'protocol_error'))
+            raise receipts.CommandFailure(receipts.receipt(operation, role, 'protocol_error'), stderr=done.stderr)
         value = {field: parsed.get(field) for field in fields}
     if not call_valid(name, value, record):
-        raise receipts.CommandFailure(receipts.receipt(operation, role, 'protocol_error'))
+        raise receipts.CommandFailure(receipts.receipt(operation, role, 'protocol_error'), stderr=done.stderr)
     return value
 
 
@@ -435,7 +459,7 @@ def one(execute, record, result, work, plan):
         source = (execute.media / record['file']).resolve()
         suffix = '.mp4' if record['class'] == 'mp4' else '.webm'
         if (execute.media.resolve() not in source.parents or source.suffix != suffix
-                or capacity.digest(source) != record['sha256']):
+                or source.stat().st_size != record['file_bytes'] or capacity.digest(source) != record['sha256']):
             raise Failure('changed_input_bytes')
         result['stream'] = stream = execute.selected_stream(record)
         for stage in GATES:
@@ -477,41 +501,51 @@ def one(execute, record, result, work, plan):
         result['status'] = 'failed'
         result['ns'] = {}
         result['failure'] = {'stage': stage, **error_info(error)}
+        result['failure']['diagnostics'] = list(getattr(execute, 'failures', []))
+        if not result['failure']['diagnostics'] and getattr(execute, 'last_diagnostic', None) is not None:
+            result['failure']['diagnostics'].append(execute.last_diagnostic)
+        if not result['failure']['diagnostics'] and isinstance(error, receipts.CommandFailure):
+            result['failure']['diagnostics'].append(receipts.private_failure(error))
         if stage in GATES and result['gates'][stage]['status'] != 'complete':
             result['gates'][stage] = {'status': 'failed', 'result': None,
                                       'error': receipts.exception_receipt(error)}
 
 
 def run(args, plan, binding, expected, indexed, tools, store):
+    started = time.monotonic()
+    deadline = started + plan['shard_seconds']
     report = {'schema': 'opus-speed/1', 'round': plan['round'], 'plan_sha256': capacity.digest(args.plan),
               'provenance_commit': plan['provenance_commit'], 'binding_sha256': capacity.canonical(binding),
               'roster_sha256': capacity.digest(args.roster), 'shard': args.shard, 'host': None,
+              'allowance': allowance.admit(indexed, expected, plan)[args.shard],
               'results': [blank(indexed[source, cls]) for source in expected['shards'][args.shard] for cls in CLASSES],
-              'errors': [], 'complete': False}
-    store.write(report)
+              'errors': [], 'complete': False, 'run_seconds': None}
     try:
-        report['host'] = host_check(args.work, binding, plan)
-        runtime_matches(binding, tools)
-        deadline = time.monotonic() + plan['shard_seconds']
-        for result in report['results']:
-            if result['status'] == 'derivation_failed':
-                continue
-            runtime_matches(binding, tools)
-            execute = capacity_run.Executor(ROOT, args.media, args.work, tools, binding['limits'],
-                deadline)
-            with tempfile.TemporaryDirectory(prefix='opus-speed-', dir=args.work) as directory:
-                one(execute, indexed[key(result)], result, pathlib.Path(directory), plan)
-            runtime_matches(binding, tools)
-            if result['status'] == 'failed':
-                store.write(report)
-                break
+        with capacity_run.job_deadline(deadline):
             store.write(report)
-        runtime_matches(binding, tools)
+            report['host'] = host_check(args.work, binding, plan)
+            runtime_matches(binding, tools)
+            for result in report['results']:
+                if result['status'] == 'derivation_failed':
+                    continue
+                runtime_matches(binding, tools)
+                execute = capacity_run.Executor(ROOT, args.media, args.work, tools, binding['limits'], deadline)
+                with tempfile.TemporaryDirectory(prefix='opus-speed-', dir=args.work) as directory:
+                    one(execute, indexed[key(result)], result, pathlib.Path(directory), plan)
+                runtime_matches(binding, tools)
+                if result['status'] == 'failed':
+                    store.write(report)
+                    break
+                store.write(report)
+            runtime_matches(binding, tools)
     except BaseException as error:
         report['errors'].append(error_info(error))
     finally:
+        report['run_seconds'] = time.monotonic() - started
+        if report['run_seconds'] > plan['shard_seconds'] and not report['errors']:
+            report['errors'].append(error_info(capacity_run.failure('job_deadline')))
         report['complete'] = not report['errors'] and all(record['status'] in COMPLETE and record_valid(record, plan)
-                                                       for record in report['results'])
+                                                        for record in report['results'])
         store.write(report)
     return report
 

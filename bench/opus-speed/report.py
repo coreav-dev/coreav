@@ -11,6 +11,7 @@ import speed
 
 def summarize(plan, binding, expected, indexed, reports, plan_sha256, roster_sha256):
     sources, shards = speed.roster(expected, plan)
+    forecasts = speed.allowance.admit(indexed, expected, plan)
     errors, all_rows, accepted, seen = [], [], [], set()
     host = {'cpu': plan['host']['cpu'], 'smt': False, 'outputs_tmpfs': True,
             'memory_as_bytes': binding['limits']['memory_bytes'],
@@ -41,10 +42,10 @@ def summarize(plan, binding, expected, indexed, reports, plan_sha256, roster_sha
             found.append(speed.key(row))
             registered = indexed.get(speed.key(row))
             matches = (registered is not None and
-                ((registered['status'] != 'ok' and row.get('status') == 'derivation_failed')
+                ((registered['status'] in speed.DERIVATION_FAILURES and row.get('status') == 'derivation_failed')
                  or (registered['status'] == 'ok' and row.get('status') != 'derivation_failed'
                      and all(row.get(name) == registered[name]
-                             for name in ('sha256', 'channels', 'kbps', 'frame_ms', 'packets')))))
+                             for name in ('sha256', 'channels', 'kbps', 'frame_ms', 'packets', 'raw_frames', 'file_bytes')))))
             if speed.key(row) not in wanted or not matches or not speed.record_valid(row, plan):
                 invalid.append(row)
         for source, cls in sorted(wanted - set(found)):
@@ -55,12 +56,15 @@ def summarize(plan, binding, expected, indexed, reports, plan_sha256, roster_sha
                         and row.get('class') in speed.CLASSES else {})
             errors.append({'reason': 'failed_or_incomplete_input', 'shard': shard, **identity})
         fields = {'schema', 'round', 'plan_sha256', 'provenance_commit', 'binding_sha256',
-                  'roster_sha256', 'shard', 'host', 'results', 'errors', 'complete'}
+                  'roster_sha256', 'shard', 'host', 'results', 'errors', 'complete', 'allowance', 'run_seconds'}
         header = (set(report) == fields and report.get('schema') == 'opus-speed/1'
                   and report.get('round') == plan['round'] and report.get('plan_sha256') == plan_sha256
                   and report.get('provenance_commit') == plan['provenance_commit']
                   and report.get('binding_sha256') == speed.capacity.canonical(binding)
                   and report.get('roster_sha256') == roster_sha256 and report.get('host') == host
+                  and report.get('allowance') == forecasts[shard]
+                  and speed.allowance.number(report.get('run_seconds'))
+                  and report['run_seconds'] <= plan['shard_seconds']
                   and report.get('errors') == [] and report.get('complete') is True)
         coverage = len(found) == len(wanted) and set(found) == wanted
         if not header or not coverage or invalid:

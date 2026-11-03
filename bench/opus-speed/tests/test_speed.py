@@ -1,4 +1,5 @@
 import copy
+import base64
 import importlib.util
 import json
 import pathlib
@@ -39,6 +40,7 @@ def fixture():
         for cls in speed.CLASSES:
             inputs.append({'source_sha256': source, 'class': cls, 'set': 'derived', 'status': 'ok',
                 'sha256': f'{100 + len(inputs):064x}', 'channels': 2, 'kbps': 64, 'frame_ms': 10,
+                'raw_frames': 48000, 'file_bytes': 4096,
                 'packets': {mode + '/10': 100}, 'file': source + ('.mp4' if cls == 'mp4' else '.webm')})
     return plan, binding, expected, {'inputs': inputs}
 
@@ -89,6 +91,8 @@ def medians(record):
 
 
 def reports(plan, binding, expected, document):
+    forecasts = speed.allowance.admit({speed.key(row): row for row in document['inputs']},
+                                      expected, plan)
     host = {'cpu': plan['host']['cpu'], 'smt': False, 'outputs_tmpfs': True,
         'memory_as_bytes': binding['limits']['memory_bytes'], 'tmpfs_budget_bytes': binding['limits']['tmpfs_bytes'],
         'tmpfs_capacity_bytes': binding['limits']['tmpfs_bytes'], 'machine': 'c4-standard-4', 'provisioning': 'STANDARD',
@@ -96,6 +100,8 @@ def reports(plan, binding, expected, document):
     return [{'schema': 'opus-speed/1', 'round': 4, 'plan_sha256': 'b' * 64,
         'provenance_commit': plan['provenance_commit'], 'binding_sha256': speed.capacity.canonical(binding),
         'roster_sha256': 'c' * 64, 'shard': shard, 'host': host, 'errors': [], 'complete': True,
+        'allowance': forecasts[shard],
+        'run_seconds': 1,
         'results': [completed(row, plan) for row in document['inputs'] if row['source_sha256'] in assigned]}
         for shard, assigned in expected['shards'].items()]
 
@@ -109,7 +115,7 @@ class ValidationTests(unittest.TestCase):
         plan, binding = speed.load_plan(HERE / 'round4.json')
         self.assertEqual(plan['call_limits']['seconds'], 900)
         self.assertEqual(binding['limits']['memory_bytes'], 8 << 30)
-        changed = copy.deepcopy(plan)
+        changed = speed.capacity.load(HERE / 'round4.json')
         changed['capacity']['receipt_sha256'] = '0' * 64
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / 'plan.json'
@@ -134,6 +140,41 @@ class ValidationTests(unittest.TestCase):
         bad['shards']['1'] = bad['shards']['0']
         with self.assertRaises(speed.Failure):
             speed.roster(bad, self.plan)
+
+    def test_nonterminal_and_unknown_derivations_are_rejected_before_execution(self):
+        excluded = {'schema': 'opus-speed-exclusions/1', 'through_draw': 9, 'hashes': []}
+        for status in ('pending', 'running', 'interrupted', 'unknown', ''):
+            bad = copy.deepcopy(self.document)
+            bad['inputs'][0]['status'] = status
+            with self.subTest(status=status), self.assertRaises(speed.Failure):
+                speed.input_records(bad, self.expected, excluded, self.plan)
+            with self.subTest(blank_status=status), self.assertRaises(speed.Failure):
+                speed.blank(bad['inputs'][0])
+
+    def test_a_full_length_roster_without_enough_shard_time_is_refused_before_claiming_it(self):
+        plan, _ = speed.load_plan(HERE / 'round4.json')
+        expected = copy.deepcopy(self.expected)
+        expected['sources'] = [f'{i:064x}' for i in range(1, 101)]
+        expected['shards'] = {str(i): expected['sources'][i::4] for i in range(4)}
+        document = {'inputs': []}
+        for source in expected['sources']:
+            for cls in speed.CLASSES:
+                row = copy.deepcopy(self.document['inputs'][0])
+                row.update(source_sha256=source, **{'class': cls}, sha256=f'{10000 + len(document["inputs"]):064x}',
+                           packets={'celt/10': 170693}, raw_frames=81932640)
+                document['inputs'].append(row)
+        excluded = {'schema': 'opus-speed-exclusions/1', 'through_draw': 9, 'hashes': []}
+        with self.assertRaises(speed.Failure):
+            speed.input_records(document, expected, excluded, plan)
+
+    def test_prepared_geometry_and_frozen_file_size_are_required_before_admission(self):
+        excluded = {'schema': 'opus-speed-exclusions/1', 'through_draw': 9, 'hashes': []}
+        for name in ('raw_frames', 'file_bytes'):
+            for value in (None, 0, -1, True, 1.5, '48000'):
+                bad = copy.deepcopy(self.document)
+                bad['inputs'][0][name] = value
+                with self.subTest(field=name, value=value), self.assertRaises(speed.Failure):
+                    speed.input_records(bad, self.expected, excluded, self.plan)
 
     def test_every_engine_requires_complete_typed_work_and_all_repetitions(self):
         self.assertTrue(speed.record_valid(self.record, self.plan))
@@ -218,10 +259,10 @@ class FakeExecutor:
                 output.setsampwidth(2)
                 output.setframerate(48000)
                 output.writeframes(b'\0' * 192000)
-            return types.SimpleNamespace(stdout=b'')
+            return types.SimpleNamespace(stdout=b'', stderr=b'')
         name = ('lav_' + ('lib' if command[1] == 'decode' else 'dec') if role == 'lav'
                 else role.split('_')[0] + ('_lib' if command[1] == 'lib' else '_dec'))
-        return types.SimpleNamespace(stdout=json.dumps(call(name)).encode())
+        return types.SimpleNamespace(stdout=json.dumps(call(name)).encode(), stderr=b'')
 
 
 class ExecutionTests(unittest.TestCase):
@@ -231,9 +272,11 @@ class ExecutionTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.root = pathlib.Path(self.directory.name)
         self.record = document['inputs'][0]
+        self.document = document
         source = self.root / self.record['file']
         source.write_bytes(b'synthetic fixture, not encoded media')
         self.record['sha256'] = speed.capacity.digest(source)
+        self.record['file_bytes'] = source.stat().st_size
         self.execute = FakeExecutor(self.root)
 
     def one(self, execute=None):
@@ -335,7 +378,7 @@ class ExecutionTests(unittest.TestCase):
             stub.assert_no_pending_responses()
 
     def test_shard_seeds_all_slots_and_stops_at_the_first_failure(self):
-        indexed = {speed.key(self.record): self.record}
+        indexed = {speed.key(row): row for row in self.document['inputs']}
         second = copy.deepcopy(self.record)
         second.update({'class': 'matroska', 'file': self.record['file'].replace('.mp4', '.webm')})
         indexed[speed.key(second)] = second
@@ -370,7 +413,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(host['affinity_cpu'], 1)
 
     def test_changed_source_and_malformed_native_output_never_get_a_median(self):
-        with patch.object(self.execute, 'invoke', return_value=types.SimpleNamespace(stdout=b'{')):
+        with patch.object(self.execute, 'invoke', return_value=types.SimpleNamespace(stdout=b'{', stderr=b'')):
             result = self.one()
         self.assertEqual(result['status'], 'failed')
         self.assertEqual(result['failure']['error']['outcome'], 'protocol_error')
@@ -379,6 +422,71 @@ class ExecutionTests(unittest.TestCase):
         result = self.one()
         self.assertEqual(result['failure']['reason'], 'changed_input_bytes')
         self.assertEqual(self.execute.calls, list(speed.GATES))
+
+    def test_failed_worker_stderr_survives_the_private_shard_and_not_the_public_projection(self):
+        for explanation in ('synthetic decoder reason A', 'synthetic decoder reason B'):
+            executor = speed.capacity_run.Executor(speed.ROOT, self.root, self.root, {},
+                self.binding['limits'], speed.time.monotonic() + 30)
+            class Worker:
+                media, tools = self.root, {}
+
+                def selected_stream(self, record):
+                    return 0
+
+                @property
+                def failures(self):
+                    return getattr(executor, 'failures', [])
+
+                def __call__(self, name, record):
+                    return executor.invoke('oracle.compare', 'opus_compare',
+                        [sys.executable, '-c', 'import sys;sys.stderr.write(' + repr(explanation) + ');sys.exit(2)'])
+            with patch.object(speed.capacity_run, 'bounded_tmpfs'):
+                result = self.one(Worker())
+            with self.subTest(explanation=explanation):
+                self.assertEqual(result['status'], 'failed')
+                self.assertEqual(result['failure']['error']['exit_code'], 2)
+                self.assertTrue(result['failure'].get('diagnostics'), 'Worker stderr was discarded')
+                evidence = result['failure']['diagnostics'][0]
+                self.assertEqual(base64.b64decode(evidence['stderr_base64']).decode(), explanation)
+                uploads = {}
+                client = types.SimpleNamespace(put_object=lambda **kw: uploads.__setitem__(kw['Key'], bytes(kw['Body'])))
+                store = speed.Store(self.root / explanation[-1], self.plan, '0', {'registered': True}, client)
+                store.write({'results': [result]})
+                disk = speed.capacity.load(store.directory / 'results.json')
+                remote = json.loads(uploads[store.prefix + 'results.json'])
+                self.assertEqual(disk, remote)
+                self.assertEqual(remote['results'][0]['failure']['diagnostics'][0], evidence)
+                self.assertNotIn(explanation, json.dumps(speed.public_untimed(result)))
+                self.assertNotIn('stderr_base64', json.dumps(speed.public_untimed(result)))
+
+    def test_private_diagnostics_are_bounded_and_redact_configured_credentials(self):
+        secret = 'synthetic-credential-value'
+        with patch.dict(os.environ, {'R2_SECRET_ACCESS_KEY': secret}):
+            error = speed.receipts.CommandFailure(speed.receipts.receipt('oracle.compare', 'opus_compare', 'exit',
+                                                     exit_code=2), stderr=(secret + '\n').encode())
+            evidence = speed.receipts.private_failure(error)
+        self.assertTrue(evidence['redacted'])
+        self.assertNotIn(secret.encode(), base64.b64decode(evidence['stderr_base64']))
+        with self.assertRaises(speed.receipts.CommandFailure) as caught:
+            speed.receipts.invoke('oracle.compare', 'opus_compare', [sys.executable, '-c',
+                'import sys;sys.stderr.buffer.write(b"x"*' + str(speed.receipts.BUFFER_LIMIT + 1000) + ');sys.exit(2)'], 10)
+        evidence = speed.receipts.private_failure(caught.exception)
+        self.assertTrue(evidence['truncated'])
+        self.assertEqual(len(base64.b64decode(evidence['stderr_base64'])), speed.receipts.BUFFER_LIMIT)
+
+    @unittest.skipUnless(hasattr(os, 'pidfd_open'), 'The judged runner requires Linux process-exit descriptors')
+    def test_command_exit_does_not_wait_on_an_empty_pipe_selector(self):
+        original = speed.receipts.selectors.DefaultSelector
+        empty = []
+        class Selector(original):
+            def select(self, timeout=None):
+                empty.append(not self.get_map())
+                return super().select(timeout)
+        with patch.object(speed.receipts.selectors, 'DefaultSelector', Selector):
+            done = speed.receipts.invoke('capacity.ffmpeg', 'ffmpeg', [sys.executable, '-c',
+                'import os,time;os.close(1);os.close(2);time.sleep(0.25)'], 10)
+        self.assertEqual(done.returncode, 0)
+        self.assertFalse(any(empty), 'Command timing used an empty-selector polling delay')
 
 
 class ReportTests(unittest.TestCase):
@@ -424,7 +532,8 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(missing['untimed']), 2)
         self.assertEqual({row['status'] for row in missing['untimed']}, {'pending'})
         attacks = [self.reports[:-1], self.reports + [self.reports[0]]]
-        for field, value in (('complete', False), ('host', {}), ('plan_sha256', 'd' * 64),
+        for field, value in (('complete', False), ('host', {}), ('allowance', {}), ('plan_sha256', 'd' * 64),
+                             ('run_seconds', 16201), ('run_seconds', True),
                              ('binding_sha256', 'd' * 64), ('errors', [{'message': SECRET}])):
             bad = copy.deepcopy(self.reports)
             bad[0][field] = value
@@ -456,12 +565,39 @@ class ReportTests(unittest.TestCase):
                 original = self.document['inputs'][int(shard['shard']) * 2 + index]
                 original['status'] = 'encode_failed'
                 shard['results'][index] = speed.blank(original)
+        forecasts = speed.allowance.admit({speed.key(row): row for row in self.document['inputs']},
+                                          self.expected, self.plan)
+        for shard in self.reports:
+            shard['allowance'] = forecasts[shard['shard']]
         result = self.summarize()
         self.assertFalse(result['passed'])
         self.assertEqual(len(result['untimed']), 8)
         self.assertEqual(result['gates']['oracle'], {'not_run': 8})
         self.assertEqual(result['stats'], [])
         self.assertTrue(any(error['reason'] == 'minimum_not_met' for error in result['errors']))
+        self.assertFalse(any(error['reason'] == 'unusable_shard' for error in result['errors']))
+
+    def test_pending_derivations_cannot_be_replayed_as_completed_exclusions(self):
+        for status in ('pending', 'running', 'unknown'):
+            for row in self.document['inputs']:
+                row['status'] = 'ok'
+            self.document['inputs'][-1]['status'] = status
+            bad = copy.deepcopy(self.reports)
+            row = bad[-1]['results'][-1]
+            row.update(status='derivation_failed', gates={name: {'status': 'not_run', 'result': None,
+                       'error': None} for name in speed.GATES}, warmup={}, rounds=[], ns={})
+            for name in ('sha256', 'channels', 'kbps', 'frame_ms', 'packets', 'mode', 'toc_frame_ms', 'stream',
+                         'raw_frames', 'file_bytes'):
+                row.pop(name)
+            forecasts = speed.allowance.admit({speed.key(value): value for value in self.document['inputs']},
+                                              self.expected, self.plan)
+            for shard in bad:
+                shard['allowance'] = forecasts[shard['shard']]
+            self.plan['minimums']['hybrid'] = 1
+            result = self.summarize(bad)
+            with self.subTest(status=status):
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['stats'], [])
 
 
 if __name__ == '__main__':
