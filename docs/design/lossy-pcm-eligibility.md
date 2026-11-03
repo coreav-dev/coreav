@@ -60,6 +60,12 @@ The initial requirements are deliberately conservative:
   track's actual AudioSpecificConfig as supported AAC-LC (AOT 2). Codec
   names alone do not prove the profile. Existing configuration and packet
   refusals remain in force.
+- `opus_mapping0`: actual Opus configuration preflight proves mapping
+  family 0, one or two channels and zero signed output gain, with native
+  decoded output at 48 kHz. The informational input rate is not a decoded
+  rate. This predicate grants no conversion permission. The
+  [scoped qualification plan](opus-pcm-eligibility.md) keeps activation
+  coupled to consumer support; the Opus presentation row remains false.
 - `supported_mp4_timeline`: the native MP4 presentation planner accepts
   the selected track without ignored edits or other warnings, and its
   selected packets have equal PTS and DTS. Unsupported edits, nonzero

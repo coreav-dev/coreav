@@ -61,3 +61,50 @@ the source edit, not the default oracle count, owns that presentation.
 If the discrepancy requires a decoder correction beyond this scoped
 qualification, retain disabled admission and report the correction as a
 separate task. No source-byte repair or comparison exception is permitted.
+
+## Predicate and consumer ordering
+
+`opus_mapping0` requires actual parsed Opus configuration with mapping
+family 0, one or two channels and zero signed output gain. The decoded
+rate must be 48 kHz. The informational input-rate field grants nothing.
+`supported_mp4_timeline` remains separately required. Both must be checked
+before native output starts, while all existing packet-time refusals stay
+in force. Missing, unknown or unproved requirements deny admission.
+
+The PCM adapter in coreav-dev/coreav#346 rejects an unknown requirement
+anywhere in the record, including in another codec's row. Add the consumer
+predicate and activate the Opus row atomically after that adapter lands.
+Keep the checked-in Opus presentation false until then. Retain a regression
+that MP3 admission survives the added Opus row, plus mapping, gain, unknown
+predicate and conversion-refusal regressions. This is decoder admission,
+not permission to bypass an unregistered rate or channel conversion.
+
+## Generated qualification
+
+`scripts/opus_pcm_eligibility.py` checks 36 source-bound MP4 presentations:
+SILK, Hybrid and CELT, mono and stereo, one-sample, 4,800-sample and complete
+packet-boundary edits, each with original versus 3,840 informative PreSkip.
+For each presentation, complete S16 and F32 output at one and eight threads
+must equal the independently constructed native packet control with exactly
+the source-specified interval retained. No length repair or alignment occurs.
+The report binds the complete container bytes and packet payloads by SHA-256.
+The command removes an old report before validation, so failure cannot leave
+an earlier success as its result.
+
+The packet control has zero delay and no discard padding. Complete S16
+native output and the last 2,880 decoded samples per channel are compared
+with explicit pinned libopus decoding through the existing comparison tool.
+Both need quality strictly above 90, in addition to the unchanged RFC-vector
+gate. All six generated cells passed locally with minimum quality 99.8 for
+both windows. These are development checks, not a replacement conformance
+suite or a claimed universal numerical bound.
+
+The earlier two-second stereo low-delay CELT discrepancy reproduces against
+the pinned default FFmpeg decoder: maximum F32 difference is 0.00249358 in
+the Matroska terminal extension, while the first 96,000 samples per channel
+differ by at most 1.19209e-7. Explicit libopus on the same bytes keeps the
+complete 96,840-sample count, with maximum difference 1.53184e-5 overall and
+1.52422e-5 in the extension. Both decoders remain black boxes. This isolates
+the large difference to the default decoder's waveform, not lost or added
+native packets. It does not establish that decoder's internal cause or waive
+any conformance requirement. Matroska admission remains disabled.

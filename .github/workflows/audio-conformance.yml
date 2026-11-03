@@ -8,10 +8,10 @@ name: audio-conformance
 on:
   push:
     branches: [main]
-    paths: ["scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -518,3 +518,25 @@ jobs:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare
         run: cargo test --locked --release -p coreav-opus -- --ignored --nocapture
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: oracle
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - if: steps.oracle.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Qualify scoped Opus MP4 presentation and terminal output
+        run: |
+          cargo build --locked -p coreav-cli
+          python3 -I -m unittest discover -s scripts/tests -p test_opus_pcm_eligibility.py
+          python3 -I scripts/opus_pcm_eligibility.py --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/coreav-oracle-bin" \
+            --opus-compare "$RUNNER_TEMP/opus-compare/opus_compare" \
+            --work "$RUNNER_TEMP/opus-pcm-cases" --out "$RUNNER_TEMP/opus-pcm-eligibility.json"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: opus-pcm-eligibility
+          path: ${{ runner.temp }}/opus-pcm-eligibility.json
+          if-no-files-found: warn
+          retention-days: 7
