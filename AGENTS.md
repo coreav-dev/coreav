@@ -18,4 +18,5 @@ When a review corrects a mistake, fix it and add its row to the area file it bel
 | [docs/agents/public-text.md](docs/agents/public-text.md) | Pull request title, body, and issue-reference text. |
 | [docs/agents/release-and-notices.md](docs/agents/release-and-notices.md) | Licenses, distribution notices, and package rehearsal. |
 | [docs/agents/transcode.md](docs/agents/transcode.md) | Encode path, sandboxed workers, and audio-encode selection. |
+| [docs/agents/videotoolbox.md](docs/agents/videotoolbox.md) | VideoToolbox encode, hardware status, and the macOS encoder measurement tools. |
 | [docs/agents/wasm.md](docs/agents/wasm.md) | The WASM module and its HTTP source. |
