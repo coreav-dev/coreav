@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
     num::NonZeroU64,
+    path::Path,
     time::Instant,
 };
 
@@ -15,13 +16,160 @@ use coreav_backend_svt_av1::{
     sequence::{ChromaPosition, ColorRange},
 };
 use coreav_decode::{Error, ErrorKind};
+use coreav_frame::{Picture, PixelFormat, Pixels};
 use coreav_isobmff_write::mux::{Nclx, av01_sample_entry};
+use coreav_worker::{ExecLauncher, HugePages};
 
 use crate::{
-    contract::{PacketLimits, PacketMeta, Packets, Submissions},
-    encoder::Sink,
+    contract::{PacketLimits, PacketMeta, Packets, Submissions, VideoLayout},
+    encoder::{self, Chunk, EncoderLimits, Process, Sink},
     timing::SampleTime,
 };
+
+/// Private worker entry for the existing sandbox launcher.
+pub const WORKER_ARG: &str = "__coreav_svt_av1";
+
+/// Launch settings shared by the input queue, output validation and final replay.
+pub struct Launch<'a> {
+    /// Existing sandbox launcher; `None` runs directly for process fixtures.
+    pub launcher: Option<&'a ExecLauncher>,
+    /// Requested per-process resource limits.
+    pub limits: EncoderLimits,
+    /// One deadline for input, output, process teardown and spool replay.
+    pub deadline: Instant,
+    /// Source sample aspect, kept without a geometry conversion.
+    pub pixel_aspect: Option<(u32, u32)>,
+}
+
+/// Bounded raw-frame driver using the existing process keeper and writer queue.
+pub struct Encoder {
+    state: State,
+    submitted: Submissions,
+    frames: u64,
+}
+
+enum State {
+    Running(Process<OutputSink>),
+    Failed(Error),
+}
+
+impl Encoder {
+    /// Starts the private worker with its checked request, never a source path.
+    /// The caller retains the spool's lifetime owner and supplies this driver
+    /// its exclusive writer handle. Release callers always supply a launcher.
+    pub fn spawn(
+        program: &Path,
+        request: Request,
+        retention: Retention,
+        spool: File,
+        launch: Launch<'_>,
+    ) -> Result<Self, Error> {
+        if !program.is_absolute() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the private AV1 worker must be an absolute path",
+            ));
+        }
+        let layout = VideoLayout::new(
+            request.settings.width(),
+            request.settings.height(),
+            PixelFormat::YUV420P,
+            request.settings.raw_bytes() as u64,
+        )?;
+        let sink = OutputSink::new(
+            spool,
+            request,
+            retention,
+            launch.pixel_aspect,
+            launch.deadline,
+        )?;
+        let mut header = Vec::new();
+        header
+            .try_reserve_exact(60)
+            .map_err(|_| Error::new(ErrorKind::Limit, "cannot store AV1 request"))?;
+        request.write(&mut header).map_err(backend_error)?;
+        let command = encoder::command(
+            program,
+            &[WORKER_ARG.into()],
+            HugePages::Kept,
+            launch.launcher,
+            &launch.limits,
+            launch.deadline,
+        );
+        let mut process = Process::spawn(
+            "svt-av1",
+            "AV1 records",
+            command,
+            program,
+            launch.deadline,
+            sink,
+        )?;
+        process.enqueue(header)?;
+        Ok(Self {
+            state: State::Running(process),
+            submitted: Submissions::new(layout, request.limits.frames()),
+            frames: 0,
+        })
+    }
+
+    /// Checks and queues one owned planar 8-bit 4:2:0 picture at its source time.
+    /// Every failure is terminal and stops the process; no retry or fallback occurs.
+    pub fn send_frame(&mut self, picture: Picture, pts: i64) -> Result<(), Error> {
+        let process = match &mut self.state {
+            State::Running(process) => process,
+            State::Failed(error) => return Err(error.clone()),
+        };
+        let result = (|| {
+            if picture.format() != PixelFormat::YUV420P {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "SVT-AV1 requires planar 8-bit 4:2:0",
+                ));
+            }
+            let frame = self.submitted.submit(picture, pts)?;
+            let mut header = Vec::new();
+            header
+                .try_reserve_exact(17)
+                .map_err(|_| Error::new(ErrorKind::Limit, "cannot store AV1 frame header"))?;
+            header.extend_from_slice(&coreav_backend_svt_av1::protocol::frame_prefix(
+                frame.id().index(),
+                frame.pts(),
+            ));
+            process.enqueue(Chunk::Frame {
+                head: header,
+                pixels: Pixels::Cpu(frame.into_picture()),
+            })?;
+            self.frames += 1;
+            Ok(())
+        })();
+        if let Err(error) = &result {
+            self.state = State::Failed(error.clone());
+        }
+        result
+    }
+
+    /// Completes the input, drains and reaps the worker, then validates the
+    /// private spool against all actual submissions and the final duration.
+    pub fn finish(self, last_duration: NonZeroU64) -> Result<Encoded, Error> {
+        let mut process = match self.state {
+            State::Running(process) => process,
+            State::Failed(error) => return Err(error),
+        };
+        if self.frames == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "no AV1 frames were submitted",
+            ));
+        }
+        let mut end = Vec::new();
+        end.try_reserve_exact(9)
+            .map_err(|_| Error::new(ErrorKind::Limit, "cannot store AV1 completion"))?;
+        coreav_backend_svt_av1::protocol::write_input_end(&mut end, self.frames)
+            .map_err(backend_error)?;
+        process.enqueue(end)?;
+        process.finish()?.finish(&self.submitted, last_duration)
+    }
+}
 
 /// Completed codec metadata and source-clock sample accounting.
 #[derive(Debug)]

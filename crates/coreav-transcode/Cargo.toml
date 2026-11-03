@@ -32,5 +32,10 @@ name = "sandboxed"
 # Its `main` is also the sandbox launcher the tests start (`EXEC_ARG`).
 harness = false
 
+[[test]]
+name = "av1_process"
+required-features = ["svt-av1"]
+harness = false
+
 [lints]
 workspace = true
