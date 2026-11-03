@@ -12,25 +12,32 @@ use crate::error::{Error, Result};
 /// first, the superframes of 50 of them, whose sizes take more than one
 /// byte, do not split.
 pub fn split(packet: &[u8]) -> Result<Vec<&[u8]>> {
+    split_with_memory(packet, &mut crate::memory::Memory::new(u64::MAX))
+}
+
+pub(crate) fn split_with_memory<'a>(
+    packet: &'a [u8],
+    memory: &mut crate::memory::Memory,
+) -> Result<Vec<&'a [u8]>> {
     let Some(&last) = packet.last() else {
         return Err(Error::Truncated("a packet"));
     };
     if last & 0xE0 != 0xC0 {
-        return Ok(vec![packet]);
+        return memory.copy(&[packet]);
     }
     let size_bytes = usize::from((last >> 3) & 3) + 1;
     let count = usize::from(last & 7) + 1;
     let index_size = 2 + count * size_bytes;
     let Some(start) = packet.len().checked_sub(index_size) else {
-        return Ok(vec![packet]);
+        return memory.copy(&[packet]);
     };
     let Some((&first, index)) = packet.get(start..).and_then(<[u8]>::split_first) else {
-        return Ok(vec![packet]);
+        return memory.copy(&[packet]);
     };
     if first != last {
-        return Ok(vec![packet]);
+        return memory.copy(&[packet]);
     }
-    let mut frames = Vec::with_capacity(count);
+    let mut frames = memory.empty(count)?;
     let mut rest = packet.get(..start).unwrap_or_default();
     for size in index.chunks_exact(size_bytes).take(count) {
         let size = size

@@ -16,7 +16,7 @@ fn header() -> FrameHeader {
     )
     .unwrap();
     match parsed.header {
-        Header::Frame { header, .. } => *header,
+        Header::Frame { header, .. } => header,
         _ => panic!("expected a frame header"),
     }
 }
