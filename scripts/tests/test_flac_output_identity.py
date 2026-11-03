@@ -100,6 +100,16 @@ class FlacIdentity(unittest.TestCase):
                     self.assertEqual(report["failure"], "changed-bytes")
                     self.assertFalse(report["cases"][0]["equal"])
 
+    def test_invalid_provenance_is_not_copied_into_the_report(self):
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "report.json"
+            self.assertFalse(identity.capture(Path("reference"), Path("candidate"),
+                                              "credential-marker", Path("producer"), output))
+            self.assertNotIn("credential-marker", output.read_text())
+            report = json.loads(output.read_text())
+            self.assertIsNone(report["candidate_commit"])
+            self.assertEqual(report["failure"], "invalid-source-commit")
+
     def test_workflow_uses_one_pinned_baseline_and_one_fixture_producer(self):
         workflow = (SCRIPT.parents[1] / ".github/workflows/flac-output.yml").read_text()
         self.assertIn("baseline=$(python3 -I scripts/flac_output_identity.py --baseline)", workflow)

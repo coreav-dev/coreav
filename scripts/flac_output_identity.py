@@ -55,11 +55,12 @@ def compare(reference, candidate, names):
 
 def capture(reference, candidate, candidate_commit, producer, output):
     report = {"complete": False, "equal": False, "reference_commit": BASELINE,
-              "candidate_commit": candidate_commit, "cases": [], "failure": None}
+              "candidate_commit": None, "cases": [], "failure": None}
     stage = "provenance"
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
             raise IdentityFailure("invalid-source-commit")
+        report["candidate_commit"] = candidate_commit
         report["producer_sha256"] = hashlib.sha256(producer.read_bytes()).hexdigest()
         report["reference_binary_sha256"] = hashlib.sha256(reference.read_bytes()).hexdigest()
         report["candidate_binary_sha256"] = hashlib.sha256(candidate.read_bytes()).hexdigest()
