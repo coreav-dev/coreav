@@ -1,13 +1,13 @@
 {
   "schema": "opus-speed-plan/1",
   "round": 4,
-  "provenance_commit": "87c39b59efb229f1285b331fee6140c902f13266",
+  "provenance_commit": "a8285aba10b93824e1bea094a8a99b571447fa02",
   "exclusions_sha256": "cd2c837d040ce36a76f57d07ff7d1d30ac4c47e8f5364635636d5bb6a34e39d3",
   "capacity": {
-    "receipt": "bench/audio-decode/evidence/opus-round4-qualified-capacity.json",
-    "receipt_sha256": "27ffff71b53f480b1ebaf7caa8b4af934c324eb39ce640b71f3f2c2a36838918",
-    "binding": "bench/audio-decode/evidence/opus-round4-qualified-binding.json",
-    "binding_sha256": "fa16c422093237994b464793d503073dbbc2eacd00d39b9c638cdb03ff77079e"
+    "receipt": "bench/audio-decode/evidence/opus-round4-retention-capacity.json",
+    "receipt_sha256": "25dedb041f8d5c309929ee1d6b288ec842b3711843daf2623a7cb5dcb9d7164e",
+    "binding": "bench/audio-decode/evidence/opus-round4-retention-binding.json",
+    "binding_sha256": "0b025177262378d1dead1faae85de8d5ae31e30898f59f2f09273c66940542b7"
   },
   "base_commit": "b2725e0b4fbc623278d049cb87daed484cd5df8a",
   "head_commit": "3f7ed8d3123307ea9fb18db398352828a71912b3",
@@ -68,7 +68,7 @@
   "shard_seconds": 16200,
   "vm_seconds": 18000,
   "allowance": {
-    "path": "bench/audio-decode/evidence/opus-round4-qualified-allowance.json",
-    "sha256": "7ef036b27f8b03d1c4cb8ec79e232cdfc7621ea1298d3301ac9da5587e73a501"
+    "path": "bench/audio-decode/evidence/opus-round4-retention-allowance.json",
+    "sha256": "2e0ca54a2281571fdd15ec867cf07276e3258bcef46fd2ed86c9fca4eb32bc5e"
   }
 }
