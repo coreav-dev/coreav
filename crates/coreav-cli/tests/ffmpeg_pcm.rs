@@ -39,6 +39,303 @@ fn scratch(name: &str) -> PathBuf {
     path
 }
 
+#[test]
+fn raw_pcm_identity_has_headerless_float_and_integer_stdout() {
+    let dir = scratch("raw-pcm-stdout-identity");
+    let input = dir.join("input.raw");
+    let values = [i16::MIN, -12345, -1, 0, 1, 12345, i16::MAX];
+    let bytes: Vec<u8> = values.into_iter().flat_map(i16::to_le_bytes).collect();
+    std::fs::write(&input, &bytes).unwrap();
+    for (format, expected) in [
+        ("s16le", bytes.clone()),
+        (
+            "f32le",
+            values
+                .into_iter()
+                .flat_map(|sample| (f32::from(sample) / 32768.0).to_le_bytes())
+                .collect(),
+        ),
+    ] {
+        for output in ["-", "pipe:", "pipe:1"] {
+            let before = [
+                "--strict-safe",
+                "ffmpeg",
+                "-threads",
+                "2",
+                "-f",
+                "s16le",
+                "-ar",
+                "48000",
+                "-ac",
+                "1",
+                "-i",
+            ];
+            let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(before)
+                .arg(&input)
+                .args(["-f", format, output])
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stderr.is_empty(), "{result:?}");
+            assert_eq!(result.stdout, expected);
+        }
+    }
+}
+
+#[test]
+fn decoded_flac_raw_stdout_keeps_samples_and_float_packing() {
+    let dir = scratch("decoded-pcm-stdout");
+    let (input, samples) = fixture(&dir, false);
+    for format in ["s16le", "f32le"] {
+        let result = run(&input, Path::new("pipe:"), &["-f", format]);
+        assert!(result.status.success(), "{result:?}");
+        assert!(result.stderr.is_empty(), "{result:?}");
+        let expected = if format == "s16le" {
+            samples.clone()
+        } else {
+            samples
+                .chunks_exact(2)
+                .flat_map(|sample| {
+                    (f32::from(i16::from_le_bytes([sample[0], sample[1]])) / 32768.0).to_le_bytes()
+                })
+                .collect()
+        };
+        assert_eq!(result.stdout, expected);
+    }
+}
+
+#[test]
+fn encoded_stdin_is_replayed_for_native_raw_output() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let dir = scratch("encoded-stdin-pcm");
+    let (input, samples) = fixture(&dir, false);
+    for name in ["-", "pipe:", "pipe:0"] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args([
+                "--strict-safe",
+                "ffmpeg",
+                "-i",
+                name,
+                "-f",
+                "s16le",
+                "pipe:",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&std::fs::read(&input).unwrap())
+            .unwrap();
+        let result = child.wait_with_output().unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(result.stderr.is_empty(), "{result:?}");
+        assert_eq!(result.stdout, samples);
+    }
+}
+
+#[test]
+fn raw_stdin_writes_before_eof_without_a_whole_input_spool() {
+    use std::io::{Read, Write};
+    use std::process::Stdio;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args([
+            "--strict-safe",
+            "ffmpeg",
+            "-f",
+            "s16le",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-i",
+            "pipe:",
+            "-f",
+            "s16le",
+            "pipe:",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        let mut first = [0u8; 1];
+        let result = stdout.read_exact(&mut first);
+        sender.send((result, first, stdout)).unwrap();
+    });
+    let samples = vec![0x31; 16384];
+    stdin.write_all(&samples).unwrap();
+    let received = receiver.recv_timeout(Duration::from_secs(10));
+    if received.is_err() {
+        drop(stdin);
+        let _ = child.kill();
+        let _ = child.wait();
+        reader.join().unwrap();
+        panic!("raw stdin did not produce samples before EOF");
+    }
+    let (result, first, mut stdout) = received.unwrap();
+    result.unwrap();
+    drop(stdin);
+    let mut actual = first.to_vec();
+    stdout.read_to_end(&mut actual).unwrap();
+    reader.join().unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert!(result.stderr.is_empty(), "{result:?}");
+    assert_eq!(actual, samples);
+}
+
+#[test]
+fn tiny_pcm_stdout_reports_a_closed_reader_during_final_flush() {
+    use std::process::Stdio;
+    let dir = scratch("pcm-closed-stdout");
+    let input = dir.join("tiny.raw");
+    std::fs::write(&input, [0x12, 0x34]).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args([
+            "--strict-safe",
+            "ffmpeg",
+            "-f",
+            "s16le",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-i",
+        ])
+        .arg(&input)
+        .args(["-f", "s16le", "pipe:"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let result = child.wait_with_output().unwrap();
+    assert_eq!(result.status.code(), Some(141), "{result:?}");
+    assert!(result.stderr.is_empty(), "{result:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn consumed_encoded_stdin_reaches_fallback_with_original_arguments() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    let dir = scratch("pcm-stdin-fallback");
+    let (input, samples) = fixture(&dir, false);
+    let bytes = std::fs::read(input).unwrap();
+    let fallback = dir.join("ffmpeg");
+    let record = dir.join("args");
+    let temporary = dir.join("temporary");
+    std::fs::create_dir(&temporary).unwrap();
+    std::fs::write(
+        &fallback,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGUMENT_RECORD\"\ncat\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let args = [
+        "-i", "pipe:", "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:",
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .arg("ffmpeg")
+        .args(args)
+        .env("COREAV_FALLBACK", &fallback)
+        .env("ARGUMENT_RECORD", &record)
+        .env("TMPDIR", &temporary)
+        .env_remove("COREAV_STRICT_SAFE")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(&bytes).unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, bytes);
+    assert_ne!(result.stdout, samples);
+    assert_eq!(
+        std::fs::read_to_string(record).unwrap(),
+        args.join("\n") + "\n"
+    );
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ran"));
+    assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_partial_raw_frame_after_output_never_invokes_fallback() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    let dir = scratch("pcm-no-late-fallback");
+    let fallback = dir.join("ffmpeg");
+    let record = dir.join("invoked");
+    std::fs::write(
+        &fallback,
+        "#!/bin/sh\nprintf invoked > \"$FALLBACK_RECORD\"\nprintf invalid-fallback-output\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let before = ["ffmpeg", "-f", "s16le", "-ar", "48000", "-ac", "1", "-i"];
+    let after = ["-f", "s16le", "pipe:"];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(before)
+        .arg("pipe:")
+        .args(after)
+        .env("COREAV_FALLBACK", fallback)
+        .env("FALLBACK_RECORD", &record)
+        .env_remove("COREAV_STRICT_SAFE")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || stdin.write_all(&vec![0x31; 131073]));
+    let result = child.wait_with_output().unwrap();
+    writer.join().unwrap().unwrap();
+    assert!(!result.status.success(), "{result:?}");
+    assert_ne!(result.status.code(), Some(4), "{result:?}");
+    assert!(!result.stdout.is_empty());
+    assert!(result.stdout.iter().all(|byte| *byte == 0x31));
+    assert!(!record.exists());
+    assert!(!String::from_utf8_lossy(&result.stderr).contains("ran"));
+}
+
+#[test]
+fn nonstandard_pipe_descriptors_and_unregistered_compositions_refuse() {
+    let dir = scratch("pcm-unregistered-stages");
+    let (input, _) = fixture(&dir, false);
+    for options in [
+        vec!["-ac", "1", "-ar", "16000", "-f", "s16le", "pipe:"],
+        vec!["-ac", "1", "-f", "f32le", "pipe:"],
+        vec!["-ar", "16000", "-f", "f32le", "pipe:"],
+        vec!["-f", "s16le", "pipe:2"],
+    ] {
+        let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .args(["--strict-safe", "ffmpeg", "-i"])
+            .arg(&input)
+            .args(options)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(4), "{result:?}");
+        assert!(result.stdout.is_empty(), "{result:?}");
+    }
+}
+
 fn crc(data: &[u8], bits: u32, polynomial: u16) -> u16 {
     let mut crc = 0u16;
     for &byte in data {

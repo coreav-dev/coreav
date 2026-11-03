@@ -303,6 +303,8 @@ jobs:
           cargo build -p coreav-cli
           python3 -I scripts/pcm_output_check.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/coreav-encoders" --out "$RUNNER_TEMP/pcm-output.json"
+          python3 -I scripts/raw_audio_pipe_check.py --coreav target/debug/coreav \
+            --oracle-bin "$RUNNER_TEMP/coreav-encoders"
       - name: Compare native audio probes with the pinned oracle
         run: |
           python3 -I scripts/standalone_audio_probe_check.py --coreav target/debug/coreav \

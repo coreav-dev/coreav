@@ -8,7 +8,7 @@
 //! runs FFmpeg in its place.
 
 use std::ffi::OsString;
-use std::io::Write;
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -71,10 +71,59 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         Ok(args) => args,
         Err(code) => return code,
     };
-    match ffmpeg::run(&args, strict_safe) {
+    let mut spool = None;
+    if let Ok(command) = ffmpeg::args::parse(&args)
+        && ffmpeg::args::stdin(&command.input)
+        && command.more_inputs.is_empty()
+        && matches!(
+            command.muxer,
+            ffmpeg::args::Muxer::S16le | ffmpeg::args::Muxer::F32le
+        )
+        && !matches!(
+            command.demuxer,
+            Some(ffmpeg::args::Demuxer::S16le(_) | ffmpeg::args::Demuxer::Concat { .. })
+        )
+    {
+        match EncodedInput::read() {
+            Ok(input) => spool = Some(input),
+            Err(error) => {
+                message("ffmpeg", &format!("could not spool encoded stdin: {error}"));
+                return ExitCode::from(EXIT_IO);
+            }
+        }
+    }
+    let result = match &spool {
+        Some(input) => ffmpeg::run_spooled(&args, strict_safe, &input.path),
+        None => ffmpeg::run(&args, strict_safe),
+    };
+    match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
-            fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+            if let Some(input) = &mut spool {
+                let replay = input
+                    .file
+                    .as_mut()
+                    .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))
+                    .and_then(|file| file.rewind().and_then(|()| file.try_clone()));
+                match replay {
+                    Ok(file) => fallback_cmd::refuse_with_input(
+                        Tool::Ffmpeg,
+                        &args,
+                        refusal,
+                        strict_safe,
+                        file,
+                    ),
+                    Err(error) => {
+                        message(
+                            "ffmpeg",
+                            &format!("could not replay encoded stdin: {error}"),
+                        );
+                        ExitCode::from(EXIT_IO)
+                    }
+                }
+            } else {
+                fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+            }
         }
         Err(Stop::Refused(Refusal::Usage(text))) => {
             message("ffmpeg", &text);
@@ -102,6 +151,84 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                 EXIT_REJECTED
             })
         }
+    }
+}
+
+struct EncodedInput {
+    path: std::path::PathBuf,
+    file: Option<std::fs::File>,
+}
+
+impl EncodedInput {
+    fn read() -> std::io::Result<Self> {
+        let tag = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(std::io::Error::other)?
+            .as_nanos();
+        let mut created = None;
+        for attempt in 0..32 {
+            let path = std::env::temp_dir().join(format!(
+                "coreav-encoded-stdin-{}-{tag}-{attempt}",
+                std::process::id()
+            ));
+            let mut options = std::fs::OpenOptions::new();
+            options.read(true).write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            match options.open(&path) {
+                Ok(file) => {
+                    created = Some(Self {
+                        path,
+                        file: Some(file),
+                    });
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        let mut input = created.ok_or_else(|| {
+            std::io::Error::other("could not exclusively create encoded stdin file")
+        })?;
+        let file = input
+            .file
+            .as_mut()
+            .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))?;
+        let mut stdin = std::io::stdin().lock();
+        let mut bytes = [0u8; 65_536];
+        let mut size = 0u64;
+        loop {
+            let count = match stdin.read(&mut bytes) {
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                result => result?,
+            };
+            if count == 0 {
+                break;
+            }
+            size += count as u64;
+            if size > 1_073_741_824 {
+                return Err(std::io::Error::other(
+                    "encoded stdin exceeds the 1 GiB limit",
+                ));
+            }
+            file.write_all(
+                bytes
+                    .get(..count)
+                    .ok_or_else(|| std::io::Error::other("encoded stdin read buffer"))?,
+            )?;
+        }
+        file.rewind()?;
+        Ok(input)
+    }
+}
+
+impl Drop for EncodedInput {
+    fn drop(&mut self) {
+        drop(self.file.take());
+        let _ = std::fs::remove_file(&self.path);
     }
 }
 

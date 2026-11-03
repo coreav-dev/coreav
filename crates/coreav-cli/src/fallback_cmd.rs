@@ -33,6 +33,26 @@ pub fn refuse(
     refusal: NotNative,
     strict_safe: StrictSafe,
 ) -> ExitCode {
+    refuse_inner(tool, args, refusal, strict_safe, None)
+}
+
+pub fn refuse_with_input(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+    input: std::fs::File,
+) -> ExitCode {
+    refuse_inner(tool, args, refusal, strict_safe, Some(input))
+}
+
+fn refuse_inner(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+    input: Option<std::fs::File>,
+) -> ExitCode {
     #[cfg(not(feature = "net"))]
     if fallback::has_remote_input(tool, args) {
         message(
@@ -78,7 +98,30 @@ pub fn refuse(
                 reason.redacted(tool),
                 hint
             );
-            let error = run(&path, args);
+            let error = if let Some(input) = input {
+                match Command::new(&path)
+                    .args(args)
+                    .env(GUARD, "1")
+                    .stdin(input)
+                    .status()
+                {
+                    Ok(status) => {
+                        #[cfg(unix)]
+                        let code = {
+                            use std::os::unix::process::ExitStatusExt;
+                            status
+                                .code()
+                                .unwrap_or_else(|| 128 + status.signal().unwrap_or(1))
+                        };
+                        #[cfg(not(unix))]
+                        let code = status.code().unwrap_or(1);
+                        return ExitCode::from(u8::try_from(code).unwrap_or(1));
+                    }
+                    Err(error) => error,
+                }
+            } else {
+                run(&path, args)
+            };
             message(tool, &format!("could not run {}: {error}", path.display()));
             log(tool, args, reason, Err(NotRun::Unusable));
             ExitCode::from(EXIT_UNSUPPORTED)

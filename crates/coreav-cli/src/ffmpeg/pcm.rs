@@ -421,6 +421,7 @@ pub(super) fn write(
         let options = Options {
             stream: Some(stream),
             format,
+            threads: command.input_threads.unwrap_or(1),
             ..Options::default()
         };
         let summary = coreav_audio::decode(source, &options, &Limits::default(), &mut sink)

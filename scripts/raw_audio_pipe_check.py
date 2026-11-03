@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import platform
 import struct
 import subprocess
 import sys
@@ -71,16 +72,19 @@ def check(coreav, oracle, root, smoke=False):
                 run(native_command(coreav, ["-y", *before], input_path, after, output), env=env)
                 require_equal(output.read_bytes(), expected, "file output")
                 count += 1
-            if not smoke and bits == 16:
-                after = ["-ar", "16000", "-ac", str(channels), "-f", "s16le"]
+            rate_formats = ["s16le"] if bits == 16 else []
+            if channels == 1 and not before:
+                rate_formats = ["s16le", "f32le"]
+            for output_format in rate_formats if not smoke else []:
+                after = ["-ar", "16000", "-ac", str(channels), "-f", output_format]
                 expected = run([ffmpeg, "-v", "error", *before, *AUDIO_DECODE_INPUT,
                                 "-i", input_path, *after, "pipe:"])
                 command = native_command(coreav, before, "pipe:", after, "pipe:")
-                if sys.platform == "darwin":
+                if (sys.platform, platform.machine()) != ("linux", "x86_64"):
                     refused = subprocess.run(command, input=input_path.read_bytes(),
                                              capture_output=True, env=env, timeout=30)
                     if refused.returncode != 4 or refused.stdout:
-                        raise AssertionError("unregistered macOS rate stage did not refuse cleanly")
+                        raise AssertionError("unregistered platform rate stage did not refuse cleanly")
                 else:
                     actual = run(command, data=input_path.read_bytes(), env=env)
                     require_equal(actual, expected, f"S16 rate/{input_path.name}")
