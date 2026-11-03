@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run the unchanged registered V2 evaluator on its AVI subset."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +14,7 @@ import oracle_pin
 
 
 def digest(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    return v2.sha256(path)
 
 
 def main():
@@ -32,7 +31,7 @@ def main():
     artifacts = [json.loads(line) for line in opts.build_log.read_text().splitlines() if line.startswith('{')]
     opts.harness, = [a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact'
                     and a.get('target', {}).get('name') == 'ffmpeg' and a.get('executable')]
-    for name in v2.FIXTURES:
+    for name in v2.INPUT_FILES:
         assert (opts.fixtures / name).is_file(), name
     opts.work.mkdir(parents=True, exist_ok=True)
     opts.env = v2.environment()
@@ -45,10 +44,21 @@ def main():
     decoded_oracle = hasattr(v2, 'mp3_encoder_start')
     rows = [(i, entry) for i, entry in v2.commands('v2') if entry['container'] == 'AVI']
     records = []
+    fixture_hashes = {}
+    for k in v2.INPUT_FILES:
+        print(f'stage=fixture_hash file={k} reason=started', flush=True)
+        try:
+            fixture_hashes[k] = digest(opts.fixtures / k)
+        except (OSError, MemoryError) as error:
+            reason = 'memory_error' if isinstance(error, MemoryError) else 'read_error'
+            print(f'stage=fixture_hash file={k} reason={reason}', file=sys.stderr, flush=True)
+            raise
+        print(f'stage=fixture_hash file={k} reason=complete', flush=True)
     report = {'scope': 'AVI subset of the registered V2 commands', 'decoded_oracle_present': decoded_oracle,
               'program_sha256': {k: digest(getattr(opts, k)) for k in ('coreav', 'harness', 'ffmpeg', 'ffprobe', 'x264')},
               'evaluator_sha256': digest(v2.__file__),
-              'fixture_sha256': {k: digest(opts.fixtures / k) for k in v2.FIXTURES}, 'records': records}
+              'fixture_sha256': fixture_hashes,
+              'fixture_registration': v2.v2_fixture_inputs.provenance(), 'records': records}
     try:
         for index, entry in rows:
             record = v2.evaluate(opts, index, entry)

@@ -72,6 +72,12 @@ def sha256(path):
     return h.hexdigest()
 
 
+def fixture_files():
+    sys.path.insert(0, str(HERE))
+    import v2_fixture_inputs
+    return (*FIXTURES, *v2_fixture_inputs.FILES)
+
+
 def host(job, oracle, fixtures=None, binaries=None):
     cpu = mem = None
     if os.path.exists('/proc/cpuinfo'):
@@ -85,7 +91,7 @@ def host(job, oracle, fixtures=None, binaries=None):
                                                     text=True).stdout.partition('\n')[0]}
                       for n in ('ffmpeg', 'ffprobe')}}
     if fixtures:
-        out['fixtures'] = {n: sha256(pathlib.Path(fixtures) / n) for n in FIXTURES}
+        out['fixtures'] = {n: sha256(pathlib.Path(fixtures) / n) for n in fixture_files()}
     if binaries:
         out['decode-oracle'] = sha256(pathlib.Path(binaries) / 'decode-oracle')
     return out
@@ -130,8 +136,8 @@ def manifest_problems(build, hosts, set_name, shards, shard_counts, key, root=RO
     if any(build_id not in v['version'] for h in hosts for v in h['ffmpeg'].values()):
         problems.append(f'an ffmpeg or ffprobe is not the pinned build {build_id}')
     fixtures = [h for h in hosts if 'fixtures' in h]
-    if len(fixtures) != 1 or sorted(fixtures[0]['fixtures']) != sorted(FIXTURES):
-        problems.append('the five fixtures of V2 and V3 are not recorded once')
+    if len(fixtures) != 1 or sorted(fixtures[0]['fixtures']) != sorted(fixture_files()):
+        problems.append('the five fixtures and supplemental V2 inputs are not recorded once')
     if set_name != 'fixtures' and sorted(c['shard'] for c in shard_counts) != list(range(shards)):
         problems.append(f'{shards - len(shard_counts)} of {shards} V1 shards reported no count: '
                         'their files go to the rerun host')
