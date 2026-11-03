@@ -5,6 +5,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BASE = runpy.run_path(str(ROOT / 'scripts/tests/test_notices_check.py'))
+RUNTIMES = runpy.run_path(str(ROOT / 'packages/cli/scripts/notices_check.py'))['runtime_sections']
 
 
 class RustDistributionNoticesCheck(unittest.TestCase):
@@ -18,12 +19,45 @@ class RustDistributionNoticesCheck(unittest.TestCase):
     def notices(self, target):
         return (f'Rust dependency notices for coreav on {target}.\n'
                 f'=== Rust standard library {self.pin["RUST_DIST_TOOLCHAIN"]} '
-                f'({self.pin["RUST_DIST_COMMIT"]}) (Rust toolchain) ===\n').encode()
+                f'({self.pin["RUST_DIST_COMMIT"]}) (Rust toolchain) ===\n'
+                + '\n'.join(RUNTIMES(target, self.pin['RUST_DIST_COMMIT']))).encode()
+
+    def test_rust_headers_do_not_cover_missing_or_changed_c_runtime_notices(self):
+        for target in ('x86_64-unknown-linux-musl', 'aarch64-unknown-linux-musl', 'wasm32-wasip1'):
+            notice = self.notices(target)
+            for section in RUNTIMES(target, self.pin['RUST_DIST_COMMIT']):
+                for value in (notice.replace(section.encode(), b''),
+                              notice.replace(section.encode(), section.replace('Permission', 'Restriction').encode(), 1)):
+                    with self.subTest(target=target):
+                        entries = self.fixture.files('package')
+                        entries['package/THIRD-PARTY-NOTICES.txt'] = value
+                        name = 'coreav-1.0.0.tgz' if target == 'wasm32-wasip1' else f'coreav-1.0.0-{target}.tar.gz'
+                        archive = self.fixture.tarball(name, entries)
+                        result = BASE['check']('--third-party', archive)
+                        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
 
     def archive(self, name, target):
         entries = self.fixture.files('package')
         entries['package/THIRD-PARTY-NOTICES.txt'] = self.notices(target)
         return self.fixture.zip(name, entries) if name.endswith('.zip') else self.fixture.tarball(name, entries)
+
+    def test_windows_archives_require_the_static_crt_notice_and_terms_link(self):
+        target = 'x86_64-pc-windows-msvc'
+        text = self.notices(target)
+        for name in ('coreav-cli-win32-x64-1.0.0.tgz',
+                     f'coreav-1.0.0-{target}.zip',
+                     f'coreav-full-1.0.0-{target}.zip'):
+            for changed in (text.split(b'=== Microsoft C runtime')[0],
+                            text.replace(b'vcruntime is distributed', b'other runtime is distributed'),
+                            text.replace(b'UCRT is distributed', b'other runtime is distributed'),
+                            text.replace(b'https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/', b'https://example.invalid/'),
+                            text.replace(b'https://learn.microsoft.com/en-us/legal/windows-sdk/license', b'https://example.invalid/')):
+                with self.subTest(name=name):
+                    entries = self.fixture.files('package')
+                    entries['package/THIRD-PARTY-NOTICES.txt'] = changed
+                    archive = self.fixture.zip(name, entries) if name.endswith('.zip') else self.fixture.tarball(name, entries)
+                    result = BASE['check']('--third-party', archive)
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
 
     def test_every_rust_distribution_shape(self):
         for platform, target in [

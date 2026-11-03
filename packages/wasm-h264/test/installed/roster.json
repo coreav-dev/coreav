@@ -1,0 +1,27 @@
+{
+  "schema": "coreav.thumbnail-fixtures/1",
+  "fps": 25,
+  "frames": 50,
+  "keyint": 25,
+  "containers": ["mp4", "matroska"],
+  "entropy": ["cavlc", "cabac"],
+  "formats": ["jpeg", "png", "webp"],
+  "geometries": [
+    {"id": "360p", "width": 640, "height": 360},
+    {"id": "720p", "width": 1280, "height": 720},
+    {"id": "1080p", "width": 1920, "height": 1080},
+    {"id": "portrait", "width": 1080, "height": 1920},
+    {"id": "coded-crop", "width": 1920, "height": 1088, "crop": "0,0,0,8"}
+  ],
+  "variants": ["rotate90", "rotate180", "rotate270", "sar", "edits", "stream-ties"],
+  "filters": ["bilinear", "bicubic", "area"],
+  "chroma": ["native", "full"],
+  "boundaries": ["legal-many-sets", "legal-many-slices", "later-sample-description", "partial-matroska"],
+  "hostile": [
+    "sps-enormous", "sps-overflow", "invalid-crop", "empty-crop",
+    "sample-description-change", "conflicting-in-band-sps", "many-sets", "many-slices",
+    "recovery-non-idr", "exact-fallback", "mixed-slices", "multiple-pictures",
+    "truncated-idr", "restored-packet-limit", "output-limit",
+    "planning-fallback-limit", "work-limit"
+  ]
+}

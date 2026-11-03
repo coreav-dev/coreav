@@ -105,6 +105,36 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     }
 }
 
+#[cfg(feature = "input-capture")]
+pub fn run_ffmpeg_captured(args: &[OsString], strict_safe: StrictSafe, target: &Path) -> ExitCode {
+    let args = match strings("ffmpeg", args) {
+        Ok(args) => args,
+        Err(code) => return code,
+    };
+    match ffmpeg::run_captured(&args, strict_safe, target) {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(Stop::Refused(Refusal::Usage(text))) => {
+            message("ffmpeg", &text);
+            ExitCode::from(EXIT_USAGE)
+        }
+        Err(Stop::Refused(_)) => {
+            message(
+                "ffmpeg",
+                "input capture requires a supported native AAC encode",
+            );
+            ExitCode::from(EXIT_UNSUPPORTED)
+        }
+        Err(Stop::Failed(failure)) => {
+            message("ffmpeg", &failure.to_json().to_string());
+            ExitCode::from(if failure.is_io() {
+                EXIT_IO
+            } else {
+                EXIT_REJECTED
+            })
+        }
+    }
+}
+
 /// A tool's usage text on standard output, for `-h` and `--help`.
 fn print_usage(text: &str) -> ExitCode {
     let mut out = std::io::stdout().lock();
@@ -140,6 +170,14 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    #[cfg(not(feature = "net"))]
+    if options.input.starts_with("http://") || options.input.starts_with("https://") {
+        message(
+            "ffprobe",
+            "this build has no network; URL inputs are not supported",
+        );
+        return ExitCode::from(EXIT_USAGE);
+    }
     if !options.sections {
         let refusal = NotNative::property(
             "no section",
@@ -206,7 +244,7 @@ fn describe(failure: &Failure) -> (i64, String) {
 }
 
 fn local(input: &str, options: &ffprobe::args::Options) -> Result<(), Outcome> {
-    let path = Path::new(input);
+    let path = Path::new(input.strip_prefix("file:").unwrap_or(input));
     let size = std::fs::metadata(path)
         .map_err(|e| Outcome::Read(Failure::io(e)))?
         .len();

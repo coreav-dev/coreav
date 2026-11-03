@@ -231,6 +231,7 @@ pub fn matroska_limit_name(limit: coreav_mkv::LimitKind) -> &'static str {
         L::RetainedBytes => "max_retained_bytes",
         L::IndexBytes => "max_index_bytes",
         L::PacketBytes => "max_packet_bytes",
+        L::PlanningBytes => "max_planning_bytes",
         L::BlockWork => "max_block_work",
         L::Tracks => "max_tracks",
     }
@@ -257,6 +258,7 @@ pub fn limit_name(limit: LimitKind) -> &'static str {
         LimitKind::RetainedBytes => "max_retained_bytes",
         LimitKind::TableBytes => "max_table_bytes",
         LimitKind::PacketBytes => "max_packet_bytes",
+        LimitKind::PlanningBytes => "max_planning_bytes",
         LimitKind::SampleWork => "max_sample_work",
         LimitKind::Fragments => "max_fragments",
         LimitKind::Tracks => "max_tracks",

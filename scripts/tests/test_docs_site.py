@@ -6,6 +6,7 @@
 - A link to another page is root-relative without the base path: Mintlify serves the site under /docs and adds it
   itself, so /docs/install would become /docs/docs/install.
 - Every measurement page under docs/measurements is listed on the measurements page.
+- Every file under docs/agents is listed in AGENTS.md, and every docs/agents link in that index is a file.
 - No page breaks a rule of scripts/pr_text_check.py, or makes a speed claim against FFmpeg: that belongs on a
   measurement page, with its bars.
 
@@ -81,6 +82,30 @@ class DocsSite(unittest.TestCase):
                     self.assertTrue(fact in text, f'{name}: describe the native H.264 session deadline, including time spent writing output')
                 self.assertFalse('per decoder call' in text, f'{name}: the native H.264 deadline is not renewed for each call')
 
+    def test_pnpm_approval_documents_both_supported_settings(self):
+        platform = (SITE / 'platforms.mdx').read_text()
+        for fact in ('pnpm 10.0 through 10.4', 'pnpm 10.5 through 10.x', 'pnpm 11 and later',
+                     'onlyBuiltDependencies', 'allowBuilds', 'package.json', 'pnpm-workspace.yaml',
+                     'preserve existing approvals', 'copy the complete list', 'pnpm rebuild coreav',
+                     'neverBuiltDependencies', 'do not combine'):
+            self.assertIn(fact, platform, f'docs-site/platforms.mdx: restore the approval rule {fact}')
+        for name in ('packages/cli/README.md', 'docs/design/npm-cli.md'):
+            text = (ROOT / name).read_text()
+            with self.subTest(page=name):
+                self.assertIn('https://coreav.dev/docs/platforms#install-scripts', text,
+                              f'{name}: link the one owner of version-specific pnpm settings')
+                self.assertNotRegex(text, r'onlyBuiltDependencies|allowBuilds',
+                                    f'{name}: keep version-specific pnpm settings only on the platform page')
+                self.assertIn('pnpm rebuild coreav', text,
+                              f'{name}: tell existing installations to run pnpm rebuild coreav')
+
+    def test_bun_trust_documents_the_explicit_list(self):
+        platform = (SITE / 'platforms.mdx').read_text()
+        for fact in ('trustedDependencies', 'replaces its default list', 'any required packages'):
+            self.assertIn(fact, platform, f'docs-site/platforms.mdx: restore the Bun trust rule {fact}')
+        self.assertIn('https://coreav.dev/docs/platforms#install-scripts',
+                      (ROOT / 'packages/cli/README.md').read_text())
+
     def test_navigation_and_pages_agree(self):
         navigation = listed(json.loads((SITE / 'docs.json').read_text())['navigation'])
         self.assertEqual(sorted(set(navigation)), sorted(navigation), 'docs-site/docs.json lists a page twice')
@@ -119,6 +144,18 @@ class DocsSite(unittest.TestCase):
             with self.subTest(page=page.name):
                 self.assertTrue(f'docs/measurements/{page.name})' in index,
                                 f'docs/measurements/{page.name} is not listed on docs-site/measurements.mdx: add a row for it')
+
+    def test_every_agents_area_file_is_listed(self):
+        index = (ROOT / 'AGENTS.md').read_text()
+        area = ROOT / 'docs' / 'agents'
+        for page in sorted(area.glob('*.md')):
+            with self.subTest(page=page.name):
+                self.assertTrue(f'docs/agents/{page.name})' in index,
+                                f'docs/agents/{page.name} is not listed in AGENTS.md: add a row for it')
+        for name in sorted(set(re.findall(r'docs/agents/([A-Za-z0-9._-]+\.md)', index))):
+            with self.subTest(link=name):
+                self.assertTrue((area / name).is_file(),
+                                f'AGENTS.md links docs/agents/{name}, which is not a file: add the file or remove that row')
 
     def test_public_text(self):
         for page in sorted(SITE.rglob('*')):

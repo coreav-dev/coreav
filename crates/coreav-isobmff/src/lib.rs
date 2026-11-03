@@ -26,6 +26,7 @@ mod limits;
 pub mod metadata;
 mod movie;
 mod packets;
+mod planning;
 mod remote;
 mod scan;
 mod seek;
@@ -37,9 +38,10 @@ mod tables;
 pub use codec::{
     Allowlist, Codec, CodecConfig, Color, ConfigRecord, DeclaredBitRate, DolbyVision,
     LosslessConfig, MAX_OTHER_BOXES, PcmFormat, ProResProfile, Profile, SampleDescription,
-    avc_max_num_ref_frames, avc_parameter_sets, avc_timing, describe_audio_specific_config,
-    describe_config_record, esds_decoder_specific_info, hevc_window_empty, lossless_config,
-    parameter_set_color,
+    avc_max_num_ref_frames, avc_max_num_ref_frames_with_planning, avc_parameter_sets,
+    avc_parameter_sets_with_planning, avc_timing, describe_audio_specific_config,
+    describe_config_record, describe_config_record_with_planning, esds_decoder_specific_info,
+    hevc_window_empty, lossless_config, parameter_set_color, parameter_set_color_with_planning,
 };
 pub use error::{Error, LimitKind, Warning};
 pub use fragment::{FragmentSamples, TrackDefaults, subsegment_samples};
@@ -48,9 +50,10 @@ pub use header::{BoxHeader, MAX_HEADER_LEN, Parsed, parse_box_header};
 pub use limits::Limits;
 pub use movie::{
     DropReason, DroppedStream, DurationSource, EditList, IDENTITY_MATRIX, MAX_CHAPTER_REFERENCES,
-    Movie, PresentationSpan, Track, TrackKind, probe, unix_time,
+    Movie, PresentationSpan, SampleTotals, Track, TrackKind, probe, probe_with_planning, unix_time,
 };
 pub use packets::{Budget, Packet, Packets, SampleRun, StoredSample};
+pub use planning::{PlanningBudget, PlanningLimit};
 pub use remote::{
     ByteRange, DownloadReason, FragmentPlan, IndexRoute, IndexStatus, RangePolicy, RangeReader,
     plan_index,

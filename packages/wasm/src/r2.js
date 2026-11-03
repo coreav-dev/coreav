@@ -1,6 +1,6 @@
 import { SourceChangedError, SourceNotFoundError } from "./errors.js";
 
-import { rangeSource } from "./sources.js";
+import { adapterRangeSource } from "./sources.js";
 
 const MiB = 1024 * 1024;
 
@@ -11,7 +11,7 @@ const MiB = 1024 * 1024;
 export function r2Source(bucket, key, options = {}) {
   if (typeof bucket?.get !== "function") throw new TypeError("bucket must be an R2 bucket binding");
   if (typeof key !== "string") throw new TypeError("key must be a string");
-  return rangeSource(async ({offset: offset, length: length, validator: validator}) => {
+  return adapterRangeSource(async ({offset: offset, length: length, validator: validator}) => {
     const object = await bucket.get(key, {
       range: {
         offset: offset,

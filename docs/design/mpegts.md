@@ -748,6 +748,13 @@ the next one. A stream's duration runs from its first timestamp to that
 end; the file's, from the earliest start to the latest end of a program,
 the longest program being the file's duration.
 
+The latest observed tail timestamp remains in `last_pts` even when that
+window gives no unit duration and therefore no `end`. A compatibility
+caller with a configured video clock can use that observation without
+reading a larger tail. Retry merging preserves an already selected
+end/timestamp pair and does not erase a last-only observation; see
+[transport tail timestamps](ffprobe-ts-tail.md).
+
 A stream the file times once shows no step, and its last access unit
 still lasts: an H.264 stream whose sequence parameter set carries timing
 information (ITU-T H.264 E.2.1) ends one tick of the clock it states

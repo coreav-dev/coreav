@@ -1,0 +1,22 @@
+[package]
+name = "coreav-backend-vp9"
+description = "CoreAV's opt-in scalar profile-0 VP9 decode-boundary backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+coreav-vp9 = { path = "../coreav-vp9" }
+
+[dev-dependencies]
+serde_json.workspace = true
+md-5 = "0.10"
+
+[lints]
+workspace = true

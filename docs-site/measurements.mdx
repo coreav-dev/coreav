@@ -38,9 +38,21 @@ The media corpus that the correctness bars use is private and is never published
 
 ## Decoding and transcoding
 
+Current audio-output comparisons have narrowly scoped differences from pinned FFmpeg 9.0.2. The [audio-output divergence reference](https://github.com/coreav-dev/coreav/blob/main/docs/known-divergences-audio-output.md) records the commands, presentation rules, and assertions that reject changed oracle behavior:
+
+| Comparison | Difference |
+|---|---|
+| Generated Opus MP4 re-encoded to AAC or Opus | CoreAV preserves 96,000 presented samples; FFmpeg retains 96,648. The composed AAC check derives presentation from the source rather than that ordinary baseline. |
+| Generated Opus MP4 copied to Matroska | CoreAV carries the edit end as discard padding and presents 11,520 samples; FFmpeg presents 12,168. |
+| MP3 output at the registered frame-boundary lengths | CoreAV preserves the original sample count; FFmpeg's final-padding clamp adds from 1 through 46 samples. |
+| FLAC output with 1 through 15 samples | CoreAV writes a legal short final block; the default FFmpeg encoder refuses. Only the correctness reference uses an explicit block size, after reproducing that refusal. |
+
+These records do not change the historical measurements below, frozen judging inputs, or acceptance thresholds. [Float-to-PCM24 rounding](https://github.com/coreav-dev/coreav/blob/main/docs/known-divergences-decode-audio.md#float-to-pcm24-rounding) is documented separately and grants no oracle tolerance.
+
 | Page | What it measures |
 |---|---|
 | [`coreav transcode`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md) | Correctness and speed of the transcode against FFmpeg with libx264 |
+| [Native FLAC output](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/flac-output.md) | The failed registered size comparison and shared-host timing diagnostics against FFmpeg |
 | [The `x264` program on 10-bit sources](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode-x264-10bit.md) | Where the extra time on 10-bit sources goes |
 | [VP9 through libvpx](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/vp9-libvpx.md) | `coreav thumbnail` and `coreav transcode` on VP9 with libvpx |
 | [Release VP9 decode cost](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/vp9-release-cost.md) | Allocator and frame-export experiments that do not meet full-set CPU parity |

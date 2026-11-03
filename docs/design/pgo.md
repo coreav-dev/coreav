@@ -2,6 +2,8 @@
 
 Status: Proposed.
 
+The earlier round below remains historical evidence. The new opt-in recipe and separately registered evaluation are in [Opt-in H.264 PGO builds](h264-pgo-release.md). Neither changes release defaults.
+
 The rounds in `docs/design/h264.md` change the decoder's code one area at
 a time. Profile-guided optimisation (PGO) changes how the compiler lays
 out and inlines all of it, from branch counts gathered on a run: a build

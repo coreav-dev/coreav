@@ -105,19 +105,7 @@ pub(super) fn isobmff<S: Source>(
                 0,
                 0,
             )?;
-            let mut header = config::description(
-                config::iso_codec(d.codec)?,
-                d.width
-                    .zip(d.height)
-                    .map(|(w, h)| (u32::from(w), u32::from(h))),
-                d.pixel_aspect,
-                d.configured_sample_rate.or(d.sample_rate),
-                d.channels,
-                d.configured_bits.map(u32::from),
-                d.codec_config
-                    .as_ref()
-                    .map_or(&[][..], |c| c.data.as_slice()),
-            )?;
+            let mut header = iso_mapping(d)?;
             if let Media::Video { colour, .. } = &mut header.media {
                 *colour = d.color;
             }
@@ -348,21 +336,7 @@ pub(super) fn matroska<S: Source>(
                 }
             }
             (_, Some(a)) => {
-                if replacement.is_none()
-                    && (a.sampling_frequency.fract() != 0.0
-                        || a.output_sampling_frequency
-                            .is_some_and(|rate| rate != a.sampling_frequency))
-                {
-                    return Err(unsupported(
-                        "Matroska output cannot preserve this sampling frequency",
-                    ));
-                }
-                if !a.sampling_frequency.is_finite()
-                    || a.sampling_frequency < 1.0
-                    || a.sampling_frequency > f64::from(u32::MAX)
-                {
-                    return Err(unsupported("an invalid Matroska sampling frequency"));
-                }
+                matroska_audio_rate(a, replacement.is_none())?;
                 Media::Audio {
                     sample_rate: a.sampling_frequency as u32,
                     channels: u32::try_from(a.channels).map_err(|_| overflow())?,
@@ -499,4 +473,110 @@ pub(super) fn matroska<S: Source>(
         }
     }
     Ok(tracks)
+}
+
+/// The header `write_output` builds for a copied ISO track. One mapping,
+/// shared with the encode preflight.
+pub(super) fn iso_mapping(d: &coreav_isobmff::SampleDescription) -> Result<Track, Error> {
+    config::description(
+        config::iso_codec(d.codec)?,
+        d.width
+            .zip(d.height)
+            .map(|(w, h)| (u32::from(w), u32::from(h))),
+        d.pixel_aspect,
+        d.configured_sample_rate.or(d.sample_rate),
+        d.channels,
+        d.configured_bits.map(u32::from),
+        d.codec_config
+            .as_ref()
+            .map_or(&[][..], |c| c.data.as_slice()),
+    )
+}
+
+/// The sampling-frequency refusal `write_output` raises. A replaced track
+/// skips the preservation check: the encoder's clock replaces the source.
+pub(super) fn matroska_audio_rate(audio: &coreav_mkv::Audio, copied: bool) -> Result<(), Error> {
+    if copied
+        && (audio.sampling_frequency.fract() != 0.0
+            || audio
+                .output_sampling_frequency
+                .is_some_and(|rate| rate != audio.sampling_frequency))
+    {
+        return Err(unsupported(
+            "Matroska output cannot preserve this sampling frequency",
+        ));
+    }
+    if !audio.sampling_frequency.is_finite()
+        || audio.sampling_frequency < 1.0
+        || audio.sampling_frequency > f64::from(u32::MAX)
+    {
+        return Err(unsupported("an invalid Matroska sampling frequency"));
+    }
+    Ok(())
+}
+
+/// The writer's refusal when a copied audio stream cannot be mapped.
+/// A stream that is not audio, or a file that cannot be probed, is `Ok`:
+/// the writer still owns those failures. Reads descriptions only.
+pub(super) fn copied_audio_mapping<S: Source>(
+    source: &mut S,
+    streams: &[usize],
+) -> Result<(), Error> {
+    if streams.is_empty() {
+        return Ok(());
+    }
+    if matroska_prefix(source) {
+        copied_matroska_audio(source, streams)
+    } else {
+        copied_iso_audio(source, streams)
+    }
+}
+
+fn matroska_prefix<S: Source>(source: &mut S) -> bool {
+    let Ok(size) = source.len() else {
+        return false;
+    };
+    if size < 4 {
+        return false;
+    }
+    let mut prefix = [0u8; 4];
+    source.read_exact_at(0, &mut prefix).is_ok() && coreav_mkv::sniff(&prefix)
+}
+
+fn copied_iso_audio<S: Source>(source: &mut S, streams: &[usize]) -> Result<(), Error> {
+    let movie =
+        coreav_isobmff::probe(source, &Limits::default(), &Allowlist::listing()).map_err(iso)?;
+    for &index in streams {
+        let track = movie
+            .tracks
+            .iter()
+            .find(|t| t.stream_index == index)
+            .ok_or_else(|| unsupported("a selected ISO track is not readable"))?;
+        if track.kind != TrackKind::Audio {
+            continue;
+        }
+        let _ = iso_mapping(&track.description)?;
+    }
+    Ok(())
+}
+
+fn copied_matroska_audio<S: Source>(source: &mut S, streams: &[usize]) -> Result<(), Error> {
+    let segment = coreav_mkv::probe(
+        source,
+        &coreav_mkv::Limits::default(),
+        &coreav_mkv::Allowlist::any(),
+    )?;
+    for &index in streams {
+        let track = segment
+            .tracks
+            .iter()
+            .find(|t| t.stream_index == index)
+            .ok_or_else(|| unsupported("a selected Matroska track is not readable"))?;
+        let Some(audio) = &track.audio else {
+            continue;
+        };
+        matroska_audio_rate(audio, true)?;
+        let _ = config::codec_id(&track.codec_id)?;
+    }
+    Ok(())
 }

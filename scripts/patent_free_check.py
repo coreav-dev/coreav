@@ -29,6 +29,7 @@ PATENTED = {
     'coreav-h264': 'H.264',
     'coreav-kernels-h264': 'H.264',
     'coreav-backend-h264': 'H.264',
+    'coreav-backend-vp9': 'VP9',
     # The sources disagree on whether AAC-LC patents are still in force; the
     # decoder ships opt-in, as H.264 does (docs/design/audio-decode.md).
     'coreav-aac': 'AAC',

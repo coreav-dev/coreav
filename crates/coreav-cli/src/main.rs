@@ -101,6 +101,9 @@ struct Cli {
     /// refused (exit status 4).
     #[arg(long)]
     strict_safe: bool,
+    #[cfg(feature = "input-capture")]
+    #[arg(long, hide = true)]
+    capture_encoder_input: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -250,8 +253,8 @@ enum Command {
     /// supported subset. With --strict-safe (COREAV_STRICT_SAFE=1), for
     /// untrusted input, anything else is refused with exit status 4;
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
-    /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
-    /// MP4/MOV, Matroska/WebM and MPEG-TS (docs/measurements/compat-ffprobe.md).
+    /// C code. See https://coreav.dev/docs/commands/ffprobe for supported
+    /// options and field agreement for MP4/MOV, Matroska/WebM and MPEG-TS.
     /// `coreav` run as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
@@ -260,7 +263,8 @@ enum Command {
     /// extraction to M4A, with ffmpeg's stream selection. With --strict-safe
     /// (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused
     /// with exit status 4; without it, anything else runs the ffmpeg program
-    /// on PATH, FFmpeg's C code (docs/design/compat-cli.md). `coreav` run as
+    /// on PATH, FFmpeg's C code. See https://coreav.dev/docs/commands/ffmpeg.
+    /// `coreav` run as
     /// `ffmpeg` does the same.
     #[command(disable_help_flag = true)]
     Ffmpeg(Deferred<ToolArgs>),
@@ -284,11 +288,11 @@ struct ToolArgs {
     about = "Re-encode the video to H.264 in MP4 and copy the audio",
     long_about = "Re-encode the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 \
 and copy its audio, as `ffmpeg -i IN -c:v libx264 -c:a copy OUT.mp4` does \
-(docs/design/transcode.md).\n\n\
+(https://coreav.dev/docs/commands/transcode).\n\n\
 With an H.264 source it is supported: the options and the coreav.transcode/1 \
 summary are stable. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) are \
 experimental: measured slower than FFmpeg's command and with known defects \
-(docs/measurements/transcode.md). The encoder is a separate program the operator installs: \
+(https://coreav.dev/docs/measurements/transcode). The encoder is a separate program the operator installs: \
 an x264 program, or an ffmpeg program built with libx264; CoreAV runs it as a \
 resource-limited process and gives it only raw frames."
 )]
@@ -752,7 +756,7 @@ struct ProbeArgs {
     #[arg(long)]
     no_scan_fragments: bool,
     /// Read the parameter sets and frame headers in every sample of each
-    /// video stream for `video.scanned_size` (docs/design/frame-sizes.md).
+    /// video stream for `video.scanned_size` (https://coreav.dev/docs/commands/probe).
     /// Reads the headers of every sample, not their coded data. For
     /// Matroska and WebM, the same pass also gives each stream's
     /// `duration`, `frame_count` and `bit_rate`.
@@ -928,6 +932,17 @@ impl<W: Write> Write for Watched<W> {
 /// Runs the command `cli` describes.
 #[cfg_attr(not(feature = "thumbnail"), allow(unused_variables))]
 fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
+    #[cfg(feature = "input-capture")]
+    if let Some(target) = cli.capture_encoder_input.as_ref() {
+        return match &cli.command {
+            Command::Ffmpeg(args) => compat_cmd::run_ffmpeg_captured(
+                &args.args,
+                StrictSafe::new(cli.strict_safe),
+                target,
+            ),
+            _ => usage("--capture-encoder-input requires the ffmpeg command"),
+        };
+    }
     match cli.command {
         Command::Ffprobe(args) => {
             compat_cmd::run_ffprobe(&args.args, StrictSafe::new(cli.strict_safe))
@@ -1090,6 +1105,8 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
         }),
+        #[cfg(feature = "input-capture")]
+        input_capture: None,
         pixel_format: None,
         one_size: false,
         encoder,

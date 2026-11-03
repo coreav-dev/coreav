@@ -392,3 +392,125 @@ fn open_refuses_a_frame_past_the_frame_limits_that_the_backend_returns() {
         );
     }
 }
+
+#[test]
+fn a_wrapper_frame_limit_ends_the_session_instead_of_allowing_retry() {
+    let backend = Careless {
+        width: 64,
+        height: 48,
+    };
+    let mut opened = open(
+        &StreamConfig::new(Codec::H264),
+        &Policy::default(),
+        &Limits {
+            max_width: 63,
+            ..roomy()
+        },
+        &[&backend],
+    )
+    .expect("opened");
+    opened.decoder.send_packet(&packet(&[0])).expect("queued");
+    assert_eq!(
+        opened.decoder.receive_frame().err().map(|e| e.kind),
+        Some(ErrorKind::Limit)
+    );
+    assert!(opened.decoder.receive_frame().is_err());
+    assert!(opened.decoder.send_eof().is_err());
+    assert!(opened.decoder.send_packet(&packet(&[0])).is_err());
+    assert_eq!(opened.decoder.info().decoder, "careless");
+}
+
+#[test]
+fn backend_limits_from_every_operation_drop_the_session_and_prevent_more_calls() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct Failing {
+        operation: usize,
+        drops: Arc<AtomicUsize>,
+        info: coreav_decode::DecoderInfo,
+    }
+    impl Drop for Failing {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    impl Decoder for Failing {
+        fn send_packet(&mut self, _: &Packet<'_>) -> Result<(), Error> {
+            if self.operation == 0 {
+                Err(Error::new(ErrorKind::Limit, "packet limit"))
+            } else {
+                Ok(())
+            }
+        }
+        fn send_eof(&mut self) -> Result<(), Error> {
+            if self.operation == 1 {
+                Err(Error::new(ErrorKind::Limit, "EOF limit"))
+            } else {
+                Ok(())
+            }
+        }
+        fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
+            if self.operation == 2 {
+                Err(Error::new(ErrorKind::Limit, "frame limit"))
+            } else {
+                Ok(None)
+            }
+        }
+        fn info(&self) -> &coreav_decode::DecoderInfo {
+            &self.info
+        }
+    }
+    struct FailingBackend {
+        operation: usize,
+        drops: Arc<AtomicUsize>,
+    }
+    impl Backend for FailingBackend {
+        fn kind(&self) -> BackendKind {
+            BackendKind::Native
+        }
+        fn supports(&self, _: &StreamConfig, _: &StreamTraits) -> Support {
+            Support::Yes
+        }
+        fn open(&self, _: &StreamConfig, _: &Limits) -> Result<Box<dyn Decoder>, Error> {
+            Ok(Box::new(Failing {
+                operation: self.operation,
+                drops: Arc::clone(&self.drops),
+                info: coreav_decode::DecoderInfo {
+                    backend: BackendKind::Native,
+                    isolation: coreav_decode::Isolation::InProcess,
+                    decoder: "failing".into(),
+                },
+            }))
+        }
+    }
+    for operation in 0..3 {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let backend = FailingBackend {
+            operation,
+            drops: Arc::clone(&drops),
+        };
+        let mut opened = open(
+            &StreamConfig::new(Codec::H264),
+            &Policy::default(),
+            &roomy(),
+            &[&backend],
+        )
+        .expect("opened");
+        let error = match operation {
+            0 => opened.decoder.send_packet(&packet(&[0])).err(),
+            1 => opened.decoder.send_eof().err(),
+            _ => opened.decoder.receive_frame().err(),
+        }
+        .expect("limit");
+        assert_eq!(error.kind, ErrorKind::Limit);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert!(opened.decoder.send_packet(&packet(&[0])).is_err());
+        assert!(opened.decoder.send_eof().is_err());
+        assert!(opened.decoder.receive_frame().is_err());
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert_eq!(opened.decoder.info().decoder, "failing");
+    }
+}

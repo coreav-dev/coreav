@@ -1,14 +1,12 @@
 //! MP4, MOV and other ISO base media files: the video stream, its packets
 //! and their presentation times after the edit list.
 
-use std::collections::BTreeMap;
-
 use coreav_decode::{Codec, CodecConfig, ConfigKind, StreamConfig};
 use coreav_frame::{ChromaLocation, ColorInfo};
-use coreav_isobmff::access::{AccessFormat, read_frame_access};
+use coreav_isobmff::access::{AccessFormat, read_frame_access_with_planning};
 use coreav_isobmff::{
-    Allowlist, Budget, Color, EditList, Limits, Movie, Packet, Rational, SampleDescription, Source,
-    Track, TrackKind, probe,
+    Allowlist, Budget, Color, EditList, Limits, Movie, Packet, PlanningBudget, Rational,
+    SampleDescription, Source, Track, TrackKind, probe,
 };
 
 use crate::select::Sample;
@@ -28,13 +26,37 @@ fn allowlist(options: &ThumbnailOptions) -> Allowlist {
     Allowlist::new(&codecs)
 }
 
+fn allowlist_with_planning(
+    options: &ThumbnailOptions,
+    planning: Option<&PlanningBudget>,
+) -> Result<Allowlist, Error> {
+    let Some(planning) = planning else {
+        return Ok(allowlist(options));
+    };
+    let defaults = Allowlist::default_with_planning(planning)?;
+    let mut codecs = crate::copy(Some(planning), defaults.codecs())?;
+    if options.policy.allowlist.allows(Codec::Vp8) {
+        crate::reserve(Some(planning), &mut codecs, 1)?;
+        codecs.push(coreav_isobmff::Codec::Vp8);
+    }
+    Ok(Allowlist::new_with_planning(&codecs, planning)?)
+}
+
 pub(crate) fn plan<S: Source>(
     source: &mut S,
     options: &ThumbnailOptions,
     first: Option<usize>,
+    planning: Option<&PlanningBudget>,
+    seek: bool,
 ) -> Result<Plan, Error> {
     let limits = &options.isobmff_limits;
-    let mut movie = probe(&mut *source, limits, &allowlist(options))?;
+    let allowlist = allowlist_with_planning(options, planning)?;
+    let mut movie = match planning {
+        Some(planning) => {
+            coreav_isobmff::probe_with_planning(&mut *source, limits, &allowlist, planning.clone())?
+        }
+        None => probe(&mut *source, limits, &allowlist)?,
+    };
     if movie.needs_fragment_scan() {
         movie.scan_fragments(&mut *source, limits)?;
     }
@@ -55,8 +77,7 @@ pub(crate) fn plan<S: Source>(
                 _ => Some(t),
             }
         })
-        .ok_or(Error::NoVideo)?
-        .clone();
+        .ok_or(Error::NoVideo)?;
     let description = &track.description;
     let codec = match description.codec {
         coreav_isobmff::Codec::H264 => Codec::H264,
@@ -74,33 +95,45 @@ pub(crate) fn plan<S: Source>(
     let config = if codec == Codec::ProRes {
         Some(CodecConfig {
             kind: ConfigKind::ProResFourcc,
-            data: description.fourcc.0.to_vec(),
+            data: crate::copy(planning, &description.fourcc.0)?,
         })
     } else {
-        description.codec_config.as_ref().and_then(|c| {
-            let kind = match &c.kind.0 {
-                b"avcC" => ConfigKind::Avcc,
-                b"hvcC" => ConfigKind::Hvcc,
-                b"av1C" => ConfigKind::Av1c,
-                b"vpcC" => ConfigKind::Vpcc,
-                _ => return None,
-            };
-            Some(CodecConfig {
-                kind,
-                data: c.data.clone(),
-            })
-        })
+        match description.codec_config.as_ref() {
+            Some(c) => {
+                let kind = match &c.kind.0 {
+                    b"avcC" => Some(ConfigKind::Avcc),
+                    b"hvcC" => Some(ConfigKind::Hvcc),
+                    b"av1C" => Some(ConfigKind::Av1c),
+                    b"vpcC" => Some(ConfigKind::Vpcc),
+                    _ => None,
+                };
+                match kind {
+                    Some(kind) => Some(CodecConfig {
+                        kind,
+                        data: crate::copy(planning, &c.data)?,
+                    }),
+                    None => None,
+                }
+            }
+            None => None,
+        }
     };
     // One bound for every packet: the largest of the track's sample
     // descriptions', unknown when any is (`docs/design/decode.md`,
     // "Several sample descriptions").
-    let max_num_ref_frames = track
-        .later_descriptions
-        .iter()
-        .map(|d| coreav_isobmff::avc_max_num_ref_frames(&d.codec_config.as_ref()?.data))
-        .fold(movie.max_num_ref_frames(track.index), |max, refs| {
-            Some(max?.max(refs?))
-        });
+    let mut max_num_ref_frames = movie.max_num_ref_frames(track.index);
+    for description in &track.later_descriptions {
+        let refs = match &description.codec_config {
+            Some(config) => {
+                coreav_isobmff::avc_max_num_ref_frames_with_planning(&config.data, planning)
+                    .map_err(|_| crate::planning_limit())?
+            }
+            None => None,
+        };
+        max_num_ref_frames = max_num_ref_frames
+            .zip(refs)
+            .map(|(max, refs)| max.max(refs));
+    }
     let rule = match codec {
         Codec::H264 => movie
             .access_format(track.index)
@@ -135,7 +168,7 @@ pub(crate) fn plan<S: Source>(
         height,
         color,
     };
-    let start = start_time(&movie);
+    let start = start_time(&movie, planning)?;
     let timescale = u64::from(track.timescale.max(1));
     // A track with several sample descriptions is listed from its first
     // packet, where its descriptions' changes are found (`in_band`).
@@ -143,25 +176,34 @@ pub(crate) fn plan<S: Source>(
     let window = match first {
         // Any error building the window (its work budget included) leaves
         // the plan to the full listing, which then gives its own result.
-        None if options.seek && !several => {
-            window(&movie, &track, &mut *source, options, start, timescale)
-                .ok()
-                .flatten()
+        None if seek && !several => {
+            let found = window(
+                &movie,
+                track,
+                &mut *source,
+                options,
+                start,
+                timescale,
+                planning,
+            );
+            crate::planning_check(planning)?;
+            found.ok().flatten()
         }
         _ => None,
     };
     let (mut listing, window, first_keyframe) = match window {
         Some((listing, bounds, first_keyframe)) => (listing, Some(bounds), Some(first_keyframe)),
         None => {
-            let mut listing = Listing::new(&track);
+            let mut listing = Listing::new(track);
             let mut budget = Budget::new(limits);
             let mut packets = movie.packets(track.index, &mut *source, limits, &mut budget)?;
             while let Some(packet) = packets.next() {
                 if first.is_some_and(|n| listing.packets.len() >= n) {
                     break;
                 }
-                listing.push(packet?, timescale);
+                listing.push(packet?, timescale, planning)?;
                 if several {
+                    crate::reserve(planning, &mut listing.descriptions, 1)?;
                     listing.descriptions.push(packets.description());
                 }
             }
@@ -183,14 +225,18 @@ pub(crate) fn plan<S: Source>(
         Some(degrees) => u8::try_from((degrees / 90) % 4).unwrap_or(0),
         None => 0,
     };
-    let warnings = if listing.wrapped {
-        vec!["composition offsets of a version 0 ctts read as signed".to_owned()]
-    } else {
-        Vec::new()
-    };
-    let presentation = presentation(&track, movie.timescale);
+    let mut warnings = Vec::new();
+    if listing.wrapped {
+        let text = crate::copy(
+            planning,
+            b"composition offsets of a version 0 ctts read as signed",
+        )?;
+        crate::reserve(planning, &mut warnings, 1)?;
+        warnings.push(String::from_utf8(text).map_err(|_| Error::Invalid("warning text"))?);
+    }
+    let presentation = presentation(track, movie.timescale);
     let in_band = if several {
-        in_band(&movie, &track, &mut *source, &listing, limits)?
+        in_band(&movie, track, &mut *source, &listing, limits, planning)?
     } else {
         InBand::default()
     };
@@ -278,7 +324,16 @@ impl Listing {
         }
     }
 
-    fn push(&mut self, mut p: Packet, timescale: u64) {
+    fn push(
+        &mut self,
+        mut p: Packet,
+        timescale: u64,
+        planning: Option<&PlanningBudget>,
+    ) -> Result<(), Error> {
+        crate::reserve(planning, &mut self.samples, 1)?;
+        crate::reserve(planning, &mut self.packets, 1)?;
+        crate::reserve(planning, &mut self.durations, 1)?;
+        crate::reserve(planning, &mut self.stated, 1)?;
         // Known divergence KD-CTTS-UNSIGNED: a version 0 `ctts` of an ISO
         // file that stores negative offsets. The probe reports them as
         // stored (unsigned); presentation times near 2^32 ticks cannot place
@@ -307,6 +362,7 @@ impl Listing {
         self.durations.push(Some(u64::from(p.duration)));
         self.stated
             .push(self.sync_table || p.sample >= self.table_samples);
+        Ok(())
     }
 }
 
@@ -329,6 +385,7 @@ fn in_band<S: Source>(
     source: &mut S,
     listing: &Listing,
     limits: &Limits,
+    planning: Option<&PlanningBudget>,
 ) -> Result<InBand, Error> {
     fn record(d: &SampleDescription) -> Option<&[u8]> {
         d.codec_config.as_ref().map(|c| c.data.as_slice())
@@ -336,7 +393,7 @@ fn in_band<S: Source>(
     let first = &track.description;
     let refuse = |why: String| Error::Unsupported(format!("the video track {why}"));
     let mut in_band = InBand::default();
-    let mut slots = BTreeMap::new();
+    let mut slots = Vec::new();
     let mut last = record(first);
     let mut work = 0u64;
     let packets = listing.packets.iter().zip(&listing.descriptions);
@@ -376,17 +433,24 @@ fn in_band<S: Source>(
             )));
         }
         if changed {
-            let frame = read_frame_access(format, source, packet.offset, packet.size, &mut || {
-                work += 1;
-                if work > limits.max_sample_work {
-                    Err(coreav_isobmff::Error::LimitExceeded {
-                        limit: coreav_isobmff::LimitKind::SampleWork,
-                        offset: packet.offset,
-                    })
-                } else {
-                    Ok(())
-                }
-            })?;
+            let frame = read_frame_access_with_planning(
+                format,
+                source,
+                packet.offset,
+                packet.size,
+                &mut || {
+                    work += 1;
+                    if work > limits.max_sample_work {
+                        Err(coreav_isobmff::Error::LimitExceeded {
+                            limit: coreav_isobmff::LimitKind::SampleWork,
+                            offset: packet.offset,
+                        })
+                    } else {
+                        Ok(())
+                    }
+                },
+                planning,
+            )?;
             if !frame.is_some_and(|f| f.idr) {
                 return Err(refuse(format!(
                     "changes its parameter sets at packet {index}, which holds no IDR picture \
@@ -394,16 +458,21 @@ fn in_band<S: Source>(
                 )));
             }
         }
-        let slot = match slots.get(&number) {
-            Some(&slot) => slot,
+        let slot = match slots.iter().find(|&&(n, _)| n == number) {
+            Some(&(_, slot)) => slot,
             None => {
-                let sets = here
-                    .and_then(coreav_isobmff::avc_parameter_sets)
-                    .ok_or_else(|| {
-                        refuse(format!(
-                            "changes at packet {index} to a configuration record that cannot be read"
-                        ))
-                    })?;
+                let sets = match here {
+                    Some(record) => {
+                        coreav_isobmff::avc_parameter_sets_with_planning(record, planning)
+                            .map_err(|_| crate::planning_limit())?
+                    }
+                    None => None,
+                }
+                .ok_or_else(|| {
+                    refuse(format!(
+                        "changes at packet {index} to a configuration record that cannot be read"
+                    ))
+                })?;
                 let width = usize::from(length_size);
                 let mut bytes = Vec::new();
                 for unit in sets {
@@ -414,16 +483,21 @@ fn in_band<S: Source>(
                             "has a parameter set longer than its NAL unit length allows at packet {index}"
                         )));
                     }
+                    crate::reserve(planning, &mut bytes, low.len())?;
                     bytes.extend_from_slice(low);
+                    crate::reserve(planning, &mut bytes, unit.len())?;
                     bytes.extend_from_slice(unit);
                 }
                 let slot = in_band.sets.len();
+                crate::reserve(planning, &mut in_band.sets, 1)?;
                 in_band.sets.push(bytes);
-                slots.insert(number, slot);
+                crate::reserve(planning, &mut slots, 1)?;
+                slots.push((number, slot));
                 slot
             }
         };
-        in_band.before.insert(index, slot);
+        crate::reserve(planning, &mut in_band.before, 1)?;
+        in_band.before.push((index, slot));
     }
     Ok(in_band)
 }
@@ -457,6 +531,7 @@ fn window<S: Source>(
     options: &ThumbnailOptions,
     start: Rational,
     timescale: u64,
+    planning: Option<&PlanningBudget>,
 ) -> Result<Option<(Listing, Window, PacketRef)>, Error> {
     if movie.fragmented
         || movie.first_fragment().is_some()
@@ -543,7 +618,7 @@ fn window<S: Source>(
     )?;
     for packet in packets.take(usize::try_from(end - begin).unwrap_or(usize::MAX)) {
         match packet {
-            Ok(p) => listing.push(p, timescale),
+            Ok(p) => listing.push(p, timescale, planning)?,
             Err(_) => return Ok(None),
         }
     }
@@ -586,16 +661,19 @@ fn seconds(ticks: Rational, timescale: u64) -> Option<Rational> {
 /// on the presentation timeline (its leading empty edit, or without an
 /// edit list its first sample's composition time; the same spans as the
 /// probe's presentation duration). 0 when no stream's timing is known.
-fn start_time(movie: &Movie) -> Rational {
-    movie
-        .presentation_spans()
+fn start_time(movie: &Movie, planning: Option<&PlanningBudget>) -> Result<Rational, Error> {
+    let spans = match planning {
+        Some(planning) => movie.presentation_spans_with_planning(planning)?,
+        None => movie.presentation_spans(),
+    };
+    Ok(spans
         .iter()
         .map(|s| s.start)
         .fold(None, |min: Option<Rational>, t| match min {
             Some(m) if !t.checked_lt(m).unwrap_or(false) => Some(m),
             _ => Some(t),
         })
-        .unwrap_or(Rational::from_int(0))
+        .unwrap_or(Rational::from_int(0)))
 }
 
 /// A container colour description as the frame model's.
@@ -607,5 +685,48 @@ pub(crate) fn color_info(c: Color) -> ColorInfo {
         matrix: code(c.matrix),
         full_range: c.full_range,
         chroma_location: None::<ChromaLocation>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use coreav_isobmff::SliceSource;
+
+    #[test]
+    fn listing_vectors_share_one_monotonic_account() {
+        let data =
+            crate::planning_mp4_fixture::movie(&crate::planning_mp4_fixture::Spec::default());
+        let mut source = SliceSource::new(&data);
+        let limits = Limits::default();
+        let movie = probe(&mut source, &limits, &Allowlist::default()).expect("movie");
+        let track = &movie.tracks[0];
+        let mut budget = Budget::new(&limits);
+        let packet = movie
+            .packets(track.index, &mut source, &limits, &mut budget)
+            .expect("packets")
+            .next()
+            .expect("first")
+            .expect("packet");
+        let bytes = size_of::<Sample>()
+            + size_of::<PacketRef>()
+            + size_of::<Option<u64>>()
+            + size_of::<bool>();
+        let planning = PlanningBudget::new(3 * bytes);
+        let mut listing = Listing::new(track);
+        listing
+            .push(packet, 12_800, Some(&planning))
+            .expect("first");
+        assert_eq!(planning.used(), bytes);
+        listing
+            .push(packet, 12_800, Some(&planning))
+            .expect("second");
+        assert_eq!(planning.used(), 3 * bytes);
+        drop(listing);
+        let mut fallback = Listing::new(track);
+        assert!(fallback.push(packet, 12_800, Some(&planning)).is_err());
+        assert!(fallback.samples.is_empty());
+        assert!(planning.failed());
+        assert_eq!(planning.used(), 3 * bytes);
     }
 }

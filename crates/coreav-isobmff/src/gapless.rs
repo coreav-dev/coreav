@@ -44,14 +44,28 @@ pub(crate) fn read<S: Source>(
     source: &mut S,
     roots: &[BoxHeader],
 ) -> Result<Option<(ItunesGapless, u64)>, Error> {
+    read_with_planning(source, roots, None)
+}
+
+pub(crate) fn read_with_planning<S: Source>(
+    source: &mut S,
+    roots: &[BoxHeader],
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<(ItunesGapless, u64)>, Error> {
     let mut budget = MAX_TAG_BOXES;
     for root in roots {
         let found = match &root.kind.0 {
             b"udta" => {
                 let mut found = None;
-                for meta in children(source, root.payload_offset(), root.end(), &mut budget)? {
+                for meta in children(
+                    source,
+                    root.payload_offset(),
+                    root.end(),
+                    &mut budget,
+                    planning,
+                )? {
                     if meta.kind == FourCc(*b"meta") {
-                        found = in_meta(source, &meta, &mut budget)?;
+                        found = in_meta(source, &meta, &mut budget, planning)?;
                         if found.is_some() {
                             break;
                         }
@@ -59,7 +73,7 @@ pub(crate) fn read<S: Source>(
                 }
                 found
             }
-            b"meta" => in_meta(source, root, &mut budget)?,
+            b"meta" => in_meta(source, root, &mut budget, planning)?,
             _ => None,
         };
         if found.is_some() {
@@ -73,7 +87,11 @@ pub(crate) fn read<S: Source>(
 /// for a source that failed to read.
 pub(crate) fn absent<T>(error: Error) -> Result<Option<T>, Error> {
     match error {
-        Error::Io(_) => Err(error),
+        Error::Io(_)
+        | Error::LimitExceeded {
+            limit: crate::LimitKind::PlanningBytes,
+            ..
+        } => Err(error),
         _ => Ok(None),
     }
 }
@@ -82,6 +100,7 @@ fn in_meta<S: Source>(
     source: &mut S,
     meta: &BoxHeader,
     budget: &mut u32,
+    planning: Option<&crate::PlanningBudget>,
 ) -> Result<Option<(ItunesGapless, u64)>, Error> {
     // ISO `meta` is a full box; the QuickTime one starts with its handler.
     let mut probe = [0u8; 8];
@@ -96,25 +115,25 @@ fn in_meta<S: Source>(
         };
         start
     };
-    let Some(ilst) = children(source, start, meta.end(), budget)?
+    let Some(ilst) = children(source, start, meta.end(), budget, planning)?
         .into_iter()
         .find(|c| c.kind == FourCc(*b"ilst"))
     else {
         return Ok(None);
     };
-    for item in children(source, ilst.payload_offset(), ilst.end(), budget)? {
+    for item in children(source, ilst.payload_offset(), ilst.end(), budget, planning)? {
         if item.kind != FourCc(*b"----") {
             continue;
         }
         let (mut mean, mut name, mut data) = (None, None, None);
-        for part in children(source, item.payload_offset(), item.end(), budget)? {
+        for part in children(source, item.payload_offset(), item.end(), budget, planning)? {
             let slot = match &part.kind.0 {
                 b"mean" => &mut mean,
                 b"name" => &mut name,
                 b"data" => &mut data,
                 _ => continue,
             };
-            *slot = small_payload(source, &part)?;
+            *slot = small_payload(source, &part, planning)?;
         }
         // `mean` and `name` are full boxes; `data` has a type indicator and a
         // locale before the value.
@@ -138,6 +157,7 @@ fn children<S: Source>(
     start: u64,
     end: u64,
     budget: &mut u32,
+    planning: Option<&crate::PlanningBudget>,
 ) -> Result<Vec<BoxHeader>, Error> {
     let mut out = Vec::new();
     let mut at = start;
@@ -149,19 +169,24 @@ fn children<S: Source>(
             Err(_) => break,
         };
         at = header.end();
+        crate::planning::reserve(planning, &mut out, 1, at)?;
         out.push(header);
     }
     Ok(out)
 }
 
-fn small_payload<S: Source>(source: &mut S, header: &BoxHeader) -> Result<Option<Vec<u8>>, Error> {
+fn small_payload<S: Source>(
+    source: &mut S,
+    header: &BoxHeader,
+    planning: Option<&crate::PlanningBudget>,
+) -> Result<Option<Vec<u8>>, Error> {
     if header.payload_len() > MAX_ITEM_PAYLOAD {
         return Ok(None);
     }
     let Ok(len) = usize::try_from(header.payload_len()) else {
         return Ok(None);
     };
-    let mut payload = vec![0u8; len];
+    let mut payload = crate::planning::filled(planning, 0u8, len, header.offset)?;
     if let Err(error) = source.read_exact_at(header.payload_offset(), &mut payload) {
         return absent(error);
     }

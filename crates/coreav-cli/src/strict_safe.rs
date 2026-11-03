@@ -226,7 +226,7 @@ pub struct Decoders {
 #[cfg(feature = "thumbnail")]
 impl Decoders {
     /// Adds a backend that runs in this process.
-    #[cfg(feature = "native-h264")]
+    #[cfg(any(feature = "native-h264", feature = "native-vp9"))]
     pub(crate) fn push(&mut self, backend: Box<dyn Backend>) {
         self.owned.push(backend);
     }

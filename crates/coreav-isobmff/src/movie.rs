@@ -1,20 +1,18 @@
 //! Probing: the box tree, movie and track metadata.
 
+use crate::PlanningBudget;
 use crate::bytes::Bytes;
 use crate::codec::{EntryLayout, parse_sample_entry};
 use crate::error::{LimitKind, Warning};
 use crate::fragment::{Fragment, TrackDefaults, Trex, parse_trex};
 use crate::gapless::{self, ItunesGapless};
-use crate::header::{
-    BoxHeader, MAX_HEADER_LEN, Parsed, parse_box_header, read_header, read_payload,
-};
-use crate::segment::{SegmentIndex, parse_sidx};
+use crate::header::{BoxHeader, MAX_HEADER_LEN, Parsed, parse_box_header, read_header};
+use crate::segment::SegmentIndex;
 use crate::tables::{SampleTables, TableKind, Work, table_header};
 use crate::{
     Allowlist, Codec, Error, FourCc, Limits, Rational, SampleDescription, SliceSource, Source,
 };
 use core::cell::Cell;
-use std::collections::BTreeSet;
 
 /// What a track carries, from its handler type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -215,6 +213,15 @@ impl DroppedStream {
     }
 }
 
+/// Matched encoded byte and duration totals for one track's sample window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SampleTotals {
+    /// Sum of encoded sample sizes in bytes.
+    pub bytes: u64,
+    /// Sum of encoded sample durations in track-timescale ticks, excluding `tfdt`.
+    pub duration: u64,
+}
+
 /// One track.
 #[derive(Clone, Debug)]
 pub struct Track {
@@ -276,10 +283,10 @@ pub struct Track {
     /// that has samples, once [`Movie::scan_fragments`] has read the
     /// fragments; `None` before, or when that fragment has no `tfdt`.
     pub fragment_start: Option<i64>,
-    /// The bytes of the samples of the track's first fragment that has
+    /// Matched byte and duration totals of the track's first fragment with
     /// samples, once [`Movie::scan_fragments`] has read the fragments;
     /// `None` before, without fragments, or when they cannot be counted.
-    pub first_fragment_bytes: Option<u64>,
+    pub first_fragment_totals: Option<SampleTotals>,
     /// The track's data is in another file; it has no packets.
     pub external_data: bool,
     /// The sample tables are consistent; packets are available.
@@ -320,6 +327,19 @@ pub struct Track {
 }
 
 impl Track {
+    /// Encoded totals of the movie box's sample tables, excluding fragments.
+    /// `None` when their bytes cannot be counted or the media is external.
+    /// Fragment scans do not change this window, including a zero duration.
+    pub fn sample_table_totals(&self) -> Option<SampleTotals> {
+        if self.external_data {
+            return None;
+        }
+        Some(SampleTotals {
+            bytes: self.stsz_bytes?,
+            duration: self.stts_duration,
+        })
+    }
+
     /// The track box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
     /// and 8.11.1), in file order, at most four: located by probe, their
     /// contents unread.
@@ -594,6 +614,7 @@ pub fn unix_time(stored: u64) -> Option<i64> {
 /// A probed movie.
 #[derive(Clone, Debug)]
 pub struct Movie {
+    pub(crate) planning: Option<PlanningBudget>,
     /// `major_brand` of `ftyp`, when present.
     pub major_brand: Option<FourCc>,
     /// Movie timescale.
@@ -755,6 +776,41 @@ impl Movie {
         kept.chain(dropped).collect()
     }
 
+    /// Lists presentation spans after charging their entire descriptor array.
+    pub fn presentation_spans_with_planning(
+        &self,
+        planning: &PlanningBudget,
+    ) -> Result<Vec<PresentationSpan>, Error> {
+        let mut spans = Vec::new();
+        crate::planning::reserve_exact(
+            Some(planning),
+            &mut spans,
+            self.tracks.len().saturating_add(self.dropped.len()),
+            0,
+        )?;
+        for track in &self.tracks {
+            if let Some((start, end)) = track.presentation(self.timescale) {
+                spans.push(PresentationSpan {
+                    kind: track.kind,
+                    timescale: track.timescale,
+                    start,
+                    end,
+                });
+            }
+        }
+        for track in &self.dropped {
+            if let Some((start, end)) = track.presentation(self.timescale, self.has_fragments()) {
+                spans.push(PresentationSpan {
+                    kind: track.kind,
+                    timescale: track.timescale,
+                    start,
+                    end,
+                });
+            }
+        }
+        Ok(spans)
+    }
+
     /// The derived presentation duration in seconds: the latest stream end
     /// minus the earliest stream start, over every stream whose timing is
     /// known, the streams the allowlist dropped included. `None` when no
@@ -850,36 +906,44 @@ impl Movie {
     /// count, box size and work are bounded by `limits`; a truncated or
     /// malformed fragment is an error. Calling it again gives the same result.
     pub fn scan_fragments<S: Source>(&mut self, source: S, limits: &Limits) -> Result<(), Error> {
+        let planning = self.planning.as_ref();
+        if let Some(planning) = planning {
+            planning.charge(0).map_err(|_| crate::planning::limit(0))?;
+        }
         let Some(mut at) = self.first_fragment else {
             return Ok(());
         };
         let mut source = source;
         let mut work = Work::new(limits);
-        let mut totals = vec![(0u64, 0u64); self.tracks.len()];
-        let mut first_offsets: Vec<Option<i64>> = vec![None; self.tracks.len()];
+        let mut totals = crate::planning::filled(planning, (0u64, 0u64), self.tracks.len(), 0)?;
+        let mut first_offsets: Vec<Option<i64>> =
+            crate::planning::filled(planning, None, self.tracks.len(), 0)?;
         // The `tfdt` of each track's first fragment with samples (None when
         // that fragment has none), and whether it was seen.
-        let mut starts: Vec<(bool, Option<i64>)> = vec![(false, None); self.tracks.len()];
-        let mut bytes = vec![Some(0u64); self.tracks.len()];
-        let mut first_bytes: Vec<Option<u64>> = vec![None; self.tracks.len()];
+        let mut starts: Vec<(bool, Option<i64>)> =
+            crate::planning::filled(planning, (false, None), self.tracks.len(), 0)?;
+        let mut bytes = crate::planning::filled(planning, Some(0u64), self.tracks.len(), 0)?;
+        let mut first_totals: Vec<Option<SampleTotals>> =
+            crate::planning::filled(planning, None, self.tracks.len(), 0)?;
         // Dropped streams: only their fragment durations and first
         // composition offset, for their timing (none of their samples).
-        let dropped_trex: Vec<Option<Trex>> = self
-            .dropped
-            .iter()
-            .map(|d| {
-                self.all_trex
-                    .iter()
-                    .find(|t| d.track_id != 0 && t.track_id == d.track_id)
-                    .copied()
-            })
-            .collect();
-        let mut dropped_totals: Vec<Option<u64>> = vec![None; self.dropped.len()];
+        let mut dropped_trex: Vec<Option<Trex>> = Vec::new();
+        crate::planning::reserve_exact(planning, &mut dropped_trex, self.dropped.len(), 0)?;
+        dropped_trex.extend(self.dropped.iter().map(|d| {
+            self.all_trex
+                .iter()
+                .find(|t| d.track_id != 0 && t.track_id == d.track_id)
+                .copied()
+        }));
+        let mut dropped_totals: Vec<Option<u64>> =
+            crate::planning::filled(planning, None, self.dropped.len(), 0)?;
         // Dropped streams whose fragments this file cannot back: their
         // timing is dropped with them, and later fragments do not revive it.
-        let mut dropped_unusable = vec![false; self.dropped.len()];
-        let mut dropped_offsets: Vec<Option<i64>> = vec![None; self.dropped.len()];
-        let mut dropped_starts: Vec<(bool, Option<i64>)> = vec![(false, None); self.dropped.len()];
+        let mut dropped_unusable = crate::planning::filled(planning, false, self.dropped.len(), 0)?;
+        let mut dropped_offsets: Vec<Option<i64>> =
+            crate::planning::filled(planning, None, self.dropped.len(), 0)?;
+        let mut dropped_starts: Vec<(bool, Option<i64>)> =
+            crate::planning::filled(planning, (false, None), self.dropped.len(), 0)?;
         let mut fragments = 0u32;
         let len = self.file_len;
         while at < len {
@@ -893,11 +957,12 @@ impl Movie {
                         offset: at,
                     });
                 }
-                let payload = read_payload(
+                let payload = crate::header::read_payload_with_planning(
                     &mut source,
                     &header,
                     limits.max_box_bytes,
                     LimitKind::BoxBytes,
+                    planning,
                 )?;
                 let boxes = Cell::new(0u64);
                 for (((((track, total), sum), first_offset), first_start), first_sum) in self
@@ -907,7 +972,7 @@ impl Movie {
                     .zip(bytes.iter_mut())
                     .zip(first_offsets.iter_mut())
                     .zip(starts.iter_mut())
-                    .zip(first_bytes.iter_mut())
+                    .zip(first_totals.iter_mut())
                 {
                     let Some(trex) = track.trex else { continue };
                     // A track whose media is in another file gets no
@@ -919,17 +984,19 @@ impl Movie {
                     if track.external_data {
                         continue;
                     }
-                    let mut fragment = Fragment::parse(
-                        payload.clone(),
+                    let mut fragment = Fragment::parse_with_planning(
+                        crate::planning::copy(planning, &payload, header.offset)?,
                         header.offset,
                         header.payload_offset(),
                         len,
                         trex,
                         &self.all_trex,
                         &boxes,
+                        planning,
                     )?;
                     let (duration, samples, start) = fragment.duration(&mut work)?;
-                    if samples > 0 && !first_start.0 {
+                    let first = samples > 0 && !first_start.0;
+                    if first {
                         *first_start = (true, start);
                     }
                     total.0 = total
@@ -965,8 +1032,11 @@ impl Movie {
                                 .ok_or(Error::Overflow { offset: at })?,
                         );
                     }
-                    if samples > 0 && first_sum.is_none() {
-                        *first_sum = before.zip(*sum).map(|(b, a)| a.saturating_sub(b));
+                    if first {
+                        *first_sum = before.zip(*sum).map(|(b, a)| SampleTotals {
+                            bytes: a.saturating_sub(b),
+                            duration,
+                        });
                     }
                 }
                 for ((((trex, total), first_offset), first_start), unusable) in dropped_trex
@@ -989,14 +1059,15 @@ impl Movie {
                     // never sees must not report a duration nothing backs,
                     // and must not refuse the file either.
                     let outcome = (|| -> Result<(), Error> {
-                        let mut fragment = Fragment::parse(
-                            payload.clone(),
+                        let mut fragment = Fragment::parse_with_planning(
+                            crate::planning::copy(planning, &payload, header.offset)?,
                             header.offset,
                             header.payload_offset(),
                             len,
                             *trex,
                             &self.all_trex,
                             &boxes,
+                            planning,
                         )?;
                         let (duration, samples, start) = fragment.duration(&mut work)?;
                         if samples == 0 {
@@ -1021,6 +1092,9 @@ impl Movie {
                         }
                         Ok(())
                     })();
+                    if planning.is_some_and(PlanningBudget::failed) {
+                        return Err(crate::planning::limit(at));
+                    }
                     match outcome {
                         Ok(()) => {}
                         // A limit is the request's, not the stream's.
@@ -1053,10 +1127,10 @@ impl Movie {
             .zip(bytes)
             .zip(first_offsets)
             .zip(starts)
-            .zip(first_bytes)
+            .zip(first_totals)
         {
             track.fragment_first_offset = first_offset;
-            track.first_fragment_bytes = first_sum;
+            track.first_fragment_totals = first_sum;
             track.fragment_start = start.1;
             track.sample_bytes = match (track.stsz_bytes, sum) {
                 (Some(stsz), Some(fragments)) => Some(
@@ -1073,7 +1147,7 @@ impl Movie {
             // A track whose fragments were not read (external media, above)
             // has observed nothing: its duration stays what it was before
             // the scan, which for a fragmented movie is unknown.
-            finish_duration(track, self.timescale, true, !track.external_data);
+            finish_duration(track, self.timescale, true, !track.external_data, planning)?;
         }
         Ok(())
     }
@@ -1086,6 +1160,7 @@ struct Walker<'a, S> {
     retained: u64,
     table_bytes: u64,
     work: Work,
+    planning: Option<&'a PlanningBudget>,
 }
 
 impl<S: Source> Walker<'_, S> {
@@ -1120,6 +1195,11 @@ impl<S: Source> Walker<'_, S> {
         }
         let size = usize::try_from(len).map_err(|_| Error::LimitExceeded { limit, offset: at })?;
         let mut data = Vec::new();
+        if let Some(planning) = self.planning {
+            planning
+                .reserve_exact(&mut data, size)
+                .map_err(|_| crate::planning::limit(at))?;
+        }
         data.try_reserve_exact(size)
             .map_err(|_| Error::LimitExceeded { limit, offset: at })?;
         // Read into the reserved capacity: the bytes are written once,
@@ -1199,6 +1279,36 @@ const FIRST_BOXES: [&[u8; 4]; 13] = [
 /// Sample tables are validated; a track with inconsistent
 /// tables stays in the result with `tables_valid` false.
 pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Result<Movie, Error> {
+    probe_inner(source, limits, allowlist, None)
+}
+
+/// Probes with one shared aggregate account retained for later bounded planning.
+///
+/// Seeker, packet and fragment-scan allocations retain this account. Ordinary
+/// result cloning and other collection-returning APIs are not made bounded;
+/// callers must use the explicitly budget-aware planning route.
+pub fn probe_with_planning<S: Source>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    planning: PlanningBudget,
+) -> Result<Movie, Error> {
+    let mut result = probe_inner(source, limits, allowlist, Some(&planning));
+    if planning.failed() {
+        return Err(crate::planning::limit(0));
+    }
+    if let Ok(movie) = &mut result {
+        movie.planning = Some(planning);
+    }
+    result
+}
+
+fn probe_inner<S: Source>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    planning: Option<&PlanningBudget>,
+) -> Result<Movie, Error> {
     let mut source = source;
     let len = source.len()?;
     let mut w = Walker {
@@ -1208,6 +1318,7 @@ pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Re
         retained: 0,
         table_bytes: 0,
         work: Work::new(limits),
+        planning,
     };
     let mut first = [0u8; 8];
     if len < 8 {
@@ -1268,8 +1379,15 @@ pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Re
             }
             b"sidx" => {
                 let payload = w.payload(&header)?;
-                let index = parse_sidx(&payload, header.payload_offset(), header.end(), len)?;
+                let index = crate::segment::parse_sidx_with_planning(
+                    &payload,
+                    header.payload_offset(),
+                    header.end(),
+                    len,
+                    planning,
+                )?;
                 w.retain(index.references.len().saturating_mul(24), at)?;
+                crate::planning::reserve(planning, &mut segment_indexes, 1, at)?;
                 segment_indexes.push(index);
             }
             b"moof" => {
@@ -1303,8 +1421,8 @@ pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Re
         None => movie.tracks.iter().any(|t| t.quicktime_handler),
     };
     for track in &mut movie.tracks {
-        track.handler_name =
-            handler_name(&std::mem::take(&mut track.handler_name_bytes), quicktime);
+        let raw = std::mem::take(&mut track.handler_name_bytes);
+        track.handler_name = handler_name_with_planning(&raw, quicktime, planning)?;
     }
     if quicktime {
         // The QuickTime File Format's composition offsets are signed in
@@ -1323,7 +1441,7 @@ pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Re
             // Probe never reads fragments.
             track.sample_bytes = None;
         }
-        finish_duration(track, movie.timescale, has_fragments, false);
+        finish_duration(track, movie.timescale, has_fragments, false, planning)?;
     }
     Ok(movie)
 }
@@ -1333,7 +1451,13 @@ pub fn probe<S: Source>(source: S, limits: &Limits, allowlist: &Allowlist) -> Re
 /// media edit until the fragments are scanned, then the observed sample span
 /// capped by the media edit. `scanned` tells whether every fragment's samples
 /// are included in `sample_duration`.
-fn finish_duration(track: &mut Track, movie_timescale: u32, has_fragments: bool, scanned: bool) {
+fn finish_duration(
+    track: &mut Track,
+    movie_timescale: u32,
+    has_fragments: bool,
+    scanned: bool,
+    planning: Option<&PlanningBudget>,
+) -> Result<(), Error> {
     let edit = track.media_edit_duration(movie_timescale);
     let (cap, source) = if has_fragments {
         if !scanned {
@@ -1344,7 +1468,7 @@ fn finish_duration(track: &mut Track, movie_timescale: u32, has_fragments: bool,
             } else {
                 DurationSource::Unknown
             };
-            return;
+            return Ok(());
         }
         (track.sample_duration, DurationSource::Observed)
     } else if track.mdhd_duration > 0 {
@@ -1381,8 +1505,9 @@ fn finish_duration(track: &mut Track, movie_timescale: u32, has_fragments: bool,
         && track.mdhd_duration != track.sample_duration
         && !track.warnings.contains(&conflict)
     {
-        crate::error::warn(&mut track.warnings, conflict);
+        crate::error::warn_with_planning(&mut track.warnings, conflict, planning, 0)?;
     }
+    Ok(())
 }
 
 fn invalid(header: &BoxHeader, reason: &'static str) -> Error {
@@ -1413,7 +1538,10 @@ fn parse_moov<S: Source>(
     let mut chapter_references: Vec<u32> = Vec::new();
     w.children(moov, 0, &mut |w, child, depth| {
         match &child.kind.0 {
-            b"udta" | b"meta" if tag_boxes.len() < MAX_TAG_ROOTS => tag_boxes.push(child),
+            b"udta" | b"meta" if tag_boxes.len() < MAX_TAG_ROOTS => {
+                crate::planning::reserve(w.planning, &mut tag_boxes, 1, child.offset)?;
+                tag_boxes.push(child);
+            }
             b"cmov" if cmov.is_none() => cmov = Some((child, depth)),
             b"mvhd" => {
                 let payload = w.payload(&child)?;
@@ -1461,10 +1589,14 @@ fn parse_moov<S: Source>(
                     (&mut chapter_tracks, &mut chapter_references),
                     &mut timing,
                 ) {
-                    Ok(track) => tracks.push(track),
+                    Ok(track) => {
+                        crate::planning::reserve(w.planning, &mut tracks, 1, child.offset)?;
+                        tracks.push(track);
+                    }
                     // Drop the stream unless the caller asked for
                     // strict mode; nothing more of it is parsed or exposed.
                     Err(Error::CodecNotAllowed { track_id, fourcc }) if !allowlist.is_strict() => {
+                        crate::planning::reserve(w.planning, &mut dropped, 1, child.offset)?;
                         dropped.push(DroppedStream {
                             stream_index,
                             track_id,
@@ -1487,6 +1619,7 @@ fn parse_moov<S: Source>(
                 w.children(&child, depth, &mut |w, entry, _| {
                     if entry.kind == FourCc(*b"trex") {
                         let payload = w.payload(&entry)?;
+                        crate::planning::reserve(w.planning, &mut trex, 1, entry.offset)?;
                         trex.push(parse_trex(&payload, entry.payload_offset())?);
                     } else if entry.kind == FourCc(*b"mehd") {
                         let payload = w.payload(&entry)?;
@@ -1562,20 +1695,34 @@ fn parse_moov<S: Source>(
             track.edit_list = EditList::Multiple;
         }
         if track.edit_list == EditList::Unsupported {
-            crate::error::warn(&mut track.warnings, Warning::UnsupportedEditList);
+            crate::error::warn_with_planning(
+                &mut track.warnings,
+                Warning::UnsupportedEditList,
+                w.planning,
+                0,
+            )?;
         }
     }
-    let ids: Vec<u32> = tracks
-        .iter()
-        .map(|t| t.track_id)
-        .chain(dropped.iter().map(|d| d.track_id).filter(|id| *id != 0))
-        .collect();
+    let mut ids = Vec::new();
+    crate::planning::reserve_exact(
+        w.planning,
+        &mut ids,
+        tracks.len().saturating_add(dropped.len()),
+        moov.offset,
+    )?;
+    ids.extend(
+        tracks
+            .iter()
+            .map(|t| t.track_id)
+            .chain(dropped.iter().map(|d| d.track_id).filter(|id| *id != 0)),
+    );
     for (i, id) in ids.iter().enumerate() {
         if ids.iter().skip(i + 1).any(|other| other == id) {
             return Err(invalid(moov, "duplicate track ID"));
         }
     }
     Ok(Movie {
+        planning: w.planning.cloned(),
         major_brand: None,
         timescale,
         mvhd_duration,
@@ -1593,7 +1740,7 @@ fn parse_moov<S: Source>(
         inflated_gapless: None,
         first_fragment: None,
         file_len: 0,
-        all_trex: trex.clone(),
+        all_trex: trex,
         tag_boxes,
     })
 }
@@ -1629,6 +1776,7 @@ fn parse_compressed_moov<S: Source>(
         retained: w.retained,
         table_bytes: w.table_bytes,
         work: w.work,
+        planning: w.planning,
     };
     let in_cmvd = |error| at_box(error, cmvd.offset);
     let header = inner.header(0, declared).map_err(in_cmvd)?;
@@ -1643,12 +1791,15 @@ fn parse_compressed_moov<S: Source>(
     movie.compressed = true;
     // The movie-level metadata is in the inflated data, not in the file:
     // read what the file's would give now.
-    movie.inflated_gapless = Some(
-        gapless::read(&mut SliceSource::new(&inflated), &movie.tag_boxes)
-            .ok()
-            .flatten()
-            .map(|(values, _)| values),
+    let gapless = gapless::read_with_planning(
+        &mut SliceSource::new(&inflated),
+        &movie.tag_boxes,
+        w.planning,
     );
+    if w.planning.is_some_and(PlanningBudget::failed) {
+        return Err(crate::planning::limit(cmvd.offset));
+    }
+    movie.inflated_gapless = Some(gapless.ok().flatten().map(|(values, _)| values));
     movie.tag_boxes.clear();
     Ok(movie)
 }
@@ -1669,6 +1820,7 @@ pub(crate) fn inflate_movie_box<S: Source>(
         retained: 0,
         table_bytes: 0,
         work: Work::new(limits),
+        planning: None,
     };
     inflate_compressed_moov(&mut w, cmov, 1).map(|(inflated, _)| inflated)
 }
@@ -1761,9 +1913,12 @@ fn inflate<S: Source>(
     };
     let size = usize::try_from(size).map_err(|_| too_large())?;
     let mut out = Vec::new();
-    out.try_reserve_exact(size).map_err(|_| too_large())?;
+    crate::planning::reserve_exact(w.planning, &mut out, size, cmvd.offset)?;
     out.resize(size, 0);
-    let mut state = Box::<DecompressorOxide>::default();
+    let mut states = Vec::new();
+    crate::planning::reserve_exact(w.planning, &mut states, 1, cmvd.offset)?;
+    states.push(DecompressorOxide::default());
+    let state = states.first_mut().ok_or_else(too_large)?;
     let mut chunk = Vec::new();
     let end = start
         .checked_add(len)
@@ -1771,7 +1926,10 @@ fn inflate<S: Source>(
     let (mut at, mut written) = (start, 0usize);
     loop {
         let take = end.saturating_sub(at).min(INFLATE_CHUNK);
-        chunk.resize(usize::try_from(take).map_err(|_| too_large())?, 0);
+        let count = usize::try_from(take).map_err(|_| too_large())?;
+        let additional = count.saturating_sub(chunk.len());
+        crate::planning::reserve_exact(w.planning, &mut chunk, additional, cmvd.offset)?;
+        chunk.resize(count, 0);
         w.source.read_exact_at(at, &mut chunk)?;
         let more = at.saturating_add(take) < end;
         let flags = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER
@@ -1782,7 +1940,7 @@ fn inflate<S: Source>(
             } else {
                 0
             };
-        let (status, read, wrote) = decompress(&mut state, &chunk, &mut out, written, flags);
+        let (status, read, wrote) = decompress(state, &chunk, &mut out, written, flags);
         at = at.saturating_add(read as u64);
         written = written.saturating_add(wrote);
         match status {
@@ -1841,12 +1999,7 @@ struct TrackParts {
     mdhd: Option<MediaHeader>,
     handler: Option<(FourCc, Vec<u8>)>,
     quicktime_handler: bool,
-    description: Option<(
-        SampleDescription,
-        Vec<SampleDescription>,
-        u32,
-        BTreeSet<u16>,
-    )>,
+    description: Option<(SampleDescription, Vec<SampleDescription>, u32, Vec<u16>)>,
     self_contained: Option<Vec<bool>>,
     tables: SampleTables,
     table_problem: Option<&'static str>,
@@ -1872,13 +2025,15 @@ fn parse_trak<S: Source>(
         match &child.kind.0 {
             b"tref" => track_references(w, &child, &mut chapters)?,
             b"udta" | b"meta" if parts.tag_boxes.len() < MAX_TAG_ROOTS => {
-                parts.tag_boxes.push(child)
+                crate::planning::reserve(w.planning, &mut parts.tag_boxes, 1, child.offset)?;
+                parts.tag_boxes.push(child);
             }
             // The edit list is still read after a drop: it places the
             // dropped stream on the timeline.
             b"edts" => w.children(&child, depth, &mut |w, e, _| {
                 if e.kind == FourCc(*b"elst") {
-                    let (list, entries) = parse_elst(&w.payload(&e)?, e.payload_offset())?;
+                    let (list, entries) =
+                        parse_elst(&w.payload(&e)?, e.payload_offset(), w.planning)?;
                     w.retain(entries.len().saturating_mul(Edit::RETAINED_BYTES), e.offset)?;
                     parts.edits = Some((list, entries));
                 }
@@ -1912,6 +2067,9 @@ fn parse_trak<S: Source>(
     // A dropped stream was never parsed past its media box: a defect after
     // it ends the search for references instead of rejecting the file. A
     // source that fails to read fails the probe either way.
+    if w.planning.is_some_and(PlanningBudget::failed) {
+        return Err(crate::planning::limit(trak.offset));
+    }
     if not_allowed.is_none() || matches!(walked, Err(Error::Io(_))) {
         walked?;
     }
@@ -1922,9 +2080,11 @@ fn parse_trak<S: Source>(
     for id in chapters {
         if enabled && chapter_tracks.len() < MAX_CHAPTER_REFERENCES && !chapter_tracks.contains(&id)
         {
+            crate::planning::reserve(w.planning, chapter_tracks, 1, trak.offset)?;
             chapter_tracks.push(id);
         }
         if chapter_references.len() < MAX_CHAPTER_REFERENCES && !chapter_references.contains(&id) {
+            crate::planning::reserve(w.planning, chapter_references, 1, trak.offset)?;
             chapter_references.push(id);
         }
     }
@@ -1966,7 +2126,12 @@ fn parse_trak<S: Source>(
     });
     let mut warnings = parts.warnings;
     if external_data {
-        crate::error::warn(&mut warnings, Warning::ExternalData);
+        crate::error::warn_with_planning(
+            &mut warnings,
+            Warning::ExternalData,
+            w.planning,
+            trak.offset,
+        )?;
     }
     let mut sample_duration = 0u64;
     let mut problem = parts.table_problem;
@@ -2001,7 +2166,12 @@ fn parse_trak<S: Source>(
         }
     }
     if let Some(reason) = problem {
-        crate::error::warn(&mut warnings, Warning::InvalidSampleTable(reason));
+        crate::error::warn_with_planning(
+            &mut warnings,
+            Warning::InvalidSampleTable(reason),
+            w.planning,
+            trak.offset,
+        )?;
     }
     let stsz_bytes = if problem.is_none() {
         stsz_total(&parts.tables, &mut w.work, trak.offset)?
@@ -2038,7 +2208,7 @@ fn parse_trak<S: Source>(
         sample_count: parts.tables.sample_count(),
         fragment_samples: 0,
         fragment_start: None,
-        first_fragment_bytes: None,
+        first_fragment_totals: None,
         external_data,
         tables_valid: problem.is_none(),
         sample_bytes: stsz_bytes,
@@ -2095,6 +2265,7 @@ fn track_references<S: Source>(
             if chapter_tracks.len() >= MAX_CHAPTER_REFERENCES {
                 return Ok(());
             }
+            crate::planning::reserve(w.planning, chapter_tracks, 1, tref.offset)?;
             chapter_tracks.push(id);
         }
     }
@@ -2156,7 +2327,11 @@ fn parse_mdia<S: Source>(
                 let handler = b.fourcc()?;
                 b.skip(12).ok();
                 let name = b.rest();
-                let name = name.get(..name.len().min(256)).unwrap_or_default().to_vec();
+                let name = crate::planning::copy(
+                    w.planning,
+                    name.get(..name.len().min(256)).unwrap_or_default(),
+                    child.offset,
+                )?;
                 w.retain(name.len(), child.offset)?;
                 parts.handler = Some((handler, name));
             }
@@ -2177,7 +2352,8 @@ fn parse_mdia<S: Source>(
         match &child.kind.0 {
             b"dinf" => w.children(&child, depth, &mut |w, d, _| {
                 if d.kind == FourCc(*b"dref") {
-                    parts.self_contained = Some(parse_dref(&w.payload(&d)?, d.payload_offset())?);
+                    parts.self_contained =
+                        Some(parse_dref(&w.payload(&d)?, d.payload_offset(), w.planning)?);
                 }
                 Ok(())
             })?,
@@ -2210,6 +2386,7 @@ fn parse_stbl<S: Source>(
                 layout,
                 allowlist,
                 &mut parts.warnings,
+                w.planning,
                 &mut |bytes, at| w.retain(bytes, at),
             ) {
                 Err(error @ Error::CodecNotAllowed { .. }) => {
@@ -2258,16 +2435,9 @@ fn parse_stsd(
     layout: EntryLayout,
     allowlist: &Allowlist,
     warnings: &mut Vec<Warning>,
+    planning: Option<&PlanningBudget>,
     retain: &mut dyn FnMut(usize, u64) -> Result<(), Error>,
-) -> Result<
-    (
-        SampleDescription,
-        Vec<SampleDescription>,
-        u32,
-        BTreeSet<u16>,
-    ),
-    Error,
-> {
+) -> Result<(SampleDescription, Vec<SampleDescription>, u32, Vec<u16>), Error> {
     let mut b = Bytes::new(payload, offset);
     b.version_flags()?;
     let count = b.u32()?;
@@ -2280,7 +2450,7 @@ fn parse_stsd(
     }
     let mut first = None;
     let mut later = Vec::new();
-    let mut data_references = BTreeSet::new();
+    let mut data_references = Vec::new();
     for _ in 0..count {
         let entry_offset = b.offset();
         let size = b.clone().u32()?;
@@ -2292,7 +2462,7 @@ fn parse_stsd(
             });
         }
         let entry = b.take(size as usize)?;
-        let description = parse_sample_entry(entry, entry_offset, layout, warnings)?;
+        let description = parse_sample_entry(entry, entry_offset, layout, warnings, planning)?;
         if !allowlist.allows(description.codec) {
             return Err(Error::CodecNotAllowed {
                 track_id: 0,
@@ -2304,7 +2474,8 @@ fn parse_stsd(
             .iter()
             .chain(&description.entry_boxes)
             .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
-        data_references.insert(crate::bytes::be_u16_at(entry, 14).unwrap_or(1));
+        crate::planning::reserve(planning, &mut data_references, 1, entry_offset)?;
+        data_references.push(crate::bytes::be_u16_at(entry, 14).unwrap_or(1));
         if first.is_none() {
             retain(kept, entry_offset)?;
             first = Some(description);
@@ -2313,11 +2484,17 @@ fn parse_stsd(
                 kept.saturating_add(core::mem::size_of::<SampleDescription>()),
                 entry_offset,
             )?;
+            crate::planning::reserve(planning, &mut later, 1, entry_offset)?;
             later.push(description);
         }
     }
     if count > 1 {
-        crate::error::warn(warnings, Warning::MultipleSampleEntries);
+        crate::error::warn_with_planning(
+            warnings,
+            Warning::MultipleSampleEntries,
+            planning,
+            offset,
+        )?;
     }
     let description = first.ok_or(Error::Truncated { offset })?;
     Ok((description, later, count, data_references))
@@ -2495,7 +2672,11 @@ fn several_edits_apply(edits: &[Edit], timescale: u32, movie_timescale: u32) -> 
     previous_end.is_some()
 }
 
-fn parse_elst(payload: &[u8], offset: u64) -> Result<(EditList, Vec<Edit>), Error> {
+fn parse_elst(
+    payload: &[u8],
+    offset: u64,
+    planning: Option<&PlanningBudget>,
+) -> Result<(EditList, Vec<Edit>), Error> {
     let mut b = Bytes::new(payload, offset);
     let (version, _) = b.version_flags()?;
     let count = b.u32()?;
@@ -2509,7 +2690,13 @@ fn parse_elst(payload: &[u8], offset: u64) -> Result<(EditList, Vec<Edit>), Erro
     }
     // The count was checked against the box, so the entries are no more
     // than the payload already read; the caller charges them as retained.
-    let mut edits = Vec::with_capacity(usize::try_from(count).unwrap_or(0));
+    let mut edits = Vec::new();
+    crate::planning::reserve_exact(
+        planning,
+        &mut edits,
+        usize::try_from(count).unwrap_or(0),
+        offset,
+    )?;
     for _ in 0..count {
         let (segment_duration, media_time) = if version == 1 {
             (b.u64()?, b.i64()?)
@@ -2550,7 +2737,11 @@ fn parse_elst(payload: &[u8], offset: u64) -> Result<(EditList, Vec<Edit>), Erro
     Ok((list, edits))
 }
 
-fn parse_dref(payload: &[u8], offset: u64) -> Result<Vec<bool>, Error> {
+fn parse_dref(
+    payload: &[u8],
+    offset: u64,
+    planning: Option<&PlanningBudget>,
+) -> Result<Vec<bool>, Error> {
     let mut b = Bytes::new(payload, offset);
     b.version_flags()?;
     let count = b.u32()?;
@@ -2567,6 +2758,7 @@ fn parse_dref(payload: &[u8], offset: u64) -> Result<Vec<bool>, Error> {
             .version_flags()
             .map(|(_, f)| f)
             .unwrap_or(0);
+        crate::planning::reserve(planning, &mut entries, 1, offset)?;
         entries.push(flags & 1 == 1);
     }
     Ok(entries)
@@ -2575,12 +2767,26 @@ fn parse_dref(payload: &[u8], offset: u64) -> Result<Vec<bool>, Error> {
 /// The `hdlr` name: QuickTime stores a counted string (a length byte equal
 /// to the rest of the field), ISO/IEC 14496-12 a null-terminated one, whose
 /// first byte is text even when it happens to equal the length.
+#[cfg(test)]
 fn handler_name(raw: &[u8], quicktime: bool) -> Option<String> {
+    handler_name_with_planning(raw, quicktime, None)
+        .ok()
+        .flatten()
+}
+
+fn handler_name_with_planning(
+    raw: &[u8],
+    quicktime: bool,
+    planning: Option<&PlanningBudget>,
+) -> Result<Option<String>, Error> {
     let text = match raw.split_first() {
         Some((&len, tail)) if quicktime && usize::from(len) == tail.len() && len > 0 => tail,
         _ => raw.split(|b| *b == 0).next().unwrap_or_default(),
     };
-    (!text.is_empty()).then(|| String::from_utf8_lossy(text).into_owned())
+    if text.is_empty() {
+        return Ok(None);
+    }
+    crate::planning::lossy(planning, text, 0).map(Some)
 }
 
 fn rotation(m: &[i32; 9]) -> Option<u16> {
@@ -2601,6 +2807,81 @@ fn rotation(m: &[i32; 9]) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn compressed_state_is_charged_before_its_allocation() {
+        let limits = crate::Limits::default();
+        let planning = crate::PlanningBudget::new(1);
+        let mut walker = super::Walker {
+            source: crate::SliceSource::new(&[]),
+            limits: &limits,
+            boxes: 0,
+            retained: 0,
+            table_bytes: 0,
+            work: crate::tables::Work::new(&limits),
+            planning: Some(&planning),
+        };
+        let header = crate::BoxHeader {
+            kind: crate::FourCc(*b"cmvd"),
+            offset: 0,
+            header_len: 8,
+            size: 8,
+        };
+        let (result, counters) =
+            coreav_counting_alloc::measure(|| super::inflate(&mut walker, 0, 0, 1, &header));
+        assert!(matches!(
+            result,
+            Err(crate::Error::LimitExceeded {
+                limit: crate::LimitKind::PlanningBytes,
+                ..
+            })
+        ));
+        assert!(planning.failed());
+        assert_eq!(planning.used(), 1);
+        assert_eq!(counters.allocations, 1);
+        assert_eq!(counters.bytes, 1);
+    }
+
+    #[test]
+    fn description_references_are_charged_before_their_allocation() {
+        let mut payload = vec![0u8; 8 + 86];
+        payload
+            .get_mut(4..8)
+            .expect("count")
+            .copy_from_slice(&1u32.to_be_bytes());
+        payload
+            .get_mut(8..12)
+            .expect("size")
+            .copy_from_slice(&86u32.to_be_bytes());
+        payload
+            .get_mut(12..16)
+            .expect("codec")
+            .copy_from_slice(b"avc1");
+        let allowlist = crate::Allowlist::default();
+        let planning = crate::PlanningBudget::new(0);
+        let mut warnings = Vec::new();
+        let (result, counters) = coreav_counting_alloc::measure(|| {
+            super::parse_stsd(
+                &payload,
+                0,
+                crate::codec::EntryLayout::Visual,
+                &allowlist,
+                &mut warnings,
+                Some(&planning),
+                &mut |_, _| Ok(()),
+            )
+        });
+        assert!(matches!(
+            result,
+            Err(crate::Error::LimitExceeded {
+                limit: crate::LimitKind::PlanningBytes,
+                ..
+            })
+        ));
+        assert_eq!(counters.allocations, 0);
+        assert_eq!(counters.reallocations, 0);
+        assert!(planning.failed());
+    }
+
     /// A counted string only in QuickTime files; in ISO files the first byte
     /// is text, even when it equals the length of the rest.
     #[test]

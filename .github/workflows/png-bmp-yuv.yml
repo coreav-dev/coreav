@@ -1,0 +1,118 @@
+name: png-bmp-yuv
+
+# workflow-check: not required
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - clippy.toml
+      - scripts/**
+      - tools/compat-corpus/**
+      - docs/design/png-bmp-yuv-v1.md
+      - .github/workflows/png-bmp-yuv.yml
+  push:
+    branches: [main]
+    paths:
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - clippy.toml
+      - scripts/**
+      - tools/compat-corpus/**
+      - docs/design/png-bmp-yuv-v1.md
+      - .github/workflows/png-bmp-yuv.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image-synthetic-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Install the worker decoder dependency
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvpx-dev pkg-config
+      - name: Install and verify the frozen oracle
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/image-oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/image-oracle"
+      - name: Build the normal command and both harnesses
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/image-bin"
+          cargo build --locked -p coreav-cli --features native-h264,libvpx --bin coreav
+          cp target/debug/coreav "$RUNNER_TEMP/image-bin/coreav"
+          cargo test --locked -p coreav-cli --features native-h264,libvpx --test ffmpeg \
+            --no-run --message-format=json > "$RUNNER_TEMP/image-bin/copy-build.jsonl"
+          cargo test --locked -p coreav-cli --features native-h264,libvpx,input-capture --test image_capture \
+            --no-run --message-format=json > "$RUNNER_TEMP/image-bin/image-build.jsonl"
+          python3 -I - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'image-bin'
+          for log, target, name in (('copy-build.jsonl', 'ffmpeg', 'harness'),
+                                    ('image-build.jsonl', 'image_capture', 'image-harness')):
+              records = [json.loads(line) for line in (root / log).read_text().splitlines()]
+              programs = [r['executable'] for r in records if r.get('reason') == 'compiler-artifact'
+                          and r.get('target', {}).get('name') == target and r.get('executable')]
+              if len(programs) != 1:
+                  raise SystemExit('expected exactly one built ' + target + ' executable')
+              shutil.copyfile(programs[0], root / name)
+              (root / name).chmod(0o755)
+          def sha(path):
+              with open(path, 'rb') as source:
+                  return hashlib.file_digest(source, 'sha256').hexdigest()
+          rust = subprocess.run(['rustc', '-vV'], check=True, capture_output=True, text=True).stdout
+          manifest = {
+              'schema': 'coreav.image-build/1',
+              'source_sha': subprocess.run(['git', 'rev-parse', 'HEAD'], check=True, capture_output=True, text=True).stdout.strip(),
+              'cargo_lock_sha256': sha('Cargo.lock'), 'toolchain': rust,
+              'target': next(line.removeprefix('host: ') for line in rust.splitlines() if line.startswith('host: ')),
+              'binaries': {name: {'sha256': sha(root / filename),
+                                  'features': ['native-h264', 'libvpx'] + (['input-capture'] if name == 'image_harness' else [])}
+                           for name, filename in (('coreav', 'coreav'), ('harness', 'harness'), ('image_harness', 'image-harness'))}}
+          (root / 'synthetic-build.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+      - name: Check capture feature formatting and lints
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked -p coreav-cli --all-targets --features native-h264,libvpx,input-capture -- -D warnings
+      - name: Test frame output with the verified oracle
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/image-oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: '1'
+        run: |
+          cargo test --locked -p coreav-cli --features native-h264,libvpx,input-capture --lib image_capture
+          cargo test --locked -p coreav-cli --features native-h264,libvpx,input-capture --test ffmpeg_frames
+      - name: Test synthetic evidence and real image captures
+        env:
+          COREAV_IMAGE_ORACLE: '1'
+          COREAV_IMAGE_VP9: '1'
+          COREAV: ${{ runner.temp }}/image-bin/coreav
+          COREAV_IMAGE_HARNESS: ${{ runner.temp }}/image-bin/image-harness
+          COREAV_FFMPEG: ${{ runner.temp }}/image-oracle/ffmpeg
+          COREAV_FFPROBE: ${{ runner.temp }}/image-oracle/ffprobe
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I -m unittest discover -s tools/compat-corpus/tests -p test_png_bmp_yuv.py -v

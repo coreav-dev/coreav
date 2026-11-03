@@ -73,6 +73,11 @@ faster overall and in each category. One audio-only file is at 1.01.
 
 ## CI regression guard
 
+`--profile-dir DIR` retains function-level Cachegrind profiles from the same
+counted invocations, changing only the profile destination rather than the
+commands or judging. CI retains both base and head profiles on failure;
+inspect them with `cg_annotate --auto=no` without opening source files.
+
 The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
 `scripts/bench_guard.py`, as one job of a few minutes:
 

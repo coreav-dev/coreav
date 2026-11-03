@@ -16,6 +16,10 @@ import Help from '/snippets/help/ffprobe.mdx';
 
 A command line outside what it implements, such as `-show_data`, or frames of a codec CoreAV does not decode, is refused in strict-safe mode and goes to the real `ffprobe` otherwise ([strict-safe mode and the fallback](/strict-safe)).
 
+Local input names may use FFmpeg's `file:PATH` syntax. Standalone MP3, FLAC and WAV inputs go to the fallback because CoreAV does not read those containers yet. A command without any `-show_*` section also uses the fallback to reproduce FFmpeg's default summary on standard error. Ask for `-show_format -show_streams` to get a native report.
+
+`-show_private_data` enables the existing default. Explicit FFmpeg defaults `-probesize 5000000`, `-analyzeduration 0` and `-threads 1` are also accepted without changing the native output. Other values use the fallback rather than silently changing probing or decoding behavior.
+
 ## Examples
 
 ```sh

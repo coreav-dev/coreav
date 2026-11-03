@@ -3,8 +3,9 @@
 
 use crate::Error;
 use crate::ebml::{self, ElementHeader};
-use crate::error::{Warning, warn};
+use crate::error::Warning;
 use crate::ids;
+use crate::planning;
 use crate::reader::{Children, Counter};
 use coreav_isobmff::{Color, FourCc, Profile};
 
@@ -128,6 +129,41 @@ impl Codec {
         }
     }
 
+    /// The track type this codec carries. Summary classification uses this
+    /// rather than a second list of names.
+    pub fn kind(self) -> TrackKind {
+        match self {
+            Self::H264
+            | Self::Hevc
+            | Self::Av1
+            | Self::Vp8
+            | Self::Vp9
+            | Self::ProRes
+            | Self::Mpeg1Video
+            | Self::Mpeg2Video
+            | Self::Mpeg4
+            | Self::Theora
+            | Self::Mjpeg
+            | Self::Ffv1 => TrackKind::Video,
+            Self::Aac
+            | Self::Mp3
+            | Self::Mp2
+            | Self::Opus
+            | Self::Vorbis
+            | Self::Flac
+            | Self::Ac3
+            | Self::Eac3
+            | Self::Dts
+            | Self::TrueHd
+            | Self::Alac
+            | Self::Pcm => TrackKind::Audio,
+            Self::SubRip | Self::Ass | Self::WebVtt | Self::Pgs | Self::VobSub | Self::DvbSub => {
+                TrackKind::Subtitle
+            }
+            Self::Other => TrackKind::Data,
+        }
+    }
+
     /// CoreAV's name for the codec, as `--allow` takes it.
     pub fn name(self) -> &'static str {
         match self {
@@ -229,6 +265,51 @@ pub struct Allowlist {
 }
 
 impl Allowlist {
+    const DEFAULT_CODECS: &'static [Codec] = &[
+        Codec::H264,
+        Codec::Hevc,
+        Codec::Av1,
+        Codec::Vp8,
+        Codec::Vp9,
+        Codec::ProRes,
+        Codec::Aac,
+        Codec::Mp3,
+        Codec::Opus,
+        Codec::Vorbis,
+        Codec::Flac,
+        Codec::Ac3,
+        Codec::Eac3,
+        Codec::Alac,
+        Codec::Pcm,
+        Codec::SubRip,
+        Codec::Ass,
+        Codec::WebVtt,
+    ];
+
+    /// Builds the default codec allowlist using the shared planning account.
+    pub fn default_with_planning(planning: &coreav_isobmff::PlanningBudget) -> Result<Self, Error> {
+        Self::new_with_planning(Self::DEFAULT_CODECS, planning)
+    }
+
+    /// Builds a codec allowlist with its backing capacity charged before allocation.
+    pub fn new_with_planning(
+        codecs: &[Codec],
+        planning: &coreav_isobmff::PlanningBudget,
+    ) -> Result<Self, Error> {
+        let mut owned = Vec::new();
+        planning::exact(Some(planning), &mut owned, codecs.len(), 0)?;
+        owned.extend(
+            codecs
+                .iter()
+                .copied()
+                .filter(|codec| *codec != Codec::Other),
+        );
+        Ok(Self {
+            codecs: owned,
+            strict: false,
+        })
+    }
+
     /// An allowlist of exactly these codecs, dropping other tracks. `Other`
     /// is never allowed here (only [`Allowlist::any`] lets it through).
     pub fn new(codecs: &[Codec]) -> Self {
@@ -288,26 +369,7 @@ impl Default for Allowlist {
     /// codecs (VP8, Vorbis) and the text subtitle formats
     /// (`docs/design/mkv.md`).
     fn default() -> Self {
-        Self::new(&[
-            Codec::H264,
-            Codec::Hevc,
-            Codec::Av1,
-            Codec::Vp8,
-            Codec::Vp9,
-            Codec::ProRes,
-            Codec::Aac,
-            Codec::Mp3,
-            Codec::Opus,
-            Codec::Vorbis,
-            Codec::Flac,
-            Codec::Ac3,
-            Codec::Eac3,
-            Codec::Alac,
-            Codec::Pcm,
-            Codec::SubRip,
-            Codec::Ass,
-            Codec::WebVtt,
-        ])
+        Self::new(Self::DEFAULT_CODECS)
     }
 }
 
@@ -578,15 +640,25 @@ pub struct Track {
 impl Track {
     /// Fills the colors `Colour` left unknown from a codec configuration
     /// record (`Colour` wins), and warns when the record is malformed.
-    pub(crate) fn fill_from_record(&mut self, described: &coreav_isobmff::ConfigRecord) {
+    pub(crate) fn fill_from_record(
+        &mut self,
+        described: &coreav_isobmff::ConfigRecord,
+        planning: Option<&coreav_isobmff::PlanningBudget>,
+    ) -> Result<(), Error> {
         let (color, from) = (&mut self.color, described.color);
         color.primaries = color.primaries.or(from.primaries);
         color.transfer = color.transfer.or(from.transfer);
         color.matrix = color.matrix.or(from.matrix);
         color.full_range = color.full_range.or(from.full_range);
         if described.malformed {
-            warn(&mut self.warnings, Warning::MalformedCodecPrivate);
+            planning::warn(
+                planning,
+                &mut self.warnings,
+                Warning::MalformedCodecPrivate,
+                0,
+            )?;
         }
+        Ok(())
     }
 
     /// Whether the track's packets can be listed.
@@ -637,7 +709,7 @@ pub(crate) fn parse_track_entry(
         color: Color::default(),
         colour: Color::default(),
         name: None,
-        language: "eng".to_owned(),
+        language: planning::string(counter.planning.as_ref(), b"eng", base)?,
         language_iso639: None,
         enabled: true,
         default: true,
@@ -683,14 +755,26 @@ pub(crate) fn parse_track_entry(
                 // An empty element means the default, 1.0 (RFC 8794 6.1).
                 track.timestamp_scale_one = d.is_empty() || scale == 1.0;
             }
-            ids::NAME => track.name = Some(ebml::string(d)),
-            ids::LANGUAGE => {
-                track.language = ebml::string(d);
-                track.language_iso639 = Some(track.language.clone());
+            ids::NAME => {
+                track.name = Some(planning::string(counter.planning.as_ref(), d, h.offset)?)
             }
-            ids::LANGUAGE_BCP47 => bcp47 = Some(ebml::string(d)),
-            ids::CODEC_ID => track.codec_id = ebml::string(d),
-            ids::CODEC_PRIVATE => track.codec_private = Some(d.to_vec()),
+            ids::LANGUAGE => {
+                track.language = planning::string(counter.planning.as_ref(), d, h.offset)?;
+                track.language_iso639 = Some(planning::string(
+                    counter.planning.as_ref(),
+                    track.language.as_bytes(),
+                    h.offset,
+                )?);
+            }
+            ids::LANGUAGE_BCP47 => {
+                bcp47 = Some(planning::string(counter.planning.as_ref(), d, h.offset)?)
+            }
+            ids::CODEC_ID => {
+                track.codec_id = planning::string(counter.planning.as_ref(), d, h.offset)?
+            }
+            ids::CODEC_PRIVATE => {
+                track.codec_private = Some(planning::copy(counter.planning.as_ref(), d, h.offset)?)
+            }
             ids::CODEC_DELAY => track.codec_delay = ebml::uint(d, &h)?,
             ids::SEEK_PRE_ROLL => track.seek_pre_roll = ebml::uint(d, &h)?,
             ids::VIDEO => {
@@ -720,7 +804,7 @@ pub(crate) fn parse_track_entry(
     }
     if track.language.is_empty() {
         // An empty element takes the default value (RFC 8794 6.1).
-        track.language = "eng".to_owned();
+        track.language = planning::string(counter.planning.as_ref(), b"eng", base)?;
     }
     track.kind = match track.track_type {
         1 => TrackKind::Video,
@@ -739,12 +823,32 @@ pub(crate) fn parse_track_entry(
         track.audio = Some(Audio::default());
     }
     if !track.timestamp_scale_one {
-        warn(&mut track.warnings, Warning::UnsupportedTrackTimestampScale);
+        planning::warn(
+            counter.planning.as_ref(),
+            &mut track.warnings,
+            Warning::UnsupportedTrackTimestampScale,
+            0,
+        )?;
     }
     match track.encoding {
-        Encoding::Unsupported => warn(&mut track.warnings, Warning::UnsupportedEncoding),
-        Encoding::Encrypted => warn(&mut track.warnings, Warning::Encrypted),
-        Encoding::Zlib => warn(&mut track.warnings, Warning::ZlibCompressed),
+        Encoding::Unsupported => planning::warn(
+            counter.planning.as_ref(),
+            &mut track.warnings,
+            Warning::UnsupportedEncoding,
+            0,
+        )?,
+        Encoding::Encrypted => planning::warn(
+            counter.planning.as_ref(),
+            &mut track.warnings,
+            Warning::Encrypted,
+            0,
+        )?,
+        Encoding::Zlib => planning::warn(
+            counter.planning.as_ref(),
+            &mut track.warnings,
+            Warning::ZlibCompressed,
+            0,
+        )?,
         _ => {}
     }
     track.codec = Codec::from_codec_id(&track.codec_id);
@@ -760,7 +864,7 @@ pub(crate) fn parse_track_entry(
     if track.codec == Codec::VobSub {
         track.image_size = track.codec_private.as_deref().and_then(vobsub_size);
     }
-    describe_private(&mut track);
+    describe_private(&mut track, counter.planning.as_ref())?;
     Ok(track)
 }
 
@@ -769,10 +873,13 @@ pub(crate) fn parse_track_entry(
 /// Matroska codec mappings: `AVCDecoderConfigurationRecord`,
 /// `HEVCDecoderConfigurationRecord`, `AV1CodecConfigurationRecord`,
 /// `AudioSpecificConfig`, and the WebM VP9 codec feature metadata).
-fn describe_private(track: &mut Track) {
+fn describe_private(
+    track: &mut Track,
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Result<(), Error> {
     let Some(private) = track.codec_private.as_deref() else {
         track.profile = legacy_aac_profile(&track.codec_id);
-        return;
+        return Ok(());
     };
     let record = match track.codec {
         Codec::H264 => FourCc(*b"avcC"),
@@ -781,28 +888,42 @@ fn describe_private(track: &mut Track) {
         Codec::Aac => {
             track.profile = coreav_isobmff::describe_audio_specific_config(private);
             if track.profile.is_none() {
-                warn(&mut track.warnings, Warning::MalformedCodecPrivate);
+                planning::warn(
+                    planning,
+                    &mut track.warnings,
+                    Warning::MalformedCodecPrivate,
+                    0,
+                )?;
             }
-            return;
+            return Ok(());
         }
         Codec::Vp9 => {
             match vp9_features(private) {
                 Some(profile) => track.profile = profile,
-                None => warn(&mut track.warnings, Warning::MalformedCodecPrivate),
+                None => planning::warn(
+                    planning,
+                    &mut track.warnings,
+                    Warning::MalformedCodecPrivate,
+                    0,
+                )?,
             }
-            return;
+            return Ok(());
         }
-        _ => return,
+        _ => return Ok(()),
     };
     // An AV1 CodecPrivate may be empty only when the bitstream carries the
     // sequence header; there is nothing to describe then.
     if private.is_empty() {
-        return;
+        return Ok(());
     }
-    if let Some(described) = coreav_isobmff::describe_config_record(record, private) {
+    if let Some(described) =
+        coreav_isobmff::describe_config_record_with_planning(record, private, planning)
+            .map_err(|_| planning::limit(0))?
+    {
         track.profile = described.profile;
-        track.fill_from_record(&described);
+        track.fill_from_record(&described, planning)?;
     }
+    Ok(())
 }
 
 /// The AAC profile a legacy codec ID names (the Matroska codec mappings,
@@ -1084,7 +1205,9 @@ fn parse_encodings(
                         let (h, d) = child?;
                         match h.id {
                             ids::CONTENT_COMP_ALGO => algo = ebml::uint(d, &h)?,
-                            ids::CONTENT_COMP_SETTINGS => settings = d.to_vec(),
+                            ids::CONTENT_COMP_SETTINGS => {
+                                settings = planning::copy(counter.planning.as_ref(), d, h.offset)?
+                            }
                             _ => {}
                         }
                     }

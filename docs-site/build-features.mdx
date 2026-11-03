@@ -48,6 +48,8 @@ The `libopus` feature adds Opus audio to `coreav transcode` (`--audio opus`), en
 
 ## The native H.264 decoder and patents
 
+The [opt-in PGO recipe](https://github.com/coreav-dev/coreav/blob/main/docs/h264-pgo.md) builds an experimental Linux x86-64 H.264 decode example. It does not change the CLI, release archives, or default build flags. Its held-out evaluation is registered separately from the earlier training diagnostic.
+
 <Warning>
 Decoding H.264 may require a patent licence, depending on where you are and what you do with it. Patents essential to H.264 are still in force in some jurisdictions, and pool licences exist for decoders as well as encoders. Deciding whether you may use this decoder is yours to make. Nothing here is legal advice.
 </Warning>

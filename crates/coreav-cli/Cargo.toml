@@ -19,6 +19,12 @@ path = "src/main.rs"
 # npm package, docs/design/npm-cli.md).
 required-features = ["cli"]
 
+[[test]]
+name = "image_capture"
+path = "tests/image_capture.rs"
+harness = false
+required-features = ["input-capture"]
+
 [features]
 default = ["cli", "net"]
 # The command-line parser. The library (probing a `Source` and the JSON
@@ -34,6 +40,8 @@ ffmpeg-fallback = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker
 # in this process. Opt-in and never in a default build: decoding H.264 may
 # need a patent licence where you are (docs/design/h264.md, "Packaging").
 native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
+# Experimental native profile-0 VP9, not in a default or release build.
+native-vp9 = ["thumbnail", "transcode", "dep:coreav-backend-vp9"]
 # Thumbnails (frame decoding, resampling, image encoding); a decoder backend
 # feature turns it on. Without it there is no `coreav thumbnail` subcommand
 # and the code is not linked, which keeps every command's start-up at its
@@ -41,12 +49,14 @@ native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
 # `coreav-worker` (the hidden `__coreav_exec` entry, which runs the encoder
 # of `coreav transcode`) to every build with a decoder backend, the native
 # H.264 decoder alone included.
-thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker", "dep:coreav-frame"]
+thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker", "dep:coreav-frame", "coreav-thumbnail/jpeg-simd"]
+thumbnail-summary = ["dep:coreav-thumbnail"]
 # `coreav transcode` (docs/design/transcode.md, experimental): the video
 # re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
 # program runs under the sandbox launcher `thumbnail` brings. A decoder
 # backend feature turns it on.
 transcode = ["thumbnail", "dep:coreav-transcode"]
+input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
 dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
@@ -84,9 +94,10 @@ coreav-policy = { path = "../coreav-policy" }
 coreav-text = { path = "../coreav-text" }
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame", optional = true }
-coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
+coreav-thumbnail = { path = "../coreav-thumbnail", optional = true, default-features = false }
 coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
+coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
 coreav-worker = { path = "../coreav-worker", optional = true }
 clap = { workspace = true, optional = true }
 coreav-range = { path = "../coreav-range", optional = true }
@@ -95,6 +106,7 @@ rustls-native-certs = { version = "0.8", optional = true }
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls-no-provider"], optional = true }
 url = { version = "2", optional = true }
 serde_json = { workspace = true }
+sha2 = { version = "0.10", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }

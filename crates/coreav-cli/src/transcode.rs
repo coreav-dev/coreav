@@ -49,6 +49,9 @@ pub struct Request {
     pub opus: Option<OpusRequest>,
     /// `--audio aac`: one audio stream encoded to AAC-LC instead.
     pub aac: Option<AacRequest>,
+    /// Optional actual AAC-encoder stdin capture.
+    #[cfg(feature = "input-capture")]
+    pub input_capture: Option<coreav_transcode::capture::Target>,
     /// The pixel format the encoder must be given (`-pix_fmt`).
     pub pixel_format: Option<PixelFormat>,
     /// Refuse a stream whose frame size changes, instead of resizing it.
@@ -143,6 +146,8 @@ pub fn make<S: Source>(
             (_, false, None, Some(aac)) => AudioMode::Aac(AacAudio {
                 stream: aac.stream,
                 bitrate: aac.bitrate,
+                #[cfg(feature = "input-capture")]
+                input_capture: request.input_capture.clone(),
             }),
             (Some(streams), false, None, None) => AudioMode::Streams(streams.clone()),
             (None, false, None, None) => AudioMode::Copy,
@@ -252,6 +257,16 @@ impl<S: Source> Source for RateSource<'_, S> {
     }
 }
 
+/// The `kind` of a copied stream that is not audio. Audio is a separate
+/// array and does not carry `kind`.
+fn copied_kind(kind: coreav_mkv::TrackKind) -> &'static str {
+    match kind {
+        coreav_mkv::TrackKind::Video => "video",
+        coreav_mkv::TrackKind::Subtitle => "subtitle",
+        coreav_mkv::TrackKind::Data | coreav_mkv::TrackKind::Audio => "data",
+    }
+}
+
 /// The `coreav.transcode/1` summary.
 pub fn document(summary: &Summary) -> Value {
     let video = &summary.video;
@@ -271,7 +286,21 @@ pub fn document(summary: &Summary) -> Value {
         Remuxed::OutputMatroska(remuxed) => {
             bytes = remuxed.bytes_written;
             for t in remuxed.tracks.iter().filter(|t| !t.replaced) {
-                audio.push(json!({"stream_index": t.stream_index, "codec": t.codec.name()}));
+                match t.codec.kind() {
+                    coreav_mkv::TrackKind::Audio => {
+                        audio.push(json!({
+                            "stream_index": t.stream_index,
+                            "codec": t.codec.name(),
+                        }));
+                    }
+                    kind => {
+                        other.push(json!({
+                            "stream_index": t.stream_index,
+                            "kind": copied_kind(kind),
+                            "codec": t.codec.name(),
+                        }));
+                    }
+                }
             }
         }
         Remuxed::Mp4(remuxed) => {
@@ -331,7 +360,8 @@ pub fn document(summary: &Summary) -> Value {
             }
         }
     }
-    json!({
+    #[cfg_attr(not(feature = "input-capture"), allow(unused_mut))]
+    let mut document = json!({
         "schema": "coreav.transcode/1",
         "output": {"bytes": bytes},
         "video": {
@@ -361,7 +391,17 @@ pub fn document(summary: &Summary) -> Value {
         })),
         "other": other,
         "dropped": dropped,
-    })
+    });
+    #[cfg(feature = "input-capture")]
+    if let Some(capture) = summary
+        .audio
+        .as_ref()
+        .and_then(|audio| audio.input_capture.as_ref())
+        && let Some(object) = document.as_object_mut()
+    {
+        object.insert("input_capture".into(), json!(capture));
+    }
+    document
 }
 
 /// The failure of a transcode.
@@ -564,6 +604,71 @@ mod tests {
             "x",
         ));
         assert_eq!(late.to_json()["limit"], "timeout");
+    }
+
+    #[test]
+    fn copied_streams_land_by_media_type() {
+        use coreav_decode::{BackendKind, DecoderInfo, Isolation};
+        use coreav_isobmff_write::mkv_output::{OutputSummary, OutputTrack};
+        use coreav_mkv::Codec;
+        let summary = Summary {
+            video: coreav_transcode::VideoSummary {
+                stream_index: 0,
+                codec: coreav_decode::Codec::H264,
+                frames: 1,
+                dropped_frames: 0,
+                not_presented: 0,
+                decoder: DecoderInfo {
+                    backend: BackendKind::Native,
+                    isolation: Isolation::InProcess,
+                    decoder: "h264".into(),
+                },
+                skipped: Vec::new(),
+                encoder: "x264",
+                width: 2,
+                height: 2,
+                sample_aspect: None,
+                frame_rate: FrameRate { num: 1, den: 1 },
+            },
+            audio: None,
+            remux: Remuxed::OutputMatroska(OutputSummary {
+                bytes_written: 1,
+                tracks: vec![
+                    OutputTrack {
+                        stream_index: 0,
+                        codec: Codec::H264,
+                        replaced: true,
+                    },
+                    OutputTrack {
+                        stream_index: 1,
+                        codec: Codec::H264,
+                        replaced: false,
+                    },
+                    OutputTrack {
+                        stream_index: 2,
+                        codec: Codec::Aac,
+                        replaced: false,
+                    },
+                    OutputTrack {
+                        stream_index: 3,
+                        codec: Codec::SubRip,
+                        replaced: false,
+                    },
+                ],
+            }),
+        };
+        let document = document(&summary);
+        assert_eq!(
+            document["audio"],
+            json!([{"stream_index": 2, "codec": "aac"}])
+        );
+        assert_eq!(
+            document["other"],
+            json!([
+                {"stream_index": 1, "kind": "video", "codec": "h264"},
+                {"stream_index": 3, "kind": "subtitle", "codec": "subrip"}
+            ])
+        );
     }
 
     #[test]
