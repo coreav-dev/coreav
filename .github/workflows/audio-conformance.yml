@@ -8,10 +8,10 @@ name: audio-conformance
 on:
   push:
     branches: [main]
-    paths: ["scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -71,6 +71,9 @@ jobs:
           python3 -I scripts/raw_pcm_check.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/coreav-oracle-bin" --out "$RUNNER_TEMP/raw-pcm.json" \
             --work-dir "$RUNNER_TEMP/raw-pcm-cases"
+          python3 -I scripts/opus_matroska_padding.py --coreav target/debug/coreav \
+            --oracle-dir "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/opus-matroska-cases" \
+            --out "$RUNNER_TEMP/opus-matroska-padding.json"
           python3 -I scripts/opus_mp4_presentation.py --coreav target/debug/coreav \
             --oracle-dir "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/opus-mp4-cases" \
             --out "$RUNNER_TEMP/opus-mp4-presentation.json"
@@ -82,6 +85,7 @@ jobs:
           name: raw-pcm-verification
           path: |
             ${{ runner.temp }}/raw-pcm.json
+            ${{ runner.temp }}/opus-matroska-padding.json
             ${{ runner.temp }}/opus-mp4-presentation.json
           if-no-files-found: warn
           retention-days: 7

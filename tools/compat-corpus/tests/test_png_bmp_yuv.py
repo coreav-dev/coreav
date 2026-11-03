@@ -523,7 +523,8 @@ class RunIdentity(unittest.TestCase):
     def test_summary_rejects_prior_mixed_relabelled_and_unknown_command_rows(self):
         entry = {'class': 'media', 'container': 'image', 'args': ['-i', 'INPUT', 'OUTPUT'], 'output': 'out.png'}
         manifest = {'schema': 'coreav.image-run/1', **image.registration(),
-                    'commandset_sha256': image.eb.sha256(image.eb.SET), 'methods': image.method_identity()}
+                    'commandset_sha256': image.eb.sha256(image.eb.SET), 'methods': image.method_identity(),
+                    'inputs': {name: image.digest(name) for name in image.eb.INPUT_FILES}}
         record = {**image.eb.header(0, entry), **image.registration(), 'run_identity_sha256': image.digest(manifest),
                   'counted': False, 'miss': 'no_input', 'detail': {}}
         with mock.patch.object(image.eb, 'commands', return_value=[(0, entry)]):
@@ -542,14 +543,14 @@ class RunIdentity(unittest.TestCase):
             image.main()
         self.assertEqual(caught.exception.code, 2)
 
-    def test_standalone_acquisition_keeps_all_v2_rows_and_writes_identity(self):
+    def acquisition_options(self):
         for name in ('ffmpeg', 'ffprobe', 'x264'):
             path = self.root / name
             path.write_bytes(name.encode())
             setattr(self.opts, name, path)
         fixtures = self.root / 'fixtures'
         fixtures.mkdir()
-        for name in image.eb.FIXTURES:
+        for name in image.eb.INPUT_FILES:
             (fixtures / name).write_bytes(name.encode())
         self.opts.fixtures = fixtures
         self.opts.work = self.root / 'work'
@@ -557,6 +558,19 @@ class RunIdentity(unittest.TestCase):
         self.opts.summary = self.root / 'summary.json'
         self.opts.manifest = self.root / 'manifest.json'
         self.opts.jobs, self.opts.mediainfo = 1, None
+
+    def mocked_acquisition(self, evaluate):
+        entry = {'class': 'media', 'container': 'image', 'args': ['-i', 'INPUT', 'OUTPUT'], 'output': 'out.png'}
+        with mock.patch.object(image, 'validate_host'), \
+                mock.patch.object(image, 'validate_source_commit', return_value='a' * 40), \
+                mock.patch.object(image.eb, 'oracle_programs', return_value={}), \
+                mock.patch.object(image.eb, 'commands', return_value=[(0, entry)]), \
+                mock.patch.object(image, 'evaluate', side_effect=evaluate), \
+                mock.patch.object(image.eb, 'brief', return_value=0):
+            return image.cmd_run(self.opts)
+
+    def test_standalone_acquisition_keeps_all_v2_rows_and_writes_identity(self):
+        self.acquisition_options()
         entries = [(index, {'class': 'media', 'container': 'image', 'args': ['-i', 'INPUT', 'OUTPUT'],
                             'output': 'out.png'}) for index in range(3)]
         def evaluate(opts, index, entry):
@@ -574,12 +588,145 @@ class RunIdentity(unittest.TestCase):
         oracle.assert_called_once_with(self.opts)
         manifest = json.loads(self.opts.manifest.read_text())
         self.assertEqual(set(manifest['tools']), {'coreav', 'harness', 'image_harness', 'ffmpeg', 'ffprobe', 'x264'})
-        self.assertEqual(set(manifest['inputs']), set(image.eb.FIXTURES))
+        self.assertEqual(manifest['inputs'], {name: image.eb.sha256(self.opts.fixtures / name)
+                                              for name in image.eb.INPUT_FILES})
         self.assertEqual(manifest['build'], self.build)
         records = [json.loads(row) for row in self.opts.records.read_text().splitlines()]
         self.assertEqual([row['index'] for row in records], [0, 1, 2])
         self.assertTrue(all(row['run_identity_sha256'] == image.digest(manifest) for row in records))
         self.assertEqual(json.loads(self.opts.summary.read_text())['v2']['of'], 3)
+
+    def test_missing_supplemental_input_refuses_before_acquisition(self):
+        self.acquisition_options()
+        for name in image.eb.v2_fixture_inputs.FILES:
+            path = self.opts.fixtures / name
+            path.unlink()
+            with self.subTest(name=name), self.assertRaises(OSError):
+                self.mocked_acquisition(mock.Mock(side_effect=AssertionError('acquisition started')))
+            self.assertFalse(self.opts.work.exists())
+            path.write_bytes(name.encode())
+
+    def test_changed_or_removed_supplemental_input_voids_acquisition(self):
+        self.acquisition_options()
+        for name in image.eb.v2_fixture_inputs.FILES:
+            path = self.opts.fixtures / name
+            for remove in (False, True):
+                def evaluate(opts, index, entry):
+                    if remove:
+                        path.unlink()
+                    else:
+                        path.write_bytes(path.read_bytes() + b'changed')
+                    return {**image.eb.header(index, entry), **image.registration(),
+                            'run_identity_sha256': opts.run_identity, 'counted': False, 'miss': 'no_input', 'detail': {}}
+                with self.subTest(name=name, remove=remove), self.assertRaises((image.Invalid, OSError)) as caught:
+                    self.mocked_acquisition(evaluate)
+                if not remove:
+                    self.assertEqual(caught.exception.reason, 'source_identity')
+                self.assertFalse(self.opts.summary.exists())
+                self.assertFalse(self.opts.manifest.exists())
+                self.assertFalse(self.opts.records.exists())
+                path.write_bytes(name.encode())
+                shutil.rmtree(self.opts.work)
+
+    def test_method_identity_includes_supplemental_owner_provenance(self):
+        owner = image.eb.v2_fixture_inputs
+        expected = owner.provenance()
+        self.assertEqual(set(expected), {'scripts/v2_fixture_inputs.py', 'scripts/gen-v2-fixtures.py',
+                                         'tools/compat-corpus/v2-fixtures.json'})
+        with mock.patch.object(owner, 'provenance', wraps=owner.provenance) as provenance:
+            methods = image.method_identity()
+        provenance.assert_called_once_with()
+        self.assertEqual({name: methods.get(name) for name in expected}, expected)
+
+    def test_summary_rejects_incomplete_input_roster_or_supplemental_method_identity(self):
+        entry = {'class': 'media', 'container': 'image', 'args': ['-i', 'INPUT', 'OUTPUT'], 'output': 'out.png'}
+        manifest = {'schema': 'coreav.image-run/1', **image.registration(),
+                    'commandset_sha256': image.eb.sha256(image.eb.SET), 'methods': image.method_identity(),
+                    'inputs': {name: image.digest(name) for name in image.eb.INPUT_FILES}}
+        mutations = [('no_inputs', lambda m: m.pop('inputs')),
+                     ('legacy_inputs', lambda m: m.update(inputs={name: m['inputs'][name] for name in image.eb.FIXTURES})),
+                     ('unknown_input', lambda m: m['inputs'].update(unknown='0' * 64))]
+        for name in image.eb.v2_fixture_inputs.FILES:
+            mutations.extend(((f'missing:{name}', lambda m, n=name: m['inputs'].pop(n)),
+                              (f'invalid:{name}', lambda m, n=name: m['inputs'].update({n: 'not a hash'}))))
+        for name in image.eb.v2_fixture_inputs.provenance():
+            mutations.extend(((f'missing:{name}', lambda m, n=name: m['methods'].pop(n, None)),
+                              (f'changed:{name}', lambda m, n=name: m['methods'].update({n: '0' * 64}))))
+        for label, mutate in mutations:
+            changed = copy.deepcopy(manifest)
+            mutate(changed)
+            record = {**image.eb.header(0, entry), **image.registration(),
+                      'run_identity_sha256': image.digest(changed), 'counted': False, 'miss': 'no_input', 'detail': {}}
+            with self.subTest(label=label), mock.patch.object(image.eb, 'commands', return_value=[(0, entry)]), \
+                    self.assertRaises(image.Invalid):
+                image.summarize([record], changed)
+
+    def test_changed_supplemental_hash_cannot_reuse_captured_rows(self):
+        entry = {'class': 'media', 'container': 'image', 'args': ['-i', 'INPUT', 'OUTPUT'], 'output': 'out.png'}
+        manifest = {'schema': 'coreav.image-run/1', **image.registration(),
+                    'commandset_sha256': image.eb.sha256(image.eb.SET), 'methods': image.method_identity(),
+                    'inputs': {name: image.digest(name) for name in image.eb.INPUT_FILES}}
+        record = {**image.eb.header(0, entry), **image.registration(), 'run_identity_sha256': image.digest(manifest),
+                  'counted': False, 'miss': 'no_input', 'detail': {}}
+        for name in image.eb.v2_fixture_inputs.FILES:
+            changed = copy.deepcopy(manifest)
+            changed['inputs'][name] = '0' * 64
+            with self.subTest(name=name), mock.patch.object(image.eb, 'commands', return_value=[(0, entry)]), \
+                    self.assertRaises(image.Invalid) as caught:
+                image.summarize([record], changed)
+            self.assertEqual(caught.exception.reason, 'receipt_binding')
+
+    def test_missing_or_changed_supplemental_method_bytes_refuse_acquisition_and_replay(self):
+        self.acquisition_options()
+        owner = image.eb.v2_fixture_inputs
+        root = self.root / 'methods'
+        names = tuple(owner.provenance())
+        for name in names:
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(name.encode())
+        with mock.patch.multiple(owner, ROOT=root, REGISTRATION=root / 'tools/compat-corpus/v2-fixtures.json',
+                                 GENERATOR=root / 'scripts/gen-v2-fixtures.py',
+                                 __file__=str(root / 'scripts/v2_fixture_inputs.py')):
+            methods = image.method_identity()
+            manifest = {'schema': 'coreav.image-run/1', **image.registration(),
+                        'commandset_sha256': image.eb.sha256(image.eb.SET), 'methods': methods,
+                        'inputs': {name: image.digest(name) for name in image.eb.INPUT_FILES}}
+            for name in names:
+                path = root / name
+                for remove in (False, True):
+                    for phase in ('preflight', 'postflight', 'replay'):
+                        def change():
+                            if remove:
+                                path.unlink()
+                            else:
+                                path.write_bytes(name.encode() + b'changed')
+                        def evaluate(opts, index, entry):
+                            change()
+                            return {**image.eb.header(index, entry), **image.registration(),
+                                    'run_identity_sha256': opts.run_identity, 'counted': False,
+                                    'miss': 'no_input', 'detail': {}}
+                        with self.subTest(name=name, remove=remove, phase=phase), \
+                                mock.patch.object(image, 'LOADED_METHODS', methods), \
+                                self.assertRaises((image.Invalid, OSError)) as caught:
+                            if phase == 'replay':
+                                change()
+                                image.summarize([], manifest)
+                            elif phase == 'preflight':
+                                change()
+                                self.mocked_acquisition(mock.Mock(side_effect=AssertionError('acquisition started')))
+                            else:
+                                self.mocked_acquisition(evaluate)
+                        if not remove:
+                            self.assertEqual(caught.exception.reason, 'method_identity')
+                        self.assertFalse(self.opts.summary.exists())
+                        self.assertFalse(self.opts.manifest.exists())
+                        self.assertFalse(self.opts.records.exists())
+                        if phase == 'postflight':
+                            shutil.rmtree(self.opts.work)
+                        else:
+                            self.assertFalse(self.opts.work.exists())
+                        path.write_bytes(name.encode())
 
 
 class Orchestrator(unittest.TestCase):

@@ -30,6 +30,7 @@ enum State {
 struct Stream {
     format: OutputFormat,
     pending: Vec<u8>,
+    residual_scratch: Vec<u32>,
     md5: Md5,
     samples: u64,
     frames: u32,
@@ -90,6 +91,7 @@ impl<W: Write> Sink for FlacSink<W> {
             pending: Vec::with_capacity(
                 BLOCK * usize::from(format.channels) * format.format.bytes(),
             ),
+            residual_scratch: Vec::new(),
             md5: Md5::new(),
             samples: 0,
             frames: 0,
@@ -164,13 +166,16 @@ impl Stream {
                 plane.push(value);
             }
         }
-        let mut subframes: Vec<Subframe> = planes.iter().map(|p| Subframe::plan(p, bits)).collect();
+        let mut subframes: Vec<Subframe> = planes
+            .iter()
+            .map(|p| Subframe::plan(p, bits, &mut self.residual_scratch))
+            .collect();
         let mut assignment = channels as u8 - 1;
         if let [left, right] = planes.as_slice() {
             let side: Vec<i64> = left.iter().zip(right).map(|(l, r)| l - r).collect();
             let mid: Vec<i64> = left.iter().zip(right).map(|(l, r)| (l + r) >> 1).collect();
-            let side = Subframe::plan(&side, bits + 1);
-            let mid = Subframe::plan(&mid, bits);
+            let side = Subframe::plan(&side, bits + 1, &mut self.residual_scratch);
+            let mid = Subframe::plan(&mid, bits, &mut self.residual_scratch);
             if let [left, right] = subframes.as_slice() {
                 let choices = [
                     (left.cost + right.cost, 1),
@@ -352,6 +357,74 @@ enum Predictor {
     Linear { coefficients: Vec<i16>, shift: u8 },
 }
 
+fn fold_residual(value: i64) -> Option<u32> {
+    if value <= -(1i64 << 31) || value >= (1i64 << 31) {
+        return None;
+    }
+    Some(if value < 0 {
+        (-value * 2 - 1) as u32
+    } else {
+        (value * 2) as u32
+    })
+}
+
+fn fixed_residual<const ORDER: usize>(samples: &[i64], residual: &mut Vec<u32>) -> bool {
+    for window in samples.windows(ORDER + 1) {
+        let (sample, predicted) = match window {
+            [sample] => (*sample, 0),
+            [a, sample] => (*sample, *a),
+            [a, b, sample] => (*sample, 2 * b - a),
+            [a, b, c, sample] => (*sample, 3 * c - 3 * b + a),
+            [a, b, c, d, sample] => (*sample, 4 * d - 6 * c + 4 * b - a),
+            _ => return false,
+        };
+        let Some(value) = fold_residual(sample - predicted) else {
+            return false;
+        };
+        residual.push(value);
+    }
+    true
+}
+
+impl Predictor {
+    fn residual(&self, samples: &[i64], residual: &mut Vec<u32>) -> Option<usize> {
+        let order = match self {
+            Self::Fixed(order) => usize::from(*order),
+            Self::Linear { coefficients, .. } => coefficients.len(),
+            Self::Constant | Self::Verbatim => return None,
+        };
+        if order >= samples.len() {
+            return None;
+        }
+        residual.clear();
+        residual.reserve_exact(samples.len() - order);
+        let valid = match self {
+            Self::Fixed(0) => fixed_residual::<0>(samples, residual),
+            Self::Fixed(1) => fixed_residual::<1>(samples, residual),
+            Self::Fixed(2) => fixed_residual::<2>(samples, residual),
+            Self::Fixed(3) => fixed_residual::<3>(samples, residual),
+            Self::Fixed(4) => fixed_residual::<4>(samples, residual),
+            Self::Linear {
+                coefficients,
+                shift,
+            } => {
+                for window in samples.windows(order + 1) {
+                    let (sample, previous) = window.split_last()?;
+                    let mut predicted = 0i64;
+                    for (value, coefficient) in previous.iter().rev().zip(coefficients) {
+                        predicted += value * i64::from(*coefficient);
+                    }
+                    let value = fold_residual(sample - (predicted >> shift))?;
+                    residual.push(value);
+                }
+                true
+            }
+            Self::Fixed(_) | Self::Constant | Self::Verbatim => false,
+        };
+        valid.then_some(order)
+    }
+}
+
 struct Subframe {
     samples: Vec<i64>,
     bits: u8,
@@ -382,7 +455,7 @@ fn lpc_shift(largest: f64) -> u8 {
 }
 
 impl Subframe {
-    fn plan(input: &[i64], bits: u8) -> Self {
+    fn plan(input: &[i64], bits: u8, residual: &mut Vec<u32>) -> Self {
         let wasted = input
             .iter()
             .map(|v| v.trailing_zeros() as u8)
@@ -412,17 +485,8 @@ impl Subframe {
             best.cost = overhead + u64::from(bits);
             return best;
         }
-        for (order, coefficients) in [
-            &[][..],
-            &[1][..],
-            &[2, -1][..],
-            &[3, -3, 1][..],
-            &[4, -6, 4, -1][..],
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            best.consider(coefficients, 0, Predictor::Fixed(order as u8), overhead);
+        for order in 0..=4 {
+            best.consider(Predictor::Fixed(order), overhead, residual);
         }
         let max_order = 8.min(best.samples.len().saturating_sub(1));
         let last = best.samples.len().saturating_sub(1) as f64;
@@ -481,49 +545,22 @@ impl Subframe {
                 })
                 .collect();
             best.consider(
-                &quantized,
-                shift,
                 Predictor::Linear {
-                    coefficients: quantized.clone(),
+                    coefficients: quantized,
                     shift,
                 },
                 overhead,
+                residual,
             );
         }
         best
     }
 
-    fn consider(&mut self, coefficients: &[i16], shift: u8, predictor: Predictor, overhead: u64) {
-        let order = coefficients.len();
-        if order >= self.samples.len() {
-            return;
-        }
-        let residual: Option<Vec<u32>> = self
-            .samples
-            .windows(order + 1)
-            .map(|window| {
-                let (sample, previous) = window.split_last()?;
-                let predicted = previous
-                    .iter()
-                    .rev()
-                    .zip(coefficients)
-                    .map(|(v, c)| v * i64::from(*c))
-                    .sum::<i64>()
-                    >> shift;
-                let residual = sample - predicted;
-                (residual.abs() < (1i64 << 31)).then(|| {
-                    if residual < 0 {
-                        (-residual * 2 - 1) as u32
-                    } else {
-                        (residual * 2) as u32
-                    }
-                })
-            })
-            .collect();
-        let Some(residual) = residual else {
+    fn consider(&mut self, predictor: Predictor, overhead: u64, residual: &mut Vec<u32>) {
+        let Some(order) = predictor.residual(&self.samples, residual) else {
             return;
         };
-        let rice = Rice::plan(&residual, self.samples.len(), order);
+        let rice = Rice::plan(residual, self.samples.len(), order);
         let extra = if matches!(predictor, Predictor::Linear { .. }) {
             9 + 15 * order as u64
         } else {
@@ -532,7 +569,7 @@ impl Subframe {
         let cost = overhead + order as u64 * u64::from(self.bits) + extra + rice.cost;
         if cost < self.cost {
             self.predictor = predictor;
-            self.residual = residual;
+            std::mem::swap(&mut self.residual, residual);
             self.rice = rice;
             self.cost = cost;
         }
@@ -915,7 +952,7 @@ mod tests {
     #[test]
     fn complete_subframes_select_escaped_and_wide_residuals() {
         let ramp: Vec<i64> = (0..4096).map(|i| i * 3 - 6000).collect();
-        let escaped = Subframe::plan(&ramp, 16);
+        let escaped = Subframe::plan(&ramp, 16, &mut Vec::new());
         assert!(
             escaped
                 .rice
@@ -929,7 +966,7 @@ mod tests {
                 (p * p * 13 + p * 71) % ((1 << 24) - 1) - ((1 << 23) - 1)
             })
             .collect();
-        let wide = Subframe::plan(&polynomial, 24);
+        let wide = Subframe::plan(&polynomial, 24, &mut Vec::new());
         assert_eq!(wide.rice.parameter_bits, 5);
         assert!(
             wide.rice
@@ -937,6 +974,116 @@ mod tests {
                 .iter()
                 .any(|p| matches!(p, Partition::Rice(15..=30)))
         );
+    }
+
+    fn scalar_residual(samples: &[i64], coefficients: &[i16], shift: u8) -> Option<Vec<u32>> {
+        let order = coefficients.len();
+        if order >= samples.len() {
+            return None;
+        }
+        let mut result = Vec::new();
+        for index in order..samples.len() {
+            let mut predicted = 0i128;
+            for lag in 0..order {
+                predicted += i128::from(samples[index - lag - 1]) * i128::from(coefficients[lag]);
+            }
+            let value = i128::from(samples[index]) - (predicted >> shift);
+            if !(-(1i128 << 31) + 1..(1i128 << 31)).contains(&value) {
+                return None;
+            }
+            result.push(((value << 1) ^ (value >> 127)) as u32);
+        }
+        Some(result)
+    }
+
+    #[test]
+    fn residual_loops_match_scalar_arithmetic_at_every_order_and_shift() {
+        let mut scratch = vec![u32::MAX; 4096];
+        let fixed = [&[][..], &[1], &[2, -1], &[3, -3, 1], &[4, -6, 4, -1]];
+        let mut state = 7u32;
+        for bits in [16, 24, 25, 31] {
+            for length in [1, 2, 4, 9, 16, 17, 129, 4096, 4097] {
+                let bound = 1i64 << (bits - 1);
+                let samples: Vec<i64> = (0..length)
+                    .map(|i| {
+                        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                        match i % 5 {
+                            0 => -bound,
+                            1 => bound - 1,
+                            2 => 0,
+                            _ => i64::from(state) % (2 * bound) - bound,
+                        }
+                    })
+                    .collect();
+                for (order, coefficients) in fixed.iter().enumerate() {
+                    let actual = Predictor::Fixed(order as u8)
+                        .residual(&samples, &mut scratch)
+                        .map(|_| scratch.clone());
+                    assert_eq!(actual, scalar_residual(&samples, coefficients, 0));
+                }
+                for order in 1..=8 {
+                    let coefficients: Vec<i16> = (0..order)
+                        .map(|i| if i % 2 == 0 { 16383 } else { -16384 })
+                        .collect();
+                    for shift in 0..=15 {
+                        let predictor = Predictor::Linear {
+                            coefficients: coefficients.clone(),
+                            shift,
+                        };
+                        let actual = predictor
+                            .residual(&samples, &mut scratch)
+                            .map(|_| scratch.clone());
+                        assert_eq!(actual, scalar_residual(&samples, &coefficients, shift));
+                    }
+                }
+            }
+        }
+        for (value, expected) in [
+            (-(1i64 << 31), None),
+            (-(1i64 << 31) + 1, Some(u32::MAX - 2)),
+            (-1, Some(1)),
+            (0, Some(0)),
+            (1, Some(2)),
+            ((1i64 << 31) - 1, Some(u32::MAX - 1)),
+            (1i64 << 31, None),
+        ] {
+            assert_eq!(fold_residual(value), expected);
+        }
+    }
+
+    #[test]
+    fn rejected_candidates_cannot_corrupt_selected_or_reused_residuals() {
+        let mut scratch = vec![u32::MAX; 17];
+        let invalid = Predictor::Linear {
+            coefficients: vec![16383],
+            shift: 0,
+        };
+        assert_eq!(invalid.residual(&[1, 1, 1 << 24, 0], &mut scratch), None);
+        assert_eq!(scratch.len(), 2);
+        assert_eq!(
+            Predictor::Fixed(1).residual(&[2, 3, 5, 8], &mut scratch),
+            Some(1)
+        );
+        assert_eq!(scratch, [2, 4, 6]);
+
+        let ramp: Vec<i64> = (0..4096).map(|i| i * 2047 + i % 2).collect();
+        let mut chosen = Subframe::plan(&ramp, 24, &mut scratch);
+        let expected = chosen.residual.clone();
+        let cost = chosen.cost;
+        chosen.consider(Predictor::Fixed(0), u64::MAX / 2, &mut scratch);
+        assert_eq!(chosen.residual, expected);
+        assert_eq!(chosen.cost, cost);
+        let invalid = Predictor::Linear {
+            coefficients: vec![16383; 8],
+            shift: 0,
+        };
+        assert_eq!(invalid.residual(&chosen.samples, &mut scratch), None);
+        chosen.consider(invalid, u64::MAX / 2, &mut scratch);
+        assert_eq!(chosen.residual, expected);
+        assert_eq!(chosen.cost, cost);
+        let other: Vec<i64> = ramp.iter().map(|value| value / 3 - 4000).collect();
+        let _ = Subframe::plan(&other, 24, &mut scratch);
+        assert_eq!(chosen.residual, expected);
     }
 
     #[test]
@@ -979,19 +1126,19 @@ mod tests {
 
     #[test]
     fn coding_choices_include_linear_prediction_and_partitioned_rice() {
-        let constant = Subframe::plan(&[0; 4096], 16);
+        let constant = Subframe::plan(&[0; 4096], 16, &mut Vec::new());
         assert!(matches!(constant.predictor, Predictor::Constant));
         assert_eq!(constant.wasted, 15);
         let ramp: Vec<i64> = (0..4096).map(|i| i * 3 - 6000).collect();
         assert!(matches!(
-            Subframe::plan(&ramp, 16).predictor,
+            Subframe::plan(&ramp, 16, &mut Vec::new()).predictor,
             Predictor::Fixed(_)
         ));
         let tone: Vec<i64> = (0..4096)
             .map(|i| ((i as f64 * 0.13).sin() * 20000.0) as i64)
             .collect();
         assert!(matches!(
-            Subframe::plan(&tone, 16).predictor,
+            Subframe::plan(&tone, 16, &mut Vec::new()).predictor,
             Predictor::Linear { .. }
         ));
         let mut random = 7u32;
@@ -1002,7 +1149,7 @@ mod tests {
             })
             .collect();
         assert!(matches!(
-            Subframe::plan(&noise, 16).predictor,
+            Subframe::plan(&noise, 16, &mut Vec::new()).predictor,
             Predictor::Verbatim
         ));
         let residual: Vec<u32> = (0..4096)

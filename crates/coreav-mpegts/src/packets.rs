@@ -495,6 +495,12 @@ impl<S: Source> Packets<'_, S> {
         &self.warnings
     }
 
+    /// Already-parsed packets waiting to be returned, in return order.
+    /// Borrowing this view neither reads the source nor consumes packets.
+    pub fn buffered_packets(&self) -> impl Iterator<Item = &Packet> {
+        self.queue.iter()
+    }
+
     /// The source, so that a caller can read between calls.
     pub fn source_mut(&mut self) -> &mut S {
         &mut self.source

@@ -21,6 +21,320 @@ use common::{aac_entry, alac_cookie, av_movie_with, dfla, lossless_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// A mono AAC-LC silent element with General Audio fill elements.
+fn silent_adts_frame(size: usize) -> Vec<u8> {
+    let mut bits = Vec::new();
+    let silent = [0x01u8, 0x18, 0x20, 0x07];
+    for bit in 0..29 {
+        bits.push((silent[bit / 8] >> (7 - bit % 8)) & 1);
+    }
+    let elements = (size - 11).div_ceil(271);
+    let mut remaining = size - 11 - 2 * elements;
+    while remaining > 0 {
+        let count = remaining.min(269);
+        remaining -= count;
+        for (value, width) in [(6, 3), (count.min(15), 4)] {
+            bits.extend((0..width).rev().map(|bit| ((value >> bit) & 1) as u8));
+        }
+        if count >= 15 {
+            bits.extend((0..8).rev().map(|bit| (((count - 14) >> bit) & 1) as u8));
+        }
+        bits.resize(bits.len() + count * 8, 0);
+    }
+    bits.extend([1, 1, 1]);
+    bits.resize(bits.len().next_multiple_of(8), 0);
+    let mut frame = ts::adts(size);
+    frame[3] = (frame[3] & 0x3F) | 0x40;
+    for (out, byte) in frame[7..].iter_mut().zip(bits.chunks_exact(8)) {
+        *out = byte.iter().fold(0, |value, bit| (value << 1) | bit);
+    }
+    assert_eq!(bits.len() / 8 + 7, size);
+    frame
+}
+
+fn aac_analysis_frontier(
+    cut: usize,
+    origin: u64,
+    later: usize,
+    named: bool,
+    first: &[u8],
+    bounded: bool,
+) -> Vec<u8> {
+    let mut mux = ts::Mux::default();
+    mux.pat(&[(1, 0x1000), (2, 0x1001)]);
+    mux.pmt(0x1000, 1, &[(15, 0x101)]);
+    mux.pmt(0x1001, 2, &[(15, 0x102)]);
+    if named {
+        mux.section(0x11, 0x42, 1, &[0, 1, 0xFF, 0, 1, 0xFC, 0x80, 0]);
+    }
+    let other = (0..64)
+        .flat_map(|_| silent_adts_frame(100))
+        .collect::<Vec<_>>();
+    mux.pes(0x102, 0xC1, 5_000_000_000, &other, true);
+    mux.pes(0x101, 0xC0, origin + 90_000, first, true);
+    let crossing = silent_adts_frame(400);
+    let mut second = (0..235)
+        .flat_map(|_| silent_adts_frame(200))
+        .collect::<Vec<_>>();
+    second.extend(&crossing[..cut]);
+    mux.pes(0x101, 0xC0, origin + 180_000, &second, true);
+    let next = silent_adts_frame(700);
+    let mut third = [
+        &crossing[cut..],
+        &silent_adts_frame(500),
+        &silent_adts_frame(600),
+    ]
+    .concat();
+    if bounded {
+        third.extend(&next[..3]);
+    }
+    mux.pes(0x101, 0xC0, origin + 180_000 + 236 * 1920, &third, bounded);
+    mux.pes(
+        0x101,
+        0xC0,
+        origin + 180_000 + 238 * 1920,
+        &if bounded {
+            [&next[3..], &silent_adts_frame(later)].concat()
+        } else {
+            silent_adts_frame(later)
+        },
+        true,
+    );
+    mux.out
+}
+
+#[test]
+fn transport_aac_rates_include_headers_buffered_at_analysis_end() {
+    let first = (0..12)
+        .flat_map(|_| silent_adts_frame(100))
+        .collect::<Vec<_>>();
+    for cut in [1, 6, 7, 200, 400] {
+        for named in [false, true] {
+            for (origin, later) in [(0, 100), (3_000_000_000, 800)] {
+                let bytes = aac_analysis_frontier(cut, origin, later, named, &first, true);
+                let name = format!(
+                    "ts-aac-frontier-{}-{cut}-{named}-{origin}",
+                    std::process::id()
+                );
+                let path = file(&name, &bytes);
+                let output = Command::new(bin())
+                    .args(["ffprobe", "-show_streams", "-of", "json"])
+                    .arg(&path)
+                    .output()
+                    .unwrap();
+                std::fs::remove_file(path).unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+                let mut sizes = vec![100i64; 12];
+                sizes.extend(std::iter::repeat_n(200, 235));
+                if cut < 7 || cut == 400 {
+                    sizes.push(400);
+                }
+                if cut < 400 {
+                    sizes.extend([500, 600]);
+                }
+                let mut mean = 0i64;
+                for (i, size) in sizes.into_iter().enumerate() {
+                    mean += (size * 8 * 48_000 / 1024 - mean) / i64::try_from(i + 1).unwrap();
+                }
+                let streams = value["streams"].as_array().unwrap();
+                let main = streams.iter().find(|s| s["id"] == "0x101").unwrap();
+                let other = streams.iter().find(|s| s["id"] == "0x102").unwrap();
+                assert_eq!(
+                    main["bit_rate"],
+                    mean.to_string(),
+                    "cut={cut}, named={named}, origin={origin}"
+                );
+                assert_eq!(other["bit_rate"], "37500");
+            }
+        }
+    }
+}
+
+#[test]
+fn transport_aac_rate_ignores_null_packet_padding() {
+    let first = (0..12)
+        .flat_map(|_| silent_adts_frame(100))
+        .collect::<Vec<_>>();
+    let mut bytes = aac_analysis_frontier(7, 0, 800, true, &first, true);
+    let offset = bytes
+        .chunks_exact(188)
+        .enumerate()
+        .filter(|(_, p)| p[1] & 0x40 != 0 && p[1] & 0x1F == 1 && p[2] == 1)
+        .nth(1)
+        .unwrap()
+        .0
+        * 188;
+    let mut null = [0xFF; 188];
+    null[..4].copy_from_slice(&[0x47, 0x1F, 0xFF, 0x10]);
+    bytes.splice(
+        offset..offset,
+        std::iter::repeat_n(null, 5_100_000 / 188).flatten(),
+    );
+    let path = file(&format!("ts-aac-padding-{}", std::process::id()), &bytes);
+    let result = ffprobe(&["-show_streams", "-of", "json", &path.to_string_lossy()]);
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let value: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+    let stream = value["streams"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "0x101")
+        .unwrap();
+    assert_eq!(stream["bit_rate"], "74187");
+}
+
+#[test]
+fn transport_aac_leading_tails_initialize_before_averaging() {
+    for lead in [0, 1, 20, 100] {
+        for first_size in [100, 200, 400, 800] {
+            for second_size in [100, 400] {
+                let mut sizes = vec![100; 12];
+                sizes[0] = first_size;
+                sizes[1] = second_size;
+                let mut first = vec![0; lead];
+                first.extend(sizes.iter().copied().flat_map(silent_adts_frame));
+                let bytes = aac_analysis_frontier(7, 0, 800, true, &first, true);
+                let name = format!(
+                    "ts-aac-lead-{}-{lead}-{first_size}-{second_size}",
+                    std::process::id()
+                );
+                let path = file(&name, &bytes);
+                let result = ffprobe(&["-show_streams", "-of", "json", &path.to_string_lossy()]);
+                std::fs::remove_file(path).unwrap();
+                assert_eq!(result.code, 0, "{}", result.stderr);
+                if lead > 0 {
+                    sizes.remove(0);
+                }
+                sizes.extend(std::iter::repeat_n(200, 235));
+                sizes.extend([500, 600]);
+                let mut mean = 0i64;
+                for (i, size) in sizes.into_iter().enumerate() {
+                    mean +=
+                        (i64::try_from(size).unwrap() * 375 - mean) / i64::try_from(i + 1).unwrap();
+                }
+                let value: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+                let stream = value["streams"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|s| s["id"] == "0x101")
+                    .unwrap();
+                assert_eq!(
+                    stream["bit_rate"],
+                    mean.to_string(),
+                    "lead={lead}, first={first_size}, second={second_size}"
+                );
+            }
+        }
+    }
+}
+#[test]
+fn transport_aac_analysis_measures_elapsed_periods() {
+    for (index, rate, small, expected) in [
+        (4, 44_100, 18, "58560"),
+        (3, 48_000, 20, "49996"),
+        (5, 32_000, 14, "36661"),
+        (7, 22_050, 9, "39139"),
+        (0, 96_000, 40, "87799"),
+    ] {
+        let mut mux = ts::Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(15, 0x101)]);
+        for pes in 0..small + 20u64 {
+            let size = if pes < small { 100 } else { 800 };
+            let payload = (0..12)
+                .flat_map(|_| {
+                    let mut frame = silent_adts_frame(size);
+                    frame[2] = (frame[2] & !0x3C) | (index << 2);
+                    frame
+                })
+                .collect::<Vec<_>>();
+            let time = 90_000 + pes * 12 * 1024 * 90_000 / rate;
+            mux.pes(0x101, 0xC0, time, &payload, true);
+        }
+        let name = format!("ts-aac-periods-{}-{rate}", std::process::id());
+        let path = file(&name, &mux.out);
+        let result = ffprobe(&["-show_streams", "-of", "json", &path.to_string_lossy()]);
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let value: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(value["streams"][0]["bit_rate"], expected, "rate={rate}");
+        assert_eq!(value["streams"][0]["sample_rate"], rate.to_string());
+    }
+}
+
+#[test]
+fn transport_aac_frontier_excludes_a_later_unadmitted_pes() {
+    let first = (0..12)
+        .flat_map(|_| silent_adts_frame(100))
+        .collect::<Vec<_>>();
+    for later in [76, 100, 150] {
+        let bytes = aac_analysis_frontier(7, 0, later, true, &first, false);
+        let name = format!("ts-aac-unbounded-{}-{later}", std::process::id());
+        let path = file(&name, &bytes);
+        let result = ffprobe(&["-show_streams", "-of", "json", &path.to_string_lossy()]);
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let value: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        let stream = value["streams"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "0x101")
+            .unwrap();
+        assert_eq!(stream["bit_rate"], "74187", "later={later}");
+    }
+}
+
+#[test]
+fn transport_aac_payload_exhaustion_does_not_admit_a_fresh_pes() {
+    for later in [100, 800] {
+        let mut mux = ts::Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        let streams = (0..6).map(|s| (15, 0x101 + s)).collect::<Vec<_>>();
+        mux.pmt(0x1000, 1, &streams);
+        let mut big = silent_adts_frame(1887);
+        big[2] &= !0x3C;
+        let mut small = silent_adts_frame(later);
+        small[2] &= !0x3C;
+        let big = big.repeat(4);
+        let small = small.repeat(4);
+        for pes in 0..130u64 {
+            for stream in 0..6u16 {
+                let payload = if stream == 3 && pes >= 110 {
+                    &small
+                } else {
+                    &big
+                };
+                mux.pes(
+                    0x101 + stream,
+                    0xC0 + u8::try_from(stream).unwrap(),
+                    90_000 + pes * 3840,
+                    payload,
+                    true,
+                );
+            }
+        }
+        let name = format!("ts-aac-payload-{}-{later}", std::process::id());
+        let path = file(&name, &mux.out);
+        let result = ffprobe(&["-show_streams", "-of", "json", &path.to_string_lossy()]);
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let value: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        let streams = value["streams"].as_array().unwrap();
+        assert_eq!(streams.len(), 6);
+        for stream in streams {
+            assert_eq!(stream["bit_rate"], "1415250", "later={later}");
+        }
+    }
+}
+
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_coreav")
 }

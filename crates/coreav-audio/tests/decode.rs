@@ -149,6 +149,25 @@ fn matroska(
     channels: u64,
     frames: &[Vec<u8>],
 ) -> Vec<u8> {
+    matroska_with_padding(codec_id, private, rate, channels, frames, None)
+}
+
+#[derive(Clone, Copy, Default)]
+struct Padding<'a> {
+    nanoseconds: &'a [i64],
+    delay: u64,
+    laced: bool,
+    duration: Option<u64>,
+}
+
+fn matroska_with_padding(
+    codec_id: &str,
+    private: &[u8],
+    rate: f64,
+    channels: u64,
+    frames: &[Vec<u8>],
+    padding: Option<Padding<'_>>,
+) -> Vec<u8> {
     let mut header = Vec::new();
     header.extend(uint(&[0x42, 0x86], 1));
     header.extend(uint(&[0x42, 0xF7], 1));
@@ -167,18 +186,289 @@ fn matroska(
     entry.extend(element(&[0x86], codec_id.as_bytes()));
     entry.extend(element(&[0x63, 0xA2], private));
     entry.extend(element(&[0xE1], &audio));
+    if let Some(padding) = padding {
+        entry.extend(uint(&[0x56, 0xAA], padding.delay));
+        entry.extend(uint(&[0x56, 0xBB], 80_000_000));
+    }
     let tracks = element(&[0x16, 0x54, 0xAE, 0x6B], &element(&[0xAE], &entry));
     let mut cluster = uint(&[0xE7], 0);
-    for frame in frames {
+    for (index, frame) in frames.iter().enumerate() {
         let mut block = vec![0x81, 0x00, 0x00, 0x80];
-        block.extend_from_slice(frame);
-        cluster.extend(element(&[0xA3], &block));
+        if let Some(padding) = padding {
+            if padding.laced {
+                if index != 0 {
+                    continue;
+                }
+                assert!(frames.iter().all(|frame| frame.len() == frames[0].len()));
+                block[3] = 0x04;
+                block.push((frames.len() - 1) as u8);
+                block.extend(frames.concat());
+            } else {
+                block[1..3].copy_from_slice(&((index as i16) * 20).to_be_bytes());
+                block[3] = 0;
+                block.extend_from_slice(frame);
+            }
+            let mut group = element(&[0xA1], &block);
+            if let Some(duration) = padding.duration {
+                group.extend(uint(&[0x9B], duration));
+            }
+            group.extend(element(
+                &[0x75, 0xA2],
+                &padding
+                    .nanoseconds
+                    .get(index)
+                    .copied()
+                    .unwrap_or(0)
+                    .to_be_bytes(),
+            ));
+            cluster.extend(element(&[0xA0], &group));
+        } else {
+            block.extend_from_slice(frame);
+            cluster.extend(element(&[0xA3], &block));
+        }
     }
     let mut segment = element(&[0x15, 0x49, 0xA9, 0x66], &info);
     segment.extend(tracks);
     segment.extend(element(&[0x1F, 0x43, 0xB6, 0x75], &cluster));
     file.extend(element(&[0x18, 0x53, 0x80, 0x67], &segment));
     file
+}
+
+#[test]
+fn signed_opus_padding_keeps_exact_counts_in_every_mode() {
+    for toc in [0x48, 0x78, 0xF8] {
+        let head = b"OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00";
+        let frames = vec![vec![toc]; 6];
+        for middle in [-1_000_000, 0, 1_000_000] {
+            let ns = [0, middle, 0, 0, 0, 13_500_000];
+            let file = matroska_with_padding(
+                "A_OPUS",
+                head,
+                48_000.0,
+                1,
+                &frames,
+                Some(Padding {
+                    nanoseconds: &ns,
+                    delay: 6_500_000,
+                    ..Padding::default()
+                }),
+            );
+            for format in [SampleFormat::S16, SampleFormat::F32] {
+                for threads in [1, 8] {
+                    let mut sink = Keep::default();
+                    let summary = decode(
+                        SliceSource::new(&file),
+                        &Options {
+                            threads,
+                            ..options(format)
+                        },
+                        &Limits::default(),
+                        &mut sink,
+                    )
+                    .unwrap();
+                    let expected = if middle == 0 { 4800 } else { 4752 };
+                    assert_eq!(summary.samples, expected);
+                    assert!(summary.warnings.is_empty());
+                    let width = if format == SampleFormat::S16 { 2 } else { 4 };
+                    assert_eq!(sink.bytes.len(), expected as usize * width);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn padded_laces_are_refused_before_any_block_sample_is_written() {
+    let head = b"OpusHead\x01\x01\x00\x00\x80\xbb\x00\x00\x00\x00\x00";
+    for padding in [-1_000_000, 0, 1_000_000] {
+        let file = matroska_with_padding(
+            "A_OPUS",
+            head,
+            48_000.0,
+            1,
+            &vec![vec![0xF8]; 3],
+            Some(Padding {
+                nanoseconds: &[padding],
+                laced: true,
+                ..Padding::default()
+            }),
+        );
+        let mut sink = Keep::default();
+        let result = decode(
+            SliceSource::new(&file),
+            &Options::default(),
+            &Limits::default(),
+            &mut sink,
+        );
+        if padding == 0 {
+            assert_eq!(result.unwrap().samples, 2880);
+        } else {
+            assert!(matches!(
+                result,
+                Err(Error::Unsupported("audio padding on laced blocks"))
+            ));
+            assert!(sink.bytes.is_empty());
+        }
+    }
+}
+
+#[test]
+fn signed_padding_keeps_sample_order_in_serial_and_pooled_decode() {
+    let block = 32_768u16;
+    let mut expected = Vec::new();
+    let frames: Vec<_> = (0..12u8)
+        .map(|number| {
+            let mut frame = vec![0xFF, 0xF8, 0x79, 0x08, number];
+            frame.extend_from_slice(&(block - 1).to_be_bytes());
+            frame.push(crc8(&frame));
+            frame.push(2);
+            for sample in 0..block {
+                let value = i16::from(number) * 1000 + (sample % 500) as i16;
+                frame.extend_from_slice(&value.to_be_bytes());
+                let start = if number == 1 { 48 } else { 0 };
+                let end = if number == 11 { block - 48 } else { block };
+                if start <= sample && sample < end {
+                    expected.push(value);
+                }
+            }
+            let crc = crc16(&frame);
+            frame.extend_from_slice(&crc.to_be_bytes());
+            frame
+        })
+        .collect();
+    let mut padding = [0; 12];
+    padding[1] = -1_088_435;
+    padding[11] = 1_088_435;
+    let file = matroska_with_padding(
+        "A_FLAC",
+        &flac_private(44_100, 1, 16),
+        44_100.0,
+        1,
+        &frames,
+        Some(Padding {
+            nanoseconds: &padding,
+            ..Padding::default()
+        }),
+    );
+    for format in [SampleFormat::S16, SampleFormat::F32] {
+        let wanted: Vec<_> = expected
+            .iter()
+            .flat_map(|&sample| match format {
+                SampleFormat::S16 => sample.to_le_bytes().to_vec(),
+                _ => (f32::from(sample) / 32768.0).to_le_bytes().to_vec(),
+            })
+            .collect();
+        for threads in [1, 8] {
+            let options = Options {
+                threads,
+                ..options(format)
+            };
+            let mut sink = Keep::default();
+            let limits = Limits {
+                max_output_samples: expected.len() as u64,
+                ..Limits::default()
+            };
+            let summary = decode(SliceSource::new(&file), &options, &limits, &mut sink).unwrap();
+            assert_eq!(summary.samples, expected.len() as u64);
+            assert!(summary.warnings.is_empty());
+            assert_eq!(sink.bytes, wanted);
+            let limits = Limits {
+                max_output_samples: expected.len() as u64 - 1,
+                ..limits
+            };
+            assert!(matches!(
+                decode(
+                    SliceSource::new(&file),
+                    &options,
+                    &limits,
+                    &mut Keep::default()
+                ),
+                Err(Error::LimitExceeded(LimitKind::OutputSamples))
+            ));
+        }
+    }
+}
+
+#[test]
+fn signed_padding_trims_concealed_silence_and_handles_extreme_magnitudes() {
+    for padding in [-1_088_435, 1_088_435, i64::MIN, i64::MAX] {
+        let file = matroska_with_padding(
+            "A_FLAC",
+            &flac_private(44_100, 1, 16),
+            44_100.0,
+            1,
+            &[vec![0, 0], constant_frame(1, 882, 1, 16, 123)],
+            Some(Padding {
+                nanoseconds: &[padding, 0],
+                duration: Some(20),
+                ..Padding::default()
+            }),
+        );
+        for threads in [1, 8] {
+            let mut sink = Keep::default();
+            let summary = decode(
+                SliceSource::new(&file),
+                &Options {
+                    threads,
+                    ..Options::default()
+                },
+                &Limits::default(),
+                &mut sink,
+            )
+            .unwrap();
+            let kept = if padding.unsigned_abs() == 1_088_435 {
+                834
+            } else {
+                0
+            };
+            assert_eq!(summary.samples, kept + 882);
+            assert!(matches!(
+                summary.warnings.as_slice(),
+                [Warning::Concealed { packets: 1, .. }]
+            ));
+            assert!(
+                sink.bytes[..kept as usize * 2]
+                    .iter()
+                    .all(|&byte| byte == 0)
+            );
+            assert!(
+                sink.bytes[kept as usize * 2..]
+                    .chunks_exact(2)
+                    .all(|s| s == 123i16.to_le_bytes())
+            );
+        }
+    }
+}
+
+#[test]
+fn padding_cannot_be_lost_when_mp3_packets_require_reframing() {
+    let frames = mp3_frames(2, 3, false, |_| true);
+    let packets = [frames.concat()];
+    for padding in [-1_000_000, 1_000_000] {
+        let file = matroska_with_padding(
+            "A_MPEG/L3",
+            &[],
+            44_100.0,
+            1,
+            &packets,
+            Some(Padding {
+                nanoseconds: &[padding],
+                ..Padding::default()
+            }),
+        );
+        let mut sink = Keep::default();
+        let result = decode(
+            SliceSource::new(&file),
+            &Options::default(),
+            &Limits::default(),
+            &mut sink,
+        );
+        assert!(matches!(
+            result,
+            Err(Error::Unsupported("audio padding on reframed packets"))
+        ));
+        assert!(sink.bytes.is_empty());
+    }
 }
 
 fn flac_private(rate: u32, channels: u32, bits: u32) -> Vec<u8> {
