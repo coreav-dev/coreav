@@ -1045,7 +1045,7 @@ impl<K: Kernels> Decoder<K> {
         // (clause 8.2.1), which every slice of the picture carries.
         let current_poc = top.min(bottom);
         let poc = if hdr.has_mmco5() { 0 } else { current_poc };
-        let picture = Arc::new(picture.with_output(poc, crop, slot, self.mark));
+        let picture = Arc::new(picture.with_output(poc, crop, slot, self.mark, sps.vui.color));
         self.pool.push(Arc::clone(&picture));
         let canvas = Canvas::new(Arc::clone(&picture), bands);
         let mut work = PictureWork::new(
@@ -1317,8 +1317,13 @@ impl<K: Kernels> Decoder<K> {
         // so a long gap costs no allocations.
         let keep = sps.max_num_ref_frames.max(1);
         let shared_slot = self.picture_slot()?;
-        let shared =
-            Arc::new(Picture::black(1, 1, &self.limits)?.with_output(0, [0; 4], shared_slot, 0));
+        let shared = Arc::new(Picture::black(1, 1, &self.limits)?.with_output(
+            0,
+            [0; 4],
+            shared_slot,
+            0,
+            sps.vui.color,
+        ));
         let mut made = 0;
         while frame_num != hdr.frame_num {
             made += 1;
@@ -1341,7 +1346,7 @@ impl<K: Kernels> Decoder<K> {
                 } else {
                     top.min(bottom)
                 };
-                let picture = Arc::new(fresh.with_output(poc, [0; 4], slot, 0));
+                let picture = Arc::new(fresh.with_output(poc, [0; 4], slot, 0, sps.vui.color));
                 // In the pool like every picture made, so that pruning
                 // counts it.
                 self.pool.push(Arc::clone(&picture));
@@ -1936,7 +1941,7 @@ mod tests {
             picture: Arc::new(
                 Picture::black(1, 1, &limits)
                     .expect("a picture")
-                    .with_output(0, [0; 4], slot, 0),
+                    .with_output(0, [0; 4], slot, 0, crate::ColorInfo::default()),
             ),
             frame_num,
             long_term_frame_idx: 0,
