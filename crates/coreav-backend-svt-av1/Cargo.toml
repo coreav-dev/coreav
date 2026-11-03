@@ -11,8 +11,12 @@ publish = false
 [workspace]
 resolver = "3"
 
+[features]
+default = []
+native = []
+
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 missing_docs = "warn"
 
 [lints.clippy]
