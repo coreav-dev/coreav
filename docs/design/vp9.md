@@ -37,6 +37,8 @@ Google's patent grant for VP9 covers "the copyrightable works that implement the
 
 ## Architecture
 
+The first pixel-reconstruction optimization is scoped by [its round plan](vp9-pixel-round.md). Its sole explicit SIMD kernel requires the separately reviewed [AVX2 exception record](vp9-interpolation-unsafe.md). The architecture below describes the wider roadmap, not permission to add the other SIMD families in that round.
+
 ```
 coreav-vp9                      safe Rust, forbid(unsafe_code)
   bits        f(n) and s(n) for the uncompressed header (9.1)
