@@ -26,6 +26,10 @@ use crate::crc::{crc8, crc16};
 use crate::limits::check_channels;
 use crate::{Error, Limits, Pcm};
 
+/// Native lossless FLAC encoding from interleaved integer samples.
+pub mod encode;
+mod md5;
+
 /// The streaminfo metadata block (RFC 9639 8.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StreamInfo {

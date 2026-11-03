@@ -14,6 +14,7 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
+  one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.

@@ -1189,10 +1189,63 @@ impl<S: Sink> Process<S> {
     pub(crate) fn spawn(
         name: &'static str,
         unit: &'static str,
+        command: std::process::Command,
+        program: &Path,
+        deadline: Instant,
+        sink: S,
+    ) -> Result<Self, Error> {
+        Self::spawn_using(
+            name,
+            unit,
+            command,
+            program,
+            deadline,
+            sink,
+            |stdin, shared| {
+                let _ = write_frames(stdin, shared);
+            },
+        )
+    }
+
+    #[cfg(feature = "input-capture")]
+    pub(crate) fn spawn_captured(
+        name: &'static str,
+        command: std::process::Command,
+        program: &Path,
+        deadline: Instant,
+        sink: S,
+        recording: crate::capture::Recording,
+    ) -> Result<Self, Error> {
+        Self::spawn_using(
+            name,
+            "sample blocks",
+            command,
+            program,
+            deadline,
+            sink,
+            move |stdin, shared| {
+                let mut recorded = recording.attach(stdin);
+                if write_frames(&mut recorded, shared)
+                    && let Err(e) = recorded.complete()
+                {
+                    shared.record(Error::new(
+                        ErrorKind::Io,
+                        format!("completing encoder input capture: {}", e.kind()),
+                    ));
+                    shared.stop();
+                }
+            },
+        )
+    }
+
+    fn spawn_using(
+        name: &'static str,
+        unit: &'static str,
         mut command: std::process::Command,
         program: &Path,
         deadline: Instant,
         sink: S,
+        write: impl FnOnce(ChildStdin, &Shared) + Send + 'static,
     ) -> Result<Self, Error> {
         let mut child = command.spawn().map_err(|e| {
             Error::new(
@@ -1240,7 +1293,7 @@ impl<S: Sink> Process<S> {
         .and_then(|()| {
             let shared = Arc::clone(&shared);
             spawn_thread("coreav-encoder-writer", move || {
-                write_frames(stdin, &shared);
+                write(stdin, &shared);
                 let _ = writer_tx.send(());
             })
         })
@@ -1662,27 +1715,27 @@ fn write_picture(out: &mut impl Write, picture: &Picture, buffer: &mut [u8]) -> 
 /// done and empty, or a write fails, or the encode stops; then closes the
 /// input. A frame is dropped only after its write, so a frame lent in the
 /// decoder's shared memory goes back to it then.
-fn write_frames(mut stdin: ChildStdin, shared: &Shared) {
+fn write_frames(mut stdin: impl Write, shared: &Shared) -> bool {
     let mut buffer = Vec::new();
     loop {
         let frame = {
             let Ok(mut queue) = shared.queue.lock() else {
-                return;
+                return false;
             };
             loop {
                 if queue.stopped {
-                    return;
+                    return false;
                 }
                 if let Some(frame) = queue.frames.pop_front() {
                     break frame;
                 }
                 if queue.input_done {
                     // Dropping `stdin` closes the encoder's input.
-                    return;
+                    return true;
                 }
                 match shared.changed.wait_timeout(queue, QUEUE_POLL) {
                     Ok((guard, _)) => queue = guard,
-                    Err(_) => return,
+                    Err(_) => return false,
                 }
             }
         };
@@ -1693,7 +1746,7 @@ fn write_frames(mut stdin: ChildStdin, shared: &Shared) {
         drop(frame);
         if written.is_err() {
             shared.stop();
-            return;
+            return false;
         }
         if let Ok(mut queue) = shared.queue.lock() {
             queue.written += 1;

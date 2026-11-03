@@ -17,10 +17,13 @@ coreav-isobmff-write = { path = "../coreav-isobmff-write" }
 coreav-mkv = { path = "../coreav-mkv" }
 coreav-thumbnail = { path = "../coreav-thumbnail" }
 coreav-worker = { path = "../coreav-worker" }
+sha2 = { version = "0.10", optional = true }
+serde = { workspace = true, optional = true }
 
 [features]
 # AAC LC decoding in `coreav-audio`, including sources of audio encodes.
 aac = ["coreav-audio/aac"]
+input-capture = ["dep:sha2", "dep:serde"]
 
 [[test]]
 name = "sandboxed"

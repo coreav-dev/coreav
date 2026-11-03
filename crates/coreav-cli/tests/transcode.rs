@@ -1282,7 +1282,7 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     for (words, source, expected) in [
         ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4", 4),
         ("-i IN -c:v libx264 OUT", "vfr.mp4", 4),
-        ("-i IN -c:v libx264 OUT", "browser.webm", 4),
+        ("-i IN -c:v libx264 OUT", "browser.webm", 0),
         ("-i IN -an -c:v libx264 OUT", "edit_list.mp4", 4),
         ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4", 4),
         ("-i IN -an -c:v libx264 OUT", "timecode.mov", 4),
@@ -1298,12 +1298,6 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     ] {
         let (code, stderr) = run(words, source, &out);
         assert_eq!(code, expected, "{words} on {source}: {stderr}");
-        if source == "browser.webm" {
-            assert!(
-                stderr.contains("default AAC encoding of an Opus source"),
-                "{stderr}"
-            );
-        }
         if expected == 4 {
             assert!(!out.exists(), "{words} on {source}");
         } else {

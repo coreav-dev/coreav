@@ -84,6 +84,22 @@ Raw output keeps the decoder's pixel format. `-pix_fmt` must name that format; i
 
 Timeout scope depends on the decoder backend. On clock-supported targets the native H.264 backend uses a 60-second decoder-session deadline, set when the decoder opens and reused by later calls. A slow output sink can make the next decoder call time out. The command adds no separate wall-clock deadline. Decoded bytes remain limited to 4 GiB per decoder. A failed binary-stdout write or final flush fails the command; a closed pipe exits with status 141.
 
+## FLAC audio output
+
+`.flac` or `-f flac` selects CoreAV's native FLAC encoder, also available with `-c:a flac` or `-acodec flac`. It runs in default builds and strict-safe mode without an external program. Native input is currently limited to FLAC tracks with 16-bit or 24-bit samples in MP4, MOV or Matroska. The encoder preserves every sample, the source rate and the FLAC speaker order.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mka output.flac
+coreav --strict-safe ffmpeg -i input.mp4 -map 0:a:0 -c:a flac output.flac
+coreav --strict-safe ffmpeg -i input.mka -vn -map_metadata -1 -t 30 output.flac
+```
+
+The encoder chooses constant, verbatim, fixed or linear prediction with partitioned Rice residuals. It writes STREAMINFO with the completed sample count and MD5. Its default compression settings are fixed; compression-level options are not supported. Output `-threads` is accepted but does not start encoder workers.
+
+Rate and channel conversion, nonzero seeking, custom metadata copying and chapters remain unsupported. The PCM duration and zero-time rules above also apply to FLAC. For an input with custom global tags, use `-map_metadata -1`. MP3, AAC and Opus sources keep refusal and the existing external fallback. A selected video or cover picture is refused because PICTURE output is not implemented. Use `-vn` or an audio-only `-map` to omit it explicitly. A speaker layout outside the FLAC channel order is also refused.
+
+The [FLAC output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/flac-output.md) describes the encoder and the registered size and speed comparisons. These comparisons are not a speed claim.
+
 ## Examples
 
 ```sh

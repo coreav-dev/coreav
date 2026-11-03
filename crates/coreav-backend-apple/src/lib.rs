@@ -1,11 +1,14 @@
-//! Checked Apple encoder output readers and a native AAC adapter.
+//! Checked Apple encoder output readers and native AAC/H.264 adapters.
 //!
 //! The metadata readers validate AAC-LC configuration, packet extents, declared
 //! drain counts, and supported H.264 parameter sets and picture headers. They do
 //! not decode compressed slices or AAC packets. On macOS, AudioToolbox's
-//! synchronous AudioCodec API is owned behind a safe streaming interface.
+//! synchronous AudioCodec API and asynchronous VideoToolbox callbacks are owned
+//! behind safe, owner-thread-only interfaces with bounded source/output ledgers.
 
 pub mod aac;
 #[cfg(target_os = "macos")]
 pub mod audiotoolbox;
 pub mod h264;
+#[cfg(target_os = "macos")]
+pub mod videotoolbox;

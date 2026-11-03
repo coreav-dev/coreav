@@ -99,6 +99,29 @@ pub struct Config {
     picture: params::Pps,
 }
 
+/// Explicit VUI colour identifiers, not a request to convert source pixels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Color {
+    /// Whether luma and chroma use the full rather than video range.
+    pub full_range: bool,
+    /// The eight-bit colour-primaries identifier.
+    pub primaries: u8,
+    /// The eight-bit transfer-characteristics identifier.
+    pub transfer: u8,
+    /// The eight-bit matrix-coefficients identifier.
+    pub matrix: u8,
+}
+
+impl Color {
+    /// BT.709 primaries, transfer and matrix with video-range samples.
+    pub const BT709_LIMITED: Self = Self {
+        full_range: false,
+        primaries: 1,
+        transfer: 1,
+        matrix: 1,
+    };
+}
+
 impl Config {
     /// Checks one SPS and one PPS, including their NAL headers, against the source.
     ///
@@ -160,6 +183,11 @@ impl Config {
     /// Visible dimensions checked against the requested source.
     pub fn dimensions(&self) -> Dimensions {
         self.dimensions
+    }
+
+    /// Explicit VUI colour signalling, absent when no description was present.
+    pub fn color(&self) -> Option<Color> {
+        self.sequence.color
     }
 }
 
