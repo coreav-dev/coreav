@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync, writeSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const nodeCases = ["opening-abort", "reading-abort", "output-abort", "cleanup-abort", "opening-deadline", "reading-deadline", "output-deadline", "cleanup-deadline", "read-error", "cleanup-error"];
@@ -106,18 +107,30 @@ async function main() {
   const api = await import("@coreav/wasm-h264/node");
   const { boundedOpeners } = await import("./node_modules/@coreav/wasm-h264/src/bounded-source.js");
   assert.equal(api.moduleInfo().build, config.artifactSha256);
-  const records = [];
-  for (const row of config.rows) {
-    const bytes = readFileSync(row.path), hash = createHash("sha256");
-    assert.equal(createHash("sha256").update(bytes).digest("hex"), row.inputSha256);
-    const output = await api.thumbnail(api.bytesSource(bytes), row.options);
-    output.summary.catch(() => {});
-    let length = 0;
-    for await (const chunk of output.body) { hash.update(chunk); length += chunk.byteLength; }
-    records.push({ id: row.id, complete: true, runtimeExit: false, outcome: "success", inputSha256: row.inputSha256, optionsSha256: row.optionsSha256, bytes: length, outputSha256: hash.digest("hex"), summary: await output.summary });
+  mkdirSync(config.outputDirectory, { recursive: true });
+  async function capture(rows) {
+    const records = [];
+    for (const row of rows) {
+      const bytes = readFileSync(row.path), hash = createHash("sha256");
+      assert.equal(createHash("sha256").update(bytes).digest("hex"), row.inputSha256);
+      const output = await api.thumbnail(api.bytesSource(bytes), row.options);
+      output.summary.catch(() => {});
+      let length = 0;
+      const image = join(config.outputDirectory, createHash("sha256").update(row.id).digest("hex")), fd = openSync(image, "w", 0o600);
+      try {
+        for await (const chunk of output.body) {
+          hash.update(chunk); length += chunk.byteLength;
+          assert.ok(length <= 4 << 20, "thumbnail output exceeds policy");
+          assert.equal(writeSync(fd, chunk), chunk.byteLength, "incomplete image capture");
+        }
+      } finally { closeSync(fd); }
+      records.push({ id: row.id, artifactSha256: api.moduleInfo().build, complete: true, runtimeExit: false, outcome: "success", inputSha256: row.inputSha256, optionsSha256: row.optionsSha256, bytes: length, outputSha256: hash.digest("hex"), image, summary: await output.summary });
+    }
+    return records;
   }
+  const records = await capture(config.rows), anchors = await capture(config.anchors);
   const report = await lifecycle(api, boundedOpeners, readFileSync(config.lifecyclePath));
-  writeFileSync(resultPath, JSON.stringify({ artifactSha256: api.moduleInfo().build, records, lifecycle: report }) + "\n");
+  writeFileSync(resultPath, JSON.stringify({ artifactSha256: api.moduleInfo().build, records, anchors, lifecycle: report }) + "\n");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

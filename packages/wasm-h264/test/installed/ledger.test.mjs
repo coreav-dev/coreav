@@ -169,7 +169,7 @@ test("admission requires actual lease and source-open deltas", () => {
 
 test("parity permits only decoder description text to differ", () => {
   const wanted = { inputSha256: hash, options: { at: "1" }, expectation: "success" };
-  const made = { complete: true, runtimeExit: false, inputSha256: hash, optionsSha256: optionsSha256(wanted.options), outcome: "success", bytes: 12, outputSha256: hash, summary: { schema: "coreav.thumbnail/1", packet: { offset: 1, size: 2 }, time: { frame: "1" }, output: { width: 320, height: 180 }, decoder: { name: "native target", backend: "native" } } };
+  const made = { complete: true, runtimeExit: false, inputSha256: hash, optionsSha256: optionsSha256(wanted.options), outcome: "success", bytes: 12, outputSha256: hash, summary: { schema: "coreav.thumbnail/1", packet: { offset: 1, size: 2 }, time: { frame: "1" }, output: { bytes: 12, width: 320, height: 180 }, decoder: { name: "native target", backend: "native" } } };
   const native = structuredClone(made); native.summary.decoder.name = "wasm target";
   validateParity(made, native, wanted);
   for (const mutate of [row => { row.outputSha256 = other; }, row => { row.summary.packet.offset = 2; }, row => { row.summary.time.frame = "0"; }, row => { row.summary.decoder.backend = "other"; }, row => { row.summary = undefined; }, row => { row.complete = false; }, row => { row.runtimeExit = true; }]) {

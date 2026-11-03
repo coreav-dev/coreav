@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { createReadStream, appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, appendFileSync, closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -13,8 +13,9 @@ import { registeredBars } from "../../../wasm/examples/test/registry.mjs";
 import { archiveEntries, validateArchive, consumerEnv } from "../../../wasm/scripts/check-package.mjs";
 import { profile } from "../../scripts/profile.mjs";
 import { fixtureRoster, gateRoster, parityRoster, nodeParityRoster, roster, rosterSha256, sha, optionsSha256 } from "./roster.mjs";
-import { ThumbnailLedger, validateParity, validateHostCases, failureRecord } from "./ledger.mjs";
+import { ThumbnailLedger, validateParity, validateHostCases, failureRecord, failCapture } from "./ledger.mjs";
 import { nodeCases } from "./node.mjs";
+import { createPixelOracle, pngAnchor, webpPixelParity } from "./pixels.mjs";
 
 let captureOutput;
 async function main() {
@@ -22,10 +23,10 @@ if (process.platform !== "linux") throw new Error("installed thumbnail media pre
 const args = process.argv.slice(2), settings = {};
 while (args.length) {
   const name = args.shift();
-  if (!["--fixtures", "--tarball", "--package-record", "--edge-native", "--allocation-report", "--allocation-binary", "--host-cases", "--output"].includes(name) || !args.length || settings[name]) throw new Error("invalid installed thumbnail preflight arguments");
+  if (!["--fixtures", "--tarball", "--package-record", "--edge-native", "--allocation-report", "--allocation-binary", "--host-cases", "--oracle-bin", "--output"].includes(name) || !args.length || settings[name]) throw new Error("invalid installed thumbnail preflight arguments");
   settings[name] = resolve(args.shift());
 }
-for (const name of ["--fixtures", "--tarball", "--package-record", "--edge-native", "--allocation-report", "--allocation-binary", "--host-cases", "--output"]) assert.ok(settings[name], `missing ${name}`);
+for (const name of ["--fixtures", "--tarball", "--package-record", "--edge-native", "--allocation-report", "--allocation-binary", "--host-cases", "--oracle-bin", "--output"]) assert.ok(settings[name], `missing ${name}`);
 const repo = fileURLToPath(new URL("../../../..", import.meta.url));
 const output = settings["--output"];
 assert.ok(relative(repo, output).startsWith("..") || isAbsolute(relative(repo, output)), "private captures must be outside the checkout");
@@ -70,6 +71,11 @@ const archive = readFileSync(settings["--tarball"]), tarballSha256 = sha(archive
 const packed = validateArchive(archiveEntries(archive), profile.packed);
 const artifactSha256 = sha(packed.get("package/wasm/coreav_bg.wasm"));
 const packageRecordBytes = readFileSync(settings["--package-record"]), packageRecord = JSON.parse(packageRecordBytes);
+const pixelWebp = webpPixelParity(packageRecord);
+let pixelOracle;
+const anchors = new Map();
+const imageDirectory = join(output, "images"); mkdirSync(imageDirectory);
+let imageNumber = 0;
 assert.equal(packageRecord.tarballSha256, tarballSha256);
 assert.equal(packageRecord.sha256["wasm/coreav_bg.wasm"], artifactSha256);
 assert.equal(packageRecord.provenance.wasmSha256, artifactSha256);
@@ -102,6 +108,7 @@ const groups = gateRoster(), ledger = new ThumbnailLedger(bars, artifactSha256, 
 const nativeSha256 = sha(readFileSync(settings["--edge-native"]));
 const hostCasesSha256 = sha(readFileSync(settings["--host-cases"]));
 const nodeDriverSha256 = sha(readFileSync(new URL("./node.mjs", import.meta.url)));
+const pixelDriverSha256 = sha(readFileSync(new URL("./pixels.mjs", import.meta.url)));
 const consumer = mkdtempSync(join(tmpdir(), "coreav-thumbnail-installed-"));
 const workers = new Set(), runtimeLogs = [];
 let server, comparisons = 0, finished = false, workerNumber = 0;
@@ -191,7 +198,7 @@ async function stop(worker, strict = true) {
   } finally { clearTimeout(kill); }
 }
 function native(row) {
-  const fixture = files.get(row.fixture), path = join(fixtureRoot, fixture.path), image = join(output, "native-image.bin");
+  const fixture = files.get(row.fixture), path = join(fixtureRoot, fixture.path), image = join(imageDirectory, `native-${imageNumber++}.bin`);
   const options = { ...row.options };
   if (options.width === undefined && options.height === undefined) options.width = 320;
   assert.equal(sha(readFileSync(path)), fixture.sha256);
@@ -201,8 +208,16 @@ function native(row) {
   assert.equal(sha(readFileSync(path)), fixture.sha256);
   const document = JSON.parse(result.stdout);
   if (result.status !== 0) assert.equal(statSync(image).size, 0, "native refusal wrote partial image bytes");
+  if (statSync(image).size > 4 << 20) failCapture("encoded output limit");
   const bytes = result.status === 0 ? readFileSync(image) : Buffer.alloc(0);
-  return { complete: true, runtimeExit: false, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), requestOptions: row.options, resolvedOptions: options, outcome: result.status === 0 ? "success" : document.kind, bytes: bytes.length, outputSha256: bytes.length ? sha(bytes) : null, ...(result.status === 0 ? { summary: document } : { error: document }), binarySha256: nativeSha256 };
+  return { complete: true, runtimeExit: false, artifactSha256, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), requestOptions: row.options, resolvedOptions: options, outcome: result.status === 0 ? "success" : document.kind, bytes: bytes.length, outputSha256: bytes.length ? sha(bytes) : null, image, ...(result.status === 0 ? { summary: document } : { error: document }), binarySha256: nativeSha256 };
+}
+function pixels(actual, reference, row) {
+  if (!pixelWebp || row.options.format !== "webp" || actual.outcome !== "success" || reference.outcome !== "success") return null;
+  stage = "pixel-oracle";
+  const anchor = anchors.get(pngAnchor(row).id);
+  assert.ok(anchor, "PNG anchor is missing");
+  return pixelOracle.compare(actual, reference, anchor);
 }
 async function run(worker, row) {
   item += 1;
@@ -213,7 +228,16 @@ async function run(worker, row) {
   const response = await fetch(worker.base + (row.operation === "admission" ? "/admission" : "/thumbnail"), { method: "POST", body: JSON.stringify({ requestId, fixture: row.fixture, options: row.options, stage: row.id }), signal: AbortSignal.timeout(30000) });
   const hash = createHash("sha256"); let bytes = 0;
   stage = "response";
-  for await (const chunk of response.body) { if (response.status === 200 && row.operation !== "admission") { hash.update(chunk); bytes += chunk.byteLength; } }
+  const image = join(imageDirectory, `wasm-${requestId}.bin`), fd = openSync(image, "w", 0o600);
+  try {
+    for await (const chunk of response.body) {
+      if (response.status === 200 && row.operation !== "admission") {
+        hash.update(chunk); bytes += chunk.byteLength;
+        if (bytes > 4 << 20) failCapture("encoded output limit");
+        if (writeSync(fd, chunk) !== chunk.byteLength) failCapture("incomplete image capture");
+      }
+    }
+  } finally { closeSync(fd); }
   stage = "result";
   const made = await json(worker, `/result/${requestId}`);
   stage = "after-memory";
@@ -222,13 +246,14 @@ async function run(worker, row) {
   assert.equal(info.served, before.served + 1);
   assert.equal(made.isolate, worker.isolate); assert.equal(made.operationId, info.diagnostic.host.requestId);
   assert.equal(info.diagnostic.lease.acquired - before.diagnostic.lease.acquired, row.operation === "admission" ? 2 : 1);
-  const actual = { ...made, requestId, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), options: row.options, bytes, outputSha256: bytes ? hash.digest("hex") : null, runtimeExit: false };
+  const actual = { ...made, artifactSha256, requestId, inputSha256: fixture.sha256, optionsSha256: optionsSha256(row.options), options: row.options, bytes, image, outputSha256: bytes ? hash.digest("hex") : null, runtimeExit: false };
   if (row.operation !== "admission") {
     stage = "native-reference";
     const reference = native(row);
-    record({ classification: "parity", id: row.id, ...actual, native: reference });
+    const decoded = pixels(actual, reference, row);
+    record({ classification: "parity", id: row.id, ...actual, native: reference, decoded });
     stage = "parity";
-    validateParity(actual, reference, { ...row, inputSha256: fixture.sha256 }); comparisons += 1;
+    validateParity(actual, reference, { ...row, inputSha256: fixture.sha256 }, decoded); comparisons += 1;
   }
   stage = "host-accounting";
   const host = { ...info.diagnostic.host };
@@ -241,6 +266,9 @@ async function run(worker, row) {
 }
 
 try {
+  stage = "pixel-oracle";
+  pixelOracle = pixelWebp ? createPixelOracle(settings["--oracle-bin"], output) : null;
+  stage = "install";
   const checkedTarball = join(consumer, "checked.tgz");
   writeFileSync(checkedTarball, archive);
   writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "thumbnail-installed-preflight", private: true, type: "module", dependencies: { "@coreav/wasm-h264": `file:${checkedTarball}` } }));
@@ -270,9 +298,11 @@ try {
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   stage = "node-host";
   const nodeRows = nodeParityRoster();
+  const anchorRows = pixelWebp ? [...new Map([...nodeRows, ...[...groups.values()].flat(), ...parityRoster(), ...manifest.boundary.map(row => ({ ...row, fixture: row.id }))].filter(row => row.expectation === "success" && row.options.format === "webp").map(row => { const anchor = pngAnchor(row); return [anchor.id, anchor]; })).values()] : [];
   copyFileSync(new URL("./node.mjs", import.meta.url), join(consumer, "node-check.mjs"));
   const nodeConfig = join(output, "node-config.json"), nodeResult = join(output, "node-result.json");
-  writeFileSync(nodeConfig, JSON.stringify({ artifactSha256, lifecyclePath: join(fixtureRoot, files.get("360p-cavlc-mp4").path), rows: nodeRows.map(row => ({ ...row, path: join(fixtureRoot, files.get(row.fixture).path), inputSha256: files.get(row.fixture).sha256, optionsSha256: optionsSha256(row.options) })) }));
+  const nodeInput = row => ({ ...row, path: join(fixtureRoot, files.get(row.fixture).path), inputSha256: files.get(row.fixture).sha256, optionsSha256: optionsSha256(row.options) });
+  writeFileSync(nodeConfig, JSON.stringify({ artifactSha256, lifecyclePath: join(fixtureRoot, files.get("360p-cavlc-mp4").path), outputDirectory: join(output, "node-images"), rows: nodeRows.map(nodeInput), anchors: anchorRows.map(nodeInput) }));
   const nodeRun = spawnSync(process.execPath, ["--experimental-wasm-jspi", "--experimental-wasm-exnref", join(consumer, "node-check.mjs"), nodeConfig, nodeResult], { cwd: consumer, env: consumerEnv(), timeout: 180000, maxBuffer: 8 << 20, encoding: "utf8" });
   writeFileSync(join(output, "node.log"), (nodeRun.stdout ?? "") + (nodeRun.stderr ?? ""));
   assert.ifError(nodeRun.error); assert.equal(nodeRun.status, 0, "installed Node verification failed");
@@ -281,13 +311,23 @@ try {
   assert.equal(nodeReport.lifecycle.complete, true);
   assert.deepEqual(nodeReport.lifecycle.cases, nodeCases);
   assert.deepEqual(nodeReport.records.map(row => row.id), nodeRows.map(row => row.id));
+  assert.deepEqual(nodeReport.anchors.map(row => row.id), anchorRows.map(row => row.id));
+  stage = "png-anchor";
+  for (const [index, row] of anchorRows.entries()) {
+    item += 1;
+    const actual = nodeReport.anchors[index], reference = native(row);
+    record({ classification: "png-anchor", id: row.id, artifactSha256, tarballSha256, ...actual, native: reference });
+    validateParity(actual, reference, { ...row, inputSha256: files.get(row.fixture).sha256 });
+    anchors.set(row.id, { actual, native: reference });
+  }
   const nodeFormats = new Map(roster.formats.map(format => [format, true]));
   let nodeFailure;
   for (const [index, row] of nodeRows.entries()) {
     item += 1;
     const actual = nodeReport.records[index], reference = native(row);
-    record({ classification: "node-parity", artifactSha256, tarballSha256, nodeDriverSha256, ...actual, native: reference });
-    try { validateParity(actual, reference, { ...row, inputSha256: files.get(row.fixture).sha256 }); }
+    const decoded = pixels(actual, reference, row);
+    record({ classification: "node-parity", artifactSha256, tarballSha256, nodeDriverSha256, ...actual, native: reference, decoded });
+    try { validateParity(actual, reference, { ...row, inputSha256: files.get(row.fixture).sha256 }, decoded); }
     catch (error) { nodeFailure ??= error; nodeFormats.set(row.options.format, false); }
   }
   record({ classification: "node-host-cases", artifactSha256, tarballSha256, nodeDriverSha256, report: nodeReport.lifecycle });
@@ -327,12 +367,14 @@ try {
   stage = "shutdown";
   alive(hostWorker); await stop(hostWorker);
   stage = "integrity";
+  pixelOracle?.verify();
   for (const fixture of files.values()) assert.equal(sha(readFileSync(join(fixtureRoot, fixture.path))), fixture.sha256, "fixture bytes changed during capture");
   assert.equal(sha(readFileSync(settings["--edge-native"])), nativeSha256, "native reference changed during capture");
   assert.equal(sha(readFileSync(settings["--allocation-binary"])), allocationBinarySha256, "allocation witness binary changed during capture");
   assert.equal(sha(readFileSync(settings["--allocation-report"])), allocationReportSha256, "allocation witness report changed during capture");
   assert.equal(sha(readFileSync(settings["--host-cases"])), hostCasesSha256, "host case module changed during capture");
   assert.equal(sha(readFileSync(new URL("./node.mjs", import.meta.url))), nodeDriverSha256, "Node driver changed during capture");
+  assert.equal(sha(readFileSync(new URL("./pixels.mjs", import.meta.url))), pixelDriverSha256, "pixel driver changed during capture");
   assert.equal(sha(readFileSync(workerd)), workerdBinarySha256, "runtime binary changed during capture");
   assert.equal(sha(readFileSync(settings["--package-record"])), sha(packageRecordBytes), "package check record changed during capture");
   stage = "verdict";
@@ -346,7 +388,7 @@ try {
   process.exitCode = 1;
 } finally {
   const verdict = ledger.finish();
-  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), ...(failure && { failure }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, nodeDriverSha256, runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
+  writeFileSync(join(output, "verdict.json"), JSON.stringify({ ...verdict, ...(!finished && { state: "failed" }), ...(failure && { failure }), preflightOnly: true, hostedEnvelope: "unvalidated", artifactSha256, tarballSha256, packageRecordSha256: sha(packageRecordBytes), manifestSha256: sha(manifestBytes), rosterSha256, nativeSha256, allocationBinarySha256, allocationReportSha256, hostCasesSha256, nodeDriverSha256, pixelDriverSha256, webpParity: pixelWebp ? "exact-pixels" : "exact-bytes", runtime: { node: process.version, v8: process.versions.v8, esbuild: esbuildVersion, workerd: workerdVersion, workerdBinarySha256 } }) + "\n");
   writeFileSync(join(output, "runtime.log"), runtimeLogs.join(""));
   for (const worker of [...workers]) await stop(worker, false);
   if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
@@ -355,10 +397,11 @@ try {
 
 }
 await main().catch(error => {
+  const failure = failureRecord("initialization", 0, error);
   if (captureOutput) {
-    writeFileSync(join(captureOutput, "verdict.json"), JSON.stringify({ state: "failed", preflightOnly: true, reason: "initialization" }) + "\n");
+    writeFileSync(join(captureOutput, "verdict.json"), JSON.stringify({ state: "failed", preflightOnly: true, reason: "initialization", failure }) + "\n");
     writeFileSync(join(captureOutput, "initialization-error.txt"), String(error.stack ?? error));
   }
-  console.error("thumbnail preflight: failed before capture; inspect private initialization record");
+  console.error(`thumbnail preflight: failed stage=${failure.stage} item=0 reason=${failure.reason}; inspect private initialization record`);
   process.exitCode = 1;
 });

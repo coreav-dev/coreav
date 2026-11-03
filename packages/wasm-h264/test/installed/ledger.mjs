@@ -9,9 +9,10 @@ const fail = (reason, details = {}) => {
   reasons.set(error, { reason: reason.replaceAll(" ", "_"), ...details });
   throw error;
 };
+export { fail as failCapture };
 const outcomes = new Set(["success", "runtime", "limit", "io", "decode", "unsupported_feature", "codec_not_allowed", "invalid_structure", "out_of_range", "invalid_argument"]);
 const failureTypes = new Set(["none", "wasm_trap", "type_error", "range_error", "coreav", "source_not_found", "request_limit", "abort", "dom_exception", "error", "other"]);
-const stages = new Set(["install", "installed-files", "fixture-server", "node-host", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
+const stages = new Set(["initialization", "install", "installed-files", "fixture-server", "node-host", "png-anchor", "pixel-oracle", "bundle", "runtime-launch", "runtime-startup", "fresh-isolate", "before-memory", "request", "response", "result", "after-memory", "request-accounting", "native-reference", "parity", "host-accounting", "memory-ledger", "shutdown", "host-cases", "integrity", "verdict"]);
 
 export function failureRecord(stage, item, error) {
   return {
@@ -27,7 +28,7 @@ export function comparableSummary(summary) {
   return copy;
 }
 
-export function validateParity(actual, native, expected) {
+export function validateParity(actual, native, expected, pixelEvidence = null) {
   if (!actual || !native || actual.complete !== true || native.complete !== true || actual.runtimeExit !== false || native.runtimeExit !== false) fail("incomplete output or runtime exit");
   if (!hash(actual.inputSha256) || actual.inputSha256 !== native.inputSha256 || actual.inputSha256 !== expected.inputSha256) fail("input identity");
   if (!hash(actual.optionsSha256) || actual.optionsSha256 !== native.optionsSha256 || actual.optionsSha256 !== optionsSha256(expected.options)) fail("options identity");
@@ -39,15 +40,33 @@ export function validateParity(actual, native, expected) {
   if (expected.expectation !== actual.outcome) fail("unexpected outcome");
   if (actual.outcome === "success") {
     if (actual.summary?.schema !== "coreav.thumbnail/1" || native.summary?.schema !== "coreav.thumbnail/1" || !actual.summary.packet || !actual.summary.time || !actual.summary.output || !actual.summary.decoder) fail("summary missing");
-    if (!positive(actual.bytes) || actual.bytes !== native.bytes || !hash(actual.outputSha256) || actual.outputSha256 !== native.outputSha256) fail("image bytes", {
+    if (!positive(actual.bytes) || !positive(native.bytes) || actual.bytes !== actual.summary.output.bytes || native.bytes !== native.summary.output.bytes || !hash(actual.outputSha256) || !hash(native.outputSha256) || (!pixelEvidence && (actual.bytes !== native.bytes || actual.outputSha256 !== native.outputSha256))) fail("image bytes", {
       actualTransport: actual.bytes === actual.summary.output.bytes,
       nativeTransport: native.bytes === native.summary.output?.bytes,
       sameLength: actual.bytes === native.bytes,
       sameSummary: canonical(comparableSummary(actual.summary)) === canonical(comparableSummary(native.summary)),
     });
+    if (pixelEvidence) validatePixels(actual, native, expected, pixelEvidence);
     if (canonical(comparableSummary(actual.summary)) !== canonical(comparableSummary(native.summary))) fail("summary parity");
   } else {
     if (actual.bytes !== 0 || native.bytes !== 0 || actual.error?.schema !== "coreav.error/1" || native.error?.schema !== "coreav.error/1" || actual.error.kind !== native.error.kind || actual.error.kind !== expected.expectation) fail("structured refusal");
+  }
+}
+
+function validatePixels(actual, native, expected, evidence) {
+  if (expected.options.format !== "webp" || actual.summary.output.format !== "webp" || native.summary.output.format !== "webp") fail("pixel exception format");
+  const anchor = evidence.png;
+  if (!anchor?.actual || !anchor.native || !hash(actual.artifactSha256) || anchor.actual.artifactSha256 !== actual.artifactSha256 || native.artifactSha256 !== actual.artifactSha256 || anchor.native.artifactSha256 !== actual.artifactSha256 || anchor.actual.inputSha256 !== expected.inputSha256 || anchor.native.inputSha256 !== expected.inputSha256 || anchor.actual.optionsSha256 !== optionsSha256({ ...expected.options, format: "png" })) fail("PNG anchor identity");
+  validateParity(anchor.actual, anchor.native, { ...expected, options: { ...expected.options, format: "png" } });
+  const pictureSummary = summary => {
+    const copy = comparableSummary(summary);
+    delete copy.output.bytes; delete copy.output.format;
+    return canonical(copy);
+  };
+  if (pictureSummary(actual.summary) !== pictureSummary(anchor.actual.summary)) fail("PNG anchor picture");
+  for (const [pixels, encoded] of [[evidence.actual, actual], [evidence.native, native], [anchor.pixels, anchor.actual]]) {
+    if (!pixels || pixels.pixelFormat !== "rgba" || pixels.width !== actual.summary.output.width || pixels.height !== actual.summary.output.height || !positive(pixels.width) || !positive(pixels.height) || pixels.width > 1280 || pixels.height > 1280 || pixels.width * pixels.height > 921600 || !positive(pixels.bytes) || pixels.bytes !== pixels.width * pixels.height * 4 || pixels.encodedSha256 !== encoded.outputSha256 || !hash(pixels.sha256) || !hash(pixels.ffmpegSha256) || !hash(pixels.ffprobeSha256)) fail("decoded pixel evidence");
+    if (pixels.sha256 !== evidence.actual.sha256 || pixels.ffmpegSha256 !== evidence.actual.ffmpegSha256 || pixels.ffprobeSha256 !== evidence.actual.ffprobeSha256) fail("decoded pixel parity");
   }
 }
 
