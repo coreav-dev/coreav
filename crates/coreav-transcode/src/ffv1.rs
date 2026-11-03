@@ -247,7 +247,14 @@ fn colour(stream: ColorInfo, frame: ColorInfo) -> Result<ColorInfo, &'static str
     {
         return Err("conflicting stream and frame colour");
     }
-    Ok(stream.or(frame))
+    let colour = stream.or(frame);
+    if colour
+        .chroma_location
+        .is_some_and(|location| location != coreav_frame::ChromaLocation::Left)
+    {
+        return Err("unsupported chroma sample location");
+    }
+    Ok(colour)
 }
 
 fn display(
@@ -716,6 +723,24 @@ mod tests {
                 .unwrap()
                 .into(),
         };
+        for location in [
+            coreav_frame::ChromaLocation::Center,
+            coreav_frame::ChromaLocation::TopLeft,
+            coreav_frame::ChromaLocation::Top,
+            coreav_frame::ChromaLocation::BottomLeft,
+            coreav_frame::ChromaLocation::Bottom,
+        ] {
+            let mut unsupported = frame(0, 4);
+            unsupported.color.chroma_location = Some(location);
+            assert!(colour(unsupported.color, ColorInfo::default()).is_err());
+            assert_eq!(
+                run.take(unsupported).unwrap_err().kind(),
+                coreav_decode::ErrorKind::Unsupported
+            );
+            assert!(run.encoder.is_none());
+            assert!(run.packets.is_empty());
+            assert_eq!(run.bytes, 0);
+        }
         assert!(run.take(frame(40, 4)).is_err());
         assert_eq!(run.bytes, 0);
         run.take(frame(0, 4)).unwrap();
@@ -784,6 +809,14 @@ mod tests {
             (4, yuv444, original),
             (4, PixelFormat::YUV420P, changed),
             (4, PixelFormat::YUV420P, ColorInfo::default()),
+            (
+                4,
+                PixelFormat::YUV420P,
+                ColorInfo {
+                    chroma_location: Some(coreav_frame::ChromaLocation::Center),
+                    ..original
+                },
+            ),
         ]
         .into_iter()
         .enumerate()

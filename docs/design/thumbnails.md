@@ -388,6 +388,8 @@ BT.601 under a container that says BT.709); for ProRes the frame header's
 code points. Without this, a ProRes file whose container says nothing but
 whose frames say BT.709 is converted with the wrong matrix.
 
+Native H.264 pictures expose their own raw SPS colour declarations. The shared `frame_color` boundary fills missing declarations from the applied stream description before thumbnail or image-output rendering, while retaining the container's chroma location. Both ordinary and bounded thumbnails use this boundary; the FFV1 adapter keeps raw declarations for its mid-stream change guard instead.
+
 CUDA frames are copied to the CPU before these operations; operations on
 the GPU come with the NVDEC backend's production path.
 

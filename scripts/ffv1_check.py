@@ -269,7 +269,7 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
             records.append({'case': f'cli-{container}-{index}', 'result': 'exact'})
 
     def refuse(name, source, options=(), suffix='mkv', stdout=False, exclusions=('-an', '-sn', '-dn'),
-               input_options=()):
+               input_options=(), diagnostic=None):
         destination = work / f'refused-{name}.{suffix}'
         destination.write_bytes(b'preserved destination')
         result = run([coreav, 'ffmpeg', '-y', *input_options, '-i', source, *exclusions,
@@ -277,6 +277,8 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
                      output_limit=65536)
         require(result.returncode == 4 and not result.stdout and result.stderr,
                 f'{name}: expected unsupported refusal, got {result.returncode}: {result.stderr!r}')
+        if diagnostic is not None:
+            require(diagnostic in result.stderr, f'{name}: wrong refusal cause: {result.stderr!r}')
         require(destination.read_bytes() == b'preserved destination', f'{name}: destination replaced')
         records.append({'case': f'refused-{name}', 'result': 'refused, destination preserved'})
 
@@ -295,6 +297,14 @@ def cli_cases(coreav, ffmpeg, ffprobe, work, records):
     ):
         refuse(name, source, options)
     refuse('input-seek', source, input_options=['-ss', '0.04'])
+    centered = work / 'centered.mkv'
+    run([ffmpeg, '-nostdin', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=32x24:rate=25',
+         '-frames:v', '3', '-c:v', 'libx264', '-bf', '0', '-threads', '1', '-pix_fmt', 'yuv420p',
+         '-chroma_sample_location', 'center', centered])
+    observed = probe(ffprobe, centered)['frames']
+    require(len(observed) == 3 and all(frame.get('chroma_location') == 'center' for frame in observed),
+            'chroma-siting fixture did not retain centered samples')
+    refuse('chroma-location', centered, diagnostic=b'unsupported chroma sample location')
     for pix_fmt in ('yuv420p10le', 'gbrp'):
         unsupported = work / f'source-{pix_fmt}.mkv'
         codec = 'libx264rgb' if pix_fmt == 'gbrp' else 'libx264'

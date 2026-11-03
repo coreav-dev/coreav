@@ -204,6 +204,55 @@ fn image_names_limits_seeking_and_update_are_codec_independent() {
 }
 
 #[test]
+fn image_output_inherits_h264_container_colour_without_vui_signalling() {
+    let Some(mut f) = fixture("container-colour") else {
+        return;
+    };
+    let raw = f.decode("input.mp4", "yuv420p");
+    let tagged = f.dir.join("tagged.mp4");
+    checked(
+        Command::new("python3")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/colr_craft.py"))
+            .arg(&f.input)
+            .arg(&tagged)
+            .args(["nclx", "1", "1", "1", "1"]),
+    );
+    f.input = tagged;
+    f.success(&["-frames:v", "1"], "tagged.png");
+    let mut picture =
+        coreav_frame::Picture::zeroed(64, 48, coreav_frame::PixelFormat::YUV420P).unwrap();
+    let mut at = 0;
+    for (plane, (width, height)) in [(64, 48), (32, 24), (32, 24)].into_iter().enumerate() {
+        for y in 0..height {
+            picture
+                .row_mut(plane, y)
+                .unwrap()
+                .copy_from_slice(&raw[at..at + width]);
+            at += width;
+        }
+    }
+    let color = coreav_frame::ColorInfo {
+        matrix: Some(1),
+        full_range: Some(true),
+        ..Default::default()
+    };
+    let rgb = picture
+        .resize_to_rgb(
+            64,
+            48,
+            coreav_frame::Filter::Bicubic,
+            &color,
+            coreav_frame::ChromaUpsampling::FfmpegCompatible,
+        )
+        .unwrap();
+    let mut expected = Vec::new();
+    rgb.write_packed(&mut expected).unwrap();
+    let actual = f.decode("tagged.png", "rgb24");
+    assert_eq!(actual.len(), expected.len());
+    assert_eq!(actual.iter().zip(&expected).position(|(a, b)| a != b), None);
+}
+
+#[test]
 fn raw_stdout_keeps_the_closed_pipe_exit_status() {
     let Some(f) = fixture("closed-pipe") else {
         return;

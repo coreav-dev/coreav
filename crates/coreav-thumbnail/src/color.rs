@@ -11,6 +11,19 @@ use coreav_isobmff::{FourCc, parameter_set_color};
 /// Bytes of the first keyframe that [`applied`] reads.
 pub(crate) const HEADER_BYTES: usize = 64;
 
+/// Colour for rendering a decoded frame: H.264 picture declarations override
+/// the applied stream description, except for its container chroma location.
+/// Other codecs keep the decoder's effective colour unchanged.
+pub fn frame_color(codec: Codec, frame: ColorInfo, applied: ColorInfo) -> ColorInfo {
+    if codec != Codec::H264 {
+        return frame;
+    }
+    ColorInfo {
+        chroma_location: applied.chroma_location.or(frame.chroma_location),
+        ..frame.or(applied)
+    }
+}
+
 /// The colour description a decoder applies: from the coded data where
 /// FFmpeg's decoders take it, else the container's (`container`), per codec
 /// as `docs/design/probe-color.md` measured for H.264, HEVC and AV1:
@@ -215,6 +228,33 @@ fn prores(frame: &[u8]) -> Option<ColorInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn h264_picture_colour_inherits_only_missing_applied_fields() {
+        let applied = ColorInfo {
+            primaries: Some(1),
+            transfer: Some(1),
+            matrix: Some(1),
+            full_range: Some(true),
+            chroma_location: Some(coreav_frame::ChromaLocation::Center),
+        };
+        let raw = ColorInfo {
+            transfer: Some(2),
+            full_range: Some(false),
+            chroma_location: Some(coreav_frame::ChromaLocation::Left),
+            ..ColorInfo::default()
+        };
+        assert_eq!(
+            frame_color(Codec::H264, raw, applied),
+            ColorInfo {
+                transfer: Some(2),
+                full_range: Some(false),
+                ..applied
+            }
+        );
+        assert_eq!(frame_color(Codec::Vp9, raw, applied), raw);
+        assert_eq!(frame_color(Codec::H264, raw, ColorInfo::default()), raw);
+    }
 
     #[test]
     fn vp9_key_frame_header() {
