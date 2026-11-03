@@ -238,7 +238,11 @@ jobs:
             echo 'ordinary native thumbnails must enable JPEG SIMD'
             exit 1
           fi
-          cargo test --locked -p coreav-thumbnail --no-default-features --lib jpeg::tests::portable_output_does_not_depend_on_cpu_dispatch > "$private/portable-jpeg.log" 2>&1
+          cargo test --locked -p coreav-thumbnail --no-default-features --lib jpeg::tests::portable_output_does_not_depend_on_cpu_dispatch -- --exact > "$private/portable-jpeg.log" 2>&1
+          if ! grep -F 'test result: ok. 1 passed; 0 failed; 0 ignored;' "$private/portable-jpeg.log" > /dev/null; then
+            echo 'the portable JPEG golden must run exactly once; check its exact test name'
+            exit 1
+          fi
           cargo build --locked -p coreav-edge-native --no-default-features --features native-h264 --profile edge --target-dir target/edge-h264
           cargo test --locked -p coreav-wasm --features native-h264 --test thumbnail_contract --no-run --message-format=json > "$private/test-build.json"
           test_binary=$(python3 -c 'import json,sys; rows=[json.loads(line) for line in open(sys.argv[1])]; matches=[r["executable"] for r in rows if r.get("reason")=="compiler-artifact" and r.get("target",{}).get("name")=="thumbnail_contract" and r.get("executable")]; assert len(matches)==1; print(matches[0])' "$private/test-build.json")
