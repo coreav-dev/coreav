@@ -80,7 +80,7 @@ impl Session {
         {
             return Err(failed(io::Error::other("capture or source bytes changed")));
         }
-        let registration_text = include_str!("../../../../docs/design/composed-opus-aac-v1.json");
+        let registration_text = include_str!("../../../../docs/design/composed-opus-aac-v2.json");
         let registered: Value = serde_json::from_str(registration_text)
             .map_err(|_| failed(io::Error::other("invalid embedded capture registration")))?;
         let receipt = json!({

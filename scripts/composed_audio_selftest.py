@@ -47,6 +47,13 @@ def main():
         original = judge()
         if original.get('ok') is not True:
             raise composed.Invalid('trusted composed fixture failed: ' + str(original.get('reason')))
+        print('Positive control: ' + json.dumps({
+            'source_presentation': original['source_presentation'],
+            'captured_frames': original['capture']['frames'],
+            'aac_packets': original['encoder']['packets'],
+            'priming': original['presentation']['priming'],
+            'opus_quality': original['decoder']['quality'],
+            'normal_capture_bytes_equal': True}, sort_keys=True), flush=True)
         pcm = directory / 'stdin.f32'
         receipt_path = directory / 'receipt.json'
         original_pcm, original_output, original_receipt = pcm.read_bytes(), candidate.read_bytes(), receipt_path.read_bytes()
@@ -55,6 +62,12 @@ def main():
             pcm.write_bytes(original_pcm)
             candidate.write_bytes(original_output)
             receipt_path.write_bytes(original_receipt)
+
+        def rejected(label):
+            result = judge()
+            if result.get('ok') is not False or not result.get('reason'):
+                raise composed.Invalid(label + ' passed')
+            print('Rejected ' + label + ': ' + result['reason'], flush=True)
 
         def matched_mutant(data, bitrate=96000):
             pcm.write_bytes(data)
@@ -70,13 +83,11 @@ def main():
             receipt_path.write_text(json.dumps(receipt))
 
         matched_mutant(b'\0' * len(original_pcm))
-        if judge().get('ok') is not False:
-            raise composed.Invalid('wrong PCM and its matching AAC output passed')
+        rejected('wrong PCM with matching AAC')
         restore()
         at = (len(original_pcm) // 2 // 8) * 8
         matched_mutant(original_pcm[at:] + original_pcm[:at])
-        if judge().get('ok') is not False:
-            raise composed.Invalid('wrong lag and its matching AAC output passed')
+        rejected('wrong lag with matching AAC')
         restore()
         matched_mutant(original_pcm, 32000)
         receipt = json.loads(receipt_path.read_bytes())
@@ -85,8 +96,7 @@ def main():
             position = words.index('-b:a')
             words[position + 1] = '32000'
         receipt_path.write_text(json.dumps(receipt))
-        if judge().get('ok') is not False:
-            raise composed.Invalid('a wrong encoder bitrate chose its own reference')
+        rejected('wrong encoder bitrate')
         restore()
 
         bad = root / 'failed-encoder'
@@ -99,6 +109,16 @@ def main():
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False)
         if failed.returncode == 0 or b'17' not in failed.stderr or failed_capture.exists() or failed_output.exists():
             raise composed.Invalid('failed child left successful capture or media state')
+        for suffix, words in (
+                ('multi.mp4', ['-i', str(source), '-i', str(source), '-c', 'copy']),
+                ('frame.png', ['-i', str(source), '-frames:v', '1'])):
+            unsupported_capture = root / uuid.uuid4().hex
+            unsupported_output = root / suffix
+            refused = subprocess.run([args.coreav, '--capture-encoder-input', str(unsupported_capture),
+                'ffmpeg', '-y', *words, str(unsupported_output)], env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False)
+            if refused.returncode == 0 or unsupported_capture.exists() or unsupported_output.exists():
+                raise composed.Invalid('unsupported capture wrote output or a receipt')
     print('Composed fixture, output identity and wrong-PCM/lag/argv/failure mutations passed')
 
 

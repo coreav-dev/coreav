@@ -21,8 +21,8 @@ from composed_audio_source import expected_encoder, source_reference
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-REGISTRATION = ROOT / 'docs/design/composed-opus-aac-v1.json'
-VERSION = 'composed-opus-aac-v1'
+REGISTRATION = ROOT / 'docs/design/composed-opus-aac-v2.json'
+VERSION = 'composed-opus-aac-v2'
 MAX_CONTROL = 1 << 20
 MAX_BOXES = 4096
 MAX_METADATA = 16 << 20
@@ -70,7 +70,7 @@ def registration():
 def method_digest():
     sources = ('scripts/composed_audio.py', 'scripts/transcode_check.py', 'scripts/oracle_audio.py',
                'scripts/oracle-audio-args.txt', 'scripts/oracle_pin.py', 'scripts/composed_audio_fixtures.py',
-               'docs/design/composed-opus-aac-v1.json')
+               'docs/design/composed-opus-aac-v2.json')
     sources += (registration()[0]['decoder']['reference_owner'],)
     return hashlib.sha256(json.dumps({path: sha256_file(ROOT / path) for path in sources}, sort_keys=True).encode()).hexdigest()
 
@@ -310,12 +310,13 @@ def sample_map(edits, packets, frames):
             'packets_checked': len(packets)}
 
 
-def same_presentation(candidate, baseline, reference, capture):
+def same_presentation(candidate, source, reference, capture):
     frames = integer(capture.get('samples'), 'capture samples', 1)
     rate = integer(capture.get('sample_rate'), 'capture rate', 1)
     start = integer(capture.get('start_ticks'), 'capture start')
-    ours, theirs, pcm = (sample_map(edits, packets, frames) for edits, packets in (candidate, baseline, reference))
-    if rate != 48000 or ours['start_ticks'] != start or theirs['start_ticks'] != start or pcm['start_ticks'] != 0:
+    ours, pcm = (sample_map(edits, packets, frames) for edits, packets in (candidate, reference))
+    expected = {'frames': frames, 'rate': rate, 'channels': capture.get('channels'), 'start_ticks': start}
+    if source != expected or rate != 48000 or start != 0 or ours['start_ticks'] != start or pcm['start_ticks'] != 0:
         raise Invalid('source, candidate or captured PCM presentation origin differs')
     if ours['priming'] != pcm['priming']:
         raise Invalid('candidate priming differs from the independent PCM reference')
@@ -531,6 +532,22 @@ def source_mapping(stderr, audio_outputs, streams):
     return result
 
 
+def baseline_properties(args, output, index, baseline, baseline_index, env):
+    fields = ('codec_name', 'profile', 'sample_fmt', 'sample_rate', 'channels', 'channel_layout',
+              'time_base', 'start_pts')
+    rows = []
+    for path, stream in ((output, index), (baseline, baseline_index)):
+        raw, _ = bounded([args.ffprobe, '-v', 'error', '-select_streams', str(stream),
+                          '-show_entries', 'stream=' + ','.join(fields), '-of', 'json', path], env)
+        streams = json_document(raw).get('streams')
+        if not isinstance(streams, list) or len(streams) != 1 or not isinstance(streams[0], dict) or \
+                any(key not in streams[0] for key in fields):
+            raise Invalid('AAC source baseline properties were not read')
+        rows.append({key: streams[0][key] for key in fields})
+    if rows[0] != rows[1]:
+        raise Invalid('AAC source baseline properties differ')
+
+
 def compare(args, directory, source, output, output_index, baseline, baseline_index, command,
             expected_stream, bitrate, legacy_compare, env):
     _, identity = registration()
@@ -542,7 +559,7 @@ def compare(args, directory, source, output, output_index, baseline, baseline_in
         receipt, pcm, capture = validate_receipt(directory, source, output, command, expected_stream, bitrate, tools)
         frames, channels = capture['samples'], capture['channels']
         directory = pathlib.Path(directory)
-        reference_pcm = source_reference(args, directory, source, expected_stream, channels, env)
+        reference_pcm, source_presentation = source_reference(args, directory, source, expected_stream, channels, env)
         ours_s16, reference_s16 = directory / 'captured.s16', directory / 'libopus.s16'
         project_s16(pcm, ours_s16, frames, channels)
         project_s16(reference_pcm, reference_s16, frames, channels, stereo_reference=True)
@@ -559,17 +576,15 @@ def compare(args, directory, source, output, output_index, baseline, baseline_in
                      *expected[at + 2:-3], '-f', 'mp4', '-y', reference], env, stdin=data)
         candidate_timing, candidate_data = read_aac_timing(args.ffprobe, output, output_index, frames, env,
                                                          artifact='candidate')
-        baseline_timing, _ = read_aac_timing(args.ffprobe, baseline, baseline_index, frames, env,
-                                            artifact='AAC baseline')
         reference_timing, reference_data = read_aac_timing(args.ffprobe, reference, 0, frames, env,
                                                          artifact='reference readback')
         if candidate_data != reference_data:
             raise Invalid('AAC packets or configuration differ from the exact supplied PCM reference')
-        properties = legacy_compare(args, output, output_index, baseline, baseline_index)
+        baseline_properties(args, output, output_index, baseline, baseline_index, env)
         samples = legacy_compare(args, output, output_index, reference, 0)
-        if properties.get('properties_equal') is not True or samples.get('decoded_samples_equal') is not True:
+        if samples.get('decoded_samples_equal') is not True:
             raise Invalid('AAC source properties or exact presented PCM differ')
-        presentation = same_presentation(candidate_timing, baseline_timing, reference_timing, capture)
+        presentation = same_presentation(candidate_timing, source_presentation, reference_timing, capture)
         for name, expected_hash in tools.items():
             if sha256_file(getattr(args, name)) != expected_hash:
                 raise Invalid('a composed-check program changed during acquisition')
@@ -588,7 +603,7 @@ def compare(args, directory, source, output, output_index, baseline, baseline_in
                                'reference_s16_sha256': sha256_file(reference_s16)},
                       encoder={'ok': True, 'argv': expected, 'packets': len(candidate_data['packets']),
                                'configuration': candidate_data['configuration'], 'decoded_samples_equal': True},
-                      presentation=presentation, properties_equal=True)
+                      source_presentation=source_presentation, presentation=presentation, properties_equal=True)
     except (Invalid, OSError, ValueError, subprocess.SubprocessError) as error:
         result['reason'] = str(error) if isinstance(error, Invalid) else type(error).__name__
     return result

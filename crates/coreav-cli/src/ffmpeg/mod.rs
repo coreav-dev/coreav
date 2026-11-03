@@ -276,6 +276,9 @@ fn run_inner(
     capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    if capture.is_some() && (!command.more_inputs.is_empty() || command.muxer.frames()) {
+        return Err(Refusal::not_native("input capture without a native AAC encode").into());
+    }
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
@@ -1688,6 +1691,23 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    #[test]
+    fn unsupported_capture_is_refused_before_input_or_output_io() {
+        for line in [
+            "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
+            "-i missing-a.mp4 -frames:v 1 out.png",
+        ] {
+            let args = line
+                .split_whitespace()
+                .map(String::from)
+                .collect::<Vec<_>>();
+            assert!(matches!(
+                run_inner(&args, StrictSafe::new(false), Some(Path::new("unused.f32"))),
+                Err(Stop::Refused(Refusal::NotNative(_)))
+            ));
+        }
+    }
 
     #[test]
     fn default_codecs_plan_the_same_jobs_as_explicit_codecs() {

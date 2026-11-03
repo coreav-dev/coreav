@@ -146,4 +146,25 @@ def source_reference(args, directory, source, index, channels, env):
                 remaining -= len(block)
     finally:
         full_path.unlink(missing_ok=True)
-    return target
+    frames = leading + end - start
+    if matroska:
+        raw, _ = composed.bounded([args.ffprobe, '-v', 'error', '-select_streams', str(index),
+            '-show_frames', '-show_streams', '-show_entries',
+            'frame=pts,nb_samples:stream=index,codec_name,sample_rate,channels,time_base',
+            '-of', 'json', source], env)
+        document = composed.json_document(raw)
+        streams, decoded = document.get('streams'), document.get('frames')
+        if not isinstance(streams, list) or len(streams) != 1 or not isinstance(streams[0], dict):
+            raise composed.Invalid('source Matroska stream identity is missing')
+        stream = streams[0]
+        if stream.get('index') != index or stream.get('codec_name') != 'opus' or \
+                stream.get('channels') != channels or \
+                composed.decimal(stream.get('sample_rate'), 'source Opus rate') != 48000:
+            raise composed.Invalid('source Matroska Opus format differs')
+        if not isinstance(decoded, list) or not 0 < len(decoded) <= 4096 or \
+                any(not isinstance(frame, dict) for frame in decoded) or \
+                composed.decimal(decoded[0].get('pts'), 'source presentation origin') != 0 or \
+                sum(composed.decimal(frame.get('nb_samples'), 'source frame samples')
+                    for frame in decoded) != frames:
+            raise composed.Invalid('source Matroska presentation is missing, nonzero or incomplete')
+    return target, {'frames': frames, 'rate': 48000, 'channels': channels, 'start_ticks': 0}

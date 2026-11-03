@@ -197,7 +197,7 @@ pub fn registration_sha256() -> String {
     format!(
         "{:x}",
         Sha256::digest(include_bytes!(
-            "../../../docs/design/composed-opus-aac-v1.json"
+            "../../../docs/design/composed-opus-aac-v2.json"
         ))
     )
 }

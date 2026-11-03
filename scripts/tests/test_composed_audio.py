@@ -86,10 +86,11 @@ def timing(start=0, final=1024):
 
 class Presentation(unittest.TestCase):
     def test_full_or_short_terminal_samples_have_the_same_effective_map(self):
-        for start in (0, 12000):
+        for start in (0,):
             with self.subTest(start=start):
-                result = composed.same_presentation(timing(start), timing(start, 704), timing(),
-                    {'samples': 4800, 'sample_rate': 48000, 'start_ticks': start})
+                source = {'frames': 4800, 'rate': 48000, 'channels': 1, 'start_ticks': start}
+                result = composed.same_presentation(timing(start), source, timing(final=704),
+                    {'samples': 4800, 'sample_rate': 48000, 'channels': 1, 'start_ticks': start})
                 self.assertTrue(result['ok'])
                 self.assertEqual(result['start_ticks'], start)
                 self.assertEqual(result['packets_checked'], 6)
@@ -108,19 +109,50 @@ class Presentation(unittest.TestCase):
                 composed.sample_map(edits, packets, 4800)
 
     def test_start_binding_and_reference_priming_are_independent(self):
-        for candidate, baseline, reference, start in (
-                (timing(), timing(12000), timing(), 0),
-                (timing(12000), timing(12000), timing(12000), 12000),
-                (timing(), timing(), timing(), 1)):
+        for candidate, origin, reference, start in (
+                (timing(), 12000, timing(), 0),
+                (timing(12000), 12000, timing(12000), 12000),
+                (timing(), 0, timing(), 1)):
             with self.assertRaises(composed.Invalid):
-                composed.same_presentation(candidate, baseline, reference,
-                    {'samples': 4800, 'sample_rate': 48000, 'start_ticks': start})
+                composed.same_presentation(candidate,
+                    {'frames': 4800, 'rate': 48000, 'channels': 1, 'start_ticks': origin}, reference,
+                    {'samples': 4800, 'sample_rate': 48000, 'channels': 1, 'start_ticks': start})
         candidate = timing()
         reference = timing()
         reference = (dataclasses.replace(reference[0], entries=((100, 1025, 1, 0),)), reference[1])
         with self.assertRaises(composed.Invalid):
-            composed.same_presentation(candidate, candidate, reference,
-                {'samples': 4800, 'sample_rate': 48000, 'start_ticks': 0})
+            composed.same_presentation(candidate,
+                {'frames': 4800, 'rate': 48000, 'channels': 1, 'start_ticks': 0}, reference,
+                {'samples': 4800, 'sample_rate': 48000, 'channels': 1, 'start_ticks': 0})
+
+    def test_source_count_rate_channels_and_origin_cannot_be_chosen_by_the_capture(self):
+        source = {'frames': 4800, 'rate': 48000, 'channels': 1, 'start_ticks': 0}
+        for key, wrong in [('frames', 4799), ('rate', 44100), ('channels', 2), ('start_ticks', 1)]:
+            with self.subTest(key=key), self.assertRaises(composed.Invalid):
+                composed.same_presentation(timing(), dict(source, **{key: wrong}), timing(),
+                    {'samples': 4800, 'sample_rate': 48000, 'channels': 1, 'start_ticks': 0})
+
+    def test_normal_aac_baseline_does_not_own_duration_or_priming(self):
+        properties = {'codec_name': 'aac', 'profile': 'LC', 'sample_fmt': 'fltp',
+                      'sample_rate': '48000', 'channels': 2, 'channel_layout': 'stereo',
+                      'time_base': '1/48000', 'start_pts': 0}
+        calls = []
+
+        def probe(command, env):
+            calls.append(command)
+            value = dict(properties, duration_ts=96000 if command[-1] == 'candidate' else 96648)
+            return json.dumps({'streams': [value]}).encode(), b''
+
+        with mock.patch.object(composed, 'bounded', side_effect=probe):
+            composed.baseline_properties(SimpleNamespace(ffprobe='ffprobe'), 'candidate', 1, 'baseline', 1, {})
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all('duration_ts' not in command[command.index('-show_entries') + 1] for command in calls))
+        for key, value in [('channels', 1), ('start_pts', 1), ('profile', 'HE-AAC')]:
+            with mock.patch.object(composed, 'bounded', side_effect=[
+                    (json.dumps({'streams': [properties]}).encode(), b''),
+                    (json.dumps({'streams': [dict(properties, **{key: value})]}).encode(), b'')]):
+                with self.assertRaises(composed.Invalid):
+                    composed.baseline_properties(SimpleNamespace(ffprobe='ffprobe'), 'candidate', 1, 'baseline', 1, {})
 
     def test_fractional_grid_missing_fields_and_uncovered_samples_fail(self):
         edits, packets = timing()
@@ -222,6 +254,16 @@ class Registration(unittest.TestCase):
         relabeled = dict(historical, compat_check=composed.registration()[1])
         with self.assertRaises(composed.Invalid):
             checker.validate_result(relabeled, composed.registration()[1])
+
+    def test_version_one_cannot_be_reused_or_relabeled_as_version_two(self):
+        root = Path(__file__).resolve().parents[2]
+        historical = composed.json_document((root / 'docs/design/composed-opus-aac-v1.json').read_bytes())
+        self.assertEqual(historical['version'], 'composed-opus-aac-v1')
+        old = {'version': historical['version'], 'registration_sha256':
+               composed.sha256_file(root / 'docs/design/composed-opus-aac-v1.json')}
+        for identity in (old, dict(old, version=composed.VERSION)):
+            with self.assertRaises(composed.Invalid):
+                composed.require_version({'compat_check': identity}, composed.registration()[1])
 
 
 class Receipt(unittest.TestCase):
@@ -401,9 +443,36 @@ class SourcePresentation(unittest.TestCase):
                         with self.assertRaises(composed.Invalid):
                             source_model.source_reference(args, root, path, 0, 1, {})
                     else:
-                        target = source_model.source_reference(args, root, path, 0, 1, {})
+                        target, presentation = source_model.source_reference(args, root, path, 0, 1, {})
+                        self.assertEqual(presentation, {'frames': 960, 'rate': 48000, 'channels': 1, 'start_ticks': 0})
                         self.assertEqual(target.read_bytes(), struct.pack('<' + 'f' * 960, *range(960)))
                         target.unlink()
+
+    def test_matroska_reference_binds_the_decoded_count_and_zero_origin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / 'source.webm'
+            path.write_bytes(bytes.fromhex('1a45dfa3'))
+            args = SimpleNamespace(ffmpeg='ffmpeg', ffprobe='ffprobe')
+            for origin, count in ((0, 4), (1, 4), (0, 3)):
+                target = root / 'libopus.f32'
+                target.unlink(missing_ok=True)
+
+                def run(command, env, **kwargs):
+                    if command[0] == 'ffmpeg':
+                        kwargs['output'].write(struct.pack('<4f', 0, 1, 2, 3))
+                        return b'', b''
+                    return json.dumps({'streams': [{'index': 2, 'codec_name': 'opus',
+                        'channels': 1, 'sample_rate': '48000'}],
+                        'frames': [{'pts': origin, 'nb_samples': count}]}).encode(), b''
+
+                with mock.patch.object(composed, 'bounded', side_effect=run):
+                    if origin == 0 and count == 4:
+                        _, presentation = source_model.source_reference(args, root, path, 2, 1, {})
+                        self.assertEqual(presentation, {'frames': 4, 'rate': 48000, 'channels': 1, 'start_ticks': 0})
+                    else:
+                        with self.assertRaises(composed.Invalid):
+                            source_model.source_reference(args, root, path, 2, 1, {})
 
 
 class BoundedCommands(unittest.TestCase):

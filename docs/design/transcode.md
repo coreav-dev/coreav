@@ -1089,7 +1089,7 @@ requires explicit codecs. Encoder options still require their explicit
 encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
 
 An Opus source can use default AAC encoding. Its current verification uses
-the separately registered [composed Opus-to-AAC check](composed-opus-aac-v1.md):
+the separately registered [composed Opus-to-AAC check](composed-opus-aac-v2.md):
 existing decoder conformance, exact AAC output from the PCM actually written
 to the encoder, and an independent exact presentation check. There is no
 encoder tolerance or alignment correction. Legacy B9 results are not

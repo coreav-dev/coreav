@@ -1221,6 +1221,10 @@ def validate_result(result, identity, config=None, key=None):
                     item['presentation'].get('frames') != frames or item['presentation'].get('rate') != 48000 or \
                     item['presentation'].get('start_ticks') != capture.get('start_ticks'):
                 raise composed_audio.Invalid('stored capture and presentation bindings disagree')
+            if item.get('source_presentation') != {
+                    'frames': frames, 'rate': 48000, 'channels': capture['channels'], 'start_ticks': 0
+                    } or capture.get('start_ticks') != 0:
+                raise composed_audio.Invalid('stored source presentation binding differs')
             if set(item.get('tools') or {}) != {'coreav', 'ffmpeg', 'ffprobe', 'opus_compare'} or \
                     item['encoder'].get('argv') != composed_audio.expected_encoder(
                         48000, capture['channels'], 96000 if result.get('config') == 'x14' else None):

@@ -1363,7 +1363,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
-            --compat-check composed-opus-aac-v1 --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" \
+            --compat-check composed-opus-aac-v2 --opus-compare "$RUNNER_TEMP/coreav-fixtures/tools/opus_compare" \
             --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
             --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
@@ -1415,7 +1415,7 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python3 -I scripts/transcode_check.py --compat-check composed-opus-aac-v1 --out "$RUNNER_TEMP/coreav-transcode-compat" --merge \
+          python3 -I scripts/transcode_check.py --compat-check composed-opus-aac-v2 --out "$RUNNER_TEMP/coreav-transcode-compat" --merge \
             "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-1" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-2" "$RUNNER_TEMP/transcode-compat-shards/transcode-compat-shard-3"
       - name: Check the registered version and pinned oracle
         run: |
@@ -1427,8 +1427,8 @@ jobs:
           import subprocess
           root = pathlib.Path(os.environ['RUNNER_TEMP'])
           run = json.loads((root / 'coreav-transcode-compat/run.json').read_text())
-          registration = pathlib.Path('docs/design/composed-opus-aac-v1.json').read_bytes()
-          expected = {'version': 'composed-opus-aac-v1', 'registration_sha256': hashlib.sha256(registration).hexdigest()}
+          registration = pathlib.Path('docs/design/composed-opus-aac-v2.json').read_bytes()
+          expected = {'version': 'composed-opus-aac-v2', 'registration_sha256': hashlib.sha256(registration).hexdigest()}
           if run.get('compat_check') != expected:
               raise SystemExit('the compatibility evidence has the wrong registered version')
           tools = run['tools'] if isinstance(run['tools'], list) else [run['tools']]
