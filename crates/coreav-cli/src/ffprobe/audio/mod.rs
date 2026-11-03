@@ -22,6 +22,7 @@ pub(super) fn probe<S: Source>(
         .get_mut(..count)
         .ok_or(Failure::Invalid("audio header size"))?;
     source.read_exact_at(0, bytes).map_err(Failure::library)?;
+    let bytes: &[u8] = bytes;
     let wave = matches!(bytes.get(..4), Some(b"RIFF" | b"RIFX" | b"RF64" | b"BW64"))
         && bytes.get(8..12) == Some(b"WAVE");
     let mut flac_start = bytes.starts_with(b"fLaC").then_some(0);

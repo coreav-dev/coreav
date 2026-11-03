@@ -15,6 +15,9 @@
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
 
+#[path = "common/standalone_audio.rs"]
+mod standalone_audio;
+
 use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
@@ -482,15 +485,8 @@ fn unsupported_audio_containers_fall_back_without_changing_arguments() {
     let dir = tmp("audio-container-fallback");
     for (name, bytes, format) in [
         ("audio.mp3", b"ID3\x04\0\0\0\0\0\0".as_slice(), "MP3"),
-        ("audio.flac", b"fLaC\0\0\0\x22".as_slice(), "FLAC"),
-        ("audio.wav", b"RIFF\x24\0\0\0WAVE".as_slice(), "WAV"),
-        ("big-endian.bin", b"RIFX\0\0\0\x24WAVE".as_slice(), "WAV"),
-        ("large.bin", b"RF64\xff\xff\xff\xffWAVE".as_slice(), "WAV"),
-        (
-            "broadcast.bin",
-            b"BW64\xff\xff\xff\xffWAVE".as_slice(),
-            "WAV",
-        ),
+        ("big-endian.bin", b"RIFX\0\0\0\x24WAVE".as_slice(), "RIFX"),
+        ("audio.ogg", b"OggS\0\0\0\0\0\0\0\0".as_slice(), "Ogg"),
         ("audio.bin", b"\xff\xfb\x90\x00".as_slice(), "MP3"),
     ] {
         let path = dir.join(name);
@@ -536,6 +532,88 @@ fn unsupported_audio_containers_fall_back_without_changing_arguments() {
     );
     assert_eq!(r.code, 1, "{}", r.stderr);
     assert!(r.stderr.contains("Invalid data"));
+}
+
+#[test]
+fn native_audio_reports_do_not_invoke_fallback_but_listings_still_do() {
+    let dir = tmp("native-audio-fallback-boundary");
+    for (name, bytes, format) in [
+        ("audio.wav", standalone_audio::wave(), "wav"),
+        ("audio.flac", standalone_audio::flac(), "flac"),
+    ] {
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        let input = format!("file:{}", path.display());
+        let report = coreav(
+            &[
+                "ffprobe",
+                "-show_format",
+                "-show_streams",
+                "-of",
+                "json",
+                &input,
+            ],
+            &[stand_in()],
+            &[("COREAV_STRICT_SAFE", "1")],
+        );
+        assert_eq!(report.code, 0, "{}", report.stderr);
+        let report: Value = serde_json::from_str(&report.stdout).unwrap();
+        assert_eq!(report["format"]["format_name"], format);
+        for option in [
+            "-show_packets",
+            "-show_frames",
+            "-count_packets",
+            "-count_frames",
+        ] {
+            let args = ["ffprobe", option, "-show_streams", "-of", "json", &input];
+            let fallback = coreav(&args, &[stand_in()], &[]);
+            assert_eq!(fallback.code, 7, "{option}: {}", fallback.stderr);
+            assert_eq!(
+                fallback.stdout,
+                format!("args: {option} -show_streams -of json {input}\n")
+            );
+            let refused = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+            assert_eq!(refused.code, 4, "{option}: {}", refused.stderr);
+            assert!(refused.stdout.is_empty());
+        }
+        let output = dir.join("out.mp4");
+        let args = [
+            "ffmpeg",
+            "-i",
+            &input,
+            "-c",
+            "copy",
+            output.to_str().unwrap(),
+        ];
+        let fallback = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(fallback.code, 7, "{}", fallback.stderr);
+        assert!(fallback.stdout.contains(&input));
+        let refused = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(refused.code, 4, "{}", refused.stderr);
+        assert!(!output.exists());
+    }
+}
+
+#[test]
+fn malformed_native_audio_fails_without_running_fallback() {
+    let dir = tmp("malformed-native-audio");
+    for (name, bytes) in [
+        ("audio.flac", b"fLaC\0\0\0\x22".as_slice()),
+        ("audio.wav", b"RIFF\x24\0\0\0WAVE".as_slice()),
+        ("large.wav", b"RF64\xff\xff\xff\xffWAVE".as_slice()),
+        ("broadcast.wav", b"BW64\xff\xff\xff\xffWAVE".as_slice()),
+    ] {
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        let result = coreav(
+            &["ffprobe", "-show_streams", path.to_str().unwrap()],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(result.code, 1, "{}", result.stderr);
+        assert!(result.stdout.is_empty());
+        assert!(!result.stderr.contains("ran "));
+    }
 }
 
 #[test]
