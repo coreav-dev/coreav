@@ -1,6 +1,6 @@
 # H.264 encoder deblocking and P pictures
 
-Status: Implementation plan. This extends the opt-in scalar [intra encoder](h264-encoder.md), not its evaluation protocol. There are no quality or speed claims. The existing all-IDR, fixed-QP, CAVLC path keeps deblocking disabled unless the caller explicitly enables it. No command-line product, default-build dependency, or evaluation input changes.
+Status: Deblocking implemented; P pictures remain planned. This extends the opt-in scalar [intra encoder](h264-encoder.md), not its evaluation protocol. There are no quality or speed claims. The existing all-IDR, fixed-QP, CAVLC path keeps deblocking disabled unless the caller explicitly enables it. No command-line product, default-build dependency, or evaluation input changes.
 
 ## Sources and delivery order
 
@@ -16,7 +16,7 @@ Each layer remains open until its conformance checks and independent review are 
 
 ## Settings and ownership
 
-`Settings` gains an explicit `Deblocking` choice. `Disabled` preserves current slice syntax and reconstructed bytes. `Enabled` writes `disable_deblocking_filter_idc = 0` with both slice offsets zero. Nonzero offsets and multiple slices are out of scope. Existing callers select `Disabled` explicitly. The later P-picture layer adds `Gop::AllIntra` and a checked fixed IDR interval. Neither feature is inferred from input content.
+`Settings` has an explicit `Deblocking` choice. `Disabled` preserves current slice syntax and reconstructed bytes. `Enabled` writes `disable_deblocking_filter_idc = 0` with both slice offsets zero. Nonzero offsets and multiple slices are out of scope. Existing callers select `Disabled` explicitly. The later P-picture layer adds `Gop::AllIntra` and a checked fixed IDR interval. Neither feature is inferred from input content.
 
 The encoder remains sans-IO, safe scalar Rust. `Scalar` is selected directly, never runtime dispatch. Production code uses no unsafe, SIMD, unchecked indexing, `unwrap`, or `expect`. Geometry, QP, GOP interval, frame count, output budgets, and allocation sizes are validated before use. Fixed-size candidate tiles and fallible picture buffers retain the current allocation discipline.
 

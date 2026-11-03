@@ -1,4 +1,4 @@
-use crate::{Encoder, Result, bits::Bits};
+use crate::{Deblocking, Encoder, Result, bits::Bits};
 
 pub(crate) fn sps(w: &mut Bits, e: &Encoder) -> Result<()> {
     w.u(8, 66)?;
@@ -71,5 +71,12 @@ pub(crate) fn slice(w: &mut Bits, e: &Encoder, id: u32) -> Result<()> {
     w.flag(false)?;
     w.flag(false)?;
     w.se(i32::from(e.settings.qp) - 26)?;
-    w.ue(1)
+    match e.settings.deblocking {
+        Deblocking::Disabled => w.ue(1),
+        Deblocking::Enabled => {
+            w.ue(0)?;
+            w.se(0)?;
+            w.se(0)
+        }
+    }
 }

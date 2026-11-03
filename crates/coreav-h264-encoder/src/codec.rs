@@ -1,6 +1,6 @@
 use crate::{
-    Encoder, Error, Picture, Plane, Result, api::zeros, bits::Bits, cavlc, syntax, transform as t,
-    vlc::INTRA_CBP,
+    Deblocking, Encoder, Error, Picture, Plane, Result, api::zeros, bits::Bits, cavlc, deblock,
+    syntax, transform as t, vlc::INTRA_CBP,
 };
 use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels, Scalar};
 
@@ -618,6 +618,16 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
             }
             *row.get_mut(mx).ok_or(Error::Internal)? = state.clone();
             left = Some(state);
+        }
+    }
+    if e.settings.deblocking == Deblocking::Enabled {
+        for (c, plane) in planes.iter_mut().enumerate() {
+            let qp = if c == 0 {
+                e.settings.qp
+            } else {
+                t::chroma_qp(e.settings.qp)
+            };
+            deblock::intra(&mut plane.data, plane.width, plane.height, qp, c != 0)?;
         }
     }
     let visible = e.settings.width * e.settings.height * 3 / 2;
