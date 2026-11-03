@@ -82,6 +82,14 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
         }
         Err(Stop::Refused(Refusal::Help)) => print_usage(ffmpeg::USAGE),
         Err(Stop::Failed(failure)) => {
+            if matches!(
+                failure,
+                coreav_cli::output::WriteFailure::Rejected(Failure::Io(
+                    std::io::ErrorKind::BrokenPipe
+                ))
+            ) {
+                return ExitCode::from(super::EXIT_BROKEN_PIPE);
+            }
             let json = failure.to_json();
             let text = json
                 .get("message")

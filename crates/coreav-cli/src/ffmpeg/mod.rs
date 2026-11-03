@@ -1,4 +1,4 @@
-//! `coreav ffmpeg`: `ffmpeg`'s stream-copy command lines over CoreAV's
+//! `coreav ffmpeg`: `ffmpeg`'s command lines over CoreAV's
 //! writers (`docs/design/compat-cli.md`, "The command").
 //!
 //! [`args::parse`] reads the command line and refuses what is outside the
@@ -15,6 +15,8 @@ mod audio;
 mod avi;
 #[cfg(feature = "transcode")]
 pub mod encode;
+#[cfg(feature = "thumbnail")]
+mod frames;
 mod pcm;
 
 use crate::error::Failure;
@@ -102,6 +104,13 @@ pub enum Job {
         /// The selected stream's reported speaker positions for WAV.
         mask: Option<u32>,
     },
+    /// Audio and video streams written as Matroska or WebM.
+    MatroskaOutput {
+        /// Selected source stream positions in output order.
+        streams: Vec<usize>,
+        /// Matroska source rather than ISO media.
+        matroska: bool,
+    },
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
         /// The tracks, in the output's order, a stream mapped twice twice.
@@ -135,6 +144,13 @@ pub enum Job {
         stream: usize,
         /// The output audio encoder.
         encoder: args::AudioEncoder,
+    },
+    /// One video stream written as images or raw frames.
+    Frames {
+        /// The input stream index.
+        video: usize,
+        /// The image or raw video encoder.
+        encoder: args::VideoEncoder,
     },
     /// The files of a concat list, joined in order.
     Join {
@@ -185,6 +201,7 @@ Experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files.
 The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
+  a copy to .mkv, .mka or .webm (or -f matroska/webm): container output
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
   .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
@@ -192,16 +209,24 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
   -f s16le: the same PCM samples without a header
-Builds with a decoder backend also encode the video with -c:v libx264.
+Builds with a decoder backend also encode the video with -c:v libx264
+into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
+codec explicitly because its Vorbis default is not implemented.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
 Use -vn or -map a to select audio only. Audio encoding needs no video decoder.
 
+Builds with a decoder backend also write .png, .bmp, .yuv and .y4m video outputs:
+  -f image2: one image, a %d or %0Nd sequence, or -update 1
+  -frames:v / -vframes: limit the frames written
+  -f rawvideo: packed frames to a file or standard output (-)
+  -pix_fmt: the decoded format for raw output, without conversion
+  -r after -i: select frames without duplicating them
 AVI audio encodes with -c:a pcm_s16le or pcm_u8. MP3 (-c:a libmp3lame)
 needs the opt-in transcode feature and an external encoder; strict-safe
 mode refuses it.
-Prints nothing on success.
+Prints no status text on success; rawvideo pipes write binary stdout.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffmpeg
@@ -224,7 +249,7 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
     #[cfg(not(feature = "transcode"))]
     avi::strict(&command, strict_safe)?;
     #[cfg(feature = "transcode")]
-    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
+    if !matches!(command.muxer, Muxer::Wav | Muxer::S16le) && !command.muxer.frames() {
         encode::preflight(&command, strict_safe)?;
     }
     let io = |e| WriteFailure::Rejected(Failure::io(e));
@@ -265,6 +290,10 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
             .any(|(_, c)| *c == Codec::AviAudio(args::AviAudio::Mp3))
     {
         encode::authorize_audio(args::AudioEncoder::Libmp3lame, strict_safe)?;
+    }
+    #[cfg(feature = "thumbnail")]
+    if let Job::Frames { video, encoder } = job {
+        return frames::write(&command, video, encoder, &report, strict_safe);
     }
     #[cfg(feature = "transcode")]
     if let Job::Transcode(transcode) = &job {
@@ -353,6 +382,69 @@ pub fn plan(
     if matches!(command.muxer, Muxer::Wav | Muxer::S16le) {
         return pcm::plan(command, report, &selected, list.is_some());
     }
+    if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
+        match command.map_metadata {
+            MapMetadata::Default => {}
+            MapMetadata::Strip => {
+                return Err(Refusal::not_native(
+                    "-map_metadata -1 on another output than an M4A file",
+                ));
+            }
+            MapMetadata::Stream(_) => {
+                return Err(Refusal::not_native(
+                    "-map_metadata from a stream on another output than an M4A file",
+                ));
+            }
+        }
+    }
+    if command.muxer.frames() {
+        if (args::Encoding {
+            pixel_format: None,
+            threads: None,
+            ..command.encoding.clone()
+        }) != args::Encoding::default()
+        {
+            return Err(Refusal::not_native(
+                "encoder settings or filters on image and raw output",
+            ));
+        }
+        if list.is_some() {
+            return Err(Refusal::not_native(
+                "image or raw output from a concat list",
+            ));
+        }
+        let output: Vec<_> = selected
+            .iter()
+            .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
+            .collect();
+        return match (output.as_slice(), codecs(command, &output).as_slice()) {
+            ([(video, stream)], [Some(Codec::Video(encoder))])
+                if stream.kind == StreamKind::Video =>
+            {
+                if command.muxer == Muxer::Yuv4mpeg && *encoder != args::VideoEncoder::Rawvideo {
+                    return Err(Refusal::not_native(
+                        "YUV4MPEG output with a compressed codec",
+                    ));
+                }
+                Ok(Job::Frames {
+                    video: *video,
+                    encoder: *encoder,
+                })
+            }
+            _ => Err(Refusal::not_native(
+                "image or raw output other than one encoded video stream",
+            )),
+        };
+    }
+    if command
+        .codecs
+        .iter()
+        .any(|(_, c)| matches!(c, Codec::Video(_)))
+    {
+        return Err(Refusal::not_native(
+            "an image or raw codec in this container",
+        ));
+    }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
@@ -385,21 +477,6 @@ pub fn plan(
         || command.seek.is_some()
         || command.duration.is_some()
         || command.until.is_some();
-    if !matches!(command.muxer, Muxer::Ipod | Muxer::Mp3) {
-        match command.map_metadata {
-            MapMetadata::Default => {}
-            MapMetadata::Strip => {
-                return Err(Refusal::not_native(
-                    "-map_metadata -1 on another output than an M4A file",
-                ));
-            }
-            MapMetadata::Stream(_) => {
-                return Err(Refusal::not_native(
-                    "-map_metadata from a stream on another output than an M4A file",
-                ));
-            }
-        }
-    }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
@@ -519,6 +596,17 @@ pub fn plan(
             audio,
             at: SplitAt::Every(command.segment_time),
         }));
+    }
+    if command.muxer.matroska().is_some() {
+        if trims {
+            return Err(Refusal::not_native(
+                "seeking or trimming into Matroska output",
+            ));
+        }
+        return Ok(Job::MatroskaOutput {
+            streams: selected,
+            matroska: container == Container::Matroska,
+        });
     }
     if trims {
         if container != Container::Isobmff {
@@ -659,9 +747,14 @@ fn transcode_job(
             "encoding a stream other than video with libx264",
         ));
     }
-    if command.muxer != Muxer::Mp4 {
+    if command.muxer != Muxer::Mp4 && command.muxer.matroska().is_none() {
         return Err(Refusal::not_native(
             "an encoded output other than one MP4 file",
+        ));
+    }
+    if command.muxer == Muxer::Webm {
+        return Err(Refusal::not_native(
+            "H.264 video in WebM (WebM permits VP8, VP9 or AV1)",
         ));
     }
     if trims {
@@ -792,6 +885,18 @@ fn audio_source(encoder: args::AudioEncoder, stream: &Stream) -> Result<(), Refu
 /// copy` copies the video). Options name output streams, so a stream
 /// mapped twice is decided once for each place it has.
 fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> {
+    let frame_default = match command.muxer {
+        Muxer::Rawvideo | Muxer::Yuv4mpeg => Some(args::VideoEncoder::Rawvideo),
+        Muxer::Image2 => match Path::new(&command.output)
+            .extension()
+            .and_then(|s| s.to_str())
+        {
+            Some(s) if s.eq_ignore_ascii_case("png") => Some(args::VideoEncoder::Png),
+            Some(s) if s.eq_ignore_ascii_case("bmp") => Some(args::VideoEncoder::Bmp),
+            _ => None,
+        },
+        _ => None,
+    };
     let mut decided: Vec<Option<Codec>> = output
         .iter()
         .map(|(_, stream)| match (command.muxer, stream.kind) {
@@ -803,6 +908,7 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
             (Muxer::Wav | Muxer::S16le, StreamKind::Audio) => {
                 Some(Codec::AviAudio(AviAudio::PcmS16))
             }
+            (_, StreamKind::Video) => frame_default.map(Codec::Video),
             _ => None,
         })
         .collect();
@@ -810,6 +916,13 @@ fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> 
         for position in matching(spec, output) {
             if let Some(slot) = decided.get_mut(position) {
                 *slot = Some(*codec);
+            }
+        }
+    }
+    if command.muxer == Muxer::Matroska {
+        for (slot, (_, stream)) in decided.iter_mut().zip(output) {
+            if slot.is_none() && stream.kind == StreamKind::Video && !stream.attached_pic {
+                *slot = Some(Codec::Libx264);
             }
         }
     }
@@ -1011,6 +1124,30 @@ const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "w
 /// largest picture or the most channels, the first of equals), less the
 /// disabled types. Each needs an explicit codec or a supported muxer default.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
+    let explicit_subtitle_codec = command
+        .codecs
+        .iter()
+        .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None));
+    if command.maps.is_empty()
+        && command.muxer.matroska().is_some()
+        && !command.no_subtitle
+        && streams.iter().any(|stream| {
+            stream.kind == StreamKind::Subtitle
+                && (explicit_subtitle_codec
+                    || stream
+                        .entries
+                        .iter()
+                        .find_map(|(key, value)| match value {
+                            Value::Str(codec) if *key == "codec_name" => Some(codec.as_str()),
+                            _ => None,
+                        })
+                        .is_none_or(|codec| TEXT_SUBTITLES.contains(&codec)))
+        })
+    {
+        return Err(Refusal::not_native(
+            "automatically selecting a subtitle stream for Matroska or WebM output (use -sn or an explicit audio/video map)",
+        ));
+    }
     select_sources(
         command,
         &streams.iter().collect::<Vec<_>>(),
@@ -1025,7 +1162,9 @@ fn select_sources(
 ) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().copied().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
-        StreamKind::Video => command.no_video,
+        StreamKind::Video => {
+            command.no_video || command.maps.is_empty() && command.muxer == Muxer::MatroskaAudio
+        }
         StreamKind::Audio => command.no_audio,
         StreamKind::Subtitle => command.no_subtitle,
         StreamKind::Data => command.no_data,
@@ -1050,7 +1189,9 @@ fn select_sources(
                 int(s, "width").saturating_mul(int(s, "height"))
             }));
         }
-        selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
+        if !command.muxer.frames() {
+            selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
+        }
         let subtitle = all
             .iter()
             .filter(|_| {
@@ -1315,7 +1456,10 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if matches!(job, Job::Transcode(_) | Job::AudioEncode { .. }) {
+    if matches!(
+        job,
+        Job::Transcode(_) | Job::AudioEncode { .. } | Job::Frames { .. }
+    ) {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
@@ -1354,6 +1498,31 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .collect();
             crate::remux::run_inputs(&paths, streams, left_out_covers, &allowlist, out)
                 .map(|summary| crate::remux::document(&summary, &RemuxOptions::default()))
+        }
+        Job::MatroskaOutput { streams, matroska } => {
+            let source = coreav_isobmff::BufferedSource::new(
+                FileSource::open(input).map_err(WriteFailure::from)?,
+            );
+            coreav_isobmff_write::mkv_output::write_output(
+                source,
+                &coreav_isobmff_write::mkv_output::OutputOptions {
+                    matroska_source: *matroska,
+                    doc_type: command
+                        .muxer
+                        .matroska()
+                        .unwrap_or(coreav_mkv::DocType::Matroska),
+                    streams: Some(streams.clone()),
+                },
+                &Limits::default(),
+                &coreav_mkv::Limits::default(),
+                coreav_isobmff_write::Replacements::<coreav_isobmff::SliceSource<'_>> {
+                    video: None,
+                    audio: None,
+                },
+                out,
+            )
+            .map(|_| serde_json::Value::Null)
+            .map_err(|e| WriteFailure::Rejected(Failure::Matroska(e)))
         }
         Job::Remux {
             streams,
@@ -1424,7 +1593,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         | Job::Split(_)
         | Job::Transcode(_)
         | Job::AudioEncode { .. }
-        | Job::Pcm { .. } => Ok(serde_json::Value::Null),
+        | Job::Pcm { .. }
+        | Job::Frames { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),

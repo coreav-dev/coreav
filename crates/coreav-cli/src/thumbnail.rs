@@ -323,7 +323,7 @@ fn document(thumbnail: &coreav_thumbnail::Thumbnail, requested: Rational) -> Val
 
 /// The failure of a thumbnail.
 #[cfg(feature = "thumbnail")]
-fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
+pub(crate) fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
     use crate::error::Failure;
     use coreav_thumbnail::Error;
     let failure = match error {

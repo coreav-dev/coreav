@@ -60,6 +60,29 @@ Output `-threads` is accepted but does not change PCM serialization or start enc
 WAV metadata copying is not supported. Use `-map_metadata -1` for an input with tags other than container bookkeeping or encoder identification. Stream-to-global metadata mapping and WAV chapter copying are refused. Damaged audio, decoder warnings and WAV output beyond the RIFF size limit fail without replacing the destination. A `.raw` or `.pcm` extension alone does not select raw output; use `-f s16le`.
 
 The [PCM output design](https://github.com/coreav-dev/coreav/blob/main/docs/design/pcm-output.md) records its correctness bars and limitations.
+## Images and raw video
+
+A build with a decoder backend also writes PNG (`.png`), BMP (`.bmp`), raw video (`.yuv` or `-f rawvideo`) and YUV4MPEG2 (`.y4m` or `-f yuv4mpegpipe`). These outputs select one video stream and no audio automatically. `-map` can select that stream explicitly. Strict-safe mode uses the same decoder restrictions as thumbnails and never runs FFmpeg.
+
+```sh
+coreav --strict-safe ffmpeg -ss 1 -i input.mp4 -frames:v 1 frame.png
+coreav --strict-safe ffmpeg -i input.mp4 -f image2 frame%03d.png
+coreav --strict-safe ffmpeg -i input.mp4 -r 1/1 frame%07d.bmp
+coreav --strict-safe ffmpeg -i input.mp4 -update 1 latest.png
+coreav --strict-safe ffmpeg -i input.mp4 -c:v rawvideo -pix_fmt yuv420p output.yuv
+coreav --strict-safe ffmpeg -i input.mp4 -f rawvideo -
+coreav --strict-safe ffmpeg -i input.mp4 output.y4m
+```
+
+`-frames:v N` and its alias `-vframes N` limit the number of output frames. An image sequence needs one `%d` or `%0Nd` placeholder, with one to nine padding digits; numbering starts at one. A single image needs a one-frame input, `-frames:v 1`, or `-update 1` to replace it after each selected frame. `-ss`, `-t` and `-to` select frames on the input's presentation timeline.
+
+Raw output keeps the decoder's pixel format. `-pix_fmt` must name that format; it never adds colour conversion. PNG preserves RGB, RGBA and 8/16-bit monochrome samples, or uses the existing thumbnail conversion for 8-bit colour video. BMP uses that conversion and stores 24-bit BGR pixels. This RGB conversion is not guaranteed to match FFmpeg pixel for pixel. Image encoding itself is lossless.
+
+`-r` after `-i` supports constant-rate video starting at the input's time zero and may drop frames, not duplicate them. Higher output rates, resizing and filters are refused. YUV4MPEG2 supports known progressive, constant-rate, 8-bit planar YUV or monochrome video with at least one selected frame. It refuses autorotation; `-noautorotate` before `-i` preserves the stored planes and their chroma location. Image files are placed atomically one at a time; raw files are placed only after the whole output succeeds. A pipe cannot be rolled back on failure and carries binary bytes on standard output.
+
+[The frame-output design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/frame-output.md) records the correctness bars and limits.
+
+Timeout scope depends on the decoder backend. On clock-supported targets the native H.264 backend uses a 60-second decoder-session deadline, set when the decoder opens and reused by later calls. A slow output sink can make the next decoder call time out. The command adds no separate wall-clock deadline. Decoded bytes remain limited to 4 GiB per decoder. A failed binary-stdout write or final flush fails the command; a closed pipe exits with status 141.
 
 ## Examples
 
@@ -71,7 +94,7 @@ coreav ffmpeg -i input.mp4 -vn -c:a aac output.m4a
 coreav ffmpeg -i input.mp4 -q:a 2 output.mp3
 ```
 
-`coreav ffmpeg` prints nothing on success. It writes the output to a temporary file and moves it into place only when the whole job succeeded.
+`coreav ffmpeg` prints no status text on success. File outputs use temporary files moved into place when complete. Rawvideo pipes write binary bytes on standard output.
 
 ## Use it in place of ffmpeg
 
