@@ -1,0 +1,41 @@
+{
+  "schema": "opus-speed-plan/1",
+  "round": 4,
+  "capacity": {
+    "receipt": "bench/audio-decode/evidence/opus-round4-capacity.json",
+    "receipt_sha256": "565126fd1ad034e42c19d1ed783530044cd3913d92ccb4c9d97fb8ad9f2c1c7d",
+    "binding": "bench/audio-decode/evidence/opus-round4-binding.json",
+    "binding_sha256": "2633f96c8f1a9b1705248ce016fbe628c9a17eae91ed0ecb0d9461104fedcd31"
+  },
+  "base_commit": "b2725e0b4fbc623278d049cb87daed484cd5df8a",
+  "head_commit": "3f7ed8d3123307ea9fb18db398352828a71912b3",
+  "draw": {
+    "number": 10,
+    "salt": "coreav-corpus-v2-heldout-audio-decode-4:",
+    "minimum_sources": 100,
+    "target_sources": 120,
+    "class_maximum": 60,
+    "source_maximum": 16,
+    "group_maximum": 3,
+    "bytes_maximum": 200000000,
+    "seconds_minimum": 5,
+    "seconds_maximum": 1800,
+    "exclude_through_draw": 9
+  },
+  "engines": ["head_lib", "base_lib", "lav_lib", "head_dec", "base_dec", "lav_dec", "head_cli", "ffmpeg_cli"],
+  "warmups": 1,
+  "rounds": 5,
+  "bootstrap": {"seed": 206, "resamples": 10000},
+  "bars": {
+    "celt_decoder_lav_below": 1.0,
+    "silk_decoder_base_at_most": 1.02,
+    "hybrid_decoder_base_at_most": 1.02,
+    "library_lav_at_most": 1.0
+  },
+  "minimums": {"celt": 90, "celt_per_class": 40, "silk": 20, "hybrid": 20},
+  "host": {"cpu": "Intel Xeon Platinum 8581C", "smt": false, "machine": "c4-standard-4", "provisioning": "STANDARD"},
+  "call_limits": {"seconds": 900, "address_space_bytes": 8589934592, "temporary_output_bytes": 4294967296},
+  "shards": 4,
+  "shard_seconds": 16200,
+  "vm_seconds": 18000
+}
