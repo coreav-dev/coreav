@@ -63,6 +63,10 @@ fn element(id: &[u8], data: &[u8]) -> Vec<u8> {
 }
 
 fn fixture(dir: &Path, broken: bool) -> (PathBuf, Vec<u8>) {
+    fixture_with_bitmap(dir, broken, false)
+}
+
+fn fixture_with_bitmap(dir: &Path, broken: bool, bitmap: bool) -> (PathBuf, Vec<u8>) {
     let samples: Vec<u8> = (0..512i32)
         .flat_map(|n| [(n * 101 - 12000) as i16, (12000 - n * 83) as i16])
         .flat_map(i16::to_le_bytes)
@@ -96,10 +100,14 @@ fn fixture(dir: &Path, broken: bool) -> (PathBuf, Vec<u8>) {
         &[0x15, 0x49, 0xa9, 0x66],
         &element(&[0x2a, 0xd7, 0xb1], &[0x0f, 0x42, 0x40]),
     );
-    segment.extend(element(
-        &[0x16, 0x54, 0xae, 0x6b],
-        &element(&[0xae], &track),
-    ));
+    let mut tracks = element(&[0xae], &track);
+    if bitmap {
+        let mut subtitle = element(&[0xd7], &[2]);
+        subtitle.extend(element(&[0x83], &[0x11]));
+        subtitle.extend(element(&[0x86], b"S_HDMV/PGS"));
+        tracks.extend(element(&[0xae], &subtitle));
+    }
+    segment.extend(element(&[0x16, 0x54, 0xae, 0x6b], &tracks));
     let mut block = vec![0x81, 0, 0, 0x80];
     block.extend(frame);
     let mut cluster = element(&[0xe7], &[0]);
@@ -109,6 +117,55 @@ fn fixture(dir: &Path, broken: bool) -> (PathBuf, Vec<u8>) {
     let path = dir.join("input.mka");
     std::fs::write(&path, bytes).unwrap();
     (path, samples)
+}
+
+#[test]
+fn bitmap_subtitle_selection_is_refused_unless_disabled() {
+    let dir = scratch("ffmpeg-pcm-bitmap");
+    let (input, expected) = fixture_with_bitmap(&dir, false, true);
+    for form in ["wav", "s16le"] {
+        let output = dir.join(format!("out.{form}"));
+        std::fs::write(&output, b"original").unwrap();
+        let refused = run(&input, &output, &["-y", "-scodec", "copy", "-f", form]);
+        assert_eq!(refused.status.code(), Some(4));
+        assert!(refused.stdout.is_empty());
+        assert_eq!(std::fs::read(&output).unwrap(), b"original");
+        for options in [
+            vec!["-y", "-f", form],
+            vec!["-y", "-scodec", "copy", "-sn", "-f", form],
+        ] {
+            success(run(&input, &output, &options));
+            let actual = std::fs::read(&output).unwrap();
+            let start = if form == "wav" { 44 } else { 0 };
+            assert_eq!(&actual[start..], expected);
+        }
+    }
+}
+
+#[test]
+fn only_the_effective_pcm_codec_is_validated() {
+    let dir = scratch("ffmpeg-pcm-effective-codec");
+    let (input, expected) = fixture(&dir, false);
+    for form in ["wav", "s16le"] {
+        let output = dir.join(format!("out.{form}"));
+        for options in [
+            vec!["-y", "-c:a", "pcm_u8", "-c:a", "pcm_s16le", "-f", form],
+            vec!["-y", "-c:a:1", "pcm_u8", "-c:a:0", "pcm_s16le", "-f", form],
+        ] {
+            success(run(&input, &output, &options));
+            let actual = std::fs::read(&output).unwrap();
+            let start = if form == "wav" { 44 } else { 0 };
+            assert_eq!(&actual[start..], expected);
+        }
+        std::fs::write(&output, b"original").unwrap();
+        let refused = run(
+            &input,
+            &output,
+            &["-y", "-c:a", "pcm_s16le", "-c:a", "pcm_u8", "-f", form],
+        );
+        assert_eq!(refused.status.code(), Some(4));
+        assert_eq!(std::fs::read(&output).unwrap(), b"original");
+    }
 }
 
 #[test]

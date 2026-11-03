@@ -65,6 +65,7 @@ on:
       - scripts/mkv_remux_check.py
       - scripts/opus_encode_check.py
       - scripts/oracle_audio.py
+      - scripts/oracle_pin.py
       - scripts/oracle-audio-args.txt
       - scripts/thumbnail_oracle.py
       - scripts/remux_check.py
@@ -79,11 +80,14 @@ on:
       - tools/compat-corpus/decode_breadth.py
       - tools/compat-corpus/decode_reasons.json
       - tools/compat-corpus/encode_breadth.py
+      - tools/compat-corpus/decoded_output.py
+      - tools/compat-corpus/current_ci.py
       - tools/compat-corpus/r3.py
       - tools/compat-corpus/release_round.py
       - tools/compat-corpus/round_files.py
       - tools/compat-corpus/tests/test_decode_breadth*.py
       - tools/compat-corpus/tests/test_encode_breadth.py
+      - tools/compat-corpus/tests/test_current_ci.py
       - tools/stage3-report/r2pool.py
       - tools/decode-oracle/**
       - crates/coreav-cli/tests/ffmpeg.rs
@@ -483,6 +487,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/public"
           python3 -I scripts/codec_coverage_gcp.py host --job v2-v3 --oracle "$RUNNER_TEMP/oracle" \
             --fixtures "$RUNNER_TEMP/fixtures" > "$RUNNER_TEMP/public/host-v2-v3.json"
+      - name: Test decoded-output agreement against the pinned oracle
+        env:
+          COREAV_CURRENT_CI_ORACLE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
+          python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_encode_breadth.py'
       - name: V2 and V3, encode breadth and the native share
         env:
           PYTHONDONTWRITEBYTECODE: '1'

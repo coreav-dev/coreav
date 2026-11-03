@@ -6,7 +6,7 @@
 
 The input uses the existing audio decoder for FLAC tracks in MP4, MOV and Matroska. Native PCM output accepts only decoded lossless sources, currently FLAC. PCM and ALAC input decoding are not implemented by this audio decoder. MP3's recorded agreement bar permits a floating-point tolerance, so it does not prove exact sample agreement with the pinned oracle. MP3, Opus and AAC sources retain their existing compatibility-command refusal and external FFmpeg fallback; strict-safe mode refuses them. Their `decode-audio` and lossy-transcode support is unchanged.
 
-Automatic selection chooses one audio stream with the existing disposition and channel-count rules, without selecting video. Explicit maps must select exactly one audio stream. Output uses the source rate and channel layout.
+Automatic selection chooses one audio stream with the existing disposition and channel-count rules, without selecting video. An explicit subtitle codec still selects a subtitle and makes PCM output unsupported; `-sn` disables subtitle selection. Explicit maps must select exactly one audio stream. Output uses the source rate and channel layout.
 
 The WAV writer reuses `coreav_audio::WavSink`. Raw output writes the same interleaved sample bytes without a header. Both outputs use the CLI's temporary-file replacement, including `-y`, `-n` and same-file protection. No external encoder runs, including in strict-safe mode.
 

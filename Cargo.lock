@@ -229,6 +229,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-avi"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-backend-dav1d"
 version = "0.0.1"
 dependencies = [
@@ -286,8 +290,10 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "coreav-audio",
+ "coreav-avi",
  "coreav-backend-h264",
  "coreav-decode",
+ "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",
  "coreav-mkv",
@@ -355,6 +361,14 @@ version = "0.0.1"
 dependencies = [
  "coreav-kernels-h264",
  "serde_json",
+]
+
+[[package]]
+name = "coreav-h264-encoder"
+version = "0.0.1"
+dependencies = [
+ "coreav-h264",
+ "coreav-kernels-h264",
 ]
 
 [[package]]

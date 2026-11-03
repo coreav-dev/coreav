@@ -1,4 +1,4 @@
-use super::args::{Codec, Command, Encoding, MapMetadata, Muxer, Spec};
+use super::args::{AviAudio, Codec, Command, Encoding, MapMetadata, Muxer, Spec};
 use super::{Job, Refusal, Stop};
 use crate::ffprobe::args::Kind2;
 use crate::ffprobe::model::{Unit, Value};
@@ -27,7 +27,7 @@ pub(super) fn plan(
     if stream.kind != StreamKind::Audio {
         return Err(Refusal::not_native("PCM output with a non-audio stream"));
     }
-    if super::codecs(command, &[(*index, stream)]) != [Some(Codec::PcmS16le)] {
+    if super::codecs(command, &[(*index, stream)]) != [Some(Codec::AviAudio(AviAudio::PcmS16))] {
         return Err(Refusal::not_native(
             "PCM output with a codec other than pcm_s16le",
         ));
@@ -206,6 +206,8 @@ pub(super) fn write_raw(
     format: coreav_audio::raw::RawS16Format,
 ) -> Result<serde_json::Value, Stop> {
     if !matches!(command.muxer, Muxer::Wav | Muxer::S16le)
+        || !command.more_inputs.is_empty()
+        || command.frames != Default::default()
         || command.no_audio
         || !command.maps.is_empty()
         || matches!(command.map_metadata, MapMetadata::Stream(_))
@@ -230,7 +232,7 @@ pub(super) fn write_raw(
         .into());
     }
     if command.codecs.iter().any(|(spec, codec)| {
-        *codec != Codec::PcmS16le
+        *codec != Codec::AviAudio(AviAudio::PcmS16)
             || !matches!(
                 spec,
                 Spec::All | Spec::Index(0) | Spec::Kind(Kind2::Audio, None | Some(0))

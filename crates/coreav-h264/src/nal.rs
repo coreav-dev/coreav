@@ -332,7 +332,14 @@ pub fn length_prefixed(sample: &[u8], length_size: usize) -> LengthPrefixedUnits
         rest: sample,
         length_size,
         done: false,
+        skip_empty: true,
     }
+}
+
+pub(crate) fn strict_length_prefixed(sample: &[u8], length_size: usize) -> LengthPrefixedUnits<'_> {
+    let mut units = length_prefixed(sample, length_size);
+    units.skip_empty = false;
+    units
 }
 
 /// The iterator [`length_prefixed`] returns.
@@ -341,6 +348,7 @@ pub struct LengthPrefixedUnits<'a> {
     rest: &'a [u8],
     length_size: usize,
     done: bool,
+    skip_empty: bool,
 }
 
 impl<'a> Iterator for LengthPrefixedUnits<'a> {
@@ -372,6 +380,9 @@ impl<'a> Iterator for LengthPrefixedUnits<'a> {
                     self.rest = rest;
                     if !unit.is_empty() {
                         return Some(Ok(unit));
+                    }
+                    if !self.skip_empty {
+                        return fail("the NAL unit header");
                     }
                 }
                 None => return fail("a NAL unit"),

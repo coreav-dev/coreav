@@ -17,7 +17,7 @@ use coreav_kernels_h264::{Kernels, Macroblocks};
 
 use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
 use crate::dpb::RefPic;
-use crate::error::{Error, Result};
+use crate::error::{Error, LimitKind, Result};
 use crate::inter::{InterTables, MotionCtx, Scratch};
 use crate::mb::{
     BAND_VIEWS, KeptViews, MbData, MbInfo, NbInfo, SliceDecoder, band_shift, hints, ring_entries,
@@ -89,19 +89,34 @@ impl<K: Kernels> PictureWork<K> {
         choice: Choice,
         canvas: Canvas,
         chroma_qp_offset: [i32; 2],
-    ) -> Self {
+    ) -> Result<Self> {
         let g = canvas.geometry();
-        PictureWork {
+        let mut mbs = Vec::new();
+        mbs.try_reserve_exact(g.mb_width * g.mb_height)
+            .map_err(|_| Error::Limit(LimitKind::Memory))?;
+        mbs.resize(g.mb_width * g.mb_height, MbInfo::NONE);
+        Ok(PictureWork {
             kernels,
             choice,
             canvas,
-            mbs: vec![MbInfo::NONE; g.mb_width * g.mb_height],
+            mbs,
             filters: Vec::new(),
             deblocked: 0,
             last_started: None,
             chroma_qp_offset,
             spare: Spare::default(),
-        }
+        })
+    }
+
+    pub(crate) fn reserve_one_picture(&mut self) -> Result<()> {
+        self.filters
+            .try_reserve_exact(self.mbs.len())
+            .map_err(|_| Error::Limit(LimitKind::Memory))?;
+        Ok(())
+    }
+
+    pub(crate) fn complete(&self) -> bool {
+        self.mbs.iter().all(|mb| mb.slice != 0)
     }
 
     /// Takes the buffers an earlier picture left.
@@ -142,7 +157,10 @@ impl<K: Kernels> PictureWork<K> {
         let entries = ring_entries(geometry.mb_width);
         let mut ring = std::mem::take(&mut self.spare.ring);
         if ring.len() != entries {
-            ring = vec![NbInfo::NONE; entries];
+            ring = Vec::new();
+            ring.try_reserve_exact(entries)
+                .map_err(|_| Error::Limit(LimitKind::Memory))?;
+            ring.resize(entries, NbInfo::NONE);
         }
         let mut coeff_tables = self
             .spare

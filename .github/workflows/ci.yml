@@ -318,7 +318,7 @@ jobs:
       - run: |
           cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
           cargo test -p coreav-cli --features dav1d,ffmpeg-fallback --test strict_safe --test strict_safe_limit
-          cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
+          cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit --test ffmpeg_frames
           cargo test -p coreav-cli --features native-h264,libopus --test strict_safe
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
@@ -1112,6 +1112,7 @@ jobs:
       - name: Install libdav1d, libvpx and libopus
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
+        id: decode-build
         run: |
           cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
             --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
@@ -1124,6 +1125,7 @@ jobs:
           # The memory budget bounds the decoder's allocation on every thread
           # (docs/design/limits.md, bar 5); --nocapture puts the numbers in the log.
           cargo test --locked --release -p coreav-backend-h264 --test memory -- --ignored --nocapture
+          cargo test --locked --release -p coreav-backend-h264 --test one_idr -- --include-ignored --nocapture
           cargo test --locked --release -p coreav-worker --features ffmpeg --test ffmpeg -- --ignored
           cargo test --locked --release -p coreav-backend-dav1d --features dav1d --test decode \
             -- --include-ignored
@@ -1193,6 +1195,21 @@ jobs:
             --test legacy_encoders --target-dir target/fallback
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus,aac --test transcode \
             --target-dir target/fallback
+      - name: Observe decoder and AAC encoder boundaries on generated fixtures
+        if: ${{ !cancelled() && steps.decode-build.outcome == 'success' }}
+        run: |
+          python3 -I scripts/audio_source_diagnostic.py \
+            --coreav target/fallback/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" \
+            --out "$RUNNER_TEMP/coreav-audio-source-diagnostic"
+      - name: Preserve audio source diagnostic observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: audio-source-diagnostic
+          path: ${{ runner.temp }}/coreav-audio-source-diagnostic/report.json
+          retention-days: 7
       - name: Keep timed-out test process snapshots
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

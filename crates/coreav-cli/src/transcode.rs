@@ -26,6 +26,8 @@ use crate::strict_safe::{Encoder, StrictSafe};
 /// What `coreav transcode` asks for, from its arguments.
 #[derive(Clone, Debug)]
 pub struct Request {
+    /// Matroska output profile, or the default MP4 output.
+    pub matroska_output: Option<coreav_mkv::DocType>,
     /// `--crf`.
     pub crf: Option<f32>,
     /// `--bitrate`, in kbit/s.
@@ -116,6 +118,7 @@ pub fn make<S: Source>(
     };
     let (frame_rates, timeout) = source_rates(&mut source, Duration::from_secs(request.timeout))?;
     let options = TranscodeOptions {
+        matroska_output: request.matroska_output,
         rate: match (request.bitrate, request.crf) {
             (Some(kbps), _) => RateControl::Bitrate(kbps),
             (None, Some(q)) => RateControl::Crf(q),
@@ -265,6 +268,12 @@ pub fn document(summary: &Summary) -> Value {
         }
     };
     match &summary.remux {
+        Remuxed::OutputMatroska(remuxed) => {
+            bytes = remuxed.bytes_written;
+            for t in remuxed.tracks.iter().filter(|t| !t.replaced) {
+                audio.push(json!({"stream_index": t.stream_index, "codec": t.codec.name()}));
+            }
+        }
         Remuxed::Mp4(remuxed) => {
             bytes = remuxed.bytes_written;
             for t in remuxed.tracks.iter().filter(|t| !t.replaced) {
@@ -356,7 +365,7 @@ pub fn document(summary: &Summary) -> Value {
 }
 
 /// The failure of a transcode.
-fn failure(error: coreav_transcode::Error) -> WriteFailure {
+pub(crate) fn failure(error: coreav_transcode::Error) -> WriteFailure {
     use coreav_transcode::Error as E;
     match error {
         E::Isobmff(e) => WriteFailure::Rejected(Failure::Library(e)),

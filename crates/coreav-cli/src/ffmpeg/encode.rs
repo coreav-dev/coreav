@@ -46,7 +46,7 @@ fn kbps(text: &str) -> Option<u32> {
 
 /// `ffmpeg`'s number syntax ([`kbps`]) in bits a second, the fraction of a
 /// bit dropped.
-fn bits(text: &str) -> Option<u128> {
+pub(super) fn bits(text: &str) -> Option<u128> {
     let (number, scale) = match text.char_indices().last()? {
         (i, 'k' | 'K') => (text.get(..i)?, 1_000u128),
         (i, 'M') => (text.get(..i)?, 1_000_000),
@@ -67,35 +67,53 @@ fn bits(text: &str) -> Option<u128> {
     Some(digits.checked_mul(scale)? / ten)
 }
 
-/// The encoder of a command that encodes with `libx264`, as strict-safe
-/// mode allows it, from the command line alone: refused before the input
-/// is read. `None` for a command that names no `libx264`. A command that
-/// names `aac` is refused in strict-safe mode first: its encoder is the
-/// `ffmpeg` program.
-pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
-    if command
-        .codecs
-        .iter()
-        .any(|(_, c)| *c == Codec::Audio(AudioEncoder::Aac))
-    {
-        strict_safe
-            .aac("use -c:a copy or libopus")
-            .map_err(|message| {
-                Refusal::NotNative(NotNative {
-                    reason: Reason::Property(
-                        "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)",
-                    ),
-                    message,
-                })
-            })?;
+/// Checks explicitly named encoders before reading the input.
+pub fn preflight(command: &Command, strict_safe: StrictSafe) -> Result<(), Refusal> {
+    if command.muxer == super::args::Muxer::Mp3 {
+        authorize_audio(AudioEncoder::Libmp3lame, strict_safe)?;
+    }
+    for (_, codec) in &command.codecs {
+        if let Codec::Audio(encoder) = codec {
+            authorize_audio(*encoder, strict_safe)?;
+        }
     }
     if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
-        return Ok(None);
+        return Ok(());
     }
     strict_safe
         .encoder("auto", None)
-        .map(Some)
+        .map(|_| ())
         .map_err(refused_strict)
+}
+
+fn check_aac(strict_safe: StrictSafe) -> Result<(), Refusal> {
+    strict_safe
+        .aac("use -c:a copy or libopus")
+        .map_err(|message| Refusal::NotNative(NotNative {
+            reason: Reason::Property(
+                "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)",
+            ),
+            message,
+        }))
+}
+
+pub(super) fn authorize_audio(
+    encoder: AudioEncoder,
+    strict_safe: StrictSafe,
+) -> Result<(), Refusal> {
+    match encoder {
+        AudioEncoder::Aac => check_aac(strict_safe),
+        AudioEncoder::Libmp3lame => strict_safe.mp3().map_err(refused_strict),
+        AudioEncoder::Libopus => strict_safe.sandbox().map_err(refused_strict),
+    }
+}
+
+/// Checks the selected encoders, including the muxer's defaults, before decoding.
+pub fn encoder(job: &TranscodeJob, strict_safe: StrictSafe) -> Result<Encoder, Refusal> {
+    if let Some(audio) = job.audio_encoder {
+        authorize_audio(audio, strict_safe)?;
+    }
+    strict_safe.encoder("auto", None).map_err(refused_strict)
 }
 
 /// The request for the pipeline from the command's encoder options, its
@@ -123,7 +141,13 @@ pub fn request(
         pixel_format,
         passthrough: _,
         audio_bitrate,
+        audio_quality,
     } = &command.encoding;
+    if audio_quality.is_some() {
+        return Err(Refusal::not_native(
+            "audio quality options beside video encoding",
+        ));
+    }
     let (opus, aac) = match (audio_encoder, audio.as_slice()) {
         (None, _) => (None, None),
         (Some(encoder), [stream]) => {
@@ -137,6 +161,9 @@ pub fn request(
                     aac::MIN_BITRATE..=aac::MAX_BITRATE,
                     "the AAC bit rate must be from 16k to 512k bits a second",
                 ),
+                AudioEncoder::Libmp3lame => {
+                    return Err(Refusal::not_native("MP3 encoding beside video"));
+                }
             };
             let bitrate = match audio_bitrate {
                 None => None,
@@ -148,12 +175,16 @@ pub fn request(
             match encoder {
                 AudioEncoder::Libopus => (Some(transcode::OpusRequest { stream, bitrate }), None),
                 AudioEncoder::Aac => (None, Some(transcode::AacRequest { stream, bitrate })),
+                AudioEncoder::Libmp3lame => {
+                    return Err(Refusal::not_native("MP3 encoding beside video"));
+                }
             }
         }
         (Some(encoder), _) => {
             return Err(Refusal::not_native(match encoder {
                 AudioEncoder::Libopus => "encoding other than one audio stream with libopus",
                 AudioEncoder::Aac => "encoding other than one audio stream with aac",
+                AudioEncoder::Libmp3lame => "MP3 encoding beside video",
             }));
         }
     };
@@ -234,6 +265,7 @@ pub fn request(
         }
     };
     Ok(Request {
+        matroska_output: command.muxer.matroska(),
         crf,
         bitrate,
         preset,
@@ -289,18 +321,19 @@ fn check_container(
             ) else {
                 return refused("a source whose track matrix could not be read");
             };
-            let copied = audio.iter().all(|i| {
-                movie.tracks.iter().any(|t| {
-                    t.stream_index == *i
-                        && matches!(
-                            (t.description.codec, &t.description.fourcc.0),
-                            (
-                                coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
-                                b"mp4a"
-                            ) | (coreav_isobmff::Codec::Opus, b"Opus")
-                        )
-                })
-            });
+            let copied = command.muxer.matroska().is_some()
+                || audio.iter().all(|i| {
+                    movie.tracks.iter().any(|t| {
+                        t.stream_index == *i
+                            && matches!(
+                                (t.description.codec, &t.description.fourcc.0),
+                                (
+                                    coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
+                                    b"mp4a"
+                                ) | (coreav_isobmff::Codec::Opus, b"Opus")
+                            )
+                    })
+                });
             if !copied {
                 return refused(NOT_COPIED);
             }
@@ -333,12 +366,13 @@ fn check_container(
             ) else {
                 return refused("a source whose projection could not be read");
             };
-            let copied = audio.iter().all(|i| {
-                segment.tracks.iter().any(|t| {
-                    t.stream_index == *i
-                        && matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus)
-                })
-            });
+            let copied = command.muxer.matroska().is_some()
+                || audio.iter().all(|i| {
+                    segment.tracks.iter().any(|t| {
+                        t.stream_index == *i
+                            && matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus)
+                    })
+                });
             if !copied {
                 return refused(NOT_COPIED);
             }
@@ -466,7 +500,11 @@ pub fn write(
         let file = FileSource::open(input).map_err(WriteFailure::from)?;
         transcode::make(&request, Some(&this), BufferedSource::new(file), &path, out)
     })
-    .map_err(|failure| match failure {
+    .map_err(|failure| failed(failure, job.audio_encoder))
+}
+
+pub(super) fn failed(failure: WriteFailure, audio_encoder: Option<AudioEncoder>) -> Stop {
+    match failure {
         WriteFailure::Rejected(Failure::StrictSafe(message)) => {
             Stop::Refused(refused_strict(message))
         }
@@ -485,8 +523,11 @@ pub fn write(
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default();
             Stop::Refused(Refusal::NotNative(NotNative {
-                reason: Reason::Property(match job.audio_encoder {
+                reason: Reason::Property(match audio_encoder {
                     Some(AudioEncoder::Aac) => "an audio stream the AAC encode does not take",
+                    Some(AudioEncoder::Libmp3lame) => {
+                        "an audio stream the MP3 encode does not take"
+                    }
                     _ => "an audio stream the Opus encode does not take",
                 }),
                 message: format!("not supported by coreav ffmpeg: the audio stream: {message}"),
@@ -504,7 +545,7 @@ pub fn write(
             }))
         }
         other => other.into(),
-    })
+    }
 }
 
 #[cfg(test)]
@@ -628,7 +669,7 @@ mod tests {
         ] {
             let line: Vec<String> = line.split(' ').map(String::from).collect();
             let command = super::super::args::parse(&line).unwrap();
-            match encoder(&command, StrictSafe::new(true)) {
+            match preflight(&command, StrictSafe::new(true)) {
                 Err(Refusal::NotNative(refusal)) => {
                     assert_eq!(
                         refusal.reason,
@@ -644,6 +685,32 @@ mod tests {
                 }
                 other => panic!("{line:?}: {other:?}"),
             }
+        }
+    }
+
+    #[test]
+    fn strict_safe_mode_checks_resolved_aac_before_selecting_video_encoder() {
+        let refusal = encoder(&job(AudioEncoder::Aac), StrictSafe::new(true)).unwrap_err();
+        assert!(
+            matches!(refusal, Refusal::NotNative(refusal) if refusal.reason == Reason::Property(
+                "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
+            ))
+        );
+    }
+
+    #[test]
+    fn all_audio_encoders_follow_the_strict_safe_policy() {
+        for encoder in [
+            AudioEncoder::Aac,
+            AudioEncoder::Libmp3lame,
+            AudioEncoder::Libopus,
+        ] {
+            assert!(authorize_audio(encoder, StrictSafe::new(false)).is_ok());
+            assert_eq!(
+                authorize_audio(encoder, StrictSafe::new(true)).is_ok(),
+                encoder == AudioEncoder::Libopus && coreav_worker::enforces_memory_limit(),
+                "{encoder:?}"
+            );
         }
     }
 

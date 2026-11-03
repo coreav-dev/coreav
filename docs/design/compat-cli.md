@@ -2,6 +2,8 @@
 
 Status: Proposed
 
+Image and raw-video output is specified separately in [Image and raw video output](frame-output.md). It adds PNG, BMP, rawvideo and YUV4MPEG2 defaults for their output extensions, image2 naming and frame selection, without changing stream-copy defaults for other containers.
+
 Roadmap step 1 and an earlier change: a command that accepts the common `ffmpeg`
 and `ffprobe` invocations of the jobs CoreAV does natively, and refuses
 every option it does not implement with a clear error, so that an
@@ -48,25 +50,26 @@ What `native` means, option by option. Anything not here is refused.
 | `-show_entries` sections | `format`, `stream`, `packet`, `frame`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `frame_tags`, `chapter_tags`, `program_tags`, `stream_side_data`, `frame_side_data` |
 | Demuxers (`-f`) | `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, `mpegts` |
 
-**`coreav ffmpeg`**, stream copy only
+**`coreav ffmpeg`**, stream copy and the native encodes described below
 
 | | |
 |---|---|
-| Codec options | `-c`, `-codec`, `-vcodec`, `-acodec`, `-scodec`, with any stream specifier — the value must be `copy` |
+| Codec options | `-c`, `-codec`, `-vcodec`, `-acodec`, `-scodec`, with any stream specifier. The value is `copy`, or a native encoder described below in a build that provides it |
 | With a value | `-i`, `-ss`, `-sseof`, `-t`, `-to`, `-map`, `-map_metadata`, `-map_chapters`, `-movflags`, `-f`, `-loglevel`, `-v`, `-segment_time`, `-segment_format`, `-segment_list`, `-hls_time`, `-hls_list_size`, `-hls_segment_filename`, `-hls_playlist_type`, `-safe`, `-fflags`, `-avoid_negative_ts`, `-reset_timestamps`, `-max_muxing_queue_size`, `-threads` |
 | Flags | `-y`, `-n`, `-an`, `-vn`, `-sn`, `-dn`, `-hide_banner`, `-nostdin`, `-copyts`, `-start_at_zero`, `-ignore_unknown`, `-shortest` |
+| Frame-output values | `-frames:v`, `-vframes`, `-update`, `-r` and `-pix_fmt`, within the limits in [frame-output.md](frame-output.md) |
 | Demuxers (`-f` before the first `-i`) | `concat`, `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, and the aliases FFmpeg matches against those names: `mp4`, `mov`, `m4a`, `3gp`, `matroska`, `webm`. **Not** `mpegts`: `coreav probe` reads transport streams, no writer of step 1 does |
-| Muxers (`-f` after it) | `mp4`, `ipod`, `hls`, `segment` — CoreAV reads more containers than it writes, so `-f matroska` on the way out is refused although Matroska on the way in is read |
-| One input, one output | several inputs means muxing streams together, which is not a step 1 job |
-| Containers written | MP4, M4A, HLS (`.m3u8`), and numbered segments |
+| Muxers (`-f` after it) | `mp4`, `ipod`, `matroska`, `webm`, `hls`, `segment`; builds with a decoder backend also write `image2`, `rawvideo` and `yuv4mpegpipe`. Matroska/WebM support is described in [Matroska output](mkv-write.md) |
+| Containers written | MP4, M4A, Matroska (`.mkv`, audio-only `.mka`), WebM, HLS (`.m3u8`), and numbered segments. Builds with a decoder backend also write PNG/BMP images, image sequences, raw video and YUV4MPEG2 |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
 **Refused by design,** although common in the set, each because the job
 itself is not native yet: `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
-every encoder value of a codec option, `-f lavfi`, `-f image2`,
-`-f rawvideo`, `-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
-(bitstream filters), `-r`, `-frames:v`, `-s`, `-pix_fmt`, `-ar`, `-ac`,
-`-b:*`, `-ab`, `-crf`, `-preset`, `-profile:*`, `-vframes`, `-vsync`,
+encoder values outside the native encoders described below, `-f lavfi`,
+`-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
+(bitstream filters), `-ar`, `-ac`,
+`-ab`, `-profile:*`,
+plain `-b` (use `-b:v` or `-b:a`),
 `-async`, `-metadata`, `-strict`, `-flags`, `-probesize`,
 `-analyzeduration`, `-protocol_whitelist`, `-bufsize`, `-maxrate`, `-g`,
 `-pass`, `-vpre`, `-q:*`, `-qscale`, `-framerate`, `-video_size`,
@@ -94,8 +97,11 @@ backend, its `aac` encoder the `ffmpeg` program run as a process of its
 own (`coreav transcode --audio aac`), so strict-safe mode refuses every
 such line before the input is read.
 
-Every one of those is refused by **naming it**: the error says which
-option or property is not supported, and the exit status is non-zero. A
+Native H.264 output accepts `-b:v`, `-crf`, `-preset` and `-s` within the transcode pipeline's limits. The frame-rate mode option `-vsync` accepts only `0` or `passthrough`; other values still fall back or are refused in strict-safe mode.
+
+Builds with a decoder backend also accept the image and raw-video output described in [frame-output.md](frame-output.md): `-c:v png`, `bmp` or `rawvideo`, `-f image2`, `rawvideo` or `yuv4mpegpipe`, `-frames:v`/`-vframes`, `-update`, output `-r` that only drops frames, and `-pix_fmt` without a new conversion. Their extension defaults are limited to `.png`, `.bmp`, `.yuv` and `.y4m`. Builds without a decoder backend still refuse these jobs. The historical command-coverage labels stay unchanged.
+
+Every refused option or property is **named** in the error, and the exit status is non-zero. A
 refused command never runs differently: in strict-safe mode it is refused,
 and otherwise it runs FFmpeg itself and says so ("Fallback to FFmpeg").
 
@@ -1150,7 +1156,7 @@ when native strict probe still rejects it with `codec_not_allowed`.
 ### `coreav ffmpeg`
 
 `coreav_cli::ffmpeg`, one implementation in three steps. `args::parse` reads the
-command line into one input, one output and their options, and refuses
+command line into its inputs, one output and their options, and refuses
 anything outside the vocabulary before the input is opened. `plan` reads the
 input's streams as `coreav ffprobe` lists them, selects the streams as
 `ffmpeg` does and picks the writer. `run` writes the output to a temporary
@@ -1159,6 +1165,22 @@ file next to it and moves it into place only when the whole job succeeded.
 writer's own command prints, which the fixture test hands to the oracles.
 The writers are the existing jobs, each with the options the command
 implies:
+
+Mapped stream copies can also combine up to sixteen MP4/MOV inputs into
+one MP4. For example, `-i video.mp4 -i audio.m4a -map 0:v -map 1:a -c copy
+out.mp4` copies video from input zero and audio from input one. Type,
+index and language specifiers are local to their input; output codec
+specifiers still address the output stream order. Negative maps remove
+only streams selected from the named input. Movie metadata comes from
+input zero and stream metadata follows its stream.
+
+This path requires explicit maps and copied audio/video streams. Every
+input must start at presentation time zero, have the same movie timescale
+and be unfragmented. Automatic selection across files, input options,
+trimming, encoding, chapters, selected cover pictures, other input/output
+containers, explicit metadata mapping and a stream type whose multiple
+mapped streams have no default disposition are refused by name. The output
+is checked against every input, including hard links, before writing.
 
 | The command | The writer |
 |---|---|
@@ -1578,6 +1600,30 @@ and replaces only its `ffmpeg` policy for this invocation. The `ffprobe`
 comparisons and baseline reporting are retained. The report adds separate
 refused, verified, unverified and failed counts. These are current-CI
 outcomes, not revised historical B1 verdicts or measured V2 coverage.
+
+**Mapped copies in current CI.** A single MP4 or Matroska output can
+qualify copied H.264, AAC, VP9 and Opus streams for exact decoded-output
+verification. The successful pinned reference command must report a
+complete `Stream mapping:` block: every output stream has exactly one
+mapping, every mapping says `copy`, and every source file and stream
+index exists. Missing, mixed encode/copy, duplicate or malformed mappings
+do not qualify. Other output formats and codecs retain their existing
+eligibility rules. This does not change the V2 copy predicate.
+
+Every qualified stream still needs the same decoded samples or pixels,
+stream fields and available rational timing as the same-command reference.
+Qualification never waives a comparison or permits a numeric tolerance.
+The comparison establishes command-output equivalence, not encoded-byte
+identity or proof of the candidate's internal implementation.
+
+The checker keeps its fixture assignment: all input placeholders contain
+the first fixture's bytes. It cannot distinguish choosing one of two
+identical inputs. Direct regression cases supply distinguishable inputs
+and same-kind streams for each of the four codecs and must reject the
+wrong input or stream. Linux oracle tests cover the mapped multi-input
+MP4 commands and `-i INPUT -map 0:0 -map 0:1 -c copy -f matroska OUTPUT`
+with VP9/Opus as well as H.264/AAC. Frozen rows, baselines and judged
+sources remain unchanged.
 
 **B1, B2 and the writers (CI, every change).**
 `tools/compat-corpus/run.py` runs every `ffprobe` command of `commands-v1`
@@ -2227,6 +2273,10 @@ decision, 2026-10-30):
   refused the same way. All come before the input is read: a `coreav ffmpeg` line that names `libx264` takes its
   encoder from the command line alone, so in the mode it is refused
   without x264 even when its input turns out to hold no video to encode.
+  For MP4/M4A streams with no explicit codec, CoreAV first probes and selects
+  the streams, then checks the default encoders before decoding. Default
+  libx264 requires x264 in this mode, and default AAC is refused because
+  its encoder is the ffmpeg program. Explicit `-c copy` suppresses both defaults.
 - **In the hidden entries.** `coreav` runs itself as its decode worker
   (`__coreav_worker`) and as the sandbox launcher of its encoder
   (`__coreav_exec`; `decode.md`, "The sandboxed worker"), before it

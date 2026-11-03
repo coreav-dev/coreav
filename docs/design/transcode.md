@@ -921,6 +921,147 @@ each at three rates (the encoder's default, 64 and 192 kbit/s), 18 inputs.
 Speed is reported for information only, from the same shared runner (the
 wall time of each arm's whole command, median of three), as for Opus.
 
+## Audio-only output
+
+Audio-only encoding uses the same decoded samples and checked encoder
+output as a video transcode. It does not create or decode a video stream.
+The public `audio::encode` returns an opaque `EncodedAudio`; its
+`write_mp4` method writes one audio track with the encoder's sample entry,
+packets, roll groups and presentation edits. Encoding does not select a
+container. This writer supports MP4 and M4A; other containers need their
+own writer adapter.
+
+`coreav ffmpeg -i INPUT -vn -c:a aac OUTPUT.mp4` and
+`coreav ffmpeg -i INPUT -map a -c:a aac OUTPUT.m4a` use this path.
+`-map 0:a:0` selects one audio stream explicitly. Opus uses
+`-c:a libopus` and an MP4 output in a `libopus` build. `-b:a` and
+encoder defaults are the same as for video transcodes. The standalone
+`coreav transcode` command still requires video.
+
+Commands selecting other streams beside the encoded audio, multiple audio
+streams, delayed source audio, video encoder settings, trim options, chapters or source metadata
+that this writer does not preserve are refused before encoding. M4A accepts
+AAC only. `-map_metadata -1` on M4A discards source tags. Encoder-generated
+container tags, file sizes and compressed bit rates need not be identical
+to FFmpeg's, since CoreAV writes the container and decodes the source.
+Missing encoder programs and unsupported sources leave no published output.
+
+### Audio-only output bars
+
+Fixed before the first audio-only comparison: correctness requires the
+output codec, profile, sample rate, channel count, start time and
+presentation duration to agree with the pinned FFmpeg for the same
+supported command. The output must decode without errors. Source trimming
+is applied once, and output encoder delay and padding are removed once.
+AAC sources run only with the `aac` feature. No size or speed claim is
+made, and lossy output does not have a bit-identity bar.
+
+The existing generated Opus-in-MP4 presentation fixture also runs through
+the audio-only path and must produce the same audio timing as the video
+transcode. Its exact source contract and two-pair padding predicate stay
+unchanged ("Decoded audio source correctness bars"); no new duration
+tolerance is introduced.
+
+`ffmpeg_audio_only_encodes_match_the_oracle_timeline` runs FLAC and AAC in
+MP4, and MP3 and Opus in Matroska, through AAC in MP4 and M4A and Opus in
+MP4. It also checks channel layouts, time bases, the output stream count
+and clean audio decoding. Its source video is MPEG-4 Part 2, which need
+not have a decoder in the build. The AAC-disabled build refuses AAC
+sources rather than silently decoding them through FFmpeg. The companion
+refusal test checks that unsupported options, a missing encoder and
+strict-safe AAC encoding publish nothing. Both tests run in CI's whole
+transcode fixture target with and without `aac`.
+
+## MP3 audio
+
+MP3 encoding uses the operator's `ffmpeg -c:a libmp3lame` as a separate
+resource-limited process under policy record 0042. CoreAV supplies decoded
+float PCM, never the input file. The process writes Matroska to a bounded
+spool: RFC 9559's `CodecDelay` and final `DiscardPadding` retain the
+presentation boundaries that a raw MP3 pipe does not. At EOF, CoreAV adds
+an explicit zero guard to finish a complete codec frame: for N presented
+samples and a frame size F, G = (F - N mod F) mod F. F is 1,152 at
+32, 44.1 and 48 kHz, and 576 at the lower supported rates. The reader
+validates all N + G fed samples, and the writer adds G to its final
+padding field so that the published file presents only N. CoreAV's reader
+checks one uncompressed `A_MPEG/L3` track, rate, channels, every complete
+Layer III frame and the exact decoded sample total before writing output.
+The existing Matroska structure audit covers the entire spool, including
+anything after the first segment. Block additions and codec-state changes
+are refused, and frame timestamps and durations must match the sample
+sequence within the container's timestamp quantum. Readback checks the
+encode deadline before and after source reads, including buffered reads;
+a single synchronous source operation cannot be interrupted.
+
+These checks add a bounded structural walk and a clock check at each
+readback source call. Packet listing retains one codec-state flag; no
+throughput or instruction-count improvement is claimed.
+
+The encoded stream's description distinguishes MP4 sample entries from
+MP3 gapless metadata. The MP3 writer emits its own ID3v2.4 header and
+Xing/Info frame, then copies only checked audio frames. The first frame
+contains the frame/byte counts, seek table and encoder delay/padding from
+the [MP3 Info Tag specification](http://gabriel.mp3-tech.org/mp3infotag.html).
+The decoder delay is the 528-sample filterbank delay plus one sample
+documented by the [LAME technical FAQ](https://lame.sourceforge.io/tech-FAQ.txt);
+it is not counted twice in the stored encoder-delay field. ID3 text uses
+the [ID3v2.4 structure](https://id3.org/id3v2.4.0-structure) and
+[frame specification](https://id3.org/id3v2.4.0-frames).
+
+The compatibility surface is `-c:a` or `-acodec libmp3lame`, default MP3
+encoding for `.mp3` or `-f mp3`, `-b:a` and `-q:a`/`-qscale:a`, with `-vn`
+or one selected audio stream. The source's supported MP3 sampling rate is
+kept; channels are mono or stereo. Quality selects VBR, with a finite
+value from 0 to 9; absent quality selects the encoder's default or the
+requested constant bit rate. No source-rate conversion, sample-format
+conversion option, cover-art encoding or AVI/FLV writer is added.
+
+The existing AVI writer takes MP3 frames from this same feeder and audited
+reader. Its bounded adapter retains every complete frame, without adding
+an ID3 or Xing/Info header or applying a presentation trim. AVI keeps its
+existing frame clock and byte-rate calculation. A complete-file regression
+compares the result with the former raw-pipe invocation and the unchanged
+AVI writer, including the final-frame boundary cases. AVI source decoding
+and its limits remain owned by the AVI caller.
+
+**Known boundary difference.** The pinned FFmpeg clamps final discard
+padding when r = N mod F is from 1 to 46, presenting N + (47 - r)
+samples instead of N. CoreAV preserves the original N samples. This
+difference applies to those MP3 boundary lengths only, not to other
+timing differences. Both pinned FFmpeg and ffprobe read CoreAV's seekable
+file at its original length. The boundary regression covers r = 1, 46
+and 47 at 48, 22.05 and 8 kHz, including endpoint quality. The MP3
+timeline comparison uses this exact predicate; it does not admit a
+duration tolerance or change the existing Opus fixture predicate.
+
+### MP3 correctness bars
+
+Committed before the MP3 correctness matrix runs:
+
+1. The reader accepts only complete Layer III frames at the requested
+   rate and channels, with bounded packet sizes/counts and a delay/padding
+   pair that accounts for exactly the submitted samples. Wrong codecs,
+   truncation, changed headers, excess output and inconsistent timing are
+   errors, and the reader has a fuzz target in per-change CI.
+2. The MP3 file decodes without errors with the pinned oracle. Its decoded
+   sample count is exactly the submitted count after gapless trimming.
+   Source presentation trimming is applied once. The writer's Xing/Info
+   frame is not counted as an audio frame.
+3. For the same supported command, pinned `ffprobe` agrees on codec,
+   sample format, rate, channels/layout, time base, start time, duration
+   and packet count. ID3 text and Xing/Info counts, lengths and delay/
+   padding are checked independently. Full probe differences are retained;
+   encoded bytes are not required to be identical.
+4. On generated tonal fixtures the output SNR against the source is at
+   least the oracle's minus 0.5 dB. At a requested constant rate, output
+   stream bit rate is within 5% of the oracle's. No speed or size claim is
+   made. The matrix covers mono/stereo, MPEG-1 and lower sampling rates,
+   default/explicit bit rates and VBR quality, and both AAC source builds.
+5. A missing FFmpeg program or libmp3lame encoder, unsupported source or
+   settings, strict-safe mode and failed readback leave no published
+   output. Every command in the requested MP3 command set is reported as
+   passed or blocked, with a reason; unsupported containers stay blocked.
+
 ## Through `coreav ffmpeg`
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
@@ -936,6 +1077,28 @@ program"); in strict-safe mode that is an `x264` program only, and a
 command without one, or with a video only the FFmpeg decoder would decode,
 is refused (exit status 4) and never handed to FFmpeg, as is every
 `-c:a aac` command, whose encoder is the `ffmpeg` program.
+
+When no codec option covers a selected video or audio stream, MP4 and M4A
+use libx264 and AAC respectively, as the pinned FFmpeg's muxer defaults do.
+Explicit codec options still win in their original order. For example,
+`-i in.mp4 -an out.mp4` encodes the video, while `-c copy` copies every
+selected stream. Defaults do not add an encoder, widen audio-source
+support or enable audio-only encoding. An M4A output with selected video
+is still refused, not silently reduced to audio. Segment output still
+requires explicit codecs. Encoder options still require their explicit
+encoder name. See [FFmpeg's stream handling documentation](https://ffmpeg.org/ffmpeg.html#Stream-handling).
+
+An Opus source still requires an explicit audio codec choice. Default AAC
+encoding of Opus is refused because its exact end-to-end output has not
+been verified. Explicit audio encoding and copying keep their existing
+behavior. FLAC, MP3 and, with the `aac` feature, AAC sources retain their
+existing eligibility checks. The [audio source diagnostic](audio-source-diagnostic.md)
+separates decoder samples from AAC encoder behavior without changing B9.
+
+Explicit encoder names are checked before the input is read. Default
+encoders are checked after CoreAV probes and selects the streams, before
+decoding. Strict-safe mode refuses default AAC just as it refuses
+explicit AAC, and default libx264 can use only the x264 program.
 
 | Option | Taken as |
 |---|---|
@@ -1004,9 +1167,10 @@ output, before the encoder starts:
 - **Stream order.** FFmpeg writes the selected video first, then the
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
-- **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; a command that selects an audio stream without
-  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
+- **Audio.** Selected audio follows the default AAC rules above unless a
+  matching codec option selects another behavior. Explicit codec options
+  keep their precedence; unsupported source, layout or rate combinations
+  and implicit Opus-to-AAC encoding remain refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

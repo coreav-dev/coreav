@@ -1145,6 +1145,20 @@ Fixed here before any file of its set is fetched:
 
 The evidence goes to `docs/spikes/audio-decode-bench/` ("Opus round 3"). The [round-three result](../spikes/audio-decode-bench/opus-round3.md) failed the error and completeness requirements; it gives no valid speed verdict and does not ship the candidate.
 
+### Opus capacity prerequisite
+
+A future Opus speed round needs a passing, untimed capacity preflight before registration. [`bench/audio-decode`](../../bench/audio-decode/README.md) runs one fixed pass on spent inputs, with no warmups, repetitions or retained timings. The six cells are CELT, Hybrid and SILK in MP4 and Matroska; each input must complete at least 900 seconds of raw decoded frames. Every cell must complete raw bit identity, command-output identity, the independent oracle, both CoreAV library and decoder-only arms, the libavcodec library and decoder-only arms, and the FFmpeg command. Actual frame, packet and output-byte counts must agree; a smoke pass, header probe or partial checkpoint cannot qualify.
+
+The preflight binds input bytes, all eight executable files, the checksum-verified pinned shared-library archive, every resolved baseline library, judging sources, Python and NumPy versions, and the single-process timeout and memory envelope. The shared oracle-pin verifier checks FFmpeg and ffprobe; baseline FFmpeg libraries must match that archive. It checks the fixed host class with SMT off and requires a dedicated tmpfs whose kernel-enforced total capacity equals the recorded output budget, without nested mounts. Reference and default frame counts must match the complete presentation count or MP4 model, whose full decode is reconciled with raw frames. Completed operations and terminal failures survive restart; only interrupted or unstarted work can resume. Per-call timeouts are terminal; an invocation shortened by the remaining job deadline is classified at launch as a resumable job interruption. A sample-value disagreement counts as completed capacity work, while a crash, per-call timeout, truncated output, malformed output or error diagnostic does not. This is not an agreement or speed verdict, and it does not approve a decoder change or a new draw.
+
+Every new `Opus speed, round N` section after round 3 must include exactly one line in this form, with repository-relative files and their complete SHA-256 hashes:
+
+```text
+Capacity preflight: `path/to/receipt.json` sha256:`<receipt-sha256>`; binding: `path/to/binding.json` sha256:`<binding-sha256>`.
+```
+
+The required `deny` check validates those bytes, recomputes every capacity predicate and requires the current judging sources. Any changed input, executable, judging source, runtime version or resource envelope needs fresh evidence under that binding. The registration's executable identities and runtime must match the bound files and versions; review checks this against its build provenance. Historical rounds are unchanged. This change registers no new round.
+
 ### Opus sets
 
 - **Derived (gating for speed, counted for agreement).** The sources of

@@ -110,6 +110,8 @@ pub enum SourceKind {
 /// What [`transcode`] does.
 #[derive(Clone, Debug)]
 pub struct TranscodeOptions {
+    /// Matroska/WebM output instead of the default MP4 output.
+    pub matroska_output: Option<coreav_mkv::DocType>,
     /// The encoder's rate control: CRF 23 by default.
     pub rate: RateControl,
     /// One of x264's presets ([`crate::encoder::PRESETS`]): `medium` by
@@ -169,6 +171,7 @@ pub struct TranscodeOptions {
 impl Default for TranscodeOptions {
     fn default() -> Self {
         Self {
+            matroska_output: None,
             rate: RateControl::Crf(23.0),
             preset: "medium".into(),
             scale: None,
@@ -229,6 +232,8 @@ pub struct VideoSummary {
 /// What the MP4 writer wrote.
 #[derive(Clone, Debug)]
 pub enum Remuxed {
+    /// Encoded and copied packets written as Matroska.
+    OutputMatroska(coreav_isobmff_write::mkv_output::OutputSummary),
     /// From an MP4 or MOV source.
     Mp4(RemuxSummary),
     /// From a Matroska or WebM source.
@@ -567,13 +572,13 @@ pub fn transcode<S: Source, W: Write>(
     let audio_replacement = match &audio {
         Some(encoded) => Some(AudioReplacement {
             stream_index: encoded.summary.stream_index,
-            sample_entry: &encoded.entry,
+            sample_entry: encoded.mp4_description()?.0,
             timescale: encoded.timescale,
             samples: &encoded.samples,
             start: encoded.start,
             priming: u32::from(encoded.summary.pre_skip),
             presented: encoded.summary.samples,
-            roll: encoded.roll,
+            roll: encoded.mp4_description()?.1,
             data: BufferedSource::new(
                 FileSource::from_file(encoded.spool.handle()?).map_err(spool_read)?,
             ),
@@ -598,43 +603,63 @@ pub fn transcode<S: Source, W: Write>(
                 .collect(),
         ),
     };
-    let remux = match kind {
-        SourceKind::Mp4 => Remuxed::Mp4(
-            remux_mp4_replacing(
+    let remux = if let Some(doc_type) = options.matroska_output {
+        Remuxed::OutputMatroska(
+            coreav_isobmff_write::mkv_output::write_output(
                 &mut source,
-                &options.isobmff_limits,
-                &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
-                &RemuxOptions {
+                &coreav_isobmff_write::mkv_output::OutputOptions {
+                    matroska_source: kind == SourceKind::Matroska,
+                    doc_type,
                     streams,
-                    on_unsupported: OnUnsupported::Drop,
-                    metadata: Metadata::Copy,
-                    left_out_covers: options.left_out_covers.clone(),
                 },
-                replacements,
-                out,
-            )
-            .map_err(Error::Remux)?,
-        ),
-        SourceKind::Matroska => Remuxed::Matroska(
-            remux_matroska_replacing(
-                &mut source,
+                &options.isobmff_limits,
                 &options.matroska_limits,
-                &options.isobmff_limits,
-                &matroska_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
-                &MatroskaRemuxOptions {
-                    streams,
-                    on_unsupported: OnUnsupported::Drop,
-                    // Another video stream that MP4 cannot carry is dropped
-                    // and listed: the replaced one is the output's video.
-                    drop_video: true,
-                },
                 replacements,
                 out,
             )
-            .map_err(Error::MatroskaRemux)?,
-        ),
+            .map_err(Error::Matroska)?,
+        )
+    } else {
+        match kind {
+            SourceKind::Mp4 => Remuxed::Mp4(
+                remux_mp4_replacing(
+                    &mut source,
+                    &options.isobmff_limits,
+                    &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
+                    &RemuxOptions {
+                        streams,
+                        on_unsupported: OnUnsupported::Drop,
+                        metadata: Metadata::Copy,
+                        left_out_covers: options.left_out_covers.clone(),
+                    },
+                    replacements,
+                    out,
+                )
+                .map_err(Error::Remux)?,
+            ),
+            SourceKind::Matroska => Remuxed::Matroska(
+                remux_matroska_replacing(
+                    &mut source,
+                    &options.matroska_limits,
+                    &options.isobmff_limits,
+                    &matroska_allowlist(
+                        video.stream.codec,
+                        audio.as_ref().map(|a| a.summary.codec),
+                    ),
+                    &MatroskaRemuxOptions {
+                        streams,
+                        on_unsupported: OnUnsupported::Drop,
+                        // Another video stream that MP4 cannot carry is dropped
+                        // and listed: the replaced one is the output's video.
+                        drop_video: true,
+                    },
+                    replacements,
+                    out,
+                )
+                .map_err(Error::MatroskaRemux)?,
+            ),
+        }
     };
-
     Ok(Summary {
         video: VideoSummary {
             stream_index: video.stream_index,

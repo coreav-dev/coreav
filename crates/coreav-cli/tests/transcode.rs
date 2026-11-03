@@ -1224,9 +1224,9 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
 }
 
 /// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
-/// "Through `coreav ffmpeg`"): the pipeline's encode, the audio copied; and
-/// the refusals where `ffmpeg`'s defaults would give another output, at
-/// exit status 4 with nothing written.
+/// "Through `coreav ffmpeg`"): the video's encode with copied audio, or
+/// default AAC when this build decodes the source; unsupported commands
+/// refuse at exit status 4 with nothing written.
 #[test]
 fn ffmpeg_libx264_commands_run_the_pipeline() {
     let Some(tools) = tools() else { return };
@@ -1279,21 +1279,48 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     );
     decodes_cleanly(&tools, &out);
     std::fs::remove_file(&out).unwrap();
-    for (words, source) in [
-        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4"),
-        ("-i IN -c:v libx264 OUT", "vfr.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4"),
-        ("-i IN -an -c:v libx264 OUT", "timecode.mov"),
-        ("-i IN -an -c:v libx264 OUT", "chapters.mov"),
-        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4"),
-        ("-i IN -c:v libx264 OUT", "basic.mp4"),
-        ("-i IN -c copy -crf 20 OUT", "basic.mp4"),
+    for (words, source, expected) in [
+        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "vfr.mp4", 4),
+        ("-i IN -c:v libx264 OUT", "browser.webm", 4),
+        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4", 4),
+        ("-i IN -an -c:v libx264 OUT", "timecode.mov", 4),
+        ("-i IN -an -c:v libx264 OUT", "chapters.mov", 4),
+        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4", 4),
+        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4", 4),
+        (
+            "-i IN -c:v libx264 OUT",
+            "basic.mp4",
+            if cfg!(feature = "aac") { 0 } else { 4 },
+        ),
+        ("-i IN -c copy -crf 20 OUT", "basic.mp4", 4),
     ] {
         let (code, stderr) = run(words, source, &out);
-        assert_eq!(code, 4, "{words} on {source}: {stderr}");
-        assert!(!out.exists(), "{words} on {source}");
+        assert_eq!(code, expected, "{words} on {source}: {stderr}");
+        if source == "browser.webm" {
+            assert!(
+                stderr.contains("default AAC encoding of an Opus source"),
+                "{stderr}"
+            );
+        }
+        if expected == 4 {
+            assert!(!out.exists(), "{words} on {source}");
+        } else {
+            assert_eq!(
+                probe_json(
+                    &tools,
+                    &["-show_entries", "stream=codec_type,codec_name"],
+                    &out
+                )["streams"],
+                serde_json::json!([
+                    {"codec_type": "video", "codec_name": "h264"},
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ]),
+            );
+            decodes_cleanly(&tools, &out);
+            std::fs::remove_file(&out).unwrap();
+        }
     }
     let (code, stderr) = run(
         "-noautorotate -i IN -an -c:v libx264 -preset ultrafast OUT",
@@ -1735,6 +1762,103 @@ fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
     path
 }
 
+#[test]
+fn ffmpeg_default_codecs_match_the_oracle() {
+    let Some(tools) = tools() else { return };
+    for muxer in ["mp4", "ipod"] {
+        let help = Command::new(&tools.ffmpeg)
+            .args(["-hide_banner", "-h", &format!("muxer={muxer}")])
+            .output()
+            .unwrap();
+        assert!(help.status.success());
+        let help = String::from_utf8(help.stdout).unwrap();
+        assert!(help.contains("Default video codec: h264"), "{help}");
+        assert!(help.contains("Default audio codec: aac"), "{help}");
+    }
+    let dir = dir("ffmpeg-default-codecs");
+    let flac = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let basic = tools.fixtures.join("basic.mp4");
+    let mut cases = vec![
+        ("video-only", &basic, vec!["-an"]),
+        ("audio-copy", &basic, vec!["-c:a", "copy"]),
+        ("both-default", &flac, vec![]),
+        ("video-default", &flac, vec!["-c:a", "aac"]),
+        ("audio-default", &flac, vec!["-c:v", "libx264"]),
+        ("last-copy", &basic, vec!["-c:v", "libx264", "-c", "copy"]),
+    ];
+    if cfg!(feature = "aac") {
+        cases.push(("aac-source-default", &basic, vec!["-c:v", "libx264"]));
+    }
+    for (name, source, flags) in cases {
+        let output = dir.join(format!("{name}.mp4"));
+        let oracle = dir.join(format!("{name}-oracle.mp4"));
+        let log = dir.join(format!("{name}-fallback.log"));
+        let actual = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(source)
+            .args(&flags)
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        assert!(
+            actual.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&actual.stderr)
+        );
+        assert!(
+            !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+            "{name}: fell back"
+        );
+        let expected = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error"])
+            .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+            .arg("-i")
+            .arg(source)
+            .args(&flags)
+            .arg(&oracle)
+            .output()
+            .unwrap();
+        assert!(
+            expected.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&expected.stderr)
+        );
+        let fields = [
+            "-show_entries",
+            "stream=codec_type,codec_name,profile,width,height,pix_fmt,sample_rate,channels",
+        ];
+        assert_eq!(
+            probe_json(&tools, &fields, &output),
+            probe_json(&tools, &fields, &oracle),
+            "{name}"
+        );
+        assert_eq!(
+            video_md5(&tools, &output, &["-f", "framemd5"]),
+            video_md5(&tools, &oracle, &["-f", "framemd5"]),
+            "{name}"
+        );
+        if name == "audio-copy" || name == "last-copy" {
+            assert_eq!(
+                audio_packets(&tools, &output),
+                audio_packets(&tools, &oracle),
+                "{name}"
+            );
+        } else if !flags.contains(&"-an") {
+            let (actual, errors) = decoded_audio(&tools, &output);
+            let (expected, oracle_errors) = decoded_audio(&tools, &oracle);
+            assert!(errors.is_empty() && oracle_errors.is_empty(), "{name}");
+            assert!(!actual.is_empty(), "{name}");
+            assert_eq!(actual.len(), expected.len(), "{name}");
+        }
+        decodes_cleanly(&tools, &output);
+    }
+    nothing_left(&dir);
+}
+
 /// The audio of `path` as `ffmpeg` decodes it: 16-bit samples at 48 kHz,
 /// with the edit list applied; and what it printed.
 fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
@@ -1751,6 +1875,747 @@ fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
         out.stdout,
         String::from_utf8_lossy(&out.stderr).into_owned(),
     )
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_encodes_match_the_oracle_timeline() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only");
+    for (source_name, codec) in [
+        ("flac.mp4", "flac"),
+        ("mp3.mkv", "libmp3lame"),
+        ("opus.mkv", "libopus"),
+        ("aac.mp4", "aac"),
+    ] {
+        let source = made(&tools, &dir, source_name, &["-c:a", codec, "-c:v", "mpeg4"]);
+        for (name, encoder, selection, rate) in [
+            ("aac.mp4", "aac", &["-vn"][..], Some("96k")),
+            ("aac.m4a", "aac", &["-map", "a"][..], None),
+            ("opus.mp4", "libopus", &["-map", "0:a:0"][..], Some("96k")),
+        ] {
+            if encoder == "libopus" && !cfg!(feature = "libopus") {
+                continue;
+            }
+            let output = dir.join(format!("{source_name}-{name}"));
+            let oracle = dir.join(format!("oracle-{source_name}-{name}"));
+            let mut args = vec!["-i", source.to_str().unwrap()];
+            args.extend_from_slice(selection);
+            args.extend(["-c:a", encoder]);
+            args.extend(rate.iter().flat_map(|rate| ["-b:a", *rate]));
+            let mut command = Command::new(bin());
+            command
+                .arg("ffmpeg")
+                .args(&args)
+                .arg(&output)
+                .env("COREAV_FFMPEG", &tools.ffmpeg)
+                .env("COREAV_FALLBACK", NO_FALLBACK);
+            let run =
+                bounded::output(&mut command, None, std::time::Duration::from_secs(90)).unwrap();
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            if codec == "aac" && !cfg!(feature = "aac") {
+                assert_eq!(run.status.code(), Some(4), "{source_name} {name}: {stderr}");
+                assert!(!output.exists());
+                continue;
+            }
+            assert!(run.status.success(), "{source_name} {name}: {stderr}");
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error"])
+                .args(&args)
+                .arg(&oracle)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let entries = [
+                "-show_entries",
+                "stream=codec_name,profile,sample_rate,channels,channel_layout,time_base,start_pts,duration_ts:format=nb_streams,start_time,duration",
+            ];
+            let actual = probe_json(&tools, &entries, &output);
+            let expected = probe_json(&tools, &entries, &oracle);
+            assert_eq!(actual, expected, "{source_name} {name}");
+            let (pcm, errors) = decoded_audio(&tools, &output);
+            assert!(errors.is_empty(), "{source_name} {name}: {errors}");
+            assert!(!pcm.is_empty(), "{source_name} {name}");
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_avi_mp3_keeps_the_previous_complete_file_bytes() {
+    struct Samples(Vec<u8>);
+    impl coreav_audio::Sink for Samples {
+        fn start(&mut self, _: &coreav_audio::OutputFormat) -> Result<(), coreav_audio::Error> {
+            Ok(())
+        }
+        fn write(&mut self, bytes: &[u8]) -> Result<(), coreav_audio::Error> {
+            self.0.extend_from_slice(bytes);
+            Ok(())
+        }
+    }
+    let Some(tools) = tools() else { return };
+    let dir = dir("avi-mp3-byte-identity");
+    for rate in [8000u32, 16000, 48000] {
+        let frame_samples = if rate >= 32000 { 1152 } else { 576 };
+        for channels in [1u16, 2] {
+            for residue in [1, 46, 47] {
+                let count = 8 * frame_samples + residue;
+                let source = dir.join(format!("{rate}-{channels}-{count}.mp4"));
+                let generated = Command::new(&tools.ffmpeg)
+                    .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+                    .arg(format!("sine=sample_rate={rate}:duration=2"))
+                    .args([
+                        "-af",
+                        &format!("atrim=end_sample={count}"),
+                        "-ac",
+                        &channels.to_string(),
+                        "-c:a",
+                        "flac",
+                    ])
+                    .arg(&source)
+                    .output()
+                    .unwrap();
+                assert!(
+                    generated.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&generated.stderr)
+                );
+                let mut samples = Samples(Vec::new());
+                let summary = coreav_audio::decode(
+                    coreav_isobmff::FileSource::open(&source).unwrap(),
+                    &coreav_audio::Options {
+                        format: coreav_audio::SampleFormat::F32,
+                        ..Default::default()
+                    },
+                    &coreav_audio::Limits::default(),
+                    &mut samples,
+                )
+                .unwrap();
+                assert_eq!(summary.samples, u64::from(count));
+                assert!(summary.warnings.is_empty());
+                for bitrate in [None, Some(128000u32)] {
+                    let name = format!("{rate}-{channels}-{count}-{bitrate:?}");
+                    let mut old = Command::new(&tools.ffmpeg);
+                    old.args([
+                        "-nostdin",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-f",
+                        "f32le",
+                        "-ar",
+                        &rate.to_string(),
+                        "-ac",
+                        &channels.to_string(),
+                    ])
+                    .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                    .args([
+                        "-i",
+                        "pipe:0",
+                        "-map",
+                        "0:a:0",
+                        "-c:a",
+                        "libmp3lame",
+                    ]);
+                    if let Some(bitrate) = bitrate {
+                        old.args(["-b:a", &bitrate.to_string()]);
+                    }
+                    old.args(["-f", "mp3", "pipe:1"]);
+                    let old = bounded::output(
+                        &mut old,
+                        Some(samples.0.clone()),
+                        std::time::Duration::from_secs(20),
+                    )
+                    .unwrap();
+                    assert!(
+                        old.status.success(),
+                        "{name}: {}",
+                        String::from_utf8_lossy(&old.stderr)
+                    );
+                    let raw = dir.join(format!("{name}.mp3"));
+                    std::fs::write(&raw, &old.stdout).unwrap();
+                    let listing = probe_json(
+                        &tools,
+                        &["-show_packets", "-show_entries", "packet=pos,size"],
+                        &raw,
+                    );
+                    let frames: Vec<_> = listing["packets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|packet| {
+                            let start = packet["pos"].as_str().unwrap().parse::<usize>().unwrap();
+                            let size = packet["size"].as_str().unwrap().parse::<usize>().unwrap();
+                            &old.stdout[start..start + size]
+                        })
+                        .collect();
+                    let bytes: usize = frames.iter().map(|frame| frame.len()).sum();
+                    let tracks = [coreav_avi::Track::Mp3 {
+                        rate,
+                        channels,
+                        frame_samples,
+                        bytes_per_second: (bytes as u64 * u64::from(rate)
+                            / (frames.len() as u64 * u64::from(frame_samples)))
+                            as u32,
+                    }];
+                    let packets: Vec<_> = frames
+                        .iter()
+                        .enumerate()
+                        .map(|(n, frame)| coreav_avi::Packet {
+                            track: 0,
+                            time: n as u64,
+                            duration: 1,
+                            size: frame.len() as u32,
+                            keyframe: true,
+                        })
+                        .collect();
+                    let mut expected = Vec::new();
+                    coreav_avi::plan(&tracks, &packets, &coreav_avi::Limits::default())
+                        .unwrap()
+                        .write(&mut expected, |n, out| out.write_all(frames[n]))
+                        .unwrap();
+                    for explicit in [false, true] {
+                        let output = dir.join(format!("{name}-{explicit}.avi"));
+                        let mut actual = Command::new(bin());
+                        actual.args(["ffmpeg", "-i"]).arg(&source).arg("-vn");
+                        if explicit || bitrate.is_some() {
+                            actual.args(["-c:a", "libmp3lame"]);
+                        }
+                        if let Some(bitrate) = bitrate {
+                            actual.args(["-b:a", &bitrate.to_string()]);
+                        }
+                        let run = actual
+                            .arg(&output)
+                            .env("COREAV_FFMPEG", &tools.ffmpeg)
+                            .env("COREAV_FALLBACK", NO_FALLBACK)
+                            .env("COREAV_STRICT_SAFE", "0")
+                            .output()
+                            .unwrap();
+                        assert!(
+                            run.status.success(),
+                            "{name}: {}",
+                            String::from_utf8_lossy(&run.stderr)
+                        );
+                        let actual = std::fs::read(output).unwrap();
+                        assert!(
+                            actual == expected,
+                            "{name} explicit={explicit}: AVI bytes changed ({} versus {})",
+                            actual.len(),
+                            expected.len()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_strict_safe_authorizes_resolved_audio_before_discovery() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-strict-policy");
+    let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
+    for flag in [true, false] {
+        for (name, options, extension) in [
+            ("implicit-aac-m4a", vec![], "m4a"),
+            ("implicit-aac-mp4", vec![], "mp4"),
+            ("explicit-aac", vec!["-c:a", "aac"], "m4a"),
+            ("implicit-mp3", vec![], "mp3"),
+            ("explicit-mp3", vec!["-c:a", "libmp3lame"], "mp3"),
+            ("implicit-avi-mp3", vec![], "avi"),
+            ("explicit-avi-mp3", vec!["-c:a", "libmp3lame"], "avi"),
+        ] {
+            let marker = dir.join(format!("{name}-{flag}.called"));
+            let renamed = script(
+                &dir,
+                &format!("encoder-{name}-{flag}"),
+                &format!(
+                    "printf '%s\\n' invoked > '{}'\nexec '{}' \"$@\"",
+                    marker.display(),
+                    tools.ffmpeg.display()
+                ),
+            );
+            let output = dir.join(format!("{name}-{flag}.{extension}"));
+            let mut command = Command::new(bin());
+            if flag {
+                command.arg("--strict-safe");
+            }
+            let run = command
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .arg("-vn")
+                .args(options)
+                .arg(&output)
+                .env("COREAV_STRICT_SAFE", if flag { "0" } else { "1" })
+                .env("COREAV_FFMPEG", &renamed)
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .output()
+                .unwrap();
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            assert_eq!(run.status.code(), Some(4), "{name} {flag}: {stderr}");
+            assert!(stderr.contains("strict-safe"), "{name} {flag}: {stderr}");
+            assert!(!marker.exists(), "{name} {flag}: encoder was invoked");
+            assert!(!output.exists(), "{name} {flag}: output was published");
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_refusals_do_not_publish_output() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-refusals");
+    let source = made(&tools, &dir, "source.mp4", &["-c:a", "flac"]);
+    let no_aac = script(&dir, "without-aac", "exit 0");
+    for (name, options, program, strict) in [
+        (
+            "video.mp4",
+            vec!["-c:v", "copy"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+        (
+            "trim.mp4",
+            vec!["-vn", "-t", "1"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+        (
+            "filter.mp4",
+            vec!["-vn", "-vf", "scale=80:60"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+        (
+            "missing.mp4",
+            vec!["-vn"],
+            Path::new("/nonexistent/ffmpeg"),
+            false,
+        ),
+        ("safe.mp4", vec!["-vn"], tools.ffmpeg.as_path(), true),
+        ("without-aac.mp4", vec!["-vn"], no_aac.as_path(), false),
+        (
+            "bitrate.mp4",
+            vec!["-vn", "-b:a", "4k"],
+            tools.ffmpeg.as_path(),
+            false,
+        ),
+    ] {
+        let output = dir.join(name);
+        let mut command = Command::new(bin());
+        command
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(options)
+            .args(["-c:a", "aac"])
+            .arg(&output)
+            .env("COREAV_FFMPEG", program)
+            .env("COREAV_FALLBACK", NO_FALLBACK);
+        if strict {
+            command.env("COREAV_STRICT_SAFE", "1");
+        }
+        let run = command.output().unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(4),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!output.exists(), "{name}");
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_audio_only_refuses_unpreserved_source_properties() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("audio-only-properties");
+    let clean = made(&tools, &dir, "clean.mp4", &["-c:a", "flac"]);
+    let mut sources = Vec::new();
+    for name in [
+        "offset.mp4",
+        "offset.mkv",
+        "late.mp4",
+        "handler.mp4",
+        "forced.mp4",
+    ] {
+        let source = dir.join(name);
+        let mut command = Command::new(&tools.ffmpeg);
+        command.args(["-nostdin", "-v", "error", "-i"]).arg(&clean);
+        match name {
+            "late.mp4" => {
+                command
+                    .args(["-itsoffset", "1", "-i"])
+                    .arg(&clean)
+                    .args(["-map", "0:v", "-map", "1:a"]);
+            }
+            "handler.mp4" => {
+                command.args(["-metadata:s:a", "handler_name=Dialogue"]);
+            }
+            "forced.mp4" => {
+                command.args(["-disposition:a", "forced"]);
+            }
+            _ => {
+                command.args(["-output_ts_offset", "1"]);
+            }
+        }
+        let run = command.args(["-c", "copy"]).arg(&source).output().unwrap();
+        assert!(
+            run.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        sources.push((source, vec![]));
+    }
+    let list = dir.join("list.txt");
+    std::fs::write(
+        &list,
+        format!("file '{}'\nfile '{}'\n", clean.display(), clean.display()),
+    )
+    .unwrap();
+    sources.push((list, vec!["-f", "concat", "-safe", "0"]));
+    for (source, before) in sources {
+        let output = dir.join(format!(
+            "{}.m4a",
+            source.file_name().unwrap().to_str().unwrap()
+        ));
+        let run = Command::new(bin())
+            .arg("ffmpeg")
+            .args(before)
+            .arg("-i")
+            .arg(&source)
+            .args(["-vn", "-c:a", "aac"])
+            .arg(&output)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(4),
+            "{}: {}",
+            source.display(),
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!output.exists());
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+fn audio_floats(tools: &Tools, path: &Path) -> Vec<f32> {
+    let mut command = Command::new(&tools.ffmpeg);
+    command
+        .args(["-nostdin", "-v", "error"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .arg("-i")
+        .arg(path)
+        .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"]);
+    let run = bounded::output(&mut command, None, std::time::Duration::from_secs(30)).unwrap();
+    assert!(
+        run.status.success(),
+        "{}: {}",
+        path.display(),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        run.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(run.stdout.len() % 4, 0);
+    run.stdout
+        .chunks_exact(4)
+        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+        .collect()
+}
+
+#[cfg(unix)]
+fn audio_snr(reference: &[f32], decoded: &[f32]) -> f64 {
+    assert_eq!(reference.len(), decoded.len());
+    let signal: f64 = reference.iter().map(|&v| f64::from(v).powi(2)).sum();
+    let error: f64 = reference
+        .iter()
+        .zip(decoded)
+        .map(|(&a, &b)| (f64::from(a) - f64::from(b)).powi(2))
+        .sum();
+    10.0 * (signal / error).log10()
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_outputs_keep_the_source_samples_and_quality() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-output");
+    for rate in [
+        48000u32, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000,
+    ] {
+        for channels in [1usize, 2] {
+            let source = made(
+                &tools,
+                &dir,
+                &format!("{rate}-{channels}.mp4"),
+                &[
+                    "-ar",
+                    &rate.to_string(),
+                    "-ac",
+                    &channels.to_string(),
+                    "-c:a",
+                    "flac",
+                ],
+            );
+            let reference = audio_floats(&tools, &source);
+            assert_eq!(reference.len(), 2 * rate as usize * channels);
+            for (mode, settings) in [
+                ("default", &[][..]),
+                ("constant", &["-b:a", "128k"][..]),
+                ("quality", &["-qscale:a", "2.5"][..]),
+            ] {
+                let out = dir.join(format!("{rate}-{channels}-{mode}.mp3"));
+                let oracle = dir.join(format!("oracle-{rate}-{channels}-{mode}.mp3"));
+                let mut args = vec!["-i", source.to_str().unwrap()];
+                args.extend_from_slice(settings);
+                let run = Command::new(bin())
+                    .arg("ffmpeg")
+                    .args(&args)
+                    .arg(&out)
+                    .env("COREAV_FFMPEG", &tools.ffmpeg)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{rate} {channels} {mode}: {}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let run = Command::new(&tools.ffmpeg)
+                    .args(["-nostdin", "-v", "error"])
+                    .args(&args)
+                    .arg(&oracle)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let entries = ["-show_streams", "-show_format", "-count_packets"];
+                let mut actual = probe_json(&tools, &entries, &out);
+                let mut expected = probe_json(&tools, &entries, &oracle);
+                for field in ["filename", "size", "bit_rate"] {
+                    actual["format"].as_object_mut().unwrap().remove(field);
+                    expected["format"].as_object_mut().unwrap().remove(field);
+                }
+                let actual_rate = actual["streams"][0]["bit_rate"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                let expected_rate = expected["streams"][0]["bit_rate"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                if mode != "quality" {
+                    assert!(
+                        (0.95..=1.05).contains(&(actual_rate / expected_rate)),
+                        "{rate} {channels} {mode}"
+                    );
+                }
+                actual["streams"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("bit_rate");
+                expected["streams"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("bit_rate");
+                assert_eq!(actual, expected, "{rate} {channels} {mode}");
+                let native = audio_floats(&tools, &out);
+                let external = audio_floats(&tools, &oracle);
+                assert_eq!(native.len(), reference.len(), "{rate} {channels} {mode}");
+                assert_eq!(external.len(), reference.len());
+                let ours = audio_snr(&reference, &native);
+                let theirs = audio_snr(&reference, &external);
+                assert!(
+                    ours >= theirs - 0.5,
+                    "{rate} {channels} {mode}: {ours} vs {theirs}"
+                );
+            }
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_eof_guard_preserves_exact_boundary_lengths() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-boundary");
+    for rate in [48000u32, 22050, 8000] {
+        let frame = if rate >= 32000 { 1152usize } else { 576 };
+        for residue in [1usize, 46, 47] {
+            let samples = frame + residue;
+            let source = dir.join(format!("{rate}-{residue}.mp4"));
+            let out = source.with_extension("mp3");
+            let oracle = dir.join(format!("oracle-{rate}-{residue}.mp3"));
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+                .arg(format!("sine=sample_rate={rate}"))
+                .args([
+                    "-af",
+                    &format!("atrim=end_sample={samples}"),
+                    "-c:a",
+                    "flac",
+                ])
+                .arg(&source)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let run = Command::new(bin())
+                .args(["ffmpeg", "-i"])
+                .arg(&source)
+                .arg(&out)
+                .env("COREAV_FFMPEG", &tools.ffmpeg)
+                .env("COREAV_FALLBACK", NO_FALLBACK)
+                .output()
+                .unwrap();
+            assert!(
+                run.status.success(),
+                "{rate} {residue}: {}",
+                String::from_utf8_lossy(&run.stderr)
+            );
+            let run = Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error", "-i"])
+                .arg(&source)
+                .arg(&oracle)
+                .output()
+                .unwrap();
+            assert!(run.status.success());
+            let native = audio_floats(&tools, &out);
+            let external = audio_floats(&tools, &oracle);
+            assert_eq!(native.len(), samples, "{rate} {residue}");
+            let extra = if residue <= 46 { 47 - residue } else { 0 };
+            assert_eq!(
+                external.len(),
+                samples + extra,
+                "changed or stale clamp predicate: {rate} {residue}"
+            );
+            let probe = probe_json(
+                &tools,
+                &["-show_entries", "stream=duration_ts,sample_rate"],
+                &out,
+            );
+            let ticks = probe["streams"][0]["duration_ts"].as_u64().unwrap();
+            assert_eq!(ticks * u64::from(rate), samples as u64 * 14112000);
+            let reference = audio_floats(&tools, &source);
+            let endpoint = samples.saturating_sub(256);
+            assert!(
+                audio_snr(&reference[endpoint..], &native[endpoint..])
+                    >= audio_snr(&reference[endpoint..], &external[endpoint..samples]) - 0.5,
+                "{rate} {residue}: EOF guard degraded endpoint quality"
+            );
+        }
+    }
+    nothing_left(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn ffmpeg_mp3_sources_and_refusals_are_build_aware() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("mp3-sources");
+    for (name, codec, alias) in [
+        ("aac.mp4", "aac", "-c:a"),
+        ("opus.mkv", "libopus", "-acodec"),
+        ("mp3.mkv", "libmp3lame", "-codec:a"),
+    ] {
+        let source = made(&tools, &dir, name, &["-c:a", codec]);
+        let out = dir.join(format!("{name}.mp3"));
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(["-vn", alias, "libmp3lame"])
+            .arg(&out)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .output()
+            .unwrap();
+        if codec == "aac" && !cfg!(feature = "aac") {
+            assert_eq!(run.status.code(), Some(4));
+            assert!(!out.exists());
+            continue;
+        }
+        assert!(
+            run.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(audio_floats(&tools, &out).len(), 96000, "{name}");
+    }
+    let source = made(&tools, &dir, "flac.mp4", &["-c:a", "flac"]);
+    let no_encoder = script(&dir, "no-mp3-encoder", "exit 0");
+    let invalid = script(
+        &dir,
+        "invalid-mp3",
+        "case \" $* \" in *' -h '*) printf 'Encoder libmp3lame [test]'; exit 0;; esac\ncat > /dev/null\nprintf bad",
+    );
+    let flood = script(
+        &dir,
+        "flood-mp3",
+        "case \" $* \" in *' -h '*) printf 'Encoder libmp3lame [test]'; exit 0;; esac\ncat /dev/zero",
+    );
+    for (name, program, settings, code) in [
+        ("missing", Path::new("/nonexistent/ffmpeg"), vec![], 4),
+        ("absent", no_encoder.as_path(), vec![], 4),
+        ("invalid", invalid.as_path(), vec![], 1),
+        ("flood", flood.as_path(), vec![], 1),
+        ("quality", tools.ffmpeg.as_path(), vec!["-q:a", "NaN"], 2),
+        ("rate", tools.ffmpeg.as_path(), vec!["-b:a", "1k"], 4),
+        ("trim", tools.ffmpeg.as_path(), vec!["-t", "1"], 4),
+    ] {
+        let out = dir.join(format!("refused-{name}.mp3"));
+        let mut command = Command::new(bin());
+        command
+            .args(["ffmpeg", "-i"])
+            .arg(&source)
+            .args(settings)
+            .arg(&out)
+            .env("COREAV_FFMPEG", program)
+            .env("COREAV_FALLBACK", NO_FALLBACK);
+        let run = bounded::output(&mut command, None, std::time::Duration::from_secs(30)).unwrap();
+        assert_eq!(
+            run.status.code(),
+            Some(code),
+            "{name}: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert!(!out.exists(), "{name}");
+    }
+    let out = dir.join("safe.mp3");
+    let run = Command::new(bin())
+        .args(["--strict-safe", "ffmpeg", "-i", "absent.mp4"])
+        .arg(&out)
+        .env("COREAV_FALLBACK", NO_FALLBACK)
+        .output()
+        .unwrap();
+    assert_eq!(run.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&run.stderr).contains("strict-safe"));
+    assert!(!out.exists());
+    nothing_left(&dir);
 }
 
 #[cfg(feature = "libopus")]
@@ -2070,6 +2935,38 @@ fn audio_encodes_preserve_the_decoders_presented_samples() {
                     ));
                 }
                 decodes_cleanly(&tools, &out);
+                let audio_only = dir.join(format!("{codec}-{container}-{mode}-audio.mp4"));
+                let run = Command::new(bin())
+                    .args(["ffmpeg", "-i"])
+                    .arg(&source)
+                    .args(["-vn", "-c:a", encoder])
+                    .arg(&audio_only)
+                    .env("COREAV_FFMPEG", &wrapper)
+                    .env("COREAV_FALLBACK", NO_FALLBACK)
+                    .output()
+                    .unwrap();
+                assert!(
+                    run.status.success(),
+                    "{codec} {container} {mode}: {}",
+                    String::from_utf8_lossy(&run.stderr)
+                );
+                let audio_streams = probe_json(
+                    &tools,
+                    &[
+                        "-select_streams",
+                        "a",
+                        "-show_entries",
+                        "stream=codec_name,profile,channels,sample_rate,start_pts,duration_ts",
+                    ],
+                    &audio_only,
+                );
+                assert_eq!(
+                    audio_streams, streams,
+                    "{codec} {container} {mode}: audio-only timeline changed"
+                );
+                let (pcm, errors) = decoded_audio(&tools, &audio_only);
+                assert!(!pcm.is_empty());
+                assert!(errors.is_empty(), "{codec} {container} {mode}: {errors}");
             }
         }
     }

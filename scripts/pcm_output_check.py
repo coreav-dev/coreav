@@ -135,6 +135,35 @@ def check(coreav, oracle, root):
     expected = (root / "source-2-44100.s16le").read_bytes()
     compare("metadata", 0, tagged, [], ["-map_metadata", "-1"], "wav", expected, 44100, 2)
     compare("metadata", 1, tagged, [], ["-f", "s16le"], "raw", expected, 44100, 2)
+    for number, (kind, form) in enumerate((("wav", "wav"), ("raw", "s16le"))):
+        for indexed in (False, True):
+            options = ["-c:a:1", "pcm_u8", "-c:a:0", "pcm_s16le"] if indexed else [
+                "-c:a", "pcm_u8", "-c:a", "pcm_s16le",
+            ]
+            compare("effective-codec", number * 2 + int(indexed), root / "input-2-44100-mka.mka",
+                    [], [*options, "-f", form], kind, expected, 44100, 2)
+    subtitles = root / "subtitles.srt"
+    subtitles.write_text("1\n00:00:00,000 --> 00:00:00,020\nPCM subtitle check\n")
+    subtitled = root / "subtitled.mka"
+    run([ffmpeg, "-v", "error", "-i", root / "input-2-44100-mka.mka", "-i", subtitles,
+         "-map", "0:a:0", "-map", "1:s:0", "-c", "copy", subtitled])
+    for number, (kind, form) in enumerate((("wav", "wav"), ("raw", "s16le"))):
+        output = root / f"subtitles-refused-{kind}.output"
+        output.write_bytes(b"original")
+        options = ["-y", "-c:s", "copy", "-f", form]
+        reference = subprocess.run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", subtitled,
+                                    *options, root / f"subtitles-reference-{kind}.output"],
+                                   capture_output=True, timeout=30)
+        if reference.returncode == 0 or b"stream of type subtitle" not in reference.stderr:
+            raise AssertionError("the pinned oracle must reject subtitles in PCM output")
+        refused = subprocess.run(native_command(coreav, subtitled, output, after=options),
+                                 capture_output=True, timeout=30, env=env)
+        if refused.returncode != 4 or refused.stdout or output.read_bytes() != b"original":
+            raise AssertionError("an explicit subtitle codec must not silently drop subtitles")
+        for disabled in (False, True):
+            after = ["-c:s", "copy", "-sn"] if disabled else []
+            compare("subtitles", number * 2 + int(disabled), subtitled, [], [*after, "-f", form],
+                    kind, expected, 44100, 2)
     for encoder in ("libmp3lame", "libopus", "aac"):
         lossy = root / f"lossy-{encoder}.mka"
         run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", root / "input-2-44100-mka.mka",

@@ -154,6 +154,7 @@ const SPEC_LIMITS: Limits = Limits {
     max_height: 1 << 16,
     max_pixels: 1 << 32,
     max_packet_bytes: 64 << 20,
+    max_memory_bytes: 8 << 30,
 };
 
 /// Lists whose entries do not give the size of the frames they hash, with

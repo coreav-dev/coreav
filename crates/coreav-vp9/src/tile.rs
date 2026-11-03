@@ -2,11 +2,11 @@
 //! each block's mode info, and its tokens, read with the trees and
 //! probabilities of clause 9.3.
 
+use crate::memory::Memory;
 use coreav_kernels_vp9::{
     BitDepth, BlockMut, Coefficients, Edges, InterpFilter, IntraMode, PredictionMut,
     ReferencePlane, Sampling, TxSize, TxType, inverse_transform_add, predict_inter, predict_intra,
 };
-use std::sync::Arc;
 
 use crate::adapt::Counts;
 use crate::bool::BoolDecoder;
@@ -284,7 +284,7 @@ struct Block {
 }
 
 pub(crate) struct TileContext<'a> {
-    pub(crate) references: &'a [Option<Arc<Picture>>],
+    pub(crate) references: &'a [Option<&'a Picture>],
     pub(crate) previous: Option<&'a [ModeInfo]>,
     pub(crate) previous_segments: &'a [u8],
     pub(crate) reference_mode: ReferenceMode,
@@ -293,7 +293,7 @@ pub(crate) struct TileContext<'a> {
 pub(crate) struct DecodedTiles {
     pub(crate) clean: bool,
     pub(crate) modes: Vec<ModeInfo>,
-    pub(crate) counts: Box<Counts>,
+    pub(crate) counts: Counts,
 }
 
 /// The state of one frame's tiles: the mode info of its 8x8 blocks and the
@@ -308,7 +308,7 @@ struct Tiles<'a, P> {
     col_start: u32,
     col_end: u32,
     context: TileContext<'a>,
-    counts: Box<Counts>,
+    counts: Counts,
     mi: Vec<ModeInfo>,
     above_partition: Vec<u8>,
     left_partition: [u8; 8],
@@ -333,6 +333,7 @@ pub(crate) fn read<P: Sample>(
     tx_mode: TxMode,
     frame: &mut Planes<P>,
     context: TileContext<'_>,
+    memory: &mut Memory,
 ) -> Result<DecodedTiles> {
     let mi_cols = h.mi_cols();
     let mi_rows = h.mi_rows();
@@ -347,16 +348,25 @@ pub(crate) fn read<P: Sample>(
         col_start: 0,
         col_end: mi_cols,
         context,
-        counts: Box::default(),
-        mi: vec![ModeInfo::default(); mi_rows as usize * mi_cols as usize],
-        above_partition: vec![0; sb_cols * 8],
+        counts: Counts::default(),
+        mi: memory.filled(
+            (mi_rows as usize)
+                .checked_mul(mi_cols as usize)
+                .ok_or(Error::Limit(crate::LimitKind::MemoryBytes))?,
+            ModeInfo::default(),
+        )?,
+        above_partition: memory.filled(sb_cols * 8, 0)?,
         left_partition: [0; 8],
-        above_seg_pred: vec![false; mi_cols as usize],
+        above_seg_pred: memory.filled(mi_cols as usize, false)?,
         left_seg_pred: [false; 8],
-        above_nonzero: core::array::from_fn(|_| vec![false; sb_cols * 16]),
+        above_nonzero: [
+            memory.filled(sb_cols * 16, false)?,
+            memory.filled(sb_cols * 16, false)?,
+            memory.filled(sb_cols * 16, false)?,
+        ],
         left_nonzero: [[false; 16]; 3],
-        token_cache: vec![0; 1024],
-        coefs: vec![0; 1024],
+        token_cache: memory.filled(1024, 0)?,
+        coefs: memory.filled(1024, 0)?,
     };
     let tile_cols = 1u32 << h.tiles.cols_log2;
     let tile_rows = 1u32 << h.tiles.rows_log2;
@@ -1107,7 +1117,7 @@ impl<P: Sample> Tiles<'_, P> {
             .context
             .references
             .get(usize::from(slot))
-            .and_then(Option::as_deref)
+            .and_then(|p| *p)
             .ok_or(Error::Invalid("an unavailable reference picture"))?;
         let fw = i64::from(self.h.width);
         let fh = i64::from(self.h.height);

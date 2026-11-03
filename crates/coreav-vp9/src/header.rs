@@ -315,6 +315,7 @@ impl FrameHeader {
 
 /// A frame's headers.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum Header {
     /// `show_existing_frame`: show the frame in this reference slot again.
     ShowExisting {
@@ -330,7 +331,7 @@ pub enum Header {
     /// A frame to decode.
     Frame {
         /// Its uncompressed header.
-        header: Box<FrameHeader>,
+        header: FrameHeader,
         /// Its compressed header.
         compressed: CompressedHeader,
         /// Whether every tile's boolean decoder ended as clause 9.2.3
@@ -339,7 +340,7 @@ pub enum Header {
         tiles_end_cleanly: Option<bool>,
         /// The decoded frame of an intra frame, loop filter applied; `None`
         /// for an inter frame, until inter prediction lands.
-        picture: Option<Box<Picture>>,
+        picture: Option<Picture>,
     },
 }
 
@@ -349,7 +350,7 @@ pub(crate) struct Parsed {
     /// The saved frame contexts after the uncompressed header's resets
     /// (clause 7.2), and the frame's probabilities after its compressed
     /// header; `None` for `show_existing_frame`.
-    pub(crate) probs: Option<Box<(Contexts, Probs)>>,
+    pub(crate) probs: Option<(Contexts, Probs)>,
 }
 
 /// Reads the headers of the frame `data`, given the reference slots, what
@@ -552,12 +553,12 @@ pub(crate) fn parse(
     let compressed = compressed::read(bytes, &h, &mut probs);
     Ok(Parsed {
         header: Header::Frame {
-            header: Box::new(h),
+            header: h,
             compressed,
             tiles_end_cleanly: None,
             picture: None,
         },
-        probs: Some(Box::new((contexts, probs))),
+        probs: Some((contexts, probs)),
     })
 }
 
