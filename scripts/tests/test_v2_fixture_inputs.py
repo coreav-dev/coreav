@@ -16,6 +16,7 @@ sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tools/compat-corpus')]
 import encode_breadth as v2
 import v2_fixture_inputs as inputs
 import v2_fixture_check as check
+import avi_v2_check as avi
 
 
 class Registration(unittest.TestCase):
@@ -148,6 +149,22 @@ class Staging(unittest.TestCase):
 
 
 class ReferenceDiagnostics(unittest.TestCase):
+    def test_avi_hashes_the_complete_input_without_reading_it_into_memory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'sparse'
+            size = 8 << 20
+            with path.open('wb') as stream:
+                stream.truncate(size)
+                stream.seek(size - 4)
+                stream.write(b'end!')
+            expected = hashlib.sha256()
+            block = bytes(1 << 20)
+            for _ in range(7):
+                expected.update(block)
+            expected.update(block[:-4] + b'end!')
+            with mock.patch.object(Path, 'read_bytes', side_effect=AssertionError('fixture hashes must stream')):
+                self.assertEqual(avi.digest(path), expected.hexdigest())
+
     def test_reference_command_is_unchanged_and_failed_attempts_keep_the_reason(self):
         row = next(r for r in inputs.DOCUMENT['cases'] if r['index'] == 17)
         entry = json.loads(inputs.COMMANDS.read_text())['commands'][17]

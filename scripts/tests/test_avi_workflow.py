@@ -25,7 +25,8 @@ class AviWorkflow(unittest.TestCase):
         self.assertIn('--out "$RUNNER_TEMP/avi-fixtures"', text)
         runner = (root / 'scripts/avi_v2_check.py').read_text()
         self.assertIn('for name in v2.INPUT_FILES:', runner)
-        self.assertIn('for k in v2.INPUT_FILES}', runner)
+        self.assertIn('for k in v2.INPUT_FILES:', runner)
+        self.assertIn("'fixture_sha256': fixture_hashes", runner)
 
 
 if __name__ == '__main__':
