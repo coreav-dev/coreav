@@ -33,6 +33,14 @@ pub fn refuse(
     refusal: NotNative,
     strict_safe: StrictSafe,
 ) -> ExitCode {
+    #[cfg(not(feature = "net"))]
+    if fallback::has_remote_input(tool, args) {
+        message(
+            tool,
+            "this build has no network; URL inputs are not supported",
+        );
+        return ExitCode::from(super::EXIT_USAGE);
+    }
     let found = if strict_safe.on() {
         Err((NotRun::StrictSafe, None))
     } else if cfg!(target_os = "wasi") {

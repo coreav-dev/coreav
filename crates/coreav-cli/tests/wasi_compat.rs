@@ -46,6 +46,20 @@ process.exitCode = wasi.start(instance);
         vec!["ffprobe", "https://example.invalid/input.mp4"],
         vec![
             "ffprobe",
+            "-of",
+            "default=nokey=yes",
+            "https://example.invalid/input.mp4",
+        ],
+        vec![
+            "ffmpeg",
+            "-vf",
+            "null",
+            "-i",
+            "https://example.invalid/input.mp4",
+            "out.mp4",
+        ],
+        vec![
+            "ffprobe",
             "-show_streams",
             "https://example.invalid/input.mp4",
         ],

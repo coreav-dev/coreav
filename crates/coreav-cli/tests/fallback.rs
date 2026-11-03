@@ -599,6 +599,34 @@ fn url_inputs_without_networking_are_usage_errors() {
         vec!["ffprobe", "https://example.invalid/in.mp4"],
         vec!["ffprobe", "-show_streams", "https://example.invalid/in.mp4"],
         vec![
+            "ffprobe",
+            "-of",
+            "default=nokey=yes",
+            "https://example.invalid/in.mp4",
+        ],
+        vec![
+            "ffprobe",
+            "https://example.invalid/in.mp4",
+            "-of",
+            "default=nokey=yes",
+        ],
+        vec![
+            "ffmpeg",
+            "-vf",
+            "null",
+            "-i",
+            "https://example.invalid/in.mp4",
+            "out.mp4",
+        ],
+        vec![
+            "ffmpeg",
+            "-i",
+            "https://example.invalid/in.mp4",
+            "-vf",
+            "null",
+            "out.mp4",
+        ],
+        vec![
             "ffmpeg",
             "-i",
             "https://example.invalid/in.mp4",
@@ -607,11 +635,38 @@ fn url_inputs_without_networking_are_usage_errors() {
             "out.mp4",
         ],
     ] {
-        let r = coreav(&args, &[stand_in()], &[]);
-        assert_eq!(r.code, 2, "{}", r.stderr);
-        assert!(r.stderr.contains("network"), "{}", r.stderr);
-        assert!(!r.stderr.contains("ran "));
-        assert!(!r.stderr.contains("No such file"));
+        for strict in [false, true] {
+            let env = if strict {
+                vec![("COREAV_STRICT_SAFE", "1")]
+            } else {
+                vec![]
+            };
+            let r = coreav(&args, &[stand_in()], &env);
+            assert_eq!(r.code, 2, "{args:?}: {}", r.stderr);
+            assert!(r.stderr.contains("network"), "{}", r.stderr);
+            assert!(!r.stderr.contains("ran "));
+            assert!(!r.stderr.contains("No such file"));
+            assert!(r.stdout.is_empty());
+        }
+    }
+}
+
+#[cfg(not(feature = "net"))]
+#[test]
+fn url_option_values_are_not_mistaken_for_url_inputs() {
+    for tool in ["ffprobe", "ffmpeg"] {
+        let r = coreav(
+            &[
+                tool,
+                "-user_agent",
+                "https://example.invalid/agent",
+                "in.mp4",
+            ],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert!(r.stdout.contains("https://example.invalid/agent"));
     }
 }
 
@@ -999,13 +1054,18 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
     let log = work.join("fallback.log");
     let log = log.to_str().unwrap();
     let input = format!("{}/MARKER-in.mp4", work.display());
+    let source = if cfg!(feature = "net") {
+        "https://example.com/a.mp4?token=MARKER"
+    } else {
+        input.as_str()
+    };
     let commands: [&[&str]; 3] = [
         &[
             "ffmpeg",
             "-headers",
             "Authorization: Bearer MARKER",
             "-i",
-            "https://example.com/a.mp4?token=MARKER",
+            source,
             "-metadata",
             "title=MARKER",
             "-map",

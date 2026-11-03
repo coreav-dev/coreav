@@ -1014,6 +1014,8 @@ same answer.
 
 Recognized standalone MP3, FLAC and WAV inputs are unsupported containers, not invalid files: they use the FFmpeg fallback, or exit 4 when strict-safe mode or an unavailable fallback prevents it. Builds without networking refuse URL inputs with status 2 before opening an input, consistently with `coreav probe`; they are not missing local files and do not produce status 3. The WebAssembly build cannot start another process, so a command needing FFmpeg exits 4 even when the host has FFmpeg installed.
 
+Audio bitrate and quality expressions outside the native numeric grammar are passed unchanged to FFmpeg, whose exit status is preserved. Strict-safe mode refuses them with status 4 without attempting to validate FFmpeg's expression grammar.
+
 A refusal while the command line is parsed comes before the input is
 opened. A refusal while the job is planned or run comes once the input is
 read: a property of the source that `coreav ffmpeg` does not copy, an
