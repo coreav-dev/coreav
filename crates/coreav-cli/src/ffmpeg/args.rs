@@ -470,9 +470,21 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
     let (file, spec) = rest
         .split_once(':')
         .map_or((rest, None), |(f, s)| (f, Some(s)));
-    let file = file
-        .parse::<usize>()
-        .map_err(|_| usage(format!("Invalid stream specifier: {text}.")))?;
+    let unsigned = file.strip_prefix('+').unwrap_or(file);
+    if unsigned.len() > 1 && unsigned.starts_with('0') {
+        return Err(not_native(
+            "-map",
+            Some(text),
+            "an input index with a base prefix",
+        ));
+    }
+    let file = file.parse::<usize>().map_err(|_| {
+        not_native(
+            "-map",
+            Some(text),
+            "an input index outside the native unsigned integer syntax",
+        )
+    })?;
     let spec = match spec {
         None => Spec::All,
         Some(metadata) if metadata.starts_with("m:") => {
@@ -498,7 +510,17 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
 /// `S+[.m...]` with an optional unit `s`, `ms` or `us`. `Err(true)` is
 /// outside the native exact representation; `Err(false)` is malformed.
 pub fn parse_duration(text: &str) -> Result<Rational, bool> {
-    if text.starts_with(['-', '+']) {
+    if text.starts_with(['-', '+']) || text.starts_with(|c: char| c.is_ascii_whitespace()) {
+        return Err(true);
+    }
+    let (number, scale) = if let Some(n) = text.strip_suffix("ms") {
+        (n, 1_000)
+    } else if let Some(n) = text.strip_suffix("us") {
+        (n, 1_000_000)
+    } else {
+        (text.strip_suffix('s').unwrap_or(text), 1)
+    };
+    if text.contains(':') && number != text {
         return Err(true);
     }
     let digits = |s: &str, most: usize| {
@@ -536,13 +558,6 @@ pub fn parse_duration(text: &str) -> Result<Rational, bool> {
             .ok_or(true)?;
         return Rational::from_int(base).checked_add(seconds).ok_or(true);
     }
-    let (number, scale) = if let Some(n) = text.strip_suffix("ms") {
-        (n, 1_000)
-    } else if let Some(n) = text.strip_suffix("us") {
-        (n, 1_000_000)
-    } else {
-        (text.strip_suffix('s').unwrap_or(text), 1)
-    };
     let (whole, fraction) = number.split_once('.').unwrap_or((number, ""));
     if !digits(whole, usize::MAX) || !fraction.bytes().all(|b| b.is_ascii_digit()) {
         return Err(false);
@@ -925,30 +940,41 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 let rate = match rate {
                     Some(rate) if rate.num > 0 => rate,
                     Some(_) => return Err(usage("Invalid output frame rate")),
-                    None if matches!(
-                        text,
-                        "ntsc" | "ntsc-film" | "pal" | "film" | "qntsc" | "qpal" | "sntsc" | "spal"
-                    ) || text.parse::<f64>().is_ok_and(|r| r.is_finite() && r > 0.0)
+                    None if text
+                        .parse::<f64>()
+                        .is_ok_and(|r| !r.is_finite() || r <= 0.0)
                         || text.split_once(['/', ':']).is_some_and(|(n, d)| {
                             n.parse::<f64>()
                                 .ok()
                                 .zip(d.parse::<f64>().ok())
                                 .is_some_and(|(n, d)| {
-                                    d != 0.0 && (n / d).is_finite() && n / d > 0.0
+                                    d == 0.0 || !(n / d).is_finite() || n / d <= 0.0
                                 })
                         })
-                        || (text.parse::<f64>().is_err()
-                            && !text.ends_with("/0")
-                            && text.contains(['(', '+', '*', '^'])
-                            && text.bytes().any(|b| b.is_ascii_digit())) =>
+                        || (text.bytes().all(|b| b.is_ascii_alphabetic())
+                            && !matches!(
+                                text,
+                                "ntsc"
+                                    | "pal"
+                                    | "film"
+                                    | "qntsc"
+                                    | "qpal"
+                                    | "sntsc"
+                                    | "spal"
+                                    | "PI"
+                                    | "E"
+                                    | "PHI"
+                            )) =>
                     {
+                        return Err(usage("Invalid output frame rate"));
+                    }
+                    None => {
                         return Err(not_native(
                             option,
                             Some(text),
                             "a frame-rate name or expression outside the native integer-ratio and decimal syntax",
                         ));
                     }
-                    None => return Err(usage("Invalid output frame rate")),
                 };
                 command.frames.rate = Some(rate);
             }
@@ -997,9 +1023,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 segment_time = Some(match time(option, text)? {
                     t if t.num > 0 => t,
                     _ => {
-                        return Err(usage(format!(
-                            "Invalid time duration specification '{text}' for segment_time option"
-                        )));
+                        return Err(not_native(
+                            option,
+                            Some(text),
+                            "a segment duration outside the native positive-duration range",
+                        ));
                     }
                 });
             }
@@ -1170,14 +1198,14 @@ fn demuxer(name: &str) -> Result<Demuxer, Refusal> {
     }
 }
 
-/// A boolean option's value: a number that is 0 or 1, or `true`, `yes`,
-/// `false` or `no` (black box); another number is a usage error, as in
-/// `ffmpeg`.
+/// Native boolean values: 0, 1, `true`, `yes`, `false` or `no`.
+/// Other integers are usage errors for `-safe`; image options fall back
+/// because another muxer may ignore them without rejecting their values.
 fn boolean(option: &str, text: &str) -> Result<bool, Refusal> {
     match (text, text.parse::<i64>()) {
         (_, Ok(1)) | ("true" | "yes", _) => Ok(true),
         (_, Ok(0)) | ("false" | "no", _) => Ok(false),
-        (_, Ok(_)) => Err(usage(format!(
+        (_, Ok(_)) if option == "-safe" => Err(usage(format!(
             "Unable to parse option value \"{text}\" as boolean"
         ))),
         _ => Err(not_native(option, Some(text), "an unknown boolean value")),

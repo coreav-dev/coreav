@@ -443,9 +443,11 @@ fn parse_bool(option: &str, value: &str) -> Result<bool, Refusal> {
 fn parse_char(option: &str, value: &str) -> Result<u8, Refusal> {
     match value.as_bytes() {
         [c] => Ok(*c),
-        _ => Err(Refusal::Usage(format!(
-            "Item separator '{value}' specified for option '{option}', but must be one character."
-        ))),
+        _ => Err(unsupported(
+            option,
+            Some(value),
+            "a separator outside the native single-byte syntax",
+        )),
     }
 }
 
@@ -509,7 +511,11 @@ fn parse_writer(option: &str, value: &str) -> Result<Kind, Refusal> {
                     "csv" => Escape::Csv,
                     "none" => Escape::None,
                     _ => {
-                        return Err(Refusal::Usage(format!("Unknown escape mode value '{v}'")));
+                        return Err(unsupported(
+                            option,
+                            Some(value),
+                            "an escape mode outside the native writer syntax",
+                        ));
                     }
                 }
             }

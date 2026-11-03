@@ -320,6 +320,32 @@ fn values_outside_the_native_numeric_grammar_reach_fallback() {
         ("-t", "1.1234567891ms"),
         ("-segment_time", "+1"),
         ("-map", "[filtered]"),
+        ("-t", "00:00:01ms"),
+        ("-t", "00:00:01us"),
+        ("-t", "1:00:00s"),
+        ("-t", "00:00:01.5ms"),
+        ("-t", " 1"),
+        ("-ss", "\t1"),
+        ("-to", "00:00:01ms"),
+        ("-r", "30-1"),
+        ("-r", "30/2-1"),
+        ("-r", "PI"),
+        ("-r", "E"),
+        ("-r", "PHI"),
+        ("-r", "1/2/3"),
+        ("-r", "1k"),
+        ("-r", " 30"),
+        ("-r", "30 "),
+        ("-r", "0x1e"),
+        ("-map", " 0"),
+        ("-map", "\t0"),
+        ("-map", "0x0"),
+        ("-update", "2"),
+        ("-update", "-1"),
+        ("-segment_time", "0"),
+        ("-segment_time", "0.0"),
+        ("-segment_time", " 1"),
+        ("-segment_time", "00:00:01ms"),
     ] {
         let output = dir.join("out.mp4");
         let args = [
@@ -354,6 +380,98 @@ fn values_outside_the_native_numeric_grammar_reach_fallback() {
             }
             assert!(!output.exists());
         }
+    }
+}
+
+#[cfg(feature = "transcode")]
+#[test]
+fn audio_encoder_value_limits_are_not_usage_errors() {
+    let dir = tmp("audio-value-fallback");
+    let input = dir.join("in.mp4");
+    std::fs::write(
+        &input,
+        av_movie_with(
+            common::lossless_entry(b"fLaC", common::dfla(48_000, 16)),
+            false,
+        ),
+    )
+    .unwrap();
+    let output = dir.join("out.mp3");
+    for (option, value) in [
+        ("-b:a", "128000+0"),
+        ("-b:a", "128k+32k"),
+        ("-b:a", " 128k"),
+        ("-q:a", "10"),
+        ("-q:a", "-1"),
+    ] {
+        let args = [
+            "ffmpeg",
+            "-i",
+            input.to_str().unwrap(),
+            "-vn",
+            "-c:a",
+            "libmp3lame",
+            option,
+            value,
+            output.to_str().unwrap(),
+        ];
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{option} {value}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("{option} {value}")));
+        assert!(!output.exists());
+    }
+}
+
+#[test]
+fn alternate_base_map_indexes_are_not_decimal_input_indexes() {
+    let dir = tmp("map-base-fallback");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let mut args = vec!["ffmpeg"];
+    for _ in 0..9 {
+        args.extend(["-i", input.as_str()]);
+    }
+    args.extend(["-map", "010", "-c", "copy", output.to_str().unwrap()]);
+    for strict in [false, true] {
+        let env = if strict {
+            vec![("COREAV_STRICT_SAFE", "1")]
+        } else {
+            vec![]
+        };
+        let r = coreav(&args, &[stand_in()], &env);
+        assert_eq!(r.code, if strict { 4 } else { 7 }, "{}", r.stderr);
+        if !strict {
+            assert!(r.stdout.contains("-map 010"));
+        }
+        assert!(!output.exists());
+    }
+}
+
+#[cfg(feature = "transcode")]
+#[test]
+fn encoder_preset_names_outside_native_set_reach_fallback() {
+    let dir = tmp("preset-value-fallback");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    for preset in ["FAST", "Fast"] {
+        let r = coreav(
+            &[
+                "ffmpeg",
+                "-i",
+                &input,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                output.to_str().unwrap(),
+            ],
+            &[stand_in()],
+            &[],
+        );
+        assert_eq!(r.code, 7, "{preset}: {}", r.stderr);
+        assert!(r.stdout.contains(&format!("-preset {preset}")));
+        assert!(!output.exists());
     }
 }
 
@@ -453,7 +571,16 @@ fn changed_probe_budgets_and_thread_counts_still_use_fallback() {
 fn probe_value_syntax_outside_native_parsers_is_not_a_usage_error() {
     let dir = tmp("probe-value-fallback");
     let input = movie(&dir);
-    for (option, value) in [("-of", "default=nokey=yes"), ("-read_intervals", "%+1s")] {
+    for (option, value) in [
+        ("-of", "default=nokey=yes"),
+        ("-of", "csv=s=\\|"),
+        ("-of", "csv=s=\\t"),
+        ("-of", "csv=s='|'"),
+        ("-of", "flat=s=\\."),
+        ("-of", "compact=e='csv'"),
+        ("-of", "compact=e=\\c"),
+        ("-read_intervals", "%+1s"),
+    ] {
         let args = ["ffprobe", option, value, "-show_streams", &input];
         let r = coreav(&args, &[stand_in()], &[]);
         assert_eq!(r.code, 7, "{option} {value}: {}", r.stderr);
