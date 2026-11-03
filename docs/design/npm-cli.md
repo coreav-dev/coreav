@@ -73,7 +73,7 @@ esbuild and Biome:
   version, so npm installs the one that fits and skips the others.
 - **The install script makes the binary the command.** `install.js` runs
   after install. If this platform's package is there and its binary prints
-  this version, the binary is copied over `bin/coreav`, which npm has
+  this version, a relative symbolic link replaces `bin/coreav`, which npm has
   already linked as the `coreav` command. A call then starts the binary
   directly, with no Node in between.
   - It acts only inside `node_modules`, so a checkout's tracked launcher
@@ -81,7 +81,10 @@ esbuild and Biome:
     not the launcher.
   - It installs only the platform package's binary, never one that
     `COREAV_BINARY` names.
-  - It copies through a temporary name of its own process.
+  - It creates the link through a temporary name of its own process. The
+    platform package remains the binary's only copy, and the relative link
+    still resolves if the installation directory moves.
+  - If the filesystem refuses symbolic links, the Node launcher stays.
   - pnpm and Yarn link the binary the same way: their shims see no shebang
     and run it directly.
 - **The Node launcher runs everywhere else.** `bin/coreav` starts out as a
@@ -135,8 +138,9 @@ Rejected:
 - **A `postinstall` that downloads the binary.** It needs network access
   during install, which locked-down installs refuse, and it moves integrity
   checks out of npm's lockfile.
-- **One package with every binary.** Each install would download all five,
-  about 11 MB, to use one.
+- **One package with every binary.** Each install would download all five
+  to use one. The macOS arm64 binary alone is 11.65 MB before compression
+  (see the artifact sizes below).
 - **glibc Linux binaries.** They tie the binary to the oldest glibc of the
   build machine and do not run on musl systems. A static musl binary runs
   on both. Measured against the native glibc build on development files, it
@@ -149,8 +153,9 @@ launcher npm provides.
 ### The WASI build
 
 The fallback is `coreav.wasm`, the `coreav` binary built for
-`wasm32-wasip1` with the `edge` profile and `wasm-opt -O3`: about 1.4 MB,
-0.55 MB compressed. `lib/wasi.mjs` runs it with `node:wasi`.
+`wasm32-wasip1` with the `edge` profile and `wasm-opt -O3`: 4.23 MB,
+1.77 MB compressed with gzip -9. Without Binaryen it is 5.14 MB,
+1.94 MB compressed. `lib/wasi.mjs` runs it with `node:wasi`.
 
 Rejected for the fallback:
 
@@ -238,6 +243,37 @@ output, exit codes, the error object, paths and per-call start-up cost. As
 for the Python package (`docs/design/python.md`), comparative or claim
 wording and keywords are positioning and the maintainer's to decide.
 
+### Artifact sizes
+
+Measured for package version 0.0.1 on macOS arm64, with Rust 1.99.1,
+the native `dist` build with `release-default`, and the WASI `edge` build.
+MB below means 1,000,000 bytes. These are artifact sizes, not speed results.
+
+| Artifact | Bytes | gzip -9 bytes |
+|---|---:|---:|
+| macOS arm64 native binary | 11,651,632 | 5,618,582 |
+| WASI module, without Binaryen | 5,141,655 | 1,941,108 |
+| WASI module, Binaryen 133 `-O3` | 4,232,892 | 1,772,426 |
+
+`npm pack` with the unoptimized WASI module produced a 1.97 MB main
+tarball (5.54 MB unpacked) and a 5.67 MB macOS arm64 platform tarball
+(12.59 MB unpacked). Installing both with npm stored 18.14 MB of regular
+files, with one 11.65 MB native binary. The relative link replaces the
+former second copy, saving 11,651,632 bytes on this macOS build.
+The WASI module remains in the main package even on native platforms.
+
+Reproduce the artifact counts with `wc -c FILE` and
+`gzip -9 -n -c FILE | wc -c`. Run `npm pack --json` in `packages/cli`
+and `packages/cli/npm/darwin-arm64` for packed and unpacked sizes, then
+install both tarballs in an empty project. Count regular-file sizes under
+`node_modules` without following symbolic links. Other platforms and
+builds have different sizes.
+
+The postinstall script remains necessary to avoid starting Node for every
+native Unix call. With pnpm 10, add `coreav` to `onlyBuiltDependencies` in
+`pnpm-workspace.yaml` and run `pnpm rebuild coreav`. With Bun, run
+`bun pm trust coreav`. If scripts stay blocked, the launcher still works.
+
 ### Build
 
 Native and WASI builds use the compiler version and commit in `scripts/rust-dist.env`, with `rust-src` and the target standard library. `scripts/notices/main.mjs` generates notices for the same Cargo package, target, profile and features as the artifact. The normal dependency graph excludes procedural macros; the target standard-library closure is a conservative superset of retained code. Every platform package and the main WASI package ships `THIRD-PARTY-NOTICES.txt` (`docs/release/notices.md`). This changes distribution notices, not licences.
@@ -283,7 +319,8 @@ Native and WASI builds use the compiler version and commit in `scripts/rust-dist
   - the Node launcher passes arguments, streams and exit codes through to
     the binary, on fixtures, and falls back to the WASI build when the
     binary cannot start;
-  - the install script makes `bin/coreav` the binary, and leaves the
+  - the install script links `bin/coreav` to the platform binary without a
+    second copy, survives relocation and reinstall, and leaves the
     launcher for another version's binary or for none.
 - CI (`.github/workflows/npm.yml`) builds, runs the tests, and dry-runs
   `npm publish` on every tarball. `test/smoke.sh` then installs the packed

@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -87,6 +87,28 @@ test("the install script makes the command the native binary", { skip: needsBin 
     assert.equal(done.status, 0, done.stderr.toString());
     assert.ok(readFileSync(join(copy, "bin", "coreav")).equals(readFileSync(bin)), "bin/coreav is not the binary");
     assert.deepEqual(run(join(copy, "bin", "coreav"), ["--version"]), run(bin, ["--version"]));
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test("the installed command shares the platform binary and survives relocation and reinstall", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
+  const scratch = mkdtempSync(join(tmpdir(), "coreav-link-"));
+  try {
+    const copy = installed(scratch, bin);
+    const command = join(copy, "bin", "coreav");
+    const binary = join(scratch, "node_modules", "@coreav", `cli-${platform}`, "bin", exe);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const done = run(process.execPath, [join(copy, "install.js")], { COREAV_BINARY: "" });
+      assert.equal(done.status, 0, done.stderr.toString());
+      assert.ok(lstatSync(command).isSymbolicLink());
+      assert.equal(realpathSync(command), realpathSync(binary));
+      assert.ok(readlinkSync(command).startsWith("../"));
+      assert.deepEqual(run(command, ["--version"]), run(bin, ["--version"]));
+    }
+    const moved = join(scratch, "moved");
+    renameSync(join(scratch, "node_modules"), moved);
+    assert.deepEqual(run(join(moved, "coreav", "bin", "coreav"), ["--version"]), run(bin, ["--version"]));
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

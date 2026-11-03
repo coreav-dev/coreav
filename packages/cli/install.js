@@ -29,8 +29,7 @@ function install() {
   // at once do not write one file.
   const temporary = `${target}.${process.pid}.tmp`;
   try {
-    fs.copyFileSync(binary, temporary);
-    fs.chmodSync(temporary, 0o755);
+    fs.symlinkSync(path.relative(path.dirname(target), binary), temporary);
     fs.renameSync(temporary, target);
   } finally {
     fs.rmSync(temporary, { force: true });
