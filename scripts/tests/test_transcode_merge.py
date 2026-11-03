@@ -117,6 +117,59 @@ class Merge(unittest.TestCase):
 
 
 class ComposedMerge(unittest.TestCase):
+    def test_manifest_and_run_applicability_reports_must_agree(self):
+        tmp, _, shards = self.runs()
+        for shard in map(pathlib.Path, shards):
+            path = shard / 'manifest.json'
+            document = json.loads(path.read_text())
+            document['inapplicable'] = [{'config': 'x15', 'file': 'a.mp4',
+                'reason': checker.NO_MAPPED_AUDIO, 'source_audio_streams': 0,
+                'source_sha256': hashlib.sha256(b'a.mp4').hexdigest()}]
+            path.write_text(json.dumps(document))
+        status, text = check('--merge', *shards, '--out', str(tmp / 'merged'),
+                             '--compat-check', composed.VERSION)
+        self.assertNotEqual(status, 0)
+        self.assertIn('run and manifest applicability reports differ', text)
+
+    def test_current_shards_cannot_drop_the_applicability_report(self):
+        tmp, _, shards = self.runs()
+        for shard in map(pathlib.Path, shards):
+            path = shard / 'manifest.json'
+            document = json.loads(path.read_text())
+            del document['inapplicable']
+            path.write_text(json.dumps(document))
+        status, text = check('--merge', *shards, '--out', str(tmp / 'merged'),
+                             '--compat-check', composed.VERSION)
+        self.assertNotEqual(status, 0)
+        self.assertIn('current evidence lacks its command applicability report', text)
+
+    def test_global_preflight_exclusions_survive_summary_and_shard_merge(self):
+        tmp, whole, shards = self.runs()
+        excluded = [{'config': 'x15', 'file': 'a.mp4', 'reason': checker.NO_MAPPED_AUDIO,
+                     'source_audio_streams': 0, 'source_sha256': hashlib.sha256(b'a.mp4').hexdigest()}]
+        path = whole / 'run.json'
+        info = json.loads(path.read_text())
+        info['inapplicable'] = excluded
+        path.write_text(json.dumps(info))
+        for shard in map(pathlib.Path, shards):
+            self.rewrite_archive(shard, lambda name, doc:
+                doc | {'inapplicable': excluded} if name == 'run.json' else doc)
+            path = shard / 'manifest.json'
+            manifest = json.loads(path.read_text())
+            manifest['inapplicable'] = excluded
+            path.write_text(json.dumps(manifest))
+        options = ('--compat-check', composed.VERSION)
+        _, whole_text = check('--summarize', '--out', str(whole), *options)
+        merged = tmp / 'merged'
+        _, merged_text = check('--merge', *shards, '--out', str(merged), *options)
+        self.assertEqual(merged_text, whole_text)
+        self.assertIn('inapplicable x15 fixtures: 1', merged_text)
+        self.assertIn('a.mp4: ' + checker.NO_MAPPED_AUDIO, merged_text)
+        summary = json.loads((merged / 'summary.json').read_text())
+        self.assertEqual(summary['inapplicable'], excluded)
+        self.assertEqual(summary['run']['inapplicable'], excluded)
+        self.assertEqual(json.loads((merged / 'evidence/manifest.json').read_text())['inapplicable'], excluded)
+
     def runs(self):
         fixtures = {name: hashlib.sha256(name.encode()).hexdigest() for name in FILES}
         tmp, whole, shards = Merge.runs(self, lambda c, k: 'refused', fixtures=lambda _: fixtures)
@@ -135,6 +188,7 @@ class ComposedMerge(unittest.TestCase):
             else:
                 document['commands' if 'commands' in document else 'compat'] = checker.COMPOSED_COMMANDS
                 document['tools'] = tools
+                document['inapplicable'] = []
             return document
 
         for path in [whole / 'run.json', *whole.glob('results/*/*.json')]:

@@ -361,6 +361,99 @@ class Projection(unittest.TestCase):
 
 
 class Mapping(unittest.TestCase):
+    def test_first_audio_mapping_applies_only_to_sources_with_audio(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ('video-only.mp4', 'with-audio.mp4', 'composed-mapped-opus.mp4'):
+                (root / name).touch()
+            args = SimpleNamespace(fixtures=str(root), compat=True, debug_scale_all=False,
+                                   compat_check=composed.VERSION, ffprobe='ffprobe')
+
+            def probe(_, path):
+                return {'status': 'ok', 'codec': 'h264', 'audio': 0 if path.name == 'video-only.mp4' else 1}
+
+            with mock.patch.object(checker, 'probe', side_effect=probe):
+                selected = checker.fixture_inputs(args)
+                current = {row['key']: row['configs'] for row in selected}
+                args.compat_check = 'legacy-b9'
+                legacy = checker.fixture_inputs(args)
+            self.assertNotIn('x15', current['video-only.mp4'])
+            self.assertIn('x15', current['with-audio.mp4'])
+            self.assertIn('x15', current['composed-mapped-opus.mp4'])
+            self.assertIn('x16', current['composed-mapped-opus.mp4'])
+            self.assertNotIn('x16', current['with-audio.mp4'])
+            self.assertTrue(all(row['configs'] == list(checker.COMPAT_COMMANDS) for row in legacy))
+            for configs in current.values():
+                self.assertTrue(set(checker.COMPAT_COMMANDS).issubset(configs))
+            excluded = [row for item in selected for row in item['inapplicable']]
+            self.assertEqual(excluded, [{'config': 'x15', 'file': 'video-only.mp4',
+                'reason': checker.NO_MAPPED_AUDIO, 'source_audio_streams': 0,
+                'source_sha256': composed.sha256_file(root / 'video-only.mp4')}])
+            checker.validate_applicability({'inapplicable': excluded})
+            text = checker.table({'configs': {}, 'inapplicable': excluded})
+            self.assertIn('inapplicable x15 fixtures: 1', text)
+            self.assertIn('video-only.mp4: ' + checker.NO_MAPPED_AUDIO, text)
+
+    def test_an_audio_bearing_fixture_failure_is_still_judged(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'audio.mp4'
+            source.write_bytes(b'bound source')
+            args = SimpleNamespace(fixtures=str(root), compat=True, debug_scale_all=False,
+                compat_check=composed.VERSION, ffprobe='ffprobe', out=str(root / 'out'), tmp=None)
+            with mock.patch.object(checker, 'probe',
+                    return_value={'status': 'ok', 'codec': 'h264', 'audio': 1}):
+                item = checker.fixture_inputs(args)[0]
+            self.assertIn('x15', item['configs'])
+            self.assertEqual(item['inapplicable'], [])
+            item['configs'] = ['x15']
+            identity = composed.registration()[1]
+            marker = {'compat_check': identity, 'judging_sha256': composed.method_identity()}
+            failed = marker | {'config': 'x15', 'class': 'h264', 'command': checker.COMPOSED_COMMANDS['x15'],
+                'source_sha256': composed.sha256_file(source), 'composed_outputs': [], 'has_audio': True,
+                'complete': True, 'arms': {'x264': marker | {'status': 'failed', 'exit': 2, 'reason': 'controlled'}},
+                'baseline': marker | {'status': 'failed', 'exit': 234}}
+            expected = {'x15': {'audio.mp4': 'h264'}}
+            run_info = marker | {'mode': 'fixtures', 'compat': checker.COMPOSED_COMMANDS,
+                'expected': expected, 'inapplicable': [], 'tools': {
+                    name: {'sha256': 'a' * 64} for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare')}}
+            checker._write(Path(args.out) / 'run.json', run_info)
+            with mock.patch.object(checker, 'check_compat', return_value=failed) as run:
+                checker.process(args, item)
+            run.assert_called_once()
+            report = checker.summarize(args.out, True, expected, ['x264'], compat=True)
+            report['run'] = run_info
+            bars = report['configs']['x15']['x264']['all']
+            self.assertEqual(bars['B1']['judged'], 1)
+            self.assertEqual(bars['B3']['judged'], 1)
+            self.assertFalse(bars['B1']['met'])
+            self.assertEqual(checker.verdict_status(report), 1)
+
+    def test_outcomes_and_changed_source_bytes_cannot_establish_inapplicability(self):
+        row = {'config': 'x15', 'file': 'video.mp4', 'reason': checker.NO_MAPPED_AUDIO,
+               'source_audio_streams': 0, 'source_sha256': 'a' * 64}
+        for change in ({'source_audio_streams': 1}, {'source_audio_streams': False},
+                       {'reason': 'both programs rejected'}, {'config': 'x01'}):
+            with self.subTest(change=change), self.assertRaises(composed.Invalid):
+                checker.validate_applicability({'inapplicable': [row | change]})
+        with self.assertRaises(composed.Invalid):
+            checker.validate_applicability({'inapplicable': [row]}, {'video.mp4': 'b' * 64})
+        with self.assertRaises(composed.Invalid):
+            checker.validate_applicability({'inapplicable': [row], 'expected': {'x15': {'video.mp4': 'h264'}}})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'video.mp4'
+            source.write_bytes(b'original')
+            args = SimpleNamespace(fixtures=str(root), compat=True, debug_scale_all=False,
+                                   compat_check=composed.VERSION, ffprobe='ffprobe')
+
+            def changing_probe(*_):
+                source.write_bytes(b'replaced')
+                return {'status': 'ok', 'codec': 'h264', 'audio': 0}
+
+            with mock.patch.object(checker, 'probe', side_effect=changing_probe), self.assertRaises(composed.Invalid):
+                checker.fixture_inputs(args)
+
     def test_the_baseline_mapping_not_the_candidate_selects_the_audio(self):
         streams = [{'index': 0, 'codec_type': 'video'}, {'index': 1, 'codec_type': 'audio'},
                    {'index': 2, 'codec_type': 'audio'}]

@@ -212,6 +212,7 @@ COMPOSED_COMMANDS = COMPAT_COMMANDS | {
     'x15': '-i IN -map 0:v:0 -map 0:a:0 -c:v libx264 -c:a aac OUT.mp4',
     'x16': '-i IN -map 0:v:0 -map 0:a:1 -c:v libx264 -c:a aac OUT.mp4',
 }
+NO_MAPPED_AUDIO = 'source stream metadata has no audio stream selectable by mandatory map 0:a:0'
 
 
 def check_identity(args):
@@ -1138,6 +1139,27 @@ def display_matrix(args, path, index):
     return [x.get('displaymatrix') for x in s.get('side_data_list', [])]
 
 
+def validate_applicability(info, fixture_hashes=None):
+    excluded = info.get('inapplicable', [])
+    if not isinstance(excluded, list):
+        raise composed_audio.Invalid('invalid command applicability report')
+    seen = set()
+    for row in excluded:
+        if not isinstance(row, dict) or set(row) != {
+                'config', 'file', 'reason', 'source_audio_streams', 'source_sha256'}:
+            raise composed_audio.Invalid('incomplete command applicability evidence')
+        name = row['file']
+        if row['config'] != 'x15' or row['reason'] != NO_MAPPED_AUDIO or \
+                type(row['source_audio_streams']) is not int or row['source_audio_streams'] != 0 or \
+                not isinstance(name, str) or not name or pathlib.PurePosixPath(name).name != name or \
+                re.fullmatch(r'[0-9a-f]{64}', str(row['source_sha256'])) is None or name in seen or \
+                name in info.get('expected', {}).get('x15', {}):
+            raise composed_audio.Invalid('command applicability does not follow source preflight')
+        if fixture_hashes is not None and fixture_hashes.get(name) != row['source_sha256']:
+            raise composed_audio.Invalid('inapplicable source bytes differ from preflight')
+        seen.add(name)
+
+
 def validate_info(info, identity, manifest=False):
     composed_audio.require_version(info, identity)
     if identity is None:
@@ -1147,6 +1169,9 @@ def validate_info(info, identity, manifest=False):
         return
     if info.get('judging_sha256') != composed_audio.method_identity():
         raise composed_audio.Invalid('evidence was acquired with different judging source bytes')
+    if 'inapplicable' not in info:
+        raise composed_audio.Invalid('current evidence lacks its command applicability report')
+    validate_applicability(info)
     if info.get('commands' if manifest else 'compat') != COMPOSED_COMMANDS or \
             (not manifest and info.get('mode') != 'fixtures'):
         raise composed_audio.Invalid('current evidence has the wrong command roster or mode')
@@ -1258,6 +1283,8 @@ def export_evidence(args, out, run_info):
     validate_info(run_info, identity)
     fixtures = sorted(p for p in pathlib.Path(args.fixtures).iterdir() if p.is_file())
     fixture_hashes = {p.name: sha256_file(p) for p in fixtures}
+    if identity is not None:
+        validate_applicability(run_info, fixture_hashes)
     ev = out / 'evidence'
     ev.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -1291,6 +1318,7 @@ def export_evidence(args, out, run_info):
         'arms': {n: [f'{var}={os.path.basename(v)}' for var, v in w] for n, w in args.arms},
         'tools': run_info['tools'], 'ffmpeg_version': run_info['ffmpeg_version'],
         'fixtures': fixture_hashes,
+        **({'inapplicable': run_info.get('inapplicable', [])} if identity is not None else {}),
         **({'compat_check': check_identity(args), 'judging_sha256': composed_audio.method_identity()}
            if check_identity(args) is not None else {})})
 
@@ -1332,19 +1360,29 @@ def bitrate_check(args, name, path, tmp, video, audio):
 
 def fixture_inputs(args):
     items = []
+    current = args.compat and check_identity(args) is not None
     for path in sorted(pathlib.Path(args.fixtures).iterdir()):
         if path.suffix.lstrip('.').lower() not in FIXTURE_EXTS:
             continue
+        digest = sha256_file(path) if current else None
         p = probe(args.ffprobe, path)
+        if current and sha256_file(path) != digest:
+            raise composed_audio.Invalid('source bytes changed during stream preflight')
         if p.get('status') != 'ok' or p['codec'] not in CLASSES:
             continue
         # The scaled configuration is a corpus run (docs/design/transcode.md); on fixtures only for debugging.
         configs = ['default'] + (['scaled'] if args.debug_scale_all else [])
+        excluded = []
         if args.compat:
             configs = list(compat_commands(args))
+            if 'x15' in configs and p['audio'] == 0:
+                configs.remove('x15')
+                excluded.append({'config': 'x15', 'file': path.name, 'reason': NO_MAPPED_AUDIO,
+                                 'source_audio_streams': 0, 'source_sha256': digest})
             if 'x16' in configs and path.name != 'composed-mapped-opus.mp4':
                 configs.remove('x16')
-        items.append({'key': path.name, 'path': str(path), 'class': p['codec'], 'configs': configs})
+        items.append({'key': path.name, 'path': str(path), 'class': p['codec'], 'configs': configs,
+                      **({'inapplicable': excluded} if current else {})})
     return items
 
 
@@ -1602,6 +1640,7 @@ def summarize(out, fixtures, expected, arms, compat=False):
     if identity is not None:
         report['compat_check'] = identity
         report['judging_sha256'] = composed_audio.method_identity()
+        report['inapplicable'] = composed_audio.json_document(info_path.read_bytes()).get('inapplicable', [])
     for config, files in expected.items():
         results = rows[config]
         classes = sorted(set(files.values()), key=CLASSES.index) + ['all']
@@ -1735,6 +1774,10 @@ def class_verdict(rs, arm, b23_bar, fixtures, compat=False):
 
 def table(report):
     lines = []
+    if 'inapplicable' in report:
+        excluded = report['inapplicable']
+        lines.append(f'inapplicable x15 fixtures: {len(excluded)}')
+        lines += [f'inapplicable {row["config"]} {row["file"]}: {row["reason"]}' for row in excluded]
     for config, rows in report.get('refused_with_baseline_ok', {}).items():
         for row in rows:
             lines.append(f'refused by CoreAV, transcoded by the baseline ({config}): {row[0]} {row[1]}: {row[2]}')
@@ -1884,6 +1927,7 @@ def main():
     if identity is not None:
         run_info['compat_check'] = identity
         run_info['judging_sha256'] = composed_audio.method_identity()
+        run_info['inapplicable'] = []
         if (out / 'run.json').exists() and json.loads((out / 'run.json').read_text()).get('tools') != run_info['tools']:
             raise composed_audio.Invalid('resume candidate or oracle programs differ')
         validate_info(run_info, identity)
@@ -1897,6 +1941,8 @@ def main():
         keys = args.only.split(',')
         items = [i for i in items if any(i['key'].startswith(k) for k in keys)]
         run_info['only'] = keys
+    if identity is not None:
+        run_info['inapplicable'] = [row for item in items for row in item.get('inapplicable', [])]
     if shard:
         k, n = int(shard[1]), int(shard[2])
         items = items[k - 1::n]
@@ -1984,6 +2030,11 @@ def merge(args):
     if differ:
         raise SystemExit(f'--merge: the shards ran on different bytes of {", ".join(differ)}: '
                          'give every shard the one fixture set of the run')
+    if identity is not None:
+        for info in [*infos.values(), *manifests]:
+            validate_applicability(info, fixtures[0])
+        if infos[1]['inapplicable'] != manifests[0]['inapplicable']:
+            raise composed_audio.Invalid('run and manifest applicability reports differ')
 
     def common(d):
         return {k: v for k, v in d.items() if k not in ('shard', 'expected', 'tools')}
