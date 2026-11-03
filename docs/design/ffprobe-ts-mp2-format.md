@@ -23,6 +23,11 @@ PMT after the PAT, and retains `fltp` for type 0x03 in that first table.
 Generated controls preserve this distinction with several streams in the
 first table and a shared PID in a later program. Actual Layer III stays
 `fltp` under both declarations and both program positions.
+The MP2 codec-name fallback alone is not a parsed layer: require the
+audio header's Layer II detail before overriding the default format.
+With no PES payload or no readable audio header, both declarations and
+both program positions retain `fltp`. The existing fallback codec name
+is unchanged.
 Keep the choice in the transport ffprobe adapter rather than changing
 the shared codec-name defaults. The parser already exposes these facts;
 add no parser, read, decode operation, configuration field or retained
@@ -44,6 +49,9 @@ streams in the first table, both declarations for a later stream, and
 a PES before or after the later PMT. A PID shared by both programs keeps
 its original format. Declaration changes preserve the elementary frames
 so that payload corruption cannot explain the format difference.
+Eight additional cases cover absent PES data and unreadable payloads
+under both declarations in initial and later programs. These require
+`fltp` in flat and nested output, matching the pinned binary.
 
 Check the identified development multiplex only after verifying its
 non-holdout flag and full SHA-256. Compare every actual MP2 stream's flat

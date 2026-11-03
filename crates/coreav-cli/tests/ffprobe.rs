@@ -932,6 +932,55 @@ fn frames_coreav_cannot_decode_are_refused_before_anything_is_printed() {
 }
 
 #[test]
+fn transport_audio_without_a_layer_header_keeps_the_default_format() {
+    let mut frame = vec![0; 576];
+    frame[..4].copy_from_slice(&[0xff, 0xfd, 0xa4, 0xc0]);
+    for kind in [3, 4] {
+        for later in [false, true] {
+            for payload in [false, true] {
+                let mut mux = ts::Mux::default();
+                if later {
+                    mux.pat(&[(1, 0x1000), (2, 0x1001)]);
+                    mux.pmt(0x1000, 1, &[(3, 0x110)]);
+                    mux.pes(0x110, 0xc0, 90_000, &frame.repeat(12), true);
+                    mux.pmt(0x1001, 2, &[(kind, 0x101)]);
+                } else {
+                    mux.pat(&[(1, 0x1000)]);
+                    mux.pmt(0x1000, 1, &[(kind, 0x101)]);
+                }
+                for index in 0..12 {
+                    if payload {
+                        mux.pes(0x101, 0xc0, 90_000 + index * 4320, &[0; 576], true);
+                    } else {
+                        mux.packet(0x1fff, false, &[0xff; 184]);
+                    }
+                }
+                let name = format!("ffprobe-unresolved-audio-{kind}-{later}-{payload}.ts");
+                let path = file(&name, &mux.out);
+                let r = ffprobe(&[
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "program=program_id:stream=id,sample_fmt",
+                    "-of",
+                    "json",
+                    &path.to_string_lossy(),
+                ]);
+                assert_eq!(r.code, 0, "{name}: {}", r.stderr);
+                let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+                let streams = doc["streams"].as_array().unwrap();
+                assert_eq!(streams.len(), if later { 2 } else { 1 }, "{name}");
+                for stream in streams {
+                    assert_eq!(stream["sample_fmt"], "fltp", "{name}: {stream}");
+                }
+                let program = if later { 1 } else { 0 };
+                assert_eq!(doc["programs"][program]["streams"][0], streams[program]);
+            }
+        }
+    }
+}
+
+#[test]
 fn transport_mp2_formats_follow_the_initial_program_declarations() {
     for (layer, rate_index, codec, frame_len, bit_rate) in [
         (0xfd, 0xa4, "mp2", 576, "192000"),
