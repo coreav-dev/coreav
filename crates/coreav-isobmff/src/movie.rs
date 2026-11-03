@@ -215,6 +215,15 @@ impl DroppedStream {
     }
 }
 
+/// Sample totals for one track in a single movie fragment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FragmentTotals {
+    /// Sum of encoded sample sizes in bytes.
+    pub bytes: u64,
+    /// Sum of encoded sample durations in track-timescale ticks, excluding `tfdt`.
+    pub duration: u64,
+}
+
 /// One track.
 #[derive(Clone, Debug)]
 pub struct Track {
@@ -276,10 +285,10 @@ pub struct Track {
     /// that has samples, once [`Movie::scan_fragments`] has read the
     /// fragments; `None` before, or when that fragment has no `tfdt`.
     pub fragment_start: Option<i64>,
-    /// The bytes of the samples of the track's first fragment that has
+    /// Matched byte and duration totals of the track's first fragment with
     /// samples, once [`Movie::scan_fragments`] has read the fragments;
     /// `None` before, without fragments, or when they cannot be counted.
-    pub first_fragment_bytes: Option<u64>,
+    pub first_fragment_totals: Option<FragmentTotals>,
     /// The track's data is in another file; it has no packets.
     pub external_data: bool,
     /// The sample tables are consistent; packets are available.
@@ -861,7 +870,7 @@ impl Movie {
         // that fragment has none), and whether it was seen.
         let mut starts: Vec<(bool, Option<i64>)> = vec![(false, None); self.tracks.len()];
         let mut bytes = vec![Some(0u64); self.tracks.len()];
-        let mut first_bytes: Vec<Option<u64>> = vec![None; self.tracks.len()];
+        let mut first_totals: Vec<Option<FragmentTotals>> = vec![None; self.tracks.len()];
         // Dropped streams: only their fragment durations and first
         // composition offset, for their timing (none of their samples).
         let dropped_trex: Vec<Option<Trex>> = self
@@ -907,7 +916,7 @@ impl Movie {
                     .zip(bytes.iter_mut())
                     .zip(first_offsets.iter_mut())
                     .zip(starts.iter_mut())
-                    .zip(first_bytes.iter_mut())
+                    .zip(first_totals.iter_mut())
                 {
                     let Some(trex) = track.trex else { continue };
                     // A track whose media is in another file gets no
@@ -929,7 +938,8 @@ impl Movie {
                         &boxes,
                     )?;
                     let (duration, samples, start) = fragment.duration(&mut work)?;
-                    if samples > 0 && !first_start.0 {
+                    let first = samples > 0 && !first_start.0;
+                    if first {
                         *first_start = (true, start);
                     }
                     total.0 = total
@@ -965,8 +975,11 @@ impl Movie {
                                 .ok_or(Error::Overflow { offset: at })?,
                         );
                     }
-                    if samples > 0 && first_sum.is_none() {
-                        *first_sum = before.zip(*sum).map(|(b, a)| a.saturating_sub(b));
+                    if first {
+                        *first_sum = before.zip(*sum).map(|(b, a)| FragmentTotals {
+                            bytes: a.saturating_sub(b),
+                            duration,
+                        });
                     }
                 }
                 for ((((trex, total), first_offset), first_start), unusable) in dropped_trex
@@ -1053,10 +1066,10 @@ impl Movie {
             .zip(bytes)
             .zip(first_offsets)
             .zip(starts)
-            .zip(first_bytes)
+            .zip(first_totals)
         {
             track.fragment_first_offset = first_offset;
-            track.first_fragment_bytes = first_sum;
+            track.first_fragment_totals = first_sum;
             track.fragment_start = start.1;
             track.sample_bytes = match (track.stsz_bytes, sum) {
                 (Some(stsz), Some(fragments)) => Some(
@@ -2038,7 +2051,7 @@ fn parse_trak<S: Source>(
         sample_count: parts.tables.sample_count(),
         fragment_samples: 0,
         fragment_start: None,
-        first_fragment_bytes: None,
+        first_fragment_totals: None,
         external_data,
         tables_valid: problem.is_none(),
         sample_bytes: stsz_bytes,

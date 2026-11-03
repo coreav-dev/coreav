@@ -1494,16 +1494,6 @@ fn stream(
         "duration",
         duration_ts.map_or(Value::Na, |v| time(v, 1, timescale)),
     ));
-    // The track's own duration: a data track's filled span does not count.
-    // In a fragmented movie with a segment index, `ffprobe` counts the
-    // bytes of the first fragment only (found on the development set: the
-    // index lets it stop reading there), over the whole duration.
-    let first_only = movie.has_fragments() && !movie.segment_indexes.is_empty();
-    let bytes = if first_only {
-        track.first_fragment_bytes
-    } else {
-        track.sample_bytes
-    };
     // Video and audio over their whole media, edits aside: the shorter of
     // the media header's duration and the samples'. Read from `ffprobe`'s
     // output on the development set: 8 of 8 edited video streams whose
@@ -1523,17 +1513,22 @@ fn stream(
         None
     };
     let bit_rate = coded_rate.or_else(|| {
-        // A fragmented movie's video and audio bytes are over the stream's
-        // duration as it is printed, its start included (the development
-        // set: 18 of the 19 fragmented movies with audio agree, 10 before);
-        // a subtitle or data track keeps its own span, not the longest
-        // track's it is printed with.
-        let own = duration_ts
-            .filter(|d| movie.has_fragments() && (video || audio) && *d > 0)
-            .or(span)
-            .or_else(|| media_duration(movie, track))?;
-        let ticks = u128::try_from(own).ok().filter(|t| *t > 0)?;
-        let bits = u128::from(bytes?)
+        let (bytes, ticks) = if movie.has_fragments() {
+            if movie.segment_indexes.is_empty() {
+                (track.sample_bytes?, track.sample_duration)
+            } else {
+                let first = track.first_fragment_totals?;
+                (first.bytes, first.duration)
+            }
+        } else {
+            let own = span.or_else(|| media_duration(movie, track))?;
+            (track.sample_bytes?, u64::try_from(own).ok()?)
+        };
+        let ticks = u128::from(ticks);
+        if ticks == 0 {
+            return None;
+        }
+        let bits = u128::from(bytes)
             .checked_mul(8)?
             .checked_mul(u128::from(track.timescale))?;
         // The rate of a fragmented movie is rounded to the nearest (the
