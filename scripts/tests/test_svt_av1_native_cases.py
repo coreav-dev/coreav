@@ -63,6 +63,24 @@ class NativeCases(unittest.TestCase):
             calls = []
             builds = []
             by_id = {case.id: case for case in DRIVER.cases.load()}
+            clock = [0.0]
+            terminal_deadline = failure in ('media-final-deadline', 'media-report-deadline')
+            last_complete = [case for case in by_id.values() if case.outcome == 'complete'][-1]
+            original_verify = DRIVER.media.verify
+            original_write_text = Path.write_text
+
+            def verify_media(directory, case, identity, record, deadline, remaining):
+                result = original_verify(directory, case, identity, record, deadline, remaining)
+                if failure == 'media-final-deadline' and case.id == last_complete.id:
+                    clock[0] = 1201.0
+                return result
+
+            def write_report(path, text, *args, **kwargs):
+                result = original_write_text(path, text, *args, **kwargs)
+                if (failure == 'media-report-deadline' and path.name == 'report.json'
+                        and json.loads(text).get('complete') is True):
+                    clock[0] = 1201.0
+                return result
 
             def runner(command, environment, timeout, *, stdin=None, record):
                 if command[0] == identity['cargo_path']:
@@ -71,6 +89,10 @@ class NativeCases(unittest.TestCase):
                     return
                 calls.append((command, environment, timeout))
                 directory = Path(environment['COREAV_SVT_CASE_DIRECTORY'])
+                if failure == 'media-late-change' and directory.name != 'one':
+                    previous = directory.parent / 'one/combined.obu'
+                    if previous.exists():
+                        previous.write_bytes(b'changed after its native child exited')
                 case = by_id[directory.name]
                 outcome = environment['COREAV_SVT_CASE_OUTCOME']
                 frames = int(environment['COREAV_SVT_CASE_FRAMES'])
@@ -119,6 +141,12 @@ class NativeCases(unittest.TestCase):
                         if outcome == 'complete':
                             completion.update(segments=segments, packets=segments,
                                               open_attempts=segments)
+                            names = ['wire.bin', 'combined.obu', 'samples.ndjson', 'configuration.av1c']
+                            names += [f'segment-{number}.obu' for number in range(segments)]
+                            for name in names:
+                                (directory / name).write_bytes(b'synthetic media, not encoded AV1: ' + name.encode())
+                            if failure == 'media-missing' and directory.name == 'one':
+                                (directory / 'configuration.av1c').unlink()
                         if directory.name == 'one' and failure == 'peak':
                             completion['peak'] -= 1
                     (directory / 'complete.json').write_text(json.dumps(completion))
@@ -126,7 +154,13 @@ class NativeCases(unittest.TestCase):
             output = root / 'results'
             with patch.object(DRIVER, 'context', return_value=identity), \
                     patch.object(DRIVER.cases, 'write_input', side_effect=lambda out, case: out.write(b'fixture')), \
-                    patch.object(DRIVER.os, 'killpg', side_effect=ProcessLookupError):
+                    patch.object(DRIVER.os, 'killpg', side_effect=ProcessLookupError), \
+                    (patch.object(DRIVER.time, 'monotonic', side_effect=lambda: clock[0])
+                     if terminal_deadline else contextlib.nullcontext()), \
+                    (patch.object(DRIVER.media, 'verify', side_effect=verify_media)
+                     if terminal_deadline else contextlib.nullcontext()), \
+                    (patch.object(Path, 'write_text', write_report)
+                     if terminal_deadline else contextlib.nullcontext()):
                 if failure:
                     with self.assertRaisesRegex(ValueError, 'did not complete'):
                         DRIVER.run(root, 'x86_64-unknown-linux-musl', output, runner)
@@ -138,6 +172,14 @@ class NativeCases(unittest.TestCase):
             self.assertEqual(len(report['cases']), 97)
             self.assertEqual(report['complete'], failure is None)
             self.assertTrue(all(0 < call[2] <= 180 for call in calls))
+            if failure is None:
+                complete = [row for row in report['cases'] if row['case']['outcome'] == 'complete']
+                self.assertEqual(len(complete), 87)
+                self.assertEqual(report['media_bytes'], sum(row['media']['total_bytes'] for row in complete))
+                for row in complete:
+                    self.assertEqual(row['media']['identity'], report['identity'])
+                    self.assertEqual(row['media']['case'], row['case'])
+                    self.assertIn('wire.bin', row['media']['files'])
             self.assertEqual([row['case']['id'] for row in report['cases']],
                              [case.id for case in DRIVER.cases.load()])
             if failure == 'timeout':
@@ -145,12 +187,25 @@ class NativeCases(unittest.TestCase):
                 self.assertEqual((output / 'empty/stderr.log').read_text(), 'synthetic stderr')
             if failure == 'crash':
                 self.assertEqual(report['cases'][0]['exit_code'], -11)
+            if terminal_deadline:
+                self.assertTrue(all(row['complete'] for row in report['cases']))
+                self.assertIn('deadline', report['error'])
 
     def test_every_case_has_one_isolated_child_and_complete_record(self):
         self.run_cases()
 
     def test_missing_records_crashes_timeouts_and_counts_fail_closed(self):
         for failure in ['completion', 'status', 'crash', 'timeout', 'count', 'peak', 'deadline-marker']:
+            with self.subTest(failure=failure):
+                self.run_cases(failure)
+
+    def test_missing_or_later_changed_media_prevents_a_complete_target(self):
+        for failure in ('media-missing', 'media-late-change'):
+            with self.subTest(failure=failure):
+                self.run_cases(failure)
+
+    def test_target_expiration_after_the_last_recheck_or_report_write_prevents_success(self):
+        for failure in ('media-final-deadline', 'media-report-deadline'):
             with self.subTest(failure=failure):
                 self.run_cases(failure)
 

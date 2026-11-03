@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import svt_av1_cases as cases
 import svt_av1_licenses as licenses
+import svt_av1_media as media
 
 SPEC = importlib.util.spec_from_file_location('svt_native_process',
                                             ROOT / 'scripts/encoders/svt-av1/build.py')
@@ -185,6 +186,7 @@ def run(prefix, target, destination, runner=PROCESS.run):
               'complete': False, 'cases': []}
     report_path = destination / 'report.json'
     deadline = time.monotonic() + 1200
+    media_bytes = 0
     for case in roster:
         directory = destination / case.id
         directory.mkdir()
@@ -258,6 +260,13 @@ def run(prefix, target, destination, runner=PROCESS.run):
                 if completion['pre_termination']['peak'] != exact:
                     raise ValueError('deadline control changed its exact retained peak')
             result['native'] = completion
+            if case.outcome == 'complete':
+                if (result['exit_code'] != 0 or result['timed_out']
+                        or not result.get('group_absent')):
+                    raise ValueError('native media requires an exited and reaped producer')
+                result['media'] = media.capture(directory, case, current, deadline,
+                                                media.MAX_TARGET_BYTES - media_bytes)
+                media_bytes += result['media']['total_bytes']
             result['complete'] = True
         except (OSError, ValueError, PROCESS.BuildError) as error:
             result['error'] = str(error)
@@ -273,10 +282,22 @@ def run(prefix, target, destination, runner=PROCESS.run):
     try:
         if {**context(prefix, target), 'binary_sha256': digest(binary)} != current:
             raise ValueError('native build identity changed during the cases')
+        verified_bytes = 0
+        for case, result in zip(roster, report['cases'], strict=True):
+            if case.outcome == 'complete' and result['complete']:
+                verified_bytes += media.verify(destination / case.id, case, current, result['media'],
+                                               deadline, media.MAX_TARGET_BYTES - verified_bytes)
+        if verified_bytes != media_bytes:
+            raise ValueError('native media inventory did not reconcile')
+        report['media_bytes'] = verified_bytes
     except (OSError, ValueError) as error:
         report['complete'] = False
         report['error'] = str(error)
     report_path.write_text(json.dumps(report, indent=2) + '\n')
+    if report['complete'] and time.monotonic() >= deadline:
+        report['complete'] = False
+        report['error'] = 'native-case deadline exhausted at target completion'
+        report_path.write_text(json.dumps(report, indent=2) + '\n')
     if not report['complete']:
         raise ValueError('one or more native cases did not complete as registered')
     return report
