@@ -363,9 +363,15 @@ struct Subframe {
 }
 
 struct Rice {
+    parameter_bits: u8,
     order: u8,
-    parameters: Vec<u8>,
+    parameters: Vec<Partition>,
     cost: u64,
+}
+
+enum Partition {
+    Rice(u8),
+    Escape(u8),
 }
 
 fn lpc_shift(largest: f64) -> u8 {
@@ -394,6 +400,7 @@ impl Subframe {
             predictor: Predictor::Verbatim,
             residual: Vec::new(),
             rice: Rice {
+                parameter_bits: 4,
                 order: 0,
                 parameters: Vec::new(),
                 cost: 0,
@@ -566,18 +573,38 @@ impl Subframe {
                 output.put(15, coefficient as u64);
             }
         }
-        output.put(2, 0);
+        output.put(2, u64::from(self.rice.parameter_bits - 4));
         output.put(4, u64::from(self.rice.order));
         let partition = self.samples.len() >> self.rice.order;
         let mut residual = self.residual.as_slice();
-        for (index, k) in self.rice.parameters.into_iter().enumerate() {
-            output.put(4, u64::from(k));
+        for (index, parameter) in self.rice.parameters.into_iter().enumerate() {
             let count = partition - if index == 0 { order } else { 0 };
             let (values, rest) = residual.split_at(count);
             residual = rest;
-            for value in values {
-                output.unary(u64::from(*value >> k));
-                output.put(k, u64::from(*value));
+            match parameter {
+                Partition::Rice(k) => {
+                    output.put(self.rice.parameter_bits, u64::from(k));
+                    for value in values {
+                        output.unary(u64::from(*value >> k));
+                        output.put(k, u64::from(*value));
+                    }
+                }
+                Partition::Escape(width) => {
+                    output.put(
+                        self.rice.parameter_bits,
+                        (1 << self.rice.parameter_bits) - 1,
+                    );
+                    output.put(5, u64::from(width));
+                    for value in values {
+                        let value = *value;
+                        let signed = if value & 1 == 0 {
+                            i64::from(value >> 1)
+                        } else {
+                            -i64::from(value >> 1) - 1
+                        };
+                        output.put(width, signed as u64);
+                    }
+                }
             }
         }
     }
@@ -586,6 +613,7 @@ impl Subframe {
 impl Rice {
     fn plan(residual: &[u32], samples: usize, predictor: usize) -> Self {
         let mut best = Self {
+            parameter_bits: 4,
             order: 0,
             parameters: Vec::new(),
             cost: u64::MAX,
@@ -595,35 +623,62 @@ impl Rice {
             if samples % (1 << order) != 0 || partition <= predictor {
                 break;
             }
-            let mut cost = 6;
-            let mut parameters = Vec::new();
-            let mut remaining = residual;
-            for index in 0..1 << order {
-                let count = partition - if index == 0 { predictor } else { 0 };
-                let (values, rest) = remaining.split_at(count);
-                remaining = rest;
-                let sum: u64 = values.iter().map(|v| u64::from(*v)).sum();
-                let estimate = (sum / count as u64).checked_ilog2().unwrap_or(0).min(14) as u8;
-                let (parameter, bits) = (estimate.saturating_sub(1)
-                    ..=estimate.saturating_add(1).min(14))
-                    .map(|k| {
-                        (
-                            k,
-                            count as u64 * (u64::from(k) + 1)
-                                + values.iter().map(|v| u64::from(*v >> k)).sum::<u64>(),
-                        )
-                    })
-                    .min_by_key(|(_, bits)| *bits)
-                    .unwrap_or((0, 0));
-                parameters.push(parameter);
-                cost += 4 + bits;
-            }
-            if cost < best.cost {
-                best = Self {
-                    order,
-                    parameters,
-                    cost,
-                };
+            for parameter_bits in [4, 5] {
+                let max_parameter = (1u8 << parameter_bits) - 2;
+                let mut cost = 6;
+                let mut parameters = Vec::new();
+                let mut remaining = residual;
+                for index in 0..1 << order {
+                    let count = partition - if index == 0 { predictor } else { 0 };
+                    let (values, rest) = remaining.split_at(count);
+                    remaining = rest;
+                    let sum: u64 = values.iter().map(|v| u64::from(*v)).sum();
+                    let code_cost = |k: u8| {
+                        count as u64 * (u64::from(k) + 1)
+                            + values.iter().map(|v| u64::from(*v >> k)).sum::<u64>()
+                    };
+                    let mut parameter = (sum / count as u64)
+                        .checked_ilog2()
+                        .unwrap_or(0)
+                        .min(u32::from(max_parameter))
+                        as u8;
+                    let mut bits = code_cost(parameter);
+                    for k in (0..parameter).rev() {
+                        let candidate = code_cost(k);
+                        if candidate > bits {
+                            break;
+                        }
+                        parameter = k;
+                        bits = candidate;
+                    }
+                    for k in parameter + 1..=max_parameter {
+                        let candidate = code_cost(k);
+                        if candidate >= bits {
+                            break;
+                        }
+                        parameter = k;
+                        bits = candidate;
+                    }
+                    let width =
+                        (32 - values.iter().copied().max().unwrap_or(0).leading_zeros()) as u8;
+                    let escaped = 5 + count as u64 * u64::from(width);
+                    let selected = if width <= 31 && escaped < bits {
+                        bits = escaped;
+                        Partition::Escape(width)
+                    } else {
+                        Partition::Rice(parameter)
+                    };
+                    parameters.push(selected);
+                    cost += u64::from(parameter_bits) + bits;
+                }
+                if cost < best.cost {
+                    best = Self {
+                        parameter_bits,
+                        order,
+                        parameters,
+                        cost,
+                    };
+                }
             }
         }
         best
@@ -631,8 +686,258 @@ impl Rice {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing, clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn residual_planning_includes_escapes_and_five_bit_parameters() {
+        assert_eq!(Rice::plan(&[0; 63], 63, 0).cost, 15);
+        let one_bit: Vec<u32> = (0..63).map(|i| i % 2).collect();
+        assert_eq!(Rice::plan(&one_bit, 63, 0).cost, 78);
+        assert_eq!(Rice::plan(&[0x7fff_ffff; 63], 63, 0).cost, 1968);
+        let wide: Vec<u32> = std::iter::once(96 << 15)
+            .chain(std::iter::repeat_n(0, 62))
+            .collect();
+        assert_eq!(Rice::plan(&wide, 63, 0).cost, 1115);
+        assert_eq!(Rice::plan(&[3 << 29], 1, 0).cost, 43);
+    }
+
+    fn exhaustive(residual: &[u32], samples: usize, predictor: usize) -> Rice {
+        let mut best = Rice {
+            parameter_bits: 4,
+            order: 0,
+            parameters: Vec::new(),
+            cost: u64::MAX,
+        };
+        let mut padded = vec![0; predictor];
+        padded.extend_from_slice(residual);
+        for order in 0..=4 {
+            if samples % (1 << order) != 0 || samples >> order <= predictor {
+                continue;
+            }
+            for width in 4..=5u8 {
+                let mut cost = 6;
+                let mut parameters = Vec::new();
+                for (index, part) in padded.chunks_exact(samples >> order).enumerate() {
+                    let part = if index == 0 { &part[predictor..] } else { part };
+                    let (k, mut bits) = (0..(1 << width) - 1)
+                        .map(|k| {
+                            let bits = part
+                                .iter()
+                                .map(|value| u64::from(value >> k) + 1 + u64::from(k))
+                                .sum::<u64>();
+                            (k, bits)
+                        })
+                        .min_by_key(|(_, cost)| *cost)
+                        .unwrap();
+                    let mut parameter = Partition::Rice(k);
+                    let signed: Vec<i64> = part
+                        .iter()
+                        .map(|v| {
+                            if v & 1 == 0 {
+                                i64::from(v >> 1)
+                            } else {
+                                -i64::from(v >> 1) - 1
+                            }
+                        })
+                        .collect();
+                    let escaped_width = (0..=31u8).find(|bits| {
+                        signed.iter().all(|value| {
+                            if *bits == 0 {
+                                *value == 0
+                            } else {
+                                -(1i64 << (bits - 1)) <= *value && *value < (1i64 << (bits - 1))
+                            }
+                        })
+                    });
+                    if let Some(escaped_width) = escaped_width {
+                        let escaped = 5 + part.len() as u64 * u64::from(escaped_width);
+                        if escaped < bits {
+                            parameter = Partition::Escape(escaped_width);
+                            bits = escaped;
+                        }
+                    }
+                    parameters.push(parameter);
+                    cost += u64::from(width) + bits;
+                }
+                if cost < best.cost {
+                    best = Rice {
+                        parameter_bits: width,
+                        order,
+                        parameters,
+                        cost,
+                    };
+                }
+            }
+        }
+        best
+    }
+
+    fn check_residual(residual: &[u32], predictor: usize) {
+        let samples = residual.len() + predictor;
+        let actual = Rice::plan(residual, samples, predictor);
+        let expected = exhaustive(residual, samples, predictor);
+        assert_eq!(
+            (actual.cost, actual.order, actual.parameter_bits),
+            (expected.cost, expected.order, expected.parameter_bits)
+        );
+        let choices = |rice: &Rice| {
+            rice.parameters
+                .iter()
+                .map(|p| match p {
+                    Partition::Rice(k) => (false, *k),
+                    Partition::Escape(bits) => (true, *bits),
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(choices(&actual), choices(&expected));
+        let charged = actual.cost;
+        let subframe = Subframe {
+            samples: vec![0; samples],
+            bits: 24,
+            wasted: 0,
+            predictor: Predictor::Fixed(predictor as u8),
+            residual: residual.to_vec(),
+            rice: actual,
+            cost: 0,
+        };
+        let mut output = Bits::new();
+        subframe.write(&mut output);
+        assert_eq!(
+            output.bytes.len() as u64 * 8 + u64::from(output.used),
+            8 + predictor as u64 * 24 + charged
+        );
+        output.align();
+        let mut bits = crate::bits::Bits::new(&output.bytes);
+        assert_eq!(bits.read(8).unwrap(), (8 + predictor as u32) << 1);
+        for _ in 0..predictor {
+            assert_eq!(bits.read(24).unwrap(), 0);
+        }
+        let mut decoded = vec![0; samples];
+        super::super::residual(&mut bits, &mut decoded, predictor).unwrap();
+        let expected: Vec<i32> = residual
+            .iter()
+            .map(|v| {
+                if v & 1 == 0 {
+                    (v >> 1) as i32
+                } else {
+                    -(i64::from(v >> 1) + 1) as i32
+                }
+            })
+            .collect();
+        assert_eq!(&decoded[predictor..], expected);
+    }
+
+    #[test]
+    fn residual_cost_and_wire_match_exhaustive_legal_choices() {
+        for length in 1..=5 {
+            for packed in 0..1usize << (length * 2) {
+                let values: Vec<u32> = (0..length)
+                    .map(|i| ((packed >> (2 * i)) & 3) as u32)
+                    .collect();
+                check_residual(&values, 0);
+            }
+        }
+        let mut state = 7u32;
+        for samples in [5, 15, 16, 17, 31, 32, 63, 64, 127] {
+            for predictor in 0..=4 {
+                for shift in [0, 8, 16, 24, 31] {
+                    let values: Vec<u32> = (predictor..samples)
+                        .map(|_| {
+                            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                            (state >> shift).min(u32::MAX - 1)
+                        })
+                        .collect();
+                    check_residual(&values, predictor);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn residual_parameter_and_escape_boundaries_roundtrip() {
+        assert!(matches!(
+            Rice::plan(&[0; 5], 5, 0).parameters.as_slice(),
+            [Partition::Rice(0)]
+        ));
+        let tied_methods = Rice::plan(&[3 << 14], 1, 0);
+        assert_eq!(tied_methods.parameter_bits, 4);
+        assert!(matches!(
+            tied_methods.parameters.as_slice(),
+            [Partition::Rice(14)]
+        ));
+        for k in 0..=30 {
+            check_residual(&[if k == 0 { 0 } else { 3 << (k - 1) }], 0);
+        }
+        for value in [0, 1, 0x7fff_ffff, 0x8000_0000, u32::MAX - 2, u32::MAX - 1] {
+            check_residual(&vec![value; 63], 0);
+        }
+        for k in [0, 14, 15] {
+            let values: Vec<u32> = std::iter::once(96 << k)
+                .chain(std::iter::repeat_n(0, 62))
+                .collect();
+            let rice = Rice::plan(&values, 63, 0);
+            assert!(
+                matches!(rice.parameters.as_slice(), [Partition::Rice(parameter)] if *parameter == k)
+            );
+            assert_eq!(rice.parameter_bits, if k == 15 { 5 } else { 4 });
+            check_residual(&values, 0);
+        }
+        let mixed: Vec<u32> = (0..128)
+            .map(|i| match i / 32 {
+                0 => 0,
+                1 => i % 2,
+                2 => 96 << 15,
+                _ => u32::MAX - 1,
+            })
+            .collect();
+        check_residual(&mixed, 4);
+        let mixed_plan = Rice::plan(&mixed, 132, 4);
+        assert!(
+            mixed_plan
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Partition::Escape(_)))
+        );
+        assert!(
+            mixed_plan
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Partition::Rice(_)))
+        );
+        assert!(matches!(
+            Rice::plan(&[3 << 29], 1, 0).parameters.as_slice(),
+            [Partition::Rice(30)]
+        ));
+    }
+
+    #[test]
+    fn complete_subframes_select_escaped_and_wide_residuals() {
+        let ramp: Vec<i64> = (0..4096).map(|i| i * 3 - 6000).collect();
+        let escaped = Subframe::plan(&ramp, 16);
+        assert!(
+            escaped
+                .rice
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Partition::Escape(0)))
+        );
+        let polynomial: Vec<i64> = (0..4096)
+            .map(|i| {
+                let p = i % 4093;
+                (p * p * 13 + p * 71) % ((1 << 24) - 1) - ((1 << 23) - 1)
+            })
+            .collect();
+        let wide = Subframe::plan(&polynomial, 24);
+        assert_eq!(wide.rice.parameter_bits, 5);
+        assert!(
+            wide.rice
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Partition::Rice(15..=30)))
+        );
+    }
 
     #[test]
     fn linear_coefficient_shifts_respect_exact_power_of_two_boundaries() {

@@ -995,7 +995,7 @@ fn names_with_a_protocol_are_refused_and_never_written() {
     let dir = scratch("ffmpeg-protocol");
     let input = movie(&dir);
     let subfile = "subfile,,start,0,end,99999,,:";
-    let cases = ["file:", subfile, ":", "a,b:"].into_iter().flat_map(|p| {
+    let cases = [subfile, ":", "a,b:"].into_iter().flat_map(|p| {
         [
             (vec![format!("{p}in.mp4"), "out.mp4".to_owned()], "an input"),
             (

@@ -41,6 +41,24 @@ class RustDistributionNoticesCheck(unittest.TestCase):
         entries['package/THIRD-PARTY-NOTICES.txt'] = self.notices(target)
         return self.fixture.zip(name, entries) if name.endswith('.zip') else self.fixture.tarball(name, entries)
 
+    def test_windows_archives_require_the_static_crt_notice_and_terms_link(self):
+        target = 'x86_64-pc-windows-msvc'
+        text = self.notices(target)
+        for name in ('coreav-cli-win32-x64-1.0.0.tgz',
+                     f'coreav-1.0.0-{target}.zip',
+                     f'coreav-full-1.0.0-{target}.zip'):
+            for changed in (text.split(b'=== Microsoft C runtime')[0],
+                            text.replace(b'vcruntime is distributed', b'other runtime is distributed'),
+                            text.replace(b'UCRT is distributed', b'other runtime is distributed'),
+                            text.replace(b'https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/', b'https://example.invalid/'),
+                            text.replace(b'https://learn.microsoft.com/en-us/legal/windows-sdk/license', b'https://example.invalid/')):
+                with self.subTest(name=name):
+                    entries = self.fixture.files('package')
+                    entries['package/THIRD-PARTY-NOTICES.txt'] = changed
+                    archive = self.fixture.zip(name, entries) if name.endswith('.zip') else self.fixture.tarball(name, entries)
+                    result = BASE['check']('--third-party', archive)
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+
     def test_every_rust_distribution_shape(self):
         for platform, target in [
                 ('linux-x64', 'x86_64-unknown-linux-musl'),

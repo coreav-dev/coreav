@@ -247,6 +247,7 @@ fn macroblock(
     top: Option<&Neighbour>,
     left: Option<&Neighbour>,
 ) -> Result<Neighbour> {
+    let start = w.len;
     let (cbpy, cbpc) = patterns(luma, chroma);
     w.ue(luma.mode.map_or(0, |m| {
         1 + u32::from(m) + 4 * u32::from(cbpc) + if cbpy == 0 { 0 } else { 12 }
@@ -317,6 +318,9 @@ fn macroblock(
                 *counts.get_mut(k).ok_or(Error::Internal)? = count;
             }
         }
+    }
+    if w.len - start > 3200 {
+        return Err(Error::MacroblockLimit);
     }
     Ok(state)
 }
@@ -555,6 +559,7 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                 }
             }
             let mut best = None;
+            let mut refusal = Error::Coefficient;
             for choice in 0..5u8 {
                 let luma = if choice == 4 {
                     intra4(&base, &source, a, e.settings.qp, top, left.as_ref())
@@ -574,6 +579,10 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                     match macroblock(&mut counter, &luma, chroma, top, left.as_ref()) {
                         Ok(_) => {}
                         Err(Error::Coefficient) => continue,
+                        Err(Error::MacroblockLimit) => {
+                            refusal = Error::MacroblockLimit;
+                            continue;
+                        }
                         Err(err) => return Err(err),
                     }
                     let mut distortion = luma.tile.error(&source, 0, 0, 16)?;
@@ -595,7 +604,7 @@ pub(crate) fn picture(e: &Encoder, input: Picture<'_>, id: u32) -> Result<(Vec<u
                     }
                 }
             }
-            let (_, luma, chroma) = best.ok_or(Error::Coefficient)?;
+            let (_, luma, chroma) = best.ok_or(refusal)?;
             let state = macroblock(&mut writer, &luma, &chroma, top, left.as_ref())?;
             planes
                 .first_mut()
