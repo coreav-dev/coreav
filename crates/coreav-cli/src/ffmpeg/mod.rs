@@ -281,7 +281,11 @@ fn run_inner(
     capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
-    if capture.is_some() && (!command.more_inputs.is_empty() || command.muxer.frames()) {
+    if capture.is_some()
+        && (!command.more_inputs.is_empty()
+            || command.muxer.frames()
+            || matches!(command.demuxer, Some(Demuxer::S16le(_))))
+    {
         return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(not(feature = "transcode"))]
@@ -1709,6 +1713,7 @@ mod tests {
         for line in [
             "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
             "-i missing-a.mp4 -frames:v 1 out.png",
+            "-f s16le -ar 8000 -ac 1 -i missing-a.pcm -f s16le out.pcm",
         ] {
             let args = line
                 .split_whitespace()
