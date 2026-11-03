@@ -25,6 +25,7 @@ import sys
 # (HEVC, for example) adds a line in the pull request that adds it; a line
 # goes only after the project's patent review.
 PATENTED = {
+    'coreav-h264-encoder': 'H.264',
     'coreav-h264': 'H.264',
     'coreav-kernels-h264': 'H.264',
     'coreav-backend-h264': 'H.264',

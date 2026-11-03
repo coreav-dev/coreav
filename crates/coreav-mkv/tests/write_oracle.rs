@@ -52,7 +52,7 @@ fn decoded(ffmpeg: &Path, path: &Path, audio: bool) -> Vec<u8> {
 
 fn fields(ffprobe: &Path, path: &Path) -> Vec<u8> {
     run(Command::new(ffprobe).args(["-v", "error", "-show_entries",
-        "stream=codec_name,codec_type,width,height,sample_aspect_ratio,sample_rate,channels,extradata_size,time_base,r_frame_rate",
+        "stream=codec_name,codec_type,width,height,pix_fmt,sample_aspect_ratio,sample_fmt,sample_rate,channels,channel_layout,bits_per_raw_sample,extradata_size,time_base,r_frame_rate,color_range,color_space,color_transfer,color_primaries,chroma_location,field_order",
         "-of", "flat"]).arg(path))
 }
 
@@ -95,6 +95,9 @@ fn rewrite(source: &[u8], doc_type: DocType) -> Vec<u8> {
                 Media::Video {
                     width: v.pixel_width.unwrap() as u32,
                     height: v.pixel_height.unwrap() as u32,
+                    colour: track.colour,
+                    interlaced: u8::try_from(v.interlaced).unwrap(),
+                    field_order: u8::try_from(v.field_order).unwrap(),
                     display: v
                         .display_width
                         .zip(v.display_height)
