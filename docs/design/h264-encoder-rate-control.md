@@ -21,7 +21,8 @@ Commit the chosen reconstruction, reference, GOP identity, frame number, carried
 ## Acceptance before implementation
 
 - Preserve fixed-QP snapshot bytes and complete three-decoder conformance.
-- Independently parse each selected picture QP and replay complete NAL bytes to verify every prefix bound, exact capacity, byte-rounding boundaries, zero capacity, IDR bursts and checked-arithmetic refusal.
+- Independently parse each selected picture QP and replay complete NAL bytes to verify every `F_next` recurrence as well as every prefix bound. With `B=80`, `C=80` and trial sizes `8,160,152`, refuse the third picture even though all global prefix totals fit. Also cover exact capacity, byte-rounding boundaries, zero capacity, IDR bursts and checked-arithmetic refusal.
+- Use controlled trial outcomes to assert the expected starting QP, consecutive larger-QP retries and first fitting selection. Cover both starting-QP adjustments and endpoint clamping without assuming that encoded size decreases monotonically with QP.
 - Force all trials through QP 51 without a fit. Verify no output or state change, then retry a fitting picture against a fresh encoder at the same accepted prefix. Inject non-rate failures to prove they cannot trigger retries.
 - Use synthetic flat and textured sequences to exercise both QP directions, frame-number wrap, crop, chroma and deblocking. Every accepted picture must completely match its reconstruction in CoreAV, pinned FFmpeg and pinned JM.
 - Keep bounded fallible allocation, safe scalar production code, the unchanged default feature graph, DCO and exact-head main-allowlist verification. No quality or speed result follows from these correctness checks.
