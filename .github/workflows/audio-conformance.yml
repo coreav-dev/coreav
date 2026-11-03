@@ -527,6 +527,7 @@ jobs:
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Qualify scoped Opus MP4 presentation and terminal output
         run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           cargo build --locked -p coreav-cli
           python3 -I -m unittest discover -s scripts/tests -p test_opus_pcm_eligibility.py
           python3 -I scripts/opus_pcm_eligibility.py --coreav target/debug/coreav \
