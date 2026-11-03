@@ -3,6 +3,7 @@ import ast
 from contextlib import redirect_stderr
 import io
 import json
+import os
 import subprocess
 from pathlib import Path
 import sys
@@ -178,6 +179,85 @@ class PgoRound(unittest.TestCase):
                     self.assertIsInstance(limit, ast.Constant, 'add a finite timeout to this subprocess call')
                     self.assertIs(type(limit.value), int)
                     self.assertGreater(limit.value, 0)
+
+    def cargo_stub(self, command, **kwargs):
+        target = Path(kwargs['env']['CARGO_TARGET_DIR'])
+        if '--target' in command:
+            target /= command[command.index('--target') + 1]
+        binary = target / 'dist' / ('coreav' if '--bin' in command else 'examples/decode')
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b'compiled fixture')
+        self.assertFalse(any(arg == '--config' or arg.startswith('--config=') for arg in command))
+
+    def test_profile_environment_overrides_are_refused_before_compilation(self):
+        overrides = {'CARGO_PROFILE_DIST_OPT_LEVEL': '0', 'CARGO_PROFILE_DIST_LTO': 'off',
+                     'CARGO_PROFILE_DIST_CODEGEN_UNITS': '256', 'CARGO_PROFILE_DIST_DEBUG': '2',
+                     'CARGO_PROFILE_RELEASE_PANIC': 'unwind', 'CARGO_PROFILE_DIST_BUILD_OVERRIDE_OPT_LEVEL': '0',
+                     'CARGO_PROFILE_DIST_FUTURE_SETTING': '', 'CARGO_BUILD_RUSTFLAGS': '-Copt-level=0',
+                     'CARGO_BUILD_INCREMENTAL': 'true', 'CARGO_INCREMENTAL': '1',
+                     'CARGO_BUILD_RUSTC': '/outside/rustc', 'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS': '-Copt-level=0',
+                     'RUSTFLAGS': '-Copt-level=0', 'CARGO_ENCODED_RUSTFLAGS': '', 'RUSTC_BOOTSTRAP': '1'}
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for key, value in overrides.items():
+                for artifact, historical in (('decode', False), ('cli', False), ('decode', True)):
+                    out = root / (key + artifact + str(historical))
+                    with self.subTest(key=key, artifact=artifact, historical=historical), \
+                         mock.patch.dict(os.environ, {key: value}), \
+                         mock.patch.object(build_tool.subprocess, 'run', side_effect=self.cargo_stub) as child:
+                        with self.assertRaisesRegex(ValueError, 'override'):
+                            build_tool.compile_binary(root / 'source', out, [], historical=historical, artifact=artifact)
+                        child.assert_not_called()
+                        self.assertFalse(out.exists())
+            with mock.patch.dict(os.environ, {'CARGO_PROFILE_DIST_OPT_LEVEL': '0'}), \
+                 mock.patch.object(build_tool.subprocess, 'check_output') as compiler:
+                with self.assertRaisesRegex(ValueError, 'CARGO_PROFILE_DIST_OPT_LEVEL'):
+                    build_tool.toolchain(root / 'source')
+                compiler.assert_not_called()
+
+    def test_cargo_configuration_is_refused_at_the_compilation_boundary(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            source, home = root / 'source', root / 'cargo-home'
+            source.mkdir()
+            for index, directory in enumerate((source / '.cargo', root / '.cargo', home)):
+                directory.mkdir(exist_ok=True)
+                for filename in ('config', 'config.toml'):
+                    config = directory / filename
+                    out = root / f'new-{index}-{filename}'
+                    config.write_text('[profile.dist]\nopt-level = 0\n')
+                    with self.subTest(config=str(config)), mock.patch.dict(os.environ, {'CARGO_HOME': str(home)}), \
+                         mock.patch.object(build_tool.subprocess, 'run', side_effect=self.cargo_stub) as child:
+                        with self.assertRaisesRegex(ValueError, 'override'):
+                            build_tool.compile_binary(source, out, [])
+                        child.assert_not_called()
+                        self.assertFalse(out.exists())
+                    config.unlink()
+            for index, cargo_home in enumerate(('', 'relative-home')):
+                with self.subTest(cargo_home=cargo_home), mock.patch.dict(os.environ, {'CARGO_HOME': cargo_home}), \
+                     mock.patch.object(build_tool.subprocess, 'run', side_effect=self.cargo_stub) as child:
+                    with self.assertRaisesRegex(ValueError, 'absolute CARGO_HOME'):
+                        build_tool.compile_binary(source, root / f'home-{index}', [])
+                    child.assert_not_called()
+            default_home = root / 'user'
+            (default_home / '.cargo').mkdir(parents=True)
+            (default_home / '.cargo/config.toml').write_text('[profile.dist]\nopt-level = 0\n')
+            with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(Path, 'home', return_value=default_home), \
+                 mock.patch.object(build_tool.subprocess, 'run', side_effect=self.cargo_stub) as child:
+                with self.assertRaisesRegex(ValueError, 'configuration overrides'):
+                    build_tool.compile_binary(source, root / 'default-home', [])
+                child.assert_not_called()
+
+    def test_command_line_config_is_not_forwarded_to_cargo(self):
+        for extra in (['--config', 'profile.dist.opt-level=0'], ['--config=profile.dist.opt-level=0'],
+                      ['--', '--config', '/outside/config.toml']):
+            with self.subTest(extra=extra), mock.patch.object(build_tool, 'toolchain') as compiler, \
+                 mock.patch.object(sys, 'argv', ['build', 'collect', '--source', '/source', '--out', '/out', *extra]), \
+                 redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as refused:
+                    build_tool.main()
+                self.assertEqual(refused.exception.code, 2)
+                compiler.assert_not_called()
 
     def test_cli_companion_is_explicit_and_does_not_change_the_example_target(self):
         with tempfile.TemporaryDirectory() as name:

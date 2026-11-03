@@ -4,7 +4,7 @@ This recipe produces a Linux x86-64 `decode` example, not a replacement for the 
 
 ## Prepare the compiler and training bytes
 
-Use a clean checkout and a Cargo home without configuration overrides. Unset compiler wrappers, `RUSTFLAGS`, `CARGO_ENCODED_RUSTFLAGS`, `CARGO_TARGET_DIR`, `CARGO_BUILD_TARGET`, `LLVM_PROFILE_FILE`, and target-specific Cargo variables. The script refuses these overrides rather than silently building a different artifact.
+Use a clean checkout and a Cargo home without configuration overrides. If `CARGO_HOME` is set, it must be an absolute path. Unset all `CARGO_PROFILE_*`, `CARGO_BUILD_*`, `CARGO_TARGET_*` and `CARGO_INCREMENTAL` variables, compiler wrappers and bootstrap overrides, `RUSTFLAGS`, `RUSTDOCFLAGS`, their encoded Cargo forms, `RUSTC`, `RUSTDOC`, and `LLVM_PROFILE_FILE`. Even empty override variables are refused. The recipe rejects both Cargo configuration filenames in Cargo home and the source directory's complete ancestor chain before every compilation. It accepts no `--config` or other Cargo argument passthrough. Only the tracked manifests and the recipe's recorded command and flags choose the build profile.
 
 ```sh
 rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview

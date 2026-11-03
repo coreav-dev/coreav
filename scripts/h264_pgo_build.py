@@ -22,15 +22,26 @@ HISTORICAL_BINARY = 'e1a3ce41cf39fc77fbdded85f55eb627169065b8a8be3ae38ff1472e584
 HISTORICAL_PROFILE = '0d12fc7b98c5f94e3b99122b5bc3797cc0ba0d2b8ae983a54041207ca723fb63'
 
 
-def toolchain():
+def cargo_environment(source):
+    env = os.environ.copy()
+    forbidden = {'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'LLVM_PROFILE_FILE', 'RUSTC_WRAPPER',
+                 'RUSTC_WORKSPACE_WRAPPER', 'RUSTC', 'RUSTDOC', 'RUSTDOCFLAGS',
+                 'CARGO_ENCODED_RUSTDOCFLAGS', 'RUSTC_BOOTSTRAP', 'CARGO_INCREMENTAL'}
+    for key in env:
+        require(key not in forbidden and not key.startswith(('CARGO_PROFILE_', 'CARGO_BUILD_', 'CARGO_TARGET_')),
+                f'unset {key} overrides before using the recipe')
+    home = Path(env.get('CARGO_HOME', str(Path.home() / '.cargo')))
+    require(home.is_absolute(), 'use an absolute CARGO_HOME without configuration overrides')
+    source = source.resolve()
+    configs = [home / name for name in ('config', 'config.toml')]
+    configs += [p / '.cargo' / name for p in (source, *source.parents) for name in ('config', 'config.toml')]
+    require(not any(p.exists() for p in configs), 'Cargo configuration overrides are not part of this recipe')
+    return env
+
+
+def toolchain(source):
     require(platform.system() == 'Linux' and platform.machine() == 'x86_64', 'recipe requires Linux x86-64')
-    for key in ('RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'LLVM_PROFILE_FILE', 'RUSTC_WRAPPER',
-                'RUSTC_WORKSPACE_WRAPPER', 'CARGO_BUILD_TARGET', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTDOC'):
-        require(not os.environ.get(key), f'unset {key} before using the recipe')
-    require(not any(k.startswith('CARGO_TARGET_') and v for k, v in os.environ.items()),
-            'unset target-specific Cargo overrides')
-    home = Path(os.environ.get('CARGO_HOME', str(Path.home() / '.cargo')))
-    require(not (home / 'config').exists() and not (home / 'config.toml').exists(), 'use a Cargo home without configuration overrides')
+    cargo_environment(source)
     version = subprocess.check_output(['rustc', '+' + TOOLCHAIN, '-vV'], text=True, timeout=30)
     require(f'commit-hash: {RUST_COMMIT}' in version and f'LLVM version: {LLVM}' in version and
             f'host: {TARGET}' in version, 'wrong compiler identity')
@@ -47,17 +58,17 @@ def toolchain():
 
 
 def source_identity(source):
+    cargo_environment(source)
     require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=source, timeout=30), 'source checkout must be clean')
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=source, text=True, timeout=30).strip()
-    require(not any((p / '.cargo' / n).exists() for p in (source, *source.parents) for n in ('config', 'config.toml')),
-            'repository Cargo overrides are not part of this recipe')
     return {'commit': git('rev-parse', 'HEAD'), 'tree': git('rev-parse', 'HEAD^{tree}'),
             'lock_sha256': digest(source / 'Cargo.lock')}
 
 
 def compile_binary(source, destination, flags, historical=False, artifact='decode'):
     require(artifact in ('decode', 'cli') and not (historical and artifact != 'decode'), 'unsupported build artifact')
+    env = cargo_environment(source)
     destination.mkdir(parents=True, exist_ok=False)
     target = destination / 'target'
     command = ['cargo', '+' + TOOLCHAIN, 'build', '--locked', '--profile', 'dist']
@@ -72,8 +83,8 @@ def compile_binary(source, destination, flags, historical=False, artifact='decod
     if not historical:
         command += ['--target', TARGET]
         flags = ['--remap-path-prefix=' + str(source) + '=/coreav-source', *flags]
-    env = os.environ | {'CARGO_TARGET_DIR': str(target), 'CARGO_ENCODED_RUSTFLAGS': '\x1f'.join(flags),
-                        'LLVM_PROFILE_FILE': str(destination / 'build-only-%m-%p.profraw')}
+    env |= {'CARGO_TARGET_DIR': str(target), 'CARGO_ENCODED_RUSTFLAGS': '\x1f'.join(flags),
+            'LLVM_PROFILE_FILE': str(destination / 'build-only-%m-%p.profraw')}
     with (destination / 'build.log').open('w') as log:
         subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=900)
     binary = target / ('' if historical else TARGET) / suffix
@@ -179,7 +190,7 @@ def main():
     args = ap.parse_args()
     source, out = args.source.resolve(), args.out.resolve()
     try:
-        profdata, tools = toolchain()
+        profdata, tools = toolchain(source)
         if args.action == 'collect':
             require(args.media is not None, 'collect needs --media')
             collect(source, out, args.media.resolve(), profdata, tools)

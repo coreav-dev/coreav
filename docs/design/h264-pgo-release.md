@@ -63,6 +63,8 @@ For each command and affinity, report the ratio of the nine-call PGO and base me
 
 One serial build recipe owns profile provenance. Separate base, instrumented and optimized target directories prevent stale build reuse. The historical reproduction is a separate mode because its flags and profile are intentionally different.
 
+One environment boundary rejects inherited Cargo profile, build, target and compiler overrides before startup probes and every compilation, including historical and diagnostic companions. It rejects Cargo-home and hierarchical configuration files; the CLI has no `--config` passthrough. Thus independently rebuilt directories cannot silently share an unrecorded profile override. The build receipt records the fixed command and explicit Rust flags, while the clean source revision binds the manifest profiles.
+
 The measurement executor writes events, while the auditor checks completeness before the shared `h264_parity_bars.py` estimator computes intervals. Reusing the older parity runner unchanged would retain tolerated diagnostics and unresolved-stream behavior that this evaluation does not allow. The VM lifecycle remains owned by `gcp_vm_job.py`, always with explicit standard provisioning for timing.
 
 No decoder instructions or guarded command are changed. PGO may change generated instructions and executable size; the held-out evaluation measures those consequences rather than presuming a gain.
