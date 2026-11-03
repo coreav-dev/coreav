@@ -560,7 +560,6 @@ Results: `docs/spikes/thumbnail-bench/`, "Faster rendering and JPEG".
 ## JPEG encoder
 
 JPEG thumbnails are encoded by the `jpeg-encoder` crate 0.6.1 (vstroebel), pinned exactly in `crates/coreav-thumbnail/Cargo.toml`: baseline JFIF, 4:2:0 (`SamplingFactor::F_2_2`), at a quality from 1 to 100, as the crate documents.
-- **Portable bytes.** The crate's `simd` feature is disabled. Its x86 AVX2 DCT can round coefficients differently from the portable path, so the same RGB samples otherwise produce different JPEG bytes on different CPUs and in WebAssembly. Native JPEG thumbnail bytes change on SIMD-capable x86 to use the same portable path as other targets. A generated 8×8 quality-100 regression pins all 898 output bytes by their SHA-256, including agreement with the bounded writer. The encoding cost is checked by the existing instruction guard without changing its baseline or tolerance; the historical quality and timing results below are not revalidated by this change.
 - **Quality: the default is 91**, the crate's operating point equivalent to CoreAV's own encoder at 90. On the fixtures' thumbnails at 320 wide, measured by the thumbnail spike's quality script (59 files, PSNR against CoreAV's lossless PNG of the same frame, output in `evidence/jpeg-quality-fixtures.txt`):
 
   | Crate's quality | PSNR, median against own at 90 | Bytes, median against own at 90 |
@@ -576,7 +575,7 @@ JPEG thumbnails are encoded by the `jpeg-encoder` crate 0.6.1 (vstroebel), pinne
 - **Licence.** The crate is "(MIT OR Apache-2.0) AND IJG". IJG is allowed for this crate alone: `deny.toml` scopes it as a licence exception for `jpeg-encoder`.
   - IJG asks binary distributions to state "This software is based in part on the work of the Independent JPEG Group". `NOTICE` holds it, and `docs/release/notices.md` lists the distributions that ship it.
   - The crate has no dependencies of its own, and `cargo deny check` passes on the graph with it.
-- **Pinned.** A new version changes the bytes of every JPEG, so it is reviewed and the image bars are run again before the pin moves. CoreAV adds no `unsafe` for this dependency.
+- **Pinned.** A new version changes the bytes of every JPEG, so it is reviewed and the image bars are run again before the pin moves. Its SIMD paths are the crate's own `unsafe`, as for any dependency; CoreAV adds none.
 - **Image agreement**, at the default 91, on corpus v1's development set (I3, 735 files with images; `docs/spikes/thumbnail-bench/evidence/images-jpeg-encoder-q91.jsonl`). The bar is at least 98% of files at 28 dB or more, and each class's median of CoreAV's PSNR minus FFmpeg's JPEG's at least 0:
   - 729 files (99.18%) are at least 28 dB: the bar needs 721 of 735, so 8 files of margin (1.18 points);
   - per-class medians are AV1 1.514, H.264 1.385, HEVC 1.392, ProRes 1.403, VP8 0.932 and VP9 0.762 dB. The thinnest margin is VP9's, 0.76 dB;
