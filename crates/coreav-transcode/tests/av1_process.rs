@@ -27,8 +27,10 @@ use coreav_backend_svt_av1::{
 };
 use coreav_decode::ErrorKind;
 use coreav_frame::{Chroma, Picture, PixelFormat, Plane};
+use coreav_isobmff::Rational;
+use coreav_thumbnail::StreamPacket;
 use coreav_transcode::{
-    av1::{Encoder, Launch, WORKER_ARG},
+    av1::{Encoder, Launch, Timeline, WORKER_ARG},
     encoder::EncoderLimits,
 };
 use coreav_worker::ExecLauncher;
@@ -89,8 +91,15 @@ fn picture(index: u8) -> Picture {
 fn worker() -> ExitCode {
     let mut input = InputReader::new(std::io::stdin().lock()).unwrap();
     let request = input.request();
-    assert_eq!(request.settings.rate(), (30_000, 1001));
     let mode = request.settings.crf();
+    assert_eq!(
+        request.settings.rate(),
+        if mode == 41 {
+            (60_000, 2002)
+        } else {
+            (30_000, 1001)
+        }
+    );
     if mode == 38 {
         eprintln!("synthetic worker blocked before pictures");
         loop {
@@ -101,7 +110,14 @@ fn worker() -> ExitCode {
     let mut origin = None;
     while let Some(header) = input.next_frame_header().unwrap() {
         let first = *origin.get_or_insert(header.pts);
-        assert_eq!(header.pts - first, [0, 1, 3, 4][count]);
+        assert_eq!(
+            header.pts - first,
+            if mode == 40 || mode == 41 {
+                [0, 3003, 6006, 9009][count]
+            } else {
+                [0, 1, 3, 4][count]
+            }
+        );
         let data = input.read_picture().unwrap();
         assert!(data[..4096].iter().all(|&value| value == count as u8 * 3));
         assert!(
@@ -335,6 +351,144 @@ fn refuses_path_search() {
     assert_eq!(result.err().unwrap().kind, ErrorKind::InvalidData);
 }
 
+fn start_timed(origin: i64, change: &str) -> (Temporary, Result<Encoder, coreav_decode::Error>) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let packets: Vec<_> = [0, 3003, 6006, 9009]
+        .into_iter()
+        .map(|offset| StreamPacket {
+            offset: 0,
+            size: 0,
+            pts: origin + offset,
+            time: None,
+            dts: None,
+            duration: Some(3003),
+            keyframe: false,
+            presented: true,
+        })
+        .collect();
+    let source =
+        Timeline::new(&packets, Rational::new(1, 90_000).unwrap(), 4, 32, deadline).unwrap();
+    let rate = match change {
+        "cadence" => (30, 1),
+        "equivalent" => (60_000, 2002),
+        _ => (30_000, 1001),
+    };
+    let request = Request {
+        settings: Settings::new(
+            64,
+            64,
+            rate,
+            8,
+            if change == "equivalent" { 41 } else { 40 },
+            Color::default(),
+        )
+        .unwrap(),
+        limits: Limits::new(
+            20_000,
+            1 << 20,
+            if change == "count" { 3 } else { 10 },
+            4096,
+        )
+        .unwrap(),
+    };
+    let launcher = ExecLauncher::current_exe().unwrap();
+    let (temporary, file) = Temporary::new();
+    let encoder = Encoder::spawn_timed(
+        &std::env::current_exe().unwrap(),
+        request,
+        retention(request),
+        file,
+        Launch {
+            launcher: Some(&launcher),
+            limits: EncoderLimits::new(1 << 30),
+            deadline: if change == "deadline" {
+                deadline + Duration::from_millis(1)
+            } else {
+                deadline
+            },
+            pixel_aspect: None,
+        },
+        source,
+    );
+    (temporary, encoder)
+}
+
+fn timed_source_clocks() {
+    for origin in [-90_000, 90_000] {
+        for change in ["none", "equivalent"] {
+            let (_temporary, encoder) = start_timed(origin, change);
+            let mut encoder = encoder.unwrap();
+            for (index, offset) in [0, 3003, 6006, 9009].into_iter().enumerate() {
+                encoder
+                    .send_frame(picture(index as u8), origin + offset)
+                    .unwrap();
+            }
+            let result = encoder.finish(NonZeroU64::new(3003).unwrap()).unwrap();
+            assert_eq!(result.packets.len(), 4);
+            for (index, (_, time)) in result.packets.iter().enumerate() {
+                assert_eq!(time.pts, origin + [0, 3003, 6006, 9009][index]);
+                assert_eq!(time.dts, time.pts);
+                assert_eq!(time.duration, 3003);
+            }
+        }
+    }
+}
+
+fn timed_refusals() {
+    for (change, expected) in [
+        ("cadence", ErrorKind::Unsupported),
+        ("count", ErrorKind::Limit),
+        ("deadline", ErrorKind::InvalidData),
+    ] {
+        let (temporary, result) = start_timed(0, change);
+        assert_eq!(result.err().unwrap().kind, expected);
+        assert_eq!(std::fs::metadata(&temporary.0).unwrap().len(), 0);
+    }
+    let (_temporary, encoder) = start_timed(0, "none");
+    let mut encoder = encoder.unwrap();
+    encoder.send_frame(picture(0), 0).unwrap();
+    let error = encoder.send_frame(picture(1), 3004).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::InvalidData);
+    assert_eq!(
+        encoder
+            .send_frame(picture(1), 3003)
+            .unwrap_err()
+            .to_string(),
+        error.to_string()
+    );
+    assert_eq!(
+        encoder
+            .finish(NonZeroU64::new(3003).unwrap())
+            .unwrap_err()
+            .to_string(),
+        error.to_string()
+    );
+    for change in ["missing", "duration", "extra"] {
+        let (_temporary, encoder) = start_timed(0, "none");
+        let mut encoder = encoder.unwrap();
+        for (index, offset) in [0, 3003, 6006, 9009]
+            .into_iter()
+            .enumerate()
+            .take(if change == "missing" { 3 } else { 4 })
+        {
+            encoder.send_frame(picture(index as u8), offset).unwrap();
+        }
+        if change == "extra" {
+            assert_eq!(
+                encoder.send_frame(picture(0), 12012).unwrap_err().kind,
+                ErrorKind::InvalidData
+            );
+        }
+        assert_eq!(
+            encoder
+                .finish(NonZeroU64::new(if change == "duration" { 3004 } else { 3003 }).unwrap())
+                .unwrap_err()
+                .kind,
+            ErrorKind::InvalidData
+        );
+    }
+}
+
 fn main() -> ExitCode {
     let mut args = std::env::args_os().skip(1);
     let first = args.next();
@@ -363,6 +517,11 @@ fn main() -> ExitCode {
             "private worker never searches PATH",
             refuses_path_search as fn(),
         ),
+        (
+            "bound source timeline and exact cadence",
+            timed_source_clocks as fn(),
+        ),
+        ("terminal source timeline refusals", timed_refusals as fn()),
     ] {
         run();
         println!("test {name} ... ok");

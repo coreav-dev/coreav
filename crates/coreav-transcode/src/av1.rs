@@ -1,5 +1,9 @@
 //! Validated AV1 worker output and bounded sample-spool replay.
 
+mod timeline;
+
+pub use timeline::Timeline;
+
 use std::{
     fs::File,
     io::{self, BufWriter, Read, Seek, SeekFrom, Write},
@@ -46,6 +50,7 @@ pub struct Encoder {
     state: State,
     submitted: Submissions,
     frames: u64,
+    source: Option<Timeline>,
 }
 
 enum State {
@@ -109,7 +114,49 @@ impl Encoder {
             state: State::Running(process),
             submitted: Submissions::new(layout, request.limits.frames()),
             frames: 0,
+            source: None,
         })
+    }
+
+    /// Binds input and final duration to an immutable presented source timeline.
+    /// The exact timeline-derived cadence must agree with the request's rate.
+    pub fn spawn_timed(
+        program: &Path,
+        request: Request,
+        retention: Retention,
+        spool: File,
+        launch: Launch<'_>,
+        source: Timeline,
+    ) -> Result<Self, Error> {
+        let (num, den) = request.settings.rate();
+        if source.deadline() != launch.deadline {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "AV1 timeline and process must share one deadline",
+            ));
+        }
+        if Instant::now() >= launch.deadline {
+            return Err(Error::new(
+                ErrorKind::Timeout,
+                "AV1 source deadline expired before launch",
+            ));
+        }
+        let rate = source.rate();
+        if u64::from(num) * u64::from(rate.den) != u64::from(rate.num) * u64::from(den) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "AV1 request cadence differs from the source timeline",
+            ));
+        }
+        if source.frames() > request.limits.frames() {
+            return Err(Error::new(
+                ErrorKind::Limit,
+                "AV1 source timeline exceeds the frame limit",
+            ));
+        }
+        let mut encoder = Self::spawn(program, request, retention, spool, launch)?;
+        encoder.source = Some(source);
+        Ok(encoder)
     }
 
     /// Checks and queues one owned planar 8-bit 4:2:0 picture at its source time.
@@ -125,6 +172,9 @@ impl Encoder {
                     ErrorKind::Unsupported,
                     "SVT-AV1 requires planar 8-bit 4:2:0",
                 ));
+            }
+            if let Some(source) = &mut self.source {
+                source.admit(pts)?;
             }
             let frame = self.submitted.submit(picture, pts)?;
             let mut header = Vec::new();
@@ -155,6 +205,9 @@ impl Encoder {
             State::Running(process) => process,
             State::Failed(error) => return Err(error),
         };
+        if let Some(source) = self.source {
+            source.complete(last_duration)?;
+        }
         if self.frames == 0 {
             return Err(Error::new(
                 ErrorKind::InvalidData,
