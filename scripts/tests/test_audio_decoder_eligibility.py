@@ -32,9 +32,10 @@ class DecoderEligibility(unittest.TestCase):
         check(lambda r: r.update(schema='future'))
         check(lambda r: r.update(oracle_version='unregistered'))
         check(lambda r: r['decoders'].append(copy.deepcopy(r['decoders'][0])))
-        for field, value in [('codec', 'future'), ('kind', 'tolerance'),
+        for field, value in [('codec', 'future'), ('kind', 'tolerance'), ('kind', 'exact'),
                              ('decoder_eligible', False), ('decoder_eligible', 1),
-                             ('evidence', '../outside.md#evidence')]:
+                             ('evidence', '../outside.md#evidence'),
+                             ('evidence', 'docs/design/lossy-pcm-eligibility.md#missing-section')]:
             with self.subTest(field=field, value=value):
                 check(lambda r: r['decoders'][0].update({field: value}))
         for field, value in [('container', 'future'), ('eligible', 1),
@@ -45,6 +46,10 @@ class DecoderEligibility(unittest.TestCase):
                 check(lambda r: r['decoders'][0]['presentations'][0].update({field: value}))
         check(lambda r: r['decoders'][0]['presentations'].append(
             copy.deepcopy(r['decoders'][0]['presentations'][0])))
+
+    def test_evidence_anchors_ignore_fences_and_number_duplicate_headings(self):
+        self.assertEqual(eligibility.heading_anchors(
+            '# AAC-LC\n```\n## Not a heading\n```\n## AAC-LC\n'), {'aac-lc', 'aac-lc-1'})
 
     def test_opus_presentation_cannot_be_enabled_by_its_vector_pass(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')

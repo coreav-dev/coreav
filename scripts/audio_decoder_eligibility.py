@@ -2,11 +2,28 @@
 
 import json
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / 'docs/compat/audio-decoder-eligibility.json'
 REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'supported_mp4_timeline'}
+
+
+def heading_anchors(markdown):
+    anchors, counts = set(), {}
+    fenced = False
+    for line in markdown.splitlines():
+        if line.startswith('```'):
+            fenced = not fenced
+        heading = re.match(r'#{1,6} (.+)', line)
+        if fenced or not heading:
+            continue
+        slug = re.sub(r'[^\w\- ]', '', heading.group(1).strip().lower()).replace(' ', '-')
+        count = counts.get(slug, 0)
+        counts[slug] = count + 1
+        anchors.add(slug if count == 0 else f'{slug}-{count}')
+    return anchors
 
 
 def validate(record):
@@ -28,7 +45,7 @@ def validate(record):
         require(isinstance(codec, str) and codec in {'mp3', 'opus', 'aac'}, 'unknown codec')
         require(codec not in codecs, 'duplicate codec')
         codecs.add(codec)
-        require(row['kind'] in ('exact', 'conformance'), 'unknown comparison kind')
+        require(row['kind'] == 'conformance', 'lossy decoder rows use only conformance')
         require(type(row['decoder_eligible']) is bool, 'eligibility must be boolean')
         require(codec != 'aac' or not row['decoder_eligible'],
                 'AAC eligibility requires a registered ISO conformance procedure')
@@ -43,6 +60,7 @@ def validate(record):
         target = (ROOT / path).resolve()
         require(target.is_relative_to(ROOT / 'docs') and target.is_file(),
                 'evidence must exist inside docs')
+        require(anchor in heading_anchors(target.read_text()), 'evidence heading does not exist')
         require(isinstance(row['presentations'], list), 'presentations must be an array')
         containers = set()
         for presentation in row['presentations']:
