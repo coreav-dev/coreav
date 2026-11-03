@@ -525,36 +525,7 @@ pub fn transcode<S: Source, W: Write>(
     }
     let decoder_info = decoder.info().clone();
     drop(decoder);
-    let Some((encoder, settings)) = run.encoder.take() else {
-        return Err(unsupported("the decoder returned no presented frame"));
-    };
-    let frames = encoder.frames_sent();
-    let sink = encoder.finish().map_err(Error::Encode)?;
-    let encoded = sink.close(frames)?;
-    let config = encoded.config;
-    if config.width != settings.width || config.height != settings.height {
-        return Err(encode_error(format!(
-            "the encoder's stream is {}x{}, not the {}x{} of its frames",
-            config.width, config.height, settings.width, settings.height
-        )));
-    }
-    let order: Vec<u64> = encoded.pictures.iter().map(|p| p.presentation).collect();
-    let last_duration = presented.last_duration(&run.sent_pts, run.last.map(|(source, _)| source));
-    let times = timing::sample_times(&run.sent_pts, &order, u64::from(last_duration))
-        .map_err(|e| encode_error(e.to_string()))?;
-    let samples: Vec<ReplacementSample> = encoded
-        .pictures
-        .iter()
-        .zip(&times)
-        .map(|(p, t)| ReplacementSample {
-            size: p.size,
-            sync: p.idr,
-            decode_time: t.dts,
-            presentation_time: t.pts,
-        })
-        .collect();
-    let entry = sample_entry(&config, &settings)?;
-    let (tkhd_width, tkhd_height) = presentation_size(&settings)?;
+    let completed = run.finish()?;
     if Instant::now() >= deadline {
         return Err(timed_out());
     }
@@ -562,11 +533,11 @@ pub fn transcode<S: Source, W: Write>(
     let data = BufferedSource::new(FileSource::from_file(spool.handle()?).map_err(spool_read)?);
     let replacement = Replacement {
         stream_index: video.stream_index,
-        sample_entry: &entry,
-        width: tkhd_width,
-        height: tkhd_height,
-        samples: &samples,
-        last_duration,
+        sample_entry: &completed.sample_entry,
+        width: completed.presentation_size.0,
+        height: completed.presentation_size.1,
+        samples: &completed.samples,
+        last_duration: completed.last_duration,
         data,
     };
     let audio_replacement = match &audio {
@@ -664,16 +635,16 @@ pub fn transcode<S: Source, W: Write>(
         video: VideoSummary {
             stream_index: video.stream_index,
             codec: video.stream.codec,
-            frames,
-            dropped_frames: run.dropped,
-            not_presented: run.not_presented,
+            frames: completed.frames,
+            dropped_frames: completed.dropped,
+            not_presented: completed.not_presented,
             decoder: decoder_info,
             skipped: opened.skipped,
-            encoder: program.name(),
-            width: settings.width,
-            height: settings.height,
-            sample_aspect: settings.sample_aspect,
-            frame_rate: settings.frame_rate,
+            encoder: completed.encoder,
+            width: completed.width,
+            height: completed.height,
+            sample_aspect: completed.sample_aspect,
+            frame_rate: completed.frame_rate,
         },
         audio: audio.map(|a| a.summary),
         remux,
@@ -1148,6 +1119,21 @@ fn encoder_memory(settings: &EncoderSettings, budget: u64, host: Option<u64>) ->
     wanted.min(cap).max(budget)
 }
 
+struct CompletedVideo {
+    sample_entry: Vec<u8>,
+    samples: Vec<ReplacementSample>,
+    last_duration: u32,
+    presentation_size: (u32, u32),
+    frames: u64,
+    dropped: u64,
+    not_presented: u64,
+    encoder: &'static str,
+    width: u32,
+    height: u32,
+    sample_aspect: Option<(u32, u32)>,
+    frame_rate: FrameRate,
+}
+
 /// The transcode's state while frames come.
 struct Run<'a> {
     options: &'a TranscodeOptions,
@@ -1184,6 +1170,55 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
+    fn finish(self) -> Result<CompletedVideo, Error> {
+        let Some((encoder, settings)) = self.encoder else {
+            return Err(unsupported("the decoder returned no presented frame"));
+        };
+        let frames = encoder.frames_sent();
+        let sink = encoder.finish().map_err(Error::Encode)?;
+        let encoded = sink.close(frames)?;
+        let config = encoded.config;
+        if config.width != settings.width || config.height != settings.height {
+            return Err(encode_error(format!(
+                "the encoder's stream is {}x{}, not the {}x{} of its frames",
+                config.width, config.height, settings.width, settings.height
+            )));
+        }
+        let order: Vec<u64> = encoded.pictures.iter().map(|p| p.presentation).collect();
+        let last_duration = self
+            .presented
+            .last_duration(&self.sent_pts, self.last.map(|(source, _)| source));
+        let times = timing::sample_times(&self.sent_pts, &order, u64::from(last_duration))
+            .map_err(|e| encode_error(e.to_string()))?;
+        let samples = encoded
+            .pictures
+            .iter()
+            .zip(&times)
+            .map(|(p, t)| ReplacementSample {
+                size: p.size,
+                sync: p.idr,
+                decode_time: t.dts,
+                presentation_time: t.pts,
+            })
+            .collect();
+        let sample_entry = sample_entry(&config, &settings)?;
+        let presentation_size = presentation_size(&settings)?;
+        Ok(CompletedVideo {
+            sample_entry,
+            samples,
+            last_duration,
+            presentation_size,
+            frames,
+            dropped: self.dropped,
+            not_presented: self.not_presented,
+            encoder: self.program.name(),
+            width: settings.width,
+            height: settings.height,
+            sample_aspect: settings.sample_aspect,
+            frame_rate: settings.frame_rate,
+        })
+    }
+
     /// One frame from the decoder: encoded when the source presents it
     /// and its time is not below the last one's ([`frame_time`]). Its
     /// pixels go to the encoder where they are, in CPU memory or in the
