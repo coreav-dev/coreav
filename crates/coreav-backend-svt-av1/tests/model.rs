@@ -24,6 +24,22 @@ fn rational_rate_is_not_rounded_and_keyint_has_a_one_picture_floor() -> TestResu
 }
 
 #[test]
+fn extreme_fields_are_checked_without_native_initialization() -> TestResult {
+    let largest = settings(16_384, 8_704, (30, 1))?;
+    assert_eq!(largest.raw_bytes(), 213_909_504);
+    assert!(Retention::new(largest, largest.raw_bytes() as u64 - 1, 16, 16, 16).is_err());
+    let envelope = Retention::new(largest, RETAINED_BYTES, 16, 16, 16)?;
+    assert_eq!(envelope.pictures(), 5);
+    assert!(envelope.bytes() <= RETAINED_BYTES);
+    assert_eq!(settings(64, 64, (u32::MAX, 10))?.keyint(), i32::MAX as u32);
+    assert!(settings(64, 64, (u32::MAX, 9)).is_err());
+    assert_eq!(settings(64, 64, (u32::MAX, u32::MAX))?.keyint(), 5);
+    assert!(settings(64, 64, (0, 1)).is_err());
+    assert!(settings(64, 64, (1, 0)).is_err());
+    Ok(())
+}
+
+#[test]
 fn exact_retention_boundaries_include_headers_eof_and_slots() -> TestResult {
     let s = settings(64, 64, (30, 1))?;
     let native = 176;

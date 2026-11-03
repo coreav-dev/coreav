@@ -180,6 +180,34 @@ Both `--encoder auto` with `--video av1` and explicit `--encoder svt-av1` select
 
 New encoded-stream metadata uses `coreav.transcode/2`, with its schema, examples, serializers, and tests updated together. It reports the backend that actually ran, native version, software kind, sandbox isolation, and effective settings. Existing summaries keep their version 1 contract. The compatibility command's vocabulary does not change. Release-owner coordination precedes opening the implementation pull request.
 
+### Raw-wrapper coverage dispositions
+
+The registered raw-wrapper roster has 97 cases with exact numeric settings and outcomes in [`native-cases.json`](../../../crates/coreav-backend-svt-av1/tests/native-cases.json). They are planned cases, not observed native results. The roster is not a Cartesian product of every admitted value. Its coverage and remaining limits are explicit:
+
+| Axis | Registered coverage and disposition |
+|---|---|
+| Session counts | S=3, S=5 and default S=150 each have successful S−1, S, S+1, 2S−1, 2S, 2S+1 and 3S+1 jobs. Separate one-picture memory-floor, low-rate K-floor and fractional one-picture-tail cases retain their own settings. |
+| Preset and CRF | Every preset 0 through 13 has a two-picture case. CRF 0, 1, 32, 62 and 63 cover endpoints, adjacent endpoints and the default. Other integer CRFs share the same checked setter path but are not individually encoded. Rollover cases use representative presets, not every preset/CRF combination. |
+| Rate | Positive cases include 1/10, 1/1, 30/1, 60/1, unreduced 60/2, 30000/1001 and variable-clock cadence 210/11. Zero components and a keyframe interval outside the signed native field are safe admission refusals. Extreme admitted rational fields are not claimed as native-tested combinations. |
+| Geometry | Native-positive cases cover minimum 64×64, nonaligned 66×70, wide 4160×64, 3840×2160, maximum width 16384×64 and maximum height 64×8704. The combined maximum rectangle is not registered as an encoded case under this resource budget. Safe admission/arithmetic checks cover its field bounds, invalid dimensions and retention refusal without establishing native completion at that rectangle. |
+| Colour | Every admitted primaries, SDR-transfer and matrix value occurs in at least one complete case. Both ranges and all three chroma positions are present, including BT.709 studio and full-range tuples. Derived matrices use specified primaries. This is individual-axis coverage, not every tuple. Raw transfer 2 remains distinct from the product path's positive-SDR admission. |
+| Strides | The native wire is exactly packed W/W÷2/W÷2, including nonaligned planes. Padded source-plane packing belongs to the integrated parent cases, not a wider native wire format. |
+| Outcomes | Existing rows retain empty/unfittable refusal, abandonment, cap admission, injected picture/EOF/drain errors, retained-until-exit teardown and intentional deadline termination. These are not substitutes for the missing accepted-prefix, partial-init, allocation, output-lease, actual-owner delayed-reader or stalled-FFI/production-keeper controls. |
+
+The source-clock rows are input-wire stimuli, not verification of output container clocks. Integrated MP4/audio/destination/confinement cases and the missing failure controls must be registered separately before the complete native gate is approved. No runtime or release acceptance follows from these coverage dispositions.
+
+### Independent reconstruction
+
+Raw-wrapper completion is separate from reconstruction. Each successful native case records hashes and byte lengths for its wire output, combined OBU stream, every segment, sample metadata and complete configuration. Those files remain bound to the current source revision, closed roster, target, workflow run and attempt, native installation and executable. The reconstruction gate refuses missing cases, changed files, changed identities and imported results from another run. Error and abandonment cases retain their lifecycle outcomes; they are not complete-stream decoding evidence.
+
+The reconstruction gate runs on Linux x86-64, where the pinned FFmpeg binary is available. One arm explicitly selects FFmpeg's `libaom-av1` decoder. The other uses a standalone dav1d executable built from the exact version and archive digest already owned by `packages/cli/scripts/codecs.sh`. Both executable identities and versions are checked before and after the cases. The FFmpeg build's bundled dav1d is not substituted for that pinned arm. Decoder source is compiled without inspection; only its public command interface is used.
+
+Every complete case is decoded both as a combined stream and as separate segments. Require exact frame count, eight-bit planar 4:2:0 output and the registered dimensions. Neither decoder may scale, convert range or pixel format, or drop or duplicate frames. The decoded bytes from both libraries must agree exactly. Concatenated segment reconstructions must also equal the combined reconstruction. The independent probe checks the coded configuration and each segment's initial keyframe. Any decoder error, timeout, incomplete frame or extra frame fails the gate.
+
+The source-identity check uses the registered `binary-picture-identity-v1` pattern, not decoded frame position alone. Each picture contains four rows of eight luma cells. The bits are `(identity * 0x9e3779b1) XOR 0xa5a5a5a5`, reduced to 32 bits. Cell row r and column c carry bit `8*r+c`. Zero and one cells have source luma 32 and 224. Column c spans `[ceil(c*W/8), ceil((c+1)*W/8))`; row r spans `[ceil(r*H/4), ceil((r+1)*H/4))`, including nonaligned geometry. Discard `floor(cell_width/4)` columns from each side and `floor(cell_height/4)` rows from each end. Compare the remaining mean against 128 using integer sums. A mean below 128 is zero, above 128 is one, and exactly 128 is ambiguous and fails. Every cell of every displayed picture must identify the expected global source picture, including segment boundaries. These fixed predicates are not tuned after native output is observed and are not quality scores.
+
+Bound the gate to 512 MiB per encoded file, 2 GiB of encoded files per target, 120 seconds per decoder invocation and 1200 seconds per target. Raw output is bounded to the expected displayed count plus one frame, so an extra picture is observable rather than silently truncated. Reports retain commands, versions, hashes, process outcomes, decoded counts and frame identities. Elementary OBU reconstruction establishes neither source-container timestamps nor copied-audio agreement. Integrated MP4, timing, destination preservation and confinement remain separate required cases.
+
 ### Verification sequence
 
 1. Review this bounded-session plan independently before runtime FFI, then verify ownership, EOF retention, segment rollover, and the fixed memory envelope on all four native targets. No page-protection pass grants early reuse.

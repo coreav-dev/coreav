@@ -133,9 +133,9 @@ class NativeCases(unittest.TestCase):
                 else:
                     DRIVER.run(root, 'x86_64-unknown-linux-musl', output, runner)
             report = json.loads((output / 'report.json').read_text())
-            self.assertEqual(len(calls), 51)
+            self.assertEqual(len(calls), 97)
             self.assertEqual(len(builds), 1)
-            self.assertEqual(len(report['cases']), 51)
+            self.assertEqual(len(report['cases']), 97)
             self.assertEqual(report['complete'], failure is None)
             self.assertTrue(all(0 < call[2] <= 180 for call in calls))
             self.assertEqual([row['case']['id'] for row in report['cases']],

@@ -18,6 +18,18 @@ SPEC.loader.exec_module(CASES)
 
 
 class SvtCases(unittest.TestCase):
+    def test_native_positive_roster_covers_each_admitted_colour_axis(self):
+        cases = [case for case in CASES.load() if case.outcome == 'complete']
+        for axis, expected in enumerate([
+            {1, 2, *range(4, 13), 22},
+            {1, 2, *range(4, 16), 17},
+            {1, 2, *range(4, 15)},
+            {0, 1},
+            {0, 1, 2},
+        ]):
+            with self.subTest(axis=axis):
+                self.assertEqual({case.color[axis] for case in cases}, expected)
+
     def changed(self, change):
         document = json.loads(CASES.ROSTER.read_text())
         change(document)
@@ -29,18 +41,30 @@ class SvtCases(unittest.TestCase):
 
     def test_roster_has_all_presets_and_both_segment_bounds(self):
         cases = CASES.load()
-        self.assertEqual(len(cases), 51)
+        self.assertEqual(len(cases), 97)
         presets = [c.preset for c in cases if c.id.startswith('preset-')]
         self.assertEqual(sorted(presets), list(range(14)))
         for prefix, capacity in [('memory-', 3), ('keyint-', 5)]:
             rows = [c for c in cases if c.id.startswith(prefix)]
             self.assertEqual(sorted(c.pictures for c in rows),
-                             [capacity + 1, 2 * capacity - 1, 2 * capacity,
+                             [capacity - 1, capacity, capacity + 1, 2 * capacity - 1, 2 * capacity,
                               2 * capacity + 1, 3 * capacity + 1])
             self.assertEqual({c.capacity for c in rows}, {capacity})
         fractional, = [c for c in cases if c.id == 'fractional-tail']
         self.assertEqual((fractional.rate, fractional.keyint, fractional.pictures),
                          ((30000, 1001), 149, 150))
+        normal = [case for case in cases if case.id.startswith('normal-')]
+        self.assertEqual(sorted(case.pictures for case in normal),
+                         [149, 150, 151, 299, 300, 301, 451])
+        self.assertEqual({case.capacity for case in normal}, {150})
+        self.assertEqual({case.crf for case in cases}, {0, 1, 32, 62, 63})
+        rows = {case.id: case for case in cases}
+        self.assertEqual((rows['one-picture-floor-one'].pictures,
+                          rows['one-picture-floor-one'].capacity), (1, 1))
+        self.assertEqual(rows['maximum-width'].dimensions, (16384, 64))
+        self.assertEqual(rows['maximum-height'].dimensions, (64, 8704))
+        self.assertEqual(rows['rate-sixty'].rate, (60, 1))
+        self.assertEqual(rows['rate-equivalent'].rate, (60, 2))
 
     def test_unknown_duplicate_and_incomplete_fields_are_refused(self):
         for change in [
