@@ -309,8 +309,23 @@ class Evidence(unittest.TestCase):
             return result
         result = self.compare(reference=b'\x01' + self.rgb[1:], probe=probe)
         self.assertIn('stream_metadata', result['failures'])
+        self.assertEqual(result['images'][0]['stream_metadata_fields'], ['sample_aspect_ratio'])
         self.assertIn('frame_timing', result['failures'])
         self.assertIn('reference_pixels', result['failures'])
+
+    def test_missing_aspect_metadata_fails_with_both_pixel_gates_exact(self):
+        def probe(path, *args):
+            result = description()
+            if path.parent == self.reference:
+                result['streams'][0]['sample_aspect_ratio'] = '1:1'
+            else:
+                result['streams'][0].pop('sample_aspect_ratio', None)
+            return result
+        result = self.compare(probe=probe)
+        self.assertEqual(result['failures'], ['stream_metadata'])
+        self.assertEqual(result['images'][0]['stream_metadata_fields'], ['sample_aspect_ratio'])
+        self.assertTrue(result['encoder']['exact'])
+        self.assertTrue(result['reference']['exact'])
 
     def test_bad_candidate_shape_retains_reference_comparison(self):
         def probe(path, *args):
@@ -568,6 +583,33 @@ class RunIdentity(unittest.TestCase):
 
 
 class Orchestrator(unittest.TestCase):
+    def test_capture_faults_void_the_run_instead_of_becoming_oracle_misses(self):
+        reasons = ('harness_timeout', 'harness_failed', 'receipt_json', 'receipt_binding',
+                   'receipt_frames', 'capture_roster', 'capture_payload', 'output_identity', 'source_identity')
+        index, entry = image.eb.commands('v2')[0]
+        for reason in reasons:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                opts = types.SimpleNamespace(work=pathlib.Path(tmp), methods=image.method_identity(),
+                                             tools={}, run_identity='run')
+                with mock.patch.object(image, 'eligibility', return_value=('source', {})), \
+                        mock.patch.object(image, 'image_oracle', side_effect=image.Invalid(reason)), \
+                        mock.patch.object(image, 'judge', side_effect=lambda *args: image.oracle(object())):
+                    record = image.evaluate(opts, index, entry)
+                self.assertFalse(record['counted'])
+                self.assertIsNone(record['miss'])
+                self.assertEqual(record['fault'], 'Invalid:' + reason)
+                summary = image.eb.summarize([record], 'v2')
+                self.assertTrue(summary['void']['void'])
+                self.assertEqual(summary['void']['faults'], [index])
+
+    def test_image_shape_disagreements_remain_misses(self):
+        for reason, miss in (('reference_shape', 'no_oracle'), ('candidate_shape', 'oracle'),
+                             ('output_shape', 'oracle')):
+            with self.subTest(reason=reason), \
+                    mock.patch.object(image, 'eligibility', return_value=('source', {})), \
+                    mock.patch.object(image, 'image_oracle', side_effect=image.Invalid(reason)):
+                self.assertEqual(image.oracle(object()), (miss, {'check': reason}))
+
     def test_existing_failure_and_encoder_start_order_precede_image_oracle(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -764,13 +806,29 @@ class RealImageCapture(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('COREAV_IMAGE_VP9') == '1', 'Linux worker-capable capture build')
     def test_vp9_worker_preserves_normal_and_captured_outputs(self):
-        source = self.source(vp9=True)
+        webm = self.source(vp9=True)
+        source = webm.with_suffix('.mp4')
+        self.checked([self.ffmpeg, '-nostdin', '-v', 'error', '-i', str(webm), '-c:v', 'copy', '-an', str(source)])
         for codec in ('png', 'bmp'):
             with self.subTest(codec=codec):
                 _, _, _, result = self.acquire(source, codec, True, codec)
                 self.assertEqual(result['failures'], [], result)
                 self.assertTrue(result['encoder']['exact'])
                 self.assertTrue(result['reference']['exact'])
+
+    @unittest.skipUnless(os.environ.get('COREAV_IMAGE_VP9') == '1', 'Linux worker-capable capture build')
+    def test_vp9_webm_png_aspect_miss_keeps_both_exact_pixel_comparisons(self):
+        source = self.source(vp9=True)
+        cx, _, _, result = self.acquire(source, 'png', True, 'webm-png')
+        self.assertEqual(result['failures'], ['stream_metadata'], result)
+        self.assertTrue(result['encoder']['exact'])
+        self.assertTrue(result['reference']['exact'])
+        for row in result['images']:
+            self.assertEqual(row['stream_metadata_fields'], ['sample_aspect_ratio'])
+            actual = image.image_description(cx.run.cwd / row['output'], self.ffprobe, self.env, 'png')
+            reference = image.image_description(cx.reference.cwd / row['output'], self.ffprobe, self.env, 'png')
+            self.assertIsNone(actual['streams'][0].get('sample_aspect_ratio'))
+            self.assertEqual(reference['streams'][0]['sample_aspect_ratio'], '1:1')
 
     def changed_image(self, destination, codec):
         native = image.image_description(destination, self.ffprobe, self.env, codec)

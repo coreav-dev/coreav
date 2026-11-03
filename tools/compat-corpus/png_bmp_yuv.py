@@ -32,6 +32,9 @@ FAILURES = frozenset(('receipt_json', 'receipt_binding', 'receipt_frames', 'capt
                       'harness_timeout', 'output_shape', 'reference_shape', 'candidate_shape',
                       'stream_metadata', 'frame_timing', 'image_decode', 'encoder_pixels',
                       'reference_pixels', 'encoder_and_reference_pixels', 'method_identity', 'source_commit', 'host'))
+CAPTURE_FAULTS = frozenset(('harness_timeout', 'harness_failed', 'receipt_json', 'receipt_binding',
+                           'receipt_frames', 'capture_roster', 'capture_payload', 'output_identity',
+                           'source_identity'))
 
 
 class Invalid(ValueError):
@@ -369,6 +372,16 @@ def image_comparisons(cx, frames, directory):
         if actual is not None:
             if not decoded.metadata(actual['streams'][0], reference['streams'][0]):
                 failures.append('stream_metadata')
+                mine, theirs = actual['streams'][0], reference['streams'][0]
+                row['stream_metadata_fields'] = [key for key in ('codec_type', 'codec_name', *decoded.VIDEO)
+                                                  if decoded.value(mine.get(key)) != decoded.value(theirs.get(key))]
+                for key in ('start_pts', 'duration_ts'):
+                    try:
+                        same = decoded.time(mine, key) == decoded.time(theirs, key)
+                    except (KeyError, ValueError, TypeError, ZeroDivisionError):
+                        same = False
+                    if not same:
+                        row['stream_metadata_fields'].append(key)
             try:
                 same_times = timeline(actual) == timeline(reference)
             except Invalid:
@@ -465,6 +478,8 @@ def oracle(cx):
     try:
         result = image_oracle(cx, *selection)
     except Invalid as error:
+        if error.reason in CAPTURE_FAULTS:
+            raise
         return ('no_oracle' if error.reason == 'reference_shape' else 'oracle'), {'check': error.reason}
     return ('oracle', {'check': result['failures'][0], 'image_comparisons': result}) if result['failures'] else (
         None, result)
