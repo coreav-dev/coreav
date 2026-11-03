@@ -24,9 +24,10 @@
   "components": {
     "microsoft-crt": {
       "label": "Microsoft C runtime",
-      "license": "Visual Studio redistribution terms",
+      "license": "Visual Studio redistribution terms AND Windows SDK terms",
       "files": [
-        "microsoft/NOTICE"
+        "microsoft/vcruntime-NOTICE",
+        "microsoft/ucrt-NOTICE"
       ]
     },
     "musl": {
@@ -72,9 +73,13 @@
     }
   },
   "files": {
-    "microsoft/NOTICE": {
+    "microsoft/vcruntime-NOTICE": {
       "source": "https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/",
-      "sha256": "5348bbcaeb11507def5fa03235d47129c4bdef9571fe1443d5dfab27dc164d08"
+      "sha256": "086cc7f6d890445f0332b9b15c58b51105f5f50c88d83de730f6f574af5aba0b"
+    },
+    "microsoft/ucrt-NOTICE": {
+      "source": "https://learn.microsoft.com/en-us/legal/windows-sdk/license",
+      "sha256": "3d20fe105e31f65fbcb905263d0a9532892a8adcac3406778deca65b2d19444f"
     },
     "wasi-libc/LICENSE": {
       "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE",

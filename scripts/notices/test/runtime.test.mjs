@@ -8,10 +8,18 @@ const commit = runtimeManifest.rustCommit;
 const context = { commit, version: "1.99.1", library: new Set(), members: new Set(), memberPaths: new Set() };
 const evidence = nativeEvidence(Buffer.alloc(0));
 
+test("Microsoft runtime notices distinguish the SDK and Visual Studio terms", () => {
+  const text = renderRuntimes("x86_64-pc-windows-msvc", commit);
+  assert.ok(text.includes("UCRT is distributed under the Windows SDK terms:"));
+  assert.ok(text.includes("https://learn.microsoft.com/en-us/legal/windows-sdk/license"));
+  assert.equal(noticeSections(text).get("C runtime\0Microsoft C runtime").license, "Visual Studio redistribution terms AND Windows SDK terms");
+});
+
 test("Windows notices identify the static Microsoft CRT and link its terms", () => {
   const target = "x86_64-pc-windows-msvc";
   const text = renderRuntimes(target, commit);
-  assert.ok(text.includes("The statically linked Microsoft C runtime (vcruntime and UCRT) is distributed under the Visual Studio redistribution terms:"));
+  assert.ok(text.includes("The statically linked Microsoft C runtime component vcruntime is distributed under the Visual Studio redistribution terms:"));
+  assert.ok(text.includes("The statically linked Microsoft C runtime component UCRT is distributed under the Windows SDK terms:"));
   assert.ok(text.includes("https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/"));
   const sections = noticeSections(text);
   assert.ok(sections.has("C runtime\0Microsoft C runtime"));

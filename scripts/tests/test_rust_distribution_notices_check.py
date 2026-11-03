@@ -48,8 +48,10 @@ class RustDistributionNoticesCheck(unittest.TestCase):
                      f'coreav-1.0.0-{target}.zip',
                      f'coreav-full-1.0.0-{target}.zip'):
             for changed in (text.split(b'=== Microsoft C runtime')[0],
-                            text.replace(b'vcruntime and UCRT', b'other runtime'),
-                            text.replace(b'https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/', b'https://example.invalid/')):
+                            text.replace(b'vcruntime is distributed', b'other runtime is distributed'),
+                            text.replace(b'UCRT is distributed', b'other runtime is distributed'),
+                            text.replace(b'https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/', b'https://example.invalid/'),
+                            text.replace(b'https://learn.microsoft.com/en-us/legal/windows-sdk/license', b'https://example.invalid/')):
                 with self.subTest(name=name):
                     entries = self.fixture.files('package')
                     entries['package/THIRD-PARTY-NOTICES.txt'] = changed
