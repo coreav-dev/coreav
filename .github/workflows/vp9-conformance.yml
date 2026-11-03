@@ -20,6 +20,12 @@ on:
   schedule:
     - cron: '41 6 * * 3'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Conformance or the untimed development instruction ceiling
+        type: choice
+        options: [conformance, ceiling]
+        default: conformance
 
 permissions:
   contents: read
@@ -30,7 +36,7 @@ concurrency:
 
 jobs:
   vectors:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    if: inputs.mode != 'ceiling' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     strategy:
       fail-fast: false
       matrix:
@@ -96,3 +102,87 @@ jobs:
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
         run: cargo test --locked --release -p coreav-backend-vp9 --test vectors -- --include-ignored --nocapture
+
+  pixel-ceiling:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ceiling'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Check and build the media-free scratch sources
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p test_vp9_pixel_ceiling.py
+          python3 -I scripts/vp9_pixel_ceiling.py prepare --out "$RUNNER_TEMP/ceiling"
+          for arm in baseline ceiling; do
+            (
+              cd "$RUNNER_TEMP/ceiling/$arm"
+              cargo build --locked --profile dist -p coreav-decode-oracle --features native-vp9
+              rustc -Vv > compiler.txt
+            )
+          done
+      - name: Install the instruction counter
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends valgrind
+      - name: Fetch only the development checkpoint inputs
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -I scripts/vp9_pixel_ceiling.py fetch --media "$RUNNER_TEMP/media"
+      - name: Count instructions without credentials or elapsed-time comparisons
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/public"
+          python3 -I scripts/vp9_pixel_ceiling.py capture --out "$RUNNER_TEMP/ceiling" \
+            --media "$RUNNER_TEMP/media" --private "$RUNNER_TEMP/private" \
+            --summary "$RUNNER_TEMP/public/ceiling.json"
+      - name: Seal records and delete private inputs
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          mkdir -p private
+          if [ -f media/acquisition.json ]; then cp media/acquisition.json private/; fi
+          if [ -f ceiling/sources.json ]; then cp ceiling/sources.json private/; fi
+          for arm in baseline ceiling; do
+            if [ -f "ceiling/$arm/compiler.txt" ]; then cp "ceiling/$arm/compiler.txt" "private/$arm-compiler.txt"; fi
+          done
+          rm -rf media
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private ceiling
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-pixel-ceiling-sealed
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-pixel-ceiling-summary
+          path: ${{ runner.temp }}/public/ceiling.json
+          if-no-files-found: error
+          retention-days: 30
