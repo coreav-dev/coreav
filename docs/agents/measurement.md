@@ -4,6 +4,7 @@ Speed rounds, bars, thresholds, capacity, and measurement hosts.
 
 | Rule | Enforced by |
 |---|---|
+| A VP9 pixel-round implementation is gated by unchanged bit-exact checks; timing uses its verified merged commit only, and results follow the run in a separate pull request | `docs/measurements/vp9-pixel-round/plan.json` owns the run boundary. Until its capture driver is implemented, enforcement is independent review; the driver must reject an unmerged pull request or a candidate that differs from its merge receipt |
 | No change makes a guarded command run more instructions without a stated cost | `bench-guard` in `ci.yml` fails when a case counts more than the tolerance above its count (5%, `tolerance` in `bench/guard/baseline.json`): a pull request against its base, `main` against the baseline. A rise within the tolerance passes, and a change that moves the baseline only gets a warning: that its cost is stated is review judgment |
 | An H.264 speed round's bars are judged on every stream of its set | `scripts/h264_parity.py` records requested and failed streams; `scripts/h264_parity_bars.py` refuses incomplete reports |
 | A new round adds no copy of an analyzer under `docs/measurements` | `scripts/tests/test_measurement_analyzers.py` (`deny.yml`) |

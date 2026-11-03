@@ -41,4 +41,4 @@ The safe entry has a differential fuzz target. Existing C1 conformance, public-b
 
 This is not the H.264 parsing exception of policy 0038. No bitstream parser, reference management, row packing or wide loop filter may contain unsafe code under this record. Compiler autovectorization of safe Rust does not add an explicit SIMD kernel.
 
-Any additional kernel, target architecture, explicit vectorized vertical or compound stage, raw-pointer memory operation, parsing exception or wider unsafe module needs a new maintainer decision and an amended scoped record. A design note or an inventory row alone cannot widen this permission.
+Every additional kernel needs its own new, separately reviewed scoped exception record and a new maintainer decision. This record remains limited to `horizontal8_avx2` and cannot be amended to authorize another kernel. Another target architecture, explicit vectorized vertical or compound stage, raw-pointer memory operation, parsing exception or wider unsafe module is also outside this permission and needs a new decision and a separate record. A design note or an inventory row alone cannot widen this permission.

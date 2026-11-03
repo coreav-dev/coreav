@@ -3,6 +3,11 @@
   "purpose": "development-only pixel reconstruction diagnosis; no performance vote",
   "baseline_commit": "8f894f51d02795a16c63c35a2361dc1a9783281b",
   "plan_review_required_before_implementation_and_timing": true,
+  "implementation_pr": "coreav-dev/coreav#340",
+  "implementation_gate": "bit-exact output under unchanged correctness checks",
+  "timed_run_requires_merge": true,
+  "candidate_source": "verified implementation pull request merge commit",
+  "results_require_separate_pr_after_run": true,
   "frames": 120,
   "inputs": [
     {"sha256": "f81ffa011a5af8a0d9282bc63bf8dec428e56bd9423cba189293d3ebbad85c01", "class": "720p", "width": 1280, "height": 720},
@@ -12,11 +17,11 @@
     {"sha256": "ca4c7d09b39fc167dcc0023f65191b0ae93335ea6bcbbd5f10419304d28307c8", "class": "4K", "width": 3840, "height": 2160},
     {"sha256": "e0a46de01dccf1ac1fa00b2b87e1a45b2b7d06c0fe4e7abcff9282f399068087", "class": "4K", "width": 4096, "height": 2160}
   ],
-  "arms": ["baseline-dist", "head-safe-dist", "head-auto-dist", "ffmpeg-pinned", "ffmpeg-symbols"],
+  "arms": ["baseline-dist", "merged-safe-dist", "merged-auto-dist", "ffmpeg-pinned", "ffmpeg-symbols"],
   "warmups": 1,
   "unprofiled_rounds": 5,
   "arm_order": "for input i, seed is arms when i is even and reversed arms otherwise; round r rotates seed left by r",
-  "primary_metric": "median of per-input paired baseline user CPU / head automatic user CPU",
+  "primary_metric": "median of per-input paired baseline user CPU / merged automatic user CPU",
   "ffmpeg_loops": {"720p": 80, "1080p": 40, "4K": 5},
   "ffmpeg_pin": "scripts/oracle-ffmpeg.env",
   "ffmpeg_decoder": "vp9",
@@ -25,8 +30,8 @@
   "rust_toolchain": "1.99.0",
   "native_safe_feature": "coreav-kernels-vp9/safe",
   "host": {"machine": "c4-standard-16", "provisioning": "STANDARD", "cpu_platform": "Intel Emerald Rapids", "threads_per_core": 1, "turbo_mode": "ALL_CORE_MAX", "pmu": "STANDARD", "affinity_cpu": 0, "required_feature": "avx2"},
-  "profiles": {"native_arms": ["baseline-dist", "head-safe-dist", "head-auto-dist"], "ffmpeg_arm": "ffmpeg-symbols", "event": "cycles:u", "call_graph": "dwarf,32768", "native_frequency": 199, "ffmpeg_frequency": 999, "repetitions": 1, "attribution": "exclusive period weights scaled to unprofiled user CPU"},
-  "prediction": {"metric": "baseline user CPU / head automatic user CPU", "720p": [1.5, 3.5], "1080p": [1.6, 4.0], "4K": [1.5, 3.2]},
+  "profiles": {"native_arms": ["baseline-dist", "merged-safe-dist", "merged-auto-dist"], "ffmpeg_arm": "ffmpeg-symbols", "event": "cycles:u", "call_graph": "dwarf,32768", "native_frequency": 199, "ffmpeg_frequency": 999, "repetitions": 1, "attribution": "exclusive period weights scaled to unprofiled user CPU"},
+  "prediction": {"metric": "baseline user CPU / merged automatic user CPU", "720p": [1.5, 3.5], "1080p": [1.6, 4.0], "4K": [1.5, 3.2]},
   "held_out": false,
   "changes_existing_bars": false
 }
