@@ -119,6 +119,7 @@ jobs:
           name: svt-native-${{ matrix.target }}
           path: |
             ${{ runner.temp }}/svt-av1/manifest.json
+            ${{ runner.temp }}/svt-av1/include/svt-av1/*.h
             ${{ runner.temp }}/svt-rust-link/manifest.json
             ${{ runner.temp }}/svt-native-logs/*.log
           if-no-files-found: warn
