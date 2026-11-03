@@ -5,6 +5,8 @@ use crate::{DocType, Error};
 /// not change block, cluster or index serialization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CodecId {
+    /// FFV1 version 3 with its Configuration Record.
+    Ffv1,
     /// AVC configuration record and length-prefixed NAL units.
     H264,
     /// HEVC configuration record and length-prefixed NAL units.
@@ -43,6 +45,7 @@ impl CodecId {
 
     fn mapping(self) -> (&'static str, bool, bool, bool) {
         match self {
+            Self::Ffv1 => ("V_FFV1", true, true, false),
             Self::H264 => ("V_MPEG4/ISO/AVC", true, true, false),
             Self::Hevc => ("V_MPEGH/ISO/HEVC", true, true, false),
             Self::Av1 => ("V_AV1", true, true, true),

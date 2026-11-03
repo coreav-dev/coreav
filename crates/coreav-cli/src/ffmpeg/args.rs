@@ -138,6 +138,8 @@ pub enum Codec {
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
+    /// Native lossless FFV1 video in Matroska.
+    Ffv1,
     /// An encoder of one audio stream.
     Audio(AudioEncoder),
     /// A native image or raw video encoder.
@@ -885,6 +887,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             let codec = match text {
                 "copy" => Codec::Copy,
                 "libx264" => Codec::Libx264,
+                "ffv1" => Codec::Ffv1,
                 "libopus" => Codec::Audio(AudioEncoder::Libopus),
                 "aac" => Codec::Audio(AudioEncoder::Aac),
                 "libmp3lame" => Codec::Audio(AudioEncoder::Libmp3lame),

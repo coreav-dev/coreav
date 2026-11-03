@@ -27,6 +27,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
+They also encode one progressive 8-bit planar YUV video stream with
+-c:v ffv1 into .mkv, without an external encoder. Exclude other streams
+with -an, -sn and -dn or a video-only -map. No pixel conversion is added.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.

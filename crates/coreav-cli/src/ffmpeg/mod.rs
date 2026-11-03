@@ -17,6 +17,7 @@ mod avi;
 mod capture;
 #[cfg(feature = "transcode")]
 pub mod encode;
+mod ffv1;
 #[cfg(feature = "thumbnail")]
 mod frames;
 #[cfg(feature = "input-capture")]
@@ -153,6 +154,11 @@ pub enum Job {
     /// or the one audio stream encoded with libopus or aac, as MP4
     /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
     Transcode(TranscodeJob),
+    /// One video stream encoded losslessly as FFV1 in Matroska.
+    Ffv1 {
+        /// The selected source stream.
+        video: usize,
+    },
     /// One selected audio stream encoded without a video stream.
     AudioEncode {
         /// The source audio stream.
@@ -237,6 +243,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
 codec explicitly because its Vorbis default is not implemented.
+They also encode one progressive 8-bit planar YUV video stream with
+-c:v ffv1 into .mkv, without an external encoder. Exclude other streams
+with -an, -sn and -dn or a video-only -map. No pixel conversion is added.
 They encode audio without video to AAC in MP4/M4A or MP3 with libmp3lame,
 using an operator-installed ffmpeg; -c:a libopus writes Opus in MP4.
 For MP3, use a .mp3 output (or -f mp3), -b:a, or -q:a/-qscale:a 0 to 9.
@@ -450,6 +459,10 @@ fn run_with_input(
         return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(feature = "transcode")]
+    if let Job::Ffv1 { video } = job {
+        return ffv1::write(&command, &report, video, strict_safe);
+    }
+    #[cfg(feature = "transcode")]
     if let Job::AudioEncode { stream, encoder } = job {
         return audio::write(&command, &report, stream, encoder, strict_safe);
     }
@@ -653,6 +666,9 @@ pub fn plan(
             .collect()
     };
     let encoded = coded(Codec::Libx264);
+    if decided.contains(&Some(Codec::Ffv1)) {
+        return ffv1::plan(command, report, &output, &decided, list.is_some(), trims);
+    }
     let audio_encoded: Vec<(usize, args::AudioEncoder)> = output
         .iter()
         .zip(&decided)
@@ -1608,7 +1624,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     }
     if matches!(
         job,
-        Job::Transcode(_) | Job::AudioEncode { .. } | Job::Frames { .. }
+        Job::Transcode(_) | Job::Ffv1 { .. } | Job::AudioEncode { .. } | Job::Frames { .. }
     ) {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
@@ -1742,6 +1758,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::Avi(_)
         | Job::Split(_)
         | Job::Transcode(_)
+        | Job::Ffv1 { .. }
         | Job::AudioEncode { .. }
         | Job::Pcm { .. }
         | Job::RawAudio(_)

@@ -78,6 +78,21 @@ Decoder eligibility distinguishes exact output from specification-conformance-on
 Input `-`, `pipe:` and `pipe:0` accept encoded container bytes. CoreAV spools only the encoded input to a private temporary file with a 1 GiB cap because container decoding needs positioned reads. Declared raw S16 stdin streams directly without a whole-input spool. Unsupported encoded input is replayed from its start to the fallback with the original arguments. Decoded audio is never collected as a whole file; a discard decode validates presentation before stdout begins, so this safety check costs an extra decode. Any failure after output begins is terminal and never starts fallback.
 
 Standalone WAV and FLAC files are not decoded by this path. A follow-up will add bounded WAV/PCM input over the standalone parser's data-span API. The [raw audio plan](https://github.com/coreav-dev/coreav/blob/main/docs/design/raw-audio-pipes.md) records the stage boundaries and verification.
+
+## Lossless FFV1 video
+
+A build with a decoder backend accepts `-c:v ffv1` for one progressive, fixed-size, 8-bit planar YUV video stream in a `.mkv` file. Supported sampling is 4:2:0, 4:2:2 or 4:4:4. The encoder runs in CoreAV and preserves the decoded samples without conversion. No external video encoder is needed. The source must be a local MP4/MOV or Matroska/WebM file whose video this build decodes. Strict-safe mode still applies to that decoder.
+
+This first path accepts H.264 with `native-h264`, AV1 with `dav1d`, and VP8 or VP9 with `libvpx`. It does not use the FFmpeg decode fallback or hardware pictures, because their frame descriptions do not establish the required scan structure here.
+
+```sh
+coreav --strict-safe ffmpeg -i input.mp4 -map 0:v:0 -an -sn -dn -c:v ffv1 output.mkv
+```
+
+Exclude other selected streams explicitly. Audio, subtitles, attachments and additional video streams are not written by this path. RGB, alpha, monochrome, higher bit depths, unknown or interlaced scan structure, changing geometry, filters, resizing, seeking, trimming, frame selection, rate-control options and other containers are not native. `-pix_fmt` can require the decoded format but cannot convert it. Above 101,376 pixels, 4:2:0 requires width and height divisible by four, and 4:2:2 requires width divisible by four, so internal slices meet on chroma boundaries.
+
+Output uses FFV1 version 3 with independent keyframes and slice checksums. Known sample aspect and the writer's supported colour fields are preserved. Unsupported source metadata and display transforms are refused. Encoding has explicit packet, memory, index, disk-spool and deadline bounds; reaching a bound fails without replacing an existing destination. Unsupported native commands retain the existing announced fallback outside strict-safe mode. The [FFV1 design](https://github.com/coreav-dev/coreav/blob/main/docs/design/ffv1-encode.md) records the exact subset and verification gate. No speed or output-size comparison is claimed.
+
 ## Images and raw video
 
 A build with a decoder backend also writes PNG (`.png`), BMP (`.bmp`), raw video (`.yuv` or `-f rawvideo`) and YUV4MPEG2 (`.y4m` or `-f yuv4mpegpipe`). These outputs select one video stream and no audio automatically. `-map` can select that stream explicitly. Strict-safe mode uses the same decoder restrictions as thumbnails and never runs FFmpeg.
