@@ -35,6 +35,14 @@ pub fn refuse(
 ) -> ExitCode {
     let found = if strict_safe.on() {
         Err((NotRun::StrictSafe, None))
+    } else if cfg!(target_os = "wasi") {
+        Err((
+            NotRun::Unusable,
+            Some(format!(
+                "the WebAssembly build cannot run {}; use a native build for the FFmpeg fallback",
+                tool.name()
+            )),
+        ))
     } else if std::env::var_os(GUARD).is_some() {
         Err((
             NotRun::Guard,
@@ -50,11 +58,17 @@ pub fn refuse(
     match found {
         Ok(path) => {
             log(tool, args, reason, Ok(&path.to_string_lossy()));
+            let hint = if matches!(reason, fallback::Reason::Property("no section")) {
+                "; try -show_format -show_streams for native output"
+            } else {
+                ""
+            };
             let _ = writeln!(
                 std::io::stderr(),
-                "coreav: ran {} instead (not native: {})",
+                "coreav: ran {} instead (not native: {}{})",
                 path.display(),
-                reason.redacted(tool)
+                reason.redacted(tool),
+                hint
             );
             let error = run(&path, args);
             message(tool, &format!("could not run {}: {error}", path.display()));

@@ -278,13 +278,14 @@ enum Arity {
 }
 
 /// Options that may come anywhere and apply to the whole command.
-const GLOBAL: [(&str, Arity); 6] = [
+const GLOBAL: [(&str, Arity); 7] = [
     ("-y", Arity::Flag),
     ("-n", Arity::Flag),
     ("-hide_banner", Arity::Flag),
     ("-nostdin", Arity::Flag),
     ("-v", Arity::Value),
     ("-loglevel", Arity::Value),
+    ("-ignore_unknown", Arity::Flag),
 ];
 
 /// Options that apply to the next file named, codec options aside.
@@ -328,7 +329,7 @@ const PER_FILE: [(&str, Arity); 36] = [
 ];
 
 /// Options of `ffmpeg` that are refused, with the reason.
-const REFUSED: [(&str, &str); 22] = [
+const REFUSED: [(&str, &str); 21] = [
     ("-vf", "filtering needs a decoder and an encoder"),
     ("-af", "filtering needs a decoder and an encoder"),
     ("-filter", "filtering needs a decoder and an encoder"),
@@ -360,7 +361,6 @@ const REFUSED: [(&str, &str); 22] = [
     ),
     ("-segment_list", "segment lists are not native yet"),
     ("-shortest", "-shortest is not native yet"),
-    ("-ignore_unknown", "-ignore_unknown is not native yet"),
     ("-hls_time", "HLS output is not native yet"),
     ("-hls_list_size", "HLS output is not native yet"),
 ];
@@ -387,6 +387,20 @@ pub(crate) fn local(name: &str, windows: bool) -> bool {
     let separator = |c: char| c == '/' || (windows && c == '\\');
     let first = name.split(separator).next().unwrap_or(name);
     name.starts_with('/') || name.starts_with("./") || drive || !first.contains(':')
+}
+
+fn file_path(name: &str) -> String {
+    match name.strip_prefix("file:") {
+        Some(path)
+            if cfg!(windows)
+                && matches!(path.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic()) =>
+        {
+            path.to_owned()
+        }
+        Some(path) if path == "-" || !local(path, cfg!(windows)) => format!("./{path}"),
+        Some(path) => path.to_owned(),
+        None => name.to_owned(),
+    }
 }
 
 fn usage(text: impl Into<String>) -> Refusal {
@@ -437,6 +451,9 @@ fn parse_spec(text: &str) -> Option<Spec> {
 
 /// `[-]0[:SPEC]`, with `m:language[:VALUE]` among the specifiers.
 fn parse_map(text: &str) -> Result<Map, Refusal> {
+    if text.starts_with('[') && text.ends_with(']') {
+        return Err(not_native("-map", Some(text), "a filtergraph output label"));
+    }
     let (remove, rest) = text
         .strip_prefix('-')
         .map_or((false, text), |rest| (true, rest));
@@ -478,10 +495,10 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
 
 /// A time in `ffmpeg`'s duration syntax, exactly: `[HH:]MM:SS[.m...]`
 /// with `MM` and `SS` below 60, or
-/// `S+[.m...]` with an optional unit `s`, `ms` or `us`. A leading `-`
-/// (a negative time) is `Err(true)`; anything else not a time `Err(false)`.
+/// `S+[.m...]` with an optional unit `s`, `ms` or `us`. `Err(true)` is
+/// outside the native exact representation; `Err(false)` is malformed.
 pub fn parse_duration(text: &str) -> Result<Rational, bool> {
-    if text.starts_with('-') {
+    if text.starts_with(['-', '+']) {
         return Err(true);
     }
     let digits = |s: &str, most: usize| {
@@ -498,20 +515,23 @@ pub fn parse_duration(text: &str) -> Result<Rational, bool> {
             _ => return Err(false),
         };
         let sexagesimal = |s: &str| digits(s, 2) && s.parse::<u8>().is_ok_and(|v| v < 60);
-        if !digits(hours, 9) || !sexagesimal(minutes) || !sexagesimal(seconds) {
+        if !digits(hours, usize::MAX) || !sexagesimal(minutes) || !sexagesimal(seconds) {
+            return Err(false);
+        }
+        if fraction.is_some_and(|f| !f.bytes().all(|b| b.is_ascii_digit())) {
             return Err(false);
         }
         let seconds = match fraction {
             None => parse_time(seconds),
             Some(f) => parse_time(&format!("{seconds}.{f}")),
         }
-        .ok_or(false)?;
+        .ok_or(true)?;
         let whole = |s: &str| s.parse::<i128>().ok();
         let base = whole(hours)
             .zip(whole(minutes))
             .and_then(|(h, m)| h.checked_mul(3600)?.checked_add(m.checked_mul(60)?))
-            .ok_or(false)?;
-        return Rational::from_int(base).checked_add(seconds).ok_or(false);
+            .ok_or(true)?;
+        return Rational::from_int(base).checked_add(seconds).ok_or(true);
     }
     let (number, scale) = if let Some(n) = text.strip_suffix("ms") {
         (n, 1_000)
@@ -520,14 +540,24 @@ pub fn parse_duration(text: &str) -> Result<Rational, bool> {
     } else {
         (text.strip_suffix('s').unwrap_or(text), 1)
     };
-    let value = parse_time(number).ok_or(false)?;
-    Rational::new(value.num, value.den.checked_mul(scale).ok_or(false)?).ok_or(false)
+    let (whole, fraction) = number.split_once('.').unwrap_or((number, ""));
+    if !digits(whole, usize::MAX) || !fraction.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(false);
+    }
+    let value = parse_time(number).ok_or(true)?;
+    Rational::new(value.num, value.den.checked_mul(scale).ok_or(true)?).ok_or(true)
 }
 
 fn time(option: &str, value: &str) -> Result<Rational, Refusal> {
-    parse_duration(value).map_err(|negative| {
-        if negative {
+    parse_duration(value).map_err(|unsupported| {
+        if value.starts_with('-') {
             Refusal::not_native("a negative time")
+        } else if unsupported {
+            not_native(
+                option,
+                Some(value),
+                "a duration outside the native exact time syntax",
+            )
         } else {
             usage(format!(
                 "Invalid duration specification for {}: {value}",
@@ -605,7 +635,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 Some(topic) => Err(not_native(
                     arg,
                     Some(topic),
-                    "help on a topic describes FFmpeg's own components; coreav ffmpeg prints only its own usage (docs/design/compat-cli.md)",
+                    "help on a topic describes FFmpeg's own components; coreav ffmpeg prints only its own usage (https://coreav.dev/docs/commands/ffmpeg)",
                 )),
             };
         }
@@ -641,12 +671,20 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         };
         match (arg, value) {
-            ("-i", Some(input)) => inputs.push((input, std::mem::take(&mut group))),
+            ("-i", Some(input)) => {
+                #[cfg(not(feature = "net"))]
+                if input.starts_with("http://") || input.starts_with("https://") {
+                    return Err(usage(
+                        "this build has no network; URL inputs are not supported",
+                    ));
+                }
+                inputs.push((input, std::mem::take(&mut group)));
+            }
             ("-y", _) => yes = true,
             ("-n", _) => no = true,
             ("-v" | "-loglevel", Some(level)) => crate::ffprobe::args::loglevel(level)
                 .map_err(|_| usage(format!("Invalid loglevel \"{level}\".")))?,
-            ("-hide_banner" | "-nostdin", _) => {}
+            ("-hide_banner" | "-nostdin" | "-ignore_unknown", _) => {}
             _ => group.push((arg, value)),
         }
     }
@@ -672,10 +710,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let more_inputs: Vec<String> = inputs
         .iter()
         .skip(1)
-        .map(|(path, _)| path.to_string())
+        .map(|(path, _)| file_path(path))
         .collect();
-    for path in &more_inputs {
-        if path == "-" || path.starts_with("pipe:") || !local(path, cfg!(windows)) {
+    for (path, _) in inputs.iter().skip(1) {
+        if *path == "-"
+            || path.starts_with("pipe:")
+            || (!path.starts_with("file:") && !local(path, cfg!(windows)))
+        {
             return Err(Refusal::not_native(
                 "an input named with a protocol or pipe",
             ));
@@ -687,13 +728,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         _ => return Err(Refusal::not_native("a command with several outputs")),
     };
     let mut command = Command {
-        input: input.to_owned(),
+        input: file_path(input),
         more_inputs,
         demuxer: None,
         input_seek: None,
         input_duration: None,
         input_until: None,
-        output: output.to_owned(),
+        output: file_path(output),
         muxer: Muxer::Mp4,
         sample_rate: None,
         channels: None,
@@ -730,12 +771,14 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-f" => {}
             "-ar" if raw => input_rate = Some(rate(option, text)?),
             "-ac" if raw => {
-                input_channels = Some(
-                    text.parse::<u16>()
-                        .ok()
-                        .filter(|n| *n > 0)
-                        .ok_or_else(|| usage("Invalid audio channel count."))?,
-                )
+                input_channels =
+                    Some(text.parse::<u16>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        not_native(
+                            option,
+                            Some(text),
+                            "an audio channel count outside the native integer syntax",
+                        )
+                    })?)
             }
             "-fflags" if matches!(text, "+genpts" | "genpts") => {}
             "-fflags" => {
@@ -778,7 +821,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if input == "-" || input.starts_with("pipe:") {
         return Err(Refusal::not_native("an input from a pipe"));
     }
-    if !local(input, cfg!(windows)) {
+    if !input.starts_with("file:") && !local(input, cfg!(windows)) {
         return Err(Refusal::not_native("an input named with a protocol"));
     }
     let mut format = None;
@@ -857,10 +900,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         }
         match option {
             "-frames:v" | "-vframes" => {
-                command.frames.limit = Some(
-                    text.parse()
-                        .map_err(|_| usage("Invalid video frame limit"))?,
-                );
+                command.frames.limit = Some(text.parse().map_err(|_| {
+                    not_native(
+                        option,
+                        Some(text),
+                        "a frame limit outside the native unsigned integer syntax",
+                    )
+                })?);
             }
             "-update" => command.frames.update = boolean(option, text)?,
             "-r" => {
@@ -909,12 +955,14 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-f" => format = Some(text),
             "-ar" => command.sample_rate = Some(rate(option, text)?),
             "-ac" => {
-                command.channels = Some(
-                    text.parse::<u16>()
-                        .ok()
-                        .filter(|n| *n > 0)
-                        .ok_or_else(|| usage("Invalid audio channel count."))?,
-                )
+                command.channels =
+                    Some(text.parse::<u16>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        not_native(
+                            option,
+                            Some(text),
+                            "an audio channel count outside the native integer syntax",
+                        )
+                    })?)
             }
             "-map" => command.maps.push(parse_map(text)?),
             "-map_metadata" => {
@@ -943,8 +991,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 ));
             }
             "-segment_time" => {
-                segment_time = Some(match parse_duration(text) {
-                    Ok(t) if t.num > 0 => t,
+                segment_time = Some(match time(option, text)? {
+                    t if t.num > 0 => t,
                     _ => {
                         return Err(usage(format!(
                             "Invalid time duration specification '{text}' for segment_time option"
@@ -959,7 +1007,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
             "-max_muxing_queue_size" => {
                 text.parse::<u32>().map_err(|_| {
-                    usage(format!("Invalid value '{text}' for max_muxing_queue_size"))
+                    not_native(
+                        option,
+                        Some(text),
+                        "a queue size outside the native unsigned integer syntax",
+                    )
                 })?;
             }
             "-an" => command.no_audio = true,
@@ -979,7 +1031,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if (output == "-" || output.starts_with("pipe:")) && command.muxer != Muxer::Rawvideo {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if !local(output, cfg!(windows)) && output != "-" {
+    if !output.starts_with("file:") && !local(output, cfg!(windows)) && output != "-" {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
     if let Some(option) = audio_encoders
@@ -1133,7 +1185,11 @@ fn threads(text: &str) -> Result<(), Refusal> {
     if text == "auto" || text.parse::<u32>().is_ok() {
         Ok(())
     } else {
-        Err(usage(format!("Invalid value '{text}' for threads")))
+        Err(not_native(
+            "-threads",
+            Some(text),
+            "a thread count outside the native unsigned integer syntax",
+        ))
     }
 }
 
@@ -1527,13 +1583,13 @@ mod tests {
             assert!(local(name, true), "{name}");
             assert!(!local(name, false), "{name}");
         }
-        for text in [
-            "-i file:in.mp4 -c copy out.mp4",
-            "-i in.mp4 -c copy file:out.mp4",
-            "-i in.mp4 -c copy pipe:1",
-        ] {
-            assert!(matches!(refused(text), Reason::Property(_)), "{text}");
-        }
+        assert!(matches!(
+            refused("-i in.mp4 -c copy pipe:1"),
+            Reason::Property(_)
+        ));
+        let command = parse(&args("-i file:in.mp4 -c copy file:out.mp4")).unwrap();
+        assert_eq!(command.input, "in.mp4");
+        assert_eq!(command.output, "out.mp4");
     }
 
     #[test]

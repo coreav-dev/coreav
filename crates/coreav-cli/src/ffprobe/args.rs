@@ -110,7 +110,7 @@ pub struct Options {
     pub sections: bool,
 }
 
-const VALUE_OPTIONS: [&str; 10] = [
+const VALUE_OPTIONS: [&str; 13] = [
     "-i",
     "-v",
     "-loglevel",
@@ -121,9 +121,12 @@ const VALUE_OPTIONS: [&str; 10] = [
     "-select_streams",
     "-read_intervals",
     "-f",
+    "-probesize",
+    "-analyzeduration",
+    "-threads",
 ];
 
-const FLAG_OPTIONS: [&str; 13] = [
+const FLAG_OPTIONS: [&str; 14] = [
     "-show_format",
     "-show_streams",
     "-show_chapters",
@@ -137,6 +140,7 @@ const FLAG_OPTIONS: [&str; 13] = [
     "-pretty",
     "-sexagesimal",
     "-nostdin",
+    "-show_private_data",
 ];
 
 /// Options `ffprobe` has that `coreav ffprobe` refuses, with the reason.
@@ -215,7 +219,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                     arg,
                     Some(topic),
                     format!(
-                        "'{arg} {topic}' is not supported: help on a topic describes FFmpeg's own components; coreav ffprobe prints only its own usage (docs/design/compat-cli.md)"
+                        "'{arg} {topic}' is not supported: help on a topic describes FFmpeg's own components; coreav ffprobe prints only its own usage (https://coreav.dev/docs/commands/ffprobe)"
                     ),
                 )),
             };
@@ -265,6 +269,22 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                 input = Some(value.to_owned());
             }
             "-v" | "-loglevel" => loglevel(value)?,
+            "-probesize" | "-analyzeduration" | "-threads" => {
+                let default = match option {
+                    "-probesize" => "5000000",
+                    "-analyzeduration" => "0",
+                    _ => "1",
+                };
+                if value != default {
+                    return Err(unsupported(
+                        option,
+                        Some(value),
+                        format!(
+                            "'{option} {value}' is not supported: only the unchanged FFmpeg default {default} is native"
+                        ),
+                    ));
+                }
+            }
             "-of" | "-print_format" | "-output_format" => writer = parse_writer(option, value)?,
             "-show_entries" => {
                 parse_entries(value, &mut selection)?;
@@ -333,7 +353,11 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
             "You have to specify one input file.".to_owned(),
         ));
     };
-    if !input.starts_with("http://") && !input.starts_with("https://") && input.contains(':') {
+    if !input.starts_with("file:")
+        && !input.starts_with("http://")
+        && !input.starts_with("https://")
+        && input.contains(':')
+    {
         if let Some((protocol, _)) = input.split_once(':') {
             if protocol.len() > 1 && protocol.chars().all(|c| c.is_ascii_alphanumeric()) {
                 return Err(Refusal::Unsupported(NotNative::property(
@@ -379,20 +403,23 @@ pub(crate) fn loglevel(value: &str) -> Result<(), Refusal> {
     ];
     let mut rest = value;
     loop {
-        let flagged = rest
-            .strip_prefix('+')
-            .or_else(|| rest.strip_prefix('-'))
-            .and_then(|r| ["repeat", "level"].iter().find_map(|f| r.strip_prefix(f)));
-        match flagged {
-            Some(r) => rest = r,
-            None => break,
-        }
+        let candidate = rest.strip_prefix(['+', '-']).unwrap_or(rest);
+        let Some(tail) = ["repeat", "level", "time", "datetime"]
+            .iter()
+            .find_map(|flag| candidate.strip_prefix(flag))
+        else {
+            break;
+        };
+        rest = tail;
     }
     let level = rest.strip_prefix('+').unwrap_or(rest);
-    if level.is_empty() && rest != value {
+    if level.is_empty() {
         return Ok(());
     }
-    if LEVELS.contains(&level) || level.parse::<i32>().is_ok() {
+    let numeric = level.trim_start_matches(|c: char| c.is_ascii_whitespace());
+    let number = numeric.strip_prefix(['+', '-']).unwrap_or(numeric);
+    if LEVELS.contains(&level) || (!number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()))
+    {
         Ok(())
     } else {
         Err(Refusal::Usage(format!("Invalid loglevel \"{value}\".")))
@@ -403,10 +430,13 @@ fn parse_bool(option: &str, value: &str) -> Result<bool, Refusal> {
     match value {
         "1" | "true" => Ok(true),
         "0" | "false" => Ok(false),
-        _ => value
-            .parse::<i64>()
-            .map(|n| n != 0)
-            .map_err(|_| Refusal::Usage(format!("Invalid value '{value}' for option '{option}'"))),
+        _ => value.parse::<i64>().map(|n| n != 0).map_err(|_| {
+            unsupported(
+                option,
+                Some(value),
+                format!("a boolean value outside the native syntax for '{option}'"),
+            )
+        }),
     }
 }
 
@@ -609,7 +639,13 @@ fn parse_time(text: &str) -> Option<f64> {
 /// `-read_intervals INTERVAL[,INTERVAL...]`, each
 /// `[START|+START_OFFSET][%[END|+END_OFFSET|+#PACKETS]]`.
 fn parse_intervals(value: &str) -> Result<Vec<Interval>, Refusal> {
-    let bad = || Refusal::Usage(format!("Invalid interval specification '{value}'"));
+    let bad = || {
+        unsupported(
+            "-read_intervals",
+            Some(value),
+            "an interval outside the native time or packet-count syntax",
+        )
+    };
     let mut out = Vec::new();
     for spec in value.split(',') {
         let (start, end) = spec

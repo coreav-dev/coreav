@@ -2,8 +2,7 @@
 usage: coreav ffprobe [OPTIONS] INPUT
 
 Experimental: values can differ from ffprobe's for MP4/MOV, Matroska/WebM
-and MPEG-TS. docs/measurements/compat-ffprobe.md has the agreement of
-every key.
+and MPEG-TS. See https://coreav.dev/docs/commands/ffprobe for field agreement.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets
@@ -12,7 +11,9 @@ The common ffprobe invocations, over CoreAV's own probes. Options:
   -select_streams SPEC -read_intervals INTERVALS -f FORMAT
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
-Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+  -show_private_data -probesize 5000000 -analyzeduration 0 -threads 1
+Reads MP4, MOV, Matroska, WebM and MPEG-TS files. Builds with networking
+also read HTTP(S) URLs.
 Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
 with CoreAV's H.264 decoder; other codecs' frames are refused.
 
@@ -21,5 +22,5 @@ refused (exit status 4). Without it, anything else runs the ffprobe
 program on PATH instead (or the one COREAV_FALLBACK names), which is
 FFmpeg's C code, and says so on standard error. Help on a topic
 (-h long, -h full, -h demuxer=NAME, ...) is handled the same way.
-See docs/design/compat-cli.md.
+Documentation: https://coreav.dev/docs/commands/ffprobe
 ```

@@ -1349,6 +1349,21 @@ fn small_ts(prefix: usize) -> Vec<u8> {
 }
 
 #[test]
+fn remux_names_the_unsupported_transport_stream_input() {
+    let input = file("remux-unsupported.ts", &small_ts(0));
+    let output = output("remux-unsupported.mp4");
+    let result = remux(&[input.to_str().unwrap(), output.to_str().unwrap()]);
+    let error = assert_error(&result, 1, "unsupported_feature");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("MPEG-TS input is not remuxed yet")
+    );
+    assert!(!output.exists());
+}
+
+#[test]
 fn transport_streams_print_their_own_schema() {
     let path = file("small.ts", &small_ts(0));
     let run = run(&[], &path);

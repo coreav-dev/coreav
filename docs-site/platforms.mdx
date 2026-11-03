@@ -25,6 +25,7 @@ The npm package needs Node 20 or later. It runs the native binary on Linux (x86-
 The WebAssembly build has a few more differences:
 
 - Exit status 70 means that the WebAssembly module could not run.
+- It cannot start FFmpeg or ffprobe. A command that needs the FFmpeg fallback exits with status 4, even when FFmpeg is installed on the host. Use a native build to enable the fallback.
 - An error's `message` may word its cause differently. Its `kind` is the same.
 - On Windows, paths must be on the working directory's drive, not another drive or a network share. `\` and `/` both work.
 - It cannot tell hard links apart, because WASI does not expose file identities. For an output path that is a hard link to the input, it reports that the output exists, or with `--force` replaces that link. The input file itself is never changed.
