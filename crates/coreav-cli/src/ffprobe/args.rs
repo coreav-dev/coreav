@@ -33,6 +33,10 @@ pub enum Container {
     Matroska,
     /// `mpegts`.
     Mpegts,
+    /// Standalone WAVE audio.
+    Wav,
+    /// Native FLAC audio.
+    Flac,
 }
 
 /// A stream specifier of `-select_streams`.
@@ -297,6 +301,8 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                     "mov,mp4,m4a,3gp,3g2,mj2" => Container::Isobmff,
                     "matroska,webm" => Container::Matroska,
                     "mpegts" => Container::Mpegts,
+                    "wav" => Container::Wav,
+                    "flac" => Container::Flac,
                     other => {
                         return Err(unsupported(
                             "-f",
