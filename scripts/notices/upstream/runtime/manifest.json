@@ -13,13 +13,23 @@
     ],
     "aarch64-apple-darwin": [],
     "x86_64-apple-darwin": [],
-    "x86_64-pc-windows-msvc": [],
+    "x86_64-pc-windows-msvc": [
+      "microsoft-crt"
+    ],
     "wasm32-wasip1": [
       "wasi-libc"
     ],
     "wasm32-unknown-unknown": []
   },
   "components": {
+    "microsoft-crt": {
+      "label": "Microsoft C runtime",
+      "license": "Visual Studio redistribution terms AND Windows SDK terms",
+      "files": [
+        "microsoft/vcruntime-NOTICE",
+        "microsoft/ucrt-NOTICE"
+      ]
+    },
     "musl": {
       "label": "musl 1.2.5",
       "license": "MIT AND SunPro",
@@ -63,6 +73,14 @@
     }
   },
   "files": {
+    "microsoft/vcruntime-NOTICE": {
+      "source": "https://visualstudio.microsoft.com/license-terms/vs2026-ga-pro-enterprise/",
+      "sha256": "086cc7f6d890445f0332b9b15c58b51105f5f50c88d83de730f6f574af5aba0b"
+    },
+    "microsoft/ucrt-NOTICE": {
+      "source": "https://learn.microsoft.com/en-us/legal/windows-sdk/license",
+      "sha256": "3d20fe105e31f65fbcb905263d0a9532892a8adcac3406778deca65b2d19444f"
+    },
     "wasi-libc/LICENSE": {
       "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE",
       "gitBlob": "d3e737899d93ea0794d8dd67eac9f6020bb105bf",

@@ -24,11 +24,17 @@
 
 ## Installation
 
+Today you can only build CoreAV from source. Release binaries and the npm package come with 0.1.0.
+
+With Rust 1.89 or later, git, and a C compiler installed:
+
 ```sh
-npm install -g coreav
+git clone https://github.com/coreav-dev/coreav
+cd coreav
+cargo install --locked --path crates/coreav-cli --profile dist
 ```
 
-Or download a binary from [GitHub Releases](https://github.com/coreav-dev/coreav/releases). [Install](https://coreav.dev/docs/install) has every option.
+Cargo puts `coreav` in `~/.cargo/bin`. [Install](https://coreav.dev/docs/install) covers build features and the planned npm and GitHub Releases packages.
 
 ## Usage
 

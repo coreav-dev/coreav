@@ -24,12 +24,54 @@ The npm package needs Node 20 or later. It runs the native binary on Linux (x86-
 
 The WebAssembly build has a few more differences:
 
+- It cannot run the FFmpeg fallback, even when FFmpeg is installed. A command line that CoreAV does not implement is refused with exit status 4.
 - Exit status 70 means that the WebAssembly module could not run.
+- It cannot start FFmpeg or ffprobe. A command that needs the FFmpeg fallback exits with status 4, even when FFmpeg is installed on the host. Use a native build to enable the fallback.
 - An error's `message` may word its cause differently. Its `kind` is the same.
 - On Windows, paths must be on the working directory's drive, not another drive or a network share. `\` and `/` both work.
 - It cannot tell hard links apart, because WASI does not expose file identities. For an output path that is a hard link to the input, it reports that the output exists, or with `--force` replaces that link. The input file itself is never changed.
 
 Installed with `npm install`, `coreav` is the native binary on Linux and macOS, so no Node.js starts first. A small Node.js launcher starts the binary instead, adding about 30 ms per call, on Windows, in installs that run no install scripts (`--ignore-scripts`), and with package managers that skip the scripts of dependencies unless they are allowed (pnpm 10 and later, Bun). The WebAssembly build adds about 60 ms per call. `npx coreav` adds npm's own start-up, about 0.2 s, to every call, so for many files, install the package and call `coreav` directly.
+
+### Install scripts
+
+For pnpm, preserve existing approvals: append `coreav` to the existing list or map, rather than replacing it. Set the approval before installing, or run `pnpm rebuild coreav` after changing an existing installation.
+
+If pnpm 10 already uses `neverBuiltDependencies`, do not combine it with `onlyBuiltDependencies`. Keep the denylist and ensure `coreav` is not denied, or replace it with an allowlist containing `coreav` and every other package whose scripts must run.
+
+For pnpm 10.0 through 10.4, use the `pnpm` field in `package.json`:
+
+```json
+{
+  "pnpm": {
+    "onlyBuiltDependencies": ["coreav"]
+  }
+}
+```
+
+For pnpm 10.5 through 10.x, a new approval list can go in `pnpm-workspace.yaml`:
+
+```yaml
+onlyBuiltDependencies:
+  - coreav
+```
+
+If pnpm 10 already has `onlyBuiltDependencies` in `package.json`, add `coreav` there instead. Do not split approvals between files. To migrate to the workspace file, copy the complete list and remove the old setting.
+
+For pnpm 11 and later, use `pnpm-workspace.yaml`:
+
+```yaml
+allowBuilds:
+  coreav: true
+```
+
+pnpm 11 can fail an install with `ERR_PNPM_IGNORED_BUILDS` until scripts are approved. Add the setting before installing, or rebuild an existing installation after adding it.
+
+With Bun, run `bun pm trust coreav` in the project. Both choices keep the native binary's direct start on Linux and macOS. The script downloads nothing.
+
+Bun's explicit `trustedDependencies` replaces its default list rather than extending it. Include `coreav` and any required packages from the default list whose scripts your project still needs.
+
+After removing optional dependencies with `npm prune --omit=optional`, run `npm rebuild coreav` to restore the Node launcher, which falls back to WebAssembly.
 
 [The npm package's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/npm-cli.md) covers how the package picks a binary.
 
