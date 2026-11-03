@@ -1,6 +1,6 @@
 # Rules for agents and contributors, and what enforces each
 
-Read `CONTRIBUTING.md` and `.github/pull_request_template.md` first; design notes for each area are in `docs/design/`. Before other work, read every area file that applies. That includes `docs/agents/ci.md` and `docs/agents/public-text.md` on every change, and the area file for the code you change. Loading this file does not load those rules. The area files below pair every rule with what enforces it, so a rule that nothing enforces is visible.
+Read `CONTRIBUTING.md` and `.github/pull_request_template.md` first; design notes for each area are in `docs/design/`. Before other work, read every area file that applies to the change, and always read the cross-cutting files `docs/agents/ci.md`, `docs/agents/public-text.md`, and `docs/agents/measurement.md`. Loading this file does not load those rules. The area files below pair every rule with what enforces it, so a rule that nothing enforces is visible.
 
 When a review corrects a mistake, fix it and add its row to the area file it belongs to. If the rule is already in that file and nothing enforces it, that is a repeat: in the same change, enforce it at the highest level that works (one owner or one way to do it, then a type, then a check whose error names the fix, then a test) and say why a higher level did not. Drop a row once its mistake cannot happen. A row that fits several areas goes in the file whose code the enforcement names.
 
