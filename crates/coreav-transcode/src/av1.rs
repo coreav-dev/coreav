@@ -571,12 +571,9 @@ impl Sink for OutputSink {
                 self.spool.check_deadline()?;
                 match record {
                     Record::Version(version) => self.version = Some(version),
-                    Record::Begin { base } => {
-                        let remaining = self.request.limits.frames().checked_sub(base).ok_or(
-                            BackendError::Output("AV1 segment exceeds the job frame limit"),
-                        )?;
+                    Record::Begin { .. } => {
                         self.stream
-                            .begin_segment(self.segment_capacity.min(remaining))
+                            .begin_segment(self.segment_capacity)
                             .map_err(sample_error)?;
                         self.segment_max_pts = None;
                     }

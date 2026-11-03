@@ -188,19 +188,20 @@ impl Output {
         }
     }
 
-    /// Begins a segment with an upper bound on its submitted picture count.
-    pub fn begin_segment(&mut self, pictures: u64) -> Result<(), Error> {
+    /// Begins a segment, bounding its session cap by the remaining job samples.
+    /// This parser allowance does not change the native retained-input capacity.
+    pub fn begin_segment(&mut self, capacity: u64) -> Result<(), Error> {
         let result = if self.state == State::Failed {
             Err(Error::Failed)
         } else if self.state != State::Ready {
             Err(Error::State)
-        } else if pictures == 0 {
+        } else if capacity == 0 {
             Err(Error::PictureCount)
-        } else if pictures > self.limits.max_samples {
+        } else if self.next_ordinal >= self.limits.max_samples {
             Err(Error::Limit)
         } else {
             self.state = State::Active;
-            self.segment_expected = pictures;
+            self.segment_expected = capacity.min(self.limits.max_samples - self.next_ordinal);
             self.segment_samples = 0;
             self.segment_sequence = false;
             self.frames = None;

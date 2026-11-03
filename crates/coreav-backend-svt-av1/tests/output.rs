@@ -148,6 +148,78 @@ fn segments_keep_global_ordinals_and_configuration_but_not_references() -> TestR
 }
 
 #[test]
+fn fixed_session_caps_are_bounded_by_the_remaining_job_samples() -> TestResult {
+    let seq = Seq::default();
+    let bytes = tu(&[seq.packet(), Coded::default().packet(seq)]);
+    for capacity in [3_u64, 150] {
+        for pictures in [1_u64, 2, 3, 4, 5, 6, 7, 10] {
+            let mut reader = Output::new(
+                expected(seq),
+                Limits {
+                    max_samples: pictures,
+                    ..limits()
+                },
+            );
+            let mut samples = Vec::new();
+            let mut remaining = pictures;
+            while remaining != 0 {
+                reader.begin_segment(capacity)?;
+                let count = capacity.min(remaining);
+                for _ in 0..count {
+                    reader.push(&bytes)?;
+                    drain(&mut reader, &mut samples)?;
+                }
+                samples.push(reader.end_segment(count)?);
+                remaining -= count;
+            }
+            assert_eq!(samples.len() as u64, pictures);
+            assert_eq!(
+                samples
+                    .iter()
+                    .map(|sample| sample.ordinal)
+                    .collect::<Vec<_>>(),
+                (0..pictures).collect::<Vec<_>>()
+            );
+            assert_eq!(reader.begin_segment(capacity), Err(Error::Limit));
+            assert_eq!(reader.next_sample(), Err(Error::Failed));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn session_and_remaining_job_caps_both_reject_an_extra_sample() -> TestResult {
+    let seq = Seq::default();
+    let bytes = tu(&[seq.packet(), Coded::default().packet(seq)]);
+    for preceding in [0, 3] {
+        let mut reader = Output::new(
+            expected(seq),
+            Limits {
+                max_samples: 4,
+                ..limits()
+            },
+        );
+        if preceding != 0 {
+            reader.begin_segment(3)?;
+            for _ in 0..preceding {
+                reader.push(&bytes)?;
+                drain(&mut reader, &mut Vec::new())?;
+            }
+            reader.end_segment(preceding)?;
+        }
+        reader.begin_segment(3)?;
+        let count = 3.min(4 - preceding) + 1;
+        for _ in 0..count {
+            reader.push(&bytes)?;
+            drain(&mut reader, &mut Vec::new())?;
+        }
+        assert_eq!(reader.end_segment(count), Err(Error::PictureCount));
+        assert_eq!(reader.next_sample(), Err(Error::Failed));
+    }
+    Ok(())
+}
+
+#[test]
 fn identical_parsed_configuration_with_different_obu_bytes_is_rejected() -> TestResult {
     let seq = Seq::default();
     let bytes = tu(&[seq.packet(), Coded::default().packet(seq)]);
