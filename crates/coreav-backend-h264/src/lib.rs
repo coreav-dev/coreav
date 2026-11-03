@@ -419,10 +419,10 @@ impl NativeDecoder {
             .and_then(coreav_frame::ChromaLocation::from_code)
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid chroma sample location"))?;
         let color = ColorInfo {
-            primaries: Some(signal.primaries),
-            transfer: Some(signal.transfer),
-            matrix: Some(signal.matrix),
-            full_range: Some(signal.full_range),
+            primaries: signal.primaries,
+            transfer: signal.transfer,
+            matrix: signal.matrix,
+            full_range: signal.full_range,
             chroma_location: Some(chroma_location),
         };
         let (cb, cr) = picture.chroma();

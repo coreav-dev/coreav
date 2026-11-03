@@ -202,11 +202,11 @@ fn parse_vui(r: &mut BitReader) -> Result<Vui> {
     }
     if r.flag()? {
         r.u(3)?;
-        v.color.full_range = r.flag()?;
+        v.color.full_range = Some(r.flag()?);
         if r.flag()? {
-            v.color.primaries = r.u(8)? as u8;
-            v.color.transfer = r.u(8)? as u8;
-            v.color.matrix = r.u(8)? as u8;
+            v.color.primaries = Some(r.u(8)? as u8);
+            v.color.transfer = Some(r.u(8)? as u8);
+            v.color.matrix = Some(r.u(8)? as u8);
         }
     }
     if r.flag()? {
@@ -667,7 +667,7 @@ mod tests {
                 true,
                 false,
                 crate::ColorInfo {
-                    full_range: true,
+                    full_range: Some(true),
                     ..crate::ColorInfo::default()
                 },
             ),
@@ -675,22 +675,35 @@ mod tests {
                 true,
                 true,
                 crate::ColorInfo {
-                    primaries: 9,
-                    transfer: 16,
-                    matrix: 9,
-                    full_range: true,
+                    primaries: Some(9),
+                    transfer: Some(16),
+                    matrix: Some(9),
+                    full_range: Some(true),
                     chroma_location: [2, 2],
+                },
+            ),
+            (
+                true,
+                true,
+                crate::ColorInfo {
+                    primaries: Some(2),
+                    transfer: Some(2),
+                    matrix: Some(2),
+                    full_range: Some(false),
+                    chroma_location: [0, 0],
                 },
             ),
         ] {
             let mut bits = Writer::default();
             bits.flag(false).flag(false).flag(video);
             if video {
-                bits.u(3, 5).flag(expected.full_range).flag(described);
+                bits.u(3, 5)
+                    .flag(expected.full_range.unwrap())
+                    .flag(described);
                 if described {
-                    bits.u(8, u32::from(expected.primaries))
-                        .u(8, u32::from(expected.transfer))
-                        .u(8, u32::from(expected.matrix));
+                    bits.u(8, u32::from(expected.primaries.unwrap()))
+                        .u(8, u32::from(expected.transfer.unwrap()))
+                        .u(8, u32::from(expected.matrix.unwrap()));
                 }
             }
             bits.flag(described);

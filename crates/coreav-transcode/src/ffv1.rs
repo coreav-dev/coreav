@@ -334,7 +334,7 @@ impl Run<'_> {
         if colour.matrix == Some(0) {
             return Err(self.refused("RGB colour representation is not supported"));
         }
-        let shape = (frame.width(), frame.height(), frame.format(), colour);
+        let shape = (frame.width(), frame.height(), frame.format(), frame.color);
         if self.shape.is_some_and(|s| s != shape) {
             return Err(self.refused("video geometry, format or colour changes"));
         }
@@ -783,6 +783,7 @@ mod tests {
             (8, PixelFormat::YUV420P, original),
             (4, yuv444, original),
             (4, PixelFormat::YUV420P, changed),
+            (4, PixelFormat::YUV420P, ColorInfo::default()),
         ]
         .into_iter()
         .enumerate()

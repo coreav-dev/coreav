@@ -689,31 +689,19 @@ impl BandData {
     }
 }
 
-/// The active SPS colour description, including the defaults from Annex E.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The active SPS colour signalling and inferred chroma locations (Annex E).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ColorInfo {
-    /// `colour_primaries`, inferred as unspecified (2) when absent.
-    pub primaries: u8,
-    /// `transfer_characteristics`, inferred as unspecified (2) when absent.
-    pub transfer: u8,
-    /// `matrix_coefficients`, inferred as unspecified (2) when absent.
-    pub matrix: u8,
-    /// `video_full_range_flag`, inferred as false when absent.
-    pub full_range: bool,
+    /// `colour_primaries`, absent when inferred as unspecified (2).
+    pub primaries: Option<u8>,
+    /// `transfer_characteristics`, absent when inferred as unspecified (2).
+    pub transfer: Option<u8>,
+    /// `matrix_coefficients`, absent when inferred as unspecified (2).
+    pub matrix: Option<u8>,
+    /// `video_full_range_flag`, absent when inferred as limited range.
+    pub full_range: Option<bool>,
     /// Top- and bottom-field `chroma_sample_loc_type`, inferred as zero.
     pub chroma_location: [u32; 2],
-}
-
-impl Default for ColorInfo {
-    fn default() -> Self {
-        Self {
-            primaries: 2,
-            transfer: 2,
-            matrix: 2,
-            full_range: false,
-            chroma_location: [0; 2],
-        }
-    }
 }
 
 /// A decoded picture: 8-bit 4:2:0 luma and chroma planes. A monochrome
