@@ -1,6 +1,8 @@
 {
   "schema": "opus-speed-plan/1",
   "round": 4,
+  "provenance_commit": "cac6926deeec0bdd7f378511a8d2c2161b0dd2cd",
+  "exclusions_sha256": "cd2c837d040ce36a76f57d07ff7d1d30ac4c47e8f5364635636d5bb6a34e39d3",
   "capacity": {
     "receipt": "bench/audio-decode/evidence/opus-round4-capacity.json",
     "receipt_sha256": "565126fd1ad034e42c19d1ed783530044cd3913d92ccb4c9d97fb8ad9f2c1c7d",
@@ -33,7 +35,7 @@
     "library_lav_at_most": 1.0
   },
   "minimums": {"celt": 90, "celt_per_class": 40, "silk": 20, "hybrid": 20},
-  "host": {"cpu": "Intel Xeon Platinum 8581C", "smt": false, "machine": "c4-standard-4", "provisioning": "STANDARD"},
+  "host": {"cpu": "Intel Xeon Platinum 8581C", "smt": false, "machine": "c4-standard-4", "provisioning": "STANDARD", "affinity_cpu": 1},
   "call_limits": {"seconds": 900, "address_space_bytes": 8589934592, "temporary_output_bytes": 4294967296},
   "shards": 4,
   "shard_seconds": 16200,
