@@ -1908,10 +1908,12 @@ stream oracle checks. The other fields include:
   or none; and `edit_multi_audio_average.mp4`, several edits whose
   declared averages were patched). A data or subtitle track takes its
   own span (`fragmented_text.mp4`). A fragmented movie's video and audio
-  rate is over the stream's duration as printed (`fragmented_late.mp4`),
-  and every track's rate in a fragmented movie is rounded to the nearest;
-  with a segment index (`sidx`) `ffprobe` counts only the first
-  fragment's bytes, over the whole duration.
+  rate is over its summed encoded sample durations, excluding the decode
+  origin (`fragmented_late.mp4`), and is rounded to the nearest. With a
+  segment index (`sidx`) it uses the initial movie samples' bytes and encoded
+  duration together, or the first sample-bearing fragment's when the movie
+  tables are empty, never one window's bytes over another's duration.
+  See [fragmented stream bit rates](ffprobe-bit-rate.md).
 - Packets of a subtitle track in a movie with fragments have no
   duration, and every one is a key frame whatever the fragment's flags
   say (`fragmented_text.mp4`; the library's rule,

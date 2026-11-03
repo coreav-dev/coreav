@@ -50,7 +50,7 @@ pub use header::{BoxHeader, MAX_HEADER_LEN, Parsed, parse_box_header};
 pub use limits::Limits;
 pub use movie::{
     DropReason, DroppedStream, DurationSource, EditList, IDENTITY_MATRIX, MAX_CHAPTER_REFERENCES,
-    Movie, PresentationSpan, Track, TrackKind, probe, probe_with_planning, unix_time,
+    Movie, PresentationSpan, SampleTotals, Track, TrackKind, probe, probe_with_planning, unix_time,
 };
 pub use packets::{Budget, Packet, Packets, SampleRun, StoredSample};
 pub use planning::{PlanningBudget, PlanningLimit};
