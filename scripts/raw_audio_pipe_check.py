@@ -179,6 +179,14 @@ def check(coreav, oracle, root, smoke=False):
                                              capture_output=True, env=env, timeout=30)
                     if refused.returncode != 4 or refused.stdout:
                         raise AssertionError("unregistered platform rate stage did not refuse cleanly")
+                    fallback_env = {**env, "COREAV_FALLBACK": str(ffmpeg)}
+                    fallback_env.pop("COREAV_STRICT_SAFE", None)
+                    for input_name, data in [(input_path, None), ("pipe:", input_path.read_bytes())]:
+                        fallback = native_command(coreav, [*AUDIO_DECODE_INPUT, *before],
+                                                  input_name, after, "pipe:")
+                        actual = run(fallback, data=data, env=fallback_env)
+                        require_equal(actual, expected, "unregistered platform oracle fallback")
+                        count += 1
                 else:
                     actual = run(command, data=input_path.read_bytes(), env=env)
                     require_equal(actual, expected, f"S16 rate/{input_path.name}")
@@ -203,7 +211,7 @@ def main():
         count = check(args.coreav.resolve(), args.oracle_bin.resolve(), Path(directory), args.smoke)
         conformance = conformance_paths(args.coreav.resolve(), args.oracle_bin.resolve(),
                                         Path(directory))
-    print(f"raw audio pipes: {count} exact-output and eligibility checks passed")
+    print(f"raw audio pipes: {count} exact-output, eligibility and fallback checks passed")
     print(f"raw audio pipes: {conformance} conformance-path and refusal checks passed")
 
 

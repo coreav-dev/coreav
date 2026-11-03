@@ -418,7 +418,7 @@ fn encoded_audio(
 ) -> Result<Track, Stop> {
     let options = coreav_audio::Options {
         stream: Some(stream),
-        threads: command.input_threads.unwrap_or(1),
+        threads: command.decoder_threads()?,
         format: if encoder == AviAudio::Mp3 {
             coreav_audio::SampleFormat::F32
         } else {

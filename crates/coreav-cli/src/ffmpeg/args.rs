@@ -264,6 +264,18 @@ pub struct Command {
     pub overwrite: Overwrite,
 }
 
+impl Command {
+    pub(super) fn decoder_threads(&self) -> Result<usize, Refusal> {
+        let threads = self.input_threads.unwrap_or(1);
+        if threads > coreav_audio::MAX_THREADS {
+            return Err(Refusal::not_native(
+                "more than sixteen audio decoder workers",
+            ));
+        }
+        Ok(threads)
+    }
+}
+
 /// What `-map_metadata` asks of the output's metadata.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MapMetadata {
@@ -824,20 +836,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 ));
             }
             "-threads" => {
-                let count = if text == "auto" {
-                    Some(0)
-                } else {
-                    text.parse::<u32>()
-                        .ok()
-                        .and_then(|count| usize::try_from(count).ok())
-                };
-                let count = count.ok_or_else(|| usage("Invalid input thread count."))?;
-                if count > coreav_audio::MAX_THREADS {
-                    return Err(Refusal::not_native(
-                        "more than sixteen audio decoder workers",
-                    ));
-                }
-                command.input_threads = Some(count);
+                command.input_threads = Some(threads(text)?);
             }
             "-noautorotate" => command.noautorotate = true,
             "-safe" => safe = Some(boolean(option, text)?),
@@ -1254,16 +1253,20 @@ fn boolean(option: &str, text: &str) -> Result<bool, Refusal> {
     }
 }
 
-fn threads(text: &str) -> Result<(), Refusal> {
-    if text == "auto" || text.parse::<u32>().is_ok() {
-        Ok(())
-    } else {
-        Err(not_native(
-            "-threads",
-            Some(text),
-            "a thread count outside the native unsigned integer syntax",
-        ))
+fn threads(text: &str) -> Result<usize, Refusal> {
+    if text == "auto" {
+        return Ok(0);
     }
+    text.parse::<u32>()
+        .ok()
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| {
+            not_native(
+                "-threads",
+                Some(text),
+                "a thread count outside the native unsigned integer syntax",
+            )
+        })
 }
 
 /// The muxer `ffmpeg` guesses from an output name's extension, among those
@@ -1309,7 +1312,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, f32le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),
@@ -1334,6 +1337,42 @@ mod tests {
             Err(Refusal::NotNative(n)) => n.reason,
             other => panic!("{text}: {other:?}"),
         }
+    }
+
+    #[test]
+    fn unknown_thread_syntax_falls_back_and_capacity_is_decoder_specific() {
+        for text in ["2*2", "invalid", "-1", "4294967296"] {
+            assert!(matches!(
+                parse(&args(&format!("-threads {text} -i in.mp4 -c copy out.mp4"))),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for text in ["0", "auto", "16", "17", "32", "4294967295"] {
+            let command =
+                parse(&args(&format!("-threads {text} -i in.mp4 -c copy out.mp4"))).unwrap();
+            if matches!(text, "0" | "auto" | "16") {
+                assert!(command.decoder_threads().is_ok());
+            } else {
+                assert!(matches!(
+                    command.decoder_threads(),
+                    Err(Refusal::NotNative(_))
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn unsupported_muxer_diagnostic_includes_float_pcm() {
+        assert_eq!(muxer(Some("f32le"), "out.raw").unwrap(), Muxer::F32le);
+        let Err(Refusal::NotNative(refusal)) = muxer(Some("f32l"), "out.raw") else {
+            panic!("unknown muxer was not refused");
+        };
+        assert!(
+            refusal
+                .message
+                .split([',', ' '])
+                .any(|format| format == "f32le")
+        );
     }
 
     #[test]

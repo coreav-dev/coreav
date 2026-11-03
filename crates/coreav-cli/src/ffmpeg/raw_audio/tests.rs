@@ -20,7 +20,7 @@ fn mpeg1_admission_checks_every_complete_frame() {
 
 #[test]
 fn thread_counts_outside_the_native_limit_are_fallback_not_usage() {
-    for (count, expected) in [("17", 4), ("invalid", 2)] {
+    for count in ["17", "32", "4294967295"] {
         let args = [
             "-threads",
             count,
@@ -31,10 +31,10 @@ fn thread_counts_outside_the_native_limit_are_fallback_not_usage() {
             "pipe:",
         ]
         .map(str::to_owned);
-        let refusal = args::parse(&args);
+        let command = args::parse(&args);
         assert!(matches!(
-            (refusal, expected),
-            (Err(Refusal::NotNative(_)), 4) | (Err(Refusal::Usage(_)), 2)
+            command.and_then(|command| command.decoder_threads()),
+            Err(Refusal::NotNative(_))
         ));
     }
 }

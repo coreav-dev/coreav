@@ -206,7 +206,7 @@ pub(super) fn plan(
         options: Options {
             stream: Some(*index),
             format: decoded_format,
-            threads: command.input_threads.unwrap_or(1),
+            threads: command.decoder_threads()?,
             channels: channel_plan.decoder_channels(),
             ..Options::default()
         },

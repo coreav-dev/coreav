@@ -400,6 +400,7 @@ pub(super) fn write(
     mask: Option<u32>,
     format: SampleFormat,
 ) -> Result<serde_json::Value, Stop> {
+    let threads = command.decoder_threads()?;
     let path = Path::new(&command.output);
     let force = super::check_output(command, path)?;
     let mut unsupported = None;
@@ -421,7 +422,7 @@ pub(super) fn write(
         let options = Options {
             stream: Some(stream),
             format,
-            threads: command.input_threads.unwrap_or(1),
+            threads,
             ..Options::default()
         };
         let summary = coreav_audio::decode(source, &options, &Limits::default(), &mut sink)

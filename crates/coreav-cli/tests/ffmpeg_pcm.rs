@@ -39,6 +39,82 @@ fn scratch(name: &str) -> PathBuf {
     path
 }
 
+#[cfg(unix)]
+#[test]
+fn input_thread_expressions_reach_fallback_without_consuming_stdin() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    let dir = scratch("pcm-thread-expression-fallback");
+    let fallback = dir.join("ffmpeg");
+    let record = dir.join("args");
+    std::fs::write(
+        &fallback,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGUMENT_RECORD\"\ncat\nexit 7\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let args = [
+        "-threads", "2*2", "-f", "s16le", "-ar", "44100", "-ac", "1", "-i", "pipe:", "-f", "s16le",
+        "pipe:",
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .arg("ffmpeg")
+        .args(args)
+        .env("COREAV_FALLBACK", &fallback)
+        .env("ARGUMENT_RECORD", &record)
+        .env_remove("COREAV_STRICT_SAFE")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let bytes: Vec<u8> = (0..1009i16).flat_map(i16::to_le_bytes).collect();
+    child.stdin.take().unwrap().write_all(&bytes).unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert_eq!(result.status.code(), Some(7), "{result:?}");
+    assert_eq!(result.stdout, bytes);
+    assert_eq!(
+        std::fs::read_to_string(record).unwrap(),
+        args.join("\n") + "\n"
+    );
+}
+
+#[test]
+fn copy_jobs_ignore_decoder_capacity_but_audio_decode_refuses() {
+    let dir = scratch("pcm-thread-capacity");
+    let (input, _) = fixture(&dir, false);
+    for threads in ["17", "32", "4294967295"] {
+        let output = dir.join(format!("copy-{threads}.mka"));
+        success(
+            Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(["--strict-safe", "ffmpeg", "-threads", threads, "-i"])
+                .arg(&input)
+                .args(["-c", "copy"])
+                .arg(&output)
+                .output()
+                .unwrap(),
+        );
+        assert!(std::fs::metadata(output).unwrap().len() > 0);
+        for form in ["wav", "s16le", "f32le", "flac"] {
+            let output = dir.join(format!("decoded-{threads}.{form}"));
+            let result = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(["--strict-safe", "ffmpeg", "-threads", threads, "-i"])
+                .arg(&input)
+                .args(["-f", form, "-map_metadata", "-1"])
+                .arg(&output)
+                .output()
+                .unwrap();
+            assert_eq!(result.status.code(), Some(4), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert!(
+                String::from_utf8_lossy(&result.stderr).contains("sixteen audio decoder workers")
+            );
+            assert!(!output.exists());
+        }
+    }
+}
+
 #[test]
 fn raw_pcm_identity_has_headerless_float_and_integer_stdout() {
     let dir = scratch("raw-pcm-stdout-identity");

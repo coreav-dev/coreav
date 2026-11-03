@@ -111,7 +111,7 @@ coreav --strict-safe ffmpeg -f s16le -ar 44.1k -ac 2 -i input.pcm output.wav
 coreav --strict-safe ffmpeg -f s16le -ar 8000 -ac 2 -i input.pcm -ar 44100 output.wav
 ```
 
-An unchanged rate copies integer bytes without a floating-point conversion. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. New pipe and F32 paths additionally require the platform-specific exact registration described above. WAV and existing raw S16-to-S16 file commands retain their sized-input adapter and its rate behavior, including on macOS. That legacy rate behavior is not a new exact registration.
+An unchanged rate copies integer bytes without a floating-point conversion. A changed output `-ar` uses a separate, independently derived compatibility kernel. Ratios requiring more than 1,024 phases, 4,096 taps or 65,536 coefficients are refused. Complete sample frames are required. Headerless output additionally requires the platform-specific exact registration described above. WAV retains its existing sized-input adapter.
 
 Raw input does not support seeking or duration options, explicit maps, channel mixing, stream copy, other input sample formats, FLAC or lossy output, filters, dither or soxr. Headerless F32 output is supported at the input rate. The [investigation plan and finite synthetic evidence](https://github.com/coreav-dev/coreav/blob/main/docs/design/audio-swr-parity-plan.md) describe the arithmetic and its limitations; matching those cases is not proof of general parity or measured command coverage.
 
