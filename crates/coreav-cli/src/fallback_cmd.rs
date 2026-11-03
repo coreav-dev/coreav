@@ -42,8 +42,9 @@ pub fn refuse_with_input(
     refusal: NotNative,
     strict_safe: StrictSafe,
     input: std::fs::File,
+    spool: super::compat_cmd::EncodedInput,
 ) -> ExitCode {
-    refuse_inner(tool, args, refusal, strict_safe, Some(input))
+    refuse_inner(tool, args, refusal, strict_safe, Some((input, spool)))
 }
 
 fn refuse_inner(
@@ -51,7 +52,7 @@ fn refuse_inner(
     args: &[String],
     refusal: NotNative,
     strict_safe: StrictSafe,
-    input: Option<std::fs::File>,
+    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
 ) -> ExitCode {
     #[cfg(not(feature = "net"))]
     if fallback::has_remote_input(tool, args) {
@@ -98,25 +99,7 @@ fn refuse_inner(
                 reason.redacted(tool),
                 hint
             );
-            #[cfg(unix)]
             let error = run(&path, args, input);
-            #[cfg(not(unix))]
-            let error = if let Some(input) = input {
-                match Command::new(&path)
-                    .args(args)
-                    .env(GUARD, "1")
-                    .stdin(input)
-                    .status()
-                {
-                    Ok(status) => {
-                        let code = status.code().unwrap_or(1);
-                        return ExitCode::from(u8::try_from(code).unwrap_or(1));
-                    }
-                    Err(error) => error,
-                }
-            } else {
-                run(&path, args, None)
-            };
             message(tool, &format!("could not run {}: {error}", path.display()));
             log(tool, args, reason, Err(NotRun::Unusable));
             ExitCode::from(EXIT_UNSUPPORTED)
@@ -241,12 +224,17 @@ fn log(tool: Tool, args: &[String], reason: &fallback::Reason, ran: Result<&str,
 /// process (`exec`), so the process id, signals and exit status are the
 /// program's; elsewhere it waits for it and exits with its exit code.
 /// Returns only when the program could not start.
-fn run(path: &Path, args: &[String], input: Option<std::fs::File>) -> std::io::Error {
+fn run(
+    path: &Path,
+    args: &[String],
+    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
+) -> std::io::Error {
     let mut command = Command::new(path);
     command.args(args).env(GUARD, "1");
-    if let Some(input) = input {
+    let spool = input.map(|(input, spool)| {
         command.stdin(input);
-    }
+        spool
+    });
     #[cfg(unix)]
     let error = {
         use std::os::unix::process::CommandExt;
@@ -254,8 +242,14 @@ fn run(path: &Path, args: &[String], input: Option<std::fs::File>) -> std::io::E
     };
     #[cfg(not(unix))]
     let error = match command.status() {
-        Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+        Ok(status) => {
+            drop(command);
+            drop(spool);
+            std::process::exit(status.code().unwrap_or(1));
+        }
         Err(error) => error,
     };
+    drop(command);
+    drop(spool);
     error
 }

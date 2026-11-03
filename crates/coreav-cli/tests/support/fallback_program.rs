@@ -3,6 +3,11 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 fn main() {
+    if let Ok(record) = std::env::var("FALLBACK_TEST_INPUT") {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut bytes).unwrap();
+        std::fs::write(record, bytes).unwrap();
+    }
     if let Ok(started) = std::env::var("FALLBACK_TEST_STARTED") {
         std::fs::write(started, b"started").unwrap();
         let release = std::env::var("FALLBACK_TEST_RELEASE").unwrap();

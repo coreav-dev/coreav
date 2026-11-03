@@ -347,6 +347,55 @@ fn encoded_stdin_fallback_replaces_the_process_without_leaving_its_spool() {
     assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
 }
 
+#[cfg(windows)]
+#[test]
+fn replayed_fallback_keeps_full_windows_exit_codes_and_cleans_its_spool() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let dir = scratch("pcm-stdin-windows-status");
+    let (input, _) = fixture(&dir, false);
+    let bytes = std::fs::read(input).unwrap();
+    let fallback = dir.join("ffmpeg.exe");
+    let built = Command::new("rustc")
+        .arg("--edition=2024")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/fallback_program.rs"))
+        .arg("-o")
+        .arg(&fallback)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let args = ["-i", "pipe:", "-ac", "1", "-f", "f32le", "pipe:"];
+    for code in [0, 37, 256, 321] {
+        let temporary = dir.join(format!("temporary-{code}"));
+        let record = dir.join(format!("input-{code}"));
+        std::fs::create_dir(&temporary).unwrap();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_coreav"))
+            .arg("ffmpeg")
+            .args(args)
+            .env("COREAV_FALLBACK", &fallback)
+            .env("FALLBACK_TEST_INPUT", &record)
+            .env("FALLBACK_TEST_EXIT", code.to_string())
+            .env("TMP", &temporary)
+            .env("TEMP", &temporary)
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .env_remove("COREAV_STRICT_SAFE")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&bytes).unwrap();
+        let result = child.wait_with_output().unwrap();
+        assert_eq!(result.status.code(), Some(code), "{result:?}");
+        assert_eq!(std::fs::read(record).unwrap(), bytes);
+        assert_eq!(
+            String::from_utf8(result.stdout).unwrap(),
+            format!("args: {}\n", args.join(" "))
+        );
+        assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn consumed_encoded_stdin_reaches_fallback_with_original_arguments() {

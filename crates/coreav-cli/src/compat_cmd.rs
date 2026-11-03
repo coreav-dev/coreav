@@ -99,7 +99,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
-            if let Some(input) = &mut spool {
+            if let Some(mut input) = spool.take() {
                 let replay = input
                     .file
                     .as_mut()
@@ -115,6 +115,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                         refusal,
                         strict_safe,
                         file,
+                        input,
                     ),
                     Err(error) => {
                         message(
@@ -157,7 +158,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     }
 }
 
-struct EncodedInput {
+pub(super) struct EncodedInput {
     path: std::path::PathBuf,
     file: Option<std::fs::File>,
 }
