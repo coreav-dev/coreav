@@ -213,9 +213,9 @@ impl DroppedStream {
     }
 }
 
-/// Sample totals for one track in a single movie fragment.
+/// Matched encoded byte and duration totals for one track's sample window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FragmentTotals {
+pub struct SampleTotals {
     /// Sum of encoded sample sizes in bytes.
     pub bytes: u64,
     /// Sum of encoded sample durations in track-timescale ticks, excluding `tfdt`.
@@ -286,7 +286,7 @@ pub struct Track {
     /// Matched byte and duration totals of the track's first fragment with
     /// samples, once [`Movie::scan_fragments`] has read the fragments;
     /// `None` before, without fragments, or when they cannot be counted.
-    pub first_fragment_totals: Option<FragmentTotals>,
+    pub first_fragment_totals: Option<SampleTotals>,
     /// The track's data is in another file; it has no packets.
     pub external_data: bool,
     /// The sample tables are consistent; packets are available.
@@ -327,6 +327,19 @@ pub struct Track {
 }
 
 impl Track {
+    /// Encoded totals of the movie box's sample tables, excluding fragments.
+    /// `None` when their bytes cannot be counted or the media is external.
+    /// Fragment scans do not change this window, including a zero duration.
+    pub fn sample_table_totals(&self) -> Option<SampleTotals> {
+        if self.external_data {
+            return None;
+        }
+        Some(SampleTotals {
+            bytes: self.stsz_bytes?,
+            duration: self.stts_duration,
+        })
+    }
+
     /// The track box's `udta` and `meta` boxes (ISO/IEC 14496-12 8.10.1
     /// and 8.11.1), in file order, at most four: located by probe, their
     /// contents unread.
@@ -910,7 +923,7 @@ impl Movie {
         let mut starts: Vec<(bool, Option<i64>)> =
             crate::planning::filled(planning, (false, None), self.tracks.len(), 0)?;
         let mut bytes = crate::planning::filled(planning, Some(0u64), self.tracks.len(), 0)?;
-        let mut first_totals: Vec<Option<FragmentTotals>> =
+        let mut first_totals: Vec<Option<SampleTotals>> =
             crate::planning::filled(planning, None, self.tracks.len(), 0)?;
         // Dropped streams: only their fragment durations and first
         // composition offset, for their timing (none of their samples).
@@ -1020,7 +1033,7 @@ impl Movie {
                         );
                     }
                     if first {
-                        *first_sum = before.zip(*sum).map(|(b, a)| FragmentTotals {
+                        *first_sum = before.zip(*sum).map(|(b, a)| SampleTotals {
                             bytes: a.saturating_sub(b),
                             duration,
                         });

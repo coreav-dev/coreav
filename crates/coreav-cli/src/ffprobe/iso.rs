@@ -1517,7 +1517,11 @@ fn stream(
             if movie.segment_indexes.is_empty() {
                 (track.sample_bytes?, track.sample_duration)
             } else {
-                let first = track.first_fragment_totals?;
+                let first = if track.sample_count > 0 {
+                    track.sample_table_totals()
+                } else {
+                    track.first_fragment_totals
+                }?;
                 (first.bytes, first.duration)
             }
         } else {

@@ -8,9 +8,11 @@ origin does not make an encoded sample longer.
 
 ## Compatibility policy
 
-Pinned FFmpeg 9.0.2 uses the first sample-bearing fragment's bytes and
-duration when a segment index is present. Without an index, it uses all
-sample bytes and their summed durations. This sampling choice is observed
+Pinned FFmpeg 9.0.2 uses the initial movie samples' bytes and duration when
+a segment index is present and the movie box contains samples. With empty
+movie sample tables it uses the first sample-bearing fragment instead.
+Without an index, it uses all sample bytes and their summed durations.
+This sampling choice is observed
 black-box behavior, not an ISO requirement. Both estimates round to the
 nearest integer. The printed stream start and duration keep their existing
 rules; they are not the estimate's denominator.
@@ -21,6 +23,11 @@ segment index makes the oracle use the first fragment's 7,937 bytes over
 24,576 ticks, or 124,016 bit/s. Moving every fragment's `tfdt` forward by
 96,000 ticks changes the printed start and duration, not either rate.
 
+When the movie box contains those first 24 samples, the same indexed
+stream still reports 124,016 bit/s. Its first fragment contains the next
+7,769 bytes over 24,576 ticks; selecting that later window incorrectly
+reports 121,391 bit/s instead.
+
 ## Representation
 
 The fragment scanner retains the first sample-bearing fragment's bytes
@@ -29,16 +36,20 @@ walking its sample runs, so an unknown byte count or zero duration cannot
 select a later fragment instead. The scan reuses its existing duration
 and byte accounting, with no additional payload reads or relaxed limits.
 
-The compatibility layer selects that pair for indexed fragmented input,
-or the complete track totals for other fragmented input. Unknown bytes or
-a zero selected duration produce no estimated rate. Existing constant
-codec rates and non-fragmented estimates retain precedence and behavior.
+The movie sample tables retain their own byte and duration totals across
+fragment scans. For indexed input, the compatibility layer selects those
+initial totals when samples exist there, otherwise the first-fragment
+pair. Other fragmented input uses complete track totals. Unknown bytes or
+a zero selected duration produce no estimated rate, without falling
+through to a later window. External media supplies no movie-table estimate.
+Existing constant codec rates and non-fragmented estimates retain their
+precedence and behavior.
 
 ## Verification
 
 Generated-byte regressions cover unequal fragments, defaults and explicit
 sample fields, leading empty fragments, independent tracks, decode-origin
-changes, zero duration, uncountable bytes and repeated scans. CLI
-regressions check the selected rate without changing printed timing. The
+changes, initial movie samples, zero duration, uncountable bytes and repeated
+scans. CLI regressions check the selected rate without changing printed timing. The
 pinned oracle checks use generated files only. No comparison predicate,
 known-divergence record, baseline or threshold changes.

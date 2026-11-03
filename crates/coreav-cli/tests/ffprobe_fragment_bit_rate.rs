@@ -6,7 +6,7 @@ mod common;
 
 use common::fragments::{Fragmented, Track};
 use common::{bx, cat, full, u32s};
-use coreav_isobmff::{Allowlist, FragmentTotals, Limits, Movie, SliceSource, Source};
+use coreav_isobmff::{Allowlist, Limits, Movie, SampleTotals, SliceSource, Source};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -122,6 +122,41 @@ fn stream(name: &str, bytes: &[u8]) -> serde_json::Value {
     value["streams"][0].clone()
 }
 
+fn hybrid(indexed: bool) -> Vec<u8> {
+    let mut bytes = common::movie(&common::Spec {
+        ctts: Some(Vec::new()),
+        elst: None,
+        ..common::Spec::default()
+    });
+    let mvex = bx(b"mvex", &full(b"trex", 0, 0, &u32s(&[1, 1, 1024, 300, 0])));
+    let moov = bytes.windows(4).position(|w| w == b"moov").unwrap() - 4;
+    let size = (bytes.len() - moov + mvex.len()) as u32;
+    bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+    bytes.extend_from_slice(&mvex);
+    let fragment = fragment(1, 2048, &[(1024, 300); 2], true);
+    if indexed {
+        let mut index = u32s(&[1, common::TIMESCALE, 2048, 0]);
+        index.extend_from_slice(&[0, 0, 0, 1]);
+        index.extend_from_slice(&u32s(&[fragment.len() as u32, 2048, 0x9000_0000]));
+        bytes.extend_from_slice(&full(b"sidx", 0, 0, &index));
+    }
+    bytes.extend_from_slice(&fragment);
+    bytes
+}
+
+#[test]
+fn indexed_bit_rates_select_initial_movie_samples_before_fragments() {
+    for indexed in [false, true] {
+        let result = stream(
+            &format!("fragment-bit-rate-hybrid-{indexed}.mp4"),
+            &hybrid(indexed),
+        );
+        assert_eq!(result["start_pts"], 0);
+        assert_eq!(result["duration_ts"], 4096);
+        assert_eq!(result["bit_rate"], if indexed { "14000" } else { "22000" });
+    }
+}
+
 #[test]
 fn fragment_bit_rates_pair_bytes_with_their_encoded_duration() {
     for indexed in [false, true] {
@@ -175,12 +210,68 @@ fn scan(bytes: &[u8]) -> Movie {
 }
 
 #[test]
+fn initial_sample_totals_stay_distinct_through_scans_and_rescans() {
+    let bytes = hybrid(true);
+    let limits = Limits::default();
+    let mut movie =
+        coreav_isobmff::probe(SliceSource::new(&bytes), &limits, &Allowlist::listing()).unwrap();
+    let initial = Some(SampleTotals {
+        bytes: 280,
+        duration: 2048,
+    });
+    assert_eq!(movie.tracks[0].sample_table_totals(), initial);
+    for _ in 0..2 {
+        movie
+            .scan_fragments(SliceSource::new(&bytes), &limits)
+            .unwrap();
+        assert_eq!(movie.tracks[0].sample_table_totals(), initial);
+        assert_eq!(movie.tracks[0].sample_bytes, Some(880));
+        assert_eq!(movie.tracks[0].sample_duration, 4096);
+        assert_eq!(
+            movie.tracks[0].first_fragment_totals,
+            Some(SampleTotals {
+                bytes: 600,
+                duration: 2048
+            })
+        );
+    }
+    movie.tracks[0].external_data = true;
+    assert_eq!(movie.tracks[0].sample_table_totals(), None);
+}
+
+#[test]
+fn a_zero_duration_initial_window_does_not_borrow_a_fragment_window() {
+    let mut bytes = hybrid(true);
+    let at = bytes.windows(4).position(|w| w == b"stts").unwrap() + 16;
+    bytes[at..at + 4].copy_from_slice(&0u32.to_be_bytes());
+    let result = stream("fragment-bit-rate-initial-zero.mp4", &bytes);
+    assert!(result.get("bit_rate").is_none(), "{result}");
+}
+
+#[test]
+fn invalid_movie_tables_do_not_gain_totals_from_fragments() {
+    let mut bytes = hybrid(true);
+    let at = bytes.windows(4).position(|w| w == b"stts").unwrap() + 12;
+    bytes[at..at + 4].copy_from_slice(&5u32.to_be_bytes());
+    let movie = scan(&bytes);
+    assert_eq!(movie.tracks[0].sample_count, 4);
+    assert_eq!(movie.tracks[0].sample_table_totals(), None);
+    assert_eq!(
+        movie.tracks[0].first_fragment_totals,
+        Some(SampleTotals {
+            bytes: 600,
+            duration: 2048
+        })
+    );
+}
+
+#[test]
 fn fragment_totals_keep_one_fragment_identity_across_runs_and_rescans() {
     let mut bytes = header(&[Track::AAC]);
     bytes.extend_from_slice(&fragment(1, 0, &[], true));
     bytes.extend_from_slice(&fragment(2, 96_000, &[(700, 200), (900, 300)], true));
     bytes.extend_from_slice(&fragment(3, 97_600, &[(2048, 400); 3], false));
-    let expected = Some(FragmentTotals {
+    let expected = Some(SampleTotals {
         bytes: 500,
         duration: 1600,
     });
@@ -208,14 +299,14 @@ fn each_track_selects_its_own_first_sample_bearing_fragment() {
     let movie = scan(&bytes);
     assert_eq!(
         movie.tracks[0].first_fragment_totals,
-        Some(FragmentTotals {
+        Some(SampleTotals {
             bytes: 600,
             duration: 2048
         })
     );
     assert_eq!(
         movie.tracks[1].first_fragment_totals,
-        Some(FragmentTotals {
+        Some(SampleTotals {
             bytes: 300,
             duration: 1536
         })
@@ -227,7 +318,7 @@ fn a_zero_duration_first_sample_bearing_fragment_stays_selected() {
     let movie = scan(&movie(true, 0, true, 0));
     assert_eq!(
         movie.tracks[0].first_fragment_totals,
-        Some(FragmentTotals {
+        Some(SampleTotals {
             bytes: 600,
             duration: 0
         })
