@@ -1,0 +1,13 @@
+# Documentation
+
+Documentation-site prose, schema wording, and design-note updates.
+
+| Rule | Enforced by |
+|---|---|
+| The verdict reference lists every reason phase in emission order, including unidentified streams kept in `streams` | Not enforced: judgment. The `Order` section of `docs/schema/verdict-v1.md` must match both evaluators; prose completeness cannot be inferred from their control flow |
+| The documentation site's links into the repository and between pages resolve, without the `/docs` base path | `scripts/tests/test_docs_site.py` (`deny.yml`); Mintlify's link check (`docs-site.yml`, not required) |
+| Every measurement page is listed in the documentation site's index | `test_every_measurement_page_is_listed` in `scripts/tests/test_docs_site.py` (`deny.yml`) names the missing page and the row to add |
+| A source move retains public API and algorithm documentation while removing private references | Not enforced: judgment |
+| Memory-limit documentation does not claim that a per-process address-space limit prevents system-wide out-of-memory handling | Not enforced: judgment. A process budget can exceed available memory, and the kernel limit cannot prove host-wide memory safety |
+| Frame-output timeout documentation describes the backend's scope: native H.264 uses a decoder-session deadline, including time spent writing output | `test_frame_output_documents_native_decoder_session_timeout` in `scripts/tests/test_docs_site.py` requires the session deadline, clock qualifier and slow-output consequence in both pages. The backend owns the deadline; its type cannot enforce prose, so the targeted documentation check prevents the former per-call claim |
+| Frame-output documentation describes `max_decoded_bytes` as bytes counted per decoder, not a sample limit or a command-wide total | `test_frame_output_documents_decoded_bytes_per_decoder` in `scripts/tests/test_docs_site.py` requires the 4 GiB per-decoder scope and rejects the former sample-limit wording in both pages. The decoder owns the counter; its type cannot govern prose |

@@ -129,6 +129,41 @@ impl Codec {
         }
     }
 
+    /// The track type this codec carries. Summary classification uses this
+    /// rather than a second list of names.
+    pub fn kind(self) -> TrackKind {
+        match self {
+            Self::H264
+            | Self::Hevc
+            | Self::Av1
+            | Self::Vp8
+            | Self::Vp9
+            | Self::ProRes
+            | Self::Mpeg1Video
+            | Self::Mpeg2Video
+            | Self::Mpeg4
+            | Self::Theora
+            | Self::Mjpeg
+            | Self::Ffv1 => TrackKind::Video,
+            Self::Aac
+            | Self::Mp3
+            | Self::Mp2
+            | Self::Opus
+            | Self::Vorbis
+            | Self::Flac
+            | Self::Ac3
+            | Self::Eac3
+            | Self::Dts
+            | Self::TrueHd
+            | Self::Alac
+            | Self::Pcm => TrackKind::Audio,
+            Self::SubRip | Self::Ass | Self::WebVtt | Self::Pgs | Self::VobSub | Self::DvbSub => {
+                TrackKind::Subtitle
+            }
+            Self::Other => TrackKind::Data,
+        }
+    }
+
     /// CoreAV's name for the codec, as `--allow` takes it.
     pub fn name(self) -> &'static str {
         match self {

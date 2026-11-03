@@ -212,7 +212,9 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f segment with MP4 segments: a split every -segment_time
   -f concat with an MP4 output: a join of the list's files
   one FLAC audio stream to .wav (or -f wav): pcm_s16le by default
-  -f s16le: the same PCM samples without a header
+  -f s16le after -i: the same PCM samples without a header
+  -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input
+  -ar RATE after -i with raw S16 input: native rate conversion
   one 16-bit or 24-bit FLAC audio stream to .flac: native FLAC encoding
 Builds with a decoder backend also encode the video with -c:v libx264
 into MP4 or Matroska. Matroska defaults to libx264 video; name the audio
@@ -279,7 +281,11 @@ fn run_inner(
     capture: Option<&Path>,
 ) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
-    if capture.is_some() && (!command.more_inputs.is_empty() || command.muxer.frames()) {
+    if capture.is_some()
+        && (!command.more_inputs.is_empty()
+            || command.muxer.frames()
+            || matches!(command.demuxer, Some(Demuxer::S16le(_))))
+    {
         return Err(Refusal::not_native("input capture without a native AAC encode").into());
     }
     #[cfg(not(feature = "transcode"))]
@@ -293,6 +299,7 @@ fn run_inner(
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
     let (list, force) = match command.demuxer {
+        Some(Demuxer::S16le(format)) => return pcm::write_raw(&command, format),
         Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
         Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
         Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),
@@ -1706,6 +1713,7 @@ mod tests {
         for line in [
             "-i missing-a.mp4 -i missing-b.mp4 -c copy out.mp4",
             "-i missing-a.mp4 -frames:v 1 out.png",
+            "-f s16le -ar 8000 -ac 1 -i missing-a.pcm -f s16le out.pcm",
         ] {
             let args = line
                 .split_whitespace()
