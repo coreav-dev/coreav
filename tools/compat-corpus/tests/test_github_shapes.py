@@ -7,6 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
+import wave
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -317,17 +318,102 @@ class ProbeAvailability(unittest.TestCase):
         cases = [('csv=p=<value>', 'stream,7\n', 'stream,\n'),
                  ('default=nk=<value>:nw=<value>', '7\n', 'N/A\n'),
                  ('compact', 'stream|index=7\n', 'stream\n'),
-                 ('flat=s=<value>', 'streams.stream.0.index=7\n', 'streams.stream.0.index=""\n')]
+                 ('flat=s=<value>', 'streams,stream,0,index=7\n', 'streams,stream,0,index=""\n')]
         for writer, valid, empty in cases:
             command = inputs.instantiate(shape(options=[['-of', writer], ['-show_entries', 'stream=index']]))
             with self.subTest(writer=writer):
                 self.assertTrue(run.probe_available(command, valid.encode()))
                 self.assertFalse(run.probe_available(command, empty.encode()))
 
+    def test_flat_separator_is_part_of_the_registered_writer(self):
+        options = [['-of', 'flat=s=<value>'], ['-show_entries', 'stream=index']]
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=7\n'), 'counted')
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=8\n'), 'different')
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=""\n', 'streams,stream,0,index=""\n'), 'no_oracle')
+        command = inputs.instantiate(shape(options=options))
+        self.assertFalse(run.probe_available(command, b'streams.stream.0.index=7\n'))
+
     def test_each_requested_json_section_needs_substantive_data(self):
         options = [['-of', 'json'], ['-show_format', None], ['-show_streams', None]]
         payload = '{"format":{"duration":"2"},"streams":[]}'
         self.assertEqual(self.capture(options, payload, payload), 'no_oracle')
+
+    def test_every_instantiated_probe_writer_has_a_real_oracle_control(self):
+        writers = set()
+        for entry in roster.load():
+            if entry['shape']['tool'] != 'ffprobe':
+                continue
+            try:
+                command = inputs.instantiate(entry['shape'])
+            except inputs.Uninstantiable:
+                continue
+            writers.add(command.args[command.args.index('-of') + 1] if '-of' in command.args else 'default')
+        self.assertLessEqual(writers, set(PinnedProbeWriters.WRITERS))
+
+
+@unittest.skipUnless(os.environ.get('COREAV_SHAPES_ORACLE'), 'pinned writer controls run in dedicated CI')
+class PinnedProbeWriters(unittest.TestCase):
+    WRITERS = ('default', 'json', 'csv', 'csv=p=0', 'csv=p=1', 'csv=p=1:s=,', 'flat', 'flat=s=,', 'ini', 'compact',
+               'default=nk=1', 'default=nw=1', 'default=nk=1:nw=1',
+               'default=nokey=1', 'default=noprint_wrappers=1', 'default=nokey=1:noprint_wrappers=1')
+
+    @classmethod
+    def setUpClass(cls):
+        cls.oracle = Path(os.environ['COREAV_SHAPES_ORACLE']).resolve()
+        problems = list(run.oracle_pin.verify_bin(cls.oracle))
+        if problems:
+            raise AssertionError('pinned oracle identity failed')
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.folder = Path(cls.temp.name)
+        cls.control = cls.folder / 'independent-writer-control.wav'
+        with wave.open(str(cls.control), 'wb') as output:
+            output.setparams((1, 2, 8000, 0, 'NONE', 'not compressed'))
+            output.writeframes(bytes(range(32)))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def capture(self, writer, selection=None, entries='stream=index,sample_rate,channels'):
+        args = ['-show_entries', entries, '-of', writer]
+        if selection:
+            args.extend(['-select_streams', selection])
+        args.extend(['-i', str(self.control)])
+        result = subprocess.run([str(self.oracle / 'ffprobe'), '-v', 'error', *run.AUDIO_DECODE_INPUT, *args],
+                                env=run.environment(), capture_output=True, timeout=10, check=True)
+        self.assertEqual(result.stderr, b'')
+        command = inputs.Command('ffprobe', tuple(args), (), (), ())
+        return command, result.stdout
+
+    def test_all_writer_variants_parse_real_populated_and_empty_oracle_outputs(self):
+        for writer in self.WRITERS:
+            with self.subTest(writer=writer):
+                command, populated = self.capture(writer)
+                self.assertIn(b'8000', populated)
+                self.assertTrue(run.probe_available(command, populated), populated)
+                empty_command, empty = self.capture(writer, selection='s')
+                self.assertFalse(run.probe_available(empty_command, empty), empty)
+                unavailable_command, unavailable = self.capture(writer, entries='stream=nb_frames')
+                self.assertFalse(run.probe_available(unavailable_command, unavailable), unavailable)
+
+    def test_real_oracle_output_has_exact_different_and_either_side_miss_outcomes(self):
+        for writer in self.WRITERS:
+            with self.subTest(writer=writer), tempfile.TemporaryDirectory() as tmp:
+                command, populated = self.capture(writer)
+                _, empty = self.capture(writer, selection='s')
+                folder = Path(tmp)
+                reference, candidate = folder / 'reference', folder / 'candidate'
+                reference.mkdir()
+                candidate.mkdir()
+                (reference / 'stdout').write_bytes(populated)
+                (candidate / 'stdout').write_bytes(populated)
+                self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'counted')
+                (candidate / 'stdout').write_bytes(populated.replace(b'8000', b'8001'))
+                self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'different')
+                for left, right in ((empty, populated), (populated, empty)):
+                    (reference / 'stdout').write_bytes(left)
+                    (candidate / 'stdout').write_bytes(right)
+                    self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'no_oracle')
 
 
 class AccountingAndGate(unittest.TestCase):
@@ -369,10 +455,12 @@ class AccountingAndGate(unittest.TestCase):
             self.assertTrue(receipt['timed_out'])
             self.assertNotEqual(receipt['code'], 0)
 
-    def test_workflow_is_manual_only_and_uses_fixed_build(self):
+    def test_acquisition_is_manual_only_and_pr_controls_use_the_pinned_oracle(self):
         text = (run.ROOT / '.github/workflows/github-shapes.yml').read_text()
         self.assertIn('workflow_dispatch:', text)
-        self.assertNotIn('pull_request:', text)
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", text.split('  measure:', 1)[1])
+        self.assertIn('COREAV_SHAPES_ORACLE="$RUNNER_TEMP/writer-oracle"', text)
+        self.assertIn('scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/writer-oracle"', text)
         self.assertIn(' '.join(run.BUILD), text)
         self.assertLess(text.index('candidate_not_merged'), text.index('cargo build'))
 

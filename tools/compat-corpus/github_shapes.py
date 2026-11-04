@@ -1,6 +1,7 @@
 """Acquire and replay the registered GitHub Shapes 200 measurement."""
 import argparse
 import collections
+import configparser
 import csv
 import fractions
 import hashlib
@@ -256,6 +257,16 @@ def probe_available(command, data):
                     any(field not in record or not available(record[field]) for field in fields) for record in records):
                     return False
             return True
+        if writer == 'ini':
+            document = configparser.ConfigParser(interpolation=None)
+            document.read_string(text)
+            for section, fields in requested.items():
+                names = [name for name in document.sections() if name == section or
+                         section == 'stream' and re.fullmatch(r'streams\.stream\.[0-9]+', name)]
+                if not names or any(not available(dict(document[name])) or any(
+                    field not in document[name] or not available(document[name][field]) for field in fields) for name in names):
+                    return False
+            return True
         settings = dict(setting.split('=', 1) for setting in settings.split(':') if setting)
         fields = [field for names in requested.values() for field in names]
         sections = set()
@@ -296,9 +307,10 @@ def probe_available(command, data):
                         return False
                     value = part
                 else:
-                    found.add(key.rsplit('.', 1)[-1])
+                    separator = settings.get('s', '.') if writer == 'flat' else '.'
+                    found.add(key.rsplit(separator, 1)[-1])
                     if writer == 'flat':
-                        prefix = key.split('.', 1)[0]
+                        prefix = key.split(separator, 1)[0]
                         current = 'stream' if prefix == 'streams' else prefix
                 if writer == 'flat' and value.startswith('"'):
                     value = json.loads(value)
@@ -310,7 +322,7 @@ def probe_available(command, data):
         if fields and found and not set(fields).issubset(found):
             return False
         return bool(values) and len(values) >= len(fields) and sections == set(requested)
-    except (ValueError, TypeError, AttributeError, UnicodeError, csv.Error):
+    except (ValueError, TypeError, AttributeError, UnicodeError, csv.Error, configparser.Error):
         return False
 
 

@@ -69,7 +69,7 @@ An acquisition bundle retains generated fixtures, commands, binary identities, c
 
 1. Commit this plan before implementation or any judged execution.
 2. Implement the builder, instantiator, generator, acquisition, replay, summarizer and manual main-only Actions workflow together with this plan.
-3. Test with synthetic shape objects, fake executables and small independently constructed controls. Tests may validate the frozen roster's digest and pure instantiation but must not execute its commands or generate its judged fixtures before merge. CI on this pull request runs tests only.
+3. Test with synthetic shape objects, fake executables and small independently constructed controls. Tests may validate the frozen roster's digest and pure instantiation but must not execute its commands or generate its judged fixtures before merge. PR CI also parses actual pinned-oracle writer output from a separate 16-sample, 8 kHz WAV control, covering default, JSON, CSV, flat, compact, INI and key/wrapper variants. It never invokes the acquisition or judged fixture generator.
 4. After merge, dispatch from main at a clean merged SHA containing these exact tools. The runner independently checks main membership and clean method files before fixture generation. Run once. Retain failures as misses. Only recorded infrastructure or harness faults permit replacement acquisition, with the original bundle retained and the reason disclosed.
 5. Submit results separately with the set digest, method and binary identities, host, all 200 outcomes, weighted arithmetic and replay evidence. A method change after observation requires a new registration, not relabeling this result.
 
