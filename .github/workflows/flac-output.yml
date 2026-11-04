@@ -143,6 +143,23 @@ jobs:
           fi
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Preflight aligned executable options
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, subprocess, sys
+          sys.path.insert(0, 'scripts')
+          from flac_cpu_diagnostic import ALIGNED
+          ffmpeg = pathlib.Path(os.environ['RUNNER_TEMP']) / 'oracle/ffmpeg'
+          for channels in (1, 2):
+              for sample_format in ('s16', 's32'):
+                  encoded = subprocess.run([str(ffmpeg), '-v', 'error', '-f', 'lavfi', '-i',
+                      'sine=frequency=1000:sample_rate=48000:duration=0.2', '-ac', str(channels),
+                      '-sample_fmt', sample_format, '-c:a', 'flac', *ALIGNED, '-f', 'flac', '-'],
+                      check=True, capture_output=True, timeout=30).stdout
+                  subprocess.run([str(ffmpeg), '-v', 'error', '-err_detect', 'crccheck', '-xerror',
+                      '-i', '-', '-f', 'null', '-'], input=encoded, check=True, capture_output=True, timeout=30)
+          print('All four aligned executable preflights passed')
+          PY
       - name: Build plain and symbolized optimized commands
         run: |
           cargo build --locked --release -p coreav-cli

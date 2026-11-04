@@ -19,6 +19,11 @@ from oracle_audio import INPUT_ARGS
 from oracle_pin import verify_bin
 from speed import timed
 
+ALIGNED = ["-compression_level", "5", "-frame_size", "4096", "-lpc_type", "levinson",
+           "-lpc_coeff_precision", "15", "-min_prediction_order", "1",
+           "-max_prediction_order", "8", "-prediction_order_method", "search",
+           "-min_partition_order", "0", "-max_partition_order", "4", "-exact_rice_parameters", "1"]
+
 
 def run(argv, **kwargs):
     return subprocess.run([str(x) for x in argv], check=True, capture_output=True,
@@ -79,10 +84,7 @@ def main():
         ffmpeg, ffprobe = args.oracle.resolve() / "ffmpeg", args.oracle.resolve() / "ffprobe"
         help_text = run([ffmpeg, "-hide_banner", "-h", "encoder=flac"]).decode()
         (root / "reference-help.txt").write_text(help_text)
-        aligned = ["-compression_level", "5", "-frame_size", "4096", "-lpc_type", "levinson",
-                   "-lpc_coeff_precision", "15", "-min_prediction_order", "0",
-                   "-max_prediction_order", "8", "-prediction_order_method", "search",
-                   "-min_partition_order", "0", "-max_partition_order", "4"]
+        aligned = ALIGNED
         for option in aligned[4::2]:
             if option not in help_text:
                 raise RuntimeError("reference alignment option missing")
