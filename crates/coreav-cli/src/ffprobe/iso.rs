@@ -606,13 +606,7 @@ pub fn probe<S: Source>(
         })
         .collect();
     report.format = format(movie, &probed, name, span(&spans), meta.stream_group_count);
-    report.iso_format_output = Some(format(
-        movie,
-        &probed,
-        name,
-        output_span(&spans),
-        meta.stream_group_count,
-    ));
+    report.iso_format_output = Some(format_timing(probed.size, output_span(&spans)));
     let ends: Vec<Listed> = report
         .streams
         .iter()
@@ -2136,6 +2130,11 @@ fn format(
     (start, micros): (Option<i64>, Option<i64>),
     stream_group_count: Option<usize>,
 ) -> Entries {
+    let super::FormatTiming {
+        start,
+        duration,
+        bit_rate,
+    } = format_timing(probed.size, (start, micros));
     vec![
         ("filename", s(name)),
         (
@@ -2149,23 +2148,22 @@ fn format(
         ),
         ("format_name", s(FORMAT_NAME)),
         ("format_long_name", s(FORMAT_LONG_NAME)),
-        (
-            "start_time",
-            start.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
-        ),
-        (
-            "duration",
-            micros.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
-        ),
+        ("start_time", start),
+        ("duration", duration),
         ("size", Value::Unit(int_u64(probed.size), Unit::Byte)),
-        (
-            "bit_rate",
-            micros
-                .and_then(|us| compat::format_bit_rate(probed.size, us))
-                .map_or(Value::Na, |b| Value::Unit(int_u64(b), Unit::BitRate)),
-        ),
+        ("bit_rate", bit_rate),
         ("probe_score", Value::Int(100)),
     ]
+}
+
+fn format_timing(size: u64, (start, micros): (Option<i64>, Option<i64>)) -> super::FormatTiming {
+    super::FormatTiming {
+        start: start.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
+        duration: micros.map_or(Value::Na, |us| time(us, 1, 1_000_000)),
+        bit_rate: micros
+            .and_then(|us| compat::format_bit_rate(size, us))
+            .map_or(Value::Na, |b| Value::Unit(int_u64(b), Unit::BitRate)),
+    }
 }
 
 fn int_u64(v: u64) -> i64 {

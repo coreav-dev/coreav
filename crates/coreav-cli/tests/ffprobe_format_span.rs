@@ -179,3 +179,69 @@ fn output_span_does_not_change_copy_planning_or_trimmed_bytes() {
         "4064dba9ec64429a954c8492f77e7934b63348a6bc4d77ea2fb1346511d49c92"
     );
 }
+
+#[test]
+fn format_output_counts_all_cover_picture_streams() {
+    let dir = FixtureDir::new("covers");
+    let png = [
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0,
+        0, 0, 0, 58, 126, 155, 85, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 96, 0, 0, 0, 2, 0, 1,
+        72, 175, 164, 113, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+    for (index, video, count) in [(0, false, 1), (1, true, 2)] {
+        let mut bytes = movie(0, &[2500], !video, video);
+        let data = common::bx(
+            b"data",
+            &[14u32.to_be_bytes().as_slice(), &[0; 4], &png].concat(),
+        );
+        let pictures = common::bx(b"covr", &data.repeat(count));
+        let handler = common::full(b"hdlr", 0, 0, b"\0\0\0\0mdirappl\0\0\0\0\0\0\0\0\0");
+        let meta = common::full(
+            b"meta",
+            0,
+            0,
+            &[handler, common::bx(b"ilst", &pictures)].concat(),
+        );
+        let moov = bytes.windows(4).position(|w| w == b"moov").unwrap() - 4;
+        bytes.extend_from_slice(&common::bx(b"udta", &meta));
+        let size = (bytes.len() - moov) as u32;
+        bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+        let path = dir.0.join(format!("{index}.mov"));
+        std::fs::write(&path, bytes).unwrap();
+        let expected = if video { 2 } else { 1 } + count;
+        let output = run(&path, "json", "format=nb_streams,duration:stream=index");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(doc["streams"].as_array().unwrap().len(), expected);
+        assert_eq!(doc["format"]["nb_streams"], expected);
+        assert_eq!(doc["format"]["duration"], "2.500000");
+        for writer in ["json", "csv=p=0", "default=noprint_wrappers=1:nokey=1"] {
+            let output = run(&path, writer, "format=nb_streams");
+            assert!(output.status.success());
+            let oracle = std::env::var_os("COREAV_FFMPEG")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"))
+                .with_file_name("ffprobe");
+            if oracle.is_file() {
+                let reference = Command::new(oracle)
+                    .args([
+                        "-v",
+                        "error",
+                        "-of",
+                        writer,
+                        "-show_entries",
+                        "format=nb_streams",
+                    ])
+                    .arg(&path)
+                    .output()
+                    .unwrap();
+                assert!(reference.status.success());
+                assert_eq!(output.stdout, reference.stdout);
+            }
+        }
+    }
+}

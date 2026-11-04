@@ -39,12 +39,19 @@ end contributes. Distinguish stream-derived timing from a stale or coarsely
 rounded movie header with independent generated controls.
 
 Keep the existing report format bounds for stream-copy planning and attached
-picture timing. Store separate ISO format entries for the ffprobe output
-boundary, using the same format-entry builder. Only the format writer consumes
-these entries, so seek origins, concat placement and stream records do not
+picture timing. Store only the three typed format-timing values for the
+ffprobe output boundary, using the same timing-value builder. Only the format
+writer consumes this override, so seek origins, concat placement and stream records do not
 inherit the output correction. A data stream starting before video otherwise
 changes the shared report's seek origin and the bytes of a one-second copy.
 The copy regression pins those bytes to the unchanged implementation.
+
+Non-timing format fields have one owner: the completed report. In particular,
+cover pictures are added after the initial format record is built and update
+its stream count. A duplicate format snapshot would miss that update. The
+timing override cannot carry a stream count, and emission overlays only its
+three named values on the completed record. Cover-art regressions check the
+emitted count against the listed streams and pinned JSON/default/CSV output.
 
 The change must not add source reads, sample scans, metadata parsing, budgets
 or codec admission. Do not change stream duration selection, subtitle codec

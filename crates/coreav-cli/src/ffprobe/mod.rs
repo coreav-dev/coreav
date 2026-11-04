@@ -188,6 +188,14 @@ pub trait PacketSource {
 #[cfg(test)]
 mod frames_tests;
 
+/// Format timing values that may differ only at the output boundary.
+#[derive(Clone, Debug)]
+pub struct FormatTiming {
+    start: Value,
+    duration: Value,
+    bit_rate: Value,
+}
+
 /// Everything but the packets.
 #[derive(Clone, Debug, Default)]
 pub struct Report {
@@ -197,8 +205,8 @@ pub struct Report {
     pub time_bases: Vec<(i64, i64)>,
     /// The format's entries.
     pub format: Entries,
-    /// ISO format entries for output only, separate from stream-copy planning.
-    pub iso_format_output: Option<Entries>,
+    /// ISO format timing for output only, separate from stream-copy planning.
+    pub iso_format_output: Option<FormatTiming>,
     /// The format's tags.
     pub format_tags: Vec<(String, String)>,
     /// Whether complete ISO metadata establishes supported names, absent otherwise.
@@ -638,13 +646,18 @@ pub fn emit(
     }
     if sel.shown(Sid::Format) {
         w.header(&mut buf, Sid::Format, None);
-        entries(
-            &mut w,
-            &mut buf,
-            sel,
-            Sid::Format,
-            report.iso_format_output.as_ref().unwrap_or(&report.format),
-        );
+        let mut format = std::borrow::Cow::Borrowed(&report.format);
+        if let Some(timing) = &report.iso_format_output {
+            for (key, value) in format.to_mut() {
+                *value = match *key {
+                    "start_time" => timing.start.clone(),
+                    "duration" => timing.duration.clone(),
+                    "bit_rate" => timing.bit_rate.clone(),
+                    _ => continue,
+                };
+            }
+        }
+        entries(&mut w, &mut buf, sel, Sid::Format, &format);
         tags(&mut w, &mut buf, sel, Sid::FormatTags, &report.format_tags);
         w.footer(&mut buf);
     }
