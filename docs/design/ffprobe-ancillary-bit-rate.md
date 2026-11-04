@@ -12,6 +12,15 @@ estimated rate's denominator. Audio and video instead use the encoded media
 span, independent of edits. The same payload bytes should not be paired with
 a different presentation window without evidence that the oracle does so.
 
+Pinned data/timecode and timed-text controls establish the encoded span:
+require a positive media-header duration, bounded by the summed sample duration
+when that sum is positive. Zero sample duration falls back to the header;
+zero header duration does not fall back to either samples or edits. Short,
+long, delayed, nonzero-origin and multiple edits leave the estimate unchanged.
+Whole-file estimates truncate to an integer. Missing bytes and a zero selected
+duration remain unknown. Existing audio/video fallbacks and codec-derived or
+fragmented rates keep their current behavior.
+
 ## Design boundary
 
 Use the existing retained sample bytes, summed sample durations and media
