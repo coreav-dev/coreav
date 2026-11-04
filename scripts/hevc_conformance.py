@@ -154,33 +154,87 @@ def extracted_data(inventory):
 
 def md5_records(text, source):
     result = []
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    bare = len(lines) == 1 and re.fullmatch(r'[0-9a-fA-F]{32}', lines[0])
+    if bare:
+        name = pathlib.PurePosixPath(source).name.lower()
+        target = None
+        layout = 'whole_output_yuv_file' if name.endswith(('.yuv.md5', '_yuv.md5')) else 'unresolved'
+        for suffix in BITSTREAM_EXTENSIONS:
+            if name.endswith(suffix + '.md5'):
+                target = source[:-4]
+                layout = 'bitstream_file'
+                break
+        return [dict(source=source, target=target, md5=lines[0].lower(), layout=layout,
+                     syntax='bare_digest', digest_count=1,
+                     interpretation='named bitstream digest' if target else
+                     ('named YUV digest attachment' if layout == 'whole_output_yuv_file' else
+                      'bare digest requires a published package role before use'))]
     for line in text.splitlines():
-        if not line.strip():
+        if not line.strip() or line.lstrip().startswith('#'):
             continue
         match = re.fullmatch(r'([0-9a-fA-F]{32})[ \t]+\*?(.+)', line.strip())
         if match:
             value, target = match.groups()
+            syntax = 'md5sum'
         else:
             match = re.fullmatch(r'MD5 \((.+)\) = ([0-9a-fA-F]{32})', line.strip())
             require(match is not None, 'unrecognized published MD5 layout')
             target, value = match.groups()
-        member_name(target)
+            syntax = 'bsd_md5'
+        require('\x00' not in target and '\\' not in target and ':' not in target
+                and '..' not in pathlib.PurePosixPath(target).parts, 'unsafe published hash target')
         suffix = pathlib.PurePosixPath(target).suffix.lower()
         layout = 'whole_output_yuv_file' if suffix == '.yuv' else (
             'bitstream_file' if suffix in BITSTREAM_EXTENSIONS else 'unresolved')
-        result.append(dict(source=source, target=target, md5=value.lower(), layout=layout))
+        result.append(dict(source=source, target=target, md5=value.lower(), layout=layout,
+                           syntax=syntax, digest_count=1))
     require(result, 'empty published MD5 file')
     return result
 
 
 def referenced_member(reference, members):
+    if reference['target'] is None:
+        candidates = [m for m in members if m['role'] == 'reference_yuv' and m['md5'] == reference['md5']]
+        require(len(candidates) <= 1, 'ambiguous published bare output hash target')
+        return candidates[0] if candidates else None
     target = pathlib.PurePosixPath(reference['target'])
+    if target.is_absolute():
+        return None
     relative = pathlib.PurePosixPath(reference['source']).parent / target
     candidates = [m for m in members if m['name'].casefold() in (str(target).casefold(), str(relative).casefold())]
     if not candidates and len(target.parts) == 1:
         candidates = [m for m in members if pathlib.PurePosixPath(m['name']).name.casefold() == str(target).casefold()]
     require(len(candidates) <= 1, 'ambiguous published hash target')
     return candidates[0] if candidates else None
+
+
+def metadata_text(content):
+    content = bytes(content)
+    for bom, encoding in [(b'\xff\xfe\x00\x00', 'utf-32'), (b'\x00\x00\xfe\xff', 'utf-32'),
+                          (b'\xff\xfe', 'utf-16'), (b'\xfe\xff', 'utf-16'),
+                          (b'\xef\xbb\xbf', 'utf-8-sig')]:
+        if content.startswith(bom):
+            return content.decode(encoding), encoding, 'BOM'
+    declaration = re.search(rb'(?:^|\n)[ \t]*(?:#[ \t]*)?(?:encoding|charset)[ \t]*[:=][ \t]*'
+                            rb'[\"\']?([A-Za-z0-9_-]+)', content[:1024], re.I)
+    if declaration:
+        name = declaration[1].decode('ascii').lower().replace('_', '-')
+        encodings = {'utf-8': 'utf-8', 'utf8': 'utf-8', 'us-ascii': 'ascii', 'ascii': 'ascii',
+                     'utf-16le': 'utf-16-le', 'utf-16be': 'utf-16-be',
+                     'iso-8859-1': 'iso-8859-1', 'latin1': 'iso-8859-1',
+                     'windows-1252': 'cp1252', 'cp1252': 'cp1252'}
+        require(name in encodings, 'unsupported declared metadata encoding')
+        encoding = encodings[name]
+        return content.decode(encoding), encoding, 'declared'
+    require(b'\x00' not in content, 'binary metadata without a text encoding')
+    try:
+        return content.decode('utf-8'), 'utf-8', 'strict UTF-8'
+    except UnicodeDecodeError:
+        try:
+            return content.decode('cp1252'), 'cp1252', 'fallback; no BOM or declaration'
+        except UnicodeDecodeError:
+            return content.decode('iso-8859-1'), 'iso-8859-1', 'fallback; no BOM or declaration'
 
 
 def archive_inventory(path, directory):
@@ -208,12 +262,14 @@ def archive_inventory(path, directory):
                 require(info.file_size <= BITSTREAM_CAP, 'bitstream exceeds registered byte cap')
             elif suffix == '.yuv':
                 role = 'reference_yuv'
-            elif suffix == '.md5':
+            elif suffix == '.md5' or re.search(r'_md5\.txt$', name.name, re.I):
                 role = 'reference_hash'
                 require(info.file_size <= TEXT_CAP, 'hash text exceeds registered byte cap')
             elif suffix == '.txt' and not re.search(r'trace|log|decod|encod|cfg', name.name, re.I):
                 if info.file_size <= TEXT_CAP:
                     role = 'description'
+            if role in ('reference_hash', 'description') and name.parts[0] == '__MACOSX' and name.name.startswith('._'):
+                role = 'archive_metadata'
             record = dict(name=info.filename, bytes=info.file_size, role=role)
             if role == 'not_read':
                 members.append(record)
@@ -243,16 +299,34 @@ def archive_inventory(path, directory):
             if role == 'bitstream':
                 record['path'] = f'{len(members):03}{suffix}'
             elif role == 'reference_hash':
-                hashes.extend(md5_records(content.decode('utf-8-sig'), info.filename))
+                text, encoding, basis = metadata_text(content)
+                record.update(encoding=encoding, encoding_basis=basis)
+                records = md5_records(text, info.filename)
+                record['digest_count'] = len(records)
+                hashes.extend(records)
             elif role == 'description':
-                descriptions.append(dict(source=info.filename, text=content.decode('utf-8-sig')))
+                text, encoding, basis = metadata_text(content)
+                record.update(encoding=encoding, encoding_basis=basis)
+                descriptions.append(dict(source=info.filename, text=text, encoding=encoding, encoding_basis=basis))
             members.append(record)
     bitstreams = [m for m in members if m['role'] == 'bitstream']
     require(bitstreams, 'archive has no recognized bitstream')
     for reference in hashes:
+        if reference['syntax'] == 'bare_digest' and reference['layout'] == 'unresolved':
+            source = reference['source']
+            stem = source[:-8] if source.lower().endswith('_md5.txt') else source[:-4]
+            matching = [m for m in bitstreams if str(pathlib.PurePosixPath(m['name']).with_suffix('')).casefold()
+                        == stem.casefold()]
+            if len(bitstreams) == len(matching) == 1 and descriptions:
+                reference.update(layout='whole_output_yuv_file', stream_member=matching[0]['name'],
+                                 interpretation='H.265.1 (10/2018) 6.5.2 decoded-picture hash attachment',
+                                 role_basis='sole bitstream with matching attachment basename and short description; '
+                                            'single digest, fixed whole-output packing requires exact confirmation')
         target = referenced_member(reference, members)
         if target and 'md5' in target:
             require(target['md5'] == reference['md5'], 'published hash differs from archived data')
+            if reference['syntax'] == 'bare_digest' and target['role'] == 'reference_yuv':
+                reference.update(layout='whole_output_yuv_file', role_basis='digest of archived published YUV bytes')
         reference['archived_bytes'] = target['bytes'] if target else None
         reference['resolved_member'] = target['name'] if target else None
     referenced = {r['resolved_member'].casefold() for r in hashes if r['resolved_member']}
@@ -444,7 +518,11 @@ def probe(binary, path, directory, frames=False):
 
 
 def published_counts(case, inventory):
-    counts = [dict(case['published_output_count'], scope='output')] if 'published_output_count' in case else []
+    counts = []
+    if 'published_output_count' in case:
+        count = case['published_output_count']
+        method = 'h265_1_prose_count' if count.get('source', '').startswith('H.265.1 ') else 'published_output_count'
+        counts.append(dict(count, scope='output', method=method, published=True))
     for description in inventory['descriptions']:
         for match in re.finditer(r'\bcontains?\s+(\d+|one|two|three)\s+(?:pictures?|frames?)\b',
                                  description['text'], re.I):
@@ -455,7 +533,7 @@ def published_counts(case, inventory):
     return counts
 
 
-def compare(case, inventory, summary, pictures, outputs, packets, frames):
+def compare(case, inventory, summary, pictures, outputs, packets, frames, reference_confirmation=None):
     require(frames, 'oracle returned no output pictures')
     boundaries = packets.get('packets', [])
     require(len(boundaries) == len(pictures), 'independent access-unit count differs')
@@ -484,6 +562,12 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames):
     references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
     require(references, 'missing published output hash; HM is not an allowed replacement')
     require(len(references) == 1, 'multiple output files need an explicit published stream mapping')
+    if reference_confirmation is not None:
+        require(reference_confirmation.get('complete') is True
+                and reference_confirmation.get('layout') == 'whole_output_yuv_file'
+                and reference_confirmation.get('md5') == references[0]['md5']
+                and reference_confirmation.get('output_pictures') == len(frames),
+                'published output hash confirmation is missing, incomplete or for different pictures')
     frame_sizes = [(f['width'] * f['height'] + 2 * ((f['width'] + 1) // 2) * ((f['height'] + 1) // 2))
                    * (2 if f['pix_fmt'] == 'yuv420p10le' else 1) for f in frames]
     output_bytes = sum(frame_sizes)
@@ -492,30 +576,68 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames):
         require(sizes == {output_bytes}, 'published YUV size differs from oracle output layout')
         if len(set(frame_sizes)) == 1:
             counts.append(dict(scope='output', value=output_bytes // frame_sizes[0],
-                               source=references[0]['target'], interpretation='published YUV bytes / fixed packed picture bytes'))
-    require(any(c['scope'] == 'output' for c in counts),
-            'no independently published output count or fixed-geometry YUV length')
+                               source=references[0].get('resolved_member') or references[0]['target'],
+                               method='archived_yuv_length', published=True,
+                               interpretation='published YUV bytes / fixed packed picture bytes'))
+    reference_count = next((dict(count) for method in
+                            ('published_output_count', 'archived_yuv_length', 'h265_1_prose_count')
+                            for count in counts if count['scope'] == 'output' and count['method'] == method), None)
+    if reference_count is None:
+        require(reference_confirmation is not None,
+                'no independently published output count or hash-validated oracle count')
+        reference_count = dict(scope='output', value=reference_confirmation['output_pictures'],
+                               method='hash_validated_oracle_count', published=False,
+                               source=references[0]['source'], md5=references[0]['md5'],
+                               oracle_build=reference_confirmation['oracle_build'],
+                               interpretation='pinned FFmpeg full output count after exact published whole-output MD5 agreement')
+    require(reference_count['value'] == summary['output_pictures'], 'reference count differs from native simulator')
     return dict(coded_pictures=summary['pictures'], output_pictures=len(frames),
                 published_counts=counts, reference_layout='whole_output_yuv_file',
+                reference_count=reference_count,
                 packed_output_bytes=output_bytes, reference_yuv_bytes=sorted(sizes),
                 reference_packing='unverified until binary-oracle file MD5 agrees',
                 native_formats=sorted(native_formats), output_order_checked_by_packet_positions=order_checked)
 
 
 def confirm_reference(binary, path, directory, frames, references):
+    require(len(references) == 1 and references[0].get('layout') == 'whole_output_yuv_file'
+            and re.fullmatch('[0-9a-f]{32}', references[0].get('md5', '')) is not None,
+            'one published whole-output MD5 is required before confirming a reference count')
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
     command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
                *AUDIO_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
-               '-pix_fmt', '+' + next(iter(formats)), '-f', 'md5', '-']
+               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'md5', '-']
     code, out, err = child(command, directory, 'reference-md5')
-    require(code == 0 and not err.read_bytes().strip(), 'reference-layout oracle failed')
+    require(code == 0, 'reference-layout oracle failed')
     match = re.fullmatch(r'MD5=([0-9a-f]{32})\s*', out.read_text())
     require(match is not None and {r['md5'] for r in references} == {match[1]},
             'published output MD5 differs; investigate without substituting an oracle hash')
+    progress, block = [], {}
+    for line in err.read_text().splitlines():
+        key, separator, value = line.partition('=')
+        require(separator and key not in block and (key in
+                {'frame', 'fps', 'bitrate', 'total_size', 'out_time_us', 'out_time_ms', 'out_time',
+                 'dup_frames', 'drop_frames', 'speed', 'progress'} or re.fullmatch(r'stream_\d+_\d+_q', key)),
+                'reference-layout oracle reported errors or invalid progress')
+        block[key] = value
+        if key == 'progress':
+            progress.append(block)
+            block = {}
+    require(progress and not block and progress[-1].get('progress') == 'end'
+            and all(p.get('progress') == 'continue' for p in progress[:-1]),
+            'reference-layout oracle did not confirm complete output')
+    for record in progress:
+        require(record.get('frame', '').isdecimal()
+                and record.get('dup_frames') == record.get('drop_frames') == '0',
+                'reference-layout oracle omitted frame counts or duplicated/dropped frames')
+    require(int(progress[-1]['frame']) == len(frames) > 0,
+            'hash-validated output count differs from complete oracle frame metadata')
     return dict(layout='whole_output_yuv_file', packing='visible planar Y,Cb,Cr; 10-bit little-endian 16-bit',
-                md5=match[1], pixel_format=next(iter(formats)))
+                md5=match[1], pixel_format=next(iter(formats)), complete=True,
+                output_pictures=int(progress[-1]['frame']),
+                oracle_build=oracle_pin.load()['BUILD'])
 
 
 def reference_frames(archive_path, inventory, frames):
@@ -560,17 +682,26 @@ def coverage(pictures, outputs, references):
 def census_result(records, registration_sha256, parser_sha256, oracle):
     groups = collections.defaultdict(list)
     candidates = []
+    count_sources = []
     for record in records:
         for stream in record['streams']:
             groups[stream['sha256']].append(dict(test=record['test'], name=stream['name']))
             candidates.extend(dict(test=record['test'], stream_sha256=stream['sha256'], **item)
                               for item in stream.get('intra_candidates', []))
+            count_sources.append(dict(test=record['test'], name=stream['name'], stream_sha256=stream['sha256'],
+                                      status=stream.get('status', 'not_run'),
+                                      reference_count=stream.get('reference_count'),
+                                      reason=record.get('reason') if record['status'] == 'blocked' else stream.get('reason')))
     missing = [dict(gate=gate, bit_depth=depth) for gate in ('G2', 'G3') for depth in (8, 10)
                if not any(c['gate'] == gate and c['bit_depth'] == depth for c in candidates)]
     return dict(registration_sha256=registration_sha256, parser_sha256=parser_sha256, oracle=oracle,
                 complete=len(records) == 147 and all(r['status'] == 'accounted' for r in records) and not missing,
                 archives=records, distinct_bitstreams=len(groups),
                 duplicate_bitstreams={k: v for k, v in groups.items() if len(v) > 1},
+                reference_count_sources=count_sources,
+                reference_count_methods=dict(collections.Counter(row['reference_count']['method']
+                    if row['reference_count'] else ('expected_refusal' if row['status'] == 'refused' else 'blocked')
+                    for row in count_sources)),
                 intra_candidates=candidates, missing_intra_sets=missing,
                 later_effective_tool_coverage='header flags identify candidates, not demonstrated pixel effects')
 
@@ -620,9 +751,11 @@ def run(args):
                 summary, pictures, outputs = native_rows(native, path.read_bytes())
                 packets = probe(args.oracle_bin / 'ffprobe', path, output)
                 frames = probe(args.oracle_bin / 'ffprobe', path, output, frames=True)['frames']
-                record.update(compare(case, inventory, summary, pictures, outputs, packets, frames))
-                record['reference_packing'] = confirm_reference(args.oracle_bin / 'ffmpeg', path, output, frames,
+                confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', path, output, frames,
                     [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'])
+                record.update(compare(case, inventory, summary, pictures, outputs, packets, frames,
+                                      confirmation))
+                record['reference_packing'] = confirmation
                 record['reference_frames'] = reference_frames(args.data / case['archive'], inventory, frames)
                 record['intra_candidates'] = coverage(pictures, outputs, record['reference_frames'])
                 record['status'] = 'headers_checked'
