@@ -10,6 +10,7 @@ const ORACLE: &str = include_str!("../../../../../scripts/oracle-ffmpeg.env");
 pub(super) enum Requirement {
     Mpeg1Layer3,
     AacLc,
+    OpusMapping0,
     SupportedMp4Timeline,
 }
 
@@ -93,6 +94,7 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                 let requirement = match predicate.as_str()? {
                     "mpeg1_layer3" => Requirement::Mpeg1Layer3,
                     "aac_lc" => Requirement::AacLc,
+                    "opus_mapping0" => Requirement::OpusMapping0,
                     "supported_mp4_timeline" => Requirement::SupportedMp4Timeline,
                     _ => return None,
                 };
@@ -105,6 +107,13 @@ fn parse(text: &str, codec: Codec, container: &str) -> Option<Admission> {
                 requirements.push(requirement);
             }
             if name == codec.name() && family == container && eligible && presented {
+                if name == "opus"
+                    && (family != "mp4"
+                        || !requirements.contains(&Requirement::OpusMapping0)
+                        || !requirements.contains(&Requirement::SupportedMp4Timeline))
+                {
+                    return None;
+                }
                 admitted = Some(Admission {
                     codec,
                     kind,
@@ -145,7 +154,10 @@ mod tests {
             admission.requirements,
             [Requirement::Mpeg1Layer3, Requirement::SupportedMp4Timeline]
         );
-        assert!(parse(RECORD, Codec::Opus, "mp4").is_none());
+        assert_eq!(
+            parse(RECORD, Codec::Opus, "mp4").map(|row| row.kind),
+            Some(DecoderEligibilityKind::Conformance)
+        );
     }
 
     #[test]
@@ -162,7 +174,14 @@ mod tests {
         for codec in [Codec::Mp3, Codec::Opus] {
             assert!(admission(codec, "matroska").is_none());
         }
-        assert!(admission(Codec::Opus, "mp4").is_none());
+        assert_eq!(
+            admission(Codec::Opus, "mp4"),
+            Some(Admission {
+                codec: Codec::Opus,
+                kind: DecoderEligibilityKind::Conformance,
+                requirements: vec![Requirement::OpusMapping0, Requirement::SupportedMp4Timeline],
+            })
+        );
         #[cfg(feature = "aac")]
         for container in ["mp4", "matroska"] {
             assert!(admission(Codec::Aac, container).is_none());
@@ -231,5 +250,31 @@ mod tests {
         ] {
             assert!(parse(&original.replace(old, new), Codec::Mp3, "mp4").is_none());
         }
+    }
+
+    #[test]
+    fn opus_predicate_keeps_mp3_and_cannot_bypass_its_scope() {
+        let mut value: Value = serde_json::from_str(RECORD).unwrap_or_default();
+        assert!(accepted(&value).is_some());
+        assert!(parse(&value.to_string(), Codec::Opus, "mp4").is_some());
+        let Some(opus) = value
+            .get_mut("decoders")
+            .and_then(Value::as_array_mut)
+            .and_then(|rows| {
+                rows.iter_mut()
+                    .find(|row| row.get("codec").and_then(Value::as_str) == Some("opus"))
+            })
+            .and_then(|row| row.get_mut("presentations"))
+            .and_then(Value::as_array_mut)
+            .and_then(|rows| rows.first_mut())
+        else {
+            return;
+        };
+        opus["requirements"] = json!(["supported_mp4_timeline"]);
+        assert!(parse(&value.to_string(), Codec::Opus, "mp4").is_none());
+        let mut unknown = RECORD.replace("opus_mapping0", "future_opus");
+        assert!(parse(&unknown, Codec::Mp3, "mp4").is_none());
+        unknown = RECORD.replace("\"opus_mapping0\", ", "");
+        assert!(parse(&unknown, Codec::Opus, "mp4").is_none());
     }
 }

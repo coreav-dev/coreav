@@ -30,7 +30,7 @@ def boxes(data, start, end):
         at += size
 
 
-def metadata(data):
+def metadata(data, channels=1, samples=4800):
     found = {}
 
     def visit(start, end):
@@ -52,11 +52,11 @@ def metadata(data):
     if movie != 48000 or media != 48000 or data[edit:edit + 8] != b'\0\0\0\0\0\0\0\1':
         raise ValueError('unregistered generated edit clocks or structure')
     length, start, rate, fraction = struct.unpack_from('>Iihh', data, edit + 8)
-    if length != 4800 or start < 0 or rate != 1 or fraction != 0:
+    if length != samples or start < 0 or rate != 1 or fraction != 0:
         raise ValueError('unexpected generated edit')
     config = found[b'dOps'][0]
-    if data[config:config + 2] != b'\0\1':
-        raise ValueError('expected mono Opus configuration')
+    if data[config:config + 2] != bytes((0, channels)):
+        raise ValueError('unexpected Opus channel configuration')
     size_table = found[b'stsz'][0]
     size, count = struct.unpack_from('>II', data, size_table + 4)
     sizes = [size] * count if size else list(struct.unpack_from(f'>{count}I', data, size_table + 12))

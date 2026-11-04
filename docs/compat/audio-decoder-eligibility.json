@@ -18,11 +18,11 @@
       "kind": "conformance",
       "decoder_eligible": true,
       "presentations": [
-        { "container": "mp4", "eligible": false, "requirements": [] },
+        { "container": "mp4", "eligible": true, "requirements": ["opus_mapping0", "supported_mp4_timeline"] },
         { "container": "matroska", "eligible": false, "requirements": [] }
       ],
-      "evidence": "docs/design/lossy-pcm-eligibility.md#opus",
-      "limitations": ["Decoder conformance does not register container presentation", "Presentation and terminal output need separate admission evidence", "Not byte-identical to FFmpeg"]
+      "evidence": "docs/design/opus-pcm-eligibility.md#generated-qualification",
+      "limitations": ["Only mapping family 0, mono or stereo, zero gain and native 48 kHz decoder output in supported MP4 timelines", "Matroska and other mapping families are not registered", "Conversions require their own exact registration", "Not byte-identical to FFmpeg"]
     },
     {
       "codec": "aac",

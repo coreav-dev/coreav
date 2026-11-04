@@ -113,6 +113,13 @@ def conformance_paths(coreav, oracle, root):
                  *AUDIO_DECODE_INPUT, "-i", root / "mp3-1.s16", "-c:a", encoder, encoded])
             for form in ["f32le", "s16le"]:
                 command = native_command(coreav, [], "pipe:", ["-f", form], "pipe:")
+                if encoder == "libopus" and container == "mp4":
+                    reference = root / f"qualified-opus-{form}.wav"
+                    run([coreav, "decode-audio", "--format", form[:3], encoded, reference], env=env)
+                    require_equal(run(command, data=encoded.read_bytes(), env=env), wav_samples(reference),
+                                  "qualified Opus MP4 stdin preserves native presentation")
+                    count += 1
+                    continue
                 require_refusal(command, env, encoded.read_bytes())
                 count += 1
                 replay = subprocess.run(command, input=encoded.read_bytes(), capture_output=True,

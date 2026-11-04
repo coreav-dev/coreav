@@ -60,6 +60,12 @@ The initial requirements are deliberately conservative:
   track's actual AudioSpecificConfig as supported AAC-LC (AOT 2). Codec
   names alone do not prove the profile. Existing configuration and packet
   refusals remain in force.
+- `opus_mapping0`: actual Opus configuration preflight proves mapping
+  family 0, one or two channels and zero signed output gain, with native
+  decoded output at 48 kHz. The informational input rate is not a decoded
+  rate. This predicate grants no conversion permission. The
+  [scoped qualification plan](opus-pcm-eligibility.md) keeps activation
+  coupled to consumer support. Only the scoped MP4 row is enabled.
 - `supported_mp4_timeline`: the native MP4 presentation planner accepts
   the selected track without ignored edits or other warnings, and its
   selected packets have equal PTS and DTS. Unsupported edits, nonzero
@@ -68,8 +74,10 @@ The initial requirements are deliberately conservative:
   exact count, including empty edits and terminal trimming.
 
 Unknown predicates fail closed. A consumer may refuse a narrower scope.
-Only MPEG-1 Layer III MP4 presentation is enabled initially. AAC and
-Opus presentation remain disabled, as does Matroska presentation.
+The initial MPEG-1 Layer III MP4 admission is unchanged. Scoped Opus MP4
+now additionally requires mapping family 0, mono or stereo, zero gain,
+native 48 kHz and a warning-free timeline without inserted silence.
+AAC and Matroska presentation remain disabled.
 This does not remove support from the separate `decode-audio` command.
 
 ## Conformance gates
@@ -124,9 +132,10 @@ the output without inventing an extra Opus packet.
 
 The Matroska CELT terminal waveform discrepancy is not explained by that
 MP4 edit. Neither it nor other presentation shapes are waived here.
-Opus's decoder is conformance-qualified, but both presentation rows stay
-false pending a complete mode-specific presentation and terminal-output
-check. Any mismatch with the stream's specified sample count is a
+The [scoped Opus qualification](opus-pcm-eligibility.md) adds complete,
+mode-specific presentation and terminal-output checks and the matching
+consumer predicate. Only its MP4 scope is enabled. Matroska stays false.
+Any mismatch with the stream's specified sample count is a
 correctness defect, not a known-divergence allowance.
 
 ### AAC-LC

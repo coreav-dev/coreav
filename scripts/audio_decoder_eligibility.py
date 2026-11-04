@@ -9,7 +9,7 @@ from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / 'docs/compat/audio-decoder-eligibility.json'
-REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'supported_mp4_timeline'}
+REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'opus_mapping0', 'supported_mp4_timeline'}
 
 
 def heading_anchors(markdown):
@@ -83,7 +83,7 @@ def validate(record):
                 require(row['decoder_eligible'], 'presentation requires decoder eligibility')
                 require(container == 'mp4' and 'supported_mp4_timeline' in requirements,
                         'presentation lacks registered timeline predicate')
-                profile = {'mp3': 'mpeg1_layer3', 'aac': 'aac_lc'}.get(codec)
+                profile = {'mp3': 'mpeg1_layer3', 'aac': 'aac_lc', 'opus': 'opus_mapping0'}.get(codec)
                 require(profile is not None and profile in requirements,
                         'presentation lacks registered decoder profile predicate')
 
