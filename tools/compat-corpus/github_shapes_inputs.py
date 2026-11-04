@@ -16,6 +16,7 @@ INPUTS = {'unknown': 'source.mp4', 'isobmff': 'source.mp4', 'matroska': 'source.
           'wav': 'source.wav', 'mp3': 'source.mp3', 'image-png': 'source.png',
           'image-jpeg': 'source.jpg', 'image-gif': 'source.gif',
           'image-png-sequence': 'frame-%02d.png', 'list': 'concat.txt'}
+RAW_INPUTS = {'s16le': 'source.s16', 'rawvideo': 'source.bgr'}
 EXTENSIONS = {'mp4': 'mp4', 'mp3': 'mp3', 'wav': 'wav', 'ogg': 'ogg', 'flv': 'flv',
               'mpegts': 'ts', 'hls': 'm3u8', 'gif': 'gif', 'rawvideo': 'raw',
               's16le': 's16', 'f32le': 'f32', 'null': 'null', 'image2pipe': 'bin'}
@@ -81,8 +82,8 @@ def instantiate(shape):
         container = group['container']
         if form in ('lavfi', 'v4l2') or container in ('device', 'network-stream', 'hls'):
             raise Uninstantiable('external_input')
-        if form in ('s16le', 'rawvideo'):
-            name = 'source.s16' if form == 's16le' else 'source.bgr'
+        if form in RAW_INPUTS:
+            name = RAW_INPUTS[form]
         elif form == 'concat':
             name = 'concat.txt'
         else:

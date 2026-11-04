@@ -21,6 +21,7 @@ import github_shapes_fixtures as fixtures
 import github_shapes_inputs as inputs
 import github_shapes_set as roster
 import oracle_pin
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 FEATURES = 'release-full'
 BUILD = ['cargo', 'build', '--release', '--locked', '-p', 'coreav-cli', '--features', FEATURES]
@@ -117,9 +118,15 @@ def normalize_start(start, bundle):
 
 
 def expected_invocation(command, candidate):
-    return ['$COREAV', command.tool, *command.args] if candidate else [
-        '$FFMPEG' if command.tool == 'ffmpeg' else '$FFPROBE', '-v',
-        'info' if command.tool == 'ffmpeg' else 'error', *command.args]
+    if candidate:
+        return ['$COREAV', command.tool, *command.args]
+    args = []
+    for value in command.args:
+        if value == '-i':
+            args.extend(AUDIO_DECODE_INPUT)
+        args.append(value)
+    return ['$FFMPEG' if command.tool == 'ffmpeg' else '$FFPROBE', '-v',
+            'info' if command.tool == 'ffmpeg' else 'error', *args]
 
 
 def output_present(command, folder):
@@ -208,7 +215,7 @@ def raw_description(command, index, source):
     if form == 'rawvideo':
         if source is None or '-vf' in options:
             raise EvidenceError('raw_video_description')
-        return decoded_output.raw_inputs(['-i', 'source', *options], source)
+        return decoded_output.raw_inputs([*AUDIO_DECODE_INPUT, '-i', 'source', *options], source)
     return []
 
 

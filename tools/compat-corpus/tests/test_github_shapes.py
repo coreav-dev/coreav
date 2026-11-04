@@ -62,6 +62,10 @@ class SetAndInputs(unittest.TestCase):
         command = inputs.instantiate(value)
         self.assertEqual(command.args, ('-ss', '0.2', '-i', 'in0/source.mp4', '-map', '0:v:0',
                                         '-map', '0:a', '-c:v', 'copy', '-t', '1', 'output0.mp4'))
+        reference = run.expected_invocation(command, False)
+        at = reference.index('-i')
+        self.assertEqual(reference[at - len(run.AUDIO_DECODE_INPUT):at], list(run.AUDIO_DECODE_INPUT))
+        self.assertEqual(run.expected_invocation(command, True), ['$COREAV', 'ffmpeg', *command.args])
 
     def test_no_guess_for_wrapper_graph_unknown_value_or_device(self):
         for option in ('-wrapper-unresolved', '-filter_complex', '-lavfi'):

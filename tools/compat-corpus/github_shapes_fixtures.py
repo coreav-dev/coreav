@@ -2,6 +2,8 @@
 import json
 import shutil
 
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+
 
 def generate(folder, ffmpeg, env, execute):
     folder.mkdir()
@@ -13,11 +15,11 @@ def generate(folder, ffmpeg, env, execute):
         [*audio, '-c:a', 'pcm_s16le', 'source.wav'],
         [*audio, '-c:a', 'libmp3lame', 'source.mp3'],
         ['-f', 'lavfi', '-i', 'testsrc=size=64x48:rate=10:duration=2', '-frames:v', '1', 'source.png'],
-        ['-i', 'source.png', '-frames:v', '1', 'source.jpg'],
+        [*AUDIO_DECODE_INPUT, '-i', 'source.png', '-frames:v', '1', 'source.jpg'],
         [*video, 'source.gif'],
-        ['-i', 'source.mp4', '-frames:v', '3', 'frame-%02d.png'],
-        ['-i', 'source.wav', '-f', 's16le', 'source.s16'],
-        ['-i', 'source.mp4', '-pix_fmt', 'bgr24', '-f', 'rawvideo', 'source.bgr'],
+        [*AUDIO_DECODE_INPUT, '-i', 'source.mp4', '-frames:v', '3', 'frame-%02d.png'],
+        [*AUDIO_DECODE_INPUT, '-i', 'source.wav', '-f', 's16le', 'source.s16'],
+        [*AUDIO_DECODE_INPUT, '-i', 'source.mp4', '-pix_fmt', 'bgr24', '-f', 'rawvideo', 'source.bgr'],
     ]
     for index, args in enumerate(commands):
         receipt = execute([ffmpeg, '-nostdin', '-v', 'error', '-y', *args], folder, env, 120,
