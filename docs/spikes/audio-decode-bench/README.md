@@ -9,6 +9,8 @@ measured `51a76e9`, the agreement run of record the final binary of the
 pull request, `597fce4`); for resampling and downmixing in `b5c7245`
 ("Resampling and downmixing").
 
+The later [Opus round-four record](opus-round4.md) reports admission refusal before judging, with no speed verdict.
+
 ## Hypothesis and bars (FLAC)
 
 CoreAV's native FLAC decoder, written from RFC 9639, decodes FLAC in MP4

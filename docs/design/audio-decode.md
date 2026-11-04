@@ -1165,6 +1165,8 @@ The required `deny` check validates those bytes, recomputes every capacity predi
 
 ### Opus speed, round 4
 
+The [round-four outcome](../spikes/audio-decode-bench/opus-round4.md) is admission refusal: all 240 inputs were prepared, but every shard exceeded its registered workload forecast. No judged run started, no speed verdict exists, and the candidate is not shipped. The registration below remains unchanged.
+
 Round 3 remains failed and its entire set is spent. Round 4 tests the same fixed candidate on a fresh set, without revising the decoder or the agreement predicate. Its pre-change ceiling is the one recorded for round 3. The full-length capacity prerequisite now qualifies under the merged resource, work-count and provenance checks; it does not identify the cause of the historical worker failures or supply a speed result.
 
 Capacity preflight: `bench/audio-decode/evidence/opus-round4-retention-capacity.json` sha256:`25dedb041f8d5c309929ee1d6b288ec842b3711843daf2623a7cb5dcb9d7164e`; binding: `bench/audio-decode/evidence/opus-round4-retention-binding.json` sha256:`0b025177262378d1dead1faae85de8d5ae31e30898f59f2f09273c66940542b7`.

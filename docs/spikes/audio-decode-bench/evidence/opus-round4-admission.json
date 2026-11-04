@@ -1,0 +1,25 @@
+{
+  "schema": "opus-round4-admission/1",
+  "outcome": "admission refused",
+  "failure": "roster_exceeds_allowance",
+  "judged_run_started": false,
+  "speed_verdict": null,
+  "stats": [],
+  "source_count": 120,
+  "complete_prepared_cells": 240,
+  "successful_prepared_cells": 240,
+  "distinct_prepared_hashes": 240,
+  "inputs_sha256": "3dcdc51f1096ab88c9487e4b8848175760421bfb51a84871919ba7907498424b",
+  "roster_sha256": "5ce207f40f07e0fb868e0c732019afc1eb1dc58e65e55e52b26fde056f32866e",
+  "provenance_commit": "0b7c5a9adde58cb8967b609c7282978d14152477",
+  "forecast_formula_independently_replayed": true,
+  "qualified_judging_owners_unchanged": true,
+  "work_limit_seconds": 16200,
+  "vm_limit_seconds": 18000,
+  "shards": [
+    {"shard": "0", "sources": 30, "inputs": 60, "work_seconds": 46953, "work_fits": false, "acquisition_seconds": 119, "setup_seconds": 220, "vm_seconds": 16839, "vm_fits": true},
+    {"shard": "1", "sources": 30, "inputs": 60, "work_seconds": 51339, "work_fits": false, "acquisition_seconds": 75, "setup_seconds": 220, "vm_seconds": 16795, "vm_fits": true},
+    {"shard": "2", "sources": 30, "inputs": 60, "work_seconds": 44844, "work_fits": false, "acquisition_seconds": 90, "setup_seconds": 220, "vm_seconds": 16810, "vm_fits": true},
+    {"shard": "3", "sources": 30, "inputs": 60, "work_seconds": 43987, "work_fits": false, "acquisition_seconds": 75, "setup_seconds": 220, "vm_seconds": 16795, "vm_fits": true}
+  ]
+}
