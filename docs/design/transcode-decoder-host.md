@@ -32,7 +32,15 @@ Before timing, run an untimed complete preflight on every file and all four Core
 
 ## Controls and reporting
 
-Use the gate input identified by SHA-256 in the attribution's `host.txt` and in `inputs.json`. Before the first timed file and after the last, run B5's baseline on its default video stream with `-an`, one untimed warm-up followed by three timed calls. Void the whole run if the after/before median differs from 1 by more than 5%. Retain both groups of raw gate times. Report the A/A ratio and its interval without treating it as an additional acceptance bar.
+Use the synthetic gate input identified by SHA-256 `62448e7e81fa2b9607211636400bfa2cc723347840f0af73d2de0755c3eaf6cd` in `inputs.json`. The earlier gate, `2b811dc59ae7a0b5d15f0818876b2de5b064b4a85c9b647ae84109afa2e523e3`, is lost: its bytes were kept only on an ephemeral machine that was discarded, and the retained attribution evidence holds its hash but not the file. The replacement changes the gate's identity, not the sixteen inputs. Generate it once on the registered host with the same recorded command and the pinned FFmpeg, then retain the verified file:
+
+```sh
+ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 20 -c:v libx264 -pix_fmt yuv420p -y gate.mp4
+```
+
+Before any registered input command, check this fixture's repeatability with two consecutive gate groups, each with one untimed warm-up and three timed B5 baselines on its default video stream with `-an`. Retain the raw times and require the second group's median to differ from the first by at most 5%. This fixture-only check does not replace the capture's before-and-after groups. Compare neither group with historical timings of the lost gate.
+
+Before the first timed file and after the last, run B5's baseline on the gate's default video stream with `-an`, one untimed warm-up followed by three timed calls. Void the whole run if the after/before median differs from 1 by more than 5%. Retain both groups of raw gate times. Report the A/A ratio and its interval without treating it as an additional acceptance bar.
 
 For each class and each arm, report the median and a paired-file bootstrap 95% interval, 10,000 resamples with seed 518. Report seconds and ratios over the same files. CoreAV/baseline uses the file's `base` median as denominator. Also report `base2/base` and, separately per encoder, in-process/sandbox, the absolute seconds saved and the fraction of the sandbox's extra seconds over baseline removed. A fraction is undefined when that file's sandbox time is at or below baseline, and is reported apart rather than clipped. Report the count and share of files below 1.00 beside every ratio. These intervals describe these 10 and 6 previously timed files, not a held-out claim or a policy verdict.
 
