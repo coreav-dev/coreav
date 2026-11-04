@@ -141,6 +141,39 @@ class Acquisition(unittest.TestCase):
         with self.assertRaises(collect.Incomplete):
             self.prepare()
 
+    def test_deadline_exception_keeps_child_timeout_and_resource_failures_fatal(self):
+        self.state.update(acquisition_sha256=collect.NO_AGGREGATE_DEADLINE_RECEIPT, deadline=0)
+        def timeout(argv, **kwargs):
+            self.assertEqual(kwargs['timeout'], 180)
+            raise subprocess.TimeoutExpired(argv, kwargs['timeout'])
+        with self.assertRaisesRegex(collect.CaptureFault, 'capture-timeout'):
+            self.prepare(runner=timeout)
+        self.state['captures'] = []
+        def resource(argv, **kwargs):
+            kwargs['stderr'].write(b'Cannot allocate memory')
+            return subprocess.CompletedProcess(argv, 1)
+        with self.assertRaisesRegex(collect.CaptureFault, 'resource-or-infrastructure'):
+            self.prepare(runner=resource)
+
+    def test_deadline_exception_keeps_interrupted_source_charge_and_byte_cap(self):
+        body = self.original.read_bytes()
+        self.original.unlink()
+        row = {'identity': self.candidate['identity'], 'size': len(body), 'checksums': {}}
+        self.state.update(acquisition_sha256=collect.NO_AGGREGATE_DEADLINE_RECEIPT, deadline=0)
+        self.state['downloads'] = {'0': [{'status': 'started', 'charged_bytes': len(body) + 1, 'received_bytes': 0}]}
+        def opener(identity, **kwargs):
+            self.assertEqual(kwargs['timeout'], 180)
+            response = io.BytesIO(body)
+            response.status = 200
+            return response
+        collect._original(self.root, row, 0, self.state, lambda: None, opener, lambda: 2000, mock.Mock())
+        self.assertEqual([a['status'] for a in self.state['downloads']['0']], ['interrupted', 'complete'])
+        self.assertEqual(sum(a['charged_bytes'] for a in self.state['downloads']['0']), 2 * (len(body) + 1))
+        self.state['downloads']['1'] = [{'status': 'interrupted', 'charged_bytes': collect.TOTAL_MAX}]
+        with self.assertRaisesRegex(collect.Incomplete, 'source byte cap'):
+            collect._original(self.root, row, 1, self.state, lambda: None,
+                              mock.Mock(side_effect=AssertionError('over-cap fetch')), lambda: 2000, mock.Mock())
+
     def test_started_duplicate_changed_and_missing_receipts_are_fatal(self):
         self.prepare()
         record = self.state['captures'][0]
@@ -361,6 +394,22 @@ class Acquisition(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'accounting differs'):
             collect.audit_collection(self.root, candidates, plan, 'e' * 64)
 
+    def test_authorized_receipt_completes_and_audits_after_historical_deadline(self):
+        run, candidates, plan, calls, fetches = self.integrated(finish=False)
+        with mock.patch.object(collect, 'NO_AGGREGATE_DEADLINE_RECEIPT', 'e' * 64):
+            state = run(clock=lambda: 2000)
+            self.assertEqual((state['deadline'], state['completed_at']), (1000, 2000))
+            self.assertEqual(len(state['rows']), 4)
+            self.assertTrue(all(call.kwargs['timeout'] == 180 for call in collect.bounded_runner.call_args_list))
+            collect.audit_collection(self.root, candidates, plan, 'e' * 64)
+            before = (len(calls), len(fetches), state['captures'], state['downloads'])
+            resumed = run(clock=lambda: 3000)
+            self.assertEqual((len(calls), len(fetches), resumed['captures'], resumed['downloads']), before)
+            state['completed_at'] = float('inf')
+            (self.root / 'operator/amended-state.json').write_text(json.dumps(state))
+            with self.assertRaisesRegex(ValueError, 'did not complete'):
+                collect.audit_collection(self.root, candidates, plan, 'e' * 64)
+
     def test_lost_decision_ack_retries_checkpoint_not_capture_or_download(self):
         run, candidates, plan, calls, fetches = self.integrated(finish=False)
         keys = []
@@ -415,6 +464,12 @@ class Acquisition(unittest.TestCase):
             self.assertEqual(collect.verify_receipt(self.root, external, 'a' * 40), receipt)
             with self.assertRaisesRegex(ValueError, 'tooling changed'):
                 collect.verify_receipt(self.root, external, 'b' * 40)
+            with mock.patch.object(collect, 'NO_AGGREGATE_DEADLINE_RECEIPT', external):
+                self.assertEqual(collect.verify_receipt(self.root, external, 'b' * 40), receipt)
+                driver.write(self.root / 'acquisition-receipt.json', receipt | {'deadline': 2000})
+                with self.assertRaisesRegex(ValueError, 'separately recorded'):
+                    collect.verify_receipt(self.root, external, 'b' * 40)
+                driver.write(self.root / 'acquisition-receipt.json', receipt)
             driver.write(self.root / 'acquisition-receipt.json', receipt | {'deadline': 2000})
             with self.assertRaisesRegex(ValueError, 'separately recorded'):
                 collect.verify_receipt(self.root, external)
