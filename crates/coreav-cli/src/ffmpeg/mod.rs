@@ -1185,12 +1185,10 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     Ok(offsets)
 }
 
-/// Why a join is not native: a track it copies has more than one edit in
-/// its file (an empty one included), which the demuxer reads by its own
-/// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits. The edits are counted in each file, as edits that meet merge in
-/// the output.
-fn several_edits(
+/// Why a join's edit handling differs from the concat demuxer's: positive
+/// AAC edits, even in unselected audio, or several edits in a copied track
+/// (docs/design/concat-aac-edits.md and docs/design/edit-list-writers.md).
+fn join_edit_refusal(
     paths: &[PathBuf],
     summary: &JoinSummary,
 ) -> Result<Option<&'static str>, WriteFailure> {
@@ -1198,6 +1196,15 @@ fn several_edits(
         let file = FileSource::open(path)?;
         let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
             .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
+        if movie.tracks.iter().any(|track| {
+            track.kind == coreav_isobmff::TrackKind::Audio
+                && std::iter::once(&track.description)
+                    .chain(&track.later_descriptions)
+                    .any(|description| description.codec == coreav_isobmff::Codec::Aac)
+                && track.edits.iter().any(|edit| edit.media_time > 0)
+        }) {
+            return Ok(Some("a concat input with a positive AAC edit offset"));
+        }
         let copied = [Some(&input.video), input.audio.as_ref()];
         let edited = |track: &Track| {
             track.edits.len() > 1
@@ -1761,7 +1768,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = several_edits(paths, &summary)? {
+            if let Some(words) = join_edit_refusal(paths, &summary)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),
