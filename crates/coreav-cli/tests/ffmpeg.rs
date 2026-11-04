@@ -2009,6 +2009,184 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
     None
 }
 
+#[test]
+fn unedited_video_copy_normalizes_its_origin_without_losing_frames() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-copy-video-origin");
+    let audio_inputs: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    let make = |name: &str, extra: &[&str]| {
+        let path = dir.join(name);
+        let result = Command::new(&ffmpeg_bin)
+            .args([
+                "-nostdin",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=64x48:rate=24:duration=3.25",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-bf",
+                "2",
+                "-metadata",
+                "title=Origin example",
+            ])
+            .args(extra)
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        path
+    };
+    let input = make("unedited.mp4", &["-use_editlist", "0"]);
+    let edited = make("edited.mp4", &["-output_ts_offset", "1"]);
+    let listing = |path: &Path| -> Value {
+        let result = Command::new(&ffprobe_bin).args(["-v", "error"])
+            .args(&audio_inputs).args(["-i"]).arg(path)
+            .args(["-show_streams", "-show_frames", "-show_format", "-show_entries",
+                "stream=codec_type,codec_name,time_base,start_pts,duration_ts,nb_frames,width,height,pix_fmt,sample_aspect_ratio:stream_tags=language:frame=pts,pkt_dts,best_effort_timestamp,duration,width,height,pix_fmt,key_frame,pict_type:format=start_time,duration:format_tags=title",
+                "-of", "json"]).output().unwrap();
+        assert!(
+            result.status.success() && result.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        serde_json::from_slice(&result.stdout).unwrap()
+    };
+    let pixels = |path: &Path| {
+        let result = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(&audio_inputs)
+            .arg("-i")
+            .arg(path)
+            .args([
+                "-map",
+                "0:v:0",
+                "-an",
+                "-fps_mode",
+                "passthrough",
+                "-pix_fmt",
+                "yuv420p",
+                "-f",
+                "rawvideo",
+                "-",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success() && result.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(result.stdout.len(), 78 * 64 * 48 * 3 / 2);
+        result.stdout
+    };
+    let source = listing(&input);
+    assert_eq!(source["streams"][0]["start_pts"], 1024);
+    assert_eq!(source["frames"].as_array().unwrap().len(), 78);
+    let source_pixels = pixels(&input);
+    for (case, options) in [
+        ("plain", vec!["-c", "copy"]),
+        ("faststart", vec!["-c", "copy", "-movflags", "+faststart"]),
+        ("explicit", vec!["-c:v", "copy", "-c:a", "copy"]),
+        ("mapped", vec!["-map", "0:v:0", "-c", "copy"]),
+    ] {
+        let mine = dir.join(format!("{case}-coreav.mp4"));
+        let reference = dir.join(format!("{case}-ffmpeg.mp4"));
+        let mut args = vec!["-i", input.to_str().unwrap()];
+        args.extend(&options);
+        args.push(mine.to_str().unwrap());
+        let result = ffmpeg(&args);
+        assert_eq!(result.code, 0, "{case}: {}", result.stderr);
+        assert!(result.stdout.is_empty() && result.stderr.is_empty());
+        let result = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(&input)
+            .args(&options)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{case}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let observed = listing(&mine);
+        assert_eq!(observed, listing(&reference), "{case}");
+        assert_eq!(observed["streams"][0]["start_pts"], 0);
+        assert_eq!(pixels(&mine), source_pixels, "{case}");
+        assert_eq!(pixels(&mine), pixels(&reference), "{case}");
+    }
+    let refused = dir.join("refused.mp4");
+    for existing in [false, true] {
+        if existing {
+            std::fs::write(&refused, b"existing output").unwrap();
+        }
+        let result = ffmpeg(&[
+            "-y",
+            "-i",
+            edited.to_str().unwrap(),
+            "-c",
+            "copy",
+            refused.to_str().unwrap(),
+        ]);
+        assert_eq!(result.code, 4, "{}", result.stderr);
+        assert!(result.stdout.is_empty());
+        assert!(result.stderr.contains("video origin"), "{}", result.stderr);
+        if existing {
+            assert_eq!(std::fs::read(&refused).unwrap(), b"existing output");
+        } else {
+            assert!(!refused.exists());
+        }
+    }
+    let path = std::env::join_paths(
+        std::iter::once(ffmpeg_bin.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        )),
+    )
+    .unwrap();
+    let result = Command::new(bin())
+        .args(["ffmpeg", "-y", "-i"])
+        .arg(&edited)
+        .args(["-c", "copy"])
+        .arg(&refused)
+        .env_remove("COREAV_STRICT_SAFE")
+        .env_remove("COREAV_FALLBACK_ACTIVE")
+        .env("PATH", path)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let reference = dir.join("edited-reference.mp4");
+    assert!(
+        Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(&edited)
+            .args(["-c", "copy"])
+            .arg(&reference)
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(listing(&refused), listing(&reference));
+    assert_eq!(pixels(&refused), pixels(&reference));
+}
+
 /// Cover picture selections against the pinned `ffmpeg`, on a file it
 /// makes with one JPEG cover picture.
 #[test]

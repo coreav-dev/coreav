@@ -47,6 +47,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let options = RemuxOptions {
+        video_origin: None,
         streams: (choice & 2 != 0).then(|| vec![usize::from(choice >> 2)]),
         on_unsupported: if choice & 1 == 0 {
             OnUnsupported::Drop

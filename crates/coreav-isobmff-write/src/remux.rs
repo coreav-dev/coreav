@@ -30,7 +30,8 @@ use crate::{
 use core::cell::RefCell;
 use coreav_isobmff::{
     Allowlist, BoxHeader, Budget, Codec, EditList, Error, FourCc, LimitKind, Limits, Movie,
-    Packets, Parsed, SliceSource, Source, Track, TrackKind, metadata, parse_box_header, probe,
+    Packets, Parsed, Rational, SliceSource, Source, Track, TrackKind, metadata, parse_box_header,
+    probe,
 };
 use std::io::Write;
 
@@ -222,6 +223,11 @@ fn remux<S: Source, R: Source, W: Write>(
         return Err(unsupported("a remux needs one to sixteen input sources").into());
     }
     let multiple = inputs.len() > 1;
+    if options.video_origin.is_some()
+        && (multiple || replacements.video.is_some() || replacements.audio.is_some())
+    {
+        return Err(unsupported("a video origin with replacements or multiple inputs").into());
+    }
     if multiple
         && (replacements.video.is_some()
             || replacements.audio.is_some()
@@ -433,6 +439,20 @@ fn remux<S: Source, R: Source, W: Write>(
         });
     }
 
+    if let Some(origin) = options.video_origin {
+        if origin.num <= 0
+            || origin.den == 0
+            || movie.has_fragments()
+            || plans.len() != 1
+            || plans
+                .iter()
+                .any(|p| p.track.kind != TrackKind::Video || !p.edits.is_empty())
+        {
+            return Err(unsupported("a video origin needs one unedited unfragmented video").into());
+        }
+        retained.charge(core::mem::size_of::<Edit>() as u64, 0)?;
+    }
+
     // Pass 1: the output tables, one stream at a time.
     let mut cleared = Vec::new();
     let movie_created = match options.metadata {
@@ -479,10 +499,11 @@ fn remux<S: Source, R: Source, W: Write>(
         let index = muxer.add_track(plan.header)?;
         let listed = match (plan.replaced, &replacement, &audio) {
             (Some(Replaced::Video), Some(r), _) => {
-                list_replaced(&mut muxer, index, r.samples, r.last_duration).map(|first| (first, 0))
+                list_replaced(&mut muxer, index, r.samples, r.last_duration)
+                    .map(|first| (first, 0, None))
             }
             (Some(Replaced::Audio), _, Some(a)) => {
-                list_audio(&mut muxer, index, a).map(|()| (0, 0))
+                list_audio(&mut muxer, index, a).map(|()| (0, 0, None))
             }
             (Some(_), _, _) => Err(overflow().into()),
             (None, _, _) => list(
@@ -498,7 +519,7 @@ fn remux<S: Source, R: Source, W: Write>(
             ),
         };
         match listed {
-            Ok((first_dts, composition_end)) => {
+            Ok((first_dts, composition_end, composition_start)) => {
                 cleared.extend(plan.cleared);
                 let codec = match (plan.replaced, replaced_codec) {
                     (Some(Replaced::Video), Some(codec)) => codec.isobmff(),
@@ -517,6 +538,7 @@ fn remux<S: Source, R: Source, W: Write>(
                     edits: plan.edits,
                     first_dts,
                     composition_end,
+                    composition_start,
                     codec,
                     replaced: plan.replaced,
                     declared: plan.declared.filter(|_| plan.replaced.is_none()),
@@ -551,6 +573,13 @@ fn remux<S: Source, R: Source, W: Write>(
     // becomes a common multiple of it and that stream's media timescale,
     // when one fits 32 bits. Most files keep theirs (and 32-bit headers).
     let mut movie_timescale = movie.timescale;
+    if options.video_origin.is_some() {
+        for k in &kept {
+            movie_timescale = lcm(movie_timescale, k.track.timescale).ok_or(unsupported(
+                "a video origin needs an exact 32-bit movie timescale",
+            ))?;
+        }
+    }
     if movie.has_fragments() {
         for (index, k) in kept
             .iter()
@@ -643,6 +672,38 @@ fn remux<S: Source, R: Source, W: Write>(
         }
     }
     for (index, k) in kept.iter().enumerate() {
+        if let Some(origin) = options.video_origin {
+            let media_time = origin
+                .num
+                .checked_mul(i128::from(k.track.timescale))
+                .and_then(|num| Rational::new(num, origin.den))
+                .map(Rational::round)
+                .and_then(|ticks| i64::try_from(ticks).ok())
+                .filter(|ticks| *ticks > 0)
+                .ok_or(unsupported(
+                    "a video origin cannot be represented in media ticks",
+                ))?;
+            if k.first_dts != 0 || k.composition_start != Some(media_time) {
+                return Err(
+                    unsupported("a video origin differs from the first composition time").into(),
+                );
+            }
+            let length = k
+                .composition_end
+                .checked_sub(u64::try_from(media_time).map_err(|_| overflow())?)
+                .filter(|length| *length > 0)
+                .ok_or(unsupported("a video origin leaves no presentation"))?;
+            muxer.set_edits(
+                index,
+                vec![Edit {
+                    duration: rescale(length, k.track.timescale, movie_timescale)?,
+                    media_time,
+                    rate: Edit::UNIT_RATE,
+                }],
+            )?;
+            muxer.set_duration(index, None)?;
+            continue;
+        }
         if k.replaced == Some(Replaced::Audio) {
             let edits = match &audio {
                 Some(a) => audio_edits(a, movie_timescale)?,
@@ -1132,6 +1193,7 @@ struct Kept<'m> {
     /// Where the frame presented last ends, in media ticks from the first
     /// decode time (0 for a replacement's samples).
     composition_end: u64,
+    composition_start: Option<i64>,
     /// The output's codec: the source's, or the replacement's.
     codec: Codec,
     /// The stream's samples are a replacement's.
@@ -2213,8 +2275,9 @@ fn list<S: Source>(
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
-) -> Result<(i64, u64), ExtractError> {
+) -> Result<(i64, u64, Option<i64>), ExtractError> {
     let mut first_dts = None;
+    let mut start: Option<i64> = None;
     let mut next_dts: Option<i64> = None;
     // The latest composition end, a frame's composition time plus its
     // duration (ISO/IEC 14496-12 8.6.1.3).
@@ -2233,6 +2296,7 @@ fn list<S: Source>(
                 .ok_or_else(overflow)?,
         );
         first_dts.get_or_insert(packet.dts);
+        start = Some(start.map_or(packet.cts, |s| s.min(packet.cts)));
         let ends = packet
             .cts
             .checked_add(i64::from(packet.duration))
@@ -2283,7 +2347,7 @@ fn list<S: Source>(
         }
         muxer.set_duration(index, declared)?;
     }
-    Ok((first, composition_end))
+    Ok((first, composition_end, start))
 }
 
 /// The media durations a fragmented stream's output turns into movie ticks

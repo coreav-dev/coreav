@@ -266,6 +266,13 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
+    /// Subtract this positive presentation origin from one unedited,
+    /// unfragmented video track. Its first composition time must equal
+    /// the origin rounded to media ticks, and decoding must start at 0.
+    /// Every sample is retained; an exact edit duration must fit a 32-bit
+    /// common movie timescale. Replacements are not accepted. `None`
+    /// preserves the source timeline, as the native remux command does.
+    pub video_origin: Option<Rational>,
     /// Stream indexes to keep (`Track::stream_index`), in the output's
     /// order, a stream named twice written as two tracks; `None` for every
     /// stream that can be copied, in source order. A named stream that
