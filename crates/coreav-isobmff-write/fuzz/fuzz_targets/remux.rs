@@ -6,7 +6,7 @@
 #![no_main]
 
 use coreav_isobmff::{
-    Allowlist, Budget, BufferedSource, Limits, Packet, SliceSource, Source, probe,
+    Allowlist, Budget, BufferedSource, Limits, Packet, Rational, SliceSource, Source, probe,
 };
 use coreav_isobmff_write::{Metadata, OnUnsupported, RemuxOptions, remux_mp4};
 use libfuzzer_sys::fuzz_target;
@@ -46,7 +46,13 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let options = RemuxOptions {
-        video_origin: None,
+        video_origin: (choice & 4 != 0).then(|| match choice >> 6 {
+            0 => Rational::new(1, 12).expect("nonzero denominator"),
+            1 => Rational::new(2, 25).expect("nonzero denominator"),
+            2 => Rational::from_int(0),
+            _ => Rational::from_int(-1),
+        }),
+        rebuild_durations: choice & 8 != 0,
         streams: (choice & 2 != 0).then(|| vec![usize::from(choice >> 2)]),
         on_unsupported: if choice & 1 == 0 {
             OnUnsupported::Drop
@@ -63,8 +69,12 @@ fuzz_target!(|data: &[u8]| {
     };
     assert_eq!(summary.bytes_written, out.len() as u64);
     assert_eq!(&out[4..8], b"ftyp");
-    let movie = probe(SliceSource::new(&out), &Limits::default(), &Allowlist::default())
-        .expect("the output parses");
+    let movie = probe(
+        SliceSource::new(&out),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .expect("the output parses");
     assert!(!movie.fragmented);
     assert_eq!(movie.tracks.len(), summary.tracks.len());
     for (nth, kept) in summary.tracks.iter().enumerate() {

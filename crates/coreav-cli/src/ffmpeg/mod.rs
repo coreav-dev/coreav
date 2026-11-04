@@ -1751,6 +1751,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             video_origin,
         } => {
             let options = RemuxOptions {
+                rebuild_durations: true,
                 video_origin: *video_origin,
                 streams: Some(streams.clone()),
                 on_unsupported: OnUnsupported::Fail,

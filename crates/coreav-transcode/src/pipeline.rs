@@ -628,6 +628,7 @@ pub fn transcode<S: Source, W: Write>(
                     &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                     &RemuxOptions {
                         video_origin: None,
+                        rebuild_durations: false,
                         streams,
                         on_unsupported: OnUnsupported::Drop,
                         metadata: Metadata::Copy,
