@@ -1968,6 +1968,13 @@ stream oracle checks. The other fields include:
   no bit depth (`codec_flac*`, `codec_alac*` at 44.1 to 192 kHz).
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.
+- ISO `format.nb_stream_groups` counts distinct targets of `tmcd` track
+  references whose first sample entry is also `tmcd`, including unsupported
+  tracks. Shared targets count once, and stream selection does not change
+  this format-level count. Requesting it from an incomplete metadata
+  snapshot is refused before output and uses the existing ffprobe fallback
+  outside strict-safe mode. This does not add group listing
+  (`docs/design/ffprobe-iso-stream-group-count.md`).
 - A protected stream of a movie with protection system headers (`pssh`)
   carries an "Encryption initialization data" side data element; its
   other values come from the format `frma` names.

@@ -570,6 +570,7 @@ impl<S: Source> Reader<'_, S> {
                         }
                     }
                 }
+                b"tref" => self.complete = false,
                 b"mdia" => self.media(&child, &mut track)?,
                 b"udta" => {
                     self.user_data(&child, Some(index), items, &mut track.kinds)?;
@@ -1403,6 +1404,18 @@ mod tests {
         assert_eq!(decoder_specific_info(&without), None);
         for len in 0..esds.len() {
             let _ = decoder_specific_info(&esds[..len]);
+        }
+    }
+
+    #[test]
+    fn an_oversized_reference_marks_metadata_incomplete() {
+        for (count, complete) in [(1022, true), (1023, false)] {
+            let ids = 2u32.to_be_bytes().repeat(count);
+            let tref = boxed(b"tref", &boxed(b"tmcd", &ids));
+            let bytes = boxed(b"moov", &boxed(b"trak", &tref));
+            let meta = read(SliceSource::new(&bytes), &Limits::default()).unwrap();
+            assert_eq!(meta.complete, complete, "{count}");
+            assert_eq!(meta.tracks[0].references.len(), usize::from(complete));
         }
     }
 
