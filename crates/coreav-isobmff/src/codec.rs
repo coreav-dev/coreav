@@ -524,7 +524,7 @@ pub(crate) fn parse_sample_entry(
                     || CONFIG_BOXES.contains(&&kind.0)
                     || matches!(
                         &kind.0,
-                        b"free" | b"skip" | b"dvcC" | b"dvvC" | b"dvwC" | b"amve"
+                        b"free" | b"skip" | b"fiel" | b"dvcC" | b"dvvC" | b"dvwC" | b"amve"
                     );
                 if ENTRY_BOXES.contains(&&kind.0) {
                     if !desc.entry_boxes.iter().any(|b| b.kind == kind) {

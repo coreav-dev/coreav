@@ -165,6 +165,41 @@ fn unknown_visual_children_refuse_even_without_aperture() {
 }
 
 #[test]
+fn field_information_leaf_remains_native() {
+    let mut bytes = movie(false);
+    let child = common::bx(b"fiel", &[1, 0]);
+    let entry = bytes.windows(4).position(|w| w == b"stsd").unwrap() + 12;
+    let size = u32::from_be_bytes(bytes[entry..entry + 4].try_into().unwrap()) as usize;
+    bytes[entry..entry + 4].copy_from_slice(&((size + child.len()) as u32).to_be_bytes());
+    bytes.splice(entry + size..entry + size, child.iter().copied());
+    grow_parents(&mut bytes, child.len());
+    let dir = FixtureDir::new("field-information");
+    let path = dir.0.join("input.mp4");
+    std::fs::write(&path, bytes).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args([
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "json",
+        ])
+        .arg(&path)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["streams"][0]["index"], 0);
+}
+
+#[test]
 fn multiple_descriptions_without_clap_remain_native() {
     let dir = FixtureDir::new("multiple-control");
     let path = dir.0.join("input.mp4");

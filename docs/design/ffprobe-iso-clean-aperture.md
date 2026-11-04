@@ -40,8 +40,10 @@ children, trailing bytes and an exhausted `wave` depth make it incomplete.
 Unknown visual child types also make the layout unproved: the pinned binary
 can apply `clap` inside containers this walk does not enter, including `sinf`,
 `schi`, `udta` and `ilst`. Only the already classified configuration and entry
-leaf boxes, parsed Dolby Vision and ambient records, and `free`/`skip` padding
-can establish a clear layout. An unclassified leaf can therefore cause
+leaf boxes, parsed Dolby Vision and ambient records, the `fiel` field-information
+leaf, and `free`/`skip` padding can establish a clear layout. QuickTime File Format,
+Video Sample Description Extensions, defines `fiel` as two 8-bit integers, not
+a child list. An unclassified leaf can therefore cause
 conservative fallback even without aperture metadata. Non-visual descriptions
 do not inherit this visual-layout restriction.
 
