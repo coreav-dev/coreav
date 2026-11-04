@@ -614,6 +614,7 @@ fn remux_document<S: Source, W: Write>(
     } else {
         let remux_options = RemuxOptions {
             video_origin: None,
+            rebuild_durations: false,
             streams: options.streams.clone(),
             on_unsupported,
             metadata,

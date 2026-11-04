@@ -1408,6 +1408,8 @@ refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
 picture: their selection rules refuse one by name (`one video and one
 audio stream`, `an M4A output of other than one audio stream`).
 
+Ordinary single-input ISO copy rebuilds media durations from copied samples and track durations from retained edits or media, rather than keeping conflicting declared header overrides. Native `coreav remux` retains its separate default preservation policy. This changes neither sample selection nor source packet clocks; see [the copied-header plan](copy-header-durations.md).
+
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
 `-ss 6` before or after `-i` is 11 s on its timeline (black box). An input

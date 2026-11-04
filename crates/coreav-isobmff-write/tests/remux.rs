@@ -1598,6 +1598,179 @@ fn video_origin_keeps_table_work_and_source_error_classification() {
 }
 
 #[test]
+fn rebuilt_durations_keep_samples_edits_and_native_header_policy() {
+    let limits = Limits::default();
+    let allowlist = Allowlist::default();
+    for declared in [10_000u32, 100_000, 0] {
+        let mut source = build(&file(vec![video(50, 25), aac(50, false)]));
+        let media_headers: Vec<usize> = source
+            .windows(4)
+            .enumerate()
+            .filter_map(|(i, b)| (b == b"mdhd").then_some(i + 20))
+            .collect();
+        let track_headers: Vec<usize> = source
+            .windows(4)
+            .enumerate()
+            .filter_map(|(i, b)| (b == b"tkhd").then_some(i + 24))
+            .collect();
+        for at in &media_headers {
+            source[*at..*at + 4].copy_from_slice(&declared.to_be_bytes());
+        }
+        for at in &track_headers {
+            source[*at..*at + 4].copy_from_slice(&123u32.to_be_bytes());
+        }
+        let input = probe(SliceSource::new(&source), &limits, &allowlist).unwrap();
+        let (_, output) = remux(
+            &source,
+            &RemuxOptions {
+                rebuild_durations: true,
+                ..RemuxOptions::default()
+            },
+        )
+        .unwrap();
+        let written = probe(SliceSource::new(&output), &limits, &allowlist).unwrap();
+        assert_eq!(written.timescale, input.timescale);
+        for index in 0..2 {
+            let from = packets(&source, &input, index);
+            let to = packets(&output, &written, index);
+            assert_eq!(from.len(), to.len());
+            assert_eq!(
+                written.tracks[index].edit_list,
+                input.tracks[index].edit_list
+            );
+            assert_eq!(
+                written.tracks[index].mdhd_duration,
+                from.iter().map(|p| u64::from(p.duration)).sum::<u64>()
+            );
+            for (a, b) in from.iter().zip(&to) {
+                assert_eq!(
+                    (a.dts, a.cts, a.duration, a.keyframe, a.pts),
+                    (b.dts, b.cts, b.duration, b.keyframe, b.pts)
+                );
+                assert_eq!(bytes(&source, a), bytes(&output, b));
+            }
+        }
+        let (_, native) = remux(&source, &RemuxOptions::default()).unwrap();
+        for at in native
+            .windows(4)
+            .enumerate()
+            .filter_map(|(i, b)| (b == b"tkhd").then_some(i + 24))
+        {
+            assert_eq!(
+                u32::from_be_bytes(native[at..at + 4].try_into().unwrap()),
+                123
+            );
+        }
+        if declared != 0 {
+            assert!(
+                probe(SliceSource::new(&native), &limits, &allowlist)
+                    .unwrap()
+                    .tracks
+                    .iter()
+                    .all(|track| track.mdhd_duration == u64::from(declared))
+            );
+        }
+    }
+}
+
+#[test]
+fn rebuilding_durations_does_not_add_source_reads_or_bypass_limits() {
+    let source = build(&file(vec![video(50, 25), aac(50, false)]));
+    let options = RemuxOptions {
+        rebuild_durations: true,
+        ..RemuxOptions::default()
+    };
+    let reads = |options: &RemuxOptions| {
+        let mut reader = Shrinking {
+            data: &source,
+            reads: u32::MAX,
+        };
+        remux_mp4(
+            &mut reader,
+            &Limits::default(),
+            &Allowlist::default(),
+            options,
+            io::sink(),
+        )
+        .unwrap();
+        u32::MAX - reader.reads
+    };
+    let count = reads(&options);
+    assert_eq!(count, reads(&RemuxOptions::default()));
+    for limits in [
+        Limits {
+            max_sample_work: 0,
+            ..Limits::default()
+        },
+        Limits {
+            max_table_bytes: 0,
+            ..Limits::default()
+        },
+        Limits {
+            max_retained_bytes: 0,
+            ..Limits::default()
+        },
+    ] {
+        let mut output = Vec::new();
+        assert!(matches!(
+            remux_mp4(
+                SliceSource::new(&source),
+                &limits,
+                &Allowlist::default(),
+                &options,
+                &mut output
+            ),
+            Err(ExtractError::Source(Error::LimitExceeded { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+    assert_eq!(
+        remux_mp4(
+            Shrinking {
+                data: &source,
+                reads: count - 1
+            },
+            &Limits::default(),
+            &Allowlist::default(),
+            &options,
+            io::sink()
+        ),
+        Err(ExtractError::Source(Error::Io(
+            io::ErrorKind::UnexpectedEof
+        )))
+    );
+}
+
+#[test]
+fn rebuilt_durations_refuse_unmodeled_edits_and_ambiguous_video_starts() {
+    let mut unordered = video(50, 25);
+    unordered.samples[0].offset = 4096;
+    let mut unmodeled = video(50, 25);
+    unmodeled.edits = vec![(500, 1024, 0), (500, 2048, 0x10000)];
+    let mut several = video(50, 25);
+    several.edits = vec![(500, 1024, 0x10000), (500, 10_000, 0x10000)];
+    for track in [unordered, unmodeled, several] {
+        let source = build(&file(vec![track, aac(50, false)]));
+        assert!(remux(&source, &RemuxOptions::default()).is_ok());
+        let mut output = Vec::new();
+        assert!(matches!(
+            remux_mp4(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default(),
+                &RemuxOptions {
+                    rebuild_durations: true,
+                    ..RemuxOptions::default()
+                },
+                &mut output
+            ),
+            Err(ExtractError::Source(Error::Unsupported { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
 fn fragmented_sources_are_flattened() {
     for edit in [None, Some((0, 1024)), Some((80, 1024))] {
         let source = common::fragmented_movie(Some(2048), edit);

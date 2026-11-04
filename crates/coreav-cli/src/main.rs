@@ -1386,6 +1386,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
     };
     let options = RemuxOptions {
         video_origin: None,
+        rebuild_durations: false,
         streams: args.streams.clone(),
         on_unsupported: if args.fail_on_unsupported {
             OnUnsupported::Fail

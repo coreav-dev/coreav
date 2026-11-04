@@ -223,6 +223,12 @@ fn remux<S: Source, R: Source, W: Write>(
         return Err(unsupported("a remux needs one to sixteen input sources").into());
     }
     let multiple = inputs.len() > 1;
+    let rebuild_durations = options.rebuild_durations || options.video_origin.is_some();
+    if options.rebuild_durations
+        && (multiple || replacements.video.is_some() || replacements.audio.is_some())
+    {
+        return Err(unsupported("rebuilt durations with replacements or multiple inputs").into());
+    }
     if options.video_origin.is_some()
         && (multiple || replacements.video.is_some() || replacements.audio.is_some())
     {
@@ -439,6 +445,13 @@ fn remux<S: Source, R: Source, W: Write>(
         });
     }
 
+    if options.rebuild_durations
+        && plans
+            .iter()
+            .any(|p| !matches!(p.track.edit_list, EditList::None | EditList::Simple { .. }))
+    {
+        return Err(unsupported("rebuilt durations need supported source edit timing").into());
+    }
     if let Some(origin) = options.video_origin {
         if origin.num <= 0
             || origin.den == 0
@@ -511,7 +524,7 @@ fn remux<S: Source, R: Source, W: Write>(
                 plan.track,
                 &plan.edits,
                 plan.declared,
-                options.video_origin.is_some(),
+                rebuild_durations,
                 &mut muxer,
                 index,
                 input_source,
@@ -542,11 +555,13 @@ fn remux<S: Source, R: Source, W: Write>(
                     composition_start,
                     codec,
                     replaced: plan.replaced,
-                    declared: plan.declared.filter(|_| plan.replaced.is_none()),
+                    declared: plan
+                        .declared
+                        .filter(|_| plan.replaced.is_none() && !rebuild_durations),
                 });
             }
             Err(ExtractError::Source(Error::Unsupported { reason }))
-                if drop_unsupported && plan.replaced.is_none() =>
+                if drop_unsupported && plan.replaced.is_none() && !rebuild_durations =>
             {
                 muxer.pop_track();
                 retained.left = retained.left.saturating_add(plan.retained);
@@ -702,8 +717,6 @@ fn remux<S: Source, R: Source, W: Write>(
                     rate: Edit::UNIT_RATE,
                 }],
             )?;
-            muxer.set_duration(index, None)?;
-            muxer.set_media_duration(index, None)?;
             continue;
         }
         if k.replaced == Some(Replaced::Audio) {
@@ -2272,7 +2285,7 @@ fn list<S: Source>(
     track: &Track,
     source_edits: &[Edit],
     declared: Option<u64>,
-    normalize_video: bool,
+    rebuild_durations: bool,
     muxer: &mut Muxer,
     index: usize,
     source: &mut S,
@@ -2288,7 +2301,10 @@ fn list<S: Source>(
     let mut end: Option<i64> = None;
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
-        if normalize_video && packet.cts < *first_cts.get_or_insert(packet.cts) {
+        if rebuild_durations
+            && track.kind == TrackKind::Video
+            && packet.cts < *first_cts.get_or_insert(packet.cts)
+        {
             return Err(
                 unsupported("a later sample precedes the video's first composition time").into(),
             );
@@ -2350,7 +2366,7 @@ fn list<S: Source>(
     // disagree with the sample durations or the edits, as audio extraction
     // does; with fragments the movie header durations cover
     // only part of the samples, so they are computed.
-    if !movie.has_fragments() {
+    if !movie.has_fragments() && !rebuild_durations {
         if track.mdhd_duration != 0 {
             muxer.set_media_duration(index, Some(track.mdhd_duration))?;
         }
