@@ -8,7 +8,7 @@ Independent generated H.264/AAC examples reproduce this with three seconds of au
 
 ## Decision and boundary
 
-Keep native join unchanged. At the existing compatibility join admission boundary, refuse a completed join plan whose output needs more than one audio edit. The writer's existing `JoinSummary::audio_edits` is authoritative; do not infer the condition from rounded probe durations or add a second packet reader. The compatibility output transaction already keeps the result in a temporary file until this boundary accepts it. Refusal must preserve an existing destination and publish no new file, and regular mode must forward the original arguments to the existing pinned fallback.
+Keep native join unchanged. At the existing compatibility join admission boundary, refuse a staged join whose output needs more than one audio edit. The writer's existing `JoinSummary::audio_edits` is authoritative; do not infer the condition from rounded probe durations or add a second packet reader. The compatibility output transaction already keeps the result in a temporary file until this boundary accepts it. Refusal must preserve an existing destination and publish no new file, and regular mode must forward the original arguments to the existing pinned fallback.
 
 This conservatively refuses any multi-edit audio output, including a potentially exact case, rather than guessing that its demuxed timeline agrees. An absent audio track or one audio edit retains the existing path. Source positive-AAC-edit, multiple-input-edit and first-origin guards remain. Native `coreav join`, its placement policy, packet durations, edit lists and reports do not change. Ordinary copy, seek and probe behavior are outside this unit.
 

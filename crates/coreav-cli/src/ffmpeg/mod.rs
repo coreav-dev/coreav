@@ -1247,6 +1247,9 @@ fn join_edit_refusal(
             return Ok(Some("a join of files whose tracks have several edits"));
         }
     }
+    if summary.audio_edits > 1 {
+        return Ok(Some("a concat output that needs several audio edits"));
+    }
     Ok(None)
 }
 

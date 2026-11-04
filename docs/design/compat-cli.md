@@ -1522,7 +1522,7 @@ FFmpeg).**
 - A join that would not be timed as the concat demuxer times it: inputs
   whose tracks have several edits, which the demuxer reads by its own edit
   model, an input with a positive AAC media edit offset (including unselected audio), a first input with a nonzero format start, and an input the demuxer would place before the previous input's
-  video ends. Also inputs that do not match the first
+  video ends. An output that needs several audio edits is also refused, including gaps created from unedited inputs; native join's edit-based presentation is not the concat muxer's packet clock. See [audio-gap admission](concat-audio-gaps.md). Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
