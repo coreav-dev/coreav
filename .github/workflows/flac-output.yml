@@ -131,7 +131,9 @@ jobs:
           sudo apt-get install -y linux-tools-common linux-tools-generic
           sudo sysctl kernel.perf_event_paranoid=-1
           perf=$(find /usr/lib/linux-tools -type f -name perf | head -1)
-          sudo "$perf" stat -e instructions:u,cycles:u -- true
+          sudo "$perf" stat -x ';' -o "$RUNNER_TEMP/perf-probe.txt" -e instructions:u,cycles:u -- true
+          cat "$RUNNER_TEMP/perf-probe.txt"
+          ! grep -E '<not (supported|counted)>' "$RUNNER_TEMP/perf-probe.txt"
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Build plain and symbolized optimized commands
