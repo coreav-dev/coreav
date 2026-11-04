@@ -5874,7 +5874,15 @@
           "archived_bytes": null,
           "resolved_member": null
         }
-      ]
+      ],
+      "published_output_count": {
+        "value": 6,
+        "source": "VPSSPSPPS_A_MainConcept_1.txt",
+        "source_sha256": "35df5c194219524b2bab8bcff8260eb0405f1b61df1af260db06284d1703e061",
+        "text": "length: 6 frames",
+        "interpretation": "six listed I-picture outputs; Captain decision, 2026-11-04; H.265.1 section 6.6.12.5",
+        "oracle_preparation": "bench/hevc-conformance/oracle-preparation.md"
+      }
     },
     {
       "archive": "WP_A_MAIN10_Toshiba_3.zip",

@@ -96,6 +96,8 @@ Diagnostic classification is closed by stream identity and exact diagnostic mess
 
 The [synthetic Main10 registration](../../bench/hevc-conformance/synthetic.md) supplements the unfiltered intra set with fixed two-picture recipes. Its committed bitstream, component, picture and whole-output hashes precede native candidate classification. These sources are labelled synthetic, not published H.265.1 references. Repeated binary generation, effective ten-bit samples, embedded component hashes and crossed-hash negative controls validate preparation; they do not pass a reconstruction gate.
 
+VPSSPSPPS_A uses the [registered one-stream oracle preparation](../../bench/hevc-conformance/oracle-preparation.md): stable leading VPS/SPS/PPS ordering with every NAL byte and within-type order preserved. CoreAV still receives the original. The evidence table retains the published description count of six, both input digests, and the reason: H.265.1 section 6.6.12.5 tests arbitrary parameter-set order, which the pinned oracle does not handle on the original (Captain decision, 2026-11-04). The prepared output must match the published MD5 exactly or the stream stays blocked.
+
 After G4, record scalar instruction counts and decoder-only development timings against the pinned binary to size the remaining work. This checkpoint does not open the held-out speed set and does not pause other milestones. Before building an optimization round, measure its removable-work ceiling on a few development streams. Reject a candidate whose ceiling cannot clear its registered bar.
 
 ## Bars
