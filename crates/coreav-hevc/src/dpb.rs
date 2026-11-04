@@ -111,6 +111,10 @@ impl Dpb {
         self.after_eos = true;
     }
 
+    pub(crate) fn starts_cvs(&self, nal: NalHeader) -> bool {
+        (16..=21).contains(&nal.unit_type) && (nal.unit_type != 21 || self.after_eos)
+    }
+
     pub(crate) fn select_cvsg(&mut self) -> Result<()> {
         if self.state == State::Failed {
             return Err(Error::InvalidData("DPB session ended"));
@@ -194,7 +198,7 @@ impl Dpb {
         if highest > s.sub_layers {
             return Err(Error::InvalidData("HighestTid exceeds SPS sub-layers"));
         }
-        let no_rasl = irap && (nal.unit_type != 21 || self.after_eos);
+        let no_rasl = self.starts_cvs(nal);
         let modulus = 1u32
             .checked_shl(s.poc_bits)
             .filter(|_| (4..=16).contains(&s.poc_bits))

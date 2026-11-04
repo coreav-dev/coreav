@@ -89,6 +89,31 @@ fn idr_segment(first: bool) -> Vec<u8> {
     escaped(19, &rbsp)
 }
 
+fn intra_first(kind: u8) -> Vec<u8> {
+    let mut w = params::tests::Writer::default();
+    w.flag(true);
+    if (16..=21).contains(&kind) {
+        w.flag(false);
+    }
+    w.ue(0);
+    w.ue(2);
+    w.flag(true);
+    w.u(4, 1);
+    w.flag(false);
+    w.flag(false);
+    for _ in 0..4 {
+        w.ue(0);
+    }
+    w.flag(false);
+    w.flag(false);
+    w.flag(false);
+    w.se(0);
+    w.flag(false);
+    let mut rbsp = padded(w);
+    rbsp.push(0x80);
+    escaped(kind, &rbsp)
+}
+
 fn replaced_ue(rbsp: &[u8], offset: usize, value: u32) -> Vec<u8> {
     let stop = rbsp.len() * 8 - rbsp.last().unwrap().trailing_zeros() as usize - 1;
     let mut bits = Bits::new(rbsp);
@@ -199,6 +224,81 @@ fn changed_active_parameter_sets_require_a_new_first_slice() {
             parser.finish(|_| Ok(())),
             Err(Error::InvalidData("parser_failed"))
         );
+    }
+}
+
+#[test]
+fn first_slice_cannot_change_the_sps_identity_inside_a_cvs() {
+    for kind in [1, 21] {
+        let mut unchanged = synthetic_sets();
+        unchanged.read_nal(&idr(), |_| Ok(())).unwrap();
+        unchanged.read_nal(&intra_first(kind), |_| Ok(())).unwrap();
+        assert_eq!(unchanged.finish(|_| Ok(())).unwrap().pictures, 2);
+        for different_id in [false, true] {
+            let mut parser = synthetic_sets();
+            parser.read_nal(&idr(), |_| Ok(())).unwrap();
+            let changed = if different_id {
+                replaced_ue(&params::tests::sequence(8, false, false, false), 8 + 96, 1)
+            } else {
+                params::tests::sequence(8, false, false, true)
+            };
+            parser.read_nal(&escaped(33, &changed), |_| Ok(())).unwrap();
+            if different_id {
+                let pps = nal::rbsp(&synthetic_parameter_nals()[2], &Limits::default()).unwrap();
+                parser
+                    .read_nal(&escaped(34, &replaced_ue(&pps, 1, 1)), |_| Ok(()))
+                    .unwrap();
+            }
+            let mut emitted = 0;
+            assert_eq!(
+                parser.read_nal(&intra_first(kind), |_| {
+                    emitted += 1;
+                    Ok(())
+                }),
+                Err(Error::InvalidData("sps_change_within_cvs"))
+            );
+            assert_eq!(emitted, 0);
+            assert_eq!(
+                parser.finish(|_| Ok(())),
+                Err(Error::InvalidData("parser_failed"))
+            );
+        }
+    }
+}
+
+#[test]
+fn a_new_cvs_can_activate_a_different_sps_identity() {
+    for kind in [19, 21] {
+        for different_id in [false, true] {
+            let mut parser = synthetic_sets();
+            parser.read_nal(&idr(), |_| Ok(())).unwrap();
+            if kind == 21 {
+                parser.read_nal(&escaped(36, &[]), |_| Ok(())).unwrap();
+            }
+            let changed = if different_id {
+                replaced_ue(&params::tests::sequence(8, false, false, false), 8 + 96, 1)
+            } else {
+                params::tests::sequence(8, false, false, true)
+            };
+            parser.read_nal(&escaped(33, &changed), |_| Ok(())).unwrap();
+            if different_id {
+                let pps = nal::rbsp(&synthetic_parameter_nals()[2], &Limits::default()).unwrap();
+                parser
+                    .read_nal(&escaped(34, &replaced_ue(&pps, 1, 1)), |_| Ok(()))
+                    .unwrap();
+            }
+            let next = if kind == 19 { idr() } else { intra_first(kind) };
+            let NalInfo::Slice {
+                order: Some(order), ..
+            } = parser.read_nal(&next, |_| Ok(())).unwrap()
+            else {
+                panic!("expected the first slice of a new CVS")
+            };
+            assert!(order.no_rasl_output);
+            let summary = parser.finish(|_| Ok(())).unwrap();
+            assert_eq!(summary.pictures, 2);
+            assert_eq!(summary.output_pictures, if kind == 21 { 1 } else { 2 });
+        }
     }
 }
 

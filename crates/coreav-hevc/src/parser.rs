@@ -113,6 +113,7 @@ pub struct HeaderParser {
     active_vps_hash: Option<[u8; 32]>,
     sps: [Option<Sps>; 16],
     sps_hash: [[u8; 32]; 16],
+    active_sps: Option<(u32, [u8; 32])>,
     pps: [Option<Pps>; 64],
     pps_hash: [[u8; 32]; 64],
     picture: Option<PictureState>,
@@ -131,6 +132,7 @@ impl HeaderParser {
             vps: core::array::from_fn(|_| None),
             sps: core::array::from_fn(|_| None),
             sps_hash: [[0; 32]; 16],
+            active_sps: None,
             vps_hash: [[0; 32]; 16],
             active_vps_hash: None,
             pps: core::array::from_fn(|_| None),
@@ -349,11 +351,30 @@ impl HeaderParser {
                         self.dpb.select_cvsg()?;
                     }
                     self.active_vps_hash = Some(hash);
-                    Some(self.dpb.picture(nal, &header, s, &self.limits, |event| {
+                    let sps_identity = (
+                        p.sps_id,
+                        *self
+                            .sps_hash
+                            .get(p.sps_id as usize)
+                            .ok_or(Error::InvalidData("sps_id"))?,
+                    );
+                    let starts_cvs = self.dpb.starts_cvs(nal);
+                    if !starts_cvs
+                        && self
+                            .active_sps
+                            .is_some_and(|previous| previous != sps_identity)
+                    {
+                        return Err(Error::InvalidData("sps_change_within_cvs"));
+                    }
+                    let order = self.dpb.picture(nal, &header, s, &self.limits, |event| {
                         emit(event)?;
                         self.summary.output_pictures += 1;
                         Ok(())
-                    })?)
+                    })?;
+                    if starts_cvs {
+                        self.active_sps = Some(sps_identity);
+                    }
+                    Some(order)
                 } else {
                     None
                 };
