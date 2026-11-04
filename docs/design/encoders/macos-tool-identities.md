@@ -9,3 +9,14 @@ Use the Homebrew arm64 Sequoia bottle of BSD-3-Clause vmtouch 1.3.1, archive SHA
 Retain only bounded metadata artifacts, never executables. Commit the generated baseline and observer receipts in this same change after their hosted capture passes. Validate their exact bytes against the capture; keep all frozen native/tool hashes, source identities, commands and bars unchanged. The later seal references this change's actual merged revision for the baseline record and must recheck the binaries and observer on the physical host.
 
 Before rental, complete the separate private operational inventory: thirty materialized references and fixtures remain on cloud Linux; both reviewed exporter builds and the frozen metric model are retained; Linux oracle metric-filter metadata must expose libvmaf, PSNR and SSIM. Confirm account billing, the one-period deletion procedure, transfer capacity, review availability and a bounded session schedule. These are readiness checks, not measured availability, conformance, quality or speed. Unknown account or physical-host facts remain absent until observed; no placeholder-compatible host seal is produced.
+
+## Captured identities
+
+The hosted metadata capture passed the unchanged baseline validator and the observer's generated-file preflight. The observer reported a 16,384-byte page size. Rechecking that page size and real-file residency on the eventual host remains mandatory.
+
+| Committed receipt | SHA-256 |
+|---|---|
+| `macos-builds/baseline.json` | `3070a7d17062f9af6fa5c95d08d36024ab9f5ee941572a3bff7abb1afd8b791b` |
+| `macos-builds/cache-observer.json` | `8a46046b1f199cf93fbe539fec5c3cc15e640b6f464e08724cc9eed02d20a11b` |
+
+The pinned Linux baseline also exposes libvmaf, PSNR and SSIM in its filter metadata. No metric computation or media processing was used to establish those capabilities.

@@ -68,6 +68,18 @@ class Metadata(unittest.TestCase):
             capture.observer_binary()
         command.assert_not_called()
 
+    def test_invalid_token_cannot_enter_a_request_header(self):
+        token = mock.MagicMock()
+        token.__enter__.return_value.read.return_value = b'{"token":"bad\\nheader"}'
+        with (
+            mock.patch.object(
+                capture.urllib.request, "urlopen", return_value=token
+            ) as request,
+            self.assertRaises(Invalid),
+        ):
+            capture.observer_binary()
+        self.assertEqual(request.call_count, 1)
+
     def test_failed_baseline_verification_cannot_publish(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

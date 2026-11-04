@@ -49,6 +49,12 @@ def observer_binary():
     url = "https://ghcr.io/token?service=ghcr.io&scope=repository:homebrew/core/vmtouch:pull"
     with urllib.request.urlopen(url, timeout=30) as response:
         token = json.loads(response.read(65537))["token"]
+    require(
+        isinstance(token, str)
+        and 0 < len(token) <= 16384
+        and all(32 <= ord(char) < 127 for char in token),
+        "observer_token",
+    )
     url = "https://ghcr.io/v2/homebrew/core/vmtouch/blobs/sha256:" + BOTTLE_SHA
     request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
     with urllib.request.urlopen(request, timeout=30) as response:
