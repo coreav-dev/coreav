@@ -639,6 +639,8 @@ def _acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint,
 
 def acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint, clock=time.time):
     import fcntl
+    require(acquisition_sha256 != json.loads(driver.EVALUATION.read_text())['acquisition_sha256'],
+            'registered evaluation acquisition is closed; backfill is forbidden')
     root = Path(root).resolve()
     require(sys.platform == 'linux', 'acquisition requires the isolated Linux host')
     with (root / 'operator/amended.lock').open('a') as lock:
@@ -660,15 +662,24 @@ def evidence_paths(root, state, index):
 
 def audit_collection(root, candidates, plan, expected):
     receipt = verify_receipt(root, expected)
+    registration = json.loads(driver.EVALUATION.read_text())
+    cohort = expected == registration['acquisition_sha256']
+    if cohort:
+        driver.evaluation_cohort(root, plan, registration['allocation_sha256'])
     state = json.loads((root / 'operator/amended-state.json').read_text())
-    require(state['acquisition_sha256'] == expected and state['status'] == 'complete' and
-            state['byte_cap'] == TOTAL_MAX and state['deadline'] == receipt['deadline'] and
-            type(state['completed_at']) in (int, float) and 0 < state['completed_at'] < float('inf') and
-            (acquisition_deadline(state) is None or state['completed_at'] <= receipt['deadline']),
+    require(state['acquisition_sha256'] == expected and state['byte_cap'] == TOTAL_MAX and
+            state['deadline'] == receipt['deadline'] and (cohort or
+            (state['status'] == 'complete' and type(state['completed_at']) in (int, float) and
+             0 < state['completed_at'] < float('inf') and
+             (acquisition_deadline(state) is None or state['completed_at'] <= receipt['deadline']))),
             'acquisition did not complete')
     verify_prefix(root, state)
     inventory = json.loads((root / 'operator/acquisition.json').read_text())
-    require(set(state['downloads']) == {str(i) for i in range(len(state['decisions']))}, 'source attempt roster differs')
+    pending = str(len(state['decisions']))
+    attempts = {str(i) for i in range(len(state['decisions']))}
+    if cohort and state['downloads'].get(pending) == []:
+        attempts.add(pending)
+    require(set(state['downloads']) == attempts, 'source attempt roster differs')
     for index, decision in enumerate(state['decisions']):
         row = inventory['files'][candidates[index]['identity']]
         attempts = state['downloads'][str(index)]
@@ -708,7 +719,8 @@ def bound_files(root, state):
 
 
 def tool_files():
-    return ['scripts/h264_pgo_acquire.py', 'scripts/h264_pgo_acquisition.json', 'scripts/h264_pgo_round.py']
+    return ['scripts/h264_pgo_acquire.py', 'scripts/h264_pgo_acquisition.json', 'scripts/h264_pgo_round.py',
+            'scripts/h264_pgo_evaluation.json']
 
 
 def bind(root, expected):
