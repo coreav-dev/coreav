@@ -1,6 +1,6 @@
 # Compatibility corpus
 
-Corpus exclusions, compatibility workflows, fixture comparisons, and the B4 and R4 drivers.
+Corpus exclusions, compatibility workflows, fixture comparisons, the HEVC conformance census and oracle preparation, and the B4 and R4 drivers.
 
 | Rule | Enforced by |
 |---|---|

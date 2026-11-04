@@ -1,6 +1,6 @@
 # Codecs
 
-H.264, AAC, Opus, VP9, AC-3, MP3, AudioToolbox behavior, and HEVC planning.
+H.264, AAC, Opus, VP9, AC-3, MP3 and AudioToolbox behavior; HEVC decoding and planning.
 
 | Rule | Enforced by |
 |---|---|
@@ -35,7 +35,7 @@ H.264, AAC, Opus, VP9, AC-3, MP3, AudioToolbox behavior, and HEVC planning.
 | Rendering raw native H.264 picture colour retains applied container fields where declarations are absent, including the container chroma location | The shared `frame_color` boundary owns inheritance for ordinary and bounded thumbnails and CLI frame output. `h264_picture_colour_inherits_only_missing_applied_fields` checks precedence, `h264_thumbnail_inherits_applied_container_colour` checks prepared image bytes and `image_output_inherits_h264_container_colour_without_vui_signalling` checks a real native decode with a container-only colour box. Inheritance cannot live in the decoder because FFV1 needs raw declarations to detect changes |
 | Native FFV1 preserves every admitted sample and frame without an external encoder or hidden pixel conversion | Fixed codec settings and the separate Matroska job own admission; bounded codec and adapter regressions cover packet, allocation, timeline and format failures. The required CI check decodes native output with the pinned oracle and compares every frame byte and the explicit probe fields; comparator mutation tests reject changed pixels, clocks, fields and incomplete output |
 
-## HEVC planning
+## HEVC decoding and planning
 
 | Rule | Enforced by |
 |---|---|

@@ -8,6 +8,19 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_agent_scopes_name_hevc_rules(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        index = (root / 'AGENTS.md').read_text().splitlines()
+        for area, subjects in (('compat-corpus', ('HEVC conformance census', 'oracle preparation')),
+                               ('codecs', ('HEVC decoding',))):
+            path = f'docs/agents/{area}.md'
+            intro = (root / path).read_text().split('\n\n')[1]
+            scope = next(line for line in index if line.startswith(f'| [{path}]'))
+            for location, text in (('area introduction', intro), ('AGENTS.md scope', scope)):
+                for subject in subjects:
+                    with self.subTest(area=area, location=location, subject=subject):
+                        self.assertIn(subject, text, f'Name {subject} in the {area} {location}')
+
     def test_public_profile_projection_omits_per_file_records(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
