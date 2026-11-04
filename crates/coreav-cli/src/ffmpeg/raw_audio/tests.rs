@@ -50,6 +50,28 @@ fn opus_admission_uses_actual_config_not_the_informational_input_rate() {
 }
 
 #[test]
+fn probe_refusal_preserves_malformed_io_and_limit_failures() {
+    use crate::error::Failure;
+    assert!(matches!(
+        super::super::probe_failure(Failure::Unsupported("WAVE codec".to_owned())),
+        Stop::Refused(Refusal::NotNative(_))
+    ));
+    for failure in [
+        Failure::Invalid("broken WAVE header"),
+        Failure::Io(std::io::ErrorKind::PermissionDenied),
+        Failure::Library(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::SampleWork,
+            offset: 44,
+        }),
+    ] {
+        assert!(matches!(
+            super::super::probe_failure(failure),
+            Stop::Failed(_)
+        ));
+    }
+}
+
+#[test]
 fn mpeg1_admission_checks_every_complete_frame() {
     let mut frame = vec![0; 417];
     if let Some(header) = frame.get_mut(..4) {

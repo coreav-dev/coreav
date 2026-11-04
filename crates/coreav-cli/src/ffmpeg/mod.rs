@@ -232,6 +232,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f s16le or -f f32le after -i: headerless PCM to a file or stdout
   raw audio stdout names: -, pipe: or pipe:1
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
+  standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
+    finite F32 sources support unchanged-rate F32 output only
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
     including streaming stdin without a whole-input spool
   -threads 0..16 or auto before -i: audio decoder workers
@@ -400,7 +402,7 @@ fn run_with_input(
     let mut file = FileSource::open(probed).map_err(WriteFailure::from)?;
     let name = probed.display().to_string();
     let report = crate::ffprobe::probe(&mut file, size, &name, force)
-        .map_err(WriteFailure::Rejected)?
+        .map_err(probe_failure)?
         .report;
     if !command.more_inputs.is_empty() {
         let mut reports = vec![report];
@@ -409,7 +411,7 @@ fn run_with_input(
             let mut source = FileSource::open(path).map_err(WriteFailure::from)?;
             reports.push(
                 crate::ffprobe::probe(&mut source, size, path, None)
-                    .map_err(WriteFailure::Rejected)?
+                    .map_err(probe_failure)?
                     .report,
             );
         }
@@ -469,6 +471,17 @@ fn run_with_input(
     write(&command, &job)
 }
 
+fn probe_failure(failure: Failure) -> Stop {
+    match failure {
+        Failure::Unsupported(reason) => Refusal::NotNative(NotNative::property(
+            "an unsupported input container or presentation",
+            format!("not supported by coreav ffmpeg: {reason}"),
+        ))
+        .into(),
+        failure => Stop::Failed(WriteFailure::Rejected(failure)),
+    }
+}
+
 /// The files a concat list names (`crate::concat::read`). A directive or a
 /// path `ffmpeg` reads differently is not native; a list `ffmpeg` fails
 /// too is rejected.
@@ -510,6 +523,10 @@ pub fn plan(
     list: Option<Vec<PathBuf>>,
 ) -> Result<Job, Refusal> {
     let container = match format_name(report) {
+        Some("wav") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+            let selected = select(command, &report.streams)?;
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
         Some("mov,mp4,m4a,3gp,3g2,mj2") => Container::Isobmff,
         Some("matroska,webm") => Container::Matroska,
         Some("mpegts") => {

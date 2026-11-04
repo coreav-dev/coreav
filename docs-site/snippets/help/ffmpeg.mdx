@@ -16,6 +16,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   -f s16le or -f f32le after -i: headerless PCM to a file or stdout
   raw audio stdout names: -, pipe: or pipe:1
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
+  standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
+    finite F32 sources support unchanged-rate F32 output only
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
     including streaming stdin without a whole-input spool
   -threads 0..16 or auto before -i: audio decoder workers

@@ -59,6 +59,7 @@ pub enum RawF32Output {
 enum Input {
     S16(RawS16Format),
     F32(RawF32Format),
+    F32Identity { rate: u32, channels: u16 },
 }
 
 impl Input {
@@ -66,6 +67,7 @@ impl Input {
         match self {
             Self::S16(format) => format.rate(),
             Self::F32(format) => format.rate(),
+            Self::F32Identity { rate, .. } => rate,
         }
     }
 
@@ -73,13 +75,14 @@ impl Input {
         match self {
             Self::S16(format) => format.channels(),
             Self::F32(format) => format.channels(),
+            Self::F32Identity { channels, .. } => channels,
         }
     }
 
     fn format(self) -> SampleFormat {
         match self {
             Self::S16(_) => SampleFormat::S16,
-            Self::F32(_) => SampleFormat::F32,
+            Self::F32(_) | Self::F32Identity { .. } => SampleFormat::F32,
         }
     }
 
@@ -90,7 +93,7 @@ impl Input {
     fn sample(self, bytes: &[u8], at: usize) -> Result<f32, Error> {
         match self {
             Self::S16(_) => sample(bytes, at),
-            Self::F32(_) => match bytes.get(at..at + 4) {
+            Self::F32(_) | Self::F32Identity { .. } => match bytes.get(at..at + 4) {
                 Some([a, b, c, d]) => {
                     let value = f32::from_le_bytes([*a, *b, *c, *d]);
                     if !value.is_finite() {
@@ -152,7 +155,7 @@ impl<'a> RawS16Stream<'a> {
     }
 }
 
-/// Bounded mono F32 little-endian conversion without input quantization.
+/// Bounded F32 packing and mono rate conversion without input quantization.
 ///
 /// Writes must contain complete finite samples. Nonfinite input or any other
 /// write failure ends the session without further sink calls. Floating-point
@@ -160,6 +163,29 @@ impl<'a> RawS16Stream<'a> {
 pub struct RawF32Stream<'a>(Stream<'a>);
 
 impl<'a> RawF32Stream<'a> {
+    /// Copies finite mono or stereo F32 at its unchanged sample rate.
+    ///
+    /// No target rate is accepted; the mono compatibility-rate API stays separate.
+    pub fn identity(
+        sample_rate: u32,
+        channels: u16,
+        limits: &Limits,
+        sink: &'a mut dyn Sink,
+    ) -> Result<Self, Error> {
+        RawS16Format::new(sample_rate, channels)?;
+        Stream::new(
+            Input::F32Identity {
+                rate: sample_rate,
+                channels,
+            },
+            None,
+            SampleFormat::F32,
+            limits,
+            sink,
+        )
+        .map(Self)
+    }
+
     /// Validates and allocates bounded storage before starting output.
     ///
     /// Accepted input samples and emitted output samples are independently
@@ -305,8 +331,8 @@ impl<'a> Stream<'a> {
         self.check_samples(total)?;
         if matches!(self.mode, Mode::Copy) {
             for chunk in bytes.chunks(self.capacity) {
-                if matches!(self.input, Input::F32(_)) {
-                    for at in (0..chunk.len()).step_by(frame) {
+                if self.input.format() == SampleFormat::F32 {
+                    for at in (0..chunk.len()).step_by(SampleFormat::F32.bytes()) {
                         self.input.sample(chunk, at)?;
                     }
                 }
@@ -317,7 +343,7 @@ impl<'a> Stream<'a> {
             return Ok(());
         }
         for bytes in bytes.chunks_exact(frame) {
-            if matches!(self.input, Input::F32(_)) {
+            if self.input.format() == SampleFormat::F32 {
                 self.input.sample(bytes, 0)?;
             }
             match &mut self.mode {
@@ -518,6 +544,72 @@ mod tests {
         }
         let summary = stream.finish().unwrap();
         (sink, summary)
+    }
+
+    #[test]
+    fn stereo_float_identity_is_byte_exact_without_opening_rate_conversion() {
+        let values = [
+            0.0f32,
+            -0.0,
+            0.25,
+            -0.25,
+            1.5,
+            -1.75,
+            f32::from_bits(1),
+            -f32::from_bits(1),
+        ];
+        let bytes: Vec<u8> = values
+            .into_iter()
+            .cycle()
+            .take(32_770)
+            .flat_map(f32::to_le_bytes)
+            .collect();
+        let mut sink = Keep::default();
+        let limits = Limits {
+            max_packet_bytes: 17,
+            ..Limits::default()
+        };
+        let mut stereo = RawF32Stream::identity(48000, 2, &limits, &mut sink).unwrap();
+        for chunk in bytes.chunks(24) {
+            stereo.write(chunk).unwrap();
+        }
+        let summary = stereo.finish().unwrap();
+        assert_eq!(sink.bytes, bytes);
+        assert!(sink.largest <= 17);
+        assert_eq!(summary.input_frames, 16_385);
+        assert_eq!(summary.output_frames, 16_385);
+        assert!(RawF32Format::new(48000, 2).is_err());
+    }
+
+    #[test]
+    fn stereo_float_identity_checks_every_channel_and_poisoned_writes() {
+        for channel in [0, 1] {
+            for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+                let mut sink = Keep::default();
+                let mut stream =
+                    RawF32Stream::identity(48000, 2, &Limits::default(), &mut sink).unwrap();
+                let good = [0.25f32, -0.25]
+                    .into_iter()
+                    .flat_map(f32::to_le_bytes)
+                    .collect::<Vec<_>>();
+                stream.write(&good).unwrap();
+                let mut values = [0.0f32; 2];
+                values[channel] = bad;
+                let bytes = values
+                    .into_iter()
+                    .flat_map(f32::to_le_bytes)
+                    .collect::<Vec<_>>();
+                assert!(stream.write(&bytes).is_err());
+                assert!(stream.write(&good).is_err());
+                assert!(stream.finish().is_err());
+                assert_eq!(sink.writes, 1);
+                assert_eq!(sink.bytes, good);
+            }
+        }
+        let mut sink = Keep::default();
+        assert!(RawF32Stream::identity(48000, 3, &Limits::default(), &mut sink).is_err());
+        assert!(RawF32Stream::identity(0, 2, &Limits::default(), &mut sink).is_err());
+        assert_eq!(sink.starts, 0);
     }
 
     #[test]

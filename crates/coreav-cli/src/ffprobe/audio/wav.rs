@@ -125,10 +125,56 @@ impl<S: Source> Reader<'_, S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PcmEncoding {
+    U8,
+    S16,
+    S24,
+    S32,
+    F32,
+    F64,
+}
+
+impl PcmEncoding {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::U8 => "pcm_u8",
+            Self::S16 => "pcm_s16le",
+            Self::S24 => "pcm_s24le",
+            Self::S32 => "pcm_s32le",
+            Self::F32 => "pcm_f32le",
+            Self::F64 => "pcm_f64le",
+        }
+    }
+
+    pub(crate) fn bytes(self) -> u16 {
+        match self {
+            Self::U8 => 1,
+            Self::S16 => 2,
+            Self::S24 => 3,
+            Self::S32 | Self::F32 => 4,
+            Self::F64 => 8,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Pcm {
+    pub encoding: PcmEncoding,
+    pub valid_bits: u16,
+    pub channels: u16,
+    pub rate: u32,
+    pub mask: u32,
+    pub offset: u64,
+    pub bytes: u64,
+    pub declared_bytes: u64,
+}
+
 struct Format {
-    codec: &'static str,
+    encoding: PcmEncoding,
     tag: u16,
     bits: u16,
+    valid_bits: u16,
     channels: u16,
     rate: u32,
     align: u16,
@@ -151,6 +197,7 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
         return Err(unsupported("WAVE audio codec"));
     }
     let mut subtag = tag;
+    let mut valid_bits = bits;
     let mut mask = 0;
     let mut extra = 0;
     if len > 16 {
@@ -170,6 +217,7 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
             if valid > bits || bits % 8 != 0 {
                 return Err(invalid("invalid extensible WAVE sample precision"));
             }
+            valid_bits = valid;
             mask = r.dword(add(at, 20)?)?;
             let guid: [u8; 16] = r.read(add(at, 24)?)?;
             let tail = guid
@@ -194,13 +242,13 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
     if channels == 0 || rate == 0 || align == 0 || bits == 0 {
         return Err(invalid("zero WAVE audio format field"));
     }
-    let codec = match (subtag, bits) {
-        (1, 8) => "pcm_u8",
-        (1, 16) => "pcm_s16le",
-        (1, 24) => "pcm_s24le",
-        (1, 32) => "pcm_s32le",
-        (3, 32) => "pcm_f32le",
-        (3, 64) => "pcm_f64le",
+    let encoding = match (subtag, bits) {
+        (1, 8) => PcmEncoding::U8,
+        (1, 16) => PcmEncoding::S16,
+        (1, 24) => PcmEncoding::S24,
+        (1, 32) => PcmEncoding::S32,
+        (3, 32) => PcmEncoding::F32,
+        (3, 64) => PcmEncoding::F64,
         _ => return Err(unsupported("WAVE audio codec or sample width")),
     };
     let expected = u32::from(channels) * u32::from(bits / 8);
@@ -215,9 +263,10 @@ fn format<S: Source>(r: &mut Reader<'_, S>, at: u64, len: u64) -> Result<Format,
         return Err(invalid("WAVE channel mask disagrees with channel count"));
     }
     Ok(Format {
-        codec,
+        encoding,
         tag: subtag,
         bits,
+        valid_bits,
         channels,
         rate,
         align,
@@ -428,6 +477,15 @@ pub(super) fn probe<S: Source>(
     name: &str,
     limits: &Limits,
 ) -> Result<Report, Failure> {
+    probe_pcm(source, size, name, limits).map(|(report, _)| report)
+}
+
+pub(crate) fn probe_pcm<S: Source>(
+    source: &mut S,
+    size: u64,
+    name: &str,
+    limits: &Limits,
+) -> Result<(Report, Pcm), Failure> {
     if limits.max_tracks == 0 {
         return Err(limit(LimitKind::Tracks, 0));
     }
@@ -544,7 +602,7 @@ pub(super) fn probe<S: Source>(
                 if start > end.min(size) {
                     return Err(invalid("WAVE data starts outside RIFF"));
                 }
-                data = Some(len.min(end.min(size) - start));
+                data = Some((start, len, len.min(end.min(size) - start)));
             }
             b"LIST" => info(&mut r, start, len, &mut tags)?,
             b"fact" => {
@@ -577,7 +635,7 @@ pub(super) fn probe<S: Source>(
         return Err(unsupported("bytes after the declared WAVE RIFF extent"));
     }
     let fmt = fmt.ok_or_else(|| invalid("missing WAVE format chunk"))?;
-    let bytes = data.ok_or_else(|| invalid("missing WAVE data chunk"))?;
+    let (offset, declared_bytes, bytes) = data.ok_or_else(|| invalid("missing WAVE data chunk"))?;
     if bytes % u64::from(fmt.align) != 0 {
         return Err(unsupported(
             "WAVE data ends within an interleaved sample frame",
@@ -593,10 +651,11 @@ pub(super) fn probe<S: Source>(
     let bit_rate = i64::from(fmt.rate) * i64::from(fmt.channels) * i64::from(fmt.bits);
     let mut entries = collected([
         ("index", Value::Int(0)),
-        ("codec_name", s(fmt.codec)),
+        ("codec_name", s(fmt.encoding.name())),
         (
             "codec_long_name",
-            s(names::long_name(fmt.codec).ok_or_else(|| unsupported("WAVE codec name"))?),
+            s(names::long_name(fmt.encoding.name())
+                .ok_or_else(|| unsupported("WAVE codec name"))?),
         ),
         ("profile", Value::Unset("unknown")),
         ("codec_type", s("audio")),
@@ -604,7 +663,7 @@ pub(super) fn probe<S: Source>(
         ("codec_tag", s(format!("0x{:04x}", fmt.tag))),
         (
             "sample_fmt",
-            s(names::sample_fmt(fmt.codec, Some(fmt.bits))
+            s(names::sample_fmt(fmt.encoding.name(), Some(fmt.bits))
                 .ok_or_else(|| unsupported("WAVE sample format"))?),
         ),
         ("sample_rate", Value::Unit(i64::from(fmt.rate), Unit::Hertz)),
@@ -669,7 +728,7 @@ pub(super) fn probe<S: Source>(
     } else {
         Value::Time(micros as f64 / 1_000_000.0)
     };
-    Ok(Report {
+    let report = Report {
         streams: collected([Stream {
             kind: StreamKind::Audio,
             attached_pic: false,
@@ -700,7 +759,20 @@ pub(super) fn probe<S: Source>(
         ])?,
         format_tags: tags,
         ..Report::default()
-    })
+    };
+    Ok((
+        report,
+        Pcm {
+            encoding: fmt.encoding,
+            valid_bits: fmt.valid_bits,
+            channels: fmt.channels,
+            rate: fmt.rate,
+            mask: fmt.mask,
+            offset,
+            bytes,
+            declared_bytes,
+        },
+    ))
 }
 
 #[cfg(test)]

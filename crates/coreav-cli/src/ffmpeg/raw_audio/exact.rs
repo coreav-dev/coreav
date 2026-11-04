@@ -1,5 +1,31 @@
 use super::DecoderEligibilityKind;
+use crate::ffprobe::audio::wav::PcmEncoding;
 use coreav_audio::SampleFormat;
+
+pub(super) fn wav_decoder(name: &str) -> Option<PcmEncoding> {
+    [
+        (PcmEncoding::U8, "raw_audio_pipe_check: WAVE U8 to S16/F32"),
+        (
+            PcmEncoding::S16,
+            "raw_audio_pipe_check: WAVE S16 to S16/F32",
+        ),
+        (
+            PcmEncoding::S24,
+            "raw_audio_pipe_check: WAVE S24 to S16/F32",
+        ),
+        (
+            PcmEncoding::S32,
+            "raw_audio_pipe_check: WAVE S32 to S16/F32",
+        ),
+        (
+            PcmEncoding::F32,
+            "raw_audio_pipe_check: finite WAVE F32 identity",
+        ),
+    ]
+    .into_iter()
+    .find(|(encoding, evidence)| encoding.name() == name && !evidence.is_empty())
+    .map(|(encoding, _)| encoding)
+}
 
 pub(super) enum Presentation {
     CompletePackets { frames: fn(&[u8]) -> Option<u32> },

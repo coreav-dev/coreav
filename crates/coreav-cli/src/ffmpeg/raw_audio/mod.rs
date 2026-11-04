@@ -2,6 +2,7 @@ mod exact;
 mod record;
 #[cfg(test)]
 mod tests;
+mod wav;
 
 use super::args::{self, AviAudio, Codec, Command, Encoding, MapMetadata, Muxer};
 use super::{Refusal, Stop};
@@ -28,6 +29,7 @@ pub enum DecoderEligibilityKind {
 enum DecoderPlan {
     Builtin(usize),
     Recorded(record::Admission),
+    Pcm(crate::ffprobe::audio::wav::PcmEncoding),
 }
 
 /// The exact stages resolved before decoding or opening output.
@@ -120,21 +122,38 @@ pub(super) fn plan(
             "raw audio with another effective output codec",
         ));
     }
-    let codec = stream.entries.iter().find_map(|(key, value)| match value {
-        Value::Str(name) if *key == "codec_name" => coreav_audio::Codec::from_name(name),
+    let codec_name = stream.entries.iter().find_map(|(key, value)| match value {
+        Value::Str(name) if *key == "codec_name" => Some(name.as_str()),
         _ => None,
     });
-    let bits = stream.entries.iter().find_map(|(key, value)| match value {
-        Value::Str(bits) if *key == "bits_per_raw_sample" => bits.parse::<u32>().ok(),
-        _ => None,
-    });
+    let wave = super::format_name(report) == Some("wav");
+    let pcm = if wave {
+        Some(
+            codec_name
+                .and_then(exact::wav_decoder)
+                .ok_or_else(|| Refusal::not_native("an unregistered WAVE PCM representation"))?,
+        )
+    } else {
+        None
+    };
+    let codec = codec_name.and_then(coreav_audio::Codec::from_name);
+    let bits = pcm
+        .map(|encoding| u32::from(encoding.bytes()) * 8)
+        .or_else(|| {
+            stream.entries.iter().find_map(|(key, value)| match value {
+                Value::Str(bits) if *key == "bits_per_raw_sample" => bits.parse::<u32>().ok(),
+                _ => None,
+            })
+        });
     let channels = u16::try_from(super::int(stream, "channels"))
         .map_err(|_| Refusal::not_native("raw audio with unknown channels"))?;
     let layout = stream.entries.iter().find_map(|(key, value)| match value {
         Value::Str(layout) if *key == "channel_layout" => Some(layout.as_str()),
         _ => None,
     });
-    if !matches!((channels, layout), (1, Some("mono")) | (2, Some("stereo"))) {
+    if !matches!((channels, layout), (1, Some("mono")) | (2, Some("stereo")))
+        && !(wave && matches!((channels, layout), (1 | 2, None)))
+    {
         return Err(Refusal::not_native(
             "an unregistered raw audio speaker layout",
         ));
@@ -151,19 +170,27 @@ pub(super) fn plan(
         })
         .ok_or_else(|| Refusal::not_native("raw audio with unknown sample rate"))?;
     let output_rate = command.sample_rate.unwrap_or(input_rate);
+    if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
+        && (output_format != SampleFormat::F32 || output_rate != input_rate)
+    {
+        return Err(Refusal::not_native(
+            "an unregistered WAVE F32 packing or rate composition",
+        ));
+    }
     if channels != output_channels && input_rate != output_rate {
         return Err(Refusal::not_native(
             "combined channel and rate conversion is not registered",
         ));
     }
-    let decoded_format =
-        if output_rate != input_rate && bits == Some(16) && output_format == SampleFormat::S16 {
-            SampleFormat::S16
-        } else if output_rate != input_rate {
-            SampleFormat::F32
-        } else {
-            output_format
-        };
+    let decoded_format = if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32) {
+        SampleFormat::F32
+    } else if output_rate != input_rate && bits == Some(16) && output_format == SampleFormat::S16 {
+        SampleFormat::S16
+    } else if output_rate != input_rate {
+        SampleFormat::F32
+    } else {
+        output_format
+    };
     let builtin = exact::DECODERS.iter().position(|row| {
         Some(row.codec) == codec
             && Some(row.bits) == bits
@@ -171,6 +198,7 @@ pub(super) fn plan(
             && !row.evidence.is_empty()
     });
     let container = match super::format_name(report) {
+        Some("wav") => "wav",
         Some("mov,mp4,m4a,3gp,3g2,mj2") => "mp4",
         Some("matroska,webm") => "matroska",
         _ => {
@@ -179,7 +207,9 @@ pub(super) fn plan(
             ));
         }
     };
-    let (decoder, eligibility) = if let Some(index) = builtin {
+    let (decoder, eligibility) = if let Some(encoding) = pcm {
+        (DecoderPlan::Pcm(encoding), DecoderEligibilityKind::Exact)
+    } else if let Some(index) = builtin {
         let row = exact::DECODERS
             .get(index)
             .ok_or_else(|| Refusal::not_native("missing decoder registration"))?;
@@ -216,7 +246,7 @@ pub(super) fn plan(
         options: Options {
             stream: Some(*index),
             format: decoded_format,
-            threads: command.decoder_threads()?,
+            threads: if wave { 1 } else { command.decoder_threads()? },
             channels: channel_plan.decoder_channels(),
             ..Options::default()
         },
@@ -326,11 +356,90 @@ impl Sink for Checked<'_> {
 
 #[derive(PartialEq, Eq)]
 struct Pass {
-    decoded: Summary,
+    decoded: Decoded,
     converted: Option<coreav_audio::raw::RawSummary>,
 }
 
-fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, Error> {
+#[derive(PartialEq, Eq)]
+enum Decoded {
+    Encoded(Summary),
+    Pcm(crate::ffprobe::audio::wav::Pcm),
+}
+
+enum DecodeError {
+    Audio(Error),
+    Wave(crate::error::Failure),
+}
+
+impl DecodeError {
+    fn preflight(self) -> Stop {
+        match self {
+            Self::Audio(error) => prestart(error),
+            Self::Wave(crate::error::Failure::Unsupported(reason)) => Refusal::NotNative(
+                crate::fallback::NotNative::property("an unsupported WAVE PCM source", reason),
+            )
+            .into(),
+            Self::Wave(error) => Stop::Failed(WriteFailure::Rejected(error)),
+        }
+    }
+
+    fn terminal(self) -> WriteFailure {
+        match self {
+            Self::Audio(error) => audio_failure(error),
+            Self::Wave(error) => WriteFailure::Rejected(error),
+        }
+    }
+}
+
+fn conversion<'a>(
+    plan: &Plan,
+    limits: &Limits,
+    sink: &'a mut dyn Sink,
+) -> Result<Conversion<'a>, Error> {
+    if plan.options.format == SampleFormat::S16 {
+        Ok(Conversion::S16(RawS16Stream::new(
+            RawS16Format::new(plan.input_rate, plan.channels.output)?,
+            RawS16Output::S16 {
+                sample_rate: Some(plan.output_rate),
+            },
+            limits,
+            sink,
+        )?))
+    } else if plan.input_rate == plan.output_rate {
+        Ok(Conversion::F32(RawF32Stream::identity(
+            plan.input_rate,
+            plan.channels.output,
+            limits,
+            sink,
+        )?))
+    } else {
+        let output = if plan.output_format == SampleFormat::F32 {
+            RawF32Output::F32 {
+                sample_rate: Some(plan.output_rate),
+            }
+        } else {
+            RawF32Output::S16 {
+                sample_rate: Some(plan.output_rate),
+            }
+        };
+        Ok(Conversion::F32(RawF32Stream::new(
+            RawF32Format::new(plan.input_rate, plan.channels.output)?,
+            output,
+            limits,
+            sink,
+        )?))
+    }
+}
+
+fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, DecodeError> {
+    if matches!(plan.decoder, DecoderPlan::Pcm(_)) {
+        wav::decode(command, plan, sink)
+    } else {
+        decode_encoded(command, plan, sink).map_err(DecodeError::Audio)
+    }
+}
+
+fn decode_encoded(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, Error> {
     let source = BufferedSource::new(FileSource::open(Path::new(&command.input))?);
     let limits = Limits::default();
     let mut checked = Checked { sink, plan };
@@ -340,32 +449,7 @@ fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, E
             None,
         ),
         exact::Implementation::S16Compatibility | exact::Implementation::F32Compatibility => {
-            let stream = if plan.rate == exact::Implementation::S16Compatibility {
-                Conversion::S16(RawS16Stream::new(
-                    RawS16Format::new(plan.input_rate, plan.channels.output)?,
-                    RawS16Output::S16 {
-                        sample_rate: Some(plan.output_rate),
-                    },
-                    &limits,
-                    &mut checked,
-                )?)
-            } else {
-                let output = if plan.output_format == SampleFormat::F32 {
-                    RawF32Output::F32 {
-                        sample_rate: Some(plan.output_rate),
-                    }
-                } else {
-                    RawF32Output::S16 {
-                        sample_rate: Some(plan.output_rate),
-                    }
-                };
-                Conversion::F32(RawF32Stream::new(
-                    RawF32Format::new(plan.input_rate, plan.channels.output)?,
-                    output,
-                    &limits,
-                    &mut checked,
-                )?)
-            };
+            let stream = conversion(plan, &limits, &mut checked)?;
             let mut feed = Feed {
                 stream,
                 rate: plan.input_rate,
@@ -376,6 +460,7 @@ fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, E
         }
     };
     let valid_decoder = match &plan.decoder {
+        DecoderPlan::Pcm(_) => false,
         DecoderPlan::Builtin(index) => exact::DECODERS.get(*index).is_some_and(|row| {
             plan.eligibility == row.eligibility
                 && decoded.stream.codec == row.codec
@@ -403,10 +488,16 @@ fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, E
             "raw audio decoder or presentation differs from its exact registration",
         ));
     }
-    Ok(Pass { decoded, converted })
+    Ok(Pass {
+        decoded: Decoded::Encoded(decoded),
+        converted,
+    })
 }
 
 fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<(), Stop> {
+    let Decoded::Encoded(decoded) = &pass.decoded else {
+        return Ok(());
+    };
     let mut source = BufferedSource::new(
         FileSource::open(Path::new(&command.input)).map_err(WriteFailure::from)?,
     );
@@ -438,6 +529,9 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
             }
             unsupported |= packet.corrupt;
             match &plan.decoder {
+                DecoderPlan::Pcm(_) => {
+                    unsupported = true;
+                }
                 DecoderPlan::Builtin(index) => {
                     let Some(row) = exact::DECODERS.get(*index) else {
                         unsupported = true;
@@ -462,8 +556,7 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
                             }
                             record::Requirement::Mpeg1Layer3 => !mpeg1_frames(&packet.data),
                             record::Requirement::AacLc => {
-                                coreav_audio::Codec::from_name("aac")
-                                    != Some(pass.decoded.stream.codec)
+                                coreav_audio::Codec::from_name("aac") != Some(decoded.stream.codec)
                             }
                             record::Requirement::OpusMapping0 => {
                                 pass.decoded.stream.codec != coreav_audio::Codec::Opus
@@ -479,8 +572,8 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
         })
         .map_err(WriteFailure::Rejected)?;
     if unsupported
-        || packets != pass.decoded.packets
-        || matches!(plan.decoder, DecoderPlan::Builtin(_)) && samples != pass.decoded.samples
+        || packets != decoded.packets
+        || matches!(plan.decoder, DecoderPlan::Builtin(_)) && samples != decoded.samples
     {
         return Err(Refusal::not_native(
             "raw audio presentation differs from complete decoded packets",
@@ -518,28 +611,26 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     } else {
         super::check_output(command, Path::new(&command.output))?
     };
-    let before = decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(prestart)?;
+    let before =
+        decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
     packet_presentation(command, plan, &before)?;
-    let run = |out: &mut dyn Write| -> Result<serde_json::Value, Error> {
-        let after = decode(command, plan, &mut Bytes(out))?;
+    let run = |out: &mut dyn Write| -> Result<serde_json::Value, WriteFailure> {
+        let after = decode(command, plan, &mut Bytes(out)).map_err(DecodeError::terminal)?;
         if before != after {
-            return Err(Error::Invalid(
+            return Err(audio_failure(Error::Invalid(
                 "raw audio changed between preflight and execution",
-            ));
+            )));
         }
         Ok(serde_json::Value::Null)
     };
     if args::stdout(&command.output) {
         let mut out = output::media_stdout();
-        let result = run(&mut out).map_err(|e| Stop::Failed(audio_failure(e)))?;
+        let result = run(&mut out).map_err(Stop::Failed)?;
         out.flush()
             .map_err(|e| Stop::Failed(audio_failure(Error::Output(e))))?;
         Ok(result)
     } else {
-        output::to_file(Path::new(&command.output), force, |out| {
-            run(out).map_err(audio_failure)
-        })
-        .map_err(Stop::Failed)
+        output::to_file(Path::new(&command.output), force, run).map_err(Stop::Failed)
     }
 }
 
