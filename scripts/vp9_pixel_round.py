@@ -130,6 +130,58 @@ def ffmpeg_command(root, arm, clip, loops, hashed=False):
                       else ['-nostats', '-progress', 'pipe:1', '-f', 'null', '-'])
 
 
+def invocation(header, row):
+    registration = header['plan']
+    root = pathlib.Path(header['paths']['bundle'])
+    output = pathlib.Path(header['paths']['capture'])
+    kind = row['kind']
+    if kind == 'counter-preflight':
+        return ['perf', 'stat', '-e', 'cycles:u', '--', 'true']
+    index = row['input']
+    require(type(index) is int and 0 <= index < 6, 'invalid invocation input')
+    original = header['originals'][index]
+    source = root / 'files' / (original['sha256'] + '.' + original['ext'])
+    clip = root / 'clips' / f'input-{index}.webm'
+    if kind == 'prepare':
+        command = [root / 'bin/ffmpeg-pinned', '-v', 'error', '-nostdin', '-noautorotate',
+                   '-i', source, '-map', '0:v:0', '-c', 'copy', '-an', '-sn', '-dn',
+                   '-frames:v', '120', '-y', clip]
+    elif kind == 'packet-binding':
+        command = [root / 'bin/ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                   '-show_packets', '-show_entries', 'packet=pts,dts,duration,size,data_hash',
+                   '-show_data_hash', 'sha256', '-of', 'json']
+        if row['original']:
+            command += ['-read_intervals', '%+#120']
+        command.append(source if row['original'] else clip)
+    elif kind == 'gold':
+        command = ffmpeg_command(root, 'ffmpeg-pinned', clip, 1, True)
+    elif kind == 'pixel-preflight':
+        command = native_command(root, row['arm'], clip, True)
+    elif kind == 'repeat-preflight':
+        command = ffmpeg_command(root, row['arm'], clip, row['loops'], True)
+    elif kind in ('timed', 'warmup', 'profile', 'work-preflight'):
+        native = row['arm'] in registration['profiles']['native_arms']
+        loops = 1 if native else registration['ffmpeg_loops'][registration['inputs'][index]['class']]
+        command = native_command(root, row['arm'], clip) if native else ffmpeg_command(root, row['arm'], clip, loops)
+        if kind == 'profile':
+            frequency = registration['profiles']['native_frequency' if native else 'ffmpeg_frequency']
+            command = ['perf', 'record', '-e', 'cycles:u', '-F', str(frequency),
+                       '--call-graph', 'dwarf,32768', '-m', '1024', '-o', output / 'perf.data', '--'] + command
+    elif kind == 'profile-script':
+        native = row['arm'] in registration['profiles']['native_arms']
+        fields = 'comm,pid,tid,time,period,event,ip,sym,dso'
+        command = ['perf', 'script'] + (['--inline'] if native else [])
+        command += ['-F', fields + (',srcline' if native else ''), '-i', output / 'perf.data']
+    elif kind == 'demangle':
+        command = ['c++filt', '-s', 'rust']
+    elif kind == 'profile-report':
+        command = ['perf', 'report', '--stdio', '--no-children', '--call-graph', 'none',
+                   '--sort', 'comm,dso,symbol', '--percent-limit', '0', '-i', output / 'perf.data']
+    else:
+        raise ValueError('unknown invocation kind')
+    return [str(part) for part in command]
+
+
 def ffmpeg_hashes(data, width, height):
     text = data.decode()
     dimensions = re.findall(r'^#dimensions\s+0:\s+(\d+)x(\d+)\s*$', text, re.M)
@@ -242,7 +294,7 @@ class Capture:
             require(path.resolve().parent == self.root / 'files' and digest(path) == row['sha256'],
                     'original input path or bytes differ')
             self.originals.append(path)
-            original_receipts.append(dict(sha256=row['sha256'], size=path.stat().st_size))
+            original_receipts.append(dict(sha256=row['sha256'], size=path.stat().st_size, ext=row['ext']))
         self.lock = (self.root / '.pixel-round.lock').open('w')
         try:
             fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -254,13 +306,16 @@ class Capture:
         self.deadline = time.monotonic() + args.max_seconds
         self.calls = []
         self.clips = []
-        write(self.out / 'header.json', dict(plan=self.registration, builds=self.builds,
-                                            host=self.host, merge_receipt=self.receipt,
-                                            originals=original_receipts,
-                                            max_seconds=args.max_seconds))
+        self.header = dict(plan=self.registration, builds=self.builds, host=self.host, merge_receipt=self.receipt,
+                           paths=dict(bundle=str(self.root), capture=str(self.out)),
+                           originals=original_receipts, max_seconds=args.max_seconds)
+        write(self.out / 'header.json', self.header)
         write(self.out / 'complete.json', dict(complete=False))
 
-    def child(self, command, label, profiled=False, input_data=None, source_blind=False):
+    def child(self, label, input_data=None):
+        command = invocation(self.header, label)
+        profiled = label['kind'] in ('counter-preflight', 'profile', 'profile-script')
+        source_blind = label['kind'] in ('profile-script', 'profile-report') and label['arm'] == 'ffmpeg-symbols'
         remaining = self.deadline - time.monotonic()
         require(remaining > 0, 'capture lifetime exhausted')
         prefix = self.out / f'call-{len(self.calls):04}'
@@ -306,13 +361,8 @@ class Capture:
         require(process.returncode == 0 and not row['unexpected_stderr'], 'child failed or emitted diagnostics')
         return stdout, stderr, row
 
-    def packets(self, path, index, first=False):
-        command = [self.root / 'bin/ffprobe', '-v', 'error', '-select_streams', 'v:0',
-                   '-show_packets', '-show_entries', 'packet=pts,dts,duration,size,data_hash',
-                   '-show_data_hash', 'sha256', '-of', 'json']
-        if first:
-            command += ['-read_intervals', '%+#120']
-        data, _, _ = self.child(command + [path], dict(kind='packet-binding', input=index, original=first))
+    def packets(self, index, first=False):
+        data, _, _ = self.child(dict(kind='packet-binding', input=index, original=first))
         packets = json.loads(data, object_pairs_hook=unique)['packets']
         require(len(packets) == 120 and all(re.fullmatch(r'SHA256:[0-9a-f]{64}', p['data_hash']) for p in packets),
                 'prepared packet work differs')
@@ -321,30 +371,24 @@ class Capture:
     def prepare(self):
         clips = self.root / 'clips'
         clips.mkdir(mode=0o700, exist_ok=False)
-        _, counters, _ = self.child(['perf', 'stat', '-e', 'cycles:u', '--', 'true'],
-                                     dict(kind='counter-preflight'), True)
+        _, counters, _ = self.child(dict(kind='counter-preflight'))
         counter_available(counters)
         for index, (row, original) in enumerate(zip(self.registration['inputs'], self.originals)):
             require(digest(original) == row['sha256'], 'original bytes changed before preparation')
             clip = clips / f'input-{index}.webm'
-            command = [self.root / 'bin/ffmpeg-pinned', '-v', 'error', '-nostdin', '-noautorotate',
-                       '-i', original, '-map', '0:v:0', '-c', 'copy', '-an', '-sn', '-dn',
-                       '-frames:v', '120', '-y', clip]
-            self.child(command, dict(kind='prepare', input=index))
-            source_packets, prepared = self.packets(original, index, True), self.packets(clip, index)
+            self.child(dict(kind='prepare', input=index))
+            source_packets, prepared = self.packets(index, True), self.packets(index)
             require([(p['data_hash'], p['size']) for p in source_packets]
                     == [(p['data_hash'], p['size']) for p in prepared], 'packet copy changed coded bytes')
             require(digest(original) == row['sha256'], 'original bytes changed during preparation')
             self.clips.append(dict(path=str(clip), sha256=digest(clip), packets=prepared))
             write(self.out / 'prepared.json', self.clips)
-            gold, _, _ = self.child(ffmpeg_command(self.root, 'ffmpeg-pinned', clip, 1, True),
-                                     dict(kind='gold', input=index))
+            gold, _, _ = self.child(dict(kind='gold', input=index))
             hashes = ffmpeg_hashes(gold, row['width'], row['height'])
             require(len(hashes) == 120, 'oracle frame count differs')
             native_frames = []
             for arm in self.registration['profiles']['native_arms']:
-                data, _, _ = self.child(native_command(self.root, arm, clip, True),
-                                         dict(kind='pixel-preflight', input=index, arm=arm))
+                data, _, _ = self.child(dict(kind='pixel-preflight', input=index, arm=arm))
                 document = work(data, True, 120, True)
                 require([f['md5'] for f in document['frames']] == hashes
                         and all((f['width'], f['height']) == (row['width'], row['height']) for f in document['frames']),
@@ -353,25 +397,19 @@ class Capture:
             require(all(frames == native_frames[0] for frames in native_frames), 'native presentation differs')
             for arm in ('ffmpeg-pinned', 'ffmpeg-symbols'):
                 for loops in (1, 2):
-                    data, _, _ = self.child(ffmpeg_command(self.root, arm, clip, loops, True),
-                                             dict(kind='repeat-preflight', input=index, arm=arm, loops=loops))
+                    data, _, _ = self.child(dict(kind='repeat-preflight', input=index, arm=arm, loops=loops))
                     require(ffmpeg_hashes(data, row['width'], row['height']) == hashes * loops,
                             'oracle repeated pixel sequence differs')
                 self.decode(index, arm, 'work-preflight')
 
-    def decode(self, index, arm, kind, round_number=None, profile=False):
+    def decode(self, index, arm, kind, round_number=None):
         entry = self.clips[index]
         clip = pathlib.Path(entry['path'])
         require(digest(clip) == entry['sha256'], 'prepared bytes changed')
         native = arm in self.registration['profiles']['native_arms']
         loops = 1 if native else self.registration['ffmpeg_loops'][self.registration['inputs'][index]['class']]
-        command = native_command(self.root, arm, clip) if native else ffmpeg_command(self.root, arm, clip, loops)
         label = dict(kind=kind, input=index, arm=arm, loops=loops, round=round_number)
-        if profile:
-            frequency = self.registration['profiles']['native_frequency' if native else 'ffmpeg_frequency']
-            command = ['perf', 'record', '-e', 'cycles:u', '-F', str(frequency),
-                       '--call-graph', 'dwarf,32768', '-m', '1024', '-o', self.out / 'perf.data', '--'] + command
-        data, diagnostics, record = self.child(command, label, profile)
+        data, diagnostics, record = self.child(label)
         work(data, native, 120 * loops)
         record['frames'] = 120 * loops
         write(self.out / 'calls.json', self.calls)
@@ -379,22 +417,14 @@ class Capture:
 
     def profile(self, index, arm):
         native = arm != 'ffmpeg-symbols'
-        diagnostics = self.decode(index, arm, 'profile', profile=True)
-        fields = 'comm,pid,tid,time,period,event,ip,sym,dso'
-        command = ['perf', 'script', '-F', fields + (',srcline' if native else ''), '-i', self.out / 'perf.data']
+        diagnostics = self.decode(index, arm, 'profile')
+        data, errors, _ = self.child(dict(kind='profile-script', input=index, arm=arm))
         if native:
-            command.insert(2, '--inline')
-        data, errors, _ = self.child(command, dict(kind='profile-script', input=index, arm=arm), True,
-                                      source_blind=not native)
-        if native:
-            data, _, _ = self.child(['c++filt', '-s', 'rust'], dict(kind='demangle', input=index, arm=arm),
-                                    input_data=data)
+            data, _, _ = self.child(dict(kind='demangle', input=index, arm=arm), input_data=data)
         stem = self.out / f'profile-{index}-{arm}'
         with gzip.open(str(stem) + '.gz', 'wb') as stream:
             stream.write(data)
-        flat, _, _ = self.child(['perf', 'report', '--stdio', '--no-children', '--call-graph', 'none',
-                                 '--sort', 'comm,dso,symbol', '--percent-limit', '0', '-i', self.out / 'perf.data'],
-                                dict(kind='profile-report', input=index, arm=arm), source_blind=not native)
+        flat, _, _ = self.child(dict(kind='profile-report', input=index, arm=arm))
         pathlib.Path(str(stem) + '.flat').write_bytes(flat)
         write(str(stem) + '.quality.json', dict(record_diagnostics=diagnostics.decode(), script_diagnostics=errors.decode(),
               lost=profiles.lost(diagnostics, errors, flat)))
@@ -478,15 +508,15 @@ def validate_calls(rows, registration):
     return timed
 
 
-def validate_evidence(directory, rows, registration):
+def validate_evidence(directory, rows, header, prepared):
+    registration = header['plan']
     gold, native_frames, packets, graphs, diagnostics = {}, {}, {}, {}, {}
     for index, row in enumerate(rows):
         prefix = directory / f'call-{index:04}'
         data = pathlib.Path(str(prefix) + '.stdout').read_bytes()
         errors = pathlib.Path(str(prefix) + '.stderr').read_bytes()
         command = read(str(prefix) + '.command.json')
-        require(isinstance(command, list) and command and all(isinstance(word, str) for word in command),
-                'missing invocation provenance')
+        require(command == invocation(header, row), 'retained invocation differs from the registered workload')
         kind = row['kind']
         if kind == 'counter-preflight':
             counter_available(errors)
@@ -519,6 +549,7 @@ def validate_evidence(directory, rows, registration):
                 packets[row['input']] = coded
             else:
                 require(coded == packets[row['input']], 'retained packet copy differs')
+                require(values == prepared[row['input']]['packets'], 'prepared packet binding differs')
         if kind in ('profile', 'profile-script', 'demangle', 'profile-report'):
             key = (row['input'], row['arm'])
             if kind == 'profile':
@@ -558,7 +589,24 @@ def replay(args):
             'replay source binding differs')
     rows = read(directory / 'calls.json')
     timed = validate_calls(rows, registration)
-    validate_evidence(directory, rows, registration)
+    paths = header['paths']
+    require(set(paths) == {'bundle', 'capture'} and all(isinstance(value, str)
+            and pathlib.PurePosixPath(value).is_absolute() and str(pathlib.PurePosixPath(value)) == value
+            and '..' not in pathlib.PurePosixPath(value).parts and not value.startswith('//')
+            for value in paths.values()), 'invalid capture paths')
+    originals = header['originals']
+    require(len(originals) == 6 and [r['sha256'] for r in originals] == [r['sha256'] for r in registration['inputs']]
+            and all(r['ext'] in ('webm', 'mkv') and type(r['size']) is int and r['size'] > 0 for r in originals),
+            'original input binding differs')
+    binaries = header['builds']['binaries']
+    require(set(binaries) == set(registration['arms']) | {'ffprobe'}
+            and all(isinstance(sha, str) and re.fullmatch(r'[0-9a-f]{64}', sha) for sha in binaries.values()),
+            'binary binding differs')
+    prepared = read(directory / 'prepared.json')
+    require(len(prepared) == 6 and all(entry['path'] == str(pathlib.Path(paths['bundle']) / 'clips' / f'input-{i}.webm')
+            and re.fullmatch(r'[0-9a-f]{64}', entry['sha256']) for i, entry in enumerate(prepared)),
+            'prepared input binding differs')
+    validate_evidence(directory, rows, header, prepared)
     inputs = []
     for index in range(6):
         calls = [r for r in timed if r['input'] == index]

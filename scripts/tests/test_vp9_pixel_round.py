@@ -81,15 +81,25 @@ def native(frames=None):
 def evidence(directory, registration, receipt, builds):
     directory.mkdir()
     run.write(directory / 'complete.json', dict(complete=True))
-    run.write(directory / 'header.json', dict(plan=registration, builds=builds, merge_receipt=receipt))
+    root = directory.parent.resolve()
+    header = dict(plan=registration, builds=builds, merge_receipt=receipt,
+                  paths=dict(bundle=str(root), capture=str(directory.resolve())),
+                  originals=[dict(sha256=r['sha256'], ext='webm',
+                                  size=(root / 'files' / (r['sha256'] + '.webm')).stat().st_size)
+                             for r in registration['inputs']])
+    run.write(directory / 'header.json', header)
+    packet_values = [dict(size='5', data_hash='SHA256:' + 'b' * 64)] * 120
+    run.write(directory / 'prepared.json', [dict(path=str(root / 'clips' / f'input-{i}.webm'),
+              sha256='c' * 64, packets=packet_values) for i in range(6)])
     rows = []
 
     def emit(kind, data=b'', errors=b'', **fields):
         prefix = directory / f'call-{len(rows):04}'
         pathlib.Path(str(prefix) + '.stdout').write_bytes(data)
         pathlib.Path(str(prefix) + '.stderr').write_bytes(errors)
-        run.write(str(prefix) + '.command.json', ['synthetic', kind])
-        rows.append(dict(kind=kind, rc=0, unexpected_stderr=False, **fields))
+        row = dict(kind=kind, rc=0, unexpected_stderr=False, **fields)
+        run.write(str(prefix) + '.command.json', run.invocation(header, row))
+        rows.append(row)
 
     def decode(kind, index, arm, round_number=None):
         is_native = arm in registration['profiles']['native_arms']
@@ -105,7 +115,7 @@ def evidence(directory, registration, receipt, builds):
     emit('counter-preflight', errors=b'  1,000 cycles:u\n')
     for i, row in enumerate(registration['inputs']):
         emit('prepare', input=i)
-        packets = json.dumps(dict(packets=[dict(size='5', data_hash='SHA256:' + 'b' * 64)] * 120)).encode()
+        packets = json.dumps(dict(packets=packet_values)).encode()
         emit('packet-binding', packets, input=i, original=True)
         emit('packet-binding', packets, input=i, original=False)
         emit('gold', hashes(row['width'], row['height']), input=i)
@@ -271,16 +281,19 @@ class Capture(unittest.TestCase):
     def test_timeout_kills_the_process_group_and_retains_an_incomplete_capture(self):
         capture = self.construct()
         capture.deadline = time.monotonic() + 0.05
-        with mock.patch.object(run, 'bounds'), self.assertRaises(subprocess.TimeoutExpired):
-            capture.child([sys.executable, '-I', '-c', 'import time; time.sleep(10)'], dict(kind='probe'))
+        with mock.patch.object(run, 'bounds'), mock.patch.object(run, 'invocation',
+                return_value=[sys.executable, '-I', '-c', 'import time; time.sleep(10)']), \
+                self.assertRaises(subprocess.TimeoutExpired):
+            capture.child(dict(kind='probe'))
         self.assertTrue(run.read(self.args.out / 'calls.json')[0]['interrupted'])
         self.assertEqual(run.read(self.args.out / 'complete.json'), dict(complete=False))
 
     def test_foreign_source_locations_are_never_retained(self):
         capture = self.construct()
         program = 'print("  /synthetic directory/foreign.c:12 (inlined)")'
-        with mock.patch.object(run, 'bounds'), self.assertRaises(ValueError):
-            capture.child([sys.executable, '-I', '-c', program], dict(kind='profile-script'), source_blind=True)
+        with mock.patch.object(run, 'bounds'), mock.patch.object(run, 'invocation',
+                return_value=[sys.executable, '-I', '-c', program]), self.assertRaises(ValueError):
+            capture.child(dict(kind='profile-script', arm='ffmpeg-symbols', input=0))
         self.assertTrue((self.args.out / 'source-location-fault.json').exists())
         self.assertFalse(list(self.args.out.glob('*.stdout')))
 
@@ -297,8 +310,96 @@ class Capture(unittest.TestCase):
         self.assertFalse((self.root / 'clips').exists())
         self.assertEqual(run.read(self.args.out / 'complete.json'), dict(complete=False))
 
+    def test_capture_executor_selects_the_registered_command_without_an_argv_override(self):
+        capture = self.construct()
+        process = mock.Mock(returncode=0)
+        process.communicate.return_value = (native(), b'')
+        label = dict(kind='timed', input=0, arm='baseline-dist', loops=1, round=0)
+        with mock.patch.object(run.subprocess, 'Popen', return_value=process) as launch:
+            capture.child(label)
+        expected = ['taskset', '-c', '0', str(capture.root / 'bin/baseline-dist'),
+                    str(capture.root / 'clips/input-0.webm'), '--backend', 'native',
+                    '--packets', '100000000', '--max-memory-gib', '4']
+        self.assertEqual(launch.call_args.args[0], expected)
+        self.assertEqual(run.read(self.args.out / 'call-0000.command.json'), expected)
+
 
 class Replay(unittest.TestCase):
+    def test_timed_command_replaced_with_true_cannot_be_complete(self):
+        index = next(i for i, row in enumerate(self.rows) if row['kind'] == 'timed')
+        run.write(self.directory / f'call-{index:04}.command.json', ['/bin/true'])
+        with self.assertRaises(ValueError):
+            run.replay(self.args)
+        self.assertFalse(run.read(self.args.summary)['complete'])
+
+    def test_executable_substitution_is_rejected_for_every_capture_phase(self):
+        kinds = set(row['kind'] for row in self.rows)
+        for kind in sorted(kinds):
+            index = next(i for i, row in enumerate(self.rows) if row['kind'] == kind)
+            path = self.directory / f'call-{index:04}.command.json'
+            before = run.read(path)
+            run.write(path, ['/bin/true'])
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                run.replay(self.args)
+            self.assertFalse(run.read(self.args.summary)['complete'])
+            run.write(path, before)
+
+    def test_binary_input_affinity_decoder_hash_and_profile_options_are_bound(self):
+        cases = [
+            ('timed', 'baseline-dist', '__binary', '/bundle/bin/merged-auto-dist'),
+            ('timed', 'baseline-dist', '__input', '/bundle/clips/input-1.webm'),
+            ('timed', 'baseline-dist', '-c', '1'),
+            ('timed', 'baseline-dist', '--backend', 'ffmpeg'),
+            ('timed', 'baseline-dist', '--packets', '1'),
+            ('timed', 'baseline-dist', '__hash', 'COREAV_PIXEL_HASHES=1'),
+            ('timed', 'ffmpeg-pinned', '-threads', '8'),
+            ('timed', 'ffmpeg-pinned', '-c:v', 'libvpx-vp9'),
+            ('timed', 'ffmpeg-pinned', '-stream_loop', '0'),
+            ('timed', 'ffmpeg-pinned', '-frames:v', '119'),
+            ('timed', 'ffmpeg-pinned', '-i', '/bundle/clips/input-1.webm'),
+            ('timed', 'ffmpeg-pinned', '-f', 'framemd5'),
+            ('profile', 'ffmpeg-symbols', '-F', '199'),
+            ('profile', 'ffmpeg-symbols', '-e', 'cycles:k'),
+            ('profile', 'ffmpeg-symbols', '--call-graph', 'fp'),
+            ('profile', 'ffmpeg-symbols', '-o', '/other/perf.data'),
+            ('profile-script', 'ffmpeg-symbols', '-F', 'comm,pid,tid,time,period,event,ip,sym,dso,srcline'),
+        ]
+        for kind, arm, key, value in cases:
+            index = next(i for i, row in enumerate(self.rows) if row['kind'] == kind and row.get('arm') == arm)
+            path = self.directory / f'call-{index:04}.command.json'
+            before = run.read(path)
+            changed = before.copy()
+            if key == '__binary':
+                changed[3] = value
+            elif key == '__input':
+                changed[4] = value
+            elif key == '__hash':
+                changed = ['/usr/bin/env', value] + changed
+            else:
+                changed[changed.index(key) + 1] = value
+            run.write(path, changed)
+            with self.subTest(kind=kind, arm=arm, key=key), self.assertRaises(ValueError):
+                run.replay(self.args)
+            self.assertFalse(run.read(self.args.summary)['complete'])
+            run.write(path, before)
+
+    def test_prepared_paths_packets_and_build_binary_roster_are_bound(self):
+        path = self.directory / 'prepared.json'
+        original = run.read(path)
+        for mutate in (lambda rows: rows[0].update(path='/different/input.webm'),
+                       lambda rows: rows[0]['packets'][0].update(size='6')):
+            changed = copy.deepcopy(original)
+            mutate(changed)
+            run.write(path, changed)
+            with self.assertRaises(ValueError):
+                run.replay(self.args)
+            run.write(path, original)
+        header = run.read(self.directory / 'header.json')
+        del header['builds']['binaries']['baseline-dist']
+        run.write(self.directory / 'header.json', header)
+        with self.assertRaises(ValueError):
+            run.replay(self.args)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
