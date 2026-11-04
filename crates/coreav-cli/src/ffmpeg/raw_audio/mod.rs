@@ -562,9 +562,9 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
                                 coreav_audio::Codec::from_name("aac") != Some(decoded.stream.codec)
                             }
                             record::Requirement::OpusMapping0 => {
-                                pass.decoded.stream.codec != coreav_audio::Codec::Opus
-                                    || pass.decoded.stream.sample_rate != 48_000
-                                    || !matches!(pass.decoded.stream.channels, 1 | 2)
+                                decoded.stream.codec != coreav_audio::Codec::Opus
+                                    || decoded.stream.sample_rate != 48_000
+                                    || !matches!(decoded.stream.channels, 1 | 2)
                             }
                         };
                     }
