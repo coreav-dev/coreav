@@ -6,11 +6,22 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - Cargo.toml
+      - Cargo.lock
       - crates/coreav-cli/**
       - crates/coreav-audio/**
       - crates/coreav-isobmff/**
       - crates/coreav-mkv/**
       - crates/coreav-mpegts/**
+      - crates/coreav-avi/**
+      - crates/coreav-isobmff-write/**
+      - crates/coreav-policy/**
+      - crates/coreav-text/**
+      - crates/coreav-decode/**
+      - crates/coreav-range/**
+      - crates/coreav-opus/**
+      - crates/coreav-kernels-audio/**
+      - crates/coreav-frame/**
       - scripts/input_summary_*.py
       - scripts/standalone_audio_probe_check.py
       - scripts/oracle_audio.py

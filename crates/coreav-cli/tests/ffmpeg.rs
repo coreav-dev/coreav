@@ -3344,12 +3344,7 @@ fn first_input_only_maps_reuse_ordinary_copy_timing() {
                 .output()
                 .unwrap();
             assert_eq!(result.status.code(), Some(19));
-            assert_eq!(
-                result.stdout,
-                args.iter()
-                    .flat_map(|arg| arg.bytes().chain([0]))
-                    .collect::<Vec<_>>()
-            );
+            assert_eq!(result.stdout, fallback_arguments(&args));
         }
         std::fs::remove_file(output).unwrap();
     }

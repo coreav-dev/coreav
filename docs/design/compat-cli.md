@@ -2426,8 +2426,9 @@ installs both tools.
 
 ### Running it
 
-The program gets `-hide_banner` followed by the original arguments, standard input, output and error
-inherited, and the environment with one variable added. On Unix CoreAV
+The program gets `-hide_banner` followed by the original arguments. It inherits
+standard output and standard error. It inherits standard input unless CoreAV
+supplies a replay file. The environment has one variable added. On Unix CoreAV
 replaces itself with it (`exec`), so the process id, signals and exit status
 are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.
