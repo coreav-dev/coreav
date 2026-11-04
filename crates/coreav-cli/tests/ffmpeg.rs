@@ -37,6 +37,57 @@ fn scratch(name: &str) -> PathBuf {
     fresh(&Path::new(env!("CARGO_TARGET_TMPDIR")).join(name))
 }
 
+struct FixtureDir(PathBuf);
+
+impl std::ops::Deref for FixtureDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for FixtureDir {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for FixtureDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn oracle_scratch(name: &str) -> FixtureDir {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "{name}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir(&path).unwrap();
+    FixtureDir(path)
+}
+
+#[test]
+fn oracle_scratch_owns_isolated_directories_until_drop() {
+    let first = oracle_scratch("ffmpeg-oracle-isolation");
+    let first_path = first.to_path_buf();
+    std::fs::write(first.join("marker"), b"first owner").unwrap();
+    let second = oracle_scratch("ffmpeg-oracle-isolation");
+    let second_path = second.to_path_buf();
+    assert_ne!(first_path, second_path);
+    assert_eq!(std::fs::read(first.join("marker")).unwrap(), b"first owner");
+    drop(second);
+    assert!(!second_path.exists());
+    assert!(first_path.exists());
+    drop(first);
+    assert!(!first_path.exists());
+}
+
 struct Run {
     code: i32,
     stdout: Vec<u8>,
@@ -110,7 +161,7 @@ fn leading_negative_maps_preserve_destinations_and_match_pinned_fallback() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;
     };
-    let dir = scratch("ffmpeg-leading-negative-maps");
+    let dir = oracle_scratch("ffmpeg-leading-negative-maps");
     let first = dir.join("first.mp4");
     let second = dir.join("second.mp4");
     for (path, size, frequency) in [(&first, "64x48", "751"), (&second, "80x64", "919")] {
@@ -3352,7 +3403,7 @@ fn first_input_only_maps_reuse_ordinary_copy_timing() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;
     };
-    let dir = scratch("ffmpeg-first-input-copy");
+    let dir = oracle_scratch("ffmpeg-first-input-copy");
     let first = dir.join("first.mp4");
     let unused = dir.join("unused.mp4");
     for (path, size, frequency, title) in [
