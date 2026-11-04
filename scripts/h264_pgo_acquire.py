@@ -247,6 +247,8 @@ def capture_failure(root, record):
     if error:
         lines = [line.strip() for line in error.splitlines() if line.strip()]
         if not lines or not all(STREAM_DIAGNOSTIC.fullmatch(line) for line in lines):
+            if code == 0 and record['kind'] == 'source-probe':
+                return 'stderr'
             raise CaptureFault('unrecognized-oracle-diagnostic')
         return 'nonzero-exit' if code else 'stderr'
     if code:

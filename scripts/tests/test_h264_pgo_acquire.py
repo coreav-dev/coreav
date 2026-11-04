@@ -82,6 +82,108 @@ class Acquisition(unittest.TestCase):
                 self.assertEqual(self.prepare(runner=mock.Mock(side_effect=AssertionError('rerun')), replay=True),
                                  (decision, selected))
 
+    def test_unseen_zero_exit_source_probe_diagnostics_reject_without_metadata_or_retry(self):
+        messages = (b'[mov,mp4,m4a,3gp,3g2,mj2 @ 0x555b9705f440] Referenced QT chapter track not found\n',
+                    b'Previously unseen source diagnostic\n')
+        for message in messages:
+            with self.subTest(message=message):
+                self.state['captures'] = []
+                self.state['items'] = {}
+                def warned(argv, **kwargs):
+                    result = self.runner(argv, **kwargs)
+                    kwargs['stderr'].write(message)
+                    return result
+                decision, selected = self.prepare(runner=warned)
+                self.assertIsNone(selected)
+                self.assertEqual(decision['reason'], 'stderr')
+                self.assertEqual(decision['failure_stage'], 'source-probe')
+                self.assertIsNone(decision['metadata'])
+                self.assertEqual(decision['failure_classes'], list(driver.bars.CLASSES))
+                record = dict(self.state['captures'][0])
+                self.assertEqual((record['status'], record['returncode']), ('complete', 0))
+                self.assertEqual((self.root / record['stderr']).read_bytes(), message)
+                self.assertEqual(self.prepare(runner=mock.Mock(side_effect=AssertionError('child rerun')), replay=True),
+                                 (decision, selected))
+                self.assertEqual(self.state['captures'], [record])
+                self.assertEqual(collect.digest(self.root / record['stderr']), record['files']['stderr'])
+
+    def test_unseen_nonzero_source_probe_diagnostic_still_stops(self):
+        def failed(argv, **kwargs):
+            kwargs['stderr'].write(b'Previously unseen source diagnostic\n')
+            return subprocess.CompletedProcess(argv, 1)
+        with self.assertRaisesRegex(collect.CaptureFault, 'unrecognized-oracle-diagnostic'):
+            self.prepare(runner=failed)
+
+    def test_zero_exit_source_probe_keeps_registered_faults_fatal_before_unknown_text(self):
+        cases = ((b'Cannot allocate memory\nPreviously unseen diagnostic\n', 'resource-or-infrastructure'),
+                 (b'Protocol not found\nPreviously unseen diagnostic\n', 'external-protocol'),
+                 (b'x' * ((1 << 20) + 1), 'capture-output-limit'))
+        for message, reason in cases:
+            with self.subTest(reason=reason):
+                self.state['captures'] = []
+                self.state['items'] = {}
+                def failed(argv, **kwargs):
+                    kwargs['stderr'].write(message)
+                    return subprocess.CompletedProcess(argv, 0)
+                with self.assertRaisesRegex(collect.CaptureFault, reason):
+                    self.prepare(runner=failed)
+                with self.assertRaisesRegex(collect.CaptureFault, reason):
+                    self.prepare(replay=True)
+
+    def test_unseen_zero_exit_diagnostics_at_later_stages_still_stop(self):
+        for stage in ('packet-copy', 'es-probe'):
+            with self.subTest(stage=stage):
+                self.state['captures'] = []
+                self.state['items'] = {}
+                def warned(argv, **kwargs):
+                    result = self.runner(argv, **kwargs)
+                    current = 'packet-copy' if argv[0].endswith('ffmpeg') else (
+                        'es-probe' if Path(argv[-1]).suffix == '.h264' else 'source-probe')
+                    if current == stage:
+                        kwargs['stderr'].write(b'Previously unseen diagnostic\n')
+                    return result
+                with self.assertRaisesRegex(collect.CaptureFault, 'unrecognized-oracle-diagnostic'):
+                    self.prepare(runner=warned)
+
+    def test_retained_unseen_probe_resumes_in_order_with_audited_replacement_accounting(self):
+        run, candidates, plan, calls, fetches = self.integrated(finish=False)
+        runner, classify = collect.bounded_runner.side_effect, collect.capture_failure
+        message = b'[mov,mp4,m4a,3gp,3g2,mj2 @ 0x555b9705f440] Referenced QT chapter track not found\n'
+        def warned(argv, **kwargs):
+            result = runner(argv, **kwargs)
+            if Path(argv[-1]).name == 'o00000.source':
+                kwargs['stderr'].seek(0)
+                kwargs['stderr'].truncate()
+                kwargs['stderr'].write(message)
+            return result
+        def previous_classifier(root, record):
+            if (root / record['stderr']).read_bytes() == message:
+                raise collect.CaptureFault('unrecognized-oracle-diagnostic')
+            return classify(root, record)
+        with mock.patch.object(collect, 'bounded_runner', side_effect=warned):
+            with mock.patch.object(collect, 'capture_failure', side_effect=previous_classifier):
+                with self.assertRaises(collect.CaptureFault):
+                    run()
+            retained = json.loads((self.root / 'operator/amended-state.json').read_text())['captures'][0]
+            self.assertEqual((len(calls), len(fetches)), (1, 1))
+            state = run()
+        self.assertEqual(state['captures'][0], retained)
+        self.assertEqual((self.root / retained['stderr']).read_bytes(), message)
+        self.assertEqual((len(calls), len(fetches)), (13, 5))
+        self.assertEqual([row['identity'] for row in state['decisions']], [c['identity'] for c in candidates])
+        self.assertEqual(len(state['rows']), 4)
+        collect.audit_collection(self.root, candidates, plan, 'e' * 64)
+        report = json.loads((self.root / 'acquisition-report.json').read_text())
+        self.assertEqual(report['failed_sources'], {'known': 0, 'unknown': 1})
+        for value in report['per_class'].values():
+            self.assertEqual(value['failure_charges'], {'known': 0, 'unknown': 1})
+            self.assertEqual(value['replacements_selected'], {'known': 0, 'unknown': 1})
+            self.assertEqual(value['reasons'][0]['stage'], 'source-probe')
+        before = len(calls), len(fetches), state['captures'], state['rows']
+        state = run()
+        self.assertEqual((len(calls), len(fetches), state['captures'], state['rows']), before)
+
+
     def test_extraction_failures_charge_only_the_successful_probe_class(self):
         for why in ('stderr', 'empty-extraction', 'invalid-extraction', 'invalid-metadata'):
             with self.subTest(reason=why):
@@ -572,13 +674,25 @@ class Acquisition(unittest.TestCase):
                                  (1, b'Invalid NAL unit size\nCannot allocate memory'),
                                  (0, b'Invalid NAL unit size\nNo space left on device'),
                                  (1, b'Resource temporarily unavailable'), (1, b'Permission denied')):
-            with self.subTest(code=code, diagnostic=diagnostic):
-                self.state['captures'] = []
-                def failed(argv, **kwargs):
-                    kwargs['stderr'].write(diagnostic)
-                    return subprocess.CompletedProcess(argv, code)
-                with self.assertRaises(collect.CaptureFault):
-                    self.prepare(runner=failed)
+            for stage in ('source-probe', 'packet-copy', 'es-probe'):
+                with self.subTest(code=code, diagnostic=diagnostic, stage=stage):
+                    self.state['captures'] = []
+                    self.state['items'] = {}
+                    def failed(argv, **kwargs):
+                        current = 'packet-copy' if argv[0].endswith('ffmpeg') else (
+                            'es-probe' if Path(argv[-1]).suffix == '.h264' else 'source-probe')
+                        if current != stage:
+                            return self.runner(argv, **kwargs)
+                        kwargs['stderr'].write(diagnostic)
+                        return subprocess.CompletedProcess(argv, code)
+                    if stage == 'source-probe' and code == 0 and diagnostic in (b' \n', b'unknown oracle message'):
+                        decision, selected = self.prepare(runner=failed)
+                        self.assertIsNone(selected)
+                        self.assertIsNone(decision['metadata'])
+                        self.assertEqual(decision['reason'], 'stderr')
+                    else:
+                        with self.assertRaises(collect.CaptureFault):
+                            self.prepare(runner=failed)
 
     def test_requested_class_cap_is_preserved_for_a_longer_source(self):
         self.plan['frames']['sd'] = 1
