@@ -36,6 +36,8 @@ It is the shared full-file path: metadata sanitization builds on
 `remux_mp4`, and the Matroska/WebM remux (and any other demuxer) on the
 `mux` module below.
 
+`RemuxOptions::video_origin` is an explicit exception to timeline preservation for one unedited, unfragmented video track. It subtracts a positive origin only when that origin rounds to the track's first composition time, without removing samples or changing their stored clocks. The compatibility command uses this to normalize ordinary copy; the native remux, Python and WASM entry points leave it unset. Other shapes refuse before output. See [the origin plan](copy-video-origin.md) for the exact edit mapping and bounds.
+
 ### Mapped streams from several MP4 inputs
 
 `remux_mp4_inputs(inputs, streams, left_out_covers, limits, allowlist, out)`
