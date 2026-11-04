@@ -1395,6 +1395,79 @@ fn video_origin_refuses_ineligible_sources_before_writing() {
 }
 
 #[test]
+fn video_origin_requires_the_first_decoded_sample_to_present_first() {
+    let mut video = video(77, 25);
+    video.edits.clear();
+    video.samples[0].offset = 4096;
+    let source = build(&file(vec![video]));
+    let (summary, native) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert_round_trip(&source, &native, &summary);
+    let mut output = Vec::new();
+    let result = remux_mp4(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        &RemuxOptions {
+            video_origin: coreav_isobmff::Rational::new(3, 25),
+            ..RemuxOptions::default()
+        },
+        &mut output,
+    );
+    assert!(matches!(
+        result,
+        Err(ExtractError::Source(Error::Unsupported { .. }))
+    ));
+    assert!(output.is_empty());
+}
+
+#[test]
+fn video_origin_rebuilds_only_its_own_declared_media_duration() {
+    for declared in [10_000u32, 100_000] {
+        let mut video = video(77, 25);
+        video.edits.clear();
+        let mut source = build(&file(vec![video]));
+        let at = source
+            .windows(4)
+            .position(|bytes| bytes == b"mdhd")
+            .unwrap()
+            + 20;
+        source[at..at + 4].copy_from_slice(&declared.to_be_bytes());
+        let (summary, native) = remux(&source, &RemuxOptions::default()).unwrap();
+        assert_round_trip(&source, &native, &summary);
+        let (_, normalized) = remux(
+            &source,
+            &RemuxOptions {
+                video_origin: coreav_isobmff::Rational::new(2, 25),
+                ..RemuxOptions::default()
+            },
+        )
+        .unwrap();
+        let read = |data: &[u8]| {
+            probe(
+                SliceSource::new(data),
+                &Limits::default(),
+                &Allowlist::default(),
+            )
+            .unwrap()
+        };
+        let input = read(&source);
+        let output = read(&normalized);
+        assert_eq!(input.tracks[0].mdhd_duration, u64::from(declared));
+        assert_eq!(output.tracks[0].mdhd_duration, 77 * 512);
+        let from = packets(&source, &input, 0);
+        let to = packets(&normalized, &output, 0);
+        assert_eq!(from.len(), to.len());
+        for (a, b) in from.iter().zip(&to) {
+            assert_eq!(
+                (a.dts, a.cts, a.duration, a.keyframe),
+                (b.dts, b.cts, b.duration, b.keyframe)
+            );
+            assert_eq!(bytes(&source, a), bytes(&normalized, b));
+        }
+    }
+}
+
+#[test]
 fn video_origin_keeps_table_work_and_source_error_classification() {
     let mut v = video(50, 25);
     v.edits.clear();

@@ -268,7 +268,9 @@ pub enum OnUnsupported {
 pub struct RemuxOptions {
     /// Subtract this positive presentation origin from one unedited,
     /// unfragmented video track. Its first composition time must equal
-    /// the origin rounded to media ticks, and decoding must start at 0.
+    /// the origin rounded to media ticks, be the earliest composition
+    /// time, and decoding must start at 0. Media duration is recomputed
+    /// from the complete copied sample durations.
     /// Every sample is retained; an exact edit duration must fit a 32-bit
     /// common movie timescale. Replacements are not accepted. `None`
     /// preserves the source timeline, as the native remux command does.

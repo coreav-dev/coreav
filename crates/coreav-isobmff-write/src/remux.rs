@@ -511,6 +511,7 @@ fn remux<S: Source, R: Source, W: Write>(
                 plan.track,
                 &plan.edits,
                 plan.declared,
+                options.video_origin.is_some(),
                 &mut muxer,
                 index,
                 input_source,
@@ -702,6 +703,7 @@ fn remux<S: Source, R: Source, W: Write>(
                 }],
             )?;
             muxer.set_duration(index, None)?;
+            muxer.set_media_duration(index, None)?;
             continue;
         }
         if k.replaced == Some(Replaced::Audio) {
@@ -2262,14 +2264,15 @@ impl ReplacedEdits {
 }
 
 /// Pass 1 for one stream: pushes every sample to the muxer and sets the
-/// declared durations; returns the first decode time and where the frame
-/// presented last ends, in media ticks from it.
+/// declared durations; returns the first decode time, the last frame's
+/// composition end relative to it and the minimum composition time.
 #[allow(clippy::too_many_arguments)]
 fn list<S: Source>(
     movie: &Movie,
     track: &Track,
     source_edits: &[Edit],
     declared: Option<u64>,
+    normalize_video: bool,
     muxer: &mut Muxer,
     index: usize,
     source: &mut S,
@@ -2277,6 +2280,7 @@ fn list<S: Source>(
     budget: &mut Budget,
 ) -> Result<(i64, u64, Option<i64>), ExtractError> {
     let mut first_dts = None;
+    let mut first_cts = None;
     let mut start: Option<i64> = None;
     let mut next_dts: Option<i64> = None;
     // The latest composition end, a frame's composition time plus its
@@ -2284,6 +2288,11 @@ fn list<S: Source>(
     let mut end: Option<i64> = None;
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
+        if normalize_video && packet.cts < *first_cts.get_or_insert(packet.cts) {
+            return Err(
+                unsupported("a later sample precedes the video's first composition time").into(),
+            );
+        }
         // The output stores durations only, so each sample must start where
         // the previous one ends; fragments set their own base decode time.
         if next_dts.is_some_and(|next| next != packet.dts) {
