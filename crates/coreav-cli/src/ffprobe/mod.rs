@@ -210,6 +210,8 @@ pub struct Report {
     /// picture starts in the file, as `RemuxOptions::left_out_covers`
     /// names it.
     pub covers: Vec<(usize, u64)>,
+    /// A retained ISO clean-aperture box needs unsupported compatibility mapping.
+    pub iso_clean_aperture: bool,
 }
 
 /// A probed file: its report and what lists its packets.
@@ -429,6 +431,11 @@ pub fn emit(
     {
         return Err(Failure::Unsupported(
             "stream-group count is not supported with incomplete ISO metadata".to_owned(),
+        ));
+    }
+    if report.iso_clean_aperture {
+        return Err(Failure::Unsupported(
+            "ISO clean-aperture compatibility metadata is not supported".to_owned(),
         ));
     }
     let mut w = Writer::new(options.writer.clone(), options.style);
