@@ -1518,7 +1518,7 @@ fn stream(
         "duration",
         duration_ts.map_or(Value::Na, |v| time(v, 1, timescale)),
     ));
-    // Video and audio over their whole media, edits aside: the shorter of
+    // Streams over their whole media, edits aside: the shorter of
     // the media header's duration and the samples'. Read from `ffprobe`'s
     // output on the development set: 8 of 8 edited video streams whose
     // rate differed otherwise, and all 176 audio streams of regular
@@ -1526,15 +1526,14 @@ fn stream(
     // or none, whatever average `esds` or `btrt` declares; with several
     // edits too (fixtures whose declared averages were patched). QuickTime
     // sound of one-byte samples has the codec's rate above.
-    let span = if video || audio {
+    let span = {
         let samples = i64::try_from(track.sample_duration).ok().filter(|d| *d > 0);
         let header = i64::try_from(track.mdhd_duration).ok().filter(|d| *d > 0);
         match (samples, header) {
             (Some(s), Some(h)) if !movie.has_fragments() => Some(s.min(h)),
-            (s, h) => s.or(h),
+            (s, h) if video || audio => s.or(h),
+            (_, h) => h,
         }
-    } else {
-        None
     };
     let bit_rate = coded_rate.or_else(|| {
         let (bytes, ticks) = if movie.has_fragments() {
@@ -1549,7 +1548,11 @@ fn stream(
                 (first.bytes, first.duration)
             }
         } else {
-            let own = span.or_else(|| media_duration(movie, track))?;
+            let own = if video || audio {
+                span.or_else(|| media_duration(movie, track))
+            } else {
+                span
+            }?;
             (track.sample_bytes?, u64::try_from(own).ok()?)
         };
         let ticks = u128::from(ticks);
