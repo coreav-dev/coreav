@@ -1,6 +1,6 @@
 # VPSSPSPPS_A oracle-only input preparation
 
-This recipe is registered before execution and applies only to `VPSSPSPPS_A_MainConcept_1.bin`, SHA-256 `8501a5e5f0f191d3810a7aecab43aacac1fcc28f08cb3731158cc48a89501a27`. It does not alter the input supplied to CoreAV or permit any other stream preparation.
+This recipe was registered before execution and applies only to `VPSSPSPPS_A_MainConcept_1.bin`, SHA-256 `8501a5e5f0f191d3810a7aecab43aacac1fcc28f08cb3731158cc48a89501a27`. It does not alter the input supplied to CoreAV or permit any other stream preparation.
 
 H.265.1 (10/2018) section 6.6.12.5 puts duplicated parameter sets in arbitrary order before the pictures. The published description lists six I pictures with changing resolutions and explicitly states `length: 6 frames`. The pinned oracle on the original input emits missing-parameter diagnostics and outputs only two pictures. CoreAV parses and outputs all six from the untouched original. The original mismatch remains recorded; this preparation does not classify incomplete oracle output as harmless.
 
@@ -21,4 +21,8 @@ The published reference remains `1ddf74263cb4953cfdfcf99c563d88ea` from `VPSSPSP
 
 | Stream | Count source | Reference hash | Oracle input | Reason and decision | Status |
 |---|---|---|---|---|---|
-| VPSSPSPPS_A | Published description, 6 pictures; source SHA-256 above | Published complete-output MD5 above | Stable VPS/SPS/PPS ordering of the leading prefix; original retained for CoreAV | H.265.1 section 6.6.12.5 tests arbitrary parameter-set order, which the pinned oracle does not handle on the original; Captain decision, 2026-11-04 | Registered; execution and exact-hash confirmation pending |
+| VPSSPSPPS_A | Published description, 6 pictures; source SHA-256 above | Published complete-output MD5 above | Stable VPS/SPS/PPS ordering of the leading prefix; original retained for CoreAV | H.265.1 section 6.6.12.5 tests arbitrary parameter-set order, which the pinned oracle does not handle on the original; Captain decision, 2026-11-04 | Verified in the complete G1 census at `028ca00a6831b64faa226614252edd0290ce642d`: six outputs and exact published-MD5 agreement |
+
+The observed prepared SHA-256 is `d2097afe2c90bda74915fae48d567ac260b7932781644ba9cdb3ebbc69d315dd`. The complete receipt confirms zero exit, completed progress and all six outputs from that prepared input, while native header checks use the unchanged original. This is header/reference evidence, not a CoreAV reconstruction verdict.
+
+The preregistration at `77c534c5ccfeca14291da8b65ace90482a5c599c` and the completed receipt bind the original document SHA-256 `bee17edd278a1a75644fce4fab67aa6378182c7aa5764e2f09b412237347ab2d`. This status update changes the document bytes; it does not change or relabel that historical receipt. Future preparation receipts recompute and bind the then-current document SHA-256.

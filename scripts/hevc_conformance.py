@@ -68,6 +68,10 @@ EXCLUSION_IDENTITIES = {
     'SAODBLK_A': 'dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507',
     'SAODBLK_B': '8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae',
 }
+EXCLUSION_TRIAL_IDENTITIES = {
+    'SAODBLK_A': '51f758e82dbd09a765c2842bf54d7bb67482e32ab07ac2c4bcf0e148555da3ed',
+    'SAODBLK_B': '32f18420053bd1e51d698b8b8266c77accf63d8482d13188bb7b31d8b2d81671',
+}
 
 
 def require(condition, message):
@@ -147,6 +151,24 @@ def known_exclusions():
                 and re.fullmatch('[0-9a-f]{64}', item['archive_sha256']) is not None
                 and item.get('investigation') and item.get('layout_registration_sha256_at_trial'),
                 'maintainer exclusion identity, decision or retained mismatch evidence differs')
+        history = item.get('historical_trial')
+        require(isinstance(history, dict) and hashlib.sha256(json.dumps(history, sort_keys=True,
+                separators=(',', ':')).encode()).hexdigest() == EXCLUSION_TRIAL_IDENTITIES[test],
+                'historical exclusion trial differs from the retained normalized receipt')
+        attempts = history['reference_attempts']
+        require(history['kind'] == 'historical' and history['trial_head'] == item['trial_head']
+                and history['original_input_sha256'] == item['bitstream_sha256'] and len(attempts) == 1,
+                'historical exclusion trial input or provenance differs from exclusion metadata')
+        attempt = attempts[0]
+        require(attempt['candidate'] == 'C1' and attempt['layout'] == 'whole_output_yuv_file'
+                and attempt['expected_md5'] == item['published_md5']
+                and attempt['observed_md5'] == item['observed_oracle_md5']
+                and attempt['layout_registration'] == dict(candidate='C1', document=item['layout_registration'],
+                    sha256=item['layout_registration_sha256_at_trial'])
+                and attempt['status'] == 'md5_mismatch' and attempt['exit_code'] == 0
+                and attempt['progress_complete'] is True and attempt['count_matches_frame_metadata'] is True
+                and attempt['output_pictures'] == attempt['frame_metadata_count'] == 500,
+                'historical exclusion trial result differs from exclusion metadata')
     return data['exclusions']
 
 
@@ -1079,15 +1101,10 @@ def run(args):
                 frames = probe(args.oracle_bin / 'ffprobe', oracle_path, output, frames=True,
                                diagnostics=diagnostics, stream=case['test'], preparation=preparation)['frames']
                 attempts = record['reference_attempts'] = []
-                layout_registration = None
-                if case['test'] in ('SAODBLK_A', 'SAODBLK_B'):
-                    document = ROOT / 'bench/hevc-conformance/saodblk-layouts.md'
-                    layout_registration = dict(candidate='C1', document=str(document.relative_to(ROOT)),
-                                               sha256=digest(document))
                 confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', oracle_path, output, frames,
                     [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'],
                     diagnostics=diagnostics, stream=case['test'], attempts=attempts,
-                    layout_registration=layout_registration, preparation=preparation)
+                    preparation=preparation)
                 record['reference_packing'] = confirmation
                 accounting = account_packets(case, member, path.read_bytes(), native, packets, pictures)
                 record['oracle_auxiliary_packets'] = accounting['auxiliary_packets']

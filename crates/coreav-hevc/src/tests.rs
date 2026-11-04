@@ -22,7 +22,7 @@ fn padded(mut w: params::tests::Writer) -> Vec<u8> {
     w.bytes()
 }
 
-fn synthetic_sets() -> HeaderParser {
+fn synthetic_parameter_nals() -> [Vec<u8>; 3] {
     let mut w = params::tests::Writer::default();
     w.ue(0);
     w.ue(0);
@@ -51,25 +51,33 @@ fn synthetic_sets() -> HeaderParser {
     w.flag(false);
     w.flag(false);
     let pps = padded(w);
+    [
+        escaped(32, &params::tests::video(false)),
+        escaped(33, &params::tests::sequence(8, false, false, false)),
+        escaped(34, &pps),
+    ]
+}
+
+fn synthetic_sets() -> HeaderParser {
     let mut parser = HeaderParser::new(Limits::default());
-    parser
-        .read_nal(&escaped(32, &params::tests::video(false)), |_| Ok(()))
-        .unwrap();
-    parser
-        .read_nal(
-            &escaped(33, &params::tests::sequence(8, false, false, false)),
-            |_| Ok(()),
-        )
-        .unwrap();
-    parser.read_nal(&escaped(34, &pps), |_| Ok(())).unwrap();
+    for nal in synthetic_parameter_nals() {
+        parser.read_nal(&nal, |_| Ok(())).unwrap();
+    }
     parser
 }
 
 fn idr() -> Vec<u8> {
+    idr_segment(true)
+}
+
+fn idr_segment(first: bool) -> Vec<u8> {
     let mut w = params::tests::Writer::default();
-    w.flag(true);
+    w.flag(first);
     w.flag(false);
     w.ue(0);
+    if !first {
+        w.u(1, 1);
+    }
     w.ue(2);
     w.flag(true);
     w.flag(false);
@@ -79,6 +87,119 @@ fn idr() -> Vec<u8> {
     let mut rbsp = padded(w);
     rbsp.push(0x80);
     escaped(19, &rbsp)
+}
+
+fn replaced_ue(rbsp: &[u8], offset: usize, value: u32) -> Vec<u8> {
+    let stop = rbsp.len() * 8 - rbsp.last().unwrap().trailing_zeros() as usize - 1;
+    let mut bits = Bits::new(rbsp);
+    bits.skip(offset).unwrap();
+    bits.ue(u32::MAX).unwrap();
+    let after = bits.position();
+    let mut writer = params::tests::Writer::default();
+    for at in 0..offset {
+        writer.flag(rbsp[at / 8] & (1 << (7 - at % 8)) != 0);
+    }
+    writer.ue(value);
+    for at in after..stop {
+        writer.flag(rbsp[at / 8] & (1 << (7 - at % 8)) != 0);
+    }
+    padded(writer)
+}
+
+fn two_ctu_parameter_nals() -> [Vec<u8>; 3] {
+    let mut sets = synthetic_parameter_nals();
+    let sps = nal::rbsp(&sets[1], &Limits::default()).unwrap();
+    sets[1] = escaped(33, &replaced_ue(&sps, 8 + 96 + 1 + 3, 128));
+    sets
+}
+
+#[test]
+fn repeated_parameter_sets_between_slice_segments_preserve_the_picture() {
+    let sets = two_ctu_parameter_nals();
+    for repeated in &sets {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in &sets {
+            parser.read_nal(set, |_| Ok(())).unwrap();
+        }
+        parser.read_nal(&idr_segment(true), |_| Ok(())).unwrap();
+        parser.read_nal(repeated, |_| Ok(())).unwrap();
+        let NalInfo::Slice { header, order, .. } =
+            parser.read_nal(&idr_segment(false), |_| Ok(())).unwrap()
+        else {
+            panic!("expected a continuation slice")
+        };
+        assert!(!header.first);
+        assert_eq!(header.address, 1);
+        assert!(order.is_none());
+        let summary = parser.finish(|_| Ok(())).unwrap();
+        assert_eq!((summary.pictures, summary.output_pictures), (1, 1));
+        assert_eq!(summary.independent_slices, 2);
+    }
+}
+
+#[test]
+fn unused_parameter_sets_between_slice_segments_preserve_the_picture() {
+    let sets = two_ctu_parameter_nals();
+    let mut unused = Vec::new();
+    let mut vps = params::tests::video(false);
+    vps[0] |= 1 << 4;
+    let mut changed_vps = params::tests::video(true);
+    changed_vps[0] |= 1 << 4;
+    unused.push([escaped(32, &vps), escaped(32, &changed_vps)]);
+    let sps = nal::rbsp(&sets[1], &Limits::default()).unwrap();
+    unused.push([
+        escaped(33, &replaced_ue(&sps, 8 + 96, 1)),
+        escaped(
+            33,
+            &replaced_ue(&replaced_ue(&sps, 8 + 96 + 1 + 3, 192), 8 + 96, 1),
+        ),
+    ]);
+    let pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
+    unused.push([
+        escaped(34, &replaced_ue(&pps, 0, 1)),
+        escaped(34, &replaced_ue(&replaced_ue(&pps, 11, 2), 0, 1)),
+    ]);
+    for replacements in unused {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in &sets {
+            parser.read_nal(set, |_| Ok(())).unwrap();
+        }
+        parser.read_nal(&idr_segment(true), |_| Ok(())).unwrap();
+        for replacement in replacements {
+            parser.read_nal(&replacement, |_| Ok(())).unwrap();
+        }
+        parser.read_nal(&idr_segment(false), |_| Ok(())).unwrap();
+        let summary = parser.finish(|_| Ok(())).unwrap();
+        assert_eq!((summary.pictures, summary.output_pictures), (1, 1));
+        assert_eq!(summary.independent_slices, 2);
+    }
+}
+
+#[test]
+fn changed_active_parameter_sets_require_a_new_first_slice() {
+    let sets = two_ctu_parameter_nals();
+    let changed_sps = params::tests::sequence(8, false, false, true);
+    let pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
+    for changed in [
+        escaped(32, &params::tests::video(true)),
+        escaped(33, &replaced_ue(&changed_sps, 8 + 96 + 1 + 3, 128)),
+        escaped(34, &replaced_ue(&pps, 11, 2)),
+    ] {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in &sets {
+            parser.read_nal(set, |_| Ok(())).unwrap();
+        }
+        parser.read_nal(&idr_segment(true), |_| Ok(())).unwrap();
+        parser.read_nal(&changed, |_| Ok(())).unwrap();
+        assert_eq!(
+            parser.read_nal(&idr_segment(false), |_| Ok(())),
+            Err(Error::InvalidData("missing_first_slice"))
+        );
+        assert_eq!(
+            parser.finish(|_| Ok(())),
+            Err(Error::InvalidData("parser_failed"))
+        );
+    }
 }
 
 #[test]

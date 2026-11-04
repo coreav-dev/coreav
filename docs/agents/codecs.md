@@ -39,6 +39,7 @@ H.264, AAC, Opus, VP9, AC-3, MP3, AudioToolbox behavior, and HEVC planning.
 
 | Rule | Enforced by |
 |---|---|
+| HEVC parameter-set NALs between slice segments retain the current picture for identical active repeats and changes to unused IDs; a changed used set requires a new first slice | `HeaderParser` owns active PPS/SPS/VPS IDs and fixed-slot full-RBSP identities. The repeated-set, unused-ID replacement and changed-active-set wire regressions in `coreav-hevc/src/tests.rs` exercise all three set types. Ownership centralizes invalidation; types alone cannot establish external NAL content or ordering |
 | Serial tile, WPP and dependent-segment traversal and entropy state precede universal intra-picture hash gates, independently of parallel scheduling | Not enforced: review of milestone dependencies against H.265 clauses 9.3.1 and 9.3.2.1. The HEVC plan puts serial semantics in milestone 2 and requires coverage by G3; milestone 6 adds scheduling only. Types cannot establish the dependencies of a prose plan; the future conformance harness must enforce its feature coverage |
 
 ## VP9 pixel reconstruction

@@ -93,6 +93,8 @@ pub struct Summary {
 #[derive(Clone, Copy)]
 struct PictureState {
     pps_id: u32,
+    sps_id: u32,
+    vps_id: u32,
     nal: NalHeader,
     poc_lsb: u32,
     output: bool,
@@ -110,7 +112,9 @@ pub struct HeaderParser {
     vps_hash: [[u8; 32]; 16],
     active_vps_hash: Option<[u8; 32]>,
     sps: [Option<Sps>; 16],
+    sps_hash: [[u8; 32]; 16],
     pps: [Option<Pps>; 64],
+    pps_hash: [[u8; 32]; 64],
     picture: Option<PictureState>,
     summary: Summary,
     failed: bool,
@@ -126,9 +130,11 @@ impl HeaderParser {
             limits,
             vps: core::array::from_fn(|_| None),
             sps: core::array::from_fn(|_| None),
+            sps_hash: [[0; 32]; 16],
             vps_hash: [[0; 32]; 16],
             active_vps_hash: None,
             pps: core::array::from_fn(|_| None),
+            pps_hash: [[0; 32]; 64],
             picture: None,
             summary: Summary::default(),
             failed: false,
@@ -207,11 +213,15 @@ impl HeaderParser {
                     .vps
                     .get_mut(id as usize)
                     .ok_or(Error::InvalidData("vps_id"))? = Some(set);
-                *self
+                let hash = Sha256::digest(&rbsp).into();
+                let previous = self
                     .vps_hash
                     .get_mut(id as usize)
-                    .ok_or(Error::InvalidData("vps_id"))? = Sha256::digest(&rbsp).into();
-                self.picture = None;
+                    .ok_or(Error::InvalidData("vps_id"))?;
+                if *previous != hash && self.picture.is_some_and(|picture| picture.vps_id == id) {
+                    self.picture = None;
+                }
+                *previous = hash;
                 NalInfo::Vps(id)
             }
             33 => {
@@ -221,7 +231,15 @@ impl HeaderParser {
                     .sps
                     .get_mut(id as usize)
                     .ok_or(Error::InvalidData("sps_id"))? = Some(set);
-                self.picture = None;
+                let hash = Sha256::digest(&rbsp).into();
+                let previous = self
+                    .sps_hash
+                    .get_mut(id as usize)
+                    .ok_or(Error::InvalidData("sps_id"))?;
+                if *previous != hash && self.picture.is_some_and(|picture| picture.sps_id == id) {
+                    self.picture = None;
+                }
+                *previous = hash;
                 NalInfo::Sps(id)
             }
             34 => {
@@ -231,7 +249,15 @@ impl HeaderParser {
                     .pps
                     .get_mut(id as usize)
                     .ok_or(Error::InvalidData("pps_id"))? = Some(set);
-                self.picture = None;
+                let hash = Sha256::digest(&rbsp).into();
+                let previous = self
+                    .pps_hash
+                    .get_mut(id as usize)
+                    .ok_or(Error::InvalidData("pps_id"))?;
+                if *previous != hash && self.picture.is_some_and(|picture| picture.pps_id == id) {
+                    self.picture = None;
+                }
+                *previous = hash;
                 NalInfo::Pps(id)
             }
             0..=9 | 16..=21 => {
@@ -275,6 +301,8 @@ impl HeaderParser {
                     }
                     self.picture = Some(PictureState {
                         pps_id: header.pps_id,
+                        sps_id: p.sps_id,
+                        vps_id: s.vps_id,
                         nal,
                         poc_lsb: header
                             .poc_lsb
