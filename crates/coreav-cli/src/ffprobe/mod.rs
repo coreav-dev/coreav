@@ -10,7 +10,7 @@
 //! writer the command chose.
 
 pub mod args;
-mod audio;
+pub(crate) mod audio;
 mod frames;
 mod iso;
 mod iso_meta;

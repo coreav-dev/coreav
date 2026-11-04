@@ -1,5 +1,5 @@
 mod flac;
-mod wav;
+pub(crate) mod wav;
 
 use super::args::Container;
 use super::{Packet, PacketSource, Probed};
