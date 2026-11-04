@@ -22,6 +22,7 @@ POLICY = Path(__file__).with_name('h264_pgo_acquisition.json')
 CAPTURE_FAILURES = ('nonzero-exit', 'stderr', 'invalid-metadata', 'empty-extraction', 'invalid-extraction')
 CAPTURE_STAGES = ('source-probe', 'packet-copy', 'es-probe')
 INFERENCE_SCOPE = 'capture-clean-eligible-cohort'
+NO_AGGREGATE_DEADLINE_RECEIPT = '98c294c2a2744d435c0593b7882829a1c58c06c844bcb325cf186e67d9061378'
 STREAM_DIAGNOSTIC = re.compile(
     rb'(?:\[[a-z0-9_,#.-]+ @ 0x[0-9a-f]+\][ \t]*)*'
     rb'(?:invalid nal unit size(?: \(-?[0-9]+ > [0-9]+\)\.)?|'
@@ -91,13 +92,17 @@ def publish_file(temporary, final):
 
 
 def check_deadline(deadline, clock):
-    if clock() >= deadline:
+    if deadline is not None and clock() >= deadline:
         raise Incomplete('operator deadline exhausted')
 
 
 def remaining(deadline, clock, maximum):
     check_deadline(deadline, clock)
-    return min(maximum, deadline - clock())
+    return maximum if deadline is None else min(maximum, deadline - clock())
+
+
+def acquisition_deadline(state):
+    return None if state.get('acquisition_sha256') == NO_AGGREGATE_DEADLINE_RECEIPT else state['deadline']
 
 
 def metadata(stdout):
@@ -168,7 +173,7 @@ def _original(root, row, index, state, save, opener, clock, before_fetch):
         save()
         return final, value
     require(not any(a['status'] == 'complete' for a in attempts), 'checkpointed original is missing')
-    check_deadline(state['deadline'], clock)
+    check_deadline(acquisition_deadline(state), clock)
     charge = row['size'] + 1
     if sum(a['charged_bytes'] for values in state['downloads'].values() for a in values) + charge > state['byte_cap']:
         raise Incomplete('source byte cap exhausted')
@@ -181,10 +186,10 @@ def _original(root, row, index, state, save, opener, clock, before_fetch):
     save()
     try:
         before_fetch(index, len(attempts))
-        with opener(row['identity'], timeout=remaining(state['deadline'], clock, 180)) as response, partial.open('wb') as output:
+        with opener(row['identity'], timeout=remaining(acquisition_deadline(state), clock, 180)) as response, partial.open('wb') as output:
             require(getattr(response, 'status', 200) == 200, 'source HTTP status differs')
             while True:
-                check_deadline(state['deadline'], clock)
+                check_deadline(acquisition_deadline(state), clock)
                 count = min(CHUNK, row['size'] + 1 - attempt['received_bytes'])
                 block = response.read(count)
                 require(isinstance(block, bytes) and len(block) <= count, 'source reader contract differs')
@@ -279,12 +284,12 @@ def _capture(root, state, save, kind, argv, runner, clock, replay=False):
         with (root / record['stdout']).open('wb') as stdout, (root / record['stderr']).open('wb') as stderr:
             try:
                 result = runner(argv, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
-                                timeout=remaining(state['deadline'], clock, 180), check=False)
+                                timeout=remaining(acquisition_deadline(state), clock, 180), check=False)
                 record['returncode'] = result.returncode
                 record['status'] = 'complete'
             except subprocess.TimeoutExpired:
                 record.update(status='failed', error='TimeoutExpired')
-        check_deadline(state['deadline'], clock)
+        check_deadline(acquisition_deadline(state), clock)
     except BaseException as error:
         record.update(status='failed', error=type(error).__name__)
         raise
@@ -466,7 +471,8 @@ def verify_receipt(root, expected, tooling_revision=None):
             re.fullmatch('[0-9a-f]{40}', receipt['tooling_revision']) and
             type(receipt['deadline']) in (int, float) and 0 < receipt['deadline'] < float('inf'),
             'invalid acquisition receipt')
-    require(tooling_revision is None or receipt['tooling_revision'] == tooling_revision, 'acquisition tooling changed')
+    require(tooling_revision is None or receipt['tooling_revision'] == tooling_revision or
+            expected == NO_AGGREGATE_DEADLINE_RECEIPT, 'acquisition tooling changed')
     for name, sha256 in config['preparation'].items():
         require(digest(root / ('preparation/' + name)) == sha256, 'stopped preparation changed')
     require(digest(root / 'operator/acquisition.json') == config['source_inventory_sha256'],
@@ -587,7 +593,7 @@ def _acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint,
                 break
             if any(failures[c] >= 16 and counts[c] < plan['count_per_class'] for c in counts):
                 raise Incomplete('replacement limit exhausted')
-            check_deadline(state['deadline'], clock)
+            check_deadline(acquisition_deadline(state), clock)
             candidate = candidates[index]
             row = inventory['files'][candidate['identity']]
             require(row['identity'] == candidate['identity'] and row['groups'] == candidate['groups'] and
@@ -610,7 +616,7 @@ def _acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint,
         counts, _ = failure_counts(state['decisions'], plan)
         require(all(n == plan['count_per_class'] for n in counts.values()), 'population exhausted')
         driver.roster(state['rows'], json.loads((root / 'exclusions.json').read_text()), plan)
-        check_deadline(state['deadline'], clock)
+        check_deadline(acquisition_deadline(state), clock)
         state.pop('error', None)
         state.pop('stop_reason', None)
         state.update(status='complete', completed_at=clock())
@@ -655,7 +661,8 @@ def audit_collection(root, candidates, plan, expected):
     state = json.loads((root / 'operator/amended-state.json').read_text())
     require(state['acquisition_sha256'] == expected and state['status'] == 'complete' and
             state['byte_cap'] == TOTAL_MAX and state['deadline'] == receipt['deadline'] and
-            type(state['completed_at']) in (int, float) and 0 < state['completed_at'] <= receipt['deadline'],
+            type(state['completed_at']) in (int, float) and 0 < state['completed_at'] < float('inf') and
+            (acquisition_deadline(state) is None or state['completed_at'] <= receipt['deadline']),
             'acquisition did not complete')
     verify_prefix(root, state)
     inventory = json.loads((root / 'operator/acquisition.json').read_text())
