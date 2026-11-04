@@ -37,7 +37,10 @@ pub struct PictureInfo {
 
 /// Inspection result of one complete NAL unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "One transient Copy result keeps bounded reference arrays inline without per-slice allocation"
+)]
 pub enum NalInfo {
     /// A fully validated VPS replaced its fixed slot.
     Vps(u32),

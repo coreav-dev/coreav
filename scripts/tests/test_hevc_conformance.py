@@ -17,6 +17,321 @@ runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 
 
+class OracleDiagnostics(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = pathlib.Path(self.temporary.name)
+
+    def proof(self, test='RPS_C', message='SPS 0 does not exist.', stage='packets'):
+        identity = runner.DIAGNOSTIC_STREAMS[test][0]
+        case, member = dict(test=test), dict(sha256=identity)
+        inventory = dict(references=[dict(layout='whole_output_yuv_file', md5='f' * 32, source='published.md5')])
+        summary = dict(complete=True, output_pictures=1)
+        comparison = dict(output_pictures=1, reference_count=dict(value=1, method='published_output_count',
+                                                                 source='published count', published=True))
+        confirmation = dict(complete=True, exit_code=0, progress_complete=True, layout='whole_output_yuv_file',
+                            md5='f' * 32, bitstream_sha256=identity, output_pictures=1, pixel_format='yuv420p')
+        diagnostics = [runner.stderr_line('[hevc @ 0xABcd123] ' + message + '\n', test, stage, exit_code=0)]
+        accounting = dict(auxiliary_packets=[], picture_packets=[])
+        if test == 'DELTAQP_A':
+            accounting['auxiliary_packets'] = [dict(packet_index=1, pos=6, size=12, nal_indices=[1, 2],
+                nal_types=[36, 37], terminal=True, contains_slice=False, independent_annex_b=True,
+                native_nals_agree=True, bitstream_sha256=identity)]
+        return [case, member, inventory, summary, comparison, confirmation, diagnostics, accounting]
+
+    def test_closed_message_classification_retains_exact_raw_pointer_and_all_proofs(self):
+        fixture = self.proof()
+        result = runner.classify_diagnostics(*fixture)
+        item, = result
+        self.assertEqual(item['raw_line'], '[hevc @ 0xABcd123] SPS 0 does not exist.\n')
+        self.assertEqual(item['context_prefix'], '[hevc @ 0xABcd123] ')
+        self.assertEqual(item['message'], 'SPS 0 does not exist.')
+        self.assertEqual(item['classification'], 'complete_published_reference')
+        self.assertEqual(item['proof']['md5_source'], 'published.md5')
+        self.assertEqual(item['proof']['published_md5'], item['proof']['oracle_md5'])
+        self.assertEqual(item['proof']['reference_count']['source'], 'published count')
+
+    def test_every_registered_line_is_literal_and_stream_bound(self):
+        for test, (_, messages) in runner.DIAGNOSTIC_STREAMS.items():
+            for message in messages:
+                fixture = self.proof(test, message)
+                self.assertEqual(runner.classify_diagnostics(*fixture)[0]['message'], message)
+                for changed in (message + ' ', message + '.', message.lower(), 'unseen diagnostic'):
+                    if changed == message:
+                        continue
+                    with self.subTest(test=test, message=changed), self.assertRaises(ValueError):
+                        runner.classify_diagnostics(*self.proof(test, changed))
+        fixture = self.proof()
+        fixture[0]['test'] = 'SAODBLK_A'
+        with self.assertRaises(ValueError):
+            runner.classify_diagnostics(*fixture)
+        fixture = self.proof()
+        fixture[1]['sha256'] = fixture[5]['bitstream_sha256'] = 'a' * 64
+        with self.assertRaisesRegex(ValueError, 'unregistered exact'):
+            runner.classify_diagnostics(*fixture)
+
+    def test_nonzero_incomplete_wrong_hash_or_native_reference_count_cannot_classify(self):
+        for update in (dict(exit_code=1), dict(complete=False), dict(progress_complete=False),
+                       dict(md5='0' * 32), dict(output_pictures=2), dict(bitstream_sha256='a' * 64),
+                       dict(layout='per_picture')):
+            fixture = self.proof()
+            fixture[5].update(update)
+            with self.subTest(update=update), self.assertRaises(ValueError):
+                runner.classify_diagnostics(*fixture)
+            self.assertEqual(fixture[6][0]['classification'], 'unclassified')
+        for index, update in ((3, dict(complete=False)), (3, dict(output_pictures=2)),
+                              (4, dict(output_pictures=2)), (4, dict(reference_count=dict(value=2)))):
+            fixture = self.proof()
+            fixture[index].update(update)
+            with self.subTest(index=index, update=update), self.assertRaises(ValueError):
+                runner.classify_diagnostics(*fixture)
+
+    def test_repeated_messages_and_unseen_decode_only_lines_are_not_wildcards(self):
+        for message in ('    Last message repeated 2 times', 'Could not find ref with POC 999',
+                        'missing picture in access unit with size 11', 'Error parsing NAL unit #0.'):
+            fixture = self.proof('NUT_A', message, 'frames')
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, 'unregistered exact'):
+                runner.classify_diagnostics(*fixture)
+        fixture = self.proof()
+        fixture[6].append(runner.stderr_line('    Last message repeated 1 times\n', 'RPS_C', 'reference-md5'))
+        with self.assertRaises(ValueError):
+            runner.classify_diagnostics(*fixture)
+        self.assertTrue(all(d['classification'] == 'unclassified' for d in fixture[6]))
+
+    def test_only_the_exact_hevc_transport_prefix_is_removed(self):
+        for raw in ('[hevc @ opaque] SPS 0 does not exist.\n', '[HEVC @ 0x123] SPS 0 does not exist.\n',
+                    '[hevc @ 0x123]  SPS 0 does not exist.\n', 'SPS 0 does not exist.\n',
+                    '[hevc @ 0x123] SPS 0 does not exist. trailing\n'):
+            fixture = self.proof()
+            fixture[6] = [runner.stderr_line(raw, 'RPS_C', 'packets', exit_code=0)]
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                runner.classify_diagnostics(*fixture)
+        fixture = self.proof()
+        fixture[6][0]['message'] = 'invented'
+        with self.assertRaisesRegex(ValueError, 'raw line differs'):
+            runner.classify_diagnostics(*fixture)
+
+    def test_terminal_probe_line_needs_exact_packet_size_types_and_no_hidden_slice(self):
+        message = 'missing picture in access unit with size 12'
+        fixture = self.proof('DELTAQP_A', message)
+        self.assertEqual(runner.classify_diagnostics(*fixture)[0]['proof']['packet']['nal_types'], [36, 37])
+        for update in (dict(size=11), dict(nal_types=[36, 1, 37]), dict(nal_types=[36, 39]),
+                       dict(nal_types=[]), dict(contains_slice=True), dict(terminal=False),
+                       dict(native_nals_agree=False), dict(independent_annex_b=False)):
+            fixture = self.proof('DELTAQP_A', message)
+            fixture[7]['auxiliary_packets'][0].update(update)
+            with self.subTest(update=update), self.assertRaises(ValueError):
+                runner.classify_diagnostics(*fixture)
+        for stage in ('reference-md5', 'unknown'):
+            with self.subTest(stage=stage), self.assertRaises(ValueError):
+                runner.classify_diagnostics(*self.proof('DELTAQP_A', message, stage))
+
+    def test_progress_tag_cannot_hide_an_unknown_message(self):
+        fixture = self.proof()
+        fixture[6] = [runner.stderr_line('unknown message\n', 'RPS_C', 'reference-md5', 'progress')]
+        with self.assertRaises(ValueError):
+            runner.classify_diagnostics(*fixture)
+
+    def packet_fixture(self, tail=b'\0\0\0\1\x48\1\0\0\0\1\x4a\1'):
+        data = b'\0\0\1\x26\1\x80' + tail
+        identity = runner.hashlib.sha256(data).hexdigest()
+        native = self.root / 'native.jsonl'
+        nals = [dict(nal, kind='nal', first_slice_segment_in_pic_flag=nal['nal_type'] < 32)
+                for nal in runner.annex_b(data)]
+        native.write_text(''.join(json.dumps(nal) + '\n' for nal in nals))
+        packets = dict(packets=[dict(pos='0', size='6'), dict(pos='6', size=str(len(tail)))])
+        return [dict(test='DELTAQP_A'), dict(sha256=identity), data, native, packets, [dict(offset=3)]]
+
+    def test_terminal_packet_independent_map_does_not_count_it_as_a_picture(self):
+        fixture = self.packet_fixture()
+        with mock.patch.dict(runner.DIAGNOSTIC_STREAMS,
+                             {'DELTAQP_A': (fixture[1]['sha256'], runner.DIAGNOSTIC_STREAMS['DELTAQP_A'][1])}):
+            result = runner.account_packets(*fixture)
+        self.assertEqual(result['picture_packets'], fixture[4]['packets'][:1])
+        packet, = result['auxiliary_packets']
+        self.assertEqual(packet['nal_types'], [36, 37])
+        self.assertEqual(packet['pos'], 6)
+        self.assertEqual(packet['size'], 12)
+        self.assertTrue(packet['native_nals_agree'])
+
+    def test_terminal_packet_rejects_hidden_slice_wrong_types_size_and_native_map(self):
+        for tail in (b'\0\0\0\1\x48\1\0\0\0\1\x02\1',
+                     b'\0\0\0\1\x48\1\0\0\0\1\x4e\1',
+                     b'\0\0\1\x48\1\0\0\1\x4a\1'):
+            fixture = self.packet_fixture(tail)
+            with mock.patch.dict(runner.DIAGNOSTIC_STREAMS, {'DELTAQP_A': (fixture[1]['sha256'], {})}), \
+                 self.subTest(tail=tail), self.assertRaises(ValueError):
+                runner.account_packets(*fixture)
+        fixture = self.packet_fixture()
+        rows = [json.loads(line) for line in fixture[3].read_text().splitlines()]
+        rows[-1]['nal_type'] = 1
+        fixture[3].write_text(''.join(json.dumps(row) + '\n' for row in rows))
+        with self.assertRaisesRegex(ValueError, 'native NAL framing'):
+            runner.account_packets(*fixture)
+
+    def test_packet_spans_must_cover_all_bytes_without_overlap_or_hidden_tail(self):
+        for changed in ([dict(pos='0', size='6'), dict(pos='7', size='11')],
+                        [dict(pos='0', size='7'), dict(pos='6', size='12')],
+                        [dict(pos='0', size='6'), dict(pos='6', size='11')]):
+            fixture = self.packet_fixture()
+            fixture[4]['packets'] = changed
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                runner.account_packets(*fixture)
+
+    def test_probe_stays_strict_without_explicit_collection_and_retains_failed_raw_lines(self):
+        out, err = self.root / 'packets.stdout', self.root / 'packets.stderr'
+        out.write_text('{"packets": []}')
+        raw = '[hevc @ 0x123] SPS 0 does not exist.\n'
+        err.write_text(raw)
+        with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            with self.assertRaisesRegex(ValueError, 'oracle failed'):
+                runner.probe('ffprobe', 'a.bit', self.root)
+            diagnostics = []
+            self.assertEqual(runner.probe('ffprobe', 'a.bit', self.root,
+                                          diagnostics=diagnostics, stream='RPS_C'), dict(packets=[]))
+            self.assertEqual(diagnostics[0]['raw_line'], raw)
+            self.assertEqual(diagnostics[0]['classification'], 'unclassified')
+            self.assertIn('repeat+error', child.call_args.args[0])
+        with mock.patch.object(runner, 'child', return_value=(1, out, err)):
+            diagnostics = []
+            with self.assertRaises(ValueError):
+                runner.probe('ffprobe', 'a.bit', self.root, diagnostics=diagnostics, stream='RPS_C')
+            self.assertEqual(diagnostics[0]['raw_line'], raw)
+
+    def test_reference_collection_requires_real_complete_progress_and_preserves_all_lines(self):
+        source = self.root / 'a.bit'
+        source.write_bytes(b'bitstream')
+        out, err = self.root / 'reference.stdout', self.root / 'reference.stderr'
+        out.write_text('MD5=' + 'f' * 32 + '\n')
+        raw = '[hevc @ 0x123] SPS 0 does not exist.\n'
+        progress = 'frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n'
+        err.write_text(raw + progress)
+        frames = [dict(pix_fmt='yuv420p')]
+        references = [dict(layout='whole_output_yuv_file', md5='f' * 32)]
+        with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
+            with self.assertRaises(ValueError):
+                runner.confirm_reference('ffmpeg', source, self.root, frames, references)
+            diagnostics = []
+            confirmation = runner.confirm_reference('ffmpeg', source, self.root, frames, references,
+                                                    diagnostics=diagnostics, stream='RPS_C')
+            self.assertTrue(confirmation['progress_complete'])
+            self.assertEqual(''.join(item['raw_line'] for item in diagnostics), raw + progress)
+            self.assertEqual(diagnostics[0]['context_prefix'], '[hevc @ 0x123] ')
+            self.assertTrue(all(item['classification'] == 'unclassified' for item in diagnostics))
+            self.assertIn('repeat+error', child.call_args.args[0])
+            for text in ('frame=1\nprogress=end\n', progress.replace('frame=1', 'frame=2'),
+                         progress.replace('progress=end', 'progress=continue'),
+                         progress.replace('drop_frames=0', 'drop_frames=1')):
+                err.write_text(raw + text)
+                with self.subTest(progress=text), self.assertRaises(ValueError):
+                    runner.confirm_reference('ffmpeg', source, self.root, frames, references,
+                                              diagnostics=[], stream='RPS_C')
+
+    def test_compare_headers_has_no_published_reference_dependency_and_defaults_to_strict_framing(self):
+        fixture = Conformance().fixture()
+        with mock.patch.object(runner, 'published_counts', side_effect=AssertionError('published path')):
+            result = runner.compare_headers(*fixture[2:])
+        self.assertEqual(result['coded_pictures'], 1)
+        self.assertEqual(result['output_pictures'], 1)
+        self.assertEqual(result['oracle_auxiliary_packets'], [])
+        packets = copy.deepcopy(fixture[5])
+        packets['packets'].append(dict(pos='10', size='12'))
+        with self.assertRaisesRegex(ValueError, 'access-unit count'):
+            runner.compare_headers(*fixture[2:5], packets, fixture[6])
+        accounting = dict(picture_packets=packets['packets'][:1],
+                          auxiliary_packets=[dict(size=12, nal_types=[36, 37])])
+        result = runner.compare_headers(*fixture[2:5], packets, fixture[6], packet_accounting=accounting)
+        self.assertEqual(result['oracle_auxiliary_packets'], accounting['auxiliary_packets'])
+
+    def test_failed_canonical_reference_attempt_preserves_observed_md5_count_command_and_registration(self):
+        out, err = self.root / 'reference-md5.stdout', self.root / 'reference-md5.stderr'
+        out.write_text('MD5=' + '0' * 32 + '\n')
+        err.write_text('frame=500\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+        registration = dict(candidate='C1', document='bench/hevc-conformance/saodblk-layouts.md', sha256='a' * 64)
+        attempts, diagnostics = [], []
+        with mock.patch.object(runner, 'child', return_value=(0, out, err)), \
+             self.assertRaisesRegex(ValueError, 'published output MD5 differs'):
+            runner.confirm_reference('ffmpeg', 'input.bit', self.root, [dict(pix_fmt='yuv420p')] * 500,
+                [dict(layout='whole_output_yuv_file', md5='f' * 32)], diagnostics=diagnostics,
+                stream='SAODBLK_A', attempts=attempts, layout_registration=registration)
+        attempt, = attempts
+        self.assertEqual(attempt['candidate'], 'C1')
+        self.assertEqual(attempt['layout_registration'], registration)
+        self.assertEqual(attempt['status'], 'md5_mismatch')
+        self.assertEqual(attempt['expected_md5'], 'f' * 32)
+        self.assertEqual(attempt['observed_md5'], '0' * 32)
+        self.assertEqual(attempt['exit_code'], 0)
+        self.assertEqual(attempt['output_pictures'], 500)
+        self.assertTrue(attempt['progress_complete'])
+        self.assertTrue(attempt['count_matches_frame_metadata'])
+        self.assertEqual(attempt['layout'], 'whole_output_yuv_file')
+        self.assertIn('repeat+error', attempt['command'])
+        self.assertIn('-noautoscale', attempt['command'])
+        self.assertEqual(attempt['stdout_capture'], 'reference-md5.stdout')
+        self.assertTrue(all(d['classification'] == 'unclassified' for d in diagnostics))
+
+    def test_failed_nonzero_or_incomplete_reference_attempt_never_claims_confirmation(self):
+        out, err = self.root / 'reference.stdout', self.root / 'reference.stderr'
+        out.write_text('MD5=' + 'f' * 32 + '\n')
+        for code, progress in ((1, 'frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n'),
+                               (0, 'frame=1\ndup_frames=0\ndrop_frames=0\nprogress=continue\n')):
+            err.write_text(progress)
+            attempts = []
+            with mock.patch.object(runner, 'child', return_value=(code, out, err)), self.assertRaises(ValueError):
+                runner.confirm_reference('ffmpeg', 'input.bit', self.root, [dict(pix_fmt='yuv420p')],
+                    [dict(layout='whole_output_yuv_file', md5='f' * 32)], attempts=attempts)
+            self.assertEqual(attempts[0]['status'], 'incomplete')
+            self.assertEqual(attempts[0]['exit_code'], code)
+            self.assertEqual(attempts[0]['output_pictures'], 1)
+            if code == 0:
+                self.assertFalse(attempts[0]['progress_complete'])
+
+    def test_raw_diagnostics_preserve_line_endings_and_non_utf8_bytes(self):
+        path = self.root / 'stderr'
+        raw = b'[hevc @ 0x123] SPS 0 does not exist.\r\nunknown\xff\n'
+        path.write_bytes(raw)
+        lines = runner.stderr_lines(path)
+        self.assertEqual(''.join(lines).encode('utf-8', errors='surrogateescape'), raw)
+        self.assertTrue(lines[0].endswith('\r\n'))
+
+    def test_stage_nonzero_exit_cannot_be_classified_using_a_successful_full_decode(self):
+        fixture = self.proof()
+        fixture[6][0]['exit_code'] = 1
+        with self.assertRaises(ValueError):
+            runner.classify_diagnostics(*fixture)
+
+    def test_combined_census_keeps_official_denominators_and_labels_synthetic_sources(self):
+        official = [dict(test='official', status='accounted', streams=[dict(name='a.bit', sha256='a' * 64,
+            status='headers_checked', intra_candidates=[dict(gate='G3', bit_depth=8)])])]
+        synthetic = dict(complete=True, streams=[dict(test='SYNTHETIC_' + str(index), source_kind='synthetic',
+            sha256=str(index) * 64, status='headers_checked',
+            reference_count=dict(method='synthetic_registered_recipe', published=False, value=2),
+            intra_candidates=[dict(gate='G2', bit_depth=10)]) for index in range(4)])
+        absent = runner.census_result(official, 'r', 'p', {})
+        self.assertIn(dict(gate='G2', bit_depth=10), absent['missing_intra_sets'])
+        result = runner.census_result(official, 'r', 'p', {}, synthetic)
+        self.assertEqual(len(result['archives']), 1)
+        self.assertEqual(result['distinct_bitstreams'], 1)
+        self.assertEqual(result['synthetic_bitstreams'], 4)
+        self.assertEqual(result['synthetic_census'], synthetic)
+        self.assertNotIn(dict(gate='G2', bit_depth=10), result['missing_intra_sets'])
+        self.assertEqual(result['reference_count_methods']['synthetic_registered_recipe'], 4)
+        rows = [row for row in result['reference_count_sources'] if row['source_kind'] == 'synthetic']
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(row['reference_count']['published'] is False for row in rows))
+        self.assertFalse(result['complete'])
+        incomplete = runner.census_result(official, 'r', 'p', {}, dict(synthetic, complete=False))
+        self.assertIn(dict(gate='G2', bit_depth=10), incomplete['missing_intra_sets'])
+
+    def test_run_cli_accepts_optional_synthetic_data_without_changing_other_modes(self):
+        args = ['hevc_conformance.py', 'run', '--parser', 'parser', '--data', 'data', '--out', 'out',
+                '--oracle-bin', 'oracle', '--synthetic-data', 'synthetic-data']
+        with mock.patch.object(sys, 'argv', args), mock.patch.object(runner, 'run') as run:
+            self.assertEqual(runner.main(), 0)
+        self.assertEqual(run.call_args.args[0].synthetic_data, pathlib.Path('synthetic-data'))
+
+
 class Conformance(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -442,6 +757,21 @@ class Conformance(unittest.TestCase):
         result = runner.census_result([record, dict(record, test='duplicate')], 'a' * 64, 'b' * 64, {})
         self.assertEqual(len(result['duplicate_bitstreams']['f' * 64]), 2)
 
+    def test_single_picture_file_hash_is_the_published_picture_hash_only_after_confirmation(self):
+        inventory = dict(members=[dict(name='a.md5', role='reference_hash', sha256='b' * 64)],
+                         references=[dict(source='a.md5', layout='whole_output_yuv_file', md5='a' * 32)])
+        frames = [dict(width=2, height=2, pix_fmt='yuv420p')]
+        confirmation = dict(complete=True, output_pictures=1, md5='a' * 32)
+        reference, = runner.reference_frames(None, inventory, frames, confirmation)
+        self.assertEqual(reference['md5'], inventory['references'][0]['md5'])
+        self.assertEqual(reference['source_scope'], 'published_whole_output_single_picture')
+        self.assertEqual(reference['source_sha256'], 'b' * 64)
+        self.assertEqual(runner.reference_frames(None, inventory, frames * 2, confirmation), [])
+        for changed in [None, dict(confirmation, complete=False), dict(confirmation, output_pictures=2),
+                        dict(confirmation, md5='c' * 32)]:
+            with self.subTest(confirmation=changed), self.assertRaises(ValueError):
+                runner.reference_frames(None, inventory, frames, changed)
+
     def test_download_rejects_nonofficial_urls_before_network_access(self):
         with mock.patch.object(runner.urllib.request, 'urlopen') as open_url:
             for url in ['https://example.com/test.zip', 'http://www.itu.int/test.zip']:
@@ -459,6 +789,17 @@ class Conformance(unittest.TestCase):
         self.assertNotIn('R2_SECRET_ACCESS_KEY', keys)
         self.assertNotIn('CAPY_API_KEY', keys)
         self.assertNotIn('HOME', keys)
+
+    def test_frame_oracle_retains_exact_conformance_crop(self):
+        stdout, stderr = self.root / 'frames.json', self.root / 'frames.stderr'
+        stdout.write_text('{"frames": []}')
+        stderr.write_text('')
+        source = self.root / 'stream.bit'
+        with mock.patch.object(runner, 'child', return_value=(0, stdout, stderr)) as child:
+            runner.probe(self.root / 'ffprobe', source, self.root, frames=True)
+        command = child.call_args.args[0]
+        self.assertEqual(command[command.index('-flags') + 1], 'unaligned')
+        self.assertLess(command.index('-flags'), command.index(source))
 
     def test_output_order_uses_frame_packet_positions_when_the_oracle_exposes_them(self):
         fixture = list(self.fixture())

@@ -1,4 +1,3 @@
-# cargo-deny configuration for the fuzz project only.
 [graph]
 all-features = true
 

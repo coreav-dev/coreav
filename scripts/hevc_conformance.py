@@ -2,6 +2,7 @@
 """Bounded, data-only HEVC acquisition and milestone-1 census. No timing runs."""
 
 import argparse
+import bisect
 import collections
 import contextlib
 import hashlib
@@ -37,6 +38,31 @@ TEXT_CAP = 256 << 10
 CAPTURE_CAP = 64 << 20
 TIMEOUT = 300
 BITSTREAM_EXTENSIONS = {'.bit', '.bin', '.265', '.h265', '.hevc'}
+DIAGNOSTIC_STREAMS = {
+    'DELTAQP_A': ('1274e3e308dfe684b38a88f8b3a2845b84f57492b0b02aaecbe5dc29ca8ed532', {
+        'missing picture in access unit with size 12': 'terminal_eos_eob_packet'}),
+    'NUT_A': ('d87dcae6353a680ff1c816395b578afae3ed9f1a88b56b07a24e62333e0621b7', {
+        'Could not find ref with POC 4': 'complete_published_reference',
+        'Could not find ref with POC -6': 'complete_published_reference',
+        'Could not find ref with POC -16': 'complete_published_reference'}),
+    'RPS_C': ('b0aa060407b3ad9a558a1212645a1bf137187f2dce8bf47f312efa1bd19ded6e', {
+        'SPS 0 does not exist.': 'complete_published_reference'}),
+    'RPS_D': ('e818e14f50bf73364b405ca3b07c407fdf191bcb2293552d3af8fc3bfcd1aca0', {
+        'Could not find ref with POC 245': 'complete_published_reference',
+        'Could not find ref with POC 235': 'complete_published_reference',
+        'Could not find ref with POC 1178': 'complete_published_reference',
+        'Could not find ref with POC 1320': 'complete_published_reference'}),
+    'VPSSPSPPS_A': ('8501a5e5f0f191d3810a7aecab43aacac1fcc28f08cb3731158cc48a89501a27', {
+        'SPS 2 does not exist.': 'complete_published_reference',
+        'SPS 4 does not exist.': 'complete_published_reference',
+        'VPS 1 does not exist': 'complete_published_reference',
+        'SPS 1 does not exist.': 'complete_published_reference',
+        'SPS 3 does not exist.': 'complete_published_reference',
+        'SPS 6 does not exist.': 'complete_published_reference',
+        'PPS id out of range: 2': 'complete_published_reference',
+        'PPS id out of range: 1': 'complete_published_reference'}),
+}
+TERMINAL_PACKET_SIZES = {'DELTAQP_A': 12, 'NUT_A': 11}
 
 
 def require(condition, message):
@@ -506,15 +532,149 @@ def native_rows(path, data):
     return summary, pictures, outputs
 
 
-def probe(binary, path, directory, frames=False):
+def stderr_line(raw, stream, stage, kind='diagnostic', exit_code=None):
+    line = raw.removesuffix('\n').removesuffix('\r')
+    prefix = re.fullmatch(r'(\[hevc @ 0x[0-9a-fA-F]+\] )(.*)', line)
+    return dict(raw_line=raw, context_prefix=prefix[1] if prefix else '',
+                message=prefix[2] if prefix else line, stream=stream, stage=stage,
+                kind=kind, exit_code=exit_code, classification='unclassified')
+
+
+def stderr_lines(path):
+    return path.read_bytes().decode('utf-8', errors='surrogateescape').splitlines(keepends=True)
+
+
+def progress_line(item):
+    key, separator, _ = item['message'].partition('=')
+    return not item['context_prefix'] and bool(separator) and (key in
+            {'frame', 'fps', 'bitrate', 'total_size', 'out_time_us', 'out_time_ms', 'out_time',
+             'dup_frames', 'drop_frames', 'speed', 'progress'}
+            or re.fullmatch(r'stream_\d+_\d+_q', key) is not None)
+
+
+def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=None):
     entries = ('frame=width,height,pix_fmt,pict_type,key_frame,pkt_pos' if frames else
                'packet=pos,size:stream=index,codec_name,profile,width,height,coded_width,coded_height,pix_fmt,field_order')
-    command = [binary, '-v', 'error', '-f', 'hevc', '-select_streams', 'v:0',
+    command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', '-f', 'hevc', '-select_streams', 'v:0',
                '-show_frames' if frames else '-show_packets', '-show_entries', entries,
                '-of', 'json', path]
     code, out, err = child(command, directory, 'frames' if frames else 'packets')
-    require(code == 0 and not err.read_bytes().strip(), 'oracle failed or reported decode errors')
+    if diagnostics is not None:
+        require(isinstance(stream, str) and stream, 'diagnostic collection requires a stream identity')
+        diagnostics.extend(stderr_line(raw, stream, 'frames' if frames else 'packets', exit_code=code)
+                           for raw in stderr_lines(err))
+    require(code == 0 and (diagnostics is not None or not err.read_bytes().strip()),
+            'oracle failed or reported decode errors')
     return read_json(out)
+
+
+def account_packets(case, member, data, native_path, packets, pictures):
+    independent = annex_b(data)
+    native = [row for row in (json.loads(line, object_pairs_hook=unique_object)
+                              for line in native_path.read_text().splitlines()) if row.get('kind') == 'nal']
+    require(len(native) == len(independent) and all(all(type(mine.get(k)) is int and mine[k] == v
+            for k, v in nal.items()) for mine, nal in zip(native, independent)),
+            'packet proof requires independently matching native NAL framing')
+    require(hashlib.sha256(data).hexdigest() == member['sha256'], 'packet proof bitstream identity differs')
+    boundaries = packets.get('packets', [])
+    require(boundaries, 'oracle returned no access units')
+    spans, end = [], 0
+    for packet in boundaries:
+        start, size = int(packet['pos']), int(packet['size'])
+        require(start == end and size > 0 and start + size <= len(data),
+                'oracle packet spans are incomplete, overlapping or outside the bitstream')
+        spans.append((start, start + size))
+        end = start + size
+    require(end == len(data), 'oracle packet spans omit the bitstream tail')
+    starts = [start for start, _ in spans]
+    members = [[] for _ in spans]
+    for nal in independent:
+        index = bisect.bisect_right(starts, nal['offset']) - 1
+        require(index >= 0 and nal['offset'] + nal['size'] <= spans[index][1],
+                'NAL crosses an oracle packet boundary')
+        members[index].append(nal)
+    picture_packets, auxiliary = [], []
+    cursor = 0
+    for index, (packet, nals) in enumerate(zip(boundaries, members)):
+        require(nals, 'oracle packet contains no independently framed NAL')
+        first = [n for n in nals if n['nal_type'] < 32
+                 and native[n['index']].get('first_slice_segment_in_pic_flag') is True]
+        if first:
+            require(len(first) == 1 and cursor < len(pictures)
+                    and first[0]['offset'] == pictures[cursor]['offset'],
+                    'oracle packet does not contain exactly one next coded picture')
+            picture_packets.append(packet)
+            cursor += 1
+            continue
+        require(case['test'] in TERMINAL_PACKET_SIZES and case['test'] in DIAGNOSTIC_STREAMS
+                and DIAGNOSTIC_STREAMS[case['test']][0] == member['sha256']
+                and index == len(boundaries) - 1
+                and int(packet['size']) == TERMINAL_PACKET_SIZES[case['test']]
+                and all(n['nal_type'] in (36, 37) for n in nals),
+                'non-picture oracle packet is not a registered terminal EOS/EOB packet')
+        auxiliary.append(dict(packet_index=index, pos=int(packet['pos']), size=int(packet['size']),
+                              nal_indices=[n['index'] for n in nals], nal_types=[n['nal_type'] for n in nals],
+                              contains_slice=False, terminal=True, independent_annex_b=True,
+                              native_nals_agree=True, bitstream_sha256=member['sha256']))
+    require(cursor == len(pictures), 'oracle packet map omitted a coded picture')
+    return dict(picture_packets=picture_packets, auxiliary_packets=auxiliary)
+
+
+def classify_diagnostics(case, member, inventory, summary, comparison, confirmation, diagnostics, accounting):
+    references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
+    require(len(references) == 1 and confirmation.get('complete') is True
+            and type(confirmation.get('exit_code')) is int and confirmation['exit_code'] == 0
+            and confirmation.get('progress_complete') is True
+            and confirmation.get('layout') == 'whole_output_yuv_file'
+            and confirmation.get('md5') == references[0].get('md5')
+            and confirmation.get('bitstream_sha256') == member['sha256']
+            and summary.get('complete') is True
+            and confirmation.get('output_pictures') == summary.get('output_pictures')
+            == comparison.get('output_pictures') == comparison['reference_count'].get('value')
+            and all(integer(value, 1) for value in (confirmation.get('output_pictures'),
+                summary.get('output_pictures'), comparison.get('output_pictures'),
+                comparison['reference_count'].get('value'))),
+            'oracle diagnostics require complete native/count/published-MD5 proof')
+    proof = dict(bitstream_sha256=member['sha256'], exit_code=0, progress_complete=True,
+                 native_output_pictures=summary['output_pictures'],
+                 reference_count=comparison['reference_count'], layout=confirmation['layout'],
+                 pixel_format=confirmation['pixel_format'], published_md5=references[0]['md5'],
+                 md5_source=references[0]['source'], oracle_md5=confirmation['md5'])
+    pending = []
+    for item in diagnostics:
+        require(item['stream'] == case['test'] and item['stage'] in ('packets', 'frames', 'reference-md5')
+                and type(item.get('exit_code')) is int and item['exit_code'] == 0,
+                'oracle diagnostic stream or stage differs')
+        require(stderr_line(item['raw_line'], case['test'], item['stage'], item['kind'], item['exit_code'])
+                == {key: value for key, value in item.items() if key not in ('proof',)},
+                'oracle diagnostic raw line differs from its parsed message')
+        if item['kind'] == 'progress':
+            require(item['stage'] == 'reference-md5' and progress_line(item),
+                    'oracle progress context differs')
+            pending.append((item, 'validated_progress', proof))
+            continue
+        registered = DIAGNOSTIC_STREAMS.get(case['test'])
+        require(registered is not None and registered[0] == member['sha256']
+                and item['context_prefix'] and item['message'] in registered[1],
+                'unregistered exact oracle diagnostic')
+        classification = registered[1][item['message']]
+        item_proof = proof
+        if classification == 'terminal_eos_eob_packet':
+            auxiliary = accounting['auxiliary_packets']
+            require(item['stage'] in ('packets', 'frames') and len(auxiliary) == 1,
+                    'terminal probe diagnostic lacks its named packet proof')
+            packet = auxiliary[0]
+            require(packet.get('size') == TERMINAL_PACKET_SIZES[case['test']]
+                    and packet.get('terminal') is True and packet.get('contains_slice') is False
+                    and packet.get('independent_annex_b') is True and packet.get('native_nals_agree') is True
+                    and packet.get('bitstream_sha256') == member['sha256']
+                    and packet.get('nal_types') and all(t in (36, 37) for t in packet['nal_types']),
+                    'terminal probe diagnostic packet proof differs')
+            item_proof = dict(proof, packet=packet)
+        pending.append((item, classification, item_proof))
+    for item, classification, item_proof in pending:
+        item.update(classification=classification, proof=item_proof)
+    return diagnostics
 
 
 def published_counts(case, inventory):
@@ -533,9 +693,10 @@ def published_counts(case, inventory):
     return counts
 
 
-def compare(case, inventory, summary, pictures, outputs, packets, frames, reference_confirmation=None):
+def compare_headers(summary, pictures, outputs, packets, frames, *, packet_accounting=None):
     require(frames, 'oracle returned no output pictures')
-    boundaries = packets.get('packets', [])
+    boundaries = (packet_accounting['picture_packets'] if packet_accounting is not None
+                  else packets.get('packets', []))
     require(len(boundaries) == len(pictures), 'independent access-unit count differs')
     for picture, packet in zip(pictures, boundaries):
         start, size = int(packet['pos']), int(packet['size'])
@@ -555,6 +716,14 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames, refere
         if order_checked:
             packet = boundaries[output['picture_index']]
             require(int(frame['pkt_pos']) == int(packet['pos']), 'independent output order differs')
+    return dict(coded_pictures=summary['pictures'], output_pictures=len(frames),
+                native_formats=sorted(native_formats), output_order_checked_by_packet_positions=order_checked,
+                oracle_auxiliary_packets=packet_accounting['auxiliary_packets'] if packet_accounting else [])
+
+
+def compare(case, inventory, summary, pictures, outputs, packets, frames, reference_confirmation=None,
+            *, packet_accounting=None):
+    headers = compare_headers(summary, pictures, outputs, packets, frames, packet_accounting=packet_accounting)
     counts = published_counts(case, inventory)
     for count in counts:
         require(count['value'] == (len(frames) if count['scope'] == 'output' else summary['pictures']),
@@ -591,35 +760,19 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames, refere
                                oracle_build=reference_confirmation['oracle_build'],
                                interpretation='pinned FFmpeg full output count after exact published whole-output MD5 agreement')
     require(reference_count['value'] == summary['output_pictures'], 'reference count differs from native simulator')
-    return dict(coded_pictures=summary['pictures'], output_pictures=len(frames),
-                published_counts=counts, reference_layout='whole_output_yuv_file',
+    return dict(headers, published_counts=counts, reference_layout='whole_output_yuv_file',
                 reference_count=reference_count,
                 packed_output_bytes=output_bytes, reference_yuv_bytes=sorted(sizes),
-                reference_packing='unverified until binary-oracle file MD5 agrees',
-                native_formats=sorted(native_formats), output_order_checked_by_packet_positions=order_checked)
+                reference_packing='unverified until binary-oracle file MD5 agrees')
 
 
-def confirm_reference(binary, path, directory, frames, references):
-    require(len(references) == 1 and references[0].get('layout') == 'whole_output_yuv_file'
-            and re.fullmatch('[0-9a-f]{32}', references[0].get('md5', '')) is not None,
-            'one published whole-output MD5 is required before confirming a reference count')
-    formats = {frame['pix_fmt'] for frame in frames}
-    require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
-    command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
-               *AUDIO_DECODE_INPUT, '-i', path,
-               '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
-               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'md5', '-']
-    code, out, err = child(command, directory, 'reference-md5')
-    require(code == 0, 'reference-layout oracle failed')
-    match = re.fullmatch(r'MD5=([0-9a-f]{32})\s*', out.read_text())
-    require(match is not None and {r['md5'] for r in references} == {match[1]},
-            'published output MD5 differs; investigate without substituting an oracle hash')
+def reference_progress(collected, allow_diagnostics=False):
     progress, block = [], {}
-    for line in err.read_text().splitlines():
-        key, separator, value = line.partition('=')
-        require(separator and key not in block and (key in
-                {'frame', 'fps', 'bitrate', 'total_size', 'out_time_us', 'out_time_ms', 'out_time',
-                 'dup_frames', 'drop_frames', 'speed', 'progress'} or re.fullmatch(r'stream_\d+_\d+_q', key)),
+    for item in collected:
+        if allow_diagnostics and item['kind'] == 'diagnostic':
+            continue
+        key, separator, value = item['message'].partition('=')
+        require(separator and key not in block and progress_line(item),
                 'reference-layout oracle reported errors or invalid progress')
         block[key] = value
         if key == 'progress':
@@ -632,17 +785,93 @@ def confirm_reference(binary, path, directory, frames, references):
         require(record.get('frame', '').isdecimal()
                 and record.get('dup_frames') == record.get('drop_frames') == '0',
                 'reference-layout oracle omitted frame counts or duplicated/dropped frames')
+    require(all(int(a['frame']) <= int(b['frame']) for a, b in zip(progress, progress[1:])),
+            'reference-layout oracle progress frame count decreased')
+    return progress
+
+
+def confirm_reference(binary, path, directory, frames, references, *, diagnostics=None, stream=None,
+                      attempts=None, layout_registration=None):
+    require(len(references) == 1 and references[0].get('layout') == 'whole_output_yuv_file'
+            and re.fullmatch('[0-9a-f]{32}', references[0].get('md5', '')) is not None,
+            'one published whole-output MD5 is required before confirming a reference count')
+    formats = {frame['pix_fmt'] for frame in frames}
+    require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
+    command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
+               *AUDIO_DECODE_INPUT, '-i', path,
+               '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
+               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'md5', '-']
+    attempt = dict(candidate=layout_registration['candidate'] if layout_registration else 'canonical_visible_planar',
+                   layout='whole_output_yuv_file', packing='visible planar Y,Cb,Cr; 10-bit little-endian 16-bit',
+                   pixel_format=next(iter(formats)), command=list(map(str, command)),
+                   layout_registration=layout_registration, expected_md5=references[0]['md5'], observed_md5=None,
+                   exit_code=None, progress_complete=False, output_pictures=None,
+                   frame_metadata_count=len(frames), count_matches_frame_metadata=False, status='incomplete')
+    if attempts is not None:
+        attempts.append(attempt)
+    code, out, err = child(command, directory, 'reference-md5')
+    match = re.fullmatch(r'MD5=([0-9a-f]{32})\s*', out.read_text())
+    attempt.update(exit_code=code, observed_md5=match[1] if match else None,
+                   stdout_capture=out.name, stderr_capture=err.name)
+    if diagnostics is not None:
+        require(isinstance(stream, str) and stream, 'diagnostic collection requires a stream identity')
+    lines = stderr_lines(err)
+    collected = []
+    for raw in lines:
+        item = stderr_line(raw, stream, 'reference-md5', exit_code=code)
+        if progress_line(item):
+            item['kind'] = 'progress'
+        collected.append(item)
+    if diagnostics is not None:
+        diagnostics.extend(collected)
+    observed_frames = [item['message'].partition('=')[2] for item in collected
+                       if item['kind'] == 'progress' and item['message'].startswith('frame=')]
+    if observed_frames and observed_frames[-1].isdecimal():
+        attempt['output_pictures'] = int(observed_frames[-1])
+    try:
+        observed_progress = reference_progress(collected, allow_diagnostics=True)
+    except ValueError:
+        pass
+    else:
+        attempt.update(progress_complete=True, progress=observed_progress,
+                       count_matches_frame_metadata=int(observed_progress[-1]['frame']) == len(frames))
+    if match and match[1] != references[0]['md5']:
+        attempt['status'] = 'md5_mismatch'
+    require(code == 0, 'reference-layout oracle failed')
+    require(match is not None and {r['md5'] for r in references} == {match[1]},
+            'published output MD5 differs; investigate without substituting an oracle hash')
+    progress = reference_progress(collected, allow_diagnostics=diagnostics is not None)
     require(int(progress[-1]['frame']) == len(frames) > 0,
             'hash-validated output count differs from complete oracle frame metadata')
-    return dict(layout='whole_output_yuv_file', packing='visible planar Y,Cb,Cr; 10-bit little-endian 16-bit',
+    result = dict(layout='whole_output_yuv_file', packing='visible planar Y,Cb,Cr; 10-bit little-endian 16-bit',
                 md5=match[1], pixel_format=next(iter(formats)), complete=True,
                 output_pictures=int(progress[-1]['frame']),
                 oracle_build=oracle_pin.load()['BUILD'])
+    if diagnostics is not None:
+        result.update(exit_code=code, progress_complete=True, bitstream_sha256=digest(path))
+    attempt['status'] = 'confirmed'
+    return result
 
 
-def reference_frames(archive_path, inventory, frames):
+def reference_frames(archive_path, inventory, frames, confirmation=None):
     yuv = [m for m in inventory['members'] if m['role'] == 'reference_yuv']
     if not yuv:
+        if len(frames) == 1:
+            references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
+            require(len(references) == 1 and confirmation is not None
+                    and confirmation.get('complete') is True
+                    and confirmation.get('output_pictures') == 1
+                    and confirmation.get('md5') == references[0]['md5'],
+                    'single-picture reference needs complete published whole-output hash confirmation')
+            reference = references[0]
+            source = next((m for m in inventory['members'] if m['name'] == reference['source']), None)
+            require(source is not None and source['role'] == 'reference_hash', 'missing published hash attachment')
+            frame = frames[0]
+            size = (frame['width'] * frame['height']
+                    + 2 * ((frame['width'] + 1) // 2) * ((frame['height'] + 1) // 2)) * (
+                        2 if frame['pix_fmt'] == 'yuv420p10le' else 1)
+            return [dict(output_index=0, bytes=size, md5=reference['md5'], source=source['name'],
+                         source_sha256=source['sha256'], source_scope='published_whole_output_single_picture')]
         return []
     require(len(yuv) == 1, 'multiple published YUV files need an explicit stream mapping')
     result = []
@@ -659,7 +888,7 @@ def reference_frames(archive_path, inventory, frames):
                 remaining -= len(block)
                 md5.update(block)
                 whole.update(block)
-            result.append(dict(output_index=index, bytes=size, md5=md5.hexdigest(),
+            result.append(dict(output_index=index, bytes=size, md5=md5.hexdigest(), source_scope='published_yuv_picture',
                                source=yuv[0]['name'], source_sha256=yuv[0]['sha256']))
         require(not stream.read(1) and whole.hexdigest() == yuv[0]['sha256'],
                 'published YUV has unexplained trailing data or a changed hash')
@@ -679,24 +908,37 @@ def coverage(pictures, outputs, references):
     return result
 
 
-def census_result(records, registration_sha256, parser_sha256, oracle):
+def census_result(records, registration_sha256, parser_sha256, oracle, synthetic=None):
     groups = collections.defaultdict(list)
     candidates = []
     count_sources = []
     for record in records:
         for stream in record['streams']:
             groups[stream['sha256']].append(dict(test=record['test'], name=stream['name']))
-            candidates.extend(dict(test=record['test'], stream_sha256=stream['sha256'], **item)
+            candidates.extend(dict(test=record['test'], stream_sha256=stream['sha256'],
+                                   source_kind='published_conformance', **item)
                               for item in stream.get('intra_candidates', []))
             count_sources.append(dict(test=record['test'], name=stream['name'], stream_sha256=stream['sha256'],
+                                      source_kind='published_conformance',
                                       status=stream.get('status', 'not_run'),
                                       reference_count=stream.get('reference_count'),
                                       reason=record.get('reason') if record['status'] == 'blocked' else stream.get('reason')))
+    synthetic_streams = synthetic.get('streams', []) if synthetic else []
+    for stream in synthetic_streams:
+        count_sources.append(dict(test=stream['test'], name=stream['test'], stream_sha256=stream['sha256'],
+                                  source_kind='synthetic', status=stream.get('status', 'not_run'),
+                                  reference_count=stream.get('reference_count'), reason=stream.get('reason')))
+        if synthetic.get('complete') is True:
+            candidates.extend(dict(test=stream['test'], stream_sha256=stream['sha256'],
+                                   source_kind='synthetic', **item)
+                              for item in stream.get('intra_candidates', []))
     missing = [dict(gate=gate, bit_depth=depth) for gate in ('G2', 'G3') for depth in (8, 10)
                if not any(c['gate'] == gate and c['bit_depth'] == depth for c in candidates)]
     return dict(registration_sha256=registration_sha256, parser_sha256=parser_sha256, oracle=oracle,
-                complete=len(records) == 147 and all(r['status'] == 'accounted' for r in records) and not missing,
+                complete=len(records) == 147 and all(r['status'] == 'accounted' for r in records) and not missing
+                         and (synthetic is None or synthetic.get('complete') is True),
                 archives=records, distinct_bitstreams=len(groups),
+                synthetic_census=synthetic, synthetic_bitstreams=len(synthetic_streams),
                 duplicate_bitstreams={k: v for k, v in groups.items() if len(v) > 1},
                 reference_count_sources=count_sources,
                 reference_count_methods=dict(collections.Counter(row['reference_count']['method']
@@ -718,6 +960,11 @@ def run(args):
             and acquisition['complete'], 'complete SHA-bound acquisition is required')
     require({r['archive'] for r in acquisition['archives']} == {c['archive'] for c in data['archives']},
             'acquisition omitted an archive')
+    synthetic = None
+    if getattr(args, 'synthetic_data', None) is not None:
+        import hevc_synthetic
+        synthetic = hevc_synthetic.inspect(args.synthetic_data, args.out / 'synthetic', args.parser,
+                                           args.oracle_bin, sys.modules[__name__])
     records = []
     for case in data['archives']:
         result = dict(archive=case['archive'], test=case['test'], streams=[])
@@ -749,14 +996,30 @@ def run(args):
                     continue
                 require(code == 0, 'native parser failed')
                 summary, pictures, outputs = native_rows(native, path.read_bytes())
-                packets = probe(args.oracle_bin / 'ffprobe', path, output)
-                frames = probe(args.oracle_bin / 'ffprobe', path, output, frames=True)['frames']
+                diagnostics = record['oracle_stderr'] = []
+                packets = probe(args.oracle_bin / 'ffprobe', path, output,
+                                diagnostics=diagnostics, stream=case['test'])
+                frames = probe(args.oracle_bin / 'ffprobe', path, output, frames=True,
+                               diagnostics=diagnostics, stream=case['test'])['frames']
+                attempts = record['reference_attempts'] = []
+                layout_registration = None
+                if case['test'] in ('SAODBLK_A', 'SAODBLK_B'):
+                    document = ROOT / 'bench/hevc-conformance/saodblk-layouts.md'
+                    layout_registration = dict(candidate='C1', document=str(document.relative_to(ROOT)),
+                                               sha256=digest(document))
                 confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', path, output, frames,
-                    [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'])
-                record.update(compare(case, inventory, summary, pictures, outputs, packets, frames,
-                                      confirmation))
+                    [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'],
+                    diagnostics=diagnostics, stream=case['test'], attempts=attempts,
+                    layout_registration=layout_registration)
                 record['reference_packing'] = confirmation
-                record['reference_frames'] = reference_frames(args.data / case['archive'], inventory, frames)
+                accounting = account_packets(case, member, path.read_bytes(), native, packets, pictures)
+                record['oracle_auxiliary_packets'] = accounting['auxiliary_packets']
+                comparison = compare(case, inventory, summary, pictures, outputs, packets, frames,
+                                     confirmation, packet_accounting=accounting)
+                classify_diagnostics(case, member, inventory, summary, comparison, confirmation, diagnostics, accounting)
+                record.update(comparison)
+                record['reference_packing'] = confirmation
+                record['reference_frames'] = reference_frames(args.data / case['archive'], inventory, frames, confirmation)
                 record['intra_candidates'] = coverage(pictures, outputs, record['reference_frames'])
                 record['status'] = 'headers_checked'
                 record['tools'] = summary.get('tools', {})
@@ -765,7 +1028,7 @@ def run(args):
         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
             result.update(status='blocked', reason=str(error))
         records.append(result)
-        result = census_result(records, digest(args.registration), digest(args.parser), oracle)
+        result = census_result(records, digest(args.registration), digest(args.parser), oracle, synthetic)
         write_json(args.out / 'census.json', result)
     require(result['complete'], 'G1 blocked; inspect census.json')
 
@@ -907,6 +1170,7 @@ def main():
     run_parser = modes.add_parser('run')
     run_parser.add_argument('--registration', type=pathlib.Path, default=REGISTRATION)
     run_parser.add_argument('--parser', required=True, type=pathlib.Path)
+    run_parser.add_argument('--synthetic-data', type=pathlib.Path)
     for command in (run_parser, modes.add_parser('corpus')):
         command.add_argument('--data', required=True, type=pathlib.Path)
         command.add_argument('--out', required=True, type=pathlib.Path)
