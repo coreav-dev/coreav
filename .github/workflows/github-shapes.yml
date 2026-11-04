@@ -1,0 +1,78 @@
+name: github-shapes
+
+# workflow-check: not required
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full merged main SHA containing the registration and tools
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      COMMIT: ${{ inputs.commit }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a merged main candidate
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo '::error::main_dispatch_required'; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::candidate_sha'; exit 1; }
+          git merge-base --is-ancestor "$COMMIT" origin/main || { echo '::error::candidate_not_merged'; exit 1; }
+          git checkout --detach "$COMMIT"
+          test -f docs/design/github-shapes-200.md
+          test -f tools/compat-corpus/github_shapes.py
+      - name: Install build dependencies and pinned programs
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev nasm pkg-config
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-x264.sh "$RUNNER_TEMP/oracle"
+      - name: Build the full feature set
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p coreav-cli --features release-full
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          def sha(path):
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+          record = {'commit': os.environ['COMMIT'],
+                    'command': ['cargo', 'build', '--release', '--locked', '-p', 'coreav-cli', '--features', 'release-full'],
+                    'coreav_sha256': sha('target/release/coreav'), 'lock_sha256': sha('Cargo.lock')}
+          Path(os.environ['RUNNER_TEMP'], 'shape-build.json').write_text(json.dumps(record))
+          PY
+      - name: Acquire and replay all registered shapes
+        run: |
+          set -euo pipefail
+          python3 tools/compat-corpus/github_shapes.py run --commit "$COMMIT" \
+            --build-record "$RUNNER_TEMP/shape-build.json" \
+            --coreav "$PWD/target/release/coreav" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --x264 "$RUNNER_TEMP/oracle/x264" \
+            --bundle "$RUNNER_TEMP/shape-evidence" --scratch "$RUNNER_TEMP/shape-replay" \
+            --summary "$RUNNER_TEMP/shape-summary.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: github-shapes-evidence
+          path: |
+            ${{ runner.temp }}/shape-evidence
+            ${{ runner.temp }}/shape-summary.json
+            ${{ runner.temp }}/shape-build.json
+          if-no-files-found: error
+          retention-days: 30
