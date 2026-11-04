@@ -130,7 +130,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y linux-tools-common linux-tools-generic
           sudo sysctl kernel.perf_event_paranoid=-1
-          perf=$(find /usr/lib/linux-tools -type f -name perf | head -1)
+          perf=$(find -L /usr/lib/linux-tools -type f -name perf | head -1)
+          test -n "$perf"
           sudo "$perf" stat -x ';' -o "$RUNNER_TEMP/perf-probe.txt" -e instructions:u,cycles:u -- true
           cat "$RUNNER_TEMP/perf-probe.txt"
           ! grep -E '<not (supported|counted)>' "$RUNNER_TEMP/perf-probe.txt"
