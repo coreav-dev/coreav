@@ -115,7 +115,33 @@ impl Dpb {
         (16..=21).contains(&nal.unit_type) && (nal.unit_type != 21 || self.after_eos)
     }
 
-    pub(crate) fn select_cvsg(&mut self) -> Result<()> {
+    pub(crate) fn start_cvsg(
+        &mut self,
+        nal: NalHeader,
+        header: &SliceHeader,
+        mut emit: impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<()> {
+        if self.state != State::Reading {
+            return Err(Error::InvalidData("DPB session ended"));
+        }
+        if !(16..=21).contains(&nal.unit_type)
+            || nal.temporal_id != 0
+            || !header.first
+            || header.dependent
+        {
+            self.state = State::Failed;
+            return Err(Error::InvalidData("CVSG requires IRAP first slice"));
+        }
+        let result = self
+            .prior_output(nal, header, &mut emit)
+            .and_then(|()| self.select_cvsg());
+        if result.is_err() {
+            self.state = State::Failed;
+        }
+        result
+    }
+
+    fn select_cvsg(&mut self) -> Result<()> {
         if self.state == State::Failed {
             return Err(Error::InvalidData("DPB session ended"));
         }
@@ -292,13 +318,7 @@ impl Dpb {
         }
         self.references(&mut requests, nal, s, poc, irap)?;
         if no_rasl {
-            if self.count > 1 {
-                if nal.unit_type == 21 || h.no_output_of_prior_pics {
-                    self.pictures = [None; 16];
-                } else {
-                    self.drain(emit)?;
-                }
-            }
+            self.prior_output(nal, h, emit)?;
             self.last_output = None;
             self.stsa = [None; 7];
             self.last_lower_tid = [None; 7];
@@ -730,6 +750,20 @@ impl Dpb {
         picture.output = false;
         self.remove_unused();
         Ok(())
+    }
+
+    fn prior_output(
+        &mut self,
+        nal: NalHeader,
+        header: &SliceHeader,
+        emit: &mut impl FnMut(OutputEvent) -> Result<()>,
+    ) -> Result<()> {
+        if nal.unit_type == 21 || header.no_output_of_prior_pics {
+            self.pictures = [None; 16];
+            Ok(())
+        } else {
+            self.drain(emit)
+        }
     }
 
     fn drain(&mut self, emit: &mut impl FnMut(OutputEvent) -> Result<()>) -> Result<()> {
@@ -1220,6 +1254,32 @@ mod tests {
         let output = finish(&mut dpb)?;
         assert_eq!(pocs(&output), [1]);
         assert_eq!(output.first().map(|e| e.picture_index), Some(2));
+        Ok(())
+    }
+
+    #[test]
+    fn cvsg_start_callback_failure_and_finished_state_are_terminal() -> Result<()> {
+        let mut dpb = Dpb::new();
+        let s = sps();
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        assert_eq!(
+            dpb.start_cvsg(nal(19), &header(0, &[]), |_| Err(Error::Limit("callback"))),
+            Err(Error::Limit("callback"))
+        );
+        assert_eq!(
+            dpb.finish(|_| Ok(())),
+            Err(Error::InvalidData("DPB session ended"))
+        );
+        assert_eq!(
+            dpb.start_cvsg(nal(19), &header(0, &[]), |_| Ok(())),
+            Err(Error::InvalidData("DPB session ended"))
+        );
+        let mut finished = Dpb::new();
+        finished.finish(|_| Ok(()))?;
+        assert_eq!(
+            finished.start_cvsg(nal(19), &header(0, &[]), |_| Ok(())),
+            Err(Error::InvalidData("DPB session ended"))
+        );
         Ok(())
     }
 

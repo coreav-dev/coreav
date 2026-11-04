@@ -342,13 +342,11 @@ impl HeaderParser {
                         .active_vps_hash
                         .is_some_and(|previous| previous != hash)
                     {
-                        self.dpb.finish(|event| {
+                        self.dpb.start_cvsg(nal, &header, |event| {
                             emit(event)?;
                             self.summary.output_pictures += 1;
                             Ok(())
                         })?;
-                        self.dpb.end_sequence();
-                        self.dpb.select_cvsg()?;
                     }
                     self.active_vps_hash = Some(hash);
                     let sps_identity = (

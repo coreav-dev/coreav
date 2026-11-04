@@ -303,6 +303,76 @@ fn a_new_cvs_can_activate_a_different_sps_identity() {
 }
 
 #[test]
+fn vps_change_obeys_new_picture_prior_output_flags() {
+    for kind in [16, 19, 21] {
+        for discard in [false, true] {
+            let mut parser = synthetic_sets();
+            let mut output = Vec::new();
+            parser
+                .read_nal(&idr(), |event| {
+                    output.push(event);
+                    Ok(())
+                })
+                .unwrap();
+            assert!(output.is_empty());
+            parser
+                .read_nal(&escaped(32, &params::tests::video(true)), |_| Ok(()))
+                .unwrap();
+            let next = if kind == 19 { idr() } else { intra_first(kind) };
+            let mut rbsp = nal::rbsp(&next, &Limits::default()).unwrap();
+            if discard {
+                rbsp[0] |= 1 << 6;
+            }
+            parser
+                .read_nal(&escaped(kind, &rbsp), |event| {
+                    output.push(event);
+                    Ok(())
+                })
+                .unwrap();
+            let summary = parser
+                .finish(|event| {
+                    output.push(event);
+                    Ok(())
+                })
+                .unwrap();
+            let indices = output
+                .iter()
+                .map(|event| event.picture_index)
+                .collect::<Vec<_>>();
+            if discard || kind == 21 {
+                assert_eq!(indices, [1], "kind={kind}, discard={discard}");
+                assert_eq!(summary.output_pictures, 1);
+            } else {
+                assert_eq!(indices, [0, 1]);
+                assert_eq!(summary.output_pictures, 2);
+            }
+        }
+    }
+}
+
+#[test]
+fn vps_change_requires_an_irap_before_releasing_prior_output() {
+    let mut parser = synthetic_sets();
+    parser.read_nal(&idr(), |_| Ok(())).unwrap();
+    parser
+        .read_nal(&escaped(32, &params::tests::video(true)), |_| Ok(()))
+        .unwrap();
+    let mut output = Vec::new();
+    assert_eq!(
+        parser.read_nal(&intra_first(1), |event| {
+            output.push(event);
+            Ok(())
+        }),
+        Err(Error::InvalidData("CVSG requires IRAP first slice"))
+    );
+    assert!(output.is_empty());
+    assert_eq!(
+        parser.finish(|_| Ok(())),
+        Err(Error::InvalidData("parser_failed"))
+    );
+}
+
+#[test]
 fn complete_header_activation_end_markers_and_drain_are_distinct() {
     let mut parser = synthetic_sets();
     let mut outputs = Vec::new();
