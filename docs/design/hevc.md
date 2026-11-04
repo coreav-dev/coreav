@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Planned (milestone 0). This note designs CoreAV's own HEVC decoder and pre-registers its gates. It adds no decoder, backend, feature or measurement result. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestone 1 implementation. `coreav-hevc` provides opt-in header inspection and header-only output bookkeeping, not reconstructed pictures or a decode backend. The gates below remain unchanged. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
@@ -32,13 +32,21 @@ Until a milestone implements a tool, that tool is refused, never decoded approxi
 
 HEVC decoding can require a patent licence depending on jurisdiction and use. The packaging is the native H.264 decoder's: the future `native-hevc` Cargo feature is opt-in and absent from every default build. CLI, Python, WebAssembly and npm consumers must not acquire it through transitive default features. A build without it refuses an explicit native HEVC request with `unsupported_feature`.
 
-The three planned crates are workspace members for CI, not default artifact dependencies:
+The decoder has three crate boundaries. The header parser is a workspace member for CI, not a default artifact dependency; the kernel and backend crates follow in later milestones:
 
 | Crate | Responsibility | Safety |
 |---|---|---|
 | `coreav-hevc` | NAL and parameter parsing, CABAC, CTU traversal, reconstruction control, POC, reference picture sets and DPB | `forbid(unsafe_code)` |
 | `coreav-kernels-hevc` | Scalar transforms, prediction, interpolation, deblocking and SAO, followed by measured SIMD kernels | Safe scalar reference first; each future unsafe exception needs its own scoped policy record and `docs/unsafe-sites.md` entries |
 | `coreav-backend-hevc` | Packet and frame adaptation to `coreav-decode`, caller limits, output ordering and metadata | `forbid(unsafe_code)` |
+
+### Header inspection
+
+`coreav-hevc` exposes its parser only with its `native-hevc` feature. No consumer feature or default CLI selection changes in milestone 1. `HeaderParser` owns fixed parameter-set slots, transactional updates, picture boundaries and terminal failures. `Limits` bounds NAL scratch, dimensions, CTUs and total pictures. Annex B and length-prefixed framing remain separate from syntax parsing.
+
+The same crate owns a fixed, 16-entry header-only DPB. It derives POC, reference marking, IRAP and RASL output decisions and Annex C.5.2 bumping without allocating sample buffers. Output callbacks retain each picture's original format and coded-picture index. Coded pictures, `pic_output_flag` pictures and emitted output pictures are separate counts. HighestTid follows the first active SPS of a CVSG and does not silently change on SPS updates. Milestone 4 extends this owner with reconstructed pictures rather than introducing another POC or DPB implementation.
+
+The [conformance census](../../bench/hevc-conformance/README.md) binds every candidate archive and extracted data item, checks header and output metadata against the pinned binary oracle, and records published count and hash layouts. The inspection example is a test tool, not a default CLI command. The fixed 54-file census reads metadata only, with credentials confined to acquisition and excluded from media subprocesses. It supplies no speed result or reconstructed-sample verdict.
 
 The native backend runs in the calling process, as native H.264 does. It emits 8-bit planar samples or low-bit-aligned little-endian 16-bit samples at depth 10 without reducing precision. Pictures retain their activated parameter sets' colour and crop information through reordering. The backend owns no second slice parser. Unsupported configuration may be refused during selection; after a selected session fails, it is terminal, with no packet-time fallback that hides a native failure.
 
@@ -63,7 +71,7 @@ Each row is one or more independently reviewed PRs. A milestone's completing PR 
 | Milestone | Work | PRs | Gate |
 |---|---|---|---|
 | 0 | This note and fixed corpus roster | 1 | Review; no decoder code or timed run |
-| 1 | Crate boundaries, limits and errors; NAL, VPS, SPS, PPS, VUI, SEI and slice headers; conformance manifest and harness | 2 | G1: account for every one of the 147 candidate archives; parse every in-scope stream's headers to EOF, with independently checked size, depth, picture boundaries and published output counts; assert named out-of-scope refusals and truncated-header errors |
+| 1 | Crate boundaries, limits and errors; NAL, VPS, SPS, PPS, VUI, SEI and slice headers; header-only POC and output bookkeeping; conformance manifest and harness | 1 | G1: account for every one of the 147 candidate archives; parse every in-scope stream's headers to EOF, with independently checked size, depth, picture boundaries and published output counts; assert named out-of-scope refusals and truncated-header errors |
 | 2 | Scalar 8- and 10-bit CABAC; serial tile-scan traversal, entry-point substreams, tile initialization, WPP row-context storage and synchronization, dependent-segment header inheritance and context restoration; CTU and transform trees, intra modes, coefficient decoding, scaling lists, inverse transforms, transform skip, transquant bypass and PCM | 4 | G2: exact reference hashes for every independently decodable intra picture in the manifest with deblocking and SAO disabled, including pictures using tiles, WPP or dependent segments; bounded entropy termination tests and malformed-input tests. No claim for filtered pictures yet |
 | 3 | Deblocking, then SAO, with slice and tile boundaries, PCM and bypass rules, bit-depth clipping, SAO merge, edge and band offsets | 3 | G3: every independently decodable intra picture in scope equals its published hash and applicable picture-hash SEI, including tile, WPP and dependent-segment cases, filters enabled or disabled as signalled; first independently decodable IRAP picture of every development file equals the oracle |
 | 4 | P and B prediction, merge and motion candidates, interpolation and weights; reference picture sets, POC, output bumping, temporal sublayers, CRA and BLA leading pictures; inter-picture coverage of the serial slice, tile and WPP rules already implemented in milestone 2 | 4 | G4: C1 and C2 for the complete scalar decoder at both depths; streams with reordering, long-term references and random access must each have effective hash coverage |
