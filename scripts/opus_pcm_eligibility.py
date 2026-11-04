@@ -4,7 +4,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
+import platform
 import re
 import struct
 import subprocess
@@ -13,9 +15,14 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from opus_matroska_padding import matroska, run, wav_samples
-from opus_mp4_presentation import metadata
+from opus_mp4_presentation import boxes, metadata
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 from oracle_pin import verify_bin
+
+
+def native(coreav, source, after, output='pipe:', threads=1, strict=True):
+    return [str(coreav), *(['--strict-safe'] if strict else []), 'ffmpeg', '-threads', str(threads),
+            '-i', str(source), *after, str(output)]
 
 
 def profile(data, config, channels):
@@ -59,6 +66,9 @@ def check(coreav, oracle, tool, work):
     if not tool.is_file():
         raise ValueError('the pinned Opus comparison tool is required')
     work.mkdir(parents=True, exist_ok=True)
+    fallback = work / 'ffmpeg'
+    fallback.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@"\ncat\nexit 7\n')
+    fallback.chmod(0o700)
     rows = []
     for mode, bitrate, application in [('silk', '12000', 'voip'),
                                        ('hybrid', '24000', 'voip'),
@@ -102,30 +112,103 @@ def check(coreav, oracle, tool, work):
             terminal_quality = compare(tool, work, label + '-terminal',
                                        reference[-terminal_bytes:], raw['s16'][-terminal_bytes:], channels)
             full = info['packet_samples'] - info['start']
-            for length in (1, 4800, full):
-                for skip in (info['skip'], 3840):
-                    variant = bytearray(data)
+            cases = [(True, info['start'], length, skip) for length in (1, 4800, full)
+                     for skip in (info['skip'], 3840)]
+            cases += [(False, skip, info['packet_samples'] - skip, skip) for skip in (0, info['skip'], 3840)]
+            for edited, start, length, skip in cases:
+                variant = bytearray(data)
+                if edited:
                     struct.pack_into('>I', variant, info['edit'] + 8, length)
-                    struct.pack_into('>H', variant, info['config'] + 2, skip)
-                    variant_path = work / f'{label}-{length}-{skip}.mp4'
-                    variant_path.write_bytes(variant)
-                    for format, width in [('s16', 2), ('f32', 4)]:
-                        for threads in (1, 8):
-                            output = work / f'{label}-{length}-{skip}-{format}-{threads}.wav'
-                            output.unlink(missing_ok=True)
-                            summary = json.loads(run([coreav, 'decode-audio', '--format', format,
-                                '--threads', threads, variant_path, output]))
-                            if summary['warnings'] or summary['output']['samples'] != length or \
-                                    summary['output']['sample_rate'] != 48000 or \
-                                    summary['output']['channels'] != channels or summary['timeline']['start'] != 0:
-                                raise ValueError('native output differs from the source presentation')
-                            presented(raw[format], wav_samples(output.read_bytes()), info['start'],
-                                      length, channels, width)
-                    rows.append(dict(mode=mode, channels=channels, rate=48000, mapping=0, gain=0,
-                        input_sha256=hashlib.sha256(variant).hexdigest(),
-                        packet_sha256=hashlib.sha256(b''.join(info['packets'])).hexdigest(),
-                        packet_samples=info['packet_samples'], start=info['start'], samples=length,
-                        preskip=skip, whole_quality=whole_quality, terminal_quality=terminal_quality))
+                else:
+                    variant[info['edit'] - 4:info['edit']] = b'free'
+                struct.pack_into('>H', variant, info['config'] + 2, skip)
+                name = f'{label}-{int(edited)}-{length}-{skip}'
+                variant_path = work / f'{name}.mp4'
+                variant_path.write_bytes(variant)
+                for format, width in [('s16', 2), ('f32', 4)]:
+                    for threads in (1, 8):
+                        output = work / f'{name}-{format}-{threads}.wav'
+                        output.unlink(missing_ok=True)
+                        summary = json.loads(run([coreav, 'decode-audio', '--format', format,
+                            '--threads', threads, variant_path, output]))
+                        if summary['warnings'] or summary['output']['samples'] != length or \
+                                summary['output']['sample_rate'] != 48000 or \
+                                summary['output']['channels'] != channels or summary['timeline']['start'] != 0:
+                            raise ValueError('native output differs from the source presentation')
+                        presented(raw[format], wav_samples(output.read_bytes()), start, length, channels, width)
+                        for input_path, stdin in ((str(variant_path), None), ('pipe:', variant)):
+                            command = native(coreav, input_path, ['-f', format + 'le'], threads=threads)
+                            result = subprocess.run(command, input=stdin, capture_output=True,
+                                                    timeout=30, check=True)
+                            if result.stderr:
+                                raise ValueError('native PCM command emitted diagnostics')
+                            presented(raw[format], result.stdout, start, length, channels, width)
+                    if channels == 1 and (sys.platform, platform.machine()) == ('linux', 'x86_64'):
+                        floats = work / f'{name}-rate.f32'
+                        floats.write_bytes(raw['f32'][start * 4:(start + length) * 4])
+                        expected = run([oracle / 'ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000',
+                            '-ac', '1', *AUDIO_DECODE_INPUT, '-i', floats, '-ar', '16000',
+                            '-f', format + 'le', '-'])
+                        actual = run(native(coreav, variant_path, ['-ar', '16000', '-f', format + 'le']))
+                        if actual != expected:
+                            raise ValueError('registered rate conversion changed complete bytes')
+                rows.append(dict(mode=mode, channels=channels, rate=48000, mapping=0, gain=0,
+                    input_sha256=hashlib.sha256(variant).hexdigest(),
+                    packet_sha256=hashlib.sha256(b''.join(info['packets'])).hexdigest(),
+                    packet_samples=info['packet_samples'], start=start, samples=length,
+                    edit=edited, preskip=skip, whole_quality=whole_quality, terminal_quality=terminal_quality))
+            for gain in (-256, 1, 256):
+                changed = bytearray(data)
+                struct.pack_into('>h', changed, info['config'] + 8, gain)
+                path.write_bytes(changed)
+                result = subprocess.run(native(coreav, path, ['-f', 'f32le']), capture_output=True, timeout=30)
+                if result.returncode != 4 or result.stdout:
+                    raise ValueError('nonzero Opus gain was not refused before output')
+                destination = work / f'{label}-refused.raw'
+                destination.write_bytes(b'original')
+                result = subprocess.run(native(coreav, path, ['-y', '-f', 'f32le'], destination),
+                    capture_output=True, timeout=30)
+                if result.returncode != 4 or result.stdout or destination.read_bytes() != b'original':
+                    raise ValueError('nonzero Opus gain changed an existing output file')
+                replay_args = native(coreav, 'pipe:', ['-f', 'f32le'], strict=False)
+                env = {**os.environ, 'COREAV_FALLBACK': str(fallback)}
+                env.pop('COREAV_STRICT_SAFE', None)
+                replay = subprocess.run(replay_args, input=changed,
+                    capture_output=True, timeout=30, env=env)
+                expected = ('\n'.join(replay_args[2:]) + '\n').encode() + changed
+                if replay.returncode != 7 or replay.stdout != expected:
+                    raise ValueError('Opus profile refusal lost original fallback arguments or stdin')
+            for rate in (0, 8000, 44100, 192000):
+                changed = bytearray(data)
+                struct.pack_into('>I', changed, info['config'] + 4, rate)
+                path.write_bytes(changed)
+                actual = run(native(coreav, path, ['-f', 'f32le']))
+                presented(raw['f32'], actual, info['start'], 4800, channels, 4)
+            path.write_bytes(data)
+            containers = []
+            def edit_parents(begin, end):
+                for kind, start, finish in boxes(data, begin, end):
+                    if kind in (b'moov', b'trak', b'edts'):
+                        containers.append(start - 8)
+                        edit_parents(start, finish)
+            edit_parents(0, len(data))
+            if len(containers) != 3:
+                raise ValueError('unexpected generated edit ancestors')
+            gap = bytearray(data)
+            gap[info['edit'] + 8:info['edit'] + 8] = struct.pack('>Iihh', 480, -1, 1, 0)
+            struct.pack_into('>I', gap, info['edit'] + 4, 2)
+            for header in [*containers, info['edit'] - 8]:
+                struct.pack_into('>I', gap, header, struct.unpack_from('>I', data, header)[0] + 12)
+            gap_path = work / f'{label}-gap.mp4'
+            gap_path.write_bytes(gap)
+            result = subprocess.run(native(coreav, gap_path, ['-f', 'f32le']), capture_output=True, timeout=30)
+            if result.returncode != 4 or result.stdout:
+                raise ValueError('unqualified empty-edit silence was not refused before output')
+            for options in (['-ac', str(3 - channels)], ['-ar', '22050']):
+                result = subprocess.run(native(coreav, path, [*options, '-f', 'f32le']),
+                    capture_output=True, timeout=30)
+                if result.returncode != 4 or result.stdout:
+                    raise ValueError('decoder admission bypassed exact conversion registration')
     return rows
 
 

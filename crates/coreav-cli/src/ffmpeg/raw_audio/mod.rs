@@ -191,6 +191,16 @@ pub(super) fn plan(
                 Refusal::not_native("an unregistered decoder representation or presentation")
             })?;
         let kind = admission.kind;
+        if admission
+            .requirements
+            .contains(&record::Requirement::OpusMapping0)
+            && (admission.codec != coreav_audio::Codec::Opus
+                || !opus_mapping0(report, *index, channels, input_rate))
+        {
+            return Err(Refusal::not_native(
+                "Opus PCM requires mapping family 0, zero gain and native 48 kHz mono or stereo",
+            ));
+        }
         (DecoderPlan::Recorded(admission), kind)
     };
     let rate = exact::rate(
@@ -220,6 +230,21 @@ pub(super) fn plan(
 }
 
 struct Bytes<'a>(&'a mut dyn Write);
+
+fn opus_mapping0(report: &Report, index: usize, channels: u16, rate: u32) -> bool {
+    rate == 48_000
+        && matches!(channels, 1 | 2)
+        && report.setups.get(index).is_some_and(|setup| {
+            setup.unreadable.is_none()
+                && setup.config.as_deref().is_some_and(|config| {
+                    coreav_audio::OpusHead::from_config(config).is_ok_and(|head| {
+                        head.family() == 0
+                            && u16::from(head.channels()) == channels
+                            && head.output_gain() == 0
+                    })
+                })
+        })
+}
 
 impl Sink for Bytes<'_> {
     fn start(&mut self, _: &OutputFormat) -> Result<(), Error> {
@@ -363,6 +388,10 @@ fn decode(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result<Pass, E
                 && decoded.stream.codec == admission.codec
                 && (!admission.requirements.contains(&record::Requirement::AacLc)
                     || coreav_audio::Codec::from_name("aac") == Some(decoded.stream.codec))
+                && (!admission
+                    .requirements
+                    .contains(&record::Requirement::OpusMapping0)
+                    || decoded.timeline.start == 0 && decoded.timeline.silence.is_empty())
         }
     };
     if !valid_decoder
@@ -388,6 +417,12 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
         .options
         .stream
         .ok_or_else(|| Refusal::not_native("raw audio without a selected stream"))?;
+    if matches!(&plan.decoder, DecoderPlan::Recorded(admission)
+        if admission.requirements.contains(&record::Requirement::OpusMapping0))
+        && !opus_mapping0(&probed.report, index, plan.channels.input, plan.input_rate)
+    {
+        return Err(Refusal::not_native("Opus PCM configuration changed after planning").into());
+    }
     let mut payloads = vec![false; probed.report.streams.len()];
     if let Some(payload) = payloads.get_mut(index) {
         *payload = true;
@@ -429,6 +464,11 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
                             record::Requirement::AacLc => {
                                 coreav_audio::Codec::from_name("aac")
                                     != Some(pass.decoded.stream.codec)
+                            }
+                            record::Requirement::OpusMapping0 => {
+                                pass.decoded.stream.codec != coreav_audio::Codec::Opus
+                                    || pass.decoded.stream.sample_rate != 48_000
+                                    || !matches!(pass.decoded.stream.channels, 1 | 2)
                             }
                         };
                     }

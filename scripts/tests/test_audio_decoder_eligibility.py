@@ -72,7 +72,7 @@ class DecoderEligibility(unittest.TestCase):
     def test_opus_presentation_cannot_be_enabled_by_its_vector_pass(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')
         self.assertTrue(opus['decoder_eligible'])
-        self.assertTrue(all(not row['eligible'] for row in opus['presentations']))
+        self.assertFalse(opus['presentations'][1]['eligible'])
         opus['presentations'][0].update(eligible=True, requirements=['supported_mp4_timeline'])
         with self.assertRaisesRegex(ValueError, 'profile predicate'):
             eligibility.validate(self.record)

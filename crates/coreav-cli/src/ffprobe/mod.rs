@@ -281,7 +281,7 @@ pub fn probe_limited<'a, S: Source + 'a>(
                             config: description
                                 .codec_config
                                 .as_ref()
-                                .filter(|c| matches!(&c.kind.0, b"avcC" | b"dfLa"))
+                                .filter(|c| matches!(&c.kind.0, b"avcC" | b"dfLa" | b"dOps"))
                                 .map(|c| c.data.clone()),
                             width: description.width.map(u32::from),
                             height: description.height.map(u32::from),

@@ -14,7 +14,7 @@ The candidate scope is Opus mapping family 0, mono or stereo at the native
 this PR: its earlier CELT terminal waveform discrepancy must be explained,
 not accepted as a numerical divergence. Mapping families 1, 2 and 255,
 gain-bearing configurations, concealed packets, unsupported edits and
-timestamp warnings are outside this admission.
+timestamp warnings and edits that insert silence are outside this admission.
 
 1. Reproduce the earlier terminal waveform discrepancy with the pinned
    FFmpeg 9.0.2 binaries as black boxes. Distinguish the default decoder,
@@ -71,25 +71,38 @@ rate must be 48 kHz. The informational input-rate field grants nothing.
 before native output starts, while all existing packet-time refusals stay
 in force. Missing, unknown or unproved requirements deny admission.
 
-The PCM adapter in coreav-dev/coreav#346 rejects an unknown requirement
+The PCM adapter introduced by coreav-dev/coreav#346 rejects an unknown requirement
 anywhere in the record, including in another codec's row. Add the consumer
 predicate and activate the Opus row atomically after that adapter lands.
-Keep the checked-in Opus presentation false until then. Retain a regression
-that MP3 admission survives the added Opus row, plus mapping, gain, unknown
-predicate and conversion-refusal regressions. This is decoder admission,
+This PR adds that consumer predicate and activates the MP4 Opus row together.
+MP3 admission survives the added Opus row. Mapping, gain, unknown
+predicate and conversion-refusal regressions protect the boundary. This is decoder admission,
 not permission to bypass an unregistered rate or channel conversion.
 
 ## Generated qualification
 
-`scripts/opus_pcm_eligibility.py` checks 36 source-bound MP4 presentations:
+`scripts/opus_pcm_eligibility.py` checks 54 source-bound MP4 presentations:
 SILK, Hybrid and CELT, mono and stereo, one-sample, 4,800-sample and complete
-packet-boundary edits, each with original versus 3,840 informative PreSkip.
+packet-boundary edits, each with original versus 3,840 informative PreSkip,
+and no-edit controls with PreSkip 0, the original value and 3,840.
 For each presentation, complete S16 and F32 output at one and eight threads
 must equal the independently constructed native packet control with exactly
-the source-specified interval retained. No length repair or alignment occurs.
+the source-specified interval retained. File and encoded-stdin PCM stdout
+must preserve the same bytes. No length repair or alignment occurs.
 The report binds the complete container bytes and packet payloads by SHA-256.
 The command removes an old report before validation, so failure cannot leave
 an earlier success as its result.
+
+No-edit controls derive their start from actual PreSkip and their end from
+complete packet work. Finite edits derive both bounds from the edit, never
+from informative PreSkip. Gain-bearing input and silence-inserting edits
+must refuse before stdout starts. All decoded output remains at 48 kHz.
+
+The unchanged Linux x86-64 mono 48-to-16-kHz registration is checked by
+feeding identical native decoded F32 to the oracle conversion stage and
+requiring complete F32 and S16 command bytes to match. One-sample inputs
+also cover an empty resampler drain. Changed channels and unregistered
+rates remain refused. No conversion row is added or broadened.
 
 The packet control has zero delay and no discard padding. Complete S16
 native output and the last 2,880 decoded samples per channel are compared
@@ -108,3 +121,19 @@ complete 96,840-sample count, with maximum difference 1.53184e-5 overall and
 the large difference to the default decoder's waveform, not lost or added
 native packets. It does not establish that decoder's internal cause or waive
 any conformance requirement. Matroska admission remains disabled.
+
+## Runtime enforcement
+
+The existing Opus header parser owns configuration validation. The audio
+crate re-exports its header type so the CLI does not duplicate its parser.
+MP4 probing retains dOps beside the other decoder setup records. Planning
+checks the actual header, and preflight checks it again before output.
+The complete discard-sink decode and packet inspection still precede
+output creation. They reject warnings, corrupt packets, nonmatching PTS
+and DTS, unqualified silence spans and a changed codec or native rate.
+
+The consumer recognizes opus_mapping0 and rejects an enabled Opus row
+missing that predicate or supported_mp4_timeline. This changes the old
+record tests' MP4 Opus refusal expectation because scoped admission is
+the purpose of this follow-up. MP3 assertions and the existing Matroska
+Opus refusal and stdin-fallback assertions remain. AAC remains disabled.

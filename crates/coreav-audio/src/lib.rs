@@ -46,6 +46,7 @@ mod resample;
 mod stream;
 pub mod wav;
 
+pub use coreav_opus::Head as OpusHead;
 pub use decode::{
     Codec, Options, OutputFormat, SampleFormat, SilenceSpan, Sink, StreamFormat, Summary, Timeline,
     decode,
