@@ -2,8 +2,9 @@
 //! for an ISO base media file, from the boxes `coreav_isobmff::metadata`
 //! reads.
 //!
-//! Every rule here was derived black-box from the pinned `ffprobe` 7.0.2 on
-//! crafted files (no FFmpeg source was read):
+//! The legacy rules below were derived black-box from `ffprobe` 7.0.2 on
+//! crafted files (no FFmpeg source was read). Scoped user-data names match
+//! pinned FFmpeg 9.0.2 (`docs/design/ffprobe-iso-track-names.md`).
 //!
 //! - Format tags are one dictionary, filled in file order: each `ftyp`
 //!   before the movie box (`major_brand`, `minor_version`,
@@ -102,6 +103,8 @@ pub struct IsoMeta {
     /// every track box of the movie, dropped streams included (index =
     /// `Track::stream_index`, `DroppedStream::stream_index`).
     pub all_streams: Vec<StreamMeta>,
+    /// Every metadata box was read within the existing bounds.
+    pub metadata_complete: bool,
 }
 
 /// One stream's metadata.
@@ -217,6 +220,15 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         }
     }
     let chapter_list = chapter_list(&meta);
+    let mut names = vec![Vec::new(); meta.tracks.len()];
+    for (position, item) in meta.items.iter().enumerate() {
+        if let (Some(index), ItemValue::UserData { kind, payload }) = (item.track, &item.value)
+            && kind.0 == *b"name"
+            && let Some(name) = names.get_mut(index)
+        {
+            name.push((position, payload.as_slice()));
+        }
+    }
     let chapter_pictures: Vec<u32> = movie
         .tracks
         .iter()
@@ -235,7 +247,13 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         let own = timecodes.get(index).and_then(Option::as_ref);
         let timecode = own_or_referenced_timecode(track, own, &by_id);
         all_streams.push(StreamMeta {
-            tags: stream_tags(track, handler_name, timecode, quicktime),
+            tags: stream_tags(
+                track,
+                handler_name,
+                timecode,
+                quicktime,
+                names.get(index).map(Vec::as_slice).unwrap_or_default(),
+            ),
             disposition: disposition(
                 track,
                 kept.is_some_and(|t| chapter_pictures.contains(&t.track_id)),
@@ -253,6 +271,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         });
     }
     let mut out = IsoMeta {
+        metadata_complete: meta.complete,
         covers: covers(&meta),
         format_tags: format_tags(&meta, &timecodes),
         chapters: chapters(movie, &chapter_list, &meta, &mut *source, limits)?,
@@ -410,6 +429,13 @@ fn c_str(bytes: &[u8]) -> &[u8] {
 
 fn utf8(bytes: &[u8]) -> String {
     String::from_utf8_lossy(c_str(bytes)).into_owned()
+}
+
+fn user_data_name(bytes: &[u8]) -> String {
+    let bytes = c_str(bytes);
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .unwrap_or_else(|_| mac_roman(bytes))
 }
 
 /// Mac OS Roman bytes as text (`ffprobe`'s table above 0x7f).
@@ -721,11 +747,25 @@ fn format_tags(meta: &Metadata, timecodes: &[Option<String>]) -> Vec<(String, St
         dict.set("minor_version", file_type.minor_version.to_string());
         dict.set("compatible_brands", utf8(&file_type.compatible_brands));
     }
-    if let Some(time) = creation_time(meta.movie_created) {
-        dict.set("creation_time", time);
+    let mut created = creation_time(meta.movie_created);
+    for (position, item) in meta.items.iter().enumerate() {
+        if position == meta.movie_header_item_position
+            && let Some(time) = created.take()
+        {
+            dict.set("creation_time", time);
+        }
+        if let ItemValue::UserData { kind, payload } = &item.value
+            && kind.0 == *b"name"
+        {
+            if item.track.is_none() {
+                dict.set("name", user_data_name(payload));
+            }
+        } else {
+            item_tags(&mut dict, item);
+        }
     }
-    for item in &meta.items {
-        item_tags(&mut dict, item);
+    if let Some(time) = created {
+        dict.set("creation_time", time);
     }
     if timecodes.iter().any(Option::is_some) {
         let named: HashSet<u32> = meta
@@ -785,9 +825,16 @@ fn stream_tags(
     handler: Option<String>,
     timecode: Option<String>,
     quicktime: bool,
+    names: &[(usize, &[u8])],
 ) -> Vec<(String, String)> {
-    let mut tags = Vec::new();
-    let mut push = |key: &str, value: String| tags.push((key.to_owned(), value));
+    let mut tags = Dict::default();
+    let mut push = |key: &str, value: String| tags.set(key, value);
+    let mut names = names.iter().peekable();
+    while let Some((_, value)) =
+        names.next_if(|(position, _)| *position < track.media_item_position)
+    {
+        push("name", user_data_name(value));
+    }
     if let Some(time) = creation_time(track.media_created) {
         push("creation_time", time);
     }
@@ -816,10 +863,13 @@ fn stream_tags(
             push("reel_name", value);
         }
     }
+    for (_, value) in names {
+        push("name", user_data_name(value));
+    }
     if let Some(timecode) = timecode {
         push("timecode", timecode);
     }
-    tags
+    tags.entries
 }
 
 /// The scheme of the `kind` values `ffprobe` reads.

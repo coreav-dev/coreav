@@ -24,6 +24,18 @@ Do not add `name` to the generic unscoped atom mapping: that would copy
 track names into format metadata. Reuse the existing tag ordering and
 dictionary overwrite behavior, retaining all unrelated metadata.
 
+The existing walk also records the item position of the movie header and
+each track's media box. These two scalar positions retain names that occur
+before creation/language tags without new reads or a second parser. Emit
+an early name before those tags and a late name after the existing track
+tags but before derived timecode.
+
+Retain the existing metadata-completeness fact in the report. If a bound
+or malformed box leaves names uncertain, requesting a stream or format
+name refuses before writer or packet output, using the existing fallback.
+Tag selection is case-insensitive like the writer. Requests that do not
+select names keep their existing native behavior. No bound is raised.
+
 ## Verification
 
 Commit the plan before implementation. Check scoped, duplicate, empty,
