@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "candidate": "117a41ae83923b59f401bab1a380f00d2c21b1ae",
+  "baseline": "8f894f51d02795a16c63c35a2361dc1a9783281b",
+  "plan_sha256": "0cdd1ae3a3e7598ee1129eea0f46b27a601e43f55bb888899f97f005044ac651",
+  "reviewed_plan_commit": "b55d9fc2db39af3bec2aaa3f3a9576d299476964",
+  "recipe_sha256": "462aaeb7ad192843e6d2925ba38f6e03c88e24de03dd60932e090d52ded94e03",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "profile_overrides": {
+    "CARGO_PROFILE_DIST_DEBUG": "2",
+    "CARGO_PROFILE_DIST_STRIP": "none"
+  },
+  "native": {
+    "baseline-dist": {
+      "commit": "8f894f51d02795a16c63c35a2361dc1a9783281b",
+      "archive_sha256": "62bf8cbb51c6e10589dab95cae9a8f4d6c82d91526ba67e16246b5acc1ceac6a",
+      "lock_sha256": "ef8a615945e91d2af813ed80afc9492e9acfb20b0e13a2a052235745c6ac5283",
+      "adapter_sha256": "d34059802d65baf7ee71be6125c21edda0a513db892326ba83030cf190e3ebf6",
+      "adapter_file_sha256": "f4c2cf44fe54ee548e6dd311f4e6e137947f6f527acfb1c6af81dec8f8fb462d",
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "build",
+        "--locked",
+        "--profile",
+        "dist",
+        "-p",
+        "coreav-decode-oracle",
+        "-p",
+        "coreav-kernels-vp9",
+        "--features",
+        "coreav-decode-oracle/native-vp9"
+      ],
+      "features": [
+        "coreav-decode-oracle/native-vp9"
+      ],
+      "profile": "dist"
+    },
+    "merged-safe-dist": {
+      "commit": "117a41ae83923b59f401bab1a380f00d2c21b1ae",
+      "archive_sha256": "f09dff3d937a10c88e41f1307434f661f13f4db04098cb2b5484e2b9d83cc58f",
+      "lock_sha256": "68d7ff212d7636899de39fb2b3abd0aa5b04c7040856f4f3516da6ca3e822c59",
+      "adapter_sha256": "d34059802d65baf7ee71be6125c21edda0a513db892326ba83030cf190e3ebf6",
+      "adapter_file_sha256": "f4c2cf44fe54ee548e6dd311f4e6e137947f6f527acfb1c6af81dec8f8fb462d",
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "build",
+        "--locked",
+        "--profile",
+        "dist",
+        "-p",
+        "coreav-decode-oracle",
+        "-p",
+        "coreav-kernels-vp9",
+        "--features",
+        "coreav-decode-oracle/native-vp9,coreav-kernels-vp9/safe"
+      ],
+      "features": [
+        "coreav-decode-oracle/native-vp9",
+        "coreav-kernels-vp9/safe"
+      ],
+      "profile": "dist"
+    },
+    "merged-auto-dist": {
+      "commit": "117a41ae83923b59f401bab1a380f00d2c21b1ae",
+      "archive_sha256": "f09dff3d937a10c88e41f1307434f661f13f4db04098cb2b5484e2b9d83cc58f",
+      "lock_sha256": "68d7ff212d7636899de39fb2b3abd0aa5b04c7040856f4f3516da6ca3e822c59",
+      "adapter_sha256": "d34059802d65baf7ee71be6125c21edda0a513db892326ba83030cf190e3ebf6",
+      "adapter_file_sha256": "f4c2cf44fe54ee548e6dd311f4e6e137947f6f527acfb1c6af81dec8f8fb462d",
+      "command": [
+        "cargo",
+        "+1.99.0",
+        "build",
+        "--locked",
+        "--profile",
+        "dist",
+        "-p",
+        "coreav-decode-oracle",
+        "-p",
+        "coreav-kernels-vp9",
+        "--features",
+        "coreav-decode-oracle/native-vp9"
+      ],
+      "features": [
+        "coreav-decode-oracle/native-vp9"
+      ],
+      "profile": "dist"
+    }
+  },
+  "binaries": {
+    "baseline-dist": "97be90ce8f2a201581ed92701003eb2faf83b6df339801065867d914a17606bc",
+    "merged-safe-dist": "671635295f117ac3d4ed17f7fabbb43afee2903e4de5747b63920b4570b2b921",
+    "merged-auto-dist": "77afa3859260e7a0bae979f932b6966a931d0c59157078ec6084a26d3113e021",
+    "ffmpeg-pinned": "0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d",
+    "ffmpeg-symbols": "901349282569ec2dfb1398b74124c18b4973f48cc74a63568d98c007dc6f000d",
+    "ffprobe": "a5bd5e9f8d74ab2c6d7d9e2e2738ff6d67bf9613e7143e143ba8ebe9b06385fb"
+  },
+  "scripts": {
+    "vp9_pixel_round.py": "2dd7d856d5570741113489f76da099dfd5b11f5867b7e8334437db7d0f78961f",
+    "vp9_pixel_profiles.py": "3f0cbe890a89b35d960ee18435831a409e6aeea6825638d6078ed04b1f9b05b9",
+    "vp9_pixel_build.py": "6a899aecd066379adfbd6016eea2dc8a6a708ae157aa931919676d5679fdf34f",
+    "vp9_pixel_ceiling.py": "10335257ea5cc07c5fc5e1f8e976c9856b0ea25a0f991621519ba825181711dc",
+    "vp9_pixel_job.sh": "db0226d50f4f5c3830a4465caa67146655a2baa8bc30b3f36ea04a9fef26bcde",
+    "oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
+    "oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+    "oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
+    "oracle-audio-args.txt": "52720de7a4d973d387c1c7bffd770f40120b7315dcf307625841d04d5e000586"
+  },
+  "oracle_pin_sha256": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+  "symbol_source": {
+    "commit": "2a571b606854520cf89804d8030c8b328e621689",
+    "archive_sha256": "8a1467f7f75a297fff18a4fa0ec2c9dd933cbe888fc45a3fc11e1d3225418674",
+    "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "assembler": "NASM version 2.16.01",
+    "configure": [
+      "./configure",
+      "--cc=cc",
+      "--disable-everything",
+      "--disable-autodetect",
+      "--enable-decoder=vp9",
+      "--enable-parser=vp9",
+      "--enable-demuxer=matroska",
+      "--enable-muxer=null,framemd5",
+      "--enable-encoder=rawvideo,wrapped_avframe",
+      "--enable-protocol=file,pipe",
+      "--enable-filter=null,format,scale",
+      "--disable-stripping",
+      "--disable-debug",
+      "--disable-doc"
+    ],
+    "debug_sections": false
+  },
+  "source_deleted_before_profiling": true,
+  "host": {
+    "machine_type": "c4-standard-16",
+    "zone": "us-central1-a",
+    "cpu_platform": "Intel Emerald Rapids",
+    "advanced_machine_features": {
+      "threadsPerCore": 1,
+      "performanceMonitoringUnit": "STANDARD",
+      "turboMode": "ALL_CORE_MAX"
+    },
+    "provisioning": "STANDARD"
+  },
+  "counters": {
+    "retained_invocations": 349,
+    "timed_invocations": 150,
+    "profile_cells": 24,
+    "decoder_threads": 1,
+    "frames": 120,
+    "warmups": 1,
+    "rounds": 5
+  },
+  "independent_replay_matches": true
+}

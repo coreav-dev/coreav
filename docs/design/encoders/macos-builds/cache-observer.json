@@ -1,0 +1,11 @@
+{
+  "arguments": [
+    "-v",
+    "-m",
+    "32G"
+  ],
+  "file": "target/videotoolbox/bin/vmtouch",
+  "kind": "vmtouch-verbose/1",
+  "page_size": 16384,
+  "sha256": "bbb048645b448aea89db45c7331a09598c82da9941c41ce478b05d52b4c15bb2"
+}
