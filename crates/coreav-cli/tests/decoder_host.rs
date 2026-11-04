@@ -1,5 +1,5 @@
-#![cfg(feature = "transcode")]
 #![doc = "Synthetic transcodes preserve complete pixels across diagnostic decoder hosts."]
+#![cfg(feature = "transcode")]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
