@@ -1521,13 +1521,14 @@ FFmpeg).**
   rejected, exit 1.
 - A join that would not be timed as the concat demuxer times it: inputs
   whose tracks have several edits, which the demuxer reads by its own edit
-  model, and an input the demuxer would place before the previous input's
+  model, an input with a positive AAC media edit offset (including unselected audio), and an input the demuxer would place before the previous input's
   video ends. Also inputs that do not match the first
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
+  The AAC restriction keeps the native join's gapless presentation from being mistaken for FFmpeg concat packet timing; see [the plan](concat-aac-edits.md).
 - Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
   whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
   pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item

@@ -893,6 +893,162 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     }
 }
 
+fn concat_aac_edit(media_time: u32, later_aac: bool) -> Vec<u8> {
+    retracked(|video, audio| {
+        let mut audio = audio.to_vec();
+        if later_aac {
+            let stsd = audio.windows(4).position(|word| word == b"stsd").unwrap();
+            let start = stsd + 12;
+            let old = u32::from_be_bytes(audio[start..start + 4].try_into().unwrap()) as usize;
+            let entries = cat(&[common::audio_entry(b"sowt"), aac_entry()]);
+            for kind in [b"mdia", b"minf", b"stbl", b"stsd"] {
+                let at = audio.windows(4).position(|word| word == kind).unwrap() - 4;
+                let size = u32::from_be_bytes(audio[at..at + 4].try_into().unwrap()) as usize;
+                audio[at..at + 4]
+                    .copy_from_slice(&((size + entries.len() - old) as u32).to_be_bytes());
+            }
+            audio[stsd + 8..stsd + 12].copy_from_slice(&2u32.to_be_bytes());
+            audio.splice(start..start + old, entries);
+        }
+        let edits = full(b"elst", 0, 0, &u32s(&[1, 160, media_time, 0x10000]));
+        vec![
+            video.to_vec(),
+            bx(b"trak", &cat(&[audio[8..].to_vec(), bx(b"edts", &edits)])),
+        ]
+    })
+}
+
+#[test]
+fn concat_positive_aac_edits_are_refused_without_publishing_output() {
+    let dir = scratch("ffmpeg-concat-aac-edits");
+    movie(&dir);
+    let list = dir.join("list with spaces.txt");
+    let output = dir.join("out.mp4");
+    let l = list.to_str().unwrap();
+    let o = output.to_str().unwrap();
+    for later in [false, true] {
+        for offset in [0, 512] {
+            let bytes = concat_aac_edit(offset, later);
+            let parsed = coreav_isobmff::probe(
+                coreav_isobmff::SliceSource::new(&bytes),
+                &coreav_isobmff::Limits::default(),
+                &coreav_isobmff::Allowlist::listing(),
+            )
+            .unwrap();
+            assert_eq!(parsed.tracks[1].edits[0].media_time, i64::from(offset));
+            if later {
+                assert_eq!(
+                    parsed.tracks[1].later_descriptions[0].codec,
+                    coreav_isobmff::Codec::Aac
+                );
+                assert_ne!(
+                    parsed.tracks[1].description.codec,
+                    coreav_isobmff::Codec::Aac
+                );
+            }
+            std::fs::write(dir.join("edited.mp4"), bytes).unwrap();
+            for files in [
+                "file edited.mp4\nfile in.mp4\n",
+                "file in.mp4\nfile edited.mp4\n",
+            ] {
+                std::fs::write(&list, files).unwrap();
+                for selection in [&[][..], &["-an"][..], &["-map", "0:v:0"][..]] {
+                    if later && selection.is_empty() {
+                        continue;
+                    }
+                    let mut args = vec!["-f", "concat", "-safe", "0", "-i", l];
+                    args.extend_from_slice(selection);
+                    args.extend(["-c", "copy", o]);
+                    let before = std::fs::read_dir(&dir).unwrap().count();
+                    let r = ffmpeg(&args);
+                    assert!(r.stdout.is_empty());
+                    if offset == 0 {
+                        assert_eq!(
+                            r.code, 0,
+                            "later={later} {files:?} {selection:?}: {}",
+                            r.stderr
+                        );
+                        std::fs::remove_file(&output).unwrap();
+                    } else {
+                        assert_eq!(
+                            r.code, 4,
+                            "later={later} {files:?} {selection:?}: {}",
+                            r.stderr
+                        );
+                        assert!(
+                            r.stderr.contains("positive AAC edit offset"),
+                            "{}",
+                            r.stderr
+                        );
+                        assert!(!output.exists());
+                        std::fs::write(&output, b"keep existing output").unwrap();
+                        let r = ffmpeg(&[&["-y"], args.as_slice()].concat());
+                        assert_eq!(r.code, 4, "{}", r.stderr);
+                        assert_eq!(std::fs::read(&output).unwrap(), b"keep existing output");
+                        std::fs::remove_file(&output).unwrap();
+                    }
+                    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);
+                }
+            }
+        }
+    }
+    std::fs::write(dir.join("edited.mp4"), concat_aac_edit(512, false)).unwrap();
+    let paths = [dir.join("edited.mp4"), dir.join("in.mp4")];
+    let options = coreav_isobmff_write::JoinOptions {
+        video: coreav_isobmff_write::VideoChoice::First,
+        audio: coreav_isobmff_write::JoinAudio::First,
+        placement: coreav_isobmff_write::Placement::AfterVideo,
+    };
+    assert!(coreav_cli::join::run(&paths, &options, &Default::default(), Vec::new()).is_ok());
+    let r = ffmpeg(&["-i", paths[0].to_str().unwrap(), "-c", "copy", o]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+}
+
+#[cfg(unix)]
+#[test]
+fn concat_positive_aac_edits_forward_the_original_fallback_arguments() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = scratch("ffmpeg-concat-aac-fallback");
+    std::fs::write(dir.join("in.mp4"), concat_aac_edit(512, false)).unwrap();
+    let list = dir.join("list with spaces.txt");
+    std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
+    let fallback = dir.join("ffmpeg");
+    std::fs::write(&fallback, "#!/bin/sh\nprintf '%s\\0' \"$@\"\nexit 23\n").unwrap();
+    std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let output = dir.join("output with spaces.mp4");
+    let args = [
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        list.to_str().unwrap(),
+        "-an",
+        "-c",
+        "copy",
+        output.to_str().unwrap(),
+    ];
+    let before = std::fs::read_dir(&dir).unwrap().count();
+    let r = Command::new(bin())
+        .arg("ffmpeg")
+        .args(args)
+        .env_clear()
+        .env("PATH", &dir)
+        .output()
+        .unwrap();
+    assert_eq!(
+        r.status.code(),
+        Some(23),
+        "{}",
+        String::from_utf8_lossy(&r.stderr)
+    );
+    let expected: Vec<u8> = args.iter().flat_map(|arg| arg.bytes().chain([0])).collect();
+    assert_eq!(r.stdout, expected);
+    assert!(!output.exists());
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);
+}
+
 #[test]
 fn concat_lists_and_options_outside_the_join_are_refused() {
     let dir = scratch("ffmpeg-concat-refused");
