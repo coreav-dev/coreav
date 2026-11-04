@@ -35,6 +35,10 @@ on:
         description: Build the tested symbolized merged encoder without timing
         type: boolean
         default: false
+      cost_cache_ceiling_build:
+        description: Test disposable merged-encoder replay variants without timing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,7 +49,7 @@ concurrency:
 
 jobs:
   flac-output:
-    if: ${{ !inputs.cost_cache_build && !inputs.cost_cache_profile_build }}
+    if: ${{ !inputs.cost_cache_build && !inputs.cost_cache_profile_build && !inputs.cost_cache_ceiling_build }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -191,4 +195,40 @@ jobs:
         with:
           name: flac-cost-cache-profile
           path: ${{ runner.temp }}/flac-cost-cache-profile
+          if-no-files-found: error
+
+  post-cache-ceiling-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.cost_cache_ceiling_build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RUSTFLAGS: ""
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 62f4af2a4a3adb477583f91d396f6daeaebc2055
+          path: source
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Install the pinned executable oracle
+        working-directory: source
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/ceiling-oracle"
+      - name: Test and freeze the disposable exact-replay variants
+        working-directory: source
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/ceiling-oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
+        run: python3 -I ../control/scripts/flac_post_cache_ceiling_build.py "$PWD" "$RUNNER_TEMP/flac-post-cache-ceilings"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-post-cache-ceilings
+          path: ${{ runner.temp }}/flac-post-cache-ceilings
           if-no-files-found: error
