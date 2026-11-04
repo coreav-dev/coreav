@@ -25,6 +25,7 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oracle_pin
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import transcode_check as tc
 import transcode_speed as speed
 
@@ -197,7 +198,7 @@ def invocation(arm, file):
 
 
 def output_check(executor, tools, output):
-    _, frames = executor.call([tools / 'ffmpeg', '-v', 'error', '-nostdin', '-i', output,
+    _, frames = executor.call([tools / 'ffmpeg', '-v', 'error', '-nostdin', *AUDIO_DECODE_INPUT, '-i', output,
                                 '-map', '0:v:0', '-fps_mode', 'passthrough',
                                 '-f', 'framemd5', '-'], 'base')
     _, packets = executor.call([tools / 'ffprobe', '-v', 'error', '-select_streams', 'a',
