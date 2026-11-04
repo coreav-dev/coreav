@@ -1,6 +1,6 @@
 # Codecs
 
-H.264, AAC, Opus, VP9, AC-3, MP3, and AudioToolbox behavior.
+H.264, AAC, Opus, VP9, AC-3, MP3, AudioToolbox behavior, and HEVC planning.
 
 | Rule | Enforced by |
 |---|---|
