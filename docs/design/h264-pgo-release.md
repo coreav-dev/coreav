@@ -8,6 +8,8 @@ The earlier training-only diagnostic used a merged profile containing three buil
 
 ## Registered held-out evaluation
 
+The first attempt stopped during acquisition with an oracle-capture failure. The [preparation record](../measurements/h264-pgo-preparation.md) reports the incomplete roster and absence of judged timing. It changes none of the registration below.
+
 The plan and tools in the first commit precede all runs. Neither this PR nor its verification may fetch, extract, probe, decode, calibrate on, or time held-out media. The allocation reservation and this PR must both merge before acquisition or selection. Results go in a separate PR. The results do not decide a release default.
 
 The neutral allocation label is `h264-pgo-heldout-v1`. Its private reservation fixes the source population and keeps source names out of public records. The deterministic rule uses seed `coreav-h264-pgo-heldout-v1:20261103`. Order candidate identities by SHA-256 of the seed, a NUL byte, and the identity. Acquire in that order, without extending the frozen population. Exclude every previously allocated or used input, including all training and prior speed inputs, encoder inputs, and other operations' draws. The exclusion registry binds full file hashes, normalized source identities, and source groups. Check identities before acquisition and full hashes after acquisition. A missing registry component, a duplicate, or an overlap is fatal. Do not relabel another operation's draw.
