@@ -504,7 +504,7 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames):
 def confirm_reference(binary, path, directory, frames, references):
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
-    command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-i', path,
+    command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc', '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), '-f', 'md5', '-']
     code, out, err = child(command, directory, 'reference-md5')
