@@ -24,7 +24,7 @@ class OracleDiagnostics(unittest.TestCase):
         self.root = pathlib.Path(self.temporary.name)
 
     def proof(self, test='RPS_C', message='SPS 0 does not exist.', stage='packets'):
-        identity = runner.DIAGNOSTIC_STREAMS[test][0]
+        identity = runner.TERMINAL_PACKETS.get(test, ('a' * 64, 0))[0]
         case, member = dict(test=test), dict(sha256=identity)
         inventory = dict(references=[dict(layout='whole_output_yuv_file', md5='f' * 32, source='published.md5')])
         summary = dict(complete=True, output_pictures=1)
@@ -40,7 +40,7 @@ class OracleDiagnostics(unittest.TestCase):
                 native_nals_agree=True, bitstream_sha256=identity)]
         return [case, member, inventory, summary, comparison, confirmation, diagnostics, accounting]
 
-    def test_closed_message_classification_retains_exact_raw_pointer_and_all_proofs(self):
+    def test_verified_diagnostics_retain_exact_raw_pointer_and_all_proofs(self):
         fixture = self.proof()
         result = runner.classify_diagnostics(*fixture)
         item, = result
@@ -52,28 +52,51 @@ class OracleDiagnostics(unittest.TestCase):
         self.assertEqual(item['proof']['published_md5'], item['proof']['oracle_md5'])
         self.assertEqual(item['proof']['reference_count']['source'], 'published count')
 
-    def test_every_registered_line_is_literal_and_stream_bound(self):
-        for test, (_, messages) in runner.DIAGNOSTIC_STREAMS.items():
-            for message in messages:
-                fixture = self.proof(test, message)
-                self.assertEqual(runner.classify_diagnostics(*fixture)[0]['message'], message)
-                for changed in (message + ' ', message + '.', message.lower(), 'unseen diagnostic'):
-                    if changed == message:
-                        continue
-                    with self.subTest(test=test, message=changed), self.assertRaises(ValueError):
-                        runner.classify_diagnostics(*self.proof(test, changed))
+    def test_unregistered_informational_messages_on_verified_output_do_not_gate_success(self):
+        for test in ('RPS_C', 'unregistered_stream'):
+            for stage in ('packets', 'frames', 'reference-md5'):
+                for raw in ('an additional informational diagnostic\n',
+                            '[another decoder context] unregistered information\r\n'):
+                    fixture = self.proof()
+                    fixture[0]['test'] = test
+                    fixture[6] = [runner.stderr_line(raw, test, stage, exit_code=0)]
+                    with self.subTest(test=test, stage=stage, raw=raw):
+                        item, = runner.classify_diagnostics(*fixture)
+                        self.assertEqual(item['raw_line'], raw)
+                        self.assertEqual(item['classification'], 'complete_published_reference')
+                        self.assertEqual(item['proof']['published_md5'], item['proof']['oracle_md5'])
+                        self.assertEqual(item['proof']['native_output_pictures'], 1)
+
+    def test_documented_oracle_predicate_does_not_reintroduce_a_diagnostic_gate(self):
+        for name in ('docs/design/hevc.md', 'bench/hevc-conformance/README.md',
+                     'bench/hevc-conformance/oracle-preparation.md'):
+            with self.subTest(document=name):
+                text = (runner.ROOT / name).read_text()
+                self.assertIn('Diagnostic wording never gates verified output', text)
+                self.assertNotIn('Unknown diagnostics, wrong streams and missing proof fail', text)
+                self.assertNotIn('incomplete output, unknown diagnostic', text)
+
+    def test_diagnostic_wording_changes_do_not_change_verified_output_acceptance(self):
+        for message in ('SPS 0 does not exist. ', 'SPS 0 does not exist..',
+                        'sps 0 does not exist.', 'unseen diagnostic'):
+            with self.subTest(message=message):
+                self.assertEqual(runner.classify_diagnostics(*self.proof(message=message))[0]['message'], message)
+
+    def test_diagnostic_evidence_must_still_bind_its_actual_stream_and_input(self):
         fixture = self.proof()
         fixture[0]['test'] = 'SAODBLK_A'
         with self.assertRaises(ValueError):
             runner.classify_diagnostics(*fixture)
         fixture = self.proof()
-        fixture[1]['sha256'] = fixture[5]['bitstream_sha256'] = 'a' * 64
-        with self.assertRaisesRegex(ValueError, 'unregistered exact'):
+        fixture[1]['sha256'] = 'b' * 64
+        with self.assertRaisesRegex(ValueError, 'complete native/count/published-MD5 proof'):
             runner.classify_diagnostics(*fixture)
+        fixture[5]['bitstream_sha256'] = 'b' * 64
+        self.assertEqual(runner.classify_diagnostics(*fixture)[0]['proof']['bitstream_sha256'], 'b' * 64)
 
     def test_nonzero_incomplete_wrong_hash_or_native_reference_count_cannot_classify(self):
         for update in (dict(exit_code=1), dict(complete=False), dict(progress_complete=False),
-                       dict(md5='0' * 32), dict(output_pictures=2), dict(bitstream_sha256='a' * 64),
+                       dict(md5='0' * 32), dict(output_pictures=2), dict(bitstream_sha256='b' * 64),
                        dict(layout='per_picture')):
             fixture = self.proof()
             fixture[5].update(update)
@@ -87,17 +110,18 @@ class OracleDiagnostics(unittest.TestCase):
             with self.subTest(index=index, update=update), self.assertRaises(ValueError):
                 runner.classify_diagnostics(*fixture)
 
-    def test_repeated_messages_and_unseen_decode_only_lines_are_not_wildcards(self):
+    def test_repeated_messages_and_unseen_decode_only_lines_retain_verified_output_proof(self):
         for message in ('    Last message repeated 2 times', 'Could not find ref with POC 999',
                         'missing picture in access unit with size 11', 'Error parsing NAL unit #0.'):
             fixture = self.proof('NUT_A', message, 'frames')
-            with self.subTest(message=message), self.assertRaisesRegex(ValueError, 'unregistered exact'):
-                runner.classify_diagnostics(*fixture)
+            with self.subTest(message=message):
+                self.assertEqual(runner.classify_diagnostics(*fixture)[0]['message'], message)
         fixture = self.proof()
-        fixture[6].append(runner.stderr_line('    Last message repeated 1 times\n', 'RPS_C', 'reference-md5'))
-        with self.assertRaises(ValueError):
-            runner.classify_diagnostics(*fixture)
-        self.assertTrue(all(d['classification'] == 'unclassified' for d in fixture[6]))
+        fixture[6].append(runner.stderr_line('    Last message repeated 1 times\n', 'RPS_C',
+                                           'reference-md5', exit_code=0))
+        result = runner.classify_diagnostics(*fixture)
+        self.assertTrue(all(d['classification'] == 'complete_published_reference' for d in result))
+        self.assertEqual(result[1]['raw_line'], '    Last message repeated 1 times\n')
 
     def test_only_the_exact_hevc_transport_prefix_is_removed(self):
         for raw in ('[hevc @ opaque] SPS 0 does not exist.\n', '[HEVC @ 0x123] SPS 0 does not exist.\n',
@@ -105,46 +129,42 @@ class OracleDiagnostics(unittest.TestCase):
                     '[hevc @ 0x123] SPS 0 does not exist. trailing\n'):
             fixture = self.proof()
             fixture[6] = [runner.stderr_line(raw, 'RPS_C', 'packets', exit_code=0)]
-            with self.subTest(raw=raw), self.assertRaises(ValueError):
-                runner.classify_diagnostics(*fixture)
+            with self.subTest(raw=raw):
+                self.assertEqual(runner.classify_diagnostics(*fixture)[0]['raw_line'], raw)
         fixture = self.proof()
         fixture[6][0]['message'] = 'invented'
         with self.assertRaisesRegex(ValueError, 'raw line differs'):
             runner.classify_diagnostics(*fixture)
 
-    def test_terminal_probe_line_needs_exact_packet_size_types_and_no_hidden_slice(self):
+    def test_terminal_packet_proof_is_recorded_independently_of_diagnostic_wording(self):
         message = 'missing picture in access unit with size 12'
         fixture = self.proof('DELTAQP_A', message)
-        self.assertEqual(runner.classify_diagnostics(*fixture)[0]['proof']['packet']['nal_types'], [36, 37])
-        for update in (dict(size=11), dict(nal_types=[36, 1, 37]), dict(nal_types=[36, 39]),
-                       dict(nal_types=[]), dict(contains_slice=True), dict(terminal=False),
-                       dict(native_nals_agree=False), dict(independent_annex_b=False)):
-            fixture = self.proof('DELTAQP_A', message)
-            fixture[7]['auxiliary_packets'][0].update(update)
-            with self.subTest(update=update), self.assertRaises(ValueError):
-                runner.classify_diagnostics(*fixture)
-        for stage in ('reference-md5', 'unknown'):
-            with self.subTest(stage=stage), self.assertRaises(ValueError):
-                runner.classify_diagnostics(*self.proof('DELTAQP_A', message, stage))
+        self.assertEqual(runner.classify_diagnostics(*fixture)[0]['proof']['auxiliary_packets'][0]['nal_types'],
+                         [36, 37])
+        fixture = self.proof('DELTAQP_A', 'unregistered terminal diagnostic', 'reference-md5')
+        item, = runner.classify_diagnostics(*fixture)
+        self.assertEqual(item['proof']['auxiliary_packets'], fixture[7]['auxiliary_packets'])
+        with self.assertRaisesRegex(ValueError, 'stream or stage differs'):
+            runner.classify_diagnostics(*self.proof('DELTAQP_A', message, 'unknown'))
 
-    def test_progress_tag_cannot_hide_an_unknown_message(self):
+    def test_progress_tag_does_not_make_unknown_text_a_failure(self):
         fixture = self.proof()
-        fixture[6] = [runner.stderr_line('unknown message\n', 'RPS_C', 'reference-md5', 'progress')]
-        with self.assertRaises(ValueError):
-            runner.classify_diagnostics(*fixture)
+        fixture[6] = [runner.stderr_line('unknown message\n', 'RPS_C', 'reference-md5', 'progress', exit_code=0)]
+        item, = runner.classify_diagnostics(*fixture)
+        self.assertEqual(item['classification'], 'complete_published_reference')
+        self.assertEqual(item['raw_line'], 'unknown message\n')
 
-    def test_terminal_demux_warning_from_complete_decode_needs_the_same_probe_observation(self):
+    def test_verified_terminal_demux_warning_does_not_need_the_same_probe_message(self):
         message = 'missing picture in access unit with size 12'
         fixture = self.proof('DELTAQP_A', message)
         fixture[6].append(runner.stderr_line('[hevc @ 0x987] ' + message + '\n',
                                            'DELTAQP_A', 'reference-md5', exit_code=0))
         result = runner.classify_diagnostics(*fixture)
         self.assertEqual(len(result), 2)
-        self.assertTrue(all(item['classification'] == 'terminal_eos_eob_packet' for item in result))
-        self.assertTrue(all(item['proof']['packet']['nal_types'] == [36, 37] for item in result))
+        self.assertTrue(all(item['classification'] == 'complete_published_reference' for item in result))
+        self.assertTrue(all(item['proof']['auxiliary_packets'][0]['nal_types'] == [36, 37] for item in result))
         fixture = self.proof('DELTAQP_A', message, 'reference-md5')
-        with self.assertRaisesRegex(ValueError, 'named packet proof'):
-            runner.classify_diagnostics(*fixture)
+        self.assertEqual(runner.classify_diagnostics(*fixture)[0]['classification'], 'complete_published_reference')
 
     def packet_fixture(self, tail=b'\0\0\0\1\x48\1\0\0\0\1\x4a\1'):
         data = b'\0\0\1\x26\1\x80' + tail
@@ -158,8 +178,7 @@ class OracleDiagnostics(unittest.TestCase):
 
     def test_terminal_packet_independent_map_does_not_count_it_as_a_picture(self):
         fixture = self.packet_fixture()
-        with mock.patch.dict(runner.DIAGNOSTIC_STREAMS,
-                             {'DELTAQP_A': (fixture[1]['sha256'], runner.DIAGNOSTIC_STREAMS['DELTAQP_A'][1])}):
+        with mock.patch.dict(runner.TERMINAL_PACKETS, {'DELTAQP_A': (fixture[1]['sha256'], 12)}):
             result = runner.account_packets(*fixture)
         self.assertEqual(result['picture_packets'], fixture[4]['packets'][:1])
         packet, = result['auxiliary_packets']
@@ -173,7 +192,7 @@ class OracleDiagnostics(unittest.TestCase):
                      b'\0\0\0\1\x48\1\0\0\0\1\x4e\1',
                      b'\0\0\1\x48\1\0\0\1\x4a\1'):
             fixture = self.packet_fixture(tail)
-            with mock.patch.dict(runner.DIAGNOSTIC_STREAMS, {'DELTAQP_A': (fixture[1]['sha256'], {})}), \
+            with mock.patch.dict(runner.TERMINAL_PACKETS, {'DELTAQP_A': (fixture[1]['sha256'], 12)}), \
                  self.subTest(tail=tail), self.assertRaises(ValueError):
                 runner.account_packets(*fixture)
         fixture = self.packet_fixture()
@@ -192,14 +211,14 @@ class OracleDiagnostics(unittest.TestCase):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 runner.account_packets(*fixture)
 
-    def test_probe_stays_strict_without_explicit_collection_and_retains_failed_raw_lines(self):
+    def test_probe_does_not_gate_stderr_without_collection_and_retains_failed_raw_lines(self):
         out, err = self.root / 'packets.stdout', self.root / 'packets.stderr'
         out.write_text('{"packets": []}')
         raw = '[hevc @ 0x123] SPS 0 does not exist.\n'
         err.write_text(raw)
         with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
-            with self.assertRaisesRegex(ValueError, 'oracle failed'):
-                runner.probe('ffprobe', 'a.bit', self.root)
+            self.assertEqual(runner.probe('ffprobe', 'a.bit', self.root), dict(packets=[]))
+            self.assertEqual(err.read_text(), raw)
             diagnostics = []
             self.assertEqual(runner.probe('ffprobe', 'a.bit', self.root,
                                           diagnostics=diagnostics, stream='RPS_C'), dict(packets=[]))
@@ -223,8 +242,8 @@ class OracleDiagnostics(unittest.TestCase):
         frames = [dict(pix_fmt='yuv420p')]
         references = [dict(layout='whole_output_yuv_file', md5='f' * 32)]
         with mock.patch.object(runner, 'child', return_value=(0, out, err)) as child:
-            with self.assertRaises(ValueError):
-                runner.confirm_reference('ffmpeg', source, self.root, frames, references)
+            self.assertTrue(runner.confirm_reference('ffmpeg', source, self.root, frames,
+                                                    references)['complete'])
             diagnostics = []
             confirmation = runner.confirm_reference('ffmpeg', source, self.root, frames, references,
                                                     diagnostics=diagnostics, stream='RPS_C')
@@ -683,7 +702,6 @@ class Conformance(unittest.TestCase):
                         dict(progress='frame=1\ndup_frames=0\ndrop_frames=0\nprogress=continue\n'),
                         dict(progress='frame=2\ndup_frames=0\ndrop_frames=0\nprogress=end\n'),
                         dict(progress='frame=1\ndup_frames=1\ndrop_frames=0\nprogress=end\n'),
-                        dict(progress='frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\nError decoding\n'),
                         dict(progress='frame=1\nprogress=end\n'), dict(progress='')]:
             with self.subTest(options=options), self.assertRaises(ValueError):
                 self.confirmation(frames, **options)
@@ -693,6 +711,16 @@ class Conformance(unittest.TestCase):
                 with self.subTest(references=references), self.assertRaises(ValueError):
                     runner.confirm_reference('ffmpeg', 'a.bit', self.root, frames, references)
             child.assert_not_called()
+
+    def test_complete_hash_confirmation_records_unknown_stderr_without_gating_the_result(self):
+        progress = 'frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n'
+        for message in ('an additional informational diagnostic', 'Error decoding'):
+            with self.subTest(message=message):
+                result = self.confirmation(self.fixture()[6], progress=progress + message + '\n')
+                self.assertTrue(result['complete'])
+                self.assertEqual(result['md5'], 'f' * 32)
+                self.assertEqual(result['output_pictures'], 1)
+                self.assertIn(message, (self.root / 'oracle.stderr').read_text())
 
     def test_run_confirms_the_published_hash_before_comparing_or_crediting_a_count(self):
         directory = self.root / 'data' / 'sample'

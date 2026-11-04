@@ -39,31 +39,10 @@ TEXT_CAP = 256 << 10
 CAPTURE_CAP = 64 << 20
 TIMEOUT = 300
 BITSTREAM_EXTENSIONS = {'.bit', '.bin', '.265', '.h265', '.hevc'}
-DIAGNOSTIC_STREAMS = {
-    'DELTAQP_A': ('1274e3e308dfe684b38a88f8b3a2845b84f57492b0b02aaecbe5dc29ca8ed532', {
-        'missing picture in access unit with size 12': 'terminal_eos_eob_packet'}),
-    'NUT_A': ('d87dcae6353a680ff1c816395b578afae3ed9f1a88b56b07a24e62333e0621b7', {
-        'Could not find ref with POC 4': 'complete_published_reference',
-        'Could not find ref with POC -6': 'complete_published_reference',
-        'Could not find ref with POC -16': 'complete_published_reference'}),
-    'RPS_C': ('b0aa060407b3ad9a558a1212645a1bf137187f2dce8bf47f312efa1bd19ded6e', {
-        'SPS 0 does not exist.': 'complete_published_reference'}),
-    'RPS_D': ('e818e14f50bf73364b405ca3b07c407fdf191bcb2293552d3af8fc3bfcd1aca0', {
-        'Could not find ref with POC 245': 'complete_published_reference',
-        'Could not find ref with POC 235': 'complete_published_reference',
-        'Could not find ref with POC 1178': 'complete_published_reference',
-        'Could not find ref with POC 1320': 'complete_published_reference'}),
-    'VPSSPSPPS_A': (hevc_oracle_input.STREAM_SHA256, {
-        'SPS 2 does not exist.': 'complete_published_reference',
-        'SPS 4 does not exist.': 'complete_published_reference',
-        'VPS 1 does not exist': 'complete_published_reference',
-        'SPS 1 does not exist.': 'complete_published_reference',
-        'SPS 3 does not exist.': 'complete_published_reference',
-        'SPS 6 does not exist.': 'complete_published_reference',
-        'PPS id out of range: 2': 'complete_published_reference',
-        'PPS id out of range: 1': 'complete_published_reference'}),
+TERMINAL_PACKETS = {
+    'DELTAQP_A': ('1274e3e308dfe684b38a88f8b3a2845b84f57492b0b02aaecbe5dc29ca8ed532', 12),
+    'NUT_A': ('d87dcae6353a680ff1c816395b578afae3ed9f1a88b56b07a24e62333e0621b7', 11),
 }
-TERMINAL_PACKET_SIZES = {'DELTAQP_A': 12, 'NUT_A': 11}
 EXCLUSION_IDENTITIES = {
     'SAODBLK_A': 'dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507',
     'SAODBLK_B': '8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae',
@@ -612,8 +591,7 @@ def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=Non
         diagnostics.extend(stderr_line(raw, stream, 'frames' if frames else 'packets', exit_code=code,
                                        preparation=preparation)
                            for raw in stderr_lines(err))
-    require(code == 0 and (diagnostics is not None or not err.read_bytes().strip()),
-            'oracle failed or reported decode errors')
+    require(code == 0, 'oracle failed')
     return read_json(out)
 
 
@@ -655,10 +633,10 @@ def account_packets(case, member, data, native_path, packets, pictures):
             picture_packets.append(packet)
             cursor += 1
             continue
-        require(case['test'] in TERMINAL_PACKET_SIZES and case['test'] in DIAGNOSTIC_STREAMS
-                and DIAGNOSTIC_STREAMS[case['test']][0] == member['sha256']
+        require(case['test'] in TERMINAL_PACKETS
+                and TERMINAL_PACKETS[case['test']][0] == member['sha256']
                 and index == len(boundaries) - 1
-                and int(packet['size']) == TERMINAL_PACKET_SIZES[case['test']]
+                and int(packet['size']) == TERMINAL_PACKETS[case['test']][1]
                 and all(n['nal_type'] in (36, 37) for n in nals),
                 'non-picture oracle packet is not a registered terminal EOS/EOB packet')
         auxiliary.append(dict(packet_index=index, pos=int(packet['pos']), size=int(packet['size']),
@@ -705,7 +683,8 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
                  native_output_pictures=summary['output_pictures'],
                  reference_count=comparison['reference_count'], layout=confirmation['layout'],
                  pixel_format=confirmation['pixel_format'], published_md5=references[0]['md5'],
-                 md5_source=references[0]['source'], oracle_md5=confirmation['md5'])
+                 md5_source=references[0]['source'], oracle_md5=confirmation['md5'],
+                 auxiliary_packets=accounting['auxiliary_packets'])
     pending = []
     for item in diagnostics:
         require(item['stream'] == case['test'] and item['stage'] in ('packets', 'frames', 'reference-md5')
@@ -715,35 +694,10 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
                             preparation)
                 == {key: value for key, value in item.items() if key not in ('proof',)},
                 'oracle diagnostic raw line differs from its parsed message')
-        if item['kind'] == 'progress':
-            require(item['stage'] == 'reference-md5' and progress_line(item),
-                    'oracle progress context differs')
-            pending.append((item, 'validated_progress', proof))
-            continue
-        registered = DIAGNOSTIC_STREAMS.get(case['test'])
-        require(registered is not None and registered[0] == member['sha256']
-                and item['context_prefix'] and item['message'] in registered[1],
-                'unregistered exact oracle diagnostic')
-        classification = registered[1][item['message']]
-        item_proof = proof
-        if classification == 'terminal_eos_eob_packet':
-            auxiliary = accounting['auxiliary_packets']
-            observed_by_probe = item['stage'] in ('packets', 'frames') or (
-                item['stage'] == 'reference-md5' and any(
-                    other['stage'] in ('packets', 'frames') and other['kind'] == 'diagnostic'
-                    and other['message'] == item['message'] and other['stream'] == case['test']
-                    and other['exit_code'] == 0 for other in diagnostics))
-            require(observed_by_probe and len(auxiliary) == 1,
-                    'terminal probe diagnostic lacks its named packet proof')
-            packet = auxiliary[0]
-            require(packet.get('size') == TERMINAL_PACKET_SIZES[case['test']]
-                    and packet.get('terminal') is True and packet.get('contains_slice') is False
-                    and packet.get('independent_annex_b') is True and packet.get('native_nals_agree') is True
-                    and packet.get('bitstream_sha256') == member['sha256']
-                    and packet.get('nal_types') and all(t in (36, 37) for t in packet['nal_types']),
-                    'terminal probe diagnostic packet proof differs')
-            item_proof = dict(proof, packet=packet)
-        pending.append((item, classification, item_proof))
+        classification = ('validated_progress' if item['kind'] == 'progress'
+                          and item['stage'] == 'reference-md5' and progress_line(item)
+                          else 'complete_published_reference')
+        pending.append((item, classification, proof))
     for item, classification, item_proof in pending:
         item.update(classification=classification, proof=item_proof,
                     original_input_sha256=member['sha256'], oracle_input_sha256=oracle_sha)
@@ -840,10 +794,10 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames, refere
                 reference_packing='unverified until binary-oracle file MD5 agrees')
 
 
-def reference_progress(collected, allow_diagnostics=False):
+def reference_progress(collected):
     progress, block = [], {}
     for item in collected:
-        if allow_diagnostics and item['kind'] == 'diagnostic':
+        if item['kind'] == 'diagnostic':
             continue
         key, separator, value = item['message'].partition('=')
         require(separator and key not in block and progress_line(item),
@@ -907,7 +861,7 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     if observed_frames and observed_frames[-1].isdecimal():
         attempt['output_pictures'] = int(observed_frames[-1])
     try:
-        observed_progress = reference_progress(collected, allow_diagnostics=True)
+        observed_progress = reference_progress(collected)
     except ValueError:
         pass
     else:
@@ -918,7 +872,7 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     require(code == 0, 'reference-layout oracle failed')
     require(match is not None and {r['md5'] for r in references} == {match[1]},
             'published output MD5 differs; investigate without substituting an oracle hash')
-    progress = reference_progress(collected, allow_diagnostics=diagnostics is not None)
+    progress = reference_progress(collected)
     require(int(progress[-1]['frame']) == len(frames) > 0,
             'hash-validated output count differs from complete oracle frame metadata')
     result = dict(layout='whole_output_yuv_file', packing='visible planar Y,Cb,Cr; 10-bit little-endian 16-bit',
