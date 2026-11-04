@@ -31,4 +31,4 @@ The registered judged hosts were four otherwise idle, on-demand GCP `c4-standard
 
 The complete roster remains intact. No input was dropped or reassigned, no window was extended, and no replacement list was collected to obtain admission. All registered bars and minimum counts remain unchanged.
 
-No raw-identity, command-identity, or oracle result was obtained by a judged run. There are no medians, bootstrap intervals, or shares faster. The record therefore has `speed_verdict: null` and `stats: []`; admission refusal is neither a measured speed failure nor evidence that the candidate passes.
+No raw-identity, command-identity, or oracle result was obtained by a judged run. There are no medians, bootstrap intervals, or shares of inputs on which CoreAV was faster. The record therefore has `speed_verdict: null` and `stats: []`; admission refusal is neither a measured speed failure nor evidence that the candidate passes.
