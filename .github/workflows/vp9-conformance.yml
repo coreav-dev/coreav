@@ -13,13 +13,23 @@ name: vp9-conformance
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", ".github/workflows/vp9-conformance.yml"]
+    paths: ["crates/coreav-vp9/**", "crates/coreav-kernels-vp9/**", "crates/coreav-backend-vp9/**", "crates/coreav-decode/**", "crates/coreav-frame/**", "tools/decode-oracle/**", "scripts/fuzz_run.sh", "scripts/vp9_pixel*", "scripts/tests/test_vp9_pixel*", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", "scripts/oracle_pin.py", "scripts/oracle_from_r2.py", "docs/measurements/vp9-pixel-round/**", "Cargo.toml", "Cargo.lock", ".github/workflows/vp9-conformance.yml"]
   schedule:
     - cron: '41 6 * * 3'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Conformance, untimed instruction ceiling, or post-merge artifact build
+        type: choice
+        options: [conformance, ceiling, build-round]
+        default: conformance
+      candidate:
+        description: Verified implementation merge commit for build-round
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -30,7 +40,7 @@ concurrency:
 
 jobs:
   vectors:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +57,32 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Compare automatic arithmetic with literal references
+        run: cargo test --locked --release -p coreav-kernels-vp9 --lib -- --nocapture
+      - name: Require direct AVX2 arithmetic execution on Linux
+        if: runner.os == 'Linux'
+        env:
+          COREAV_REQUIRE_AVX2: '1'
+        run: cargo test --locked --release -p coreav-kernels-vp9 --lib detected_avx2_executes_exact_signed_sums_and_lane_order -- --nocapture
+      - name: Check runtime fallback on a CPU without AVX2
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends qemu-user
+          cargo test --locked --release -p coreav-kernels-vp9 --lib --no-run --message-format=json > "$RUNNER_TEMP/arithmetic.jsonl"
+          python3 -I - "$RUNNER_TEMP/arithmetic.jsonl" <<'PY'
+          import json, os, subprocess, sys
+          rows = [json.loads(line) for line in open(sys.argv[1])]
+          programs = [row['executable'] for row in rows if row.get('reason') == 'compiler-artifact'
+                      and row.get('profile', {}).get('test') and row.get('executable')]
+          if len(programs) != 1:
+              raise SystemExit('missing unique arithmetic test binary')
+          subprocess.run(['qemu-x86_64', '-cpu', 'Nehalem', programs[0]], check=True, timeout=180,
+                         env=dict(os.environ, COREAV_REQUIRE_NO_AVX2='1'))
+          PY
+      - name: Compare scalar-only arithmetic with literal references
+        run: cargo test --locked --release -p coreav-kernels-vp9 --features safe --lib
       - name: Install the PDF reader on Linux
         if: runner.os == 'Linux'
         run: |
@@ -96,3 +132,191 @@ jobs:
         env:
           COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
         run: cargo test --locked --release -p coreav-backend-vp9 --test vectors -- --include-ignored --nocapture
+      - name: Compare scalar-only vector frames without changing comparators
+        env:
+          COREAV_VP9_VECTORS: ${{ runner.temp }}/vp9-vectors
+        run: |
+          set -euo pipefail
+          cargo test --locked --release -p coreav-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
+          cargo test --locked --release -p coreav-backend-vp9 -p coreav-kernels-vp9 --features coreav-kernels-vp9/safe --test vectors -- --include-ignored --nocapture
+
+  interpolation-fuzz:
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install the pinned fuzz toolchain
+        run: scripts/fuzz_run.sh setup
+      - name: Build the interpolation differential target
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'crates/coreav-vp9/fuzz interpolation' > "$RUNNER_TEMP/interpolation-plan.txt"
+          scripts/fuzz_run.sh build "$RUNNER_TEMP/interpolation-plan.txt"
+      - name: Compare automatic and scalar interpolation for C3
+        env:
+          ASAN_OPTIONS: quarantine_size_mb=64
+        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/interpolation-plan.txt" 600 "$RUNNER_TEMP/interpolation-fuzz"
+
+  adapter-contract:
+    if: inputs.mode != 'ceiling' && inputs.mode != 'build-round'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Check the scratch adapter without building timing artifacts
+        env:
+          COREAV_PIXEL_BUILD_CONTRACT: '1'
+        run: python3 -I -m unittest discover -s scripts/tests -p test_vp9_pixel_round.py
+
+  build-round:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-round'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Require merged tooling on main
+        env:
+          TOOLING_REF: ${{ github.ref }}
+        run: test "$TOOLING_REF" = refs/heads/main
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify the requested merge before checking out its source
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: |
+          python3 -I - "$CANDIDATE" <<'PY'
+          import pathlib, sys
+          sys.path.insert(0, str(pathlib.Path('scripts').resolve()))
+          import vp9_pixel_round as run
+          run.merge_receipt(run.plan(pathlib.Path('.')), sys.argv[1])
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Install the source-blind build tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential pkg-config nasm binutils
+      - name: Build content-bound media-free artifacts
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: python3 -I candidate/scripts/vp9_pixel_build.py --candidate "$CANDIDATE" --out "$RUNNER_TEMP/pixel-round"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: vp9-pixel-round-tools
+          path: ${{ runner.temp }}/pixel-round
+          retention-days: 30
+
+  pixel-ceiling:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ceiling'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: '1.99.0'
+      - name: Check and build the media-free scratch sources
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p test_vp9_pixel_ceiling.py
+          python3 -I scripts/vp9_pixel_ceiling.py prepare --out "$RUNNER_TEMP/ceiling"
+          for arm in baseline ceiling; do
+            (
+              cd "$RUNNER_TEMP/ceiling/$arm"
+              cargo build --locked --profile dist -p coreav-decode-oracle --features native-vp9
+              cargo test --locked -p coreav-kernels-vp9 --lib --no-run
+              rustc -Vv > compiler.txt
+            )
+          done
+          (cd "$RUNNER_TEMP/ceiling/baseline" && cargo test --locked -p coreav-kernels-vp9 --lib)
+          cd "$RUNNER_TEMP/ceiling/ceiling"
+          for test in inter::tests::integer_positions_copy_visible_samples_and_leave_padding_alone filter::tests::a_small_step_between_flat_sides_is_smoothed; do
+            if cargo test --locked -p coreav-kernels-vp9 --lib "$test" -- --exact > "$RUNNER_TEMP/cutout-test.log" 2>&1; then
+              echo 'The deliberate pixel cutout unexpectedly passed its unchanged arithmetic test' >&2
+              exit 1
+            fi
+            grep -F 'test result: FAILED. 0 passed; 1 failed;' "$RUNNER_TEMP/cutout-test.log"
+          done
+      - name: Install the instruction counter
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends valgrind
+      - name: Fetch only the development checkpoint inputs
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -I scripts/vp9_pixel_ceiling.py fetch --media "$RUNNER_TEMP/media"
+      - name: Count instructions without credentials or elapsed-time comparisons
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/public"
+          python3 -I scripts/vp9_pixel_ceiling.py capture --out "$RUNNER_TEMP/ceiling" \
+            --media "$RUNNER_TEMP/media" --private "$RUNNER_TEMP/private" \
+            --summary "$RUNNER_TEMP/public/ceiling.json"
+      - name: Seal records and delete private inputs
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          mkdir -p private
+          if [ -f media/acquisition.json ]; then cp media/acquisition.json private/; fi
+          if [ -f ceiling/sources.json ]; then cp ceiling/sources.json private/; fi
+          for arm in baseline ceiling; do
+            if [ -f "ceiling/$arm/compiler.txt" ]; then cp "ceiling/$arm/compiler.txt" "private/$arm-compiler.txt"; fi
+          done
+          rm -rf media
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private ceiling
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-pixel-ceiling-sealed
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: vp9-pixel-ceiling-summary
+          path: ${{ runner.temp }}/public/ceiling.json
+          if-no-files-found: error
+          retention-days: 30

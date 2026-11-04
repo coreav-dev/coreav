@@ -114,6 +114,27 @@ def fetch(args):
     print(json.dumps(dict(fetched=len(wanted))))
 
 
+def bounded_fetch(args):
+    sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
+    sys.path.insert(0, str(ROOT / 'tools/stage3-report'))
+    import round_files
+    import r2pool
+    factory = round_files.pool
+    budget = r2pool.Limits(requests=5000, bytes_=1 << 40)
+
+    def pool():
+        result = factory()
+        result.limits = budget
+        return result
+
+    round_files.pool = pool
+    try:
+        return fetch(args)
+    finally:
+        round_files.pool = factory
+        print(json.dumps(dict(read_requests_reserved=budget.requests, read_request_cap=5000)))
+
+
 def limits(timeout):
     resource.setrlimit(resource.RLIMIT_AS, (MEMORY_LIMIT, MEMORY_LIMIT))
     resource.setrlimit(resource.RLIMIT_FSIZE, (CAPTURE_LIMIT, CAPTURE_LIMIT))
@@ -430,7 +451,7 @@ def main():
     report.add_argument('--shards', type=int, required=True)
     args = parser.parse_args()
     try:
-        return {'fetch': fetch, 'run': run, 'preflight': preflight, 'summarize': summarize}[args.mode](args)
+        return {'fetch': bounded_fetch, 'run': run, 'preflight': preflight, 'summarize': summarize}[args.mode](args)
     except Exception as error:
         print(f'vp9-corpus: {args.mode} failed ({type(error).__name__})', file=sys.stderr)
         return 1

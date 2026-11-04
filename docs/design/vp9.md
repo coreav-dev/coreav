@@ -37,6 +37,10 @@ Google's patent grant for VP9 covers "the copyrightable works that implement the
 
 ## Architecture
 
+The first pixel-reconstruction optimization is scoped by [its round plan](vp9-pixel-round.md). Its sole explicit SIMD kernel requires the separately reviewed [AVX2 exception record](vp9-interpolation-unsafe.md). The architecture below describes the wider roadmap, not permission to add the other SIMD families in that round.
+
+That implementation reuses wide-filter sums, specializes unscaled prediction with an eight-row scratch ring, and copies visible reference rows in bulk. Its one AVX2 kernel returns eight horizontal sums from fifteen visible bytes; shared safe code retains clipping, vertical filtering and compound output. The kernel crate's `safe` feature excludes SIMD, and scaled, edge, high-depth and unsupported-CPU requests remain scalar. The conformance workflow checks automatic and scalar-only arithmetic and vectors on both C1 hosts, directly exercises AVX2 on Linux, checks a non-AVX2 emulated CPU, and runs the interpolation differential fuzz target for C3's ten minutes on each architecture. This does not complete the wider SIMD/threaded matrix or change backend selection.
+
 ```
 coreav-vp9                      safe Rust, forbid(unsafe_code)
   bits        f(n) and s(n) for the uncompressed header (9.1)

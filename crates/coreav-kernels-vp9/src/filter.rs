@@ -174,15 +174,23 @@ fn narrow<P: Pixel>(edge: &mut Edge<'_, P>, hev: bool, bit_depth: BitDepth) {
 /// The wide filter process (clause 8.8.5.3) of `1 << log2_size` taps.
 fn wide<P: Pixel>(edge: &mut Edge<'_, P>, log2_size: u32, bit_depth: BitDepth) {
     let n = (1isize << (log2_size - 1)) - 1;
+    let mut original = [0i32; 16];
+    for (sample, i) in original.iter_mut().zip(-(n + 1)..=n) {
+        *sample = edge.get(i);
+    }
+    let sample = |i: isize| {
+        original
+            .get((i.clamp(-(n + 1), n) + n + 1) as usize)
+            .copied()
+            .unwrap_or(0)
+    };
+    let mut sum: i32 = (-n..=n).map(|j| sample(-n + j)).sum();
     let mut filtered = [0i32; 16];
     for (k, i) in (-n..n).enumerate() {
-        let mut t = edge.get(i);
-        for j in -n..=n {
-            t += edge.get((i + j).clamp(-(n + 1), n));
-        }
         if let Some(f) = filtered.get_mut(k) {
-            *f = round2(i64::from(t), log2_size) as i32;
+            *f = round2(i64::from(sum + sample(i)), log2_size) as i32;
         }
+        sum += sample(i + n + 1) - sample(i - n);
     }
     for (k, i) in (-n..n).enumerate() {
         edge.set(i, filtered.get(k).copied().unwrap_or(0), bit_depth);
