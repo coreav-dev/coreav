@@ -1,5 +1,6 @@
 import json
 import pathlib
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -8,6 +9,22 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_documented_census_prepares_and_consumes_synthetic_references(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        readme = (root / 'bench/hevc-conformance/README.md').read_text()
+        script = readme.split('```sh\n', 1)[1].split('```', 1)[0]
+        commands = [shlex.split(line) for line in script.replace('\\\n', '').splitlines()
+                    if line.strip()]
+        verify = next((args for args in commands if 'scripts/hevc_fixture.py' in args), None)
+        self.assertIsNotNone(verify, 'Verify synthetic references before running the full census')
+        self.assertIn('verify', verify)
+        run = next(args for args in commands if 'scripts/hevc_conformance.py' in args
+                   and 'run' in args)
+        self.assertLess(commands.index(verify), commands.index(run))
+        self.assertIn('--synthetic-data', run, 'Pass verified synthetic references to the census')
+        self.assertEqual(verify[verify.index('--output') + 1],
+                         run[run.index('--synthetic-data') + 1])
+
     def test_agent_scopes_name_hevc_rules(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         index = (root / 'AGENTS.md').read_text().splitlines()

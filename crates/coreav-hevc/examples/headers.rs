@@ -147,7 +147,11 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
 
 fn main() -> std::process::ExitCode {
     let mut output = std::io::BufWriter::new(std::io::stdout().lock());
-    match inspect(&mut output) {
+    match inspect(&mut output).and_then(|()| {
+        output
+            .flush()
+            .map_err(|_| Error::Limit("inspection_output"))
+    }) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             let (category, reason) = match error {

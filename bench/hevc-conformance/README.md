@@ -24,10 +24,14 @@ Run the acquisition and full census on Linux CI, not on a personal workstation. 
 python3 scripts/hevc_conformance.py acquire --dest "$RUNNER_TEMP/hevc-data"
 python3 scripts/hevc_conformance.py manifest --data "$RUNNER_TEMP/hevc-data" \
   --out "$RUNNER_TEMP/archives.pinned.json"
+python3 -I scripts/hevc_fixture.py verify \
+  --ffmpeg "$ORACLE_BIN/ffmpeg" --ffprobe "$ORACLE_BIN/ffprobe" \
+  --output "$RUNNER_TEMP/hevc-synthetic"
 python3 scripts/hevc_conformance.py run \
   --registration "$RUNNER_TEMP/archives.pinned.json" \
   --data "$RUNNER_TEMP/hevc-data" --out "$RUNNER_TEMP/hevc-census" \
-  --parser "$PWD/target/release/examples/headers" --oracle-bin "$ORACLE_BIN"
+  --parser "$PWD/target/release/examples/headers" --oracle-bin "$ORACLE_BIN" \
+  --synthetic-data "$RUNNER_TEMP/hevc-synthetic"
 ```
 
 For a small acquisition preflight, append `--archive IPRED_B_Nokia_3.zip`. It cannot pass the full gate. Do not run the full acquisition or census on a Capy machine.
