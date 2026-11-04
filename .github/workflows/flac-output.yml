@@ -31,6 +31,10 @@ on:
         description: Build and test both frozen cost-cache comparison arms only
         type: boolean
         default: false
+      cost_cache_profile_build:
+        description: Build the tested symbolized merged encoder without timing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -41,7 +45,7 @@ concurrency:
 
 jobs:
   flac-output:
-    if: ${{ !inputs.cost_cache_build }}
+    if: ${{ !inputs.cost_cache_build && !inputs.cost_cache_profile_build }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -154,4 +158,37 @@ jobs:
         with:
           name: flac-cost-cache-build
           path: ${{ runner.temp }}/cost-cache
+          if-no-files-found: error
+
+  cost-cache-profile-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.cost_cache_profile_build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 62f4af2a4a3adb477583f91d396f6daeaebc2055
+          path: source
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Install the pinned executable oracle
+        working-directory: source
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/profile-oracle"
+      - name: Test and build the symbolized merged encoder
+        working-directory: source
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/profile-oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
+        run: python3 -I ../control/scripts/flac_cost_cache_profile_build.py "$PWD" "$RUNNER_TEMP/flac-cost-cache-profile"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-cost-cache-profile
+          path: ${{ runner.temp }}/flac-cost-cache-profile
           if-no-files-found: error
