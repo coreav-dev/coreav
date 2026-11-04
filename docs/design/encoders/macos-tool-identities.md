@@ -20,3 +20,7 @@ The hosted metadata capture passed the unchanged baseline validator and the obse
 | `macos-builds/cache-observer.json` | `8a46046b1f199cf93fbe539fec5c3cc15e640b6f464e08724cc9eed02d20a11b` |
 
 The pinned Linux baseline also exposes libvmaf, PSNR and SSIM in its filter metadata. No metric computation or media processing was used to establish those capabilities.
+
+## Analysis capacity
+
+For the frozen thirty-input roster with hardware and software cells, the unchanged analysis capacity gate requires 1,584,991,774,720 retained bytes plus 34,359,738,368 scratch bytes: 1,619,351,513,088 bytes in total. The 13,033,732,992 bytes of raw references and fixtures are separate. These are worst-case reservations derived from existing per-file limits, not measured output sizes. The reference Mac's SSD is not the analysis store; a sufficiently large persistent Linux volume and its complete lifecycle budget must be established before rental. Do not lower the reservation, remove retained evidence or shrink cell coverage to fit a smaller volume.
