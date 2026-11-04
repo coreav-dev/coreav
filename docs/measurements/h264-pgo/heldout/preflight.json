@@ -1,0 +1,218 @@
+[
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 1,
+    "arm": "base",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 1,
+    "arm": "pgo",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 1,
+    "arm": "ffmpeg",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 8,
+    "arm": "base",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 8,
+    "arm": "pgo",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h001",
+    "class": "sd",
+    "threads": 8,
+    "arm": "ffmpeg",
+    "bytes": 614044800,
+    "sha256": "d792cdc692ce853172c789e025038768a74db4530ecf7d227823ebd4a61def46",
+    "frames": 1800
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 1,
+    "arm": "base",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 1,
+    "arm": "pgo",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 1,
+    "arm": "ffmpeg",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 8,
+    "arm": "base",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 8,
+    "arm": "pgo",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h004",
+    "class": "720p",
+    "threads": 8,
+    "arm": "ffmpeg",
+    "bytes": 736819200,
+    "sha256": "f42242d1a8317fe0186e1dd02dce3331ecd52e00e23ce4619a22a1d7d835255f",
+    "frames": 533
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 1,
+    "arm": "base",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 1,
+    "arm": "pgo",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 1,
+    "arm": "ffmpeg",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 8,
+    "arm": "base",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 8,
+    "arm": "pgo",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h000",
+    "class": "1080p",
+    "threads": 8,
+    "arm": "ffmpeg",
+    "bytes": 933120000,
+    "sha256": "14bc105f643161711cf175cac07817a45ef86c6c7627ba6a3c4dfcc6b9e9645a",
+    "frames": 300
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 1,
+    "arm": "base",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 1,
+    "arm": "pgo",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 1,
+    "arm": "ffmpeg",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 8,
+    "arm": "base",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 8,
+    "arm": "pgo",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  },
+  {
+    "label": "h025",
+    "class": "4k",
+    "threads": 8,
+    "arm": "ffmpeg",
+    "bytes": 466560000,
+    "sha256": "c56dcab6cfcddf12b063ff2d3c4e886dd878907ebd76b8c054b24e8b0c0a6e33",
+    "frames": 150
+  }
+]
