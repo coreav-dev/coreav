@@ -97,20 +97,28 @@ The [valid evidence archive](transcode-decoder-host/valid/evidence.tar.gz) and [
 
 The [valid summary](transcode-decoder-host/valid/summary.json) includes every per-file arm median and the unrounded class statistics. Media-free replay exactly reproduces the host's summary; an independent check of the 288-cell call grid and per-file median arithmetic also passes.
 
-From this results checkout, replay with the measured tool version:
+From this results checkout, use Python 3.11 or later to replay with the measured tool version:
 
 ```sh
+(
+set -eu
 work=$(mktemp -d)
+trap 'git worktree remove --force "$work/source" >/dev/null 2>&1 || :; rm -rf "$work"' EXIT
 git worktree add --detach "$work/source" 4840da143cafcd71d0ac59e169cde9cc3550364a
 mkdir "$work/valid" "$work/void"
 tar -xzf docs/measurements/transcode-decoder-host/valid/evidence.tar.gz -C "$work/valid"
 tar -xzf docs/measurements/transcode-decoder-host/void/evidence.tar.gz -C "$work/void"
 python3 -I "$work/source/scripts/transcode_decoder_host.py" summarize --out "$work/valid"
 cmp docs/measurements/transcode-decoder-host/valid/summary.json "$work/valid/summary.json"
-python3 -I "$work/source/scripts/transcode_decoder_host.py" summarize --out "$work/void"
+if python3 -I "$work/source/scripts/transcode_decoder_host.py" summarize --out "$work/void" >"$work/void/replay.log" 2>&1; then
+    printf '%s\n' 'Void capture was unexpectedly accepted' >&2
+    exit 1
+fi
+grep -Fx 'ValueError: incomplete capture' "$work/void/replay.log"
+)
 ```
 
-The valid replay exits zero and matches the stored summary byte for byte. The void replay must exit nonzero: its recorded status is void, and its raw gates independently exceed the 5% limit.
+The example stops if valid regeneration or the byte comparison fails. It exits zero only when the valid summary matches and the void replay produces the specific recorded-status refusal. The void capture's raw gates also independently exceed the 5% limit. The private replay directory and temporary source worktree are removed on exit.
 
 ## Limits of the conclusion
 
