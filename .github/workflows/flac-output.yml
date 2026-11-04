@@ -186,6 +186,7 @@ jobs:
           cp target/release/coreav "$RUNNER_TEMP/plain-coreav"
           if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ] || [ '${{ inputs.frame_ceiling }}' = true ]; then
             sha256sum crates/coreav-audio/src/flac/encode.rs > "$RUNNER_TEMP/encoder-before.sha256"
+            cp crates/coreav-audio/src/flac/encode.rs "$RUNNER_TEMP/encoder-before.rs"
             if [ '${{ inputs.frame_ceiling }}' = true ]; then
               python3 -I scripts/flac_frame_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
             elif [ '${{ inputs.subframe_ceiling }}' = true ]; then
@@ -193,6 +194,16 @@ jobs:
             else
               python3 -I scripts/flac_rice_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
             fi
+            if [ '${{ inputs.frame_ceiling }}' = true ]; then
+              cp crates/coreav-audio/src/flac/encode.rs "$RUNNER_TEMP/frame-instrumented.rs"
+              for helper in flac_rice_ceiling.py flac_subframe_ceiling.py; do
+                cp "$RUNNER_TEMP/encoder-before.rs" crates/coreav-audio/src/flac/encode.rs
+                python3 -I "scripts/$helper" --instrument crates/coreav-audio/src/flac/encode.rs
+                COREAV_FFMPEG="$RUNNER_TEMP/oracle/ffmpeg" COREAV_REQUIRE_FFMPEG=1 cargo test --locked -p coreav-audio --lib
+              done
+              cp "$RUNNER_TEMP/frame-instrumented.rs" crates/coreav-audio/src/flac/encode.rs
+            fi
+            COREAV_FFMPEG="$RUNNER_TEMP/oracle/ffmpeg" COREAV_REQUIRE_FFMPEG=1 cargo test --locked -p coreav-audio --lib
             cargo build --locked --release -p coreav-cli
           else
             CARGO_PROFILE_RELEASE_DEBUG=2 RUSTFLAGS='-C force-frame-pointers=yes' cargo build --locked --release -p coreav-cli
