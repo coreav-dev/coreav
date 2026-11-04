@@ -16,7 +16,6 @@ VIDEO_ONLY = {
     ('scripts/vp9_release_cost.py', 'hashes'): 'selected video stream only',
     ('scripts/vp9_release_attribution.py', 'hashes'): 'selected video stream only',
     ('scripts/vp9_corpus.py', 'ffmpeg_command'): 'selected video stream only',
-    ('scripts/hevc_conformance.py', 'confirm_reference'): 'raw HEVC input and selected video stream only',
 }
 FORMATS = {'md5', 'framemd5', 'f32le', 's32le', 's16le', 'pcm_f32le'}
 

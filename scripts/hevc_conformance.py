@@ -24,6 +24,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_pin
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 REGISTRATION = ROOT / 'bench/hevc-conformance/archives.json'
 ROSTER = ROOT / 'docs/measurements/hevc-native/roster.json'
@@ -504,7 +505,8 @@ def compare(case, inventory, summary, pictures, outputs, packets, frames):
 def confirm_reference(binary, path, directory, frames, references):
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
-    command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc', '-i', path,
+    command = [binary, '-v', 'error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
+               *AUDIO_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), '-f', 'md5', '-']
     code, out, err = child(command, directory, 'reference-md5')
