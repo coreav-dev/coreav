@@ -15,6 +15,7 @@ use std::process::ExitCode;
 use coreav_cli::error::Failure;
 use coreav_cli::fallback::{NotNative, Tool};
 use coreav_cli::ffmpeg::{self, Refusal, Stop};
+use coreav_cli::ffprobe::model::Value;
 use coreav_cli::ffprobe::{self, args::Refusal as ProbeRefusal};
 use coreav_cli::strict_safe::StrictSafe;
 use coreav_isobmff::{BufferedSource, FileSource, Source};
@@ -411,6 +412,19 @@ fn run<S: Source>(
     let mut source = BufferedSource::new(source);
     let mut probed =
         ffprobe::probe(&mut source, size, name, options.force).map_err(Outcome::Read)?;
+    if probed.report.format.iter().any(|(key, value)| {
+        *key == "format_name" && matches!(value, Value::Str(kind) if kind == "mpegts")
+    }) && probed.report.streams.iter().any(|stream| {
+        stream.kind == ffprobe::StreamKind::Data
+            && stream.entries.iter().any(|(key, value)| {
+                *key == "codec_name" && matches!(value, Value::Str(codec) if codec == "bin_data")
+            })
+    }) {
+        return Err(Outcome::Read(Failure::Unsupported(
+            "ffprobe compatibility for unidentified private MPEG-TS streams is not supported"
+                .to_owned(),
+        )));
+    }
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::with_capacity(1 << 16, stdout.lock());
     match ffprobe::emit(options, &mut probed, &mut out) {

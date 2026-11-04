@@ -592,7 +592,7 @@ pub fn probe<S: Source>(
             (st.kind, *ts, get("start_pts"), get("duration_ts"))
         })
         .collect();
-    report.format = format(movie, &probed, name, &spans);
+    report.format = format(movie, &probed, name, &spans, meta.stream_group_count);
     let ends: Vec<Listed> = report
         .streams
         .iter()
@@ -2073,6 +2073,7 @@ fn format(
     probed: &crate::probe::Probed,
     name: &str,
     streams: &[(StreamKind, i64, Option<i64>, Option<i64>)],
+    stream_group_count: Option<usize>,
 ) -> Entries {
     let (start, micros) = span(streams);
     vec![
@@ -2082,7 +2083,10 @@ fn format(
             int(movie.tracks.len().saturating_add(movie.dropped.len())),
         ),
         ("nb_programs", Value::Int(0)),
-        ("nb_stream_groups", Value::Int(0)),
+        (
+            "nb_stream_groups",
+            stream_group_count.map_or(Value::Na, int),
+        ),
         ("format_name", s(FORMAT_NAME)),
         ("format_long_name", s(FORMAT_LONG_NAME)),
         (

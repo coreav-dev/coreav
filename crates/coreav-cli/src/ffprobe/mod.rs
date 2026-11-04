@@ -431,6 +431,17 @@ pub fn emit(
     }
     let sel = &options.selection;
     let report = &probed.report;
+    if sel.shown(Sid::Format)
+        && sel.entry(Sid::Format, "nb_stream_groups")
+        && report
+            .format
+            .iter()
+            .any(|(key, value)| *key == "nb_stream_groups" && matches!(value, Value::Na))
+    {
+        return Err(Failure::Unsupported(
+            "stream-group count is not supported with incomplete ISO metadata".to_owned(),
+        ));
+    }
     let mut w = Writer::new(options.writer.clone(), options.style);
     let mut buf: Vec<u8> = Vec::with_capacity(1 << 16);
     let flush = |buf: &mut Vec<u8>, out: &mut dyn Write| -> Result<(), Failure> {

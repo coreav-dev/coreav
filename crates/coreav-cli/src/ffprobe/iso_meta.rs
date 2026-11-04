@@ -64,6 +64,9 @@ use std::ops::ControlFlow;
 /// What `ffprobe` prints of a file's metadata.
 #[derive(Clone, Debug, Default)]
 pub struct IsoMeta {
+    /// The count of resolved timecode track-reference groups, unavailable
+    /// when the bounded metadata snapshot is incomplete.
+    pub stream_group_count: Option<usize>,
     /// `format` tags in `ffprobe`'s order.
     pub format_tags: Vec<(String, String)>,
     /// Per track (index = `Track::index`): the stream tags in `ffprobe`'s
@@ -272,6 +275,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
     }
     let mut out = IsoMeta {
         metadata_complete: meta.complete,
+        stream_group_count: stream_group_count(&meta),
         covers: covers(&meta),
         format_tags: format_tags(&meta, &timecodes),
         chapters: chapters(movie, &chapter_list, &meta, &mut *source, limits)?,
@@ -298,6 +302,32 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
     }
     out.all_streams = all_streams;
     Ok(out)
+}
+
+fn stream_group_count(meta: &Metadata) -> Option<usize> {
+    if !meta.complete {
+        return None;
+    }
+    let mut targets: HashSet<u32> = meta
+        .tracks
+        .iter()
+        .filter(|track| {
+            track
+                .sample_entry
+                .as_ref()
+                .is_some_and(|entry| entry.kind == FourCc(*b"tmcd"))
+        })
+        .filter_map(|track| track.track_id)
+        .collect();
+    Some(
+        meta.tracks
+            .iter()
+            .flat_map(|track| &track.references)
+            .filter(|reference| reference.kind == FourCc(*b"tmcd"))
+            .flat_map(|reference| &reference.track_ids)
+            .filter(|id| targets.remove(*id))
+            .count(),
+    )
 }
 
 /// A dictionary with `ffprobe`'s order: setting a key that is there
