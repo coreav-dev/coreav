@@ -114,6 +114,7 @@ sha2 = { version = "0.10", optional = true }
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 
 [dev-dependencies]
+sha2 = "0.10"
 # Compresses movie boxes for the compressed-movie (`cmov`) regressions.
 miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
 

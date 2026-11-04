@@ -1896,6 +1896,7 @@ mod tests {
         };
         let report = Report {
             iso_names_supported: None,
+            iso_format_output: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
                 stream(
@@ -1948,6 +1949,7 @@ mod tests {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             iso_names_supported: None,
+            iso_format_output: None,
             streams: vec![
                 Stream {
                     kind: StreamKind::Video,
