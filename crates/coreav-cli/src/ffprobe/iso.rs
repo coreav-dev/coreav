@@ -454,6 +454,7 @@ pub fn probe<S: Source>(
     // Tags, dispositions, extradata sizes, chapters and protected entries,
     // as `ffprobe` reads them from the boxes (`iso_meta`).
     let meta = super::iso_meta::read(movie, &mut *source, limits)?;
+    report.iso_names_supported = Some(meta.names_supported);
     for (i, original) in movie.tracks.iter().enumerate() {
         // A protected entry is described by the format it wraps, as
         // `ffprobe` reports it.

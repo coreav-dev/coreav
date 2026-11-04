@@ -199,6 +199,8 @@ pub struct Report {
     pub format: Entries,
     /// The format's tags.
     pub format_tags: Vec<(String, String)>,
+    /// Whether complete ISO metadata establishes supported names, absent otherwise.
+    pub iso_names_supported: Option<bool>,
     /// The chapters.
     pub chapters: Vec<Chapter>,
     /// The programs.
@@ -407,6 +409,15 @@ pub fn emit(
     probed: &mut Probed<'_>,
     out: &mut dyn Write,
 ) -> Result<(), Failure> {
+    if probed.report.iso_names_supported == Some(false)
+        && [Sid::StreamTags, Sid::FormatTags].into_iter().any(|sid| {
+            options.selection.shown(sid) && options.selection.entry_ignoring_case(sid, "name")
+        })
+    {
+        return Err(Failure::Unsupported(
+            "names require complete ISO metadata and supported text encoding".to_owned(),
+        ));
+    }
     if !probed.packets.supports_listing()
         && (options.selection.shown(Sid::Packets)
             || options.selection.shown(Sid::Frames)
