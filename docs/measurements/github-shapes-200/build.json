@@ -1,0 +1,1 @@
+{"commit": "7fe3c6c67fadc5826e26b4602cadfaf0e9d285fa", "command": ["cargo", "build", "--release", "--locked", "-p", "coreav-cli", "--features", "release-full"], "coreav_sha256": "e080e15ff427e61ef11b7e0416bf9a15aedad41b0ba7ae12d0c3c235d1d74cdf", "lock_sha256": "8e7ad9cef4ea059b77306028424e99b971fb2ab600478906c1a82e01bbce984e"}

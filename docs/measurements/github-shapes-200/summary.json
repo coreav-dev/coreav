@@ -1,0 +1,872 @@
+{
+  "bar": null,
+  "commit": "7fe3c6c67fadc5826e26b4602cadfaf0e9d285fa",
+  "counted": 46,
+  "counted_pairs": 485,
+  "outcome_pairs": {
+    "counted": 485,
+    "different": 85,
+    "failed": 0,
+    "no_oracle": 4,
+    "reference_failed": 11,
+    "refused": 537,
+    "timeout": 0,
+    "unexpected_program": 98,
+    "uninstantiable": 250
+  },
+  "outcomes": {
+    "counted": 46,
+    "different": 14,
+    "failed": 0,
+    "no_oracle": 2,
+    "reference_failed": 4,
+    "refused": 83,
+    "timeout": 0,
+    "unexpected_program": 9,
+    "uninstantiable": 42
+  },
+  "repository_pairs": 1470,
+  "results": [
+    {
+      "outcome": "counted",
+      "rank": 1
+    },
+    {
+      "outcome": "counted",
+      "rank": 2
+    },
+    {
+      "outcome": "refused",
+      "rank": 3
+    },
+    {
+      "outcome": "counted",
+      "rank": 4
+    },
+    {
+      "outcome": "refused",
+      "rank": 5
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 6
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 7
+    },
+    {
+      "outcome": "different",
+      "rank": 8
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 9
+    },
+    {
+      "outcome": "counted",
+      "rank": 10
+    },
+    {
+      "outcome": "refused",
+      "rank": 11
+    },
+    {
+      "outcome": "counted",
+      "rank": 12
+    },
+    {
+      "outcome": "refused",
+      "rank": 13
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 14
+    },
+    {
+      "outcome": "refused",
+      "rank": 15
+    },
+    {
+      "outcome": "refused",
+      "rank": 16
+    },
+    {
+      "outcome": "refused",
+      "rank": 17
+    },
+    {
+      "outcome": "counted",
+      "rank": 18
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 19
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 20
+    },
+    {
+      "outcome": "refused",
+      "rank": 21
+    },
+    {
+      "outcome": "counted",
+      "rank": 22
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 23
+    },
+    {
+      "outcome": "counted",
+      "rank": 24
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 25
+    },
+    {
+      "outcome": "refused",
+      "rank": 26
+    },
+    {
+      "outcome": "counted",
+      "rank": 27
+    },
+    {
+      "outcome": "counted",
+      "rank": 28
+    },
+    {
+      "outcome": "refused",
+      "rank": 29
+    },
+    {
+      "outcome": "refused",
+      "rank": 30
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 31
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 32
+    },
+    {
+      "outcome": "refused",
+      "rank": 33
+    },
+    {
+      "outcome": "counted",
+      "rank": 34
+    },
+    {
+      "outcome": "different",
+      "rank": 35
+    },
+    {
+      "outcome": "refused",
+      "rank": 36
+    },
+    {
+      "outcome": "counted",
+      "rank": 37
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 38
+    },
+    {
+      "outcome": "counted",
+      "rank": 39
+    },
+    {
+      "outcome": "counted",
+      "rank": 40
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 41
+    },
+    {
+      "outcome": "different",
+      "rank": 42
+    },
+    {
+      "outcome": "refused",
+      "rank": 43
+    },
+    {
+      "outcome": "refused",
+      "rank": 44
+    },
+    {
+      "outcome": "refused",
+      "rank": 45
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 46
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 47
+    },
+    {
+      "outcome": "refused",
+      "rank": 48
+    },
+    {
+      "outcome": "refused",
+      "rank": 49
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 50
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 51
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 52
+    },
+    {
+      "outcome": "refused",
+      "rank": 53
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 54
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 55
+    },
+    {
+      "outcome": "counted",
+      "rank": 56
+    },
+    {
+      "outcome": "refused",
+      "rank": 57
+    },
+    {
+      "outcome": "refused",
+      "rank": 58
+    },
+    {
+      "outcome": "refused",
+      "rank": 59
+    },
+    {
+      "outcome": "counted",
+      "rank": 60
+    },
+    {
+      "outcome": "counted",
+      "rank": 61
+    },
+    {
+      "outcome": "refused",
+      "rank": 62
+    },
+    {
+      "outcome": "counted",
+      "rank": 63
+    },
+    {
+      "outcome": "counted",
+      "rank": 64
+    },
+    {
+      "outcome": "refused",
+      "rank": 65
+    },
+    {
+      "outcome": "different",
+      "rank": 66
+    },
+    {
+      "outcome": "refused",
+      "rank": 67
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 68
+    },
+    {
+      "outcome": "refused",
+      "rank": 69
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 70
+    },
+    {
+      "outcome": "refused",
+      "rank": 71
+    },
+    {
+      "outcome": "refused",
+      "rank": 72
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 73
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 74
+    },
+    {
+      "outcome": "different",
+      "rank": 75
+    },
+    {
+      "outcome": "refused",
+      "rank": 76
+    },
+    {
+      "outcome": "refused",
+      "rank": 77
+    },
+    {
+      "outcome": "counted",
+      "rank": 78
+    },
+    {
+      "outcome": "counted",
+      "rank": 79
+    },
+    {
+      "outcome": "counted",
+      "rank": 80
+    },
+    {
+      "outcome": "different",
+      "rank": 81
+    },
+    {
+      "outcome": "counted",
+      "rank": 82
+    },
+    {
+      "outcome": "counted",
+      "rank": 83
+    },
+    {
+      "outcome": "refused",
+      "rank": 84
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 85
+    },
+    {
+      "outcome": "refused",
+      "rank": 86
+    },
+    {
+      "outcome": "refused",
+      "rank": 87
+    },
+    {
+      "outcome": "refused",
+      "rank": 88
+    },
+    {
+      "outcome": "refused",
+      "rank": 89
+    },
+    {
+      "outcome": "different",
+      "rank": 90
+    },
+    {
+      "outcome": "different",
+      "rank": 91
+    },
+    {
+      "outcome": "refused",
+      "rank": 92
+    },
+    {
+      "outcome": "different",
+      "rank": 93
+    },
+    {
+      "outcome": "different",
+      "rank": 94
+    },
+    {
+      "outcome": "refused",
+      "rank": 95
+    },
+    {
+      "outcome": "refused",
+      "rank": 96
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 97
+    },
+    {
+      "outcome": "refused",
+      "rank": 98
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 99
+    },
+    {
+      "outcome": "refused",
+      "rank": 100
+    },
+    {
+      "outcome": "refused",
+      "rank": 101
+    },
+    {
+      "outcome": "refused",
+      "rank": 102
+    },
+    {
+      "outcome": "reference_failed",
+      "rank": 103
+    },
+    {
+      "outcome": "reference_failed",
+      "rank": 104
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 105
+    },
+    {
+      "outcome": "refused",
+      "rank": 106
+    },
+    {
+      "outcome": "counted",
+      "rank": 107
+    },
+    {
+      "outcome": "counted",
+      "rank": 108
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 109
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 110
+    },
+    {
+      "outcome": "refused",
+      "rank": 111
+    },
+    {
+      "outcome": "refused",
+      "rank": 112
+    },
+    {
+      "outcome": "counted",
+      "rank": 113
+    },
+    {
+      "outcome": "reference_failed",
+      "rank": 114
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 115
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 116
+    },
+    {
+      "outcome": "counted",
+      "rank": 117
+    },
+    {
+      "outcome": "refused",
+      "rank": 118
+    },
+    {
+      "outcome": "refused",
+      "rank": 119
+    },
+    {
+      "outcome": "refused",
+      "rank": 120
+    },
+    {
+      "outcome": "counted",
+      "rank": 121
+    },
+    {
+      "outcome": "refused",
+      "rank": 122
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 123
+    },
+    {
+      "outcome": "refused",
+      "rank": 124
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 125
+    },
+    {
+      "outcome": "refused",
+      "rank": 126
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 127
+    },
+    {
+      "outcome": "counted",
+      "rank": 128
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 129
+    },
+    {
+      "outcome": "counted",
+      "rank": 130
+    },
+    {
+      "outcome": "counted",
+      "rank": 131
+    },
+    {
+      "outcome": "refused",
+      "rank": 132
+    },
+    {
+      "outcome": "counted",
+      "rank": 133
+    },
+    {
+      "outcome": "refused",
+      "rank": 134
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 135
+    },
+    {
+      "outcome": "refused",
+      "rank": 136
+    },
+    {
+      "outcome": "refused",
+      "rank": 137
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 138
+    },
+    {
+      "outcome": "refused",
+      "rank": 139
+    },
+    {
+      "outcome": "refused",
+      "rank": 140
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 141
+    },
+    {
+      "outcome": "different",
+      "rank": 142
+    },
+    {
+      "outcome": "counted",
+      "rank": 143
+    },
+    {
+      "outcome": "refused",
+      "rank": 144
+    },
+    {
+      "outcome": "different",
+      "rank": 145
+    },
+    {
+      "outcome": "refused",
+      "rank": 146
+    },
+    {
+      "outcome": "refused",
+      "rank": 147
+    },
+    {
+      "outcome": "refused",
+      "rank": 148
+    },
+    {
+      "outcome": "refused",
+      "rank": 149
+    },
+    {
+      "outcome": "refused",
+      "rank": 150
+    },
+    {
+      "outcome": "counted",
+      "rank": 151
+    },
+    {
+      "outcome": "refused",
+      "rank": 152
+    },
+    {
+      "outcome": "refused",
+      "rank": 153
+    },
+    {
+      "outcome": "refused",
+      "rank": 154
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 155
+    },
+    {
+      "outcome": "refused",
+      "rank": 156
+    },
+    {
+      "outcome": "refused",
+      "rank": 157
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 158
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 159
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 160
+    },
+    {
+      "outcome": "refused",
+      "rank": 161
+    },
+    {
+      "outcome": "counted",
+      "rank": 162
+    },
+    {
+      "outcome": "counted",
+      "rank": 163
+    },
+    {
+      "outcome": "reference_failed",
+      "rank": 164
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 165
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 166
+    },
+    {
+      "outcome": "counted",
+      "rank": 167
+    },
+    {
+      "outcome": "refused",
+      "rank": 168
+    },
+    {
+      "outcome": "unexpected_program",
+      "rank": 169
+    },
+    {
+      "outcome": "refused",
+      "rank": 170
+    },
+    {
+      "outcome": "refused",
+      "rank": 171
+    },
+    {
+      "outcome": "different",
+      "rank": 172
+    },
+    {
+      "outcome": "no_oracle",
+      "rank": 173
+    },
+    {
+      "outcome": "refused",
+      "rank": 174
+    },
+    {
+      "outcome": "refused",
+      "rank": 175
+    },
+    {
+      "outcome": "counted",
+      "rank": 176
+    },
+    {
+      "outcome": "different",
+      "rank": 177
+    },
+    {
+      "outcome": "counted",
+      "rank": 178
+    },
+    {
+      "outcome": "counted",
+      "rank": 179
+    },
+    {
+      "outcome": "refused",
+      "rank": 180
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 181
+    },
+    {
+      "outcome": "counted",
+      "rank": 182
+    },
+    {
+      "outcome": "refused",
+      "rank": 183
+    },
+    {
+      "outcome": "no_oracle",
+      "rank": 184
+    },
+    {
+      "outcome": "refused",
+      "rank": 185
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 186
+    },
+    {
+      "outcome": "counted",
+      "rank": 187
+    },
+    {
+      "outcome": "refused",
+      "rank": 188
+    },
+    {
+      "outcome": "counted",
+      "rank": 189
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 190
+    },
+    {
+      "outcome": "counted",
+      "rank": 191
+    },
+    {
+      "outcome": "counted",
+      "rank": 192
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 193
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 194
+    },
+    {
+      "outcome": "refused",
+      "rank": 195
+    },
+    {
+      "outcome": "uninstantiable",
+      "rank": 196
+    },
+    {
+      "outcome": "refused",
+      "rank": 197
+    },
+    {
+      "outcome": "refused",
+      "rank": 198
+    },
+    {
+      "outcome": "refused",
+      "rank": 199
+    },
+    {
+      "outcome": "refused",
+      "rank": 200
+    }
+  ],
+  "set": "github-shapes-200",
+  "set_sha256": "0ca6bcb9b983ade0625f795bd5098cffa12ee638d5ddf94a37c1cefb782d9045",
+  "shapes": 200,
+  "tools": {
+    "ffmpeg": {
+      "pairs": {
+        "counted": 14,
+        "different": 85,
+        "no_oracle": 2,
+        "reference_failed": 11,
+        "refused": 465,
+        "unexpected_program": 98,
+        "uninstantiable": 247
+      },
+      "shapes": {
+        "counted": 2,
+        "different": 14,
+        "no_oracle": 1,
+        "reference_failed": 4,
+        "refused": 80,
+        "unexpected_program": 9,
+        "uninstantiable": 41
+      }
+    },
+    "ffprobe": {
+      "pairs": {
+        "counted": 471,
+        "no_oracle": 2,
+        "refused": 72,
+        "uninstantiable": 3
+      },
+      "shapes": {
+        "counted": 44,
+        "no_oracle": 1,
+        "refused": 3,
+        "uninstantiable": 1
+      }
+    }
+  },
+  "top_200_pair_share": 0.3299319727891156,
+  "whole_sample_presence_lower_bound": 0.14529658478130617
+}
