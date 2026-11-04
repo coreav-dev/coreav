@@ -98,6 +98,8 @@ struct PictureState {
     nal: NalHeader,
     poc_lsb: u32,
     output: bool,
+    no_output_prior: bool,
+    reference_syntax: Option<(usize, [u8; 32])>,
     info: PictureInfo,
     last_address: u32,
 }
@@ -312,6 +314,8 @@ impl HeaderParser {
                         output: header
                             .output
                             .ok_or(Error::InvalidData("first_slice_output"))?,
+                        no_output_prior: header.no_output_of_prior_pics,
+                        reference_syntax: header.reference_syntax,
                         info: picture,
                         last_address: 0,
                     });
@@ -327,6 +331,8 @@ impl HeaderParser {
                         || current.info != picture
                         || header.poc_lsb.is_some_and(|poc| poc != current.poc_lsb)
                         || header.output.is_some_and(|output| output != current.output)
+                        || header.no_output_of_prior_pics != current.no_output_prior
+                        || !header.dependent && header.reference_syntax != current.reference_syntax
                         || tile_key(s, p, header.address)? <= tile_key(s, p, current.last_address)?
                     {
                         return Err(Error::InvalidData("inconsistent_picture_headers"));

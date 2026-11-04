@@ -839,6 +839,7 @@ mod tests {
             short_term_rps: rps,
             long_term: [LongTermRef::default(); 16],
             long_term_count: 0,
+            reference_syntax: None,
         }
     }
 

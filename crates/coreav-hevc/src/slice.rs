@@ -4,6 +4,7 @@ use crate::{
     params::{Pps, Sps},
     rps,
 };
+use sha2::{Digest, Sha256};
 
 /// One long-term reference derived from slice and active SPS syntax.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -49,6 +50,7 @@ pub struct SliceHeader {
     pub long_term: [LongTermRef; 16],
     /// Active long-term reference entries.
     pub long_term_count: usize,
+    pub(crate) reference_syntax: Option<(usize, [u8; 32])>,
 }
 
 pub(crate) struct Prefix {
@@ -91,6 +93,7 @@ pub(crate) fn parse(
         short_term_rps: rps::Rps::default(),
         long_term: [LongTermRef::default(); 16],
         long_term_count: 0,
+        reference_syntax: None,
     };
     if !h.first {
         h.dependent = p.dependent_segments && bits.flag()?;
@@ -102,12 +105,16 @@ pub(crate) fn parse(
     if !h.dependent {
         bits.skip(p.extra_header_bits as usize)?;
         let kind = bits.ue(2)?;
+        if (16..=23).contains(&nal.unit_type) && kind != 2 {
+            return Err(Error::InvalidData("irap_slice_type"));
+        }
         h.slice_type = Some(kind);
         h.output = Some(!p.output_flag || bits.flag()?);
         let mut total_current = 0;
         let mut temporal_mvp = false;
         if nal.unit_type != 19 && nal.unit_type != 20 {
             h.poc_lsb = Some(bits.u(s.poc_bits)?);
+            let mut reference_bits = bits.clone();
             let from_sps = bits.flag()?;
             let set = if !from_sps {
                 rps::parse(
@@ -187,6 +194,19 @@ pub(crate) fn parse(
                 }
             }
             temporal_mvp = s.temporal_mvp && bits.flag()?;
+            let count = bits
+                .position()
+                .checked_sub(reference_bits.position())
+                .ok_or(Error::InvalidData("reference_syntax_span"))?;
+            let mut identity = Sha256::new();
+            for _ in 0..count / 8 {
+                identity.update([reference_bits.u(8)? as u8]);
+            }
+            let remaining = (count % 8) as u32;
+            if remaining != 0 {
+                identity.update([(reference_bits.u(remaining)? << (8 - remaining)) as u8]);
+            }
+            h.reference_syntax = Some((count, identity.finalize().into()));
             let dpb = *s
                 .max_dpb
                 .get(s.sub_layers as usize)

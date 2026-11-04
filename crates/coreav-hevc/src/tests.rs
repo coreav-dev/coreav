@@ -114,6 +114,75 @@ fn intra_first(kind: u8) -> Vec<u8> {
     escaped(kind, &rbsp)
 }
 
+#[derive(Clone, Copy, Default)]
+enum TestLongTerm {
+    #[default]
+    None,
+    FromSps(u32),
+    Explicit(u32, bool),
+}
+
+#[derive(Clone, Copy, Default)]
+struct TestReferences {
+    short_term: Option<(u32, bool)>,
+    long_term: TestLongTerm,
+    temporal_mvp: bool,
+}
+
+fn reference_segment(kind: u8, first: bool, slice_type: u32, refs: TestReferences) -> Vec<u8> {
+    let mut w = params::tests::Writer::default();
+    w.flag(first);
+    if (16..=21).contains(&kind) {
+        w.flag(false);
+    }
+    w.ue(0);
+    if !first {
+        w.u(1, 1);
+    }
+    w.ue(slice_type);
+    w.flag(true);
+    w.u(4, 1);
+    w.flag(false);
+    w.flag(false);
+    w.ue(u32::from(refs.short_term.is_some()));
+    w.ue(0);
+    if let Some((delta, used)) = refs.short_term {
+        w.ue(delta);
+        w.flag(used);
+    }
+    match refs.long_term {
+        TestLongTerm::None => {
+            w.ue(0);
+            w.ue(0);
+        }
+        TestLongTerm::FromSps(index) => {
+            w.ue(1);
+            w.ue(0);
+            w.u(1, index);
+            w.flag(false);
+        }
+        TestLongTerm::Explicit(poc, used) => {
+            w.ue(0);
+            w.ue(1);
+            w.u(4, poc);
+            w.flag(used);
+            w.flag(false);
+        }
+    }
+    w.flag(refs.temporal_mvp);
+    w.flag(false);
+    w.flag(false);
+    if slice_type < 2 {
+        w.flag(false);
+        w.ue(0);
+    }
+    w.se(0);
+    w.flag(false);
+    let mut rbsp = padded(w);
+    rbsp.push(0x80);
+    escaped(kind, &rbsp)
+}
+
 fn replaced_ue(rbsp: &[u8], offset: usize, value: u32) -> Vec<u8> {
     let stop = rbsp.len() * 8 - rbsp.last().unwrap().trailing_zeros() as usize - 1;
     let mut bits = Bits::new(rbsp);
@@ -370,6 +439,236 @@ fn vps_change_requires_an_irap_before_releasing_prior_output() {
         parser.finish(|_| Ok(())),
         Err(Error::InvalidData("parser_failed"))
     );
+}
+
+#[test]
+fn every_irap_slice_must_be_intra() {
+    for first in [true, false] {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in two_ctu_parameter_nals() {
+            parser.read_nal(&set, |_| Ok(())).unwrap();
+        }
+        if !first {
+            parser
+                .read_nal(
+                    &reference_segment(21, true, 2, TestReferences::default()),
+                    |_| Ok(()),
+                )
+                .unwrap();
+        }
+        let later = reference_segment(
+            21,
+            first,
+            1,
+            TestReferences {
+                short_term: Some((0, true)),
+                ..TestReferences::default()
+            },
+        );
+        assert_eq!(
+            parser.read_nal(&later, |_| Ok(())),
+            Err(Error::InvalidData("irap_slice_type"))
+        );
+    }
+}
+
+#[test]
+fn independent_segments_keep_the_same_reference_syntax() {
+    for (first_refs, later_refs) in [
+        (
+            TestReferences::default(),
+            TestReferences {
+                short_term: Some((0, false)),
+                ..TestReferences::default()
+            },
+        ),
+        (
+            TestReferences::default(),
+            TestReferences {
+                temporal_mvp: true,
+                ..TestReferences::default()
+            },
+        ),
+        (
+            TestReferences::default(),
+            TestReferences {
+                long_term: TestLongTerm::Explicit(2, false),
+                ..TestReferences::default()
+            },
+        ),
+        (
+            TestReferences {
+                long_term: TestLongTerm::FromSps(1),
+                ..TestReferences::default()
+            },
+            TestReferences {
+                long_term: TestLongTerm::Explicit(2, false),
+                ..TestReferences::default()
+            },
+        ),
+    ] {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in two_ctu_parameter_nals() {
+            parser.read_nal(&set, |_| Ok(())).unwrap();
+        }
+        parser
+            .read_nal(&reference_segment(21, true, 2, first_refs), |_| Ok(()))
+            .unwrap();
+        assert_eq!(
+            parser.read_nal(&reference_segment(21, false, 2, later_refs), |_| Ok(())),
+            Err(Error::InvalidData("inconsistent_picture_headers"))
+        );
+        assert_eq!(
+            parser.finish(|_| Ok(())),
+            Err(Error::InvalidData("parser_failed"))
+        );
+    }
+}
+
+#[test]
+fn matching_reference_syntax_survives_segment_offsets_and_non_irap_slice_types() {
+    for refs in [
+        TestReferences::default(),
+        TestReferences {
+            long_term: TestLongTerm::FromSps(1),
+            ..TestReferences::default()
+        },
+        TestReferences {
+            short_term: Some((0, false)),
+            ..TestReferences::default()
+        },
+        TestReferences {
+            temporal_mvp: true,
+            ..TestReferences::default()
+        },
+    ] {
+        let mut parser = HeaderParser::new(Limits::default());
+        for set in two_ctu_parameter_nals() {
+            parser.read_nal(&set, |_| Ok(())).unwrap();
+        }
+        for first in [true, false] {
+            parser
+                .read_nal(&reference_segment(21, first, 2, refs), |_| Ok(()))
+                .unwrap();
+        }
+        let summary = parser.finish(|_| Ok(())).unwrap();
+        assert_eq!((summary.pictures, summary.independent_slices), (1, 2));
+    }
+    let mut parser = HeaderParser::new(Limits::default());
+    for set in two_ctu_parameter_nals() {
+        parser.read_nal(&set, |_| Ok(())).unwrap();
+    }
+    parser.read_nal(&idr(), |_| Ok(())).unwrap();
+    let refs = TestReferences {
+        short_term: Some((0, true)),
+        ..TestReferences::default()
+    };
+    parser
+        .read_nal(&reference_segment(1, true, 2, refs), |_| Ok(()))
+        .unwrap();
+    parser
+        .read_nal(&reference_segment(1, false, 1, refs), |_| Ok(()))
+        .unwrap();
+    let summary = parser.finish(|_| Ok(())).unwrap();
+    assert_eq!((summary.pictures, summary.independent_slices), (2, 3));
+}
+
+#[test]
+fn equal_derived_long_term_references_do_not_hide_different_syntax() {
+    let mut parser = HeaderParser::new(Limits::default());
+    for set in two_ctu_parameter_nals() {
+        parser.read_nal(&set, |_| Ok(())).unwrap();
+    }
+    let first = reference_segment(
+        21,
+        true,
+        2,
+        TestReferences {
+            long_term: TestLongTerm::FromSps(1),
+            ..TestReferences::default()
+        },
+    );
+    let NalInfo::Slice { header: first, .. } = parser.read_nal(&first, |_| Ok(())).unwrap() else {
+        panic!("expected first slice")
+    };
+    let later = reference_segment(
+        21,
+        false,
+        2,
+        TestReferences {
+            long_term: TestLongTerm::Explicit(2, false),
+            ..TestReferences::default()
+        },
+    );
+    let nal = NalHeader::parse(&later).unwrap();
+    let rbsp = nal::rbsp(&later, &Limits::default()).unwrap();
+    let mut bits = Bits::new(&rbsp);
+    let prefix = slice::prefix(&mut bits, nal).unwrap();
+    let sets = two_ctu_parameter_nals();
+    let sps = nal::rbsp(&sets[1], &Limits::default()).unwrap();
+    let sps = params::sps(&mut Bits::new(&sps), &Limits::default()).unwrap();
+    let pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
+    let pps = params::pps(&mut Bits::new(&pps), &Limits::default()).unwrap();
+    let second = slice::parse(&mut bits, nal, prefix, &sps, &pps, &Limits::default()).unwrap();
+    assert_eq!(first.long_term_count, second.long_term_count);
+    assert_eq!(first.long_term, second.long_term);
+    assert_eq!(
+        parser.read_nal(&later, |_| Ok(())),
+        Err(Error::InvalidData("inconsistent_picture_headers"))
+    );
+}
+
+#[test]
+fn prior_output_flag_is_consistent_in_independent_and_dependent_segments() {
+    for dependent in [false, true] {
+        let mut sets = two_ctu_parameter_nals();
+        if dependent {
+            let mut pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
+            pps[0] |= 1 << 5;
+            sets[2] = escaped(34, &pps);
+        }
+        let later = if dependent {
+            let mut w = params::tests::Writer::default();
+            w.flag(false);
+            w.flag(false);
+            w.ue(0);
+            w.flag(true);
+            w.u(1, 1);
+            let mut rbsp = padded(w);
+            rbsp.push(0x80);
+            escaped(19, &rbsp)
+        } else {
+            idr_segment(false)
+        };
+        for changed in [false, true] {
+            let mut parser = HeaderParser::new(Limits::default());
+            for set in &sets {
+                parser.read_nal(set, |_| Ok(())).unwrap();
+            }
+            parser.read_nal(&idr(), |_| Ok(())).unwrap();
+            let mut rbsp = nal::rbsp(&later, &Limits::default()).unwrap();
+            if changed {
+                rbsp[0] |= 1 << 6;
+            }
+            let result = parser.read_nal(&escaped(19, &rbsp), |_| Ok(()));
+            if changed {
+                assert_eq!(
+                    result,
+                    Err(Error::InvalidData("inconsistent_picture_headers"))
+                );
+                assert_eq!(
+                    parser.finish(|_| Ok(())),
+                    Err(Error::InvalidData("parser_failed"))
+                );
+            } else {
+                let NalInfo::Slice { header, .. } = result.unwrap() else {
+                    panic!("expected continuation")
+                };
+                assert_eq!(header.dependent, dependent);
+                assert_eq!(parser.finish(|_| Ok(())).unwrap().pictures, 1);
+            }
+        }
+    }
 }
 
 #[test]
