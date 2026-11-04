@@ -188,6 +188,25 @@ class DocsSite(unittest.TestCase):
                         self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(summary.read_bytes(), expected)
 
+    def test_v2_image_replay_does_not_follow_a_preexisting_summary_symlink(self):
+        page = (ROOT / 'docs/measurements/codec-v2-images.md').read_text()
+        block = re.search(r'```sh\n(.*?)\n```', page, re.S)
+        self.assertIsNotNone(block)
+        command = block.group(1).replace('python3 -I', shlex.quote(sys.executable) + ' -I', 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            target = directory / 'synthetic-target.json'
+            original = b'synthetic target, not a summary'
+            target.write_bytes(original)
+            summary = directory / 'v2-image-summary.json'
+            summary.symlink_to(target)
+            result = subprocess.run(['sh', '-c', command], cwd=ROOT,
+                                    env={**os.environ, 'TMPDIR': tmp}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(target.read_bytes(), original)
+            self.assertTrue(summary.is_symlink())
+            self.assertEqual(set(directory.iterdir()), {target, summary})
+
     def test_every_agents_area_file_is_listed(self):
         index = (ROOT / 'AGENTS.md').read_text()
         area = ROOT / 'docs' / 'agents'

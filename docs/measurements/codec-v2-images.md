@@ -112,13 +112,16 @@ The JSON evidence is byte-identical to the validated acquisition artifact. The v
 Run the replay from the repository root of a checkout containing these evidence files and the measured judging-tool versions. The measured source alone predates the evidence files. The replay reproduces the retained summary exactly:
 
 ```sh
-TMPDIR="${TMPDIR:-/tmp}"
+(
+replay_dir="$(mktemp -d "${TMPDIR:-/tmp}/coreav-v2-replay.XXXXXX")" || exit 1
+trap 'rm -rf "$replay_dir"' 0
 python3 -I tools/compat-corpus/png_bmp_yuv.py summarize \
   --registration png-bmp-yuv-v1 \
   --records docs/measurements/codec-v2-images/records.jsonl \
   --manifest docs/measurements/codec-v2-images/manifest.json \
-  --summary "$TMPDIR/v2-image-summary.json" &&
-cmp "$TMPDIR/v2-image-summary.json" docs/measurements/codec-v2-images/summary.json
+  --summary "$replay_dir/summary.json" &&
+cmp "$replay_dir/summary.json" docs/measurements/codec-v2-images/summary.json
+)
 ```
 
 Validation also checked the downloaded binaries against the build hashes and revalidated all five retained receipts against both source probes. The ordinary command's images equal the capture harness's images byte for byte. Recomputing the integer pixel statistics from the retained RGB files reproduces all 106 frame diagnostics.
