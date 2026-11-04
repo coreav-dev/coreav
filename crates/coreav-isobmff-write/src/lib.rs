@@ -266,12 +266,15 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
-    /// Derive track and media durations from copied samples and retained
+    /// Derive track and media durations from copied samples and validated
     /// edits instead of preserving declared header overrides. Single-source
     /// copy only, without replacements. The default keeps the native remux
     /// preservation policy. A video origin also implies this policy.
     /// Multiple or unmodeled edits and videos with a later sample composed
-    /// before the first are refused before writing.
+    /// before the first are refused before writing. A simple edit must cover
+    /// the copied presentation, except for a partial final AAC sample. An
+    /// overlong AAC edit is shortened only to an end exactly representable
+    /// in the source movie clock; other out-of-range endpoints refuse.
     pub rebuild_durations: bool,
     /// Subtract this positive presentation origin from one unedited,
     /// unfragmented video track. Its first composition time must equal

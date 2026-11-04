@@ -1771,6 +1771,87 @@ fn rebuilt_durations_refuse_unmodeled_edits_and_ambiguous_video_starts() {
 }
 
 #[test]
+fn rebuilt_durations_refuse_shortened_and_extended_simple_edits() {
+    let mut fractional = video(77, 77);
+    fractional.timescale = 12_288;
+    for sample in &mut fractional.samples {
+        sample.offset = 1024;
+    }
+    fractional.edits = vec![(3208, 1024, 0x10000)];
+    let mut cases = vec![fractional];
+    for (mut track, segment) in [
+        (video(50, 25), 1000),
+        (video(50, 25), 5000),
+        (aac(100, false), 1000),
+        (aac(100, false), 5000),
+    ] {
+        track.edits[0].0 = segment;
+        cases.push(track);
+    }
+    for track in cases {
+        let source = build(&file(vec![track]));
+        assert!(remux(&source, &RemuxOptions::default()).is_ok());
+        let mut output = Vec::new();
+        assert!(matches!(
+            remux_mp4(
+                SliceSource::new(&source),
+                &Limits::default(),
+                &Allowlist::default(),
+                &RemuxOptions {
+                    rebuild_durations: true,
+                    ..RemuxOptions::default()
+                },
+                &mut output
+            ),
+            Err(ExtractError::Source(Error::Unsupported { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
+fn rebuilt_durations_clamp_exact_extended_aac_edits_without_changing_samples() {
+    let mut track = aac(100, false);
+    track.edits = vec![(5000, 1600, 0x10000)];
+    let source = build(&file(vec![track]));
+    let (_, output) = remux(
+        &source,
+        &RemuxOptions {
+            rebuild_durations: true,
+            ..RemuxOptions::default()
+        },
+    )
+    .unwrap();
+    let limits = Limits::default();
+    let allowlist = Allowlist::default();
+    let input = probe(SliceSource::new(&source), &limits, &allowlist).unwrap();
+    let written = probe(SliceSource::new(&output), &limits, &allowlist).unwrap();
+    assert_eq!(
+        written.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 1600,
+            segment: 2100,
+        }
+    );
+    let from = packets(&source, &input, 0);
+    let to = packets(&output, &written, 0);
+    assert_eq!(from.len(), to.len());
+    for (a, b) in from.iter().zip(to) {
+        assert_eq!((a.dts, a.cts, a.duration), (b.dts, b.cts, b.duration));
+        assert_eq!(bytes(&source, a), bytes(&output, &b));
+    }
+    let (_, native) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert_eq!(
+        probe(SliceSource::new(&native), &limits, &allowlist)
+            .unwrap()
+            .tracks[0]
+            .edit_list,
+        input.tracks[0].edit_list
+    );
+}
+
+#[test]
 fn fragmented_sources_are_flattened() {
     for edit in [None, Some((0, 1024)), Some((80, 1024))] {
         let source = common::fragmented_movie(Some(2048), edit);

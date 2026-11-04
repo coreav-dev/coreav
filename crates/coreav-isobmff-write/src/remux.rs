@@ -495,7 +495,7 @@ fn remux<S: Source, R: Source, W: Write>(
     )?;
     let mut budget = Budget::new(limits);
     let mut kept: Vec<Kept<'_>> = Vec::new();
-    for plan in plans {
+    for mut plan in plans {
         let (input_movie, input_source) = if plan.input == 0 {
             (&movie, &mut source)
         } else {
@@ -522,7 +522,7 @@ fn remux<S: Source, R: Source, W: Write>(
             (None, _, _) => list(
                 input_movie,
                 plan.track,
-                &plan.edits,
+                &mut plan.edits,
                 plan.declared,
                 rebuild_durations,
                 &mut muxer,
@@ -2283,7 +2283,7 @@ impl ReplacedEdits {
 fn list<S: Source>(
     movie: &Movie,
     track: &Track,
-    source_edits: &[Edit],
+    source_edits: &mut [Edit],
     declared: Option<u64>,
     rebuild_durations: bool,
     muxer: &mut Muxer,
@@ -2294,6 +2294,7 @@ fn list<S: Source>(
 ) -> Result<(i64, u64, Option<i64>), ExtractError> {
     let mut first_dts = None;
     let mut first_cts = None;
+    let mut last_cts = None;
     let mut start: Option<i64> = None;
     let mut next_dts: Option<i64> = None;
     // The latest composition end, a frame's composition time plus its
@@ -2321,6 +2322,7 @@ fn list<S: Source>(
                 .ok_or_else(overflow)?,
         );
         first_dts.get_or_insert(packet.dts);
+        last_cts = Some(packet.cts);
         start = Some(start.map_or(packet.cts, |s| s.min(packet.cts)));
         let ends = packet
             .cts
@@ -2353,6 +2355,42 @@ fn list<S: Source>(
         .and_then(|e| u64::try_from(e).ok())
         .filter(|e| *e > 0)
         .unwrap_or(sum);
+    if rebuild_durations
+        && let EditList::Simple {
+            media_time,
+            segment,
+            ..
+        } = track.edit_list
+        && !(movie.has_fragments() && segment == 0)
+    {
+        let end = end.ok_or_else(overflow)?;
+        let lower = if track.description.codec == Codec::Aac {
+            last_cts.ok_or_else(overflow)?
+        } else {
+            end
+        };
+        let relative = |time: i64| {
+            time.checked_sub(media_time)
+                .and_then(|time| u64::try_from(time).ok())
+                .ok_or_else(|| unsupported("an edit does not cover the copied media"))
+        };
+        let scale = u128::from(track.timescale);
+        let movie_scale = u128::from(movie.timescale);
+        let boundary = u128::from(segment) * scale;
+        let lower = u128::from(relative(lower)?) * movie_scale;
+        let end = u128::from(relative(end)?) * movie_scale;
+        let upper = end.div_ceil(scale) * scale;
+        if boundary < lower || (track.description.codec == Codec::Aac && boundary == lower) {
+            return Err(unsupported("an edit changes the copied media's presentation end").into());
+        }
+        if boundary > upper {
+            if track.description.codec != Codec::Aac || end % scale != 0 {
+                return Err(unsupported("an edit extends beyond the copied media").into());
+            }
+            source_edits.last_mut().ok_or_else(overflow)?.duration =
+                u64::try_from(upper / scale).map_err(|_| overflow())?;
+        }
+    }
     edits(
         movie,
         track,
