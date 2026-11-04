@@ -207,6 +207,73 @@ class Evidence(unittest.TestCase):
         self.write_receipt()
         self.validate()
 
+    def edit_mapping(self):
+        self.source_listing['format'] = {'format_name': 'mov,mp4,m4a,3gp,3g2,mj2'}
+        for index, frame in enumerate(self.source_listing['frames']):
+            frame['pkt_pos'] = str(100 + index * 20)
+        raw = copy.deepcopy(self.source_listing)
+        for frame in raw['frames']:
+            frame['best_effort_timestamp'] += 80
+        raw['frames'].reverse()
+        self.source_listing['image_raw_timeline'] = raw
+        for frame in self.receipt['frames']:
+            frame['pts'] += 80
+        self.write_receipt()
+
+    def test_b_frame_edit_mapping_binds_raw_pts_to_edited_time(self):
+        self.edit_mapping()
+        self.assertEqual(self.validate(), self.receipt['frames'])
+
+    def test_edit_mapping_binds_each_clock_independently(self):
+        self.edit_mapping()
+        original = copy.deepcopy(self.receipt)
+        for index in range(2):
+            for key, value in (('pts', index * 40), ('pts', 1),
+                               ('presentation_time', {'num': 80 + index * 40, 'den': 1000}),
+                               ('presentation_time', {'num': 1, 'den': 1000})):
+                with self.subTest(index=index, key=key, value=value):
+                    self.receipt = copy.deepcopy(original)
+                    self.receipt['frames'][index][key] = value
+                    self.write_receipt()
+                    self.rejected('source_identity')
+
+    def test_edit_mapping_requires_unambiguous_packet_correspondence(self):
+        self.edit_mapping()
+        original = copy.deepcopy(self.source_listing)
+        mutations = {
+            'missing_raw_probe': lambda p: p.pop('image_raw_timeline'),
+            'failed_raw_probe': lambda p: p.update(image_raw_timeline=None),
+            'missing_frames': lambda p: p['image_raw_timeline'].pop('frames'),
+            'missing_stream': lambda p: p['image_raw_timeline'].update(streams=[]),
+            'changed_clock': lambda p: p['image_raw_timeline']['streams'][0].update(time_base='1/2000'),
+            'changed_format': lambda p: p['image_raw_timeline']['streams'][0].update(pix_fmt='yuv422p'),
+            'changed_geometry': lambda p: p['image_raw_timeline']['frames'][0].update(width=3),
+            'duplicate_raw_pts': lambda p: p['image_raw_timeline']['frames'][0].update(best_effort_timestamp=80),
+            'duplicate_edited_pts': lambda p: p['frames'][0].update(best_effort_timestamp=40),
+            'missing_raw_position': lambda p: p['image_raw_timeline']['frames'][0].pop('pkt_pos'),
+            'missing_edited_position': lambda p: p['frames'][0].pop('pkt_pos'),
+            'duplicate_raw_position': lambda p: p['image_raw_timeline']['frames'][0].update(pkt_pos='100'),
+            'duplicate_edited_position': lambda p: p['frames'][0].update(pkt_pos='120'),
+            'unknown_packet': lambda p: p['frames'][0].update(pkt_pos='101'),
+            'negative_position': lambda p: p['frames'][0].update(pkt_pos=-1),
+            'boolean_position': lambda p: p['frames'][0].update(pkt_pos=True),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                self.source_listing = copy.deepcopy(original)
+                mutate(self.source_listing)
+                self.rejected('source_identity')
+
+    def test_edit_mapping_allows_unpresented_raw_frames_without_guessing_an_offset(self):
+        self.edit_mapping()
+        extra = {**self.source_listing['image_raw_timeline']['frames'][0],
+                 'best_effort_timestamp': 0, 'pkt_pos': '80'}
+        self.source_listing['image_raw_timeline']['frames'].append(extra)
+        self.source_listing['frames'][1]['best_effort_timestamp'] = 80
+        self.receipt['frames'][1]['presentation_time'] = {'num': 2, 'den': 25}
+        self.write_receipt()
+        self.assertEqual(self.validate(), self.receipt['frames'])
+
     def test_unspecified_capture_chroma_uses_the_existing_left_default(self):
         self.source_listing['streams'][0]['chroma_location'] = 'left'
         for frame in self.receipt['frames']:
@@ -894,11 +961,12 @@ class RealImageCapture(unittest.TestCase):
             self.assertEqual(restored, raw.read_bytes())
         return output
 
-    def acquire(self, source, codec, sequence, tag):
+    def acquire(self, source, codec, sequence, tag, seek=None):
         base = self.root / tag
         base.mkdir()
         entry = {'class': 'media', 'container': 'image',
-                 'args': ['-v', 'error', '-i', 'INPUT', '-c:v', codec, '-frames:v', '2' if sequence else '1', 'OUTPUT'],
+                 'args': ['-v', 'error', '-i', 'INPUT', *(['-ss', str(seek)] if seek is not None else []),
+                          '-c:v', codec, '-frames:v', '2' if sequence else '1', 'OUTPUT'],
                  'output': 'frame-%03d.' + codec if sequence else 'frame.' + codec}
         opts = types.SimpleNamespace(fixtures=self.fixtures, env=self.env,
                                       image_harness=self.programs['COREAV_IMAGE_HARNESS'],
@@ -910,7 +978,7 @@ class RealImageCapture(unittest.TestCase):
         self.checked([self.ffmpeg, *reference.args], reference.cwd)
         scratch = base / 'scratch'
         scratch.mkdir()
-        listing = image.decoded.probe(source, self.ffprobe, self.env)
+        listing = image.decoded.probe(source, self.ffprobe, self.env, inputs=('-show_format',))
         self.assertIsNotNone(listing)
         videos = [s for s in listing['streams'] if s.get('codec_type') == 'video']
         self.assertEqual(len(videos), 1)
@@ -939,6 +1007,35 @@ class RealImageCapture(unittest.TestCase):
                     self.assertEqual((capsule / receipt['frames'][0]['rgb_file']).read_bytes(), bytes(18 * 10 * 3))
                     if sequence:
                         self.assertEqual((capsule / receipt['frames'][1]['rgb_file']).read_bytes(), bytes([255]) * (18 * 10 * 3))
+
+    def test_b_frame_edit_list_preserves_exact_images_and_source_timing(self):
+        raw = self.root / 'edited-neutral.yuv'
+        chroma = bytes([128]) * (18 * 10 // 2)
+        raw.write_bytes(b''.join(bytes([value]) * (18 * 10) + chroma for value in (0, 255, 0, 255, 0, 255)))
+        source = self.fixtures / 'edited-neutral.mp4'
+        self.checked([self.ffmpeg, '-nostdin', '-v', 'error', '-f', 'rawvideo', '-pixel_format', 'yuv420p',
+                      '-video_size', '18x10', '-framerate', '5', '-i', str(raw), '-frames:v', '6', '-an',
+                      '-c:v', 'libx264', '-qp', '1', '-preset', 'medium', '-threads', '1', '-bf', '2',
+                      '-g', '6', '-x264-params', 'b-adapt=0', '-pix_fmt', 'yuv420p', '-color_range', 'pc', str(source)])
+        edited = image.decoded.probe(source, self.ffprobe, self.env)
+        unedited = image.decoded.probe(source, self.ffprobe, self.env, inputs=('-ignore_editlist', '1'))
+        self.assertIsNotNone(edited)
+        self.assertIsNotNone(unedited)
+        self.assertTrue(any(frame.get('pict_type') == 'B' for frame in edited['frames']))
+        self.assertEqual(edited['frames'][0]['best_effort_timestamp'], 0)
+        self.assertGreater(unedited['frames'][0]['best_effort_timestamp'], 0)
+        for codec in ('png', 'bmp'):
+            for seek in (None, '0.4'):
+                with self.subTest(codec=codec, seek=seek):
+                    cx, _, receipt, result = self.acquire(source, codec, True, f'{codec}-{seek}', seek=seek)
+                    probes = image.document(cx.base / 'image-source-probe.json')
+                    self.assertEqual(probes['image_raw_timeline']['frames'], unedited['frames'])
+                    self.assertEqual(probes['frames'], edited['frames'])
+                    self.assertEqual(result['failures'], [], result)
+                    self.assertTrue(result['encoder']['exact'])
+                    self.assertTrue(result['reference']['exact'])
+                    self.assertEqual(image.rational(receipt['frames'][0]['presentation_time']),
+                                     image.fractions.Fraction(seek or 0))
 
     def test_textured_images_keep_exact_encoder_and_report_reference_metrics(self):
         source = self.source(textured=True)
