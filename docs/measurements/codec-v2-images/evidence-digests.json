@@ -1,0 +1,31 @@
+{
+  "source_sha": "e42fc012b13e782babc596e709c8f740840cba2d",
+  "workflow_url": "https://github.com/coreav-dev/coreav/actions/runs/41774236056",
+  "files": {
+    "records.jsonl": "3faf75cab98a99c06c1fcd983a31899503b16a25dd203b772c8f92542188a264",
+    "summary.json": "33592f331f5abb9d797b3f5b86ab02d1b8600182caaeaeffd670e63887799dab",
+    "manifest.json": "46581b4d2ca46c031dbed13d345bb1a9adb14da18ae9312971d9595cfdd2e453",
+    "host.json": "03c875a23aa43fc6afe801830e9a9a5faf3823565ff7e59a094a0ee710a89354",
+    "build.json": "2f3621800fffc1ded2902736864e826075e069a70567fe0dbfe2c7caa1bb7235",
+    "fixture-reference.json.gz": "6757c42aa965b1eab1f710da6851e42eec175a558b33555f4d64816d2161f7e3"
+  },
+  "decompressed": {
+    "fixture-reference.json.gz": "8b730849a294ce8232c17381243fd9e39155f87eae3fa7ab67140f6c6a5c9d36"
+  },
+  "archives": {
+    "v2-images-work.tgz": "1ea8c24d3559a939734450e25dbd046a4d0605c0d794624f5b01a845048aa196",
+    "v2-fixture-check.tgz": "06bd28331de4e54105deeb13467efda1d6f28b7cf41a94bc10b08c05f0455bab"
+  },
+  "artifacts": {
+    "evidence": {
+      "digest": "sha256:4f3aad9c1dcd58404f1ad4db828f0b6f758895380fbf89d25f21c19a1791f4c5",
+      "expires_at": "2027-02-02T04:36:32Z",
+      "id": 13297280195
+    },
+    "binaries": {
+      "digest": "sha256:b7e2564a729966a30793f2f99d26d60845288d180738b85a2f3e61011d8cc8c2",
+      "expires_at": "2026-12-04T04:42:33Z",
+      "id": 13295739543
+    }
+  }
+}
