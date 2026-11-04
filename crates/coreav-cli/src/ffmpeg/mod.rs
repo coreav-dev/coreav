@@ -1160,7 +1160,6 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
 fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
-    let mut first = None;
     for path in paths {
         let size = std::fs::metadata(path)
             .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?
@@ -1174,8 +1173,13 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
         else {
             return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
         };
-        let first = *first.get_or_insert(start);
-        let offset = end.saturating_sub(start).saturating_add(first);
+        if offsets.is_empty() && start != 0 {
+            return Err(Refusal::not_native(
+                "a concat list whose first input starts at a nonzero time",
+            )
+            .into());
+        }
+        let offset = end.saturating_sub(start);
         offsets.push(
             Rational::new(offset, 1_000_000)
                 .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
