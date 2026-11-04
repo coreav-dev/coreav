@@ -1605,6 +1605,14 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
         .filter(|s| s.input == 0)
         .map(|s| s.stream)
         .collect();
+    if mapped.iter().all(|stream| stream.input == 0) {
+        return Ok(Job::Remux {
+            left_out_covers: left_out_covers(first, &first_streams),
+            streams: first_streams,
+            matroska: false,
+            video_origin: None,
+        });
+    }
     Ok(Job::RemuxInputs {
         streams: mapped,
         left_out_covers: left_out_covers(first, &first_streams),
