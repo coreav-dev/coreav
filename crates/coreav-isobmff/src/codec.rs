@@ -522,9 +522,17 @@ pub(crate) fn parse_sample_entry(
             if layout == EntryLayout::Visual {
                 desc.visual_children_complete &= ENTRY_BOXES.contains(&&kind.0)
                     || CONFIG_BOXES.contains(&&kind.0)
+                    || (kind == FourCc(*b"d263") && payload.len() == 7)
                     || matches!(
                         &kind.0,
-                        b"free" | b"skip" | b"fiel" | b"dvcC" | b"dvvC" | b"dvwC" | b"amve"
+                        b"free"
+                            | b"skip"
+                            | b"fiel"
+                            | b"glbl"
+                            | b"dvcC"
+                            | b"dvvC"
+                            | b"dvwC"
+                            | b"amve"
                     );
                 if ENTRY_BOXES.contains(&&kind.0) {
                     if !desc.entry_boxes.iter().any(|b| b.kind == kind) {

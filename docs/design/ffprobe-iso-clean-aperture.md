@@ -47,6 +47,14 @@ a child list. An unclassified leaf can therefore cause
 conservative fallback even without aperture metadata. Non-visual descriptions
 do not inherit this visual-layout restriction.
 
+Metadata retention is not an exhaustive list of known layouts. An extension-free
+`d263` record is also clear: 3GPP TS 26.244 section 6.8 defines its seven-byte
+decoder-specific structure. Longer records can contain optional boxes, so they
+remain unproved and refuse. Neither `d263` nor `fiel` is newly retained or mapped.
+The opaque `glbl` global codec header is also not a child list (Xiph's
+[non-Ogg embedding description](https://wiki.xiph.org/Oggless), MOV example).
+Listing it does not change native codec admission or invoke a decoder.
+
 Add no source read, codec parsing, packet scan, larger budget or cap.
 Keep comparator keys, known divergences, command rows, oracle pin and
 baselines unchanged. Do not alter ffmpeg planning or native probe output.
