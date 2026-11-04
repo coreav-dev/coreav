@@ -36,6 +36,8 @@ ARMS = ('base', 'base2', 'sandbox_ffmpeg', 'sandbox_x264', 'process_ffmpeg', 'pr
 BUILD = ['cargo', 'build', '--locked', '-p', 'coreav-cli', '--release', '--features',
          'native-h264,dav1d,libvpx,ffmpeg-fallback']
 ROUNDS = 3
+DEFAULT_RUN_SECONDS = 5 * 3600
+MAX_RUN_SECONDS = 6 * 3600
 
 
 class HostFault(ValueError):
@@ -45,6 +47,12 @@ class HostFault(ValueError):
 def require(condition, reason):
     if not condition:
         raise ValueError(reason)
+
+
+def run_allowance(value):
+    seconds = int(value)
+    require(0 < seconds <= MAX_RUN_SECONDS, 'run deadline must be at most six hours')
+    return seconds
 
 
 def digest(path):
@@ -352,8 +360,7 @@ def run(args):
             path = paths[file['sha256']]
             require(path.stat().st_size == file['size'] and digest(path) == file['sha256'], 'input hash differs')
         require(digest(args.gate) == registered['gate_sha256'], 'wrong gate input')
-        require(0 < args.max_seconds <= 10800, 'run deadline must be at most three hours')
-        executor = Executor(args.max_seconds)
+        executor = Executor(run_allowance(args.max_seconds))
         stage = 'preflight'
         for file in registered['files']:
             report['preflight'][file['sha256']] = preflight(
@@ -417,7 +424,7 @@ def main():
     capture = commands.add_parser('run')
     for flag in ('files', 'gate', 'tools', 'build', 'instance', 'out', 'tmp'):
         capture.add_argument('--' + flag, required=True)
-    capture.add_argument('--max-seconds', type=int, default=9000)
+    capture.add_argument('--max-seconds', type=run_allowance, default=DEFAULT_RUN_SECONDS)
     pilot = commands.add_parser('smoke')
     pilot.add_argument('--tools', required=True)
     pilot.add_argument('--tmp', required=True)

@@ -1,5 +1,7 @@
 import copy
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -178,6 +180,29 @@ class DecoderHostTests(unittest.TestCase):
         with patch.object(tool.subprocess, 'run', side_effect=subprocess.TimeoutExpired('synthetic', 1)):
             with self.assertRaises(subprocess.TimeoutExpired):
                 tool.Executor(1).call(['/bin/true'], 'base')
+
+    def test_run_allowance_defaults_to_five_hours_and_accepts_six(self):
+        flags = [value for name in ('files', 'gate', 'tools', 'build', 'instance', 'out', 'tmp')
+                 for value in ('--' + name, 'unused')]
+        for extra, expected in [([], 18000), (['--max-seconds', '21600'], 21600)]:
+            with patch.object(tool.sys, 'argv', [str(SCRIPT), 'run', *flags, *extra]), \
+                    patch.object(tool, 'run') as capture:
+                tool.main()
+                self.assertEqual(capture.call_args.args[0].max_seconds, expected)
+        self.assertEqual(tool.MAX_RUN_SECONDS, 21600)
+
+    def test_run_allowance_refuses_above_six_hours_before_capture(self):
+        flags = [value for name in ('files', 'gate', 'tools', 'build', 'instance', 'out', 'tmp')
+                 for value in ('--' + name, 'unused')]
+        for seconds in ('21601', '0', '-1'):
+            with patch.object(tool.sys, 'argv', [str(SCRIPT), 'run', *flags, '--max-seconds', seconds]), \
+                    patch.object(tool, 'run') as capture, contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    tool.main()
+                self.assertEqual(error.exception.code, 2)
+                capture.assert_not_called()
+            with self.assertRaises(ValueError):
+                tool.run_allowance(seconds)
 
 
 if __name__ == '__main__':
