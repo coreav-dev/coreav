@@ -23,6 +23,10 @@ on:
       - .github/workflows/flac-output.yml
   workflow_dispatch:
     inputs:
+      diagnostic:
+        description: Profile spent synthetic FLAC inputs without judging bars
+        type: boolean
+        default: false
       measure:
         description: Run the registered size and speed comparison after merge
         type: boolean
@@ -37,6 +41,7 @@ concurrency:
 
 jobs:
   flac-output:
+    if: ${{ !inputs.diagnostic }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -106,4 +111,41 @@ jobs:
             ${{ runner.temp }}/flac-identity.json
             ${{ runner.temp }}/flac-smoke.json
             ${{ runner.temp }}/flac-measurement.json
+          if-no-files-found: ignore
+  flac-cpu-diagnostic:
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnostic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - name: Prepare diagnostic tools and pinned executable oracle
+        run: |
+          test '${{ inputs.measure }}' != true
+          sudo apt-get update -qq
+          sudo apt-get install -y linux-tools-common linux-tools-generic
+          sudo sysctl kernel.perf_event_paranoid=-1
+          perf=$(find /usr/lib/linux-tools -type f -name perf | head -1)
+          sudo "$perf" stat -e instructions:u,cycles:u -- true
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Build plain and symbolized optimized commands
+        run: |
+          cargo build --locked --release -p coreav-cli
+          cp target/release/coreav "$RUNNER_TEMP/plain-coreav"
+          CARGO_PROFILE_RELEASE_DEBUG=2 RUSTFLAGS='-C force-frame-pointers=yes' cargo build --locked --release -p coreav-cli
+      - name: Capture unjudged counters and native profiles
+        run: |
+          python3 -I scripts/flac_cpu_diagnostic.py --plain "$RUNNER_TEMP/plain-coreav" \
+            --profile target/release/coreav --oracle "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-cpu"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-cpu-diagnostic
+          path: ${{ runner.temp }}/flac-cpu
           if-no-files-found: ignore
