@@ -14,6 +14,8 @@ This conservatively refuses any multi-edit audio output, including a potentially
 
 Exact native concat audio-gap reconstruction would need an explicit compatibility packet-clock policy, including the last packet duration at every boundary. That is a separate follow-up, not a change to native gapless presentation or an oracle tolerance.
 
+Generated AC-3 and E-AC-3 examples with simple source edits also need several output audio edits and differ from pinned FFmpeg 9.0.2. On a repeated two-second source, native join's copied output starts video at zero instead of 68 ticks at 12800 Hz and decodes 125 audio frames instead of 126. ISO/IEC 14496-12 edit mappings can preserve a valid native presentation without reproducing that external packet timeline; the fixed AC-3 frame size is specified by ETSI TS 102 366 F.2. The audio-copy fixture checker previously ignored edits while comparing packet bytes, which proves native preservation but not compatibility equality. Its two compatibility cases now require explicit refusal, destination preservation and byte-identical pinned fallback. Native join, every source recipe and all native packet/duration/decode checks remain unchanged. Refusals are reported separately from native passes.
+
 ## Verification
 
 - First add a pinned regression that fails with the current wrong native success. Generate unedited equal-span, shorter-audio and fractional-rate sources; cover repeated and mixed inputs, full AV, explicit mapping and video-only selection.
