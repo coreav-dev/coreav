@@ -259,6 +259,17 @@ fn bounded_golomb_alignment_and_truncation() {
     assert!(bits.flag().is_ok());
     assert!(bits.flag().is_err());
     assert!(Bits::new(&[0, 0, 0, 0, 0]).ue(u32::MAX).is_err());
+    assert_eq!(
+        Bits::new(&[0, 0, 0, 0, 0x80, 0, 0, 0, 0])
+            .ue(u32::MAX)
+            .unwrap(),
+        u32::MAX
+    );
+    assert!(
+        Bits::new(&[0, 0, 0, 0, 0x80, 0, 0, 0, 0])
+            .ue(u32::MAX - 1)
+            .is_err()
+    );
     assert!(Bits::new(&[0x80]).trailing().is_ok());
     assert!(Bits::new(&[0x81]).trailing().is_err());
     assert!(Bits::new(&[0x80, 0]).trailing().is_err());

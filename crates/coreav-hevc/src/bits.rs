@@ -52,15 +52,15 @@ impl<'a> Bits<'a> {
         let mut zeros = 0;
         while !self.flag()? {
             zeros += 1;
-            if zeros > 31 {
+            if zeros > 32 {
                 return Err(Error::InvalidData("exp_golomb_overflow"));
             }
         }
-        let value = ((1u32 << zeros) - 1) + self.u(zeros)?;
-        if value > max {
+        let value = ((1u64 << zeros) - 1) + u64::from(self.u(zeros)?);
+        if value > u64::from(max) {
             return Err(Error::InvalidData("exp_golomb_range"));
         }
-        Ok(value)
+        Ok(value as u32)
     }
 
     pub(crate) fn se(&mut self, min: i32, max: i32) -> Result<i32> {
