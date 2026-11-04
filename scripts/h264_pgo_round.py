@@ -123,8 +123,10 @@ def reserved_evidence(root, plan, receipt):
 def build_evidence(root, revision):
     from h264_pgo_build import training_roster, TOOLCHAIN, LLVM, TARGET
     build = json.loads((root / 'build.json').read_text())
+    acquisition = json.loads((ROOT / 'scripts/h264_pgo_acquisition.json').read_text())
+    lock = acquisition['artifact_lock_sha256'] if revision == acquisition['artifact_revision'] else digest(ROOT / 'Cargo.lock')
     require(build['schema'] == 1 and build['source']['commit'] == revision and
-            build['source']['lock_sha256'] == digest(ROOT / 'Cargo.lock') and build['independent_match'] is True and
+            build['source']['lock_sha256'] == lock and build['independent_match'] is True and
             build['recipe_sha256'] == digest(ROOT / 'scripts/h264_pgo_build.py'), 'build provenance changed')
     require(build['pgo']['sha256'] == build['independent']['sha256'] == digest(root / 'pgo') == digest(root / 'independent')
             and build['base']['sha256'] == digest(root / 'base') and
@@ -209,6 +211,8 @@ def resolution(width, height):
 
 
 def selection(rows, candidates, decisions, registry, plan):
+    from h264_pgo_acquire import failure_counts
+    failure_counts(decisions, plan)
     used = exclusions(registry)
     require(len(decisions) <= len(candidates), 'collection extends population')
     counts = {c: 0 for c in bars.CLASSES}
@@ -216,6 +220,8 @@ def selection(rows, candidates, decisions, registry, plan):
     for candidate, decision in zip(candidates, decisions):
         require(source_identity(decision['identity']) == candidate['identity'], 'collection is not an ordered population prefix')
         require(not all(n == plan['count_per_class'] for n in counts.values()), 'collection continued after quotas filled')
+        if decision['capture_status'] == 'failed':
+            continue
         metadata = decision['metadata']
         require(set(metadata) == {'codec_name', 'pix_fmt', 'field_order', 'profile', 'width', 'height', 'frames'} and
                 decision['capture_status'] == 'ok', 'collection lacks a complete metadata capture')
@@ -603,9 +609,10 @@ def audit(root, plan, allocation_sha256):
     return result
 
 
-def run(root, plan, allocation_sha256):
+def run(root, plan, allocation_sha256, acquisition_sha256=None):
     import h264_pgo_diagnostics as diagnostics
-    revision = merged()
+    import h264_pgo_acquire as acquisition
+    tooling_revision = merged()
     out = root / 'events.jsonl'
     with out.open('x', buffering=1) as log:
         def emit(row):
@@ -617,7 +624,12 @@ def run(root, plan, allocation_sha256):
                     'allocation is not reserved on its merged main')
             require(reserved_evidence(root, plan, receipt) == reserved_inputs(root, plan, receipt),
                     'standing exclusion source differs from allocation')
+            acquisition.verify_receipt(root, acquisition_sha256, tooling_revision)
+            revision = json.loads((root / 'allocation-contract.json').read_text())['revision']
+            require(revision == acquisition.policy()['artifact_revision'], 'measured artifact revision changed')
             candidates = verify_allocation(root, plan, allocation_sha256, revision)
+            acquisition.audit_collection(root, candidates, plan, acquisition_sha256)
+            acquisition.bind(root, acquisition_sha256)
             instance = json.loads((root / 'instance.json').read_text())
             emit({'kind': 'host', 'phase': 'before', **host(instance)})
             rows = json.loads((root / 'roster.json').read_text())
@@ -693,6 +705,7 @@ def main():
     ap.add_argument('action', choices=('registry', 'allocate', 'run', 'audit'))
     ap.add_argument('directory', type=Path)
     ap.add_argument('--allocation-sha256', help='the allocation contract digest recorded before media acquisition')
+    ap.add_argument('--acquisition-sha256', help='the amendment receipt digest recorded before continuation')
     args = ap.parse_args()
     plan = json.loads(PLAN.read_text())
     root = args.directory.resolve()
@@ -731,7 +744,9 @@ def main():
             print(digest(root / 'allocation-contract.json'))
             return 0
         if args.action == 'run':
-            run(root, plan, args.allocation_sha256)
+            run(root, plan, args.allocation_sha256, args.acquisition_sha256)
+        from h264_pgo_acquire import audit_bound
+        audit_bound(root, plan, args.allocation_sha256, args.acquisition_sha256)
         result = audit(root, plan, args.allocation_sha256)
         write(root / 'summary.json', result)
         return 0 if result['pass'] else 1
