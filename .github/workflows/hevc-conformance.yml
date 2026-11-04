@@ -96,6 +96,19 @@ jobs:
           umask 077
           python3 -I scripts/hevc_conformance.py corpus-online --dest "$RUNNER_TEMP/media" \
             --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle"
+      - name: Retain only aggregate profile counts publicly
+        if: always()
+        run: |
+          python3 -I - "$RUNNER_TEMP" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          source = root / 'private/corpus-census.json'
+          if source.exists():
+              data = json.loads(source.read_text())
+              summary = {key: data[key] for key in ('roster_sha256', 'complete', 'counts')}
+              summary['files'] = len(data['files'])
+              (root / 'profile-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+          PY
       - name: Seal private census records
         if: always()
         run: |
@@ -115,5 +128,12 @@ jobs:
         with:
           name: hevc-profile-census-sealed
           path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: hevc-profile-summary
+          path: ${{ runner.temp }}/profile-summary.json
           if-no-files-found: ignore
           retention-days: 30
