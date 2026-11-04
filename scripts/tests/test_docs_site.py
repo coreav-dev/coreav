@@ -234,6 +234,49 @@ class DocsSite(unittest.TestCase):
             self.assertTrue(summary.is_symlink())
             self.assertEqual(set(directory.iterdir()), {target, summary, directory / 'bin'})
 
+    def test_decoder_host_replay_requires_valid_success_and_specific_void_refusal(self):
+        page = (ROOT / 'docs/measurements/transcode-decoder-host.md').read_text()
+        block = re.search(r'```sh\n(.*?)\n```', page, re.S)
+        self.assertIsNotNone(block)
+        for case in ('ok', 'valid_failure', 'valid_mismatch', 'void_success', 'void_failure'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                directory = pathlib.Path(tmp)
+                programs = directory / 'bin'
+                programs.mkdir()
+                git = programs / 'git'
+                git.write_text('#!/bin/sh\nif [ "$2" = add ]; then mkdir -p "$4"; fi\n')
+                git.chmod(0o755)
+                driver = programs / 'python3'
+                driver.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -I - "$@" <<\'PY\'\n'
+                                  'import os, pathlib, sys\n'
+                                  'output = pathlib.Path(sys.argv[sys.argv.index("--out") + 1])\n'
+                                  'with open(os.environ["DOC_REPLAY_TRACE"], "a") as trace:\n'
+                                  '    trace.write(output.name + "\\n")\n'
+                                  'case = os.environ["DOC_REPLAY_CASE"]\n'
+                                  'if output.name == "valid":\n'
+                                  '    expected = pathlib.Path(os.environ["DOC_REPLAY_SUMMARY"]).read_bytes()\n'
+                                  '    (output / "summary.json").write_bytes(b"{}" if case == "valid_mismatch" else expected)\n'
+                                  '    sys.exit(7 if case == "valid_failure" else 0)\n'
+                                  'if case == "void_success":\n'
+                                  '    sys.exit(0)\n'
+                                  'print("OSError: unexpected failure" if case == "void_failure" else\n'
+                                  '      "ValueError: incomplete capture", file=sys.stderr)\n'
+                                  'sys.exit(1)\n'
+                                  'PY\n')
+                driver.chmod(0o755)
+                trace = directory / 'trace'
+                env = {**os.environ, 'PATH': str(programs) + os.pathsep + os.environ['PATH'],
+                       'TMPDIR': str(directory), 'DOC_REPLAY_CASE': case, 'DOC_REPLAY_TRACE': str(trace),
+                       'DOC_REPLAY_SUMMARY': str(ROOT / 'docs/measurements/transcode-decoder-host/valid/summary.json')}
+                result = subprocess.run(['/bin/sh', '-c', block.group(1)], cwd=ROOT, env=env,
+                                        capture_output=True, text=True, timeout=30)
+                if case == 'ok':
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                expected = ['valid'] if case.startswith('valid_') else ['valid', 'void']
+                self.assertEqual(trace.read_text().splitlines(), expected)
+
     def test_every_agents_area_file_is_listed(self):
         index = (ROOT / 'AGENTS.md').read_text()
         area = ROOT / 'docs' / 'agents'
