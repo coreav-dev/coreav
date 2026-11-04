@@ -100,7 +100,7 @@ The two full PNG sequences have the same retained sample totals. The still-image
 
 ## Evidence and replay
 
-The JSON evidence is byte-identical to the validated acquisition artifact. The verbose reference checks are losslessly gzip-compressed, with their original JSON bytes unchanged. The files contain no home paths or machine names.
+The acquired records, summary, manifest, build record, and host record retain their original JSON bytes. The verbose reference checks are losslessly gzip-compressed, with their original JSON bytes unchanged. Digest and retention metadata are recorded separately. The files contain no home paths or machine names.
 
 - [Records](codec-v2-images/records.jsonl) retain each command, assignment, outcome, and image difference, including every captured frame.
 - [Summary](codec-v2-images/summary.json) retains the nonvoid accounting and full reason tables.
@@ -108,6 +108,7 @@ The JSON evidence is byte-identical to the validated acquisition artifact. The v
 - [Build record](codec-v2-images/build.json) identifies the three binaries, features, compiler, and lockfile.
 - [Reference fixture checks](codec-v2-images/fixture-reference.json.gz) retain all registered supplemental attempts.
 - [Evidence digests](codec-v2-images/evidence-digests.json) identify these files and the complete retained archives.
+- [Retention record](codec-v2-images/retention.json) identifies separately retained complete ZIP copies by their original digests.
 
 Run the replay from the repository root of a checkout containing these evidence files and the measured judging-tool versions. The measured source alone predates the evidence files. The replay reproduces the retained summary exactly:
 
@@ -126,6 +127,8 @@ cmp "$replay_dir/summary.json" docs/measurements/codec-v2-images/summary.json
 
 Validation also checked the downloaded binaries against the build hashes and revalidated all five retained receipts against both source probes. The ordinary command's images equal the capture harness's images byte for byte. Recomputing the integer pixel statistics from the retained RGB files reproduces all 106 frame diagnostics.
 
-The [complete capture artifact](https://github.com/coreav-dev/coreav/actions/runs/41774236056/artifacts/13297280195) retains requests, receipts, raw RGB, both source probes, outputs, process records, and fixture checks until 2027-02-02. The [binary artifact](https://github.com/coreav-dev/coreav/actions/runs/41774236056/artifacts/13295739543) is retained until 2026-12-04. Their downloaded ZIP digests match GitHub's artifact digests. Generated media and binary files are not committed.
+The complete successful ZIPs also have a maintainer-held copy under archive key `codec-v2-images-e42fc012`, with no scheduled expiration. Reassembling its retained chunks reproduces the original ZIP digests in the retention record. The earlier void acquisition's original components are retained separately and contribute no counts.
+
+The [complete capture artifact](https://github.com/coreav-dev/coreav/actions/runs/41774236056/artifacts/13297280195) is a downloadable mirror containing requests, receipts, raw RGB, both source probes, outputs, process records, and fixture checks until 2027-02-02. The [binary artifact](https://github.com/coreav-dev/coreav/actions/runs/41774236056/artifacts/13295739543) mirror is retained until 2026-12-04. Their downloaded ZIP digests match GitHub's artifact digests. These expiring mirrors are not the only retained copies. Generated media and binary files are not committed to this public repository.
 
 The [earlier acquisition](https://github.com/coreav-dev/coreav/actions/runs/41665807091) remains void after its source-clock validation fault. Its interim totals are not a baseline and contribute nothing to this result. Registrations, inputs, predicates, thresholds, and earlier evidence are unchanged.
