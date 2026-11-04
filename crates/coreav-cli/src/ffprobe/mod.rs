@@ -212,7 +212,7 @@ pub struct Report {
     /// picture starts in the file, as `RemuxOptions::left_out_covers`
     /// names it.
     pub covers: Vec<(usize, u64)>,
-    /// A retained ISO clean-aperture box needs unsupported compatibility mapping.
+    /// ISO clean aperture is present or a visual child layout is incomplete.
     pub iso_clean_aperture: bool,
 }
 
@@ -446,7 +446,8 @@ pub fn emit(
     }
     if report.iso_clean_aperture {
         return Err(Failure::Unsupported(
-            "ISO clean-aperture compatibility metadata is not supported".to_owned(),
+            "ISO clean-aperture metadata or an incomplete visual layout is not supported"
+                .to_owned(),
         ));
     }
     let mut w = Writer::new(options.writer.clone(), options.style);

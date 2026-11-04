@@ -441,11 +441,15 @@ pub fn probe<S: Source>(
     let movie = &probed.movie;
     let mut report = Report {
         iso_clean_aperture: movie.tracks.iter().any(|track| {
-            track
-                .description
-                .entry_boxes
-                .iter()
-                .any(|entry| entry.kind.0 == *b"clap")
+            std::iter::once(&track.description)
+                .chain(&track.later_descriptions)
+                .any(|description| {
+                    !description.visual_children_complete
+                        || description
+                            .entry_boxes
+                            .iter()
+                            .any(|entry| entry.kind.0 == *b"clap")
+                })
         }),
         ..Report::default()
     };
