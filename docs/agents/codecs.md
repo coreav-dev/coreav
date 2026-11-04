@@ -1,6 +1,6 @@
 # Codecs
 
-H.264, AAC, Opus, VP9, AC-3, MP3, and AudioToolbox behavior.
+H.264, AAC, Opus, VP9, AC-3, MP3, AudioToolbox behavior, and HEVC planning.
 
 | Rule | Enforced by |
 |---|---|
@@ -34,6 +34,12 @@ H.264, AAC, Opus, VP9, AC-3, MP3, and AudioToolbox behavior.
 | Native H.264 frames carry the colour of their activated SPS rather than a frozen stream header or the most recently parsed SPS, without turning absent signalling into explicit output metadata | `Picture::with_output` copies the active VUI colour before sharing the picture, and the backend builds `Frame.color` only from that immutable snapshot. Optional signalling fields preserve absence; `vui_retains_picture_colour_and_infers_absent_fields` covers every retained field and its defaults. The real mid-stream colour fixture in the required FFV1 gate checks terminal failure, destination preservation and no fallback in both strict modes; `raw_file_pipe_and_y4m_keep_every_decoded_sample` checks unchanged output metadata. Copy-owned picture metadata prevents reordering from relabelling an older picture |
 | Rendering raw native H.264 picture colour retains applied container fields where declarations are absent, including the container chroma location | The shared `frame_color` boundary owns inheritance for ordinary and bounded thumbnails and CLI frame output. `h264_picture_colour_inherits_only_missing_applied_fields` checks precedence, `h264_thumbnail_inherits_applied_container_colour` checks prepared image bytes and `image_output_inherits_h264_container_colour_without_vui_signalling` checks a real native decode with a container-only colour box. Inheritance cannot live in the decoder because FFV1 needs raw declarations to detect changes |
 | Native FFV1 preserves every admitted sample and frame without an external encoder or hidden pixel conversion | Fixed codec settings and the separate Matroska job own admission; bounded codec and adapter regressions cover packet, allocation, timeline and format failures. The required CI check decodes native output with the pinned oracle and compares every frame byte and the explicit probe fields; comparator mutation tests reject changed pixels, clocks, fields and incomplete output |
+
+## HEVC planning
+
+| Rule | Enforced by |
+|---|---|
+| Serial tile, WPP and dependent-segment traversal and entropy state precede universal intra-picture hash gates, independently of parallel scheduling | Not enforced: review of milestone dependencies against H.265 clauses 9.3.1 and 9.3.2.1. The HEVC plan puts serial semantics in milestone 2 and requires coverage by G3; milestone 6 adds scheduling only. Types cannot establish the dependencies of a prose plan; the future conformance harness must enforce its feature coverage |
 
 ## VP9 pixel reconstruction
 

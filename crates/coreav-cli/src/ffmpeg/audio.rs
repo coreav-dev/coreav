@@ -258,6 +258,7 @@ mod tests {
             programs: vec![],
             setups: vec![],
             covers: vec![],
+            iso_clean_aperture: false,
         };
         for (name, output, encoder) in [
             ("AAC", "out.m4a", AudioEncoder::Aac),

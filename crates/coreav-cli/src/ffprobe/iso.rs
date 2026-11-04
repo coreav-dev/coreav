@@ -439,7 +439,20 @@ pub fn probe<S: Source>(
         limits,
     )?;
     let movie = &probed.movie;
-    let mut report = Report::default();
+    let mut report = Report {
+        iso_clean_aperture: movie.tracks.iter().any(|track| {
+            std::iter::once(&track.description)
+                .chain(&track.later_descriptions)
+                .any(|description| {
+                    !description.visual_children_complete
+                        || description
+                            .entry_boxes
+                            .iter()
+                            .any(|entry| entry.kind.0 == *b"clap")
+                })
+        }),
+        ..Report::default()
+    };
     // The iTunes gapless tag gives the AAC priming of a file without an
     // edit list, which `ffprobe` skips as the edit list's (ISO/IEC 14496-12
     // 8.6.6 does it for files with one).
