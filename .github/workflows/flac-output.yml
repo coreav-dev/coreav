@@ -39,6 +39,10 @@ on:
         description: Test disposable merged-encoder replay variants without timing
         type: boolean
         default: false
+      feasibility_build:
+        description: Test exact-result development variants without timing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,7 +53,7 @@ concurrency:
 
 jobs:
   flac-output:
-    if: ${{ !inputs.cost_cache_build && !inputs.cost_cache_profile_build && !inputs.cost_cache_ceiling_build }}
+    if: ${{ !inputs.cost_cache_build && !inputs.cost_cache_profile_build && !inputs.cost_cache_ceiling_build && !inputs.feasibility_build }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -231,4 +235,40 @@ jobs:
         with:
           name: flac-post-cache-ceilings
           path: ${{ runner.temp }}/flac-post-cache-ceilings
+          if-no-files-found: error
+
+  feasibility-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.feasibility_build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RUSTFLAGS: ""
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 62f4af2a4a3adb477583f91d396f6daeaebc2055
+          path: source
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Install the pinned executable oracle
+        working-directory: source
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/feasibility-oracle"
+      - name: Test and freeze exact-result development variants
+        working-directory: source
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/feasibility-oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
+        run: python3 -I ../control/scripts/flac_feasibility_build.py "$PWD" "$RUNNER_TEMP/flac-feasibility"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-feasibility
+          path: ${{ runner.temp }}/flac-feasibility
           if-no-files-found: error
