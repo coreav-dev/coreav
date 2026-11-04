@@ -1,0 +1,94 @@
+{
+  "acquisition": {
+    "ffmpeg": {
+      "archive_sha256": "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
+      "binary_sha256": "2e11c6f90993cdb79fff84d3f90044d28316b310e75b3e030cfc9a54f2c9d384",
+      "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip"
+    },
+    "ffprobe": {
+      "archive_sha256": "fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6",
+      "binary_sha256": "2738aa46a7f9acbc8ab09a6715554c90f7de603171ac403726765685df6a0059",
+      "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffprobe.zip"
+    },
+    "kind": "pinned-prebuilt-zip"
+  },
+  "architectures": {
+    "ffmpeg": "arm64",
+    "ffprobe": "arm64"
+  },
+  "binary_redistributed": false,
+  "binary_sha256": "2e11c6f90993cdb79fff84d3f90044d28316b310e75b3e030cfc9a54f2c9d384",
+  "configuration": [
+    "--prefix=/Volumes/ffmpeg_arm64/out",
+    "--pkg-config-flags=--static",
+    "--extra-version=https://www.martin-riedl.de",
+    "--enable-gray",
+    "--enable-libxml2",
+    "--enable-version3",
+    "--enable-gpl",
+    "--enable-openssl",
+    "--enable-libfreetype",
+    "--enable-fontconfig",
+    "--enable-libharfbuzz",
+    "--enable-libbluray",
+    "--enable-libsnappy",
+    "--enable-libsrt",
+    "--enable-libvmaf",
+    "--enable-libass",
+    "--enable-libklvanc",
+    "--enable-libzimg",
+    "--enable-libzvbi",
+    "--enable-libaom",
+    "--enable-libdav1d",
+    "--enable-libopenh264",
+    "--enable-libopenjpeg",
+    "--enable-librav1e",
+    "--enable-libsvtav1",
+    "--enable-libvpx",
+    "--enable-libvvenc",
+    "--enable-libwebp",
+    "--enable-libx264",
+    "--enable-libx265",
+    "--enable-libmp3lame",
+    "--enable-libopus",
+    "--enable-libvorbis",
+    "--enable-libtheora"
+  ],
+  "configuration_sha256": "cb6bab90141546bc72f23c30397c04c901cb3ed218970ac2dd0860e48ec14499",
+  "encoder_help_sha256": "a7b887ed99c37bfbf8408aeff643316cbaf7fe75e42e9bb89931ae4536f280ab",
+  "examples_removed": true,
+  "ffprobe_file": "target/videotoolbox/bin/ffprobe",
+  "ffprobe_sha256": "2738aa46a7f9acbc8ab09a6715554c90f7de603171ac403726765685df6a0059",
+  "macos_build": "9.0.2-https://www.martin-riedl.de",
+  "macos_pin_sha256": "32805c5848146a1a1200a2c401f07f9c09cfb41628f656ef60dadcca956ae4bd",
+  "observability": {
+    "encoder_id": {
+      "prefix": "Init the encoder: ",
+      "suffix": ""
+    },
+    "refusal_fields": null,
+    "schema": "coreav.videotoolbox-observability/2"
+  },
+  "release_review": {
+    "binary_sha256": "2e11c6f90993cdb79fff84d3f90044d28316b310e75b3e030cfc9a54f2c9d384",
+    "role": "release-owner"
+  },
+  "schema": "coreav.videotoolbox-ffmpeg-build/2",
+  "signatures": {
+    "ffmpeg": {
+      "anchor": "apple generic",
+      "strict": true,
+      "team": "KU3N25YGLU",
+      "verified": true
+    },
+    "ffprobe": {
+      "anchor": "apple generic",
+      "strict": true,
+      "team": "KU3N25YGLU",
+      "verified": true
+    }
+  },
+  "source_acquired": false,
+  "source_removed": true,
+  "version": "9.0.2"
+}
