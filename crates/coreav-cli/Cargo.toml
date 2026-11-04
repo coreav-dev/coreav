@@ -59,10 +59,10 @@ transcode = ["thumbnail", "dep:coreav-transcode"]
 input-capture = ["transcode", "coreav-transcode/input-capture", "dep:sha2"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
-dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
+dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d", "dep:coreav-backend-dav1d"]
 # libvpx for VP8 and VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
-libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
+libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx", "dep:coreav-backend-libvpx"]
 # libopus for `coreav transcode --audio opus` and `coreav ffmpeg -c:a
 # libopus`: the command runs itself as the Opus encoder, a sandboxed process
 # of its own (docs/design/transcode.md, "Opus audio"); links the system's
@@ -98,6 +98,8 @@ coreav-thumbnail = { path = "../coreav-thumbnail", optional = true, default-feat
 coreav-transcode = { path = "../coreav-transcode", optional = true }
 coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
 coreav-backend-vp9 = { path = "../coreav-backend-vp9", optional = true }
+coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true, features = ["dav1d"] }
+coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true, features = ["libvpx"] }
 coreav-worker = { path = "../coreav-worker", optional = true }
 clap = { workspace = true, optional = true }
 coreav-range = { path = "../coreav-range", optional = true }

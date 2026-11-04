@@ -23,6 +23,55 @@ use crate::error::Failure;
 use crate::output::WriteFailure;
 use crate::strict_safe::{Encoder, StrictSafe};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiagnosticHost {
+    Sandbox,
+    InProcess,
+}
+
+fn diagnostic_host(
+    value: Option<std::ffi::OsString>,
+    strict: StrictSafe,
+) -> Result<Option<DiagnosticHost>, WriteFailure> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let host = if value == "0" {
+        DiagnosticHost::Sandbox
+    } else if value == "1" {
+        DiagnosticHost::InProcess
+    } else {
+        return Err(WriteFailure::Rejected(Failure::Unsupported(
+            "COREAV_DIAG_TRANSCODE_IN_PROCESS must be 0 or 1".into(),
+        )));
+    };
+    if host == DiagnosticHost::InProcess {
+        if strict.on() {
+            return Err(WriteFailure::Rejected(Failure::StrictSafe(
+                "in-process decoder diagnostics are unavailable in strict-safe mode".into(),
+            )));
+        }
+        if !cfg!(any(feature = "dav1d", feature = "libvpx")) {
+            return Err(WriteFailure::Rejected(Failure::Unsupported(
+                "in-process decoder diagnostics need the dav1d or libvpx feature".into(),
+            )));
+        }
+    }
+    Ok(Some(host))
+}
+
+fn diagnostic_backends(host: Option<DiagnosticHost>) -> Vec<Box<dyn coreav_decode::Backend>> {
+    if host != Some(DiagnosticHost::InProcess) {
+        return Vec::new();
+    }
+    vec![
+        #[cfg(feature = "dav1d")]
+        Box::new(coreav_backend_dav1d::Dav1dBackend::default()),
+        #[cfg(feature = "libvpx")]
+        Box::new(coreav_backend_libvpx::LibvpxBackend::default()),
+    ]
+}
+
 /// What `coreav transcode` asks for, from its arguments.
 #[derive(Clone, Debug)]
 pub struct Request {
@@ -108,6 +157,10 @@ pub fn make<S: Source>(
     output: &Path,
     out: &mut dyn std::io::Write,
 ) -> Result<Value, WriteFailure> {
+    let host = diagnostic_host(
+        std::env::var_os("COREAV_DIAG_TRANSCODE_IN_PROCESS"),
+        request.strict_safe,
+    )?;
     let Some(this) = this else {
         return Err(WriteFailure::Rejected(Failure::Unsupported(
             "cannot find the path of the running coreav command, which runs the encoder".into(),
@@ -172,16 +225,27 @@ pub fn make<S: Source>(
     // `--exact`. Frames in the worker's shared memory are lent, not copied
     // out: the transcode passes each one on to the encoder and drops it.
     let decoders = crate::thumbnail::backends(Some(this), 0, true, request.strict_safe);
+    let direct = diagnostic_backends(host);
+    let mut backends = decoders.list();
+    backends.retain(|backend| !direct.iter().any(|other| other.kind() == backend.kind()));
+    backends.extend(direct.iter().map(|backend| backend.as_ref()));
     let summary = coreav_transcode::transcode(
         &mut source,
         kind,
         &options,
-        &decoders.list(),
+        &backends,
         Some(&launcher),
         output,
         out,
     )
     .map_err(|e| decoders.explain(failure(e)))?;
+    if host.is_some() {
+        let isolation = match summary.video.decoder.isolation {
+            coreav_decode::Isolation::InProcess => "in-process",
+            coreav_decode::Isolation::Sandboxed => "sandbox",
+        };
+        eprintln!("coreav-diagnostic-decoder-host: {isolation}");
+    }
     Ok(document(&summary))
 }
 
@@ -453,6 +517,15 @@ fn writer_failure(failure: WriteFailure) -> WriteFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn in_process_diagnostics_refuse_strict_safe() {
+        assert!(matches!(
+            diagnostic_host(Some("1".into()), StrictSafe::new(true)),
+            Err(WriteFailure::Rejected(Failure::StrictSafe(message)))
+                if message == "in-process decoder diagnostics are unavailable in strict-safe mode"
+        ));
+    }
 
     struct SlowSource {
         lengths: usize,
