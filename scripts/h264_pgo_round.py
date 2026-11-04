@@ -746,8 +746,9 @@ def main():
         if args.action == 'run':
             run(root, plan, args.allocation_sha256, args.acquisition_sha256)
         from h264_pgo_acquire import audit_bound
-        audit_bound(root, plan, args.allocation_sha256, args.acquisition_sha256)
+        acquisition_result = audit_bound(root, plan, args.allocation_sha256, args.acquisition_sha256)
         result = audit(root, plan, args.allocation_sha256)
+        result['acquisition'] = acquisition_result
         write(root / 'summary.json', result)
         return 0 if result['pass'] else 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, bars.Refused):

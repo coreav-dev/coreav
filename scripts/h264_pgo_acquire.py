@@ -19,6 +19,20 @@ TOTAL_MAX = 14 << 30
 CHUNK = 32768
 META_KEYS = ('codec_name', 'pix_fmt', 'field_order', 'profile', 'width', 'height', 'frames')
 POLICY = Path(__file__).with_name('h264_pgo_acquisition.json')
+CAPTURE_FAILURES = ('nonzero-exit', 'stderr', 'invalid-metadata', 'empty-extraction', 'invalid-extraction')
+CAPTURE_STAGES = ('source-probe', 'packet-copy', 'es-probe')
+INFERENCE_SCOPE = 'capture-clean-eligible-cohort'
+STREAM_DIAGNOSTIC = re.compile(
+    rb'(?:\[[a-z0-9_,#.-]+ @ 0x[0-9a-f]+\][ \t]*)*'
+    rb'(?:invalid nal unit size(?: \(-?[0-9]+ > [0-9]+\)\.)?|'
+    rb'error splitting the input into nal units\.?|invalid data found when processing input\.?|'
+    rb'missing picture in access unit with size [0-9]+|non-existing pps [0-9]+ referenced|'
+    rb'decode_slice_header error|no frame!|moov atom not found)')
+RESOURCE_DIAGNOSTIC = re.compile(
+    rb'cannot allocate memory|out of memory|memory allocation (?:failed|error)|failed to allocate|'
+    rb'no space left on device|disk quota exceeded|too many open files|resource temporarily unavailable|'
+    rb'file size limit exceeded|permission denied|operation not permitted|input/output error|broken pipe|'
+    rb'interrupted system call')
 
 
 class Incomplete(RuntimeError):
@@ -27,6 +41,15 @@ class Incomplete(RuntimeError):
 
 class CaptureFailure(ValueError):
     def __init__(self, reason):
+        self.reason = reason
+        super().__init__(reason)
+
+
+class CaptureFault(ValueError):
+    def __init__(self, reason):
+        if reason not in ('external-protocol', 'resource-or-infrastructure', 'capture-timeout',
+                          'capture-output-limit', 'unrecognized-oracle-diagnostic', 'unexplained-nonzero-exit'):
+            raise ValueError('unknown fatal capture reason')
         self.reason = reason
         super().__init__(reason)
 
@@ -201,27 +224,28 @@ def capture_failure(root, record):
         require(re.fullmatch(r'operator/extractions/e[0-9]{5}\.h264', name) is not None and
                 (root / name).resolve().is_relative_to(root.resolve()), 'artifact path escapes acquisition')
         require(digest(root / name) == expected, 'capture artifact changed')
-    with (root / record['stderr']).open('rb') as source:
-        tail = b''
-        while block := source.read(CHUNK):
-            text = (tail + block).lower()
-            require(not re.search(rb'not on whitelist|protocol not found|protocol_whitelist', text),
-                    'external protocol attempt is not replaceable')
-            tail = text[-128:]
+    if any((root / record[key]).stat().st_size > 1 << 20 for key in ('stdout', 'stderr')):
+        raise CaptureFault('capture-output-limit')
+    error = (root / record['stderr']).read_bytes().lower()
+    if re.search(rb'not on whitelist|protocol not found|protocol_whitelist', error):
+        raise CaptureFault('external-protocol')
+    if RESOURCE_DIAGNOSTIC.search(error):
+        raise CaptureFault('resource-or-infrastructure')
     require(record.get('error') in (None, 'CalledProcessError', 'TimeoutExpired', 'ValueError'),
             'unknown capture exception')
     require(record.get('error') != 'ValueError' or 'root' not in record, 'unknown capture exception')
     if record.get('error') == 'TimeoutExpired':
         require('returncode' not in record, 'timeout has a conflicting exit receipt')
-        return 'timeout'
+        raise CaptureFault('capture-timeout')
     code = record['returncode']
     require(type(code) is int and code >= 0, 'signal or resource failure is not replaceable')
+    if error:
+        lines = [line.strip() for line in error.splitlines() if line.strip()]
+        if not lines or not all(STREAM_DIAGNOSTIC.fullmatch(line) for line in lines):
+            raise CaptureFault('unrecognized-oracle-diagnostic')
+        return 'nonzero-exit' if code else 'stderr'
     if code:
-        return 'nonzero-exit'
-    if (root / record['stderr']).stat().st_size:
-        return 'stderr'
-    if (root / record['stdout']).stat().st_size > 1 << 20:
-        return 'output-limit'
+        raise CaptureFault('unexplained-nonzero-exit')
     require(record['status'] == 'complete' and 'error' not in record, 'unclassified capture failure')
     return None
 
@@ -303,8 +327,7 @@ def failure_counts(decisions, plan):
                 'collection continued after replacement limit')
         if decision['capture_status'] == 'failed':
             require(decision['status'] == 'excluded' and decision['reason'] in
-                    ('nonzero-exit', 'timeout', 'stderr', 'output-limit', 'invalid-metadata',
-                     'empty-extraction', 'invalid-extraction'), 'unregistered capture exclusion')
+                    CAPTURE_FAILURES, 'unregistered capture exclusion')
             expected = charges(decision['metadata'], counts, plan)
             require(decision['failure_classes'] == expected and expected, 'failure class charge changed')
             for cls in expected:
@@ -312,6 +335,58 @@ def failure_counts(decisions, plan):
         elif decision['status'] == 'selected':
             counts[driver.resolution(decision['metadata']['width'], decision['metadata']['height'])] += 1
     return counts, failures
+
+
+def public_report(state, plan):
+    counts, failures = failure_counts(state['decisions'], plan)
+    classes = driver.bars.CLASSES
+    pending = {cls: [] for cls in classes}
+    cells = {cls: {} for cls in classes}
+    charges_by_class = {cls: {'known': 0, 'unknown': 0} for cls in classes}
+    replacements = {cls: {'known': 0, 'unknown': 0} for cls in classes}
+    sources = {'known': 0, 'unknown': 0}
+    source_reasons = {}
+    for decision in state['decisions']:
+        if decision['capture_status'] == 'failed':
+            kind = 'unknown' if decision['metadata'] is None else 'known'
+            reason, stage = decision['reason'], decision['failure_stage']
+            require(stage in CAPTURE_STAGES, 'unregistered capture stage')
+            key = kind, reason, stage
+            sources[kind] += 1
+            source_reasons[key] = source_reasons.get(key, 0) + 1
+            for cls in decision['failure_classes']:
+                charges_by_class[cls][kind] += 1
+                pending[cls].append(key)
+                cell = cells[cls].setdefault(key, {'failure_charges': 0, 'replacements_selected': 0})
+                cell['failure_charges'] += 1
+        elif decision['status'] == 'selected':
+            value = decision['metadata']
+            cls = driver.resolution(value['width'], value['height'])
+            if pending[cls]:
+                key = pending[cls].pop(0)
+                replacements[cls][key[0]] += 1
+                cells[cls][key]['replacements_selected'] += 1
+    stop = state.get('stop_reason')
+    require(stop in (None, 'external-protocol', 'resource-or-infrastructure', 'capture-timeout',
+                     'capture-output-limit', 'unrecognized-oracle-diagnostic', 'unexplained-nonzero-exit',
+                     'operational-limit', 'evidence-or-infrastructure'), 'unregistered stop reason')
+    require(state['status'] != 'complete' or stop is None, 'completed acquisition has a terminal fault')
+    return {'schema': 1, 'status': 'complete' if state['status'] == 'complete' else 'incomplete',
+            'inference_scope': INFERENCE_SCOPE, 'failure_limit_per_class': 16, 'stop_reason': stop,
+            'failed_sources': sources,
+            'source_failure_reasons': [
+                {'classification': kind, 'reason': reason, 'stage': stage, 'sources': number}
+                for (kind, reason, stage), number in sorted(source_reasons.items())],
+            'per_class': {cls: {
+                'selected': counts[cls], 'failure_charges': charges_by_class[cls],
+                'replacements_selected': replacements[cls],
+                'unmatched_failure_charges': {kind: charges_by_class[cls][kind] - replacements[cls][kind]
+                                              for kind in ('known', 'unknown')},
+                'failure_limit_reached': failures[cls] >= 16 and counts[cls] < plan['count_per_class'],
+                'reasons': [{'classification': kind, 'reason': reason, 'stage': stage, **cell}
+                            for (kind, reason, stage), cell in sorted(cells[cls].items())]}
+                for cls in classes}}
+
 
 
 def prepare(root, index, candidate, original, source_hash, state, save, used, rows, counts,
@@ -350,7 +425,7 @@ def prepare(root, index, candidate, original, source_hash, state, save, used, ro
         stage = 'es-probe'
         es_meta, _ = parsed(captured('es_probe', stage, probe_command(root, output)))
         if not (eligible(es_meta) and all(es_meta[k] == value[k] for k in META_KEYS if k != 'frames') and
-                0 < es_meta['frames'] <= min(value['frames'], plan['frames'][cls])):
+                es_meta['frames'] == min(value['frames'], plan['frames'][cls])):
             raise CaptureFailure('invalid-extraction')
         es_hash = digest(output)
         require(es_hash not in used['hashes'] and es_hash[:12] not in used['hashes'] and
@@ -443,7 +518,8 @@ def bounded_runner(argv, **kwargs):
         resource.setrlimit(resource.RLIMIT_AS, (8 << 30, 8 << 30))
         resource.setrlimit(resource.RLIMIT_FSIZE, (600 << 20, 600 << 20))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    env = {key: os.environ[key] for key in ('PATH', 'HOME', 'LANG', 'LC_ALL') if key in os.environ}
+    env = {key: os.environ[key] for key in ('PATH', 'HOME') if key in os.environ}
+    env.update(LANG='C', LC_ALL='C')
     return subprocess.run(argv, env=env, preexec_fn=limits, **kwargs)
 
 
@@ -488,6 +564,7 @@ def _acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint,
     replay(root, state, candidates, plan, None, clock)
     atomic(root / 'collection.json', state['decisions'])
     atomic(root / 'roster.json', state['rows'])
+    atomic(root / 'acquisition-report.json', public_report(state, plan))
     import oracle_pin
     require(not list(oracle_pin.verify_bin(root)), 'oracle installation differs')
     def notify(kind, index, paths):
@@ -528,19 +605,27 @@ def _acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint,
             save()
             atomic(root / 'collection.json', state['decisions'])
             atomic(root / 'roster.json', state['rows'])
+            atomic(root / 'acquisition-report.json', public_report(state, plan))
             notify('decision', index, evidence_paths(root, state, index))
         counts, _ = failure_counts(state['decisions'], plan)
         require(all(n == plan['count_per_class'] for n in counts.values()), 'population exhausted')
         driver.roster(state['rows'], json.loads((root / 'exclusions.json').read_text()), plan)
         check_deadline(state['deadline'], clock)
         state.pop('error', None)
+        state.pop('stop_reason', None)
         state.update(status='complete', completed_at=clock())
         save()
+        atomic(root / 'acquisition-report.json', public_report(state, plan))
+        checkpoint({'key': 'acquisition-complete', 'kind': 'complete'},
+                   (path, root / 'acquisition-report.json'))
         return state
     except BaseException as error:
-        state.update(status='incomplete', error=type(error).__name__)
+        stop = error.reason if isinstance(error, CaptureFault) else (
+            'operational-limit' if isinstance(error, Incomplete) else 'evidence-or-infrastructure')
+        state.update(status='incomplete', error=type(error).__name__, stop_reason=stop)
         save()
-        checkpoint({'key': 'acquisition-stop', 'kind': 'stop'}, (path,))
+        atomic(root / 'acquisition-report.json', public_report(state, plan))
+        checkpoint({'key': 'acquisition-stop', 'kind': 'stop'}, (path, root / 'acquisition-report.json'))
         raise
 
 
@@ -554,7 +639,8 @@ def acquire(root, allocation_sha256, acquisition_sha256, *, opener, checkpoint, 
 
 
 def evidence_paths(root, state, index):
-    paths = [root / 'operator/originals' / f'o{index:05}.source', root / 'collection.json', root / 'roster.json']
+    paths = [root / 'operator/originals' / f'o{index:05}.source', root / 'collection.json', root / 'roster.json',
+             root / 'acquisition-report.json']
     for number in state['items'].get(str(index), {}).values():
         paths.extend(root / state['captures'][number][k] for k in ('stdout', 'stderr'))
         paths.extend(root / name for name in state['captures'][number].get('artifacts', {}))
@@ -598,12 +684,14 @@ def audit_collection(root, candidates, plan, expected):
     require(sum(a['charged_bytes'] for attempts in state['downloads'].values() for a in attempts) <= TOTAL_MAX,
             'source-attempt cap exceeded')
     replay(root, state, candidates, plan, None, time.time)
+    require(json.loads((root / 'acquisition-report.json').read_text()) == public_report(state, plan),
+            'public acquisition accounting differs from replay')
     return state
 
 
 def bound_files(root, state):
     names = {'acquisition-receipt.json', 'operator/amended-state.json', 'operator/acquisition.json',
-             'collection.json', 'roster.json'}
+             'collection.json', 'roster.json', 'acquisition-report.json'}
     names.update('preparation/' + name for name in policy()['preparation'])
     for index in range(len(state['decisions'])):
         names.update(str(path.relative_to(root)) for path in evidence_paths(root, state, index))
@@ -634,6 +722,7 @@ def audit_bound(root, plan, allocation_sha256, expected):
     require(all(digest(driver.ROOT / name) == sha256 for name, sha256 in binding['tools'].items()) and
             all(digest(root / name) == sha256 for name, sha256 in binding['files'].items()),
             'acquisition binding changed')
+    return public_report(state, plan)
 
 
 def main():

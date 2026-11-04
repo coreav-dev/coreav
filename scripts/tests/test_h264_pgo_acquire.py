@@ -60,19 +60,17 @@ class Acquisition(unittest.TestCase):
             self.prepare(replay=True)
 
     def test_all_registered_capture_outcomes_are_recorded_and_not_retried(self):
-        cases = ('stderr', 'nonzero-exit', 'timeout', 'output-limit', 'invalid-metadata')
+        cases = ('stderr', 'nonzero-exit', 'invalid-metadata')
         for why in cases:
             with self.subTest(reason=why):
                 self.state['captures'] = []
                 self.state['items'] = {}
                 def failed(argv, **kwargs):
-                    if why == 'timeout':
-                        raise subprocess.TimeoutExpired(argv, 10)
                     if why == 'stderr':
                         kwargs['stderr'].write(b'Invalid NAL unit size')
                         kwargs['stdout'].write(b'{"streams":[]}')
-                    elif why == 'output-limit':
-                        kwargs['stdout'].write(b'x' * ((1 << 20) + 1))
+                    elif why == 'nonzero-exit':
+                        kwargs['stderr'].write(b'Invalid data found when processing input')
                     elif why == 'invalid-metadata':
                         kwargs['stdout'].write(b'{"streams": [null]}')
                     return subprocess.CompletedProcess(argv, 9 if why == 'nonzero-exit' else 0)
@@ -95,7 +93,7 @@ class Acquisition(unittest.TestCase):
                     result = self.runner(argv, **kwargs)
                     if argv[0].endswith('ffmpeg'):
                         if why == 'stderr':
-                            kwargs['stderr'].write(b'packet-copy diagnostic')
+                            kwargs['stderr'].write(b'Invalid data found when processing input')
                         if why == 'empty-extraction':
                             Path(argv[-1]).write_bytes(b'')
                     elif len(calls) == 3:
@@ -130,7 +128,7 @@ class Acquisition(unittest.TestCase):
             def protocol(argv, **kwargs):
                 kwargs['stderr'].write(message)
                 return subprocess.CompletedProcess(argv, 1)
-            with self.assertRaisesRegex(ValueError, 'external protocol'):
+            with self.assertRaisesRegex(ValueError, 'external-protocol'):
                 self.prepare(runner=protocol)
 
     def test_signals_and_operator_deadlines_are_fatal(self):
@@ -249,6 +247,7 @@ class Acquisition(unittest.TestCase):
         self.assertNotIn('R2_SECRET_ACCESS_KEY', run.call_args.kwargs['env'])
         self.assertNotIn('CARGO_HOME', run.call_args.kwargs['env'])
         self.assertIn('preexec_fn', run.call_args.kwargs)
+        self.assertEqual((run.call_args.kwargs['env']['LANG'], run.call_args.kwargs['env']['LC_ALL']), ('C', 'C'))
 
     def test_premerge_receipt_freeze_stops_before_allocation_or_media(self):
         with mock.patch.object(collect.sys, 'platform', 'linux'), \
@@ -455,6 +454,159 @@ class Acquisition(unittest.TestCase):
         self.assertEqual(decision['reason'], 'stderr')
         self.assertEqual(decision['failure_classes'], list(driver.bars.CLASSES))
         self.assertEqual(self.state['captures'], [record])
+
+
+
+    def test_positive_exit_resource_failure_is_fatal_not_a_replacement(self):
+        def exhausted(argv, **kwargs):
+            kwargs['stderr'].write(b'Cannot allocate memory')
+            return subprocess.CompletedProcess(argv, 1)
+        with self.assertRaises(ValueError):
+            self.prepare(runner=exhausted)
+
+    def test_shortened_extraction_cannot_be_selected(self):
+        calls = []
+        def shortened(argv, **kwargs):
+            calls.append(argv)
+            result = self.runner(argv, **kwargs)
+            if len(calls) == 3:
+                kwargs['stdout'].seek(0)
+                kwargs['stdout'].truncate()
+                stream = self.metadata | {'index': 0, 'codec_type': 'video', 'nb_read_frames': '1'}
+                kwargs['stdout'].write(json.dumps({'streams': [stream]}).encode())
+            return result
+        decision, selected = self.prepare(runner=shortened)
+        self.assertIsNone(selected)
+        self.assertEqual(decision['reason'], 'invalid-extraction')
+        self.assertEqual(decision['failure_classes'], ['sd'])
+
+    def test_public_record_reports_replacement_charges_and_selection_scope(self):
+        _, _, _, _, _ = self.integrated()
+        report = json.loads((self.root / 'acquisition-report.json').read_text())
+        self.assertEqual(report['status'], 'complete')
+        self.assertEqual(report['inference_scope'], 'capture-clean-eligible-cohort')
+        self.assertEqual(report['failure_limit_per_class'], 16)
+        self.assertEqual(report['failed_sources'], {'known': 0, 'unknown': 1})
+        for value in report['per_class'].values():
+            self.assertEqual(value['failure_charges'], {'known': 0, 'unknown': 1})
+            self.assertEqual(value['replacements_selected'], {'known': 0, 'unknown': 1})
+            self.assertEqual(value['reasons'], [{'classification': 'unknown', 'reason': 'stderr',
+                'stage': 'source-probe', 'failure_charges': 1, 'replacements_selected': 1}])
+        self.assertNotIn('identity', json.dumps(report))
+        self.assertNotIn('example.test', json.dumps(report))
+
+
+
+    def test_own_capture_time_and_output_limits_are_fatal(self):
+        for outcome in ('timeout', 'stdout-limit', 'stderr-limit'):
+            with self.subTest(outcome=outcome):
+                self.state['captures'] = []
+                def limited(argv, **kwargs):
+                    if outcome == 'timeout':
+                        raise subprocess.TimeoutExpired(argv, 180)
+                    kwargs['stdout' if outcome == 'stdout-limit' else 'stderr'].write(b'x' * ((1 << 20) + 1))
+                    return subprocess.CompletedProcess(argv, 0)
+                with self.assertRaises(collect.CaptureFault):
+                    self.prepare(runner=limited)
+                with self.assertRaises(collect.CaptureFault):
+                    self.prepare(runner=mock.Mock(side_effect=AssertionError('retry')), replay=True)
+
+    def test_unknown_diagnostics_and_positive_exits_do_not_identify_stream_failures(self):
+        for code, diagnostic in ((1, b''), (0, b' \n'), (0, b'unknown oracle message'), (1, b'unknown oracle message'),
+                                 (1, b'Invalid NAL unit size: Cannot malloc buffer'),
+                                 (1, b'Invalid NAL unit size\nCannot allocate memory'),
+                                 (0, b'Invalid NAL unit size\nNo space left on device'),
+                                 (1, b'Resource temporarily unavailable'), (1, b'Permission denied')):
+            with self.subTest(code=code, diagnostic=diagnostic):
+                self.state['captures'] = []
+                def failed(argv, **kwargs):
+                    kwargs['stderr'].write(diagnostic)
+                    return subprocess.CompletedProcess(argv, code)
+                with self.assertRaises(collect.CaptureFault):
+                    self.prepare(runner=failed)
+
+    def test_requested_class_cap_is_preserved_for_a_longer_source(self):
+        self.plan['frames']['sd'] = 1
+        calls = []
+        def capped(argv, **kwargs):
+            calls.append(argv)
+            result = self.runner(argv, **kwargs)
+            if len(calls) == 3:
+                kwargs['stdout'].seek(0)
+                kwargs['stdout'].truncate()
+                stream = self.metadata | {'index': 0, 'codec_type': 'video', 'nb_read_frames': '1'}
+                kwargs['stdout'].write(json.dumps({'streams': [stream]}).encode())
+            return result
+        decision, row = self.prepare(runner=capped)
+        self.assertEqual(decision['status'], 'selected')
+        self.assertEqual((row['source_frames'], row['frames']), (3, 1))
+
+    def test_incomplete_limit_record_discloses_all_charges_without_successor_claims(self):
+        run, _, _, _, _ = self.integrated(failures=16, finish=False)
+        with self.assertRaises(collect.Incomplete):
+            run()
+        report = json.loads((self.root / 'acquisition-report.json').read_text())
+        self.assertEqual(report['status'], 'incomplete')
+        self.assertEqual(report['failed_sources'], {'known': 0, 'unknown': 16})
+        self.assertEqual(report['stop_reason'], 'operational-limit')
+        for value in report['per_class'].values():
+            self.assertEqual(value['selected'], 0)
+            self.assertEqual(value['failure_charges'], {'known': 0, 'unknown': 16})
+            self.assertEqual(value['replacements_selected'], {'known': 0, 'unknown': 0})
+            self.assertTrue(value['failure_limit_reached'])
+            self.assertEqual(value['reasons'][0]['stage'], 'source-probe')
+
+    def test_resource_abort_is_reported_and_never_charged_as_a_source_replacement(self):
+        run, _, _, _, fetches = self.integrated(finish=False)
+        def exhausted(argv, **kwargs):
+            kwargs['stderr'].write(b'Cannot allocate memory')
+            return subprocess.CompletedProcess(argv, 1)
+        with mock.patch.object(collect, 'bounded_runner', side_effect=exhausted) as child:
+            with self.assertRaises(collect.CaptureFault):
+                run()
+            with self.assertRaises(collect.CaptureFault):
+                run()
+            self.assertEqual(child.call_count, 1)
+        self.assertEqual(len(fetches), 1)
+        report = json.loads((self.root / 'acquisition-report.json').read_text())
+        self.assertEqual(report['status'], 'incomplete')
+        self.assertEqual(report['stop_reason'], 'resource-or-infrastructure')
+        self.assertEqual(report['failed_sources'], {'known': 0, 'unknown': 0})
+        self.assertTrue(all(value['failure_charges'] == {'known': 0, 'unknown': 0}
+                            for value in report['per_class'].values()))
+
+    def test_known_and_unknown_replacements_are_disclosed_separately_with_reasons(self):
+        failed = {'capture_status': 'failed', 'status': 'excluded', 'reason': 'stderr',
+                  'metadata': None, 'failure_stage': 'source-probe', 'failure_classes': list(driver.bars.CLASSES)}
+        known = failed | {'metadata': self.metadata, 'failure_stage': 'es-probe', 'failure_classes': ['sd'],
+                          'reason': 'invalid-extraction'}
+        selected = {'capture_status': 'ok', 'status': 'selected', 'metadata': self.metadata}
+        report = collect.public_report({'status': 'incomplete',
+            'decisions': [failed, known, selected, selected]}, self.plan)
+        self.assertEqual(report['failed_sources'], {'known': 1, 'unknown': 1})
+        sd = report['per_class']['sd']
+        self.assertEqual(sd['failure_charges'], {'known': 1, 'unknown': 1})
+        self.assertEqual(sd['replacements_selected'], {'known': 1, 'unknown': 1})
+        self.assertEqual(sd['reasons'][0], {'classification': 'known', 'reason': 'invalid-extraction',
+                         'stage': 'es-probe', 'failure_charges': 1, 'replacements_selected': 1})
+
+    def test_public_accounting_cannot_disagree_with_offline_receipt_replay(self):
+        _, candidates, plan, _, _ = self.integrated()
+        report_path = self.root / 'acquisition-report.json'
+        report = json.loads(report_path.read_text())
+        report['per_class']['sd']['failure_charges']['unknown'] = 0
+        driver.write(report_path, report)
+        with self.assertRaisesRegex(ValueError, 'public acquisition accounting'):
+            collect.audit_collection(self.root, candidates, plan, 'e' * 64)
+
+    def test_round_summary_includes_the_audited_acquisition_record(self):
+        report = {'inference_scope': 'capture-clean-eligible-cohort', 'per_class': {'sd': {'selected': 16}}}
+        argv = ['round', 'audit', str(self.root), '--allocation-sha256', 'a' * 64,
+                '--acquisition-sha256', 'b' * 64]
+        with mock.patch.object(sys, 'argv', argv), mock.patch.object(collect, 'audit_bound', return_value=report), \
+             mock.patch.object(driver, 'audit', return_value={'pass': True}):
+            self.assertEqual(driver.main(), 0)
+        self.assertEqual(json.loads((self.root / 'summary.json').read_text())['acquisition'], report)
 
 
 if __name__ == '__main__':
