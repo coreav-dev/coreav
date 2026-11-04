@@ -613,6 +613,43 @@ fn an_edit_within_the_declared_media_ends_the_input() {
 }
 
 #[test]
+fn unedited_video_keeps_its_full_composition_span() {
+    for delay in [0, 512, 4096] {
+        let mut video = ibbp_video(25, 25);
+        video.edits.clear();
+        for sample in &mut video.samples {
+            sample.offset += delay;
+        }
+        let first = q(i128::from(1024 + delay), 12_800);
+        let end = sum(first, q(1, 1));
+        let source = movie(&[video]);
+        let inputs: Vec<&[u8]> = vec![&source, &source];
+        for placement in [Placement::AfterVideo, Placement::At(vec![q(0, 1), q(2, 1)])] {
+            let mut output = Vec::new();
+            let summary = join_mp4(
+                inputs.iter().map(|input| SliceSource::new(input)).collect(),
+                &Limits::default(),
+                &Allowlist::default(),
+                &JoinOptions {
+                    video: VideoChoice::First,
+                    audio: JoinAudio::None,
+                    placement: placement.clone(),
+                },
+                &mut output,
+            )
+            .unwrap();
+            assert_join(&inputs, &output, &summary);
+            assert_eq!(summary.inputs[0].video_start, first);
+            let expected = match placement {
+                Placement::AfterVideo => end,
+                Placement::At(_) => sum(q(2, 1), first),
+            };
+            assert_eq!(summary.inputs[0].video_end, expected);
+        }
+    }
+}
+
+#[test]
 fn frames_composed_past_the_declared_media_are_kept() {
     // A second of video whose last P frame is composed a frame later,
     // leaving a hole before it: its frames end 1.04 s after the edit's

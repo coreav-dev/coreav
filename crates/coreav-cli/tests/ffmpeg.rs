@@ -1095,6 +1095,254 @@ fn concat_lists_and_options_outside_the_join_are_refused() {
 }
 
 #[test]
+fn concat_nonzero_first_origin_is_refused_without_changing_native_join() {
+    let dir = scratch("ffmpeg-concat-first-origin");
+    let source = dir.join("late.mp4");
+    let bytes = common::movie(&Spec {
+        sizes: vec![100; 8],
+        sync: (1..=8).collect(),
+        elst: None,
+        ctts: Some(vec![(8, 512)]),
+        ..Spec::default()
+    });
+    std::fs::write(&source, bytes).unwrap();
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file late.mp4\nfile late.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let args = [
+        "-f",
+        "concat",
+        "-i",
+        list.to_str().unwrap(),
+        "-c",
+        "copy",
+        output.to_str().unwrap(),
+    ];
+    let count = std::fs::read_dir(&dir).unwrap().count();
+    let r = ffmpeg(&args);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(r.stdout.is_empty());
+    assert!(
+        r.stderr.contains("first input starts at a nonzero time"),
+        "{}",
+        r.stderr
+    );
+    assert!(!output.exists());
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), count);
+    std::fs::write(&output, b"existing output").unwrap();
+    let r = ffmpeg(&[&["-y"], args.as_slice()].concat());
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+    let mut native = Vec::new();
+    let options = coreav_isobmff_write::JoinOptions {
+        video: coreav_isobmff_write::VideoChoice::First,
+        audio: coreav_isobmff_write::JoinAudio::None,
+        placement: coreav_isobmff_write::Placement::AfterVideo,
+    };
+    let summary = coreav_cli::join::run(
+        &[source.clone(), source],
+        &options,
+        &Default::default(),
+        &mut native,
+    )
+    .unwrap_or_else(|failure| panic!("{}", failure.json));
+    assert_eq!(
+        summary.inputs[0].video_start,
+        coreav_isobmff::Rational::new(1, 25).unwrap()
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fallback = dir.join("ffmpeg");
+        std::fs::write(&fallback, "#!/bin/sh\nprintf '%s\\0' \"$@\"\nexit 19\n").unwrap();
+        std::fs::set_permissions(&fallback, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let original = [&["-y"], args.as_slice()].concat();
+        let r = Command::new(bin())
+            .arg("ffmpeg")
+            .args(&original)
+            .env_clear()
+            .env("PATH", &dir)
+            .output()
+            .unwrap();
+        assert_eq!(
+            r.status.code(),
+            Some(19),
+            "{}",
+            String::from_utf8_lossy(&r.stderr)
+        );
+        let expected: Vec<u8> = original
+            .iter()
+            .flat_map(|arg| arg.bytes().chain([0]))
+            .collect();
+        assert_eq!(r.stdout, expected);
+        assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+    }
+}
+
+#[test]
+fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-concat-unedited-oracle");
+    let make = |args: &[&str]| {
+        let result = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    };
+    make(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=96x64:rate=24:duration=3.25",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=733:sample_rate=44100:duration=3.25",
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "libx264",
+        "-threads:v",
+        "1",
+        "-g",
+        "24",
+        "-bf",
+        "2",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-ac",
+        "2",
+        "-b:a",
+        "96k",
+        "-shortest",
+        "original.mp4",
+    ]);
+    make(&[
+        "-i",
+        "original.mp4",
+        "-c",
+        "copy",
+        "-use_editlist",
+        "0",
+        "source.mp4",
+    ]);
+    let source = dir.join("source.mp4");
+    let parsed = coreav_isobmff::probe(
+        coreav_isobmff::FileSource::open(&source).unwrap(),
+        &Default::default(),
+        &coreav_isobmff::Allowlist::listing(),
+    )
+    .unwrap();
+    assert!(parsed.tracks.iter().all(|track| track.edits.is_empty()));
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file source.mp4\nfile source.mp4\n").unwrap();
+    let candidate = dir.join("candidate.mp4");
+    let r = ffmpeg(&[
+        "-f",
+        "concat",
+        "-i",
+        list.to_str().unwrap(),
+        "-c",
+        "copy",
+        candidate.to_str().unwrap(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(r.stdout.is_empty());
+    make(&[
+        "-f",
+        "concat",
+        "-i",
+        "list.txt",
+        "-c",
+        "copy",
+        "reference.mp4",
+    ]);
+    let reference = dir.join("reference.mp4");
+    let audio_input: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    let metadata = |path: &Path, stream: &str| {
+        let r = Command::new(&ffprobe_bin).args(["-v", "error"]).args(&audio_input)
+            .arg("-i").arg(path).args(["-select_streams", stream]).args(["-show_entries", "format=start_time,duration:stream=index,codec_name,time_base,start_pts,duration_ts,width,height,pix_fmt,sample_rate,channels:frame=stream_index,best_effort_timestamp,duration,nb_samples,width,height,pix_fmt", "-of", "json"])
+            .output().unwrap();
+        assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+        assert!(r.stderr.is_empty());
+        serde_json::from_slice::<Value>(&r.stdout).unwrap()
+    };
+    for stream in ["v:0", "a:0"] {
+        let actual = metadata(&candidate, stream);
+        let expected = metadata(&reference, stream);
+        assert_eq!(actual["streams"], expected["streams"], "{stream} fields");
+        assert_eq!(
+            actual["format"], expected["format"],
+            "{stream} format timing"
+        );
+        let actual = actual["frames"].as_array().unwrap();
+        let expected = expected["frames"].as_array().unwrap();
+        assert_eq!(actual.len(), expected.len(), "{stream} frame count");
+        for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+            assert_eq!(actual, expected, "{stream} frame {index}");
+        }
+    }
+    for (stream, options) in [
+        (
+            "0:v:0",
+            &[
+                "-noautoscale",
+                "-c:v",
+                "rawvideo",
+                "-pix_fmt",
+                "yuv420p",
+                "-fps_mode",
+                "passthrough",
+                "-f",
+                "rawvideo",
+            ][..],
+        ),
+        ("0:a:0", &["-c:a", "pcm_f64le", "-f", "f64le"][..]),
+    ] {
+        let decode = |path: &Path| {
+            let r = Command::new(&ffmpeg_bin)
+                .args(["-nostdin", "-v", "error", "-xerror", "-noautorotate"])
+                .args(&audio_input)
+                .arg("-i")
+                .arg(path)
+                .args(["-map", stream])
+                .args(options)
+                .arg("-")
+                .output()
+                .unwrap();
+            assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+            assert!(r.stderr.is_empty());
+            assert!(!r.stdout.is_empty());
+            r.stdout
+        };
+        let actual = decode(&candidate);
+        let expected = decode(&reference);
+        assert_eq!(actual.len(), expected.len(), "{stream} decoded length");
+        assert_eq!(
+            actual.iter().zip(&expected).position(|(a, b)| a != b),
+            None,
+            "{stream} decoded byte offset"
+        );
+    }
+}
+
+#[test]
 fn both_y_and_n_are_refused_and_the_output_kept() {
     let dir = scratch("ffmpeg-y-n");
     let input = movie(&dir);
