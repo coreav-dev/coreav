@@ -179,6 +179,57 @@ def rational(value):
     return fractions.Fraction(value['num'], value['den'])
 
 
+def source_timestamps(listing, stream, source_stream):
+    try:
+        iso = 'mov' in listing.get('format', {}).get('format_name', '').split(',')
+        raw = listing.get('image_raw_timeline')
+        require(isinstance(raw, dict) if iso else raw is None, 'source_identity')
+        time_base = fractions.Fraction(source_stream['time_base'])
+        require(time_base > 0, 'source_identity')
+        timelines = []
+        for probe in (listing, raw) if iso else (listing,):
+            sources = [s for s in probe['streams'] if s.get('index') == stream]
+            require(len(sources) == 1 and fractions.Fraction(sources[0]['time_base']) == time_base
+                    and all(sources[0].get(key) == source_stream.get(key) for key in
+                            ('codec_type', 'codec_name', 'pix_fmt', 'width', 'height',
+                             'color_range', 'color_space', 'chroma_location')), 'source_identity')
+            require(isinstance(probe.get('frames'), list), 'source_identity')
+            times, positions = {}, {}
+            for frame in probe['frames']:
+                require(isinstance(frame, dict), 'source_identity')
+                if frame.get('stream_index') != stream:
+                    continue
+                pts = frame.get('best_effort_timestamp')
+                require(type(pts) is int or isinstance(pts, str) and re.fullmatch(r'-?[0-9]+', pts) is not None,
+                        'source_identity')
+                pts = int(pts)
+                require(pts not in times and integer(frame.get('width'), 1) and integer(frame.get('height'), 1),
+                        'source_identity')
+                times[pts] = (pts * time_base, frame['width'], frame['height'])
+                if iso:
+                    position = frame.get('pkt_pos')
+                    require(type(position) is int or isinstance(position, str)
+                            and re.fullmatch(r'[0-9]+', position) is not None, 'source_identity')
+                    position = int(position)
+                    require(position >= 0 and position not in positions, 'source_identity')
+                    positions[position] = pts
+            require(times, 'source_identity')
+            timelines.append((times, positions))
+        if not iso:
+            return timelines[0][0]
+        edited_times, edited_positions = timelines[0]
+        raw_times, raw_positions = timelines[1]
+        mapped = {}
+        for position, pts in edited_positions.items():
+            require(position in raw_positions, 'source_identity')
+            raw_pts = raw_positions[position]
+            require(edited_times[pts][1:] == raw_times[raw_pts][1:], 'source_identity')
+            mapped[raw_pts] = edited_times[pts]
+        return mapped
+    except (KeyError, ValueError, TypeError, ZeroDivisionError, AttributeError) as error:
+        raise Invalid('source_identity') from error
+
+
 def validate_receipt(directory, request, source, source_listing, stream, output_dir, harness_sha):
     require(directory.is_dir() and not directory.is_symlink(), 'capture_roster')
     receipt = document(directory / 'receipt.json')
@@ -194,24 +245,7 @@ def validate_receipt(directory, request, source, source_listing, stream, output_
     sources = [s for s in source_listing['streams'] if s.get('index') == stream]
     require(len(sources) == 1 and sources[0].get('codec_type') == 'video'
             and sources[0].get('pix_fmt') in YUV, 'source_identity')
-    source_frames = source_listing.get('frames')
-    require(isinstance(source_frames, list), 'source_identity')
-    try:
-        time_base = fractions.Fraction(sources[0]['time_base'])
-        require(time_base > 0, 'source_identity')
-        source_times = {}
-        for frame in source_frames:
-            if frame.get('stream_index') != stream:
-                continue
-            pts = frame.get('best_effort_timestamp')
-            require(type(pts) is int or isinstance(pts, str) and re.fullmatch(r'-?[0-9]+', pts) is not None,
-                    'source_identity')
-            pts = int(pts)
-            require(pts not in source_times and integer(frame.get('width'), 1) and integer(frame.get('height'), 1),
-                    'source_identity')
-            source_times[pts] = (pts * time_base, frame['width'], frame['height'])
-    except (KeyError, ValueError, TypeError, ZeroDivisionError) as error:
-        raise Invalid('source_identity') from error
+    source_times = source_timestamps(source_listing, stream, sources[0])
     frames = receipt.get('frames')
     require(isinstance(frames, list) and 0 < len(frames) <= MAX_FRAMES, 'receipt_frames')
     expected_files = {'frames.json', 'receipt.json'}
@@ -416,7 +450,7 @@ def eligibility(cx):
     if not image_jobs:
         return None
     source = eb.source_of(cx, image_jobs[0].file)[1]
-    listing = decoded.probe(source, cx.tc.ffprobe, cx.opts.env) if source else None
+    listing = decoded.probe(source, cx.tc.ffprobe, cx.opts.env, inputs=('-show_format',)) if source else None
     if listing is None:
         return 'source_identity'
     selected = [s for s in listing['streams'] if s.get('index') == image_jobs[0].stream]
@@ -446,6 +480,10 @@ def image_oracle(cx, source, source_listing):
     staged_sources = [source_path] + [pathlib.Path(prepared.args[prepared.args.index('-i') + 1])
                                      for prepared in (cx.run, cx.reference)]
     require(all(eb.sha256(path) == expected_source for path in staged_sources), 'source_identity')
+    if 'mov' in source_listing.get('format', {}).get('format_name', '').split(','):
+        source_listing = {**source_listing, 'image_raw_timeline': decoded.probe(
+            source_path, cx.tc.ffprobe, cx.opts.env, inputs=('-ignore_editlist', '1'))}
+    (cx.base / 'image-source-probe.json').write_text(json.dumps(source_listing))
     env = {**cx.opts.env, 'COREAV_IMAGE_REQUEST': str(request_file), 'COREAV_FALLBACK': eb.NO_FALLBACK,
            'COREAV_FALLBACK_LOG': str(cx.base / 'image-fallback.jsonl'),
            'COREAV_FFMPEG': eb.NO_FALLBACK, 'COREAV_X264': eb.NO_FALLBACK}
