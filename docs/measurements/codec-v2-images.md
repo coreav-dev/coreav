@@ -117,7 +117,7 @@ python3 -I tools/compat-corpus/png_bmp_yuv.py summarize \
   --registration png-bmp-yuv-v1 \
   --records docs/measurements/codec-v2-images/records.jsonl \
   --manifest docs/measurements/codec-v2-images/manifest.json \
-  --summary "$TMPDIR/v2-image-summary.json"
+  --summary "$TMPDIR/v2-image-summary.json" &&
 cmp "$TMPDIR/v2-image-summary.json" docs/measurements/codec-v2-images/summary.json
 ```
 

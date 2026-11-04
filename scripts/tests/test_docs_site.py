@@ -16,9 +16,13 @@ and link check run in .github/workflows/docs-site.yml.
     python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
 """
 import json
+import os
 import pathlib
 import re
+import shlex
+import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -155,6 +159,34 @@ class DocsSite(unittest.TestCase):
             with self.subTest(page=page.name):
                 self.assertTrue(f'docs/measurements/{page.name})' in index,
                                 f'docs/measurements/{page.name} is not listed on docs-site/measurements.mdx: add a row for it')
+
+    def test_v2_image_replay_cannot_pass_with_a_stale_summary(self):
+        data = ROOT / 'docs/measurements/codec-v2-images'
+        page = (ROOT / 'docs/measurements/codec-v2-images.md').read_text()
+        block = re.search(r'```sh\n(.*?)\n```', page, re.S)
+        self.assertIsNotNone(block)
+        command = block.group(1).replace('python3 -I', shlex.quote(sys.executable) + ' -I', 1)
+        expected = (data / 'summary.json').read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            invalid = json.loads((data / 'manifest.json').read_text())
+            invalid['methods']['tools/compat-corpus/png_bmp_yuv.py'] = '0' * 64
+            (directory / 'invalid-manifest.json').write_text(json.dumps(invalid))
+            for valid in (True, False):
+                with self.subTest(valid=valid):
+                    summary = directory / 'v2-image-summary.json'
+                    summary.write_bytes(expected)
+                    invocation = command if valid else command.replace(
+                        '--manifest docs/measurements/codec-v2-images/manifest.json',
+                        '--manifest "$TMPDIR/invalid-manifest.json"', 1)
+                    result = subprocess.run(['sh', '-c', invocation], cwd=ROOT,
+                                            env={**os.environ, 'TMPDIR': tmp}, capture_output=True, text=True)
+                    if valid:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertIn('VOID: method_identity', result.stderr)
+                        self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(summary.read_bytes(), expected)
 
     def test_every_agents_area_file_is_listed(self):
         index = (ROOT / 'AGENTS.md').read_text()
