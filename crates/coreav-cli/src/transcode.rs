@@ -518,6 +518,15 @@ fn writer_failure(failure: WriteFailure) -> WriteFailure {
 mod tests {
     use super::*;
 
+    #[test]
+    fn in_process_diagnostics_refuse_strict_safe() {
+        assert!(matches!(
+            diagnostic_host(Some("1".into()), StrictSafe::new(true)),
+            Err(WriteFailure::Rejected(Failure::StrictSafe(message)))
+                if message == "in-process decoder diagnostics are unavailable in strict-safe mode"
+        ));
+    }
+
     struct SlowSource {
         lengths: usize,
         reads: usize,

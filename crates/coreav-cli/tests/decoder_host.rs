@@ -19,20 +19,29 @@ fn diagnostic_errors_precede_media_probing() -> Result<(), Box<dyn std::error::E
     std::fs::write(&input, b"not a media file")?;
     for (value, strict) in [("invalid", false), ("1", true)] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+        command.env_remove("COREAV_STRICT_SAFE").env(SWITCH, value);
+        if strict {
+            command.arg("--strict-safe");
+        }
         command
-            .env_remove("COREAV_STRICT_SAFE")
-            .env(SWITCH, value)
             .arg("transcode")
             .arg(&input)
             .arg(dir.join("out.mp4"))
             .args(["--encoder", "x264", "--x264", "/nonexistent/coreav-x264"]);
-        if strict {
-            command.arg("--strict-safe");
-        }
         let output = command.output()?;
         assert!(!output.status.success());
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(if strict { "strict-safe" } else { SWITCH }));
+        let error: serde_json::Value = serde_json::from_slice(&output.stderr)?;
+        let message = error
+            .get("message")
+            .and_then(|value| value.as_str())
+            .ok_or("missing error message")?;
+        assert!(message.contains(if strict && cfg!(target_os = "linux") {
+            "in-process decoder diagnostics are unavailable in strict-safe mode"
+        } else if strict {
+            "no enforceable memory limit"
+        } else {
+            SWITCH
+        }));
         assert!(!dir.join("out.mp4").exists());
     }
     Ok(())
