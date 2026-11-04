@@ -370,11 +370,13 @@ class Replay(unittest.TestCase):
             before = run.read(path)
             changed = before.copy()
             if key == '__binary':
-                changed[3] = value
+                changed[3] = str(self.root.resolve() / 'bin' / pathlib.Path(value).name)
             elif key == '__input':
-                changed[4] = value
+                changed[4] = str(self.root.resolve() / 'clips' / pathlib.Path(value).name)
             elif key == '__hash':
                 changed = ['/usr/bin/env', value] + changed
+            elif key == '-i':
+                changed[changed.index(key) + 1] = str(self.root.resolve() / 'clips' / pathlib.Path(value).name)
             else:
                 changed[changed.index(key) + 1] = value
             run.write(path, changed)
