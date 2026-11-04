@@ -384,6 +384,9 @@ fn vps_change_obeys_new_picture_prior_output_flags() {
                 })
                 .unwrap();
             assert!(output.is_empty());
+            if kind == 21 {
+                parser.read_nal(&escaped(36, &[]), |_| Ok(())).unwrap();
+            }
             parser
                 .read_nal(&escaped(32, &params::tests::video(true)), |_| Ok(()))
                 .unwrap();
@@ -432,7 +435,7 @@ fn vps_change_requires_an_irap_before_releasing_prior_output() {
             output.push(event);
             Ok(())
         }),
-        Err(Error::InvalidData("CVSG requires IRAP first slice"))
+        Err(Error::InvalidData("CVSG requires CVS-start IRAP"))
     );
     assert!(output.is_empty());
     assert_eq!(
@@ -669,6 +672,28 @@ fn prior_output_flag_is_consistent_in_independent_and_dependent_segments() {
             }
         }
     }
+}
+
+#[test]
+fn vps_change_cannot_turn_an_ordinary_cra_into_a_cvs_start() {
+    let mut parser = synthetic_sets();
+    parser.read_nal(&idr(), |_| Ok(())).unwrap();
+    parser
+        .read_nal(&escaped(32, &params::tests::video(true)), |_| Ok(()))
+        .unwrap();
+    let mut output = Vec::new();
+    assert_eq!(
+        parser.read_nal(&intra_first(21), |event| {
+            output.push(event);
+            Ok(())
+        }),
+        Err(Error::InvalidData("CVSG requires CVS-start IRAP"))
+    );
+    assert!(output.is_empty());
+    assert_eq!(
+        parser.finish(|_| Ok(())),
+        Err(Error::InvalidData("parser_failed"))
+    );
 }
 
 #[test]

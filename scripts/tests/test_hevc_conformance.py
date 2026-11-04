@@ -76,6 +76,12 @@ class OracleDiagnostics(unittest.TestCase):
                 self.assertNotIn('Unknown diagnostics, wrong streams and missing proof fail', text)
                 self.assertNotIn('incomplete output, unknown diagnostic', text)
 
+    def test_design_status_distinguishes_milestones_from_changed_evidence_rules(self):
+        status = (runner.ROOT / 'docs/design/hevc.md').read_text().split('\n\n')[1]
+        self.assertIn('The milestone structure remains', status)
+        self.assertIn('evidence rules and explicit C1 exclusions', status)
+        self.assertNotIn('gates below remain unchanged', status)
+
     def test_diagnostic_wording_changes_do_not_change_verified_output_acceptance(self):
         for message in ('SPS 0 does not exist. ', 'SPS 0 does not exist..',
                         'sps 0 does not exist.', 'unseen diagnostic'):

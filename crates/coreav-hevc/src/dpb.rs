@@ -124,13 +124,9 @@ impl Dpb {
         if self.state != State::Reading {
             return Err(Error::InvalidData("DPB session ended"));
         }
-        if !(16..=21).contains(&nal.unit_type)
-            || nal.temporal_id != 0
-            || !header.first
-            || header.dependent
-        {
+        if !self.starts_cvs(nal) || nal.temporal_id != 0 || !header.first || header.dependent {
             self.state = State::Failed;
-            return Err(Error::InvalidData("CVSG requires IRAP first slice"));
+            return Err(Error::InvalidData("CVSG requires CVS-start IRAP"));
         }
         let result = self
             .prior_output(nal, header, &mut emit)
