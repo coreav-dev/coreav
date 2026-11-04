@@ -48,6 +48,8 @@ pub struct Metadata {
     pub file_types: Vec<FileType>,
     /// The movie header's creation time (`mvhd`).
     pub movie_created: Option<Timestamp>,
+    /// Number of metadata items read before the movie header.
+    pub movie_header_item_position: usize,
     /// One entry per track box (`trak`) of the movie box, in file order: the
     /// position is the stream index probe gives the track
     /// ([`crate::Track::stream_index`]).
@@ -120,6 +122,8 @@ pub struct TrackMetadata {
     pub flags: Option<u32>,
     /// The media header's creation time (`mdhd`).
     pub media_created: Option<Timestamp>,
+    /// Number of metadata items read before this track's media box.
+    pub media_item_position: usize,
     /// The media header's language as stored: a packed ISO 639-2/T code
     /// (ISO/IEC 14496-12) or a Macintosh language code below 0x400
     /// (QuickTime).
@@ -482,6 +486,7 @@ impl<S: Source> Reader<'_, S> {
         for child in self.children(moov.payload_offset(), moov.end())? {
             match &child.kind.0 {
                 b"mvhd" => {
+                    out.movie_header_item_position = out.items.len();
                     if let Some(head) = self.head(&child, HEADER_HEAD)? {
                         out.movie_created = created(&head);
                     }
@@ -571,7 +576,10 @@ impl<S: Source> Reader<'_, S> {
                     }
                 }
                 b"tref" => self.complete = false,
-                b"mdia" => self.media(&child, &mut track)?,
+                b"mdia" => {
+                    track.media_item_position = items.len();
+                    self.media(&child, &mut track)?;
+                }
                 b"udta" => {
                     self.user_data(&child, Some(index), items, &mut track.kinds)?;
                 }

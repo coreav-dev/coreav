@@ -18,7 +18,7 @@ Record one report boolean when a retained visual sample-entry box has
 type `clap`. At the ffprobe emission boundary, refuse any request for that
 report before writer creation, packet/frame traversal or partial output.
 Strict-safe mode returns the existing unsupported status; ordinary mode
-passes the original arguments to the existing pinned ffprobe fallback.
+passes the original arguments to the existing ffprobe fallback.
 
 Refuse the whole compatibility request, including count-only and
 unrelated-field selections. A selection-specific geometry predicate would

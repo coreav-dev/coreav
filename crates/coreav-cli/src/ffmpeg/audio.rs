@@ -253,6 +253,7 @@ mod tests {
             time_bases: vec![],
             format: vec![],
             format_tags: vec![],
+            iso_names_supported: None,
             chapters: vec![],
             programs: vec![],
             setups: vec![],

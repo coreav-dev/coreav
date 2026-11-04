@@ -56,6 +56,76 @@ fn field<'a>(report: &'a Report, key: &str) -> &'a Value {
 }
 
 #[test]
+fn pcm_descriptor_preserves_the_data_span_without_reading_samples() {
+    let mut info = b"INFO".to_vec();
+    info.extend_from_slice(&chunk(b"INAM", b"title\0"));
+    let bytes = riff(&[
+        chunk(b"fmt ", &fmt(16, 1, 1)),
+        chunk(b"JUNK", &[1, 2, 3]),
+        chunk(b"data", &[0x51; 8]),
+        chunk(b"LIST", &info),
+    ]);
+    struct HeaderOnly<'a>(&'a [u8]);
+    impl Source for HeaderOnly<'_> {
+        fn len(&mut self) -> Result<u64, Error> {
+            Ok(self.0.len() as u64)
+        }
+        fn read_exact_at(&mut self, at: u64, out: &mut [u8]) -> Result<(), Error> {
+            assert!(at + out.len() as u64 <= 56 || at >= 64);
+            SliceSource::new(self.0).read_exact_at(at, out)
+        }
+    }
+    let (report, pcm) = probe_pcm(
+        &mut HeaderOnly(&bytes),
+        bytes.len() as u64,
+        "test.wav",
+        &Limits::default(),
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_json()));
+    assert_eq!(
+        pcm,
+        Pcm {
+            encoding: PcmEncoding::S16,
+            valid_bits: 16,
+            channels: 1,
+            rate: 48000,
+            mask: 0,
+            offset: 56,
+            bytes: 8,
+            declared_bytes: 8
+        }
+    );
+    assert_eq!(field(&report, "duration_ts"), &Value::Int(4));
+    assert_eq!(
+        report.format_tags,
+        vec![("title".to_owned(), "title".to_owned())]
+    );
+}
+
+#[test]
+fn pcm_descriptor_keeps_declared_extents_and_valid_precision_separate() {
+    let mut format = fmt(32, 0xfffe, 2);
+    format.extend_from_slice(&22u16.to_le_bytes());
+    format.extend_from_slice(&24u16.to_le_bytes());
+    format.extend_from_slice(&3u32.to_le_bytes());
+    format.extend_from_slice(&[1, 0, 0, 0, 0, 0, 16, 0, 128, 0, 0, 170, 0, 56, 155, 113]);
+    let mut bytes = riff(&[chunk(b"fmt ", &format), chunk(b"data", &[0; 16])]);
+    bytes.truncate(bytes.len() - 8);
+    let (report, pcm) = probe_pcm(
+        &mut SliceSource::new(&bytes),
+        bytes.len() as u64,
+        "test.wav",
+        &Limits::default(),
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_json()));
+    assert_eq!(pcm.encoding, PcmEncoding::S32);
+    assert_eq!(pcm.valid_bits, 24);
+    assert_eq!(pcm.declared_bytes, 16);
+    assert_eq!(pcm.bytes, 8);
+    assert_eq!(field(&report, "duration_ts"), &Value::Int(1));
+}
+
+#[test]
 fn pcm_and_float_fields_use_storage_width() {
     for (code, bits, codec, sample_fmt) in [
         (1, 8, "pcm_u8", "u8"),
