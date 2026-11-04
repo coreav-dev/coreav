@@ -23,6 +23,10 @@ on:
       - .github/workflows/flac-output.yml
   workflow_dispatch:
     inputs:
+      frame_ceiling:
+        description: Build a diagnostic-only encoded-frame replay arm
+        type: boolean
+        default: false
       subframe_ceiling:
         description: Build a diagnostic-only selected-subframe replay arm
         type: boolean
@@ -139,9 +143,13 @@ jobs:
       - name: Prepare diagnostic tools and pinned executable oracle
         run: |
           test '${{ inputs.measure }}' != true
-          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ]; then
+          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ] || [ '${{ inputs.frame_ceiling }}' = true ]; then
             test '${{ inputs.build_only }}' = true
-            test '${{ inputs.rice_ceiling }}${{ inputs.subframe_ceiling }}' != truetrue
+            count=0
+            for enabled in '${{ inputs.rice_ceiling }}' '${{ inputs.subframe_ceiling }}' '${{ inputs.frame_ceiling }}'; do
+              if [ "$enabled" = true ]; then count=$((count + 1)); fi
+            done
+            test "$count" = 1
           fi
           if [ '${{ inputs.build_only }}' != true ]; then
             sudo apt-get update -qq
@@ -176,9 +184,11 @@ jobs:
         run: |
           cargo build --locked --release -p coreav-cli
           cp target/release/coreav "$RUNNER_TEMP/plain-coreav"
-          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ]; then
+          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ] || [ '${{ inputs.frame_ceiling }}' = true ]; then
             sha256sum crates/coreav-audio/src/flac/encode.rs > "$RUNNER_TEMP/encoder-before.sha256"
-            if [ '${{ inputs.subframe_ceiling }}' = true ]; then
+            if [ '${{ inputs.frame_ceiling }}' = true ]; then
+              python3 -I scripts/flac_frame_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
+            elif [ '${{ inputs.subframe_ceiling }}' = true ]; then
               python3 -I scripts/flac_subframe_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
             else
               python3 -I scripts/flac_rice_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
@@ -201,7 +211,7 @@ jobs:
           cp -r "$RUNNER_TEMP/oracle" "$RUNNER_TEMP/flac-build/oracle"
           git rev-parse HEAD > "$RUNNER_TEMP/flac-build/source.txt"
           rustc --version > "$RUNNER_TEMP/flac-build/rustc.txt"
-          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ]; then
+          if [ '${{ inputs.rice_ceiling }}' = true ] || [ '${{ inputs.subframe_ceiling }}' = true ] || [ '${{ inputs.frame_ceiling }}' = true ]; then
             cp crates/coreav-audio/src/flac/encode.rs "$RUNNER_TEMP/flac-build/instrumented-encode.rs"
             cp "$RUNNER_TEMP/encoder-before.sha256" "$RUNNER_TEMP/flac-build/"
           fi
