@@ -109,7 +109,9 @@ class AcquisitionAndReplay(unittest.TestCase):
         fixture.mkdir()
         (fixture / 'source.mp4').write_bytes(b'synthetic control, not media')
         self.fake = self.root / 'fake'
-        self.fake.write_text('#!' + sys.executable + '\nprint("control_sentinel=control result")\n')
+        self.fake.write_text('#!' + sys.executable + '\nimport sys\n' +
+                             'print(\'{"format":{"control_sentinel":"control result"}}\' if "json" in sys.argv '
+                             'else "control_sentinel=control result")\n')
         self.fake.chmod(0o755)
         self.programs = {key: str(self.fake) for key in ('$COREAV', '$FFMPEG', '$FFPROBE', '$X264')}
         self.record = run.acquire_one(row(), self.bundle, self.programs, run.environment())
@@ -153,6 +155,23 @@ class AcquisitionAndReplay(unittest.TestCase):
         source = self.bundle / 'calls/1/candidate/in0/source.mp4'
         source.write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError, 'input_binding'):
+            self.judge()
+
+    def test_probe_witness_is_bound_and_unavailable_or_failed_witnesses_miss(self):
+        witness = self.record['eligibility']
+        witness['args'][0] = '/bin/true'
+        with self.assertRaisesRegex(ValueError, 'invocation_binding'):
+            self.judge()
+        witness['args'][0] = '$FFPROBE'
+        witness['code'] = 1
+        self.assertEqual(self.judge(), 'no_oracle')
+        witness.update(code=0, timed_out=True)
+        self.assertEqual(self.judge(), 'no_oracle')
+        witness['timed_out'] = False
+        (self.bundle / 'calls/1/reference/eligibility.stdout').write_bytes(b'{"format":{}}')
+        self.assertEqual(self.judge(), 'no_oracle')
+        self.record.pop('eligibility')
+        with self.assertRaisesRegex(ValueError, 'probe_witness_missing'):
             self.judge()
 
     def test_unexpected_encoder_does_not_count(self):
@@ -267,15 +286,18 @@ class ExactPredicate(unittest.TestCase):
 
 
 class ProbeAvailability(unittest.TestCase):
-    def capture(self, options, reference, candidate):
+    def capture(self, options, reference, candidate, witness=None):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             bundle = root / 'bundle'
             (bundle / 'fixtures').mkdir(parents=True)
             (bundle / 'fixtures/source.mp4').write_bytes(b'synthetic probe control')
             fake = root / 'fake'
+            if witness is None:
+                witness = reference
             fake.write_text('#!' + sys.executable + '\nimport sys\n' +
-                            f'sys.stdout.write({candidate!r} if sys.argv[1] == "ffprobe" else {reference!r})\n')
+                            f'sys.stdout.write({candidate!r} if sys.argv[1] == "ffprobe" else '
+                            f'{witness!r} if "json" in sys.argv else {reference!r})\n')
             fake.chmod(0o755)
             programs = {key: str(fake) for key in ('$COREAV', '$FFMPEG', '$FFPROBE', '$X264')}
             entry = row()
@@ -306,7 +328,7 @@ class ProbeAvailability(unittest.TestCase):
         for unavailable in ('', '{}', '{"streams":[]}', '{"streams":[{"index":"N/A"}]}'):
             for reference, candidate in ((unavailable, valid), (valid, unavailable)):
                 with self.subTest(reference=reference, candidate=candidate):
-                    self.assertEqual(self.capture(options, reference, candidate), 'no_oracle')
+                    self.assertNotEqual(self.capture(options, reference, candidate), 'counted')
 
     def test_populated_response_counts_only_when_exact(self):
         options = [['-of', 'json'], ['-show_streams', None]]
@@ -314,7 +336,7 @@ class ProbeAvailability(unittest.TestCase):
         self.assertEqual(self.capture(options, valid, valid), 'counted')
         self.assertEqual(self.capture(options, valid, valid.replace('control', 'changed')), 'different')
 
-    def test_non_json_writers_require_values_not_just_framing(self):
+    def test_availability_uses_one_json_witness_for_every_writer(self):
         cases = [('csv=p=<value>', 'stream,7\n', 'stream,\n'),
                  ('default=nk=<value>:nw=<value>', '7\n', 'N/A\n'),
                  ('compact', 'stream|index=7\n', 'stream\n'),
@@ -322,16 +344,31 @@ class ProbeAvailability(unittest.TestCase):
         for writer, valid, empty in cases:
             command = inputs.instantiate(shape(options=[['-of', writer], ['-show_entries', 'stream=index']]))
             with self.subTest(writer=writer):
-                self.assertTrue(run.probe_available(command, valid.encode()))
-                self.assertFalse(run.probe_available(command, empty.encode()))
+                self.assertEqual(self.capture([['-of', writer], ['-show_entries', 'stream=index']], valid, valid,
+                                              '{"streams":[{"index":7}]}'), 'counted')
+                self.assertEqual(self.capture([['-of', writer], ['-show_entries', 'stream=index']], empty, empty,
+                                              '{"streams":[{"index":"N/A"}]}'), 'no_oracle')
+                self.assertTrue(run.probe_available(command, b'{"streams":[{"index":7}]}'))
 
     def test_flat_separator_is_part_of_the_registered_writer(self):
         options = [['-of', 'flat=s=<value>'], ['-show_entries', 'stream=index']]
-        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=7\n'), 'counted')
-        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=8\n'), 'different')
-        self.assertEqual(self.capture(options, 'streams,stream,0,index=""\n', 'streams,stream,0,index=""\n'), 'no_oracle')
+        witness = '{"streams":[{"index":7}]}'
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=7\n', witness), 'counted')
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams,stream,0,index=8\n', witness), 'different')
+        self.assertEqual(self.capture(options, 'streams,stream,0,index=7\n', 'streams.stream.0.index=7\n', witness), 'different')
         command = inputs.instantiate(shape(options=options))
-        self.assertFalse(run.probe_available(command, b'streams.stream.0.index=7\n'))
+        self.assertIn('flat=s=,', command.args)
+        self.assertIn('flat=s=,', run.expected_invocation(command, False))
+        reference = run.expected_invocation(command, False)
+        reference[reference.index('-of') + 1] = 'json'
+        self.assertEqual(run.probe_witness_invocation(command), reference)
+
+    def test_broad_witness_allows_missing_optional_values_but_not_empty_records(self):
+        command = inputs.instantiate(shape(options=[['-show_streams', None]]))
+        self.assertTrue(run.probe_available(command, b'{"streams":[{"index":0,"duration":"N/A"}]}'))
+        for witness in (b'{"streams":[{"duration":"N/A"}]}', b'{"streams":[{"duration":null}]}',
+                        b'{"streams":[{"index":0},{}]}'):
+            self.assertFalse(run.probe_available(command, witness))
 
     def test_each_requested_json_section_needs_substantive_data(self):
         options = [['-of', 'json'], ['-show_format', None], ['-show_streams', None]]
@@ -374,8 +411,11 @@ class PinnedProbeWriters(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
-    def capture(self, writer, selection=None, entries='stream=index,sample_rate,channels'):
-        args = ['-show_entries', entries, '-of', writer]
+    def capture(self, writer, selection=None, entries='stream=index,sample_rate,channels', show_format=False):
+        args = ['-show_entries', entries] if entries is not None else ['-show_streams']
+        args.extend(['-of', writer])
+        if show_format:
+            args.append('-show_format')
         if selection:
             args.extend(['-select_streams', selection])
         args.extend(['-i', str(self.control)])
@@ -383,37 +423,58 @@ class PinnedProbeWriters(unittest.TestCase):
                                 env=run.environment(), capture_output=True, timeout=10, check=True)
         self.assertEqual(result.stderr, b'')
         command = inputs.Command('ffprobe', tuple(args), (), (), ())
-        return command, result.stdout
+        witness = run.probe_witness_invocation(command)
+        witness[0] = str(self.oracle / 'ffprobe')
+        witness = subprocess.run(witness, env=run.environment(), capture_output=True, timeout=10, check=True)
+        self.assertEqual(witness.stderr, b'')
+        return command, result.stdout, witness.stdout
 
     def test_all_writer_variants_parse_real_populated_and_empty_oracle_outputs(self):
         for writer in self.WRITERS:
             with self.subTest(writer=writer):
-                command, populated = self.capture(writer)
+                command, populated, witness = self.capture(writer)
                 self.assertIn(b'8000', populated)
-                self.assertTrue(run.probe_available(command, populated), populated)
-                empty_command, empty = self.capture(writer, selection='s')
-                self.assertFalse(run.probe_available(empty_command, empty), empty)
-                unavailable_command, unavailable = self.capture(writer, entries='stream=nb_frames')
-                self.assertFalse(run.probe_available(unavailable_command, unavailable), unavailable)
+                self.assertTrue(run.probe_available(command, witness), witness)
+                empty_command, _, empty_witness = self.capture(writer, selection='s')
+                self.assertFalse(run.probe_available(empty_command, empty_witness), empty_witness)
+                unavailable_command, _, unavailable_witness = self.capture(writer, entries='stream=nb_frames')
+                self.assertFalse(run.probe_available(unavailable_command, unavailable_witness), unavailable_witness)
 
     def test_real_oracle_output_has_exact_different_and_either_side_miss_outcomes(self):
         for writer in self.WRITERS:
             with self.subTest(writer=writer), tempfile.TemporaryDirectory() as tmp:
-                command, populated = self.capture(writer)
-                _, empty = self.capture(writer, selection='s')
+                command, populated, witness = self.capture(writer)
+                _, empty, empty_witness = self.capture(writer, selection='s')
                 folder = Path(tmp)
                 reference, candidate = folder / 'reference', folder / 'candidate'
                 reference.mkdir()
                 candidate.mkdir()
+                (reference / 'eligibility.stdout').write_bytes(witness)
                 (reference / 'stdout').write_bytes(populated)
                 (candidate / 'stdout').write_bytes(populated)
                 self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'counted')
                 (candidate / 'stdout').write_bytes(populated.replace(b'8000', b'8001'))
                 self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'different')
-                for left, right in ((empty, populated), (populated, empty)):
+                for left, right, available in ((empty, populated, empty_witness), (populated, empty, witness)):
                     (reference / 'stdout').write_bytes(left)
                     (candidate / 'stdout').write_bytes(right)
-                    self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'no_oracle')
+                    (reference / 'eligibility.stdout').write_bytes(available)
+                    self.assertNotEqual(run.compare_outputs(command, folder, {}, {}, folder), 'counted')
+
+    def test_broad_sections_stay_substantive_with_unavailable_optional_fields(self):
+        for writer in self.WRITERS:
+            for show_format in (False, True):
+                with self.subTest(writer=writer, show_format=show_format), tempfile.TemporaryDirectory() as tmp:
+                    command, populated, witness = self.capture(writer, entries=None, show_format=show_format)
+                    self.assertTrue(run.probe_available(command, witness), witness)
+                    if writer in ('default', 'flat', 'flat=s=,'):
+                        self.assertIn(b'N/A', populated)
+                    folder = Path(tmp)
+                    for arm in ('reference', 'candidate'):
+                        (folder / arm).mkdir()
+                        (folder / arm / 'stdout').write_bytes(populated)
+                    (folder / 'reference/eligibility.stdout').write_bytes(witness)
+                    self.assertEqual(run.compare_outputs(command, folder, {}, {}, folder), 'counted')
 
 
 class AccountingAndGate(unittest.TestCase):

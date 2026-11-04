@@ -1,8 +1,6 @@
 """Acquire and replay the registered GitHub Shapes 200 measurement."""
 import argparse
 import collections
-import configparser
-import csv
 import fractions
 import hashlib
 import json
@@ -132,6 +130,23 @@ def expected_invocation(command, candidate):
             'info' if command.tool == 'ffmpeg' else 'error', *args]
 
 
+def probe_witness_invocation(command):
+    args = expected_invocation(command, False)
+    positions = [index + 1 for index, value in enumerate(args[:-1]) if value == '-of']
+    for index in positions:
+        args[index] = 'json'
+    return args if positions else [args[0], '-of', 'json', *args[1:]]
+
+
+def validate_receipt(receipt, invocation, stdin, tag):
+    if receipt['args'] != invocation:
+        raise EvidenceError('invocation_binding')
+    if receipt['stdin'] != stdin or receipt['stdout'] != tag + '.stdout' or receipt['stderr'] != tag + '.stderr':
+        raise EvidenceError('stdio_binding')
+    if type(receipt['code']) is not int or type(receipt['timed_out']) is not bool:
+        raise EvidenceError('process_receipt')
+
+
 def output_present(command, folder):
     if command.tool == 'ffprobe':
         return True
@@ -183,6 +198,12 @@ def acquire_one(row, bundle, programs, env):
         result['arms'][arm] = receipt
         if not candidate and (receipt['code'] or receipt['timed_out'] or not output_present(command, folder)):
             break
+        if not candidate and command.tool == 'ffprobe':
+            invocation = probe_witness_invocation(command)
+            argv = [programs.get(arg, arg) for arg in invocation]
+            witness = execute(argv, folder, env, 120, 'eligibility', command.stdin)
+            witness['args'] = invocation
+            result['eligibility'] = witness
     return result
 
 
@@ -222,19 +243,16 @@ def raw_description(command, index, source):
     return []
 
 
-def probe_available(command, data):
-    if not data.strip():
-        return False
-    args = command.args
+def probe_available(command, json_output):
     requested = {}
-    if '-show_entries' in args:
-        for entry in args[args.index('-show_entries') + 1].split(':'):
+    if '-show_entries' in command.args:
+        for entry in command.args[command.args.index('-show_entries') + 1].split(':'):
             section, _, fields = entry.partition('=')
             requested[section] = fields.split(',') if fields else []
     for option, section in (('-show_streams', 'stream'), ('-show_format', 'format')):
-        if option in args:
+        if option in command.args:
             requested.setdefault(section, [])
-    if not requested:
+    if not requested or set(requested) - {'stream', 'format'}:
         return False
     def available(value):
         if isinstance(value, dict):
@@ -243,93 +261,26 @@ def probe_available(command, data):
             return bool(value) and all(available(v) for v in value)
         if isinstance(value, float):
             return math.isfinite(value)
-        return value is not None and str(value).strip().casefold() not in ('', '""', "''", 'n/a', 'unknown', 'nan', 'inf', '-inf')
-    writer = args[args.index('-of') + 1] if '-of' in args else 'default'
-    writer, _, settings = writer.partition('=')
+        return value is not None and str(value).strip().casefold() not in ('', 'n/a', 'unknown', 'nan', 'inf', '-inf')
     try:
-        text = data.decode('utf-8')
-        if writer == 'json':
-            document = json.loads(text)
-            for section, fields in requested.items():
-                value = document.get('streams' if section == 'stream' else section)
-                records = value if isinstance(value, list) else [value]
-                if not records or any(not isinstance(record, dict) or not available(record) or
-                    any(field not in record or not available(record[field]) for field in fields) for record in records):
-                    return False
-            return True
-        if writer == 'ini':
-            document = configparser.ConfigParser(interpolation=None)
-            document.read_string(text)
-            for section, fields in requested.items():
-                names = [name for name in document.sections() if name == section or
-                         section == 'stream' and re.fullmatch(r'streams\.stream\.[0-9]+', name)]
-                if not names or any(not available(dict(document[name])) or any(
-                    field not in document[name] or not available(document[name][field]) for field in fields) for name in names):
-                    return False
-            return True
-        settings = dict(setting.split('=', 1) for setting in settings.split(':') if setting)
-        fields = [field for names in requested.values() for field in names]
-        sections = set()
-        if writer == 'csv':
-            records = list(csv.reader(text.splitlines(), delimiter=settings.get('s', ','), strict=True))
-            for record in records:
-                required = fields
-                if record and record[0] in requested:
-                    sections.add(record[0])
-                    required = requested[record[0]]
-                    record = record[1:]
-                if not record or len(record) < len(required) or not all(available(value) for value in record):
-                    return False
-            return bool(records) and (len(requested) == 1 or sections == set(requested))
-        if writer not in ('default', 'flat', 'compact'):
-            return False
-        values = []
-        found = set()
-        current = next(iter(requested)) if len(requested) == 1 else None
-        for line in text.splitlines():
-            if not line.strip():
-                continue
-            if line.startswith('[') and line.endswith(']'):
-                section = line[1:-1].lower()
-                if section in requested:
-                    current = section
-                elif section.startswith('/') and section[1:] == current:
-                    current = None
-                continue
-            parts = next(csv.reader([line], delimiter='|', escapechar='\\')) if writer == 'compact' else [line]
-            for part in parts:
-                if writer == 'compact' and part in requested:
-                    current = part
-                    continue
-                key, equals, value = part.partition('=')
-                if not equals:
-                    if writer != 'default' or not (settings.get('nk') == '1' or settings.get('nokey') == '1'):
-                        return False
-                    value = part
-                else:
-                    separator = settings.get('s', '.') if writer == 'flat' else '.'
-                    found.add(key.rsplit(separator, 1)[-1])
-                    if writer == 'flat':
-                        prefix = key.split(separator, 1)[0]
-                        current = 'stream' if prefix == 'streams' else prefix
-                if writer == 'flat' and value.startswith('"'):
-                    value = json.loads(value)
-                if not available(value):
-                    return False
-                if current in requested:
-                    sections.add(current)
-                values.append(value)
-        if fields and found and not set(fields).issubset(found):
-            return False
-        return bool(values) and len(values) >= len(fields) and sections == set(requested)
-    except (ValueError, TypeError, AttributeError, UnicodeError, csv.Error, configparser.Error):
+        document = json.loads(json_output)
+        for section, fields in requested.items():
+            value = document.get('streams' if section == 'stream' else section)
+            records = value if isinstance(value, list) else [value]
+            if not records or any(not isinstance(record, dict) or not available(record) or
+                any(field not in record or not available(record[field]) for field in fields) for record in records):
+                return False
+        return True
+    except (ValueError, TypeError, AttributeError, UnicodeError):
         return False
 
 
 def compare_outputs(command, base, programs, env, scratch):
     ref, mine = base / 'reference', base / 'candidate'
     if command.tool == 'ffprobe':
-        if not all(probe_available(command, (folder / 'stdout').read_bytes()) for folder in (ref, mine)):
+        if not all((folder / 'stdout').read_bytes().strip() for folder in (ref, mine)):
+            return 'no_oracle'
+        if not probe_available(command, (ref / 'eligibility.stdout').read_bytes()):
             return 'no_oracle'
         return 'counted' if decoded_output.same_files(ref / 'stdout', mine / 'stdout') else 'different'
     if any(dict(zip(opts, opts[1:])).get('-f') in ('hls', 'null') for opts in command.output_options) or any(
@@ -391,12 +342,9 @@ def judge(row, record, bundle, programs, env, scratch):
     base = bundle / 'calls' / str(row['rank'])
     arms = record['arms']
     for name, receipt in arms.items():
-        if name not in ('reference', 'candidate') or receipt['args'] != expected_invocation(command, name == 'candidate'):
+        if name not in ('reference', 'candidate'):
             raise EvidenceError('invocation_binding')
-        if receipt['stdin'] != command.stdin or receipt['stdout'] != 'command.stdout' or receipt['stderr'] != 'command.stderr':
-            raise EvidenceError('stdio_binding')
-        if type(receipt['code']) is not int or type(receipt['timed_out']) is not bool:
-            raise EvidenceError('process_receipt')
+        validate_receipt(receipt, expected_invocation(command, name == 'candidate'), command.stdin, 'command')
         folder = base / name
         if (folder / 'stdout').read_bytes() != (folder / 'command.stdout').read_bytes():
             raise EvidenceError('stdout_binding')
@@ -415,6 +363,10 @@ def judge(row, record, bundle, programs, env, scratch):
         return 'reference_failed'
     if set(arms) != {'reference', 'candidate'}:
         raise EvidenceError('candidate_receipt_missing')
+    if command.tool == 'ffprobe':
+        if 'eligibility' not in record:
+            raise EvidenceError('probe_witness_missing')
+        validate_receipt(record['eligibility'], probe_witness_invocation(command), command.stdin, 'eligibility')
     candidate = arms['candidate']
     if candidate['timed_out']:
         return 'timeout'
@@ -422,6 +374,8 @@ def judge(row, record, bundle, programs, env, scratch):
         return 'refused'
     if candidate['code'] or not output_present(command, base / 'candidate'):
         return 'failed'
+    if command.tool == 'ffprobe' and (record['eligibility']['code'] or record['eligibility']['timed_out']):
+        return 'no_oracle'
     starts = json.loads((base / 'candidate' / 'starts.json').read_text())
     encoders = set(jobs(base / 'reference').values()) if command.tool == 'ffmpeg' else set()
     for start in starts:
