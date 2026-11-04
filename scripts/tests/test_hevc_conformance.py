@@ -284,6 +284,22 @@ class OracleDiagnostics(unittest.TestCase):
         self.assertEqual(attempt['stdout_capture'], 'reference-md5.stdout')
         self.assertTrue(all(d['classification'] == 'unclassified' for d in diagnostics))
 
+    def test_stream_coded_geometry_can_describe_a_later_activated_resolution(self):
+        fixture = Conformance().fixture()
+        first = fixture[3][0]
+        second = dict(first, offset=13, picture_index=1, coded_width=4, coded_height=4, width=4, height=4)
+        packets = dict(packets=[dict(pos='0', size='10'), dict(pos='10', size='10')],
+                       streams=[dict(codec_name='hevc', coded_width=4, coded_height=4)])
+        frames = [dict(width=2, height=2, pix_fmt='yuv420p', pkt_pos='0'),
+                  dict(width=4, height=4, pix_fmt='yuv420p', pkt_pos='10')]
+        result = runner.compare_headers(dict(pictures=2, output_pictures=2),
+                                         [first, second], [first, second], packets, frames)
+        self.assertTrue(result['output_order_checked_by_packet_positions'])
+        packets['streams'][0]['coded_width'] = 3
+        with self.assertRaisesRegex(ValueError, 'coded geometry differs'):
+            runner.compare_headers(dict(pictures=2, output_pictures=2),
+                                   [first, second], [first, second], packets, frames)
+
     def test_failed_nonzero_or_incomplete_reference_attempt_never_claims_confirmation(self):
         out, err = self.root / 'reference.stdout', self.root / 'reference.stderr'
         out.write_text('MD5=' + 'f' * 32 + '\n')

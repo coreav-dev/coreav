@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "exclusions": {
+    "SAODBLK_A": {
+      "archive_sha256": "2ca335887ff3262f4a1a2653b5feaa34d2fd313e0f268966ce316549e654e1e0",
+      "bitstream_sha256": "dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507",
+      "published_md5": "b9c98937bcb6be445348fdc89c208f1e",
+      "observed_oracle_md5": "23f03fffa670f7d770302c819b04f439",
+      "decision": "excluded by maintainer decision, 2026-11-04",
+      "investigation": "Official archives, current and backup listings, H.265.1 and the allowed public conformance documents supplied no corrected reference; the closed canonical C1 layout missed the published MD5",
+      "layout_registration": "bench/hevc-conformance/saodblk-layouts.md",
+      "layout_registration_sha256_at_trial": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4",
+      "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88"
+    },
+    "SAODBLK_B": {
+      "archive_sha256": "575165fe6d0a474abdbfb2a628e8c1c2399827fca9f9f47c11aaf71976b51441",
+      "bitstream_sha256": "8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae",
+      "published_md5": "031043495e9b9f4ce120afa316aa5705",
+      "observed_oracle_md5": "de53c4f4adb77faca65c994c5fa7e7d0",
+      "decision": "excluded by maintainer decision, 2026-11-04",
+      "investigation": "Official archives, current and backup listings, H.265.1 and the allowed public conformance documents supplied no corrected reference; the closed canonical C1 layout missed the published MD5",
+      "layout_registration": "bench/hevc-conformance/saodblk-layouts.md",
+      "layout_registration_sha256_at_trial": "c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4",
+      "trial_head": "30c0009802ce43af0efb0513bb756f832bcbbe88"
+    }
+  }
+}

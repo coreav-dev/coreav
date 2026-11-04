@@ -25,6 +25,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_pin
+import hevc_oracle_input
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 REGISTRATION = ROOT / 'bench/hevc-conformance/archives.json'
@@ -52,7 +53,7 @@ DIAGNOSTIC_STREAMS = {
         'Could not find ref with POC 235': 'complete_published_reference',
         'Could not find ref with POC 1178': 'complete_published_reference',
         'Could not find ref with POC 1320': 'complete_published_reference'}),
-    'VPSSPSPPS_A': ('8501a5e5f0f191d3810a7aecab43aacac1fcc28f08cb3731158cc48a89501a27', {
+    'VPSSPSPPS_A': (hevc_oracle_input.STREAM_SHA256, {
         'SPS 2 does not exist.': 'complete_published_reference',
         'SPS 4 does not exist.': 'complete_published_reference',
         'VPS 1 does not exist': 'complete_published_reference',
@@ -63,6 +64,10 @@ DIAGNOSTIC_STREAMS = {
         'PPS id out of range: 1': 'complete_published_reference'}),
 }
 TERMINAL_PACKET_SIZES = {'DELTAQP_A': 12, 'NUT_A': 11}
+EXCLUSION_IDENTITIES = {
+    'SAODBLK_A': 'dab095100e4cea72b8e871d01bf39bb5027b460be5c495ea3374454f4aafe507',
+    'SAODBLK_B': '8f3d22ccfffe230c034f1fbcc996088282cea52e2d3e22455c395a2fbb0b91ae',
+}
 
 
 def require(condition, message):
@@ -126,6 +131,23 @@ def registration_identity(data):
                              if key not in ('archive_sha256', 'extracted', 'references')}
                             for case in data['archives']]
     return hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def known_exclusions():
+    path = ROOT / 'bench/hevc-conformance/known-exclusions.json'
+    data = read_json(path)
+    require(data['version'] == 1 and set(data['exclusions']) == set(EXCLUSION_IDENTITIES),
+            'only SAODBLK_A and SAODBLK_B have registered maintainer exclusions')
+    for test, item in data['exclusions'].items():
+        require(item['bitstream_sha256'] == EXCLUSION_IDENTITIES[test]
+                and item['decision'] == 'excluded by maintainer decision, 2026-11-04'
+                and all(re.fullmatch('[0-9a-f]{32}', item[k]) for k in
+                        ('published_md5', 'observed_oracle_md5'))
+                and item['published_md5'] != item['observed_oracle_md5']
+                and re.fullmatch('[0-9a-f]{64}', item['archive_sha256']) is not None
+                and item.get('investigation') and item.get('layout_registration_sha256_at_trial'),
+                'maintainer exclusion identity, decision or retained mismatch evidence differs')
+    return data['exclusions']
 
 
 def download(url, destination, cap, expected_size=None):
@@ -532,12 +554,16 @@ def native_rows(path, data):
     return summary, pictures, outputs
 
 
-def stderr_line(raw, stream, stage, kind='diagnostic', exit_code=None):
+def stderr_line(raw, stream, stage, kind='diagnostic', exit_code=None, preparation=None):
     line = raw.removesuffix('\n').removesuffix('\r')
     prefix = re.fullmatch(r'(\[hevc @ 0x[0-9a-fA-F]+\] )(.*)', line)
-    return dict(raw_line=raw, context_prefix=prefix[1] if prefix else '',
-                message=prefix[2] if prefix else line, stream=stream, stage=stage,
-                kind=kind, exit_code=exit_code, classification='unclassified')
+    result = dict(raw_line=raw, context_prefix=prefix[1] if prefix else '',
+                  message=prefix[2] if prefix else line, stream=stream, stage=stage,
+                  kind=kind, exit_code=exit_code, classification='unclassified')
+    if preparation is not None:
+        result.update(original_input_sha256=preparation['original_sha256'],
+                      oracle_input_sha256=preparation['prepared_sha256'])
+    return result
 
 
 def stderr_lines(path):
@@ -552,7 +578,7 @@ def progress_line(item):
             or re.fullmatch(r'stream_\d+_\d+_q', key) is not None)
 
 
-def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=None):
+def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=None, preparation=None):
     entries = ('frame=width,height,pix_fmt,pict_type,key_frame,pkt_pos' if frames else
                'packet=pos,size:stream=index,codec_name,profile,width,height,coded_width,coded_height,pix_fmt,field_order')
     command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', '-f', 'hevc', '-select_streams', 'v:0',
@@ -561,7 +587,8 @@ def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=Non
     code, out, err = child(command, directory, 'frames' if frames else 'packets')
     if diagnostics is not None:
         require(isinstance(stream, str) and stream, 'diagnostic collection requires a stream identity')
-        diagnostics.extend(stderr_line(raw, stream, 'frames' if frames else 'packets', exit_code=code)
+        diagnostics.extend(stderr_line(raw, stream, 'frames' if frames else 'packets', exit_code=code,
+                                       preparation=preparation)
                            for raw in stderr_lines(err))
     require(code == 0 and (diagnostics is not None or not err.read_bytes().strip()),
             'oracle failed or reported decode errors')
@@ -622,12 +649,28 @@ def account_packets(case, member, data, native_path, packets, pictures):
 
 def classify_diagnostics(case, member, inventory, summary, comparison, confirmation, diagnostics, accounting):
     references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
+    preparation = confirmation.get('oracle_preparation')
+    oracle_sha = member['sha256']
+    if preparation is not None:
+        require(case['test'] == hevc_oracle_input.STREAM
+                and member['sha256'] == hevc_oracle_input.STREAM_SHA256
+                and preparation.get('original_sha256') == member['sha256']
+                and preparation.get('prepared_sha256') == hevc_oracle_input.PREPARED_SHA256
+                and preparation.get('method') == 'stable_leading_parameter_sets'
+                and preparation.get('document') == hevc_oracle_input.DOCUMENT
+                and preparation.get('document_sha256') == digest(ROOT / hevc_oracle_input.DOCUMENT)
+                and all(preparation.get(k) is True for k in
+                        ('every_nal_byte_preserved', 'within_type_order_preserved', 'suffix_unchanged'))
+                and preparation.get('published_output_count') == case.get('published_output_count')
+                and case['published_output_count']['value'] == 6,
+                'oracle preparation is not the registered one-stream byte-preserving proof')
+        oracle_sha = preparation['prepared_sha256']
     require(len(references) == 1 and confirmation.get('complete') is True
             and type(confirmation.get('exit_code')) is int and confirmation['exit_code'] == 0
             and confirmation.get('progress_complete') is True
             and confirmation.get('layout') == 'whole_output_yuv_file'
             and confirmation.get('md5') == references[0].get('md5')
-            and confirmation.get('bitstream_sha256') == member['sha256']
+            and confirmation.get('bitstream_sha256') == oracle_sha
             and summary.get('complete') is True
             and confirmation.get('output_pictures') == summary.get('output_pictures')
             == comparison.get('output_pictures') == comparison['reference_count'].get('value')
@@ -636,6 +679,7 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
                 comparison['reference_count'].get('value'))),
             'oracle diagnostics require complete native/count/published-MD5 proof')
     proof = dict(bitstream_sha256=member['sha256'], exit_code=0, progress_complete=True,
+                 oracle_input_sha256=oracle_sha,
                  native_output_pictures=summary['output_pictures'],
                  reference_count=comparison['reference_count'], layout=confirmation['layout'],
                  pixel_format=confirmation['pixel_format'], published_md5=references[0]['md5'],
@@ -645,7 +689,8 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
         require(item['stream'] == case['test'] and item['stage'] in ('packets', 'frames', 'reference-md5')
                 and type(item.get('exit_code')) is int and item['exit_code'] == 0,
                 'oracle diagnostic stream or stage differs')
-        require(stderr_line(item['raw_line'], case['test'], item['stage'], item['kind'], item['exit_code'])
+        require(stderr_line(item['raw_line'], case['test'], item['stage'], item['kind'], item['exit_code'],
+                            preparation)
                 == {key: value for key, value in item.items() if key not in ('proof',)},
                 'oracle diagnostic raw line differs from its parsed message')
         if item['kind'] == 'progress':
@@ -678,7 +723,8 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
             item_proof = dict(proof, packet=packet)
         pending.append((item, classification, item_proof))
     for item, classification, item_proof in pending:
-        item.update(classification=classification, proof=item_proof)
+        item.update(classification=classification, proof=item_proof,
+                    original_input_sha256=member['sha256'], oracle_input_sha256=oracle_sha)
     return diagnostics
 
 
@@ -709,7 +755,8 @@ def compare_headers(summary, pictures, outputs, packets, frames, *, packet_accou
     streams = packets.get('streams', [])
     require(len(streams) == 1 and streams[0].get('codec_name') == 'hevc', 'missing oracle stream metadata')
     require((streams[0].get('coded_width'), streams[0].get('coded_height'))
-            == (pictures[0]['coded_width'], pictures[0]['coded_height']), 'independent coded geometry differs')
+            in {(p['coded_width'], p['coded_height']) for p in pictures},
+            'independent coded geometry differs')
     require(len(frames) == summary['output_pictures'] == len(outputs), 'independent output count differs')
     native_formats = {(p['width'], p['height'], p['bit_depth']) for p in pictures}
     order_checked = all(str(frame.get('pkt_pos', '')).isdecimal() for frame in frames)
@@ -796,7 +843,7 @@ def reference_progress(collected, allow_diagnostics=False):
 
 
 def confirm_reference(binary, path, directory, frames, references, *, diagnostics=None, stream=None,
-                      attempts=None, layout_registration=None):
+                      attempts=None, layout_registration=None, preparation=None):
     require(len(references) == 1 and references[0].get('layout') == 'whole_output_yuv_file'
             and re.fullmatch('[0-9a-f]{32}', references[0].get('md5', '')) is not None,
             'one published whole-output MD5 is required before confirming a reference count')
@@ -814,6 +861,10 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
                    frame_metadata_count=len(frames), count_matches_frame_metadata=False, status='incomplete')
     if attempts is not None:
         attempts.append(attempt)
+    if preparation is not None:
+        attempt.update(oracle_preparation=preparation,
+                       original_input_sha256=preparation['original_sha256'],
+                       oracle_input_sha256=preparation['prepared_sha256'])
     code, out, err = child(command, directory, 'reference-md5')
     match = re.fullmatch(r'MD5=([0-9a-f]{32})\s*', out.read_text())
     attempt.update(exit_code=code, observed_md5=match[1] if match else None,
@@ -823,7 +874,7 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     lines = stderr_lines(err)
     collected = []
     for raw in lines:
-        item = stderr_line(raw, stream, 'reference-md5', exit_code=code)
+        item = stderr_line(raw, stream, 'reference-md5', exit_code=code, preparation=preparation)
         if progress_line(item):
             item['kind'] = 'progress'
         collected.append(item)
@@ -854,6 +905,8 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
                 oracle_build=oracle_pin.load()['BUILD'])
     if diagnostics is not None:
         result.update(exit_code=code, progress_complete=True, bitstream_sha256=digest(path))
+    if preparation is not None:
+        result['oracle_preparation'] = preparation
     attempt['status'] = 'confirmed'
     return result
 
@@ -927,6 +980,7 @@ def census_result(records, registration_sha256, parser_sha256, oracle, synthetic
                                       source_kind='published_conformance',
                                       status=stream.get('status', 'not_run'),
                                       reference_count=stream.get('reference_count'),
+                                      exclusion=stream.get('exclusion'),
                                       reason=record.get('reason') if record['status'] == 'blocked' else stream.get('reason')))
     synthetic_streams = synthetic.get('streams', []) if synthetic else []
     for stream in synthetic_streams:
@@ -947,7 +1001,8 @@ def census_result(records, registration_sha256, parser_sha256, oracle, synthetic
                 duplicate_bitstreams={k: v for k, v in groups.items() if len(v) > 1},
                 reference_count_sources=count_sources,
                 reference_count_methods=dict(collections.Counter(row['reference_count']['method']
-                    if row['reference_count'] else ('expected_refusal' if row['status'] == 'refused' else 'blocked')
+                    if row['reference_count'] else ('expected_refusal' if row['status'] == 'refused'
+                        else 'maintainer_exclusion' if row['status'] == 'excluded' else 'blocked')
                     for row in count_sources)),
                 intra_candidates=candidates, missing_intra_sets=missing,
                 later_effective_tool_coverage='header flags identify candidates, not demonstrated pixel effects')
@@ -955,6 +1010,8 @@ def census_result(records, registration_sha256, parser_sha256, oracle, synthetic
 
 def run(args):
     data = registration(args.registration)
+    exclusions = known_exclusions() if any(c['test'] in EXCLUSION_IDENTITIES for c in data['archives']) else {}
+    exclusions_sha = digest(ROOT / 'bench/hevc-conformance/known-exclusions.json') if exclusions else None
     require(all('archive_sha256' in c and 'extracted' in c for c in data['archives']),
             'run requires the SHA-bound manifest produced by the manifest command')
     require(not list(oracle_pin.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
@@ -1001,21 +1058,36 @@ def run(args):
                     continue
                 require(code == 0, 'native parser failed')
                 summary, pictures, outputs = native_rows(native, path.read_bytes())
+                if case['test'] in exclusions:
+                    exclusion = exclusions[case['test']]
+                    references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
+                    require(member['sha256'] == exclusion['bitstream_sha256']
+                            and inventory['archive_sha256'] == exclusion['archive_sha256']
+                            and len(references) == 1 and references[0]['md5'] == exclusion['published_md5'],
+                            'maintainer exclusion does not match the pinned archive, stream and reference')
+                    record.update(status='excluded', reason=exclusion['decision'], exclusion=exclusion,
+                                  native_headers_complete=True, native_summary=summary)
+                    continue
+                oracle_path, preparation = path, None
+                if case['test'] == 'VPSSPSPPS_A':
+                    oracle_path, preparation = hevc_oracle_input.prepare(case, path, output,
+                                                                         sys.modules[__name__])
+                    record['oracle_preparation'] = preparation
                 diagnostics = record['oracle_stderr'] = []
-                packets = probe(args.oracle_bin / 'ffprobe', path, output,
-                                diagnostics=diagnostics, stream=case['test'])
-                frames = probe(args.oracle_bin / 'ffprobe', path, output, frames=True,
-                               diagnostics=diagnostics, stream=case['test'])['frames']
+                packets = probe(args.oracle_bin / 'ffprobe', oracle_path, output,
+                                diagnostics=diagnostics, stream=case['test'], preparation=preparation)
+                frames = probe(args.oracle_bin / 'ffprobe', oracle_path, output, frames=True,
+                               diagnostics=diagnostics, stream=case['test'], preparation=preparation)['frames']
                 attempts = record['reference_attempts'] = []
                 layout_registration = None
                 if case['test'] in ('SAODBLK_A', 'SAODBLK_B'):
                     document = ROOT / 'bench/hevc-conformance/saodblk-layouts.md'
                     layout_registration = dict(candidate='C1', document=str(document.relative_to(ROOT)),
                                                sha256=digest(document))
-                confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', path, output, frames,
+                confirmation = confirm_reference(args.oracle_bin / 'ffmpeg', oracle_path, output, frames,
                     [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file'],
                     diagnostics=diagnostics, stream=case['test'], attempts=attempts,
-                    layout_registration=layout_registration)
+                    layout_registration=layout_registration, preparation=preparation)
                 record['reference_packing'] = confirmation
                 accounting = account_packets(case, member, path.read_bytes(), native, packets, pictures)
                 record['oracle_auxiliary_packets'] = accounting['auxiliary_packets']
@@ -1034,6 +1106,7 @@ def run(args):
             result.update(status='blocked', reason=str(error))
         records.append(result)
         result = census_result(records, digest(args.registration), digest(args.parser), oracle, synthetic)
+        result['known_exclusions_sha256'] = exclusions_sha
         write_json(args.out / 'census.json', result)
     require(result['complete'], 'G1 blocked; inspect census.json')
 

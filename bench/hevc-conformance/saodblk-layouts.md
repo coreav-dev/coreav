@@ -1,6 +1,6 @@
 # SAODBLK A/B closed reference-layout investigation
 
-This registration fixes the complete candidate set before another decoded-output hash is computed. It does not change either published digest or admit an alternative reference. Both streams remain blocked until their complete output matches the actual published digest. A miss does not permit another candidate to be added.
+This registration fixed the complete candidate set before another decoded-output hash was computed. It did not change either published digest or admit an alternative reference. The C1 trial retained both misses. The subsequent disposition is narrowly recorded in the [known-exclusion registry](known-exclusions.json): both named streams are excluded by maintainer decision, 2026-11-04. They remain in archive accounting. A miss does not permit another candidate or exclusion to be added.
 
 ## Sources and scope
 
@@ -25,4 +25,4 @@ This is a packing hypothesis, not a normative claim about undocumented producer 
 
 Decode-order serialization conflicts with H.265.1's required output order. Cropped and uncropped serialization are identical because no crop is signalled. Sixteen-bit serialization has no basis because the signalled depth is unambiguously eight. Per-picture hashes, per-component hashes, and concatenated digest bytes have a different scope from the mandatory complete-YUV-file MD5. Chroma swaps, interleaving, padding, vertical flips and other permutations have no support in the checked specification or attachments. They are not candidates and will not be hashed. No additional layout is justified by the allowed sources.
 
-Every C1 result, including a miss, must remain in the census evidence. A mismatch remains unresolved: it proves neither a bad published reference nor an oracle defect. It cannot be classified as a harmless diagnostic, replaced by an oracle hash, excluded, or silently moved to another gate.
+Every C1 result, including a miss, remains in the census evidence. A mismatch remains unresolved: it proves neither a bad published reference nor an oracle defect. It cannot be classified as a harmless diagnostic or replaced by an oracle hash. Only the subsequent named maintainer decision excludes these two streams; it does not authorize another exclusion or a silent gate move. The preregistration at the trial head `30c0009802ce43af0efb0513bb756f832bcbbe88` had SHA-256 `c808cf292008775865b6e1cd3f2bc697c826149d275a80836248b6b98d4794a4`, before this final-disposition text was added.
