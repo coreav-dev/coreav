@@ -133,6 +133,19 @@ class OracleDiagnostics(unittest.TestCase):
         with self.assertRaises(ValueError):
             runner.classify_diagnostics(*fixture)
 
+    def test_terminal_demux_warning_from_complete_decode_needs_the_same_probe_observation(self):
+        message = 'missing picture in access unit with size 12'
+        fixture = self.proof('DELTAQP_A', message)
+        fixture[6].append(runner.stderr_line('[hevc @ 0x987] ' + message + '\n',
+                                           'DELTAQP_A', 'reference-md5', exit_code=0))
+        result = runner.classify_diagnostics(*fixture)
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(item['classification'] == 'terminal_eos_eob_packet' for item in result))
+        self.assertTrue(all(item['proof']['packet']['nal_types'] == [36, 37] for item in result))
+        fixture = self.proof('DELTAQP_A', message, 'reference-md5')
+        with self.assertRaisesRegex(ValueError, 'named packet proof'):
+            runner.classify_diagnostics(*fixture)
+
     def packet_fixture(self, tail=b'\0\0\0\1\x48\1\0\0\0\1\x4a\1'):
         data = b'\0\0\1\x26\1\x80' + tail
         identity = runner.hashlib.sha256(data).hexdigest()

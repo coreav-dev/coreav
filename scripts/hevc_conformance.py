@@ -661,7 +661,12 @@ def classify_diagnostics(case, member, inventory, summary, comparison, confirmat
         item_proof = proof
         if classification == 'terminal_eos_eob_packet':
             auxiliary = accounting['auxiliary_packets']
-            require(item['stage'] in ('packets', 'frames') and len(auxiliary) == 1,
+            observed_by_probe = item['stage'] in ('packets', 'frames') or (
+                item['stage'] == 'reference-md5' and any(
+                    other['stage'] in ('packets', 'frames') and other['kind'] == 'diagnostic'
+                    and other['message'] == item['message'] and other['stream'] == case['test']
+                    and other['exit_code'] == 0 for other in diagnostics))
+            require(observed_by_probe and len(auxiliary) == 1,
                     'terminal probe diagnostic lacks its named packet proof')
             packet = auxiliary[0]
             require(packet.get('size') == TERMINAL_PACKET_SIZES[case['test']]
