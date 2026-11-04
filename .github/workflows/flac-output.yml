@@ -27,6 +27,10 @@ on:
         description: Run the registered size and speed comparison after merge
         type: boolean
         default: false
+      cost_cache_build:
+        description: Build and test both frozen cost-cache comparison arms only
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -37,6 +41,7 @@ concurrency:
 
 jobs:
   flac-output:
+    if: ${{ !inputs.cost_cache_build }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -107,3 +112,46 @@ jobs:
             ${{ runner.temp }}/flac-smoke.json
             ${{ runner.temp }}/flac-measurement.json
           if-no-files-found: ignore
+
+  cost-cache-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.cost_cache_build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: ""
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Require build-only dispatch
+        run: test '${{ inputs.measure }}' = false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 62f4af2a4a3adb477583f91d396f6daeaebc2055
+          path: source
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          toolchain: stable
+      - name: Install the pinned executable oracle
+        working-directory: source
+        run: |
+          mkdir -p "$RUNNER_TEMP/cost-cache"
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/cost-cache/oracle"
+      - name: Test both source variants and freeze equal files
+        working-directory: source
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/cost-cache/oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: "1"
+        run: python3 -I ../control/scripts/flac_cost_cache_build.py --source "$PWD" --bundle "$RUNNER_TEMP/cost-cache"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: flac-cost-cache-build
+          path: ${{ runner.temp }}/cost-cache
+          if-no-files-found: error
