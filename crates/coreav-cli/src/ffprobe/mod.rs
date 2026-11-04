@@ -197,6 +197,8 @@ pub struct Report {
     pub time_bases: Vec<(i64, i64)>,
     /// The format's entries.
     pub format: Entries,
+    /// ISO format entries for output only, separate from stream-copy planning.
+    pub iso_format_output: Option<Entries>,
     /// The format's tags.
     pub format_tags: Vec<(String, String)>,
     /// Whether complete ISO metadata establishes supported names, absent otherwise.
@@ -636,7 +638,13 @@ pub fn emit(
     }
     if sel.shown(Sid::Format) {
         w.header(&mut buf, Sid::Format, None);
-        entries(&mut w, &mut buf, sel, Sid::Format, &report.format);
+        entries(
+            &mut w,
+            &mut buf,
+            sel,
+            Sid::Format,
+            report.iso_format_output.as_ref().unwrap_or(&report.format),
+        );
         tags(&mut w, &mut buf, sel, Sid::FormatTags, &report.format_tags);
         w.footer(&mut buf);
     }

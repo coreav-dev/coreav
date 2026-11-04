@@ -605,7 +605,14 @@ pub fn probe<S: Source>(
             (st.kind, *ts, get("start_pts"), get("duration_ts"))
         })
         .collect();
-    report.format = format(movie, &probed, name, &spans, meta.stream_group_count);
+    report.format = format(movie, &probed, name, span(&spans), meta.stream_group_count);
+    report.iso_format_output = Some(format(
+        movie,
+        &probed,
+        name,
+        output_span(&spans),
+        meta.stream_group_count,
+    ));
     let ends: Vec<Listed> = report
         .streams
         .iter()
@@ -2041,25 +2048,61 @@ fn extradata_size(track: &Track) -> Option<usize> {
 }
 
 /// The format's start and duration in microseconds, as `ffprobe` counts
-/// them from the streams: each stream's start and duration rounded to
-/// microseconds on their own, then the earliest start and the latest end,
-/// of the audio and video streams when there are any, else of every
-/// stream.
+/// them from the streams: every known start contributes. The latest ancillary
+/// end extends the audio/video end only when it is less than one second later.
+/// Each start and duration is rounded to microseconds before taking the bounds.
+fn output_span(
+    streams: &[(StreamKind, i64, Option<i64>, Option<i64>)],
+) -> (Option<i64>, Option<i64>) {
+    let mut first: Option<i64> = None;
+    let mut av_end: Option<i64> = None;
+    let mut other_end: Option<i64> = None;
+    for (kind, timescale, start, duration) in streams {
+        let Some(start) = start.and_then(|s| us(s, *timescale)) else {
+            continue;
+        };
+        first = Some(first.map_or(start, |f| f.min(start)));
+        if let Some(end) = duration
+            .and_then(|d| us(d, *timescale))
+            .and_then(|d| start.checked_add(d))
+        {
+            let last = if matches!(kind, StreamKind::Video | StreamKind::Audio) {
+                &mut av_end
+            } else {
+                &mut other_end
+            };
+            *last = Some(last.map_or(end, |l| l.max(end)));
+        }
+    }
+    let last = match (av_end, other_end) {
+        (Some(av), Some(other)) if i128::from(other) < i128::from(av) + 1_000_000 => {
+            Some(av.max(other))
+        }
+        (av, other) => av.or(other),
+    };
+    let duration = first
+        .zip(last)
+        .and_then(|(f, l)| l.checked_sub(f))
+        .filter(|d| *d >= 0);
+    (first, duration)
+}
+
+fn us(ticks: i64, timescale: i64) -> Option<i64> {
+    let v = i128::from(ticks).checked_mul(1_000_000)?;
+    let den = i128::from(timescale);
+    let half = den / 2;
+    let q = if v >= 0 {
+        (v + half) / den
+    } else {
+        (v - half) / den
+    };
+    i64::try_from(q).ok()
+}
+
 fn span(streams: &[(StreamKind, i64, Option<i64>, Option<i64>)]) -> (Option<i64>, Option<i64>) {
     let av = streams
         .iter()
         .any(|(k, ..)| matches!(k, StreamKind::Video | StreamKind::Audio));
-    let us = |ticks: i64, timescale: i64| -> Option<i64> {
-        let v = i128::from(ticks).checked_mul(1_000_000)?;
-        let den = i128::from(timescale);
-        let half = den / 2;
-        let q = if v >= 0 {
-            (v + half) / den
-        } else {
-            (v - half) / den
-        };
-        i64::try_from(q).ok()
-    };
     let mut first: Option<i64> = None;
     let mut last: Option<i64> = None;
     for (kind, timescale, start, duration) in streams {
@@ -2070,8 +2113,6 @@ fn span(streams: &[(StreamKind, i64, Option<i64>, Option<i64>)]) -> (Option<i64>
         if !other {
             first = Some(first.map_or(start, |f| f.min(start)));
         }
-        // A subtitle stream's end counts (`text_shifted.mp4`), a data
-        // stream's does not (GoPro's `gpmd` a millisecond past the video).
         let ends = !other || *kind == StreamKind::Subtitle;
         if let Some(end) = duration
             .and_then(|d| us(d, *timescale))
@@ -2092,10 +2133,9 @@ fn format(
     movie: &Movie,
     probed: &crate::probe::Probed,
     name: &str,
-    streams: &[(StreamKind, i64, Option<i64>, Option<i64>)],
+    (start, micros): (Option<i64>, Option<i64>),
     stream_group_count: Option<usize>,
 ) -> Entries {
-    let (start, micros) = span(streams);
     vec![
         ("filename", s(name)),
         (
@@ -3873,6 +3913,101 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_span_uses_all_starts_and_the_ancillary_end_cutoff() {
+        for kind in [StreamKind::Data, StreamKind::Subtitle] {
+            for (start, duration, expected) in [
+                (0, 2500, 2_500_000),
+                (0, 2999, 2_999_000),
+                (0, 3000, 2_000_000),
+                (0, 4000, 2_000_000),
+                (500, 2000, 2_500_000),
+                (500, 4000, 2_500_000),
+                (500, 3499, 3_499_000),
+                (500, 3500, 2_500_000),
+            ] {
+                assert_eq!(
+                    output_span(&[
+                        (StreamKind::Video, 1000, Some(start), Some(2000)),
+                        (kind, 1000, Some(0), Some(duration)),
+                    ]),
+                    (Some(0), Some(expected)),
+                    "{kind:?} {start} {duration}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn format_span_rejects_the_whole_ancillary_end_group() {
+        for (near, far) in [
+            (StreamKind::Data, StreamKind::Data),
+            (StreamKind::Data, StreamKind::Subtitle),
+            (StreamKind::Subtitle, StreamKind::Data),
+        ] {
+            let mut tracks = [
+                (StreamKind::Video, 1000, Some(0), Some(2000)),
+                (near, 1000, Some(0), Some(2900)),
+                (far, 1000, Some(0), Some(3800)),
+            ];
+            assert_eq!(output_span(&tracks), (Some(0), Some(2_000_000)));
+            tracks.reverse();
+            assert_eq!(output_span(&tracks), (Some(0), Some(2_000_000)));
+        }
+    }
+
+    #[test]
+    fn format_span_preserves_unknowns_and_secondary_only_bounds() {
+        assert_eq!(output_span(&[]), (None, None));
+        assert_eq!(
+            output_span(&[(StreamKind::Data, 1000, None, None)]),
+            (None, None)
+        );
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Data, 1000, Some(500), Some(2500)),
+                (StreamKind::Subtitle, 1000, Some(1000), Some(4000)),
+            ]),
+            (Some(500_000), Some(4_500_000))
+        );
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Video, 1000, Some(0), Some(2000)),
+                (StreamKind::Data, 1000, Some(0), None),
+                (StreamKind::Subtitle, 1000, None, Some(4000)),
+            ]),
+            (Some(0), Some(2_000_000))
+        );
+    }
+
+    #[test]
+    fn format_span_keeps_tick_rounding_and_a_wide_cutoff() {
+        assert_eq!(
+            output_span(&[
+                (StreamKind::Video, 30000, Some(0), Some(60000)),
+                (StreamKind::Data, 12800, Some(0), Some(38387)),
+            ]),
+            (Some(0), Some(2_998_984))
+        );
+        assert_eq!(
+            output_span(&[
+                (
+                    StreamKind::Video,
+                    1_000_000,
+                    Some(i64::MAX - 500_000),
+                    Some(250_000)
+                ),
+                (
+                    StreamKind::Data,
+                    1_000_000,
+                    Some(i64::MAX - 500_000),
+                    Some(499_999)
+                ),
+            ]),
+            (Some(i64::MAX - 500_000), Some(499_999))
+        );
+    }
 
     #[cfg(feature = "transcode")]
     #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
