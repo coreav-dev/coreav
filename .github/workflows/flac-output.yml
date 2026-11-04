@@ -23,6 +23,10 @@ on:
       - .github/workflows/flac-output.yml
   workflow_dispatch:
     inputs:
+      build_only:
+        description: Build diagnostic binaries without running profiles
+        type: boolean
+        default: false
       diagnostic:
         description: Profile spent synthetic FLAC inputs without judging bars
         type: boolean
@@ -127,14 +131,16 @@ jobs:
       - name: Prepare diagnostic tools and pinned executable oracle
         run: |
           test '${{ inputs.measure }}' != true
-          sudo apt-get update -qq
-          sudo apt-get install -y linux-tools-common linux-tools-generic
-          sudo sysctl kernel.perf_event_paranoid=-1
-          perf=$(find -L /usr/lib/linux-tools -type f -name perf | head -1)
-          test -n "$perf"
-          sudo "$perf" stat -x ';' -o "$RUNNER_TEMP/perf-probe.txt" -e instructions:u,cycles:u -- true
-          cat "$RUNNER_TEMP/perf-probe.txt"
-          ! grep -E '<not (supported|counted)>' "$RUNNER_TEMP/perf-probe.txt"
+          if [ '${{ inputs.build_only }}' != true ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y linux-tools-common linux-tools-generic
+            sudo sysctl kernel.perf_event_paranoid=-1
+            perf=$(find -L /usr/lib/linux-tools -type f -name perf | head -1)
+            test -n "$perf"
+            sudo "$perf" stat -x ';' -o "$RUNNER_TEMP/perf-probe.txt" -e instructions:u,cycles:u -- true
+            cat "$RUNNER_TEMP/perf-probe.txt"
+            ! grep -E '<not (supported|counted)>' "$RUNNER_TEMP/perf-probe.txt"
+          fi
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Build plain and symbolized optimized commands
@@ -143,9 +149,26 @@ jobs:
           cp target/release/coreav "$RUNNER_TEMP/plain-coreav"
           CARGO_PROFILE_RELEASE_DEBUG=2 RUSTFLAGS='-C force-frame-pointers=yes' cargo build --locked --release -p coreav-cli
       - name: Capture unjudged counters and native profiles
+        if: ${{ !inputs.build_only }}
         run: |
           python3 -I scripts/flac_cpu_diagnostic.py --plain "$RUNNER_TEMP/plain-coreav" \
             --profile target/release/coreav --oracle "$RUNNER_TEMP/oracle" --out "$RUNNER_TEMP/flac-cpu"
+      - name: Package diagnostic binaries
+        if: inputs.build_only
+        run: |
+          mkdir "$RUNNER_TEMP/flac-build"
+          cp "$RUNNER_TEMP/plain-coreav" "$RUNNER_TEMP/flac-build/plain-coreav"
+          cp target/release/coreav "$RUNNER_TEMP/flac-build/profile-coreav"
+          cp -r "$RUNNER_TEMP/oracle" "$RUNNER_TEMP/flac-build/oracle"
+          git rev-parse HEAD > "$RUNNER_TEMP/flac-build/source.txt"
+          rustc --version > "$RUNNER_TEMP/flac-build/rustc.txt"
+          cd "$RUNNER_TEMP/flac-build"
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.build_only
+        with:
+          name: flac-build
+          path: ${{ runner.temp }}/flac-build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

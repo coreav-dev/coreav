@@ -5,8 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -38,6 +40,7 @@ def main():
     parser.add_argument("--oracle", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--worker", type=Path)
+    parser.add_argument("--instance-receipt", type=Path)
     args = parser.parse_args()
     if args.worker:
         command = json.loads(args.worker.read_text())
@@ -46,12 +49,30 @@ def main():
         return
     if any(value is None for value in (args.plain, args.profile, args.oracle, args.out)):
         parser.error("plain/profile builds, oracle and output directory are required")
+    host = None
     if os.environ.get("GITHUB_ACTIONS") != "true":
-        raise RuntimeError("profiling runs only in Actions")
+        if args.instance_receipt is None:
+            raise RuntimeError("profiling requires Actions or a staged remote-host receipt")
+        host = json.loads(args.instance_receipt.read_text())
+        features = host.get("advanced_machine_features", {})
+        if (host.get("machine_type") != "c4-standard-8" or host.get("provisioning") != "STANDARD"
+                or features.get("threadsPerCore") != 1
+                or features.get("performanceMonitoringUnit") not in ("STANDARD", "ENHANCED")):
+            raise RuntimeError("diagnostic host contract mismatch")
+        request = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/machine-type",
+            headers={"Metadata-Flavor": "Google"})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            machine = response.read().decode().rsplit("/", 1)[-1]
+        if machine != host["machine_type"]:
+            raise RuntimeError("metadata host mismatch")
+        for path in Path("/sys/devices/system/cpu").glob("cpu[0-9]*/topology/thread_siblings_list"):
+            if not path.read_text().strip().isdigit():
+                raise RuntimeError("SMT remains enabled")
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
     report = {"state": "incomplete", "judged": False, "rows": [],
-              "source": run(["git", "rev-parse", "HEAD"]).decode().strip()}
+              "source": run(["git", "rev-parse", "HEAD"]).decode().strip(), "host": host}
     try:
         if list(verify_bin(args.oracle)):
             raise RuntimeError("oracle pin mismatch")
@@ -72,7 +93,7 @@ def main():
         cpu = min(os.sched_getaffinity(0))
         os.sched_setaffinity(0, {cpu})
         report["logical_cpu"] = cpu
-        perf = next(iter(sorted(Path("/usr/lib/linux-tools").glob("*/perf"))), None)
+        perf = next(iter(sorted(Path("/usr/lib/linux-tools").glob("*/perf"))), None) or shutil.which("perf")
         if not perf:
             raise RuntimeError("perf executable missing")
         report["perf_version"] = run([perf, "--version"]).decode().strip()
