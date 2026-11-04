@@ -21,8 +21,8 @@ use coreav_isobmff_write::hls::{HlsOptions, build_index};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack,
     ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, Placement, RemuxOptions,
-    SplitAt, SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
-    sanitize_mp4, split_mp4,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, clip_mp4_input_seek,
+    join_mp4, remux_mp4, sanitize_mp4, split_mp4,
 };
 use std::path::Path;
 
@@ -75,6 +75,93 @@ fn audio_clip(
     )?;
     assert_eq!(summary.bytes_written, out.len() as u64);
     Ok((summary, out))
+}
+
+#[test]
+fn input_seek_admission_uses_the_retained_packet_tables() {
+    let video = |offset, edits| TrackSpec {
+        video: true,
+        timescale: 10_000,
+        samples: (0..12)
+            .map(|index| S {
+                size: 20,
+                duration: 1000,
+                offset,
+                sync: index % 2 == 0,
+            })
+            .collect(),
+        edits,
+        entry: *b"avc1",
+    };
+    let plain = movie(&[video(0, vec![])]);
+    for end in [Some(q(1, 2)), None] {
+        let options = options(q(1, 5), end);
+        let (before, native) = clip(&plain, &options).unwrap();
+        let mut output = Vec::new();
+        let summary = clip_mp4_input_seek(
+            SliceSource::new(&plain),
+            &Limits::default(),
+            &Allowlist::default(),
+            &options,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(output, native);
+        assert_eq!(summary.snapped_start, before.snapped_start);
+        assert_eq!(summary.video.first_sample, 2);
+    }
+    let mut shortened = plain.clone();
+    let at = shortened
+        .windows(4)
+        .position(|bytes| bytes == b"mdhd")
+        .unwrap()
+        + 20;
+    shortened[at..at + 4].copy_from_slice(&5000u32.to_be_bytes());
+    let mut negative = video(0, vec![]);
+    negative.samples[3].offset = -200;
+    let mut low_clock = video(0, vec![]);
+    low_clock.timescale = 1000;
+    for sample in &mut low_clock.samples {
+        sample.duration = 100;
+    }
+    for (source, start, end) in [
+        (movie(&[low_clock]), q(1, 5), Some(q(1, 2))),
+        (plain, q(1, 4), Some(q(1, 2))),
+        (movie(&[video(0, vec![])]), q(1, 5), Some(q(11, 20))),
+        (movie(&[video(200, vec![])]), q(11, 50), Some(q(13, 25))),
+        (movie(&[negative]), q(1, 5), Some(q(1, 2))),
+        (
+            movie(&[video(0, vec![(400, 0), (400, 8000)])]),
+            q(1, 5),
+            Some(q(3, 5)),
+        ),
+        (
+            movie(&[video(0, vec![]), aac_audio(60, vec![])]),
+            q(1, 5),
+            Some(q(1, 2)),
+        ),
+        (movie(&[video(0, vec![])]), q(1, 5), Some(q(2, 1))),
+        (shortened, q(1, 5), None),
+    ] {
+        let options = options(start, end);
+        let native = clip(&source, &options);
+        assert!(
+            native.is_ok(),
+            "{start:?} {end:?}: {:?}",
+            native.as_ref().err()
+        );
+        let mut output = Vec::new();
+        let error = clip_mp4_input_seek(
+            SliceSource::new(&source),
+            &Limits::default(),
+            &Allowlist::default(),
+            &options,
+            &mut output,
+        )
+        .unwrap_err();
+        assert!(output.is_empty());
+        assert!(format!("{error:?}").contains("input-seek copy"));
+    }
 }
 
 fn packets(data: &[u8], movie: &Movie, index: usize) -> Vec<Packet> {
