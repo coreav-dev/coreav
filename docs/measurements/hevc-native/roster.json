@@ -1,0 +1,537 @@
+{
+  "version": 1,
+  "status": "pre-registered, no native HEVC result",
+  "sources": [
+    {
+      "path": "docs/measurements/transcode/round-2/corpus-selection.json",
+      "sha256": "b292abf372a5293e0b01379e7f49f4599716c0dd88b255b680d17e0d437553b5",
+      "role": "corpus"
+    },
+    {
+      "path": "docs/spikes/thumbnail-bench/evidence/speed-dev-2.jsonl",
+      "sha256": "57e294b598a96466cb8d48473b6d5dba2528e5002ebfbf53c6d5b3f055352075",
+      "role": "thumbnail-development"
+    },
+    {
+      "path": "docs/spikes/thumbnail-bench/evidence/speed-2-hevc.jsonl",
+      "sha256": "a1ec8ea99ea9f6bf3a17c035c2cbbca9ab0589c056689777a61293ae36e0aa1c",
+      "role": "thumbnail-evaluation"
+    },
+    {
+      "path": "docs/measurements/transcode/speed-selection.json",
+      "sha256": "3a7771e8ce3b7122867adb64011616f5a4bc13947859287ad966c55410108c45",
+      "role": "b5"
+    }
+  ],
+  "counts": {
+    "files": 54,
+    "development": 26,
+    "held_out_partition": 28,
+    "b5": 8
+  },
+  "files": [
+    {
+      "sha256": "00c693a86a6a1f1c014263aa5734cb44397402b6506103db33bace26ef089117",
+      "ext": "mp4",
+      "size": 2881024739,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+      "ext": "mp4",
+      "size": 201477294,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "01423c612a9bf545add9a51b3897d436ecce910f21b23b67006dad262873bcc4",
+      "ext": "mp4",
+      "size": 1568680266,
+      "partition": "development",
+      "sets": [
+        "corpus",
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "017351d8aed0c1fad8764ea5aa65f46c95a2bd3ca0738132e39da1f2731a7e8d",
+      "ext": "mp4",
+      "size": 21152039,
+      "partition": "development",
+      "sets": [
+        "corpus",
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "01f1d2aa33dcce0a1a0b65e9a8b9dadf2dcce5c83f4698bce81073ff6876718d",
+      "ext": "mp4",
+      "size": 45604264,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "023e4a295ee67ca531e5e978fc2aa3728a434343b644479f01c4fc6afcd31a56",
+      "ext": "mp4",
+      "size": 20974372,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "047166933aca7553ad1fd4bc5292f8d0ad41f5dbb7ce22aabb628634f7ccb597",
+      "ext": "mov",
+      "size": 204658657,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "052a25db80efebdf45a398a2ab9a8959fb5077ba2cbde3ac4d42e68fa1738fc4",
+      "ext": "mp4",
+      "size": 27000947,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "0fa709cde8190867a55d0965151f9fd220b263e1e02cc4632e481105ec8e035c",
+      "ext": "mp4",
+      "size": 208362431,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "10b6e462eb36e3d479aa95f40969a712ed264a1798987e9545d5757a6821f631",
+      "ext": "mp4",
+      "size": 1741302519,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "13ffc348f17d330ea34073306bef14829066f657b6ee5ded748162d21ea141a5",
+      "ext": "mov",
+      "size": 195880801,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+      "ext": "mp4",
+      "size": 126850059,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "17010b83e0f8dbd194a4579fc58c9ff08ddf8adf803b9cecba4b5d3aeaaff890",
+      "ext": "mp4",
+      "size": 13986371,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "17af5a29c866989ba21ea6c9fcd879e2c8ad74ef4e9320d7d016ba5dcdc6994b",
+      "ext": "mp4",
+      "size": 3620926,
+      "partition": "development",
+      "sets": [
+        "corpus",
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "187a9711c9912aa8ea1f86ae7425ce9f0dfb872768edc8e00c0a6c8cacf484b8",
+      "ext": "mp4",
+      "size": 2126247,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "1a7b700605d1a292c11627d011bb56f191ecb890628e5fbbd4417efca4e6ebf0",
+      "ext": "mp4",
+      "size": 464725065,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "1b750b644b8c54e5d6cdf49a9e54d2991553437ee4141f375cff7431f8451bcc",
+      "ext": "mp4",
+      "size": 10827132,
+      "partition": "development",
+      "sets": [
+        "thumbnail-development"
+      ]
+    },
+    {
+      "sha256": "2bc6b07151be2f843031e53dc6bc36146b1daa8f500884fe71d1ebc9e5657ad3",
+      "ext": "mov",
+      "size": 7094767,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "2cf91de003dac7a476e5769c6a8a0a1a9fb172628e637db39506e6f02af4de07",
+      "ext": "mp4",
+      "size": 231506,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "3dc2331682cde7c6e882d2590908ccb41a26e93d700ebbfaa673487b7c3d0d54",
+      "ext": "mp4",
+      "size": 201477432,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "5853e2ed4f54b02c2e6d72591ff7315e62facc04bfe7f864d58172e07522a8a6",
+      "ext": "mov",
+      "size": 205735149,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "5e29dee68a3ebc4ec00eed500cbfbba83334c0f8a2fc7ee42477eb411706568a",
+      "ext": "mp4",
+      "size": 2915823,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "641ecd0591f073bb129664f6e271f073525a7e0ba4cf889aad9fec8b6dc803a5",
+      "ext": "mp4",
+      "size": 1163599161,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+      "ext": "mp4",
+      "size": 5246900,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "76d4c7a64f75c69bc24c67ed62cd0c09f65407f8ad40084a233de24a6cc17c0a",
+      "ext": "mp4",
+      "size": 7210928,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "81e789596aec9d68022c1db27d4574ca7b04aa3249c46040f3b259d17555ec35",
+      "ext": "mkv",
+      "size": 4281770294,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "82554f5904cb1b3d11daf5a331653187ccaa3c8e2b0611b46c74f8d669617c67",
+      "ext": "mov",
+      "size": 510710952,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "831b1176c0ecf220dbd1b9d8a0e8dd299a9c3ddf376b83824749582079bbf30d",
+      "ext": "mp4",
+      "size": 25087633,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "88a2bd3ad4d008765e0dff6c6bd68a98096f160dc1358e455dc4cf82ff2b76d7",
+      "ext": "mp4",
+      "size": 19492670,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "8c5370bec6b7bbacb4b49cd2503a0d2443f9103ca96bac86c6e801fc2ce444c8",
+      "ext": "mp4",
+      "size": 17262928,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "8d8f8cea03c93e87a11e34aea3b040c724ef0ddafed76f51dfb2a79a36954651",
+      "ext": "mp4",
+      "size": 1373263,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "969358700a919fa8cf4c2bf7b7c17b19b06a57ed23b1682bf4973921f6627305",
+      "ext": "mp4",
+      "size": 34433958,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "9aa1b4bcbaad3a907b29fa7395adedb4fbe1b3a84cf8a5aa29b9c4ee16b668e4",
+      "ext": "mp4",
+      "size": 51051099,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+      "ext": "mp4",
+      "size": 36079699,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "a480ab0761cefc12544e8e4100f71c75907386fa35a3430d614c4a85c27e3414",
+      "ext": "mov",
+      "size": 400374237,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "a56528bb9d076cf386017f4571aa3228b7120c4c2559f82d50ccd9c102c9c53f",
+      "ext": "mp4",
+      "size": 49163248,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "a5d1428fd3e2c5b0b096497be5ba677bfe4fd9341fb1aa7dd079cf808ac175b5",
+      "ext": "mp4",
+      "size": 5055340,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "b7d3b1abff64fbbaa5c709b4b8d4136de246cf1a27ae7f17a2118573b812040c",
+      "ext": "mp4",
+      "size": 3302214074,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "bb594ff9217a7f7c8b3079399f188ba369db79eadee4d9ae7ed2c82493eab796",
+      "ext": "mp4",
+      "size": 2594321536,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "bcf9f3749940fe2f0f8fe6a978818d8700ca88b0f4d92103636f4b45af212bb3",
+      "ext": "mp4",
+      "size": 26975897,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "bece8e27062338057ce1fe5398b4562390c41903c299fa609208e3152f81db33",
+      "ext": "mp4",
+      "size": 19329476,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "c39b69673584f45853c0f1ff59b14632ca9462b5fee8231854881efc3dcf31c8",
+      "ext": "mov",
+      "size": 28613399,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "ce616cc1703be548a8daf40e309c99a90c25f11752abb8201439bae4b69d5c3f",
+      "ext": "mp4",
+      "size": 23043274,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "d3b51296d94b8d62f475182c8a414559c5284f7a2d1400c6e42b51763f92eb36",
+      "ext": "mp4",
+      "size": 911523410,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+      "ext": "mp4",
+      "size": 5379386,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "da86ef3502da4a3da25654d328eb22be47121da786a26e13ab72a017e477766f",
+      "ext": "mp4",
+      "size": 24120334,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "dfa90bd34a2e76f8e3a723d8abe6098e563143f64db7bb57af044863fb0f3538",
+      "ext": "mp4",
+      "size": 891934228,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+      "ext": "mp4",
+      "size": 7881787,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    },
+    {
+      "sha256": "ea5e60202dc6e5fbde1e363ae357727ddfcf20ba8686b40b1652e124ca5e3180",
+      "ext": "mov",
+      "size": 405415142,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+      "ext": "mp4",
+      "size": 4786572,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "eb98fe3e0ebf9022bc21b6eea129d80b2aff672edd74b05e3e30c1f56b7cd37b",
+      "ext": "mp4",
+      "size": 33013373,
+      "partition": "development",
+      "sets": [
+        "corpus"
+      ]
+    },
+    {
+      "sha256": "f3cd6f0c7876146e379bdbefa733ca53121f19b75ed685a8d463e47a08dc6635",
+      "ext": "mp4",
+      "size": 22810136,
+      "partition": "held-out-partition",
+      "sets": [
+        "corpus",
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "fd7b6c440b67d7dd412e7964e3274e4d5404b4cc4a663fd6ca952c111db3504a",
+      "ext": "mp4",
+      "size": 134234546,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation",
+        "b5"
+      ]
+    },
+    {
+      "sha256": "fe12ba075c4883fdf5d8eadcea335e6df4a8e84626652176de17bf7ac829fce9",
+      "ext": "mov",
+      "size": 106355712,
+      "partition": "held-out-partition",
+      "sets": [
+        "thumbnail-evaluation"
+      ]
+    }
+  ]
+}
