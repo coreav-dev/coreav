@@ -172,9 +172,12 @@ pub(super) fn plan(
     let output_rate = command.sample_rate.unwrap_or(input_rate);
     if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
         && (output_format != SampleFormat::F32 || output_rate != input_rate)
+        || pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::U8)
+            && output_format == SampleFormat::S16
+            && output_rate != input_rate
     {
         return Err(Refusal::not_native(
-            "an unregistered WAVE F32 packing or rate composition",
+            "an unregistered WAVE PCM source, packing or rate composition",
         ));
     }
     if channels != output_channels && input_rate != output_rate {

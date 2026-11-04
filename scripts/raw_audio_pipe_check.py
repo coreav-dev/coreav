@@ -27,7 +27,9 @@ def require_equal(actual, expected, case):
         offset = next((index for index, pair in enumerate(zip(actual, expected))
                        if pair[0] != pair[1]), min(len(actual), len(expected)))
         raise AssertionError(f"complete raw bytes differ: {case}; offset {offset}, "
-                             f"lengths {len(actual)}/{len(expected)}")
+                             f"lengths {len(actual)}/{len(expected)}; reason=raw-bytes; "
+                             f"actual={actual[offset:offset + 16].hex()} "
+                             f"expected={expected[offset:offset + 16].hex()}")
 
 
 def native_command(coreav, before, input_path, after, output):
@@ -152,6 +154,12 @@ def check_wave_case(coreav, ffmpeg, root, env, name, encoded, payload, represent
     for form in forms:
         after = ["-ac", str(channels), "-ar", str(rate if output_rate is None else output_rate),
                  "-f", form]
+        registered = not (representation == "u8" and form == "s16le"
+                          and output_rate not in (None, rate))
+        execution_env = env
+        if not registered:
+            execution_env = {**env, "COREAV_FALLBACK": str(ffmpeg)}
+            execution_env.pop("COREAV_STRICT_SAFE", None)
         expected = run([ffmpeg, "-v", "error", *AUDIO_DECODE_INPUT, "-i", source,
                         *after, "pipe:"])
         if output_rate is None:
@@ -164,12 +172,25 @@ def check_wave_case(coreav, ffmpeg, root, env, name, encoded, payload, represent
                 modes = modes[1:] if explicit else modes[:1]
             for input_name, data in modes:
                 command = native_command(coreav, ["-threads", "1"], input_name, options, "pipe:1")
-                actual = run(command, data=data, env=env)
+                if not registered:
+                    require_refusal(command, env, data)
+                    count += 1
+                actual = run(command, data=data, env=execution_env)
                 require_equal(actual, expected, f"WAVE/{name}/{form}/{input_name}/{explicit}")
                 count += 1
             output = root / "wave-out.raw"
-            run(native_command(coreav, ["-y", "-threads", "1"], "pipe:0", options, output),
-                data=encoded, env=env)
+            command = native_command(coreav, ["-y", "-threads", "1"], "pipe:0", options, output)
+            if not registered:
+                output.unlink(missing_ok=True)
+                require_refusal(command, env, encoded)
+                if output.exists():
+                    raise AssertionError("unregistered WAVE rate created output")
+                output.write_bytes(b"preserve")
+                require_refusal(command, env, encoded)
+                if output.read_bytes() != b"preserve":
+                    raise AssertionError("unregistered WAVE rate replaced output")
+                count += 2
+            run(command, data=encoded, env=execution_env)
             require_equal(output.read_bytes(), expected, f"WAVE file/{name}/{form}/{explicit}")
             count += 1
     return count

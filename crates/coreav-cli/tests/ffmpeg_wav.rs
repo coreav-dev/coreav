@@ -118,6 +118,39 @@ fn float_wav_identity_preserves_bits_but_other_compositions_refuse() {
 }
 
 #[test]
+fn unsigned_wave_s16_rate_composition_refuses_before_output() {
+    let dir = scratch("u8-rate");
+    let input = dir.join("input.wav");
+    let samples: Vec<u8> = (0..4098).map(|i| (i % 256) as u8).collect();
+    std::fs::write(&input, wav(1, 8, 1, &samples)).unwrap();
+    for rate in ["16000", "22050"] {
+        let output = strict()
+            .arg("-i")
+            .arg(&input)
+            .args(["-ar", rate, "-f", "s16le", "pipe:1"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(4), "{output:?}");
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("unregistered WAVE PCM source, packing or rate composition")
+        );
+        let destination = dir.join("preserve.raw");
+        std::fs::write(&destination, b"preserve").unwrap();
+        let output = strict()
+            .args(["-y", "-i"])
+            .arg(&input)
+            .args(["-ar", rate, "-f", "s16le"])
+            .arg(&destination)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(4), "{output:?}");
+        assert_eq!(std::fs::read(&destination).unwrap(), b"preserve");
+    }
+}
+
+#[test]
 fn unregistered_extents_do_not_create_or_replace_output() {
     let dir = scratch("extents");
     let complete = wav(1, 16, 1, &[0; 8]);

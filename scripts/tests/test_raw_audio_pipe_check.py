@@ -34,6 +34,14 @@ class ExactOutput(unittest.TestCase):
         with self.assertRaises(AssertionError):
             CHECK.require_equal(b"\0\0\0\x80", b"\0\0\0\0", "float bits")
 
+    def test_difference_diagnostic_has_a_closed_reason_and_bounded_sample_bytes(self):
+        with self.assertRaises(AssertionError) as caught:
+            CHECK.require_equal(b"\x01" * 1000, b"\x02" * 1000, "WAVE/rate")
+        message = str(caught.exception)
+        self.assertIn("WAVE/rate; offset 0, lengths 1000/1000; reason=raw-bytes", message)
+        self.assertIn("actual=" + "01" * 16 + " expected=" + "02" * 16, message)
+        self.assertNotIn("01" * 17, message)
+
 
 class WaveInputs(unittest.TestCase):
     def test_pcm_headers_and_samples_are_independently_readable(self):
@@ -108,10 +116,11 @@ class WaveInputs(unittest.TestCase):
 
 class WaveCommands(unittest.TestCase):
     def drive_case(self, *, native_mutation=None, oracle_mutation=None, output_rate=None,
-                   file_mutation=None):
-        payload = struct.pack("<hh", -32768, 16384)
-        encoded = CHECK.wave_bytes(payload, "s16", metadata=True)
-        expected = {"s16le": payload, "f32le": struct.pack("<ff", -1.0, 0.5)}
+                   file_mutation=None, representation="s16", forms=("f32le", "s16le")):
+        payload = b"\x00\xc0" if representation == "u8" else struct.pack("<hh", -32768, 16384)
+        encoded = CHECK.wave_bytes(payload, representation, metadata=True)
+        expected = {"s16le": struct.pack("<hh", -32768, 16384),
+                    "f32le": struct.pack("<ff", -1.0, 0.5)}
         calls = []
 
         def execute(command, *, data=None, env=None):
@@ -120,6 +129,9 @@ class WaveCommands(unittest.TestCase):
             value = expected[form]
             if str(command[0]) == "oracle-ffmpeg":
                 return oracle_mutation(value) if oracle_mutation else value
+            if representation == "u8" and output_rate not in (None, 48000) and form == "s16le":
+                self.assertEqual(env.get("COREAV_FALLBACK"), "oracle-ffmpeg")
+                self.assertNotIn("COREAV_STRICT_SAFE", env)
             self.assertEqual(command[command.index("-threads") + 1], "1")
             self.assertEqual(data, encoded if command[command.index("-i") + 1] == "pipe:0" else None)
             value = native_mutation(value) if native_mutation else value
@@ -132,8 +144,8 @@ class WaveCommands(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory, patch.object(CHECK, "run", side_effect=execute):
             count = CHECK.check_wave_case("coreav", "oracle-ffmpeg", Path(directory), {}, "unit",
-                                          encoded, payload, "s16", 1, 48000,
-                                          output_rate=output_rate)
+                                          encoded, payload, representation, 1, 48000,
+                                          output_rate=output_rate, forms=forms)
         return count, calls
 
     def test_files_stdin_explicit_and_implicit_codecs_use_complete_oracle_bytes(self):
@@ -194,6 +206,29 @@ class WaveCommands(unittest.TestCase):
         for args, kwargs in stereo:
             self.assertEqual(args[7], "s16")
             self.assertEqual(kwargs["forms"], ("s16le",))
+
+    def test_unsigned_s16_rate_requires_clean_refusal_and_complete_oracle_fallback(self):
+        refused = []
+        def refuse(command, env, data=None):
+            refused.append(command)
+        with patch.object(CHECK, "require_refusal", side_effect=refuse):
+            count, _ = self.drive_case(representation="u8", output_rate=16000)
+        self.assertEqual(count, 20)
+        self.assertEqual(len(refused), 8)
+        for command in refused:
+            self.assertEqual(command[command.index("-f") + 1], "s16le")
+        with patch.object(CHECK, "require_refusal", side_effect=refuse), \
+                self.assertRaisesRegex(AssertionError, "complete raw bytes differ"):
+            self.drive_case(representation="u8", output_rate=16000,
+                            native_mutation=lambda value: value + b"\0", forms=("s16le",))
+
+    def test_unsigned_rate_refusal_cannot_create_a_destination(self):
+        def refuse(command, env, data=None):
+            if command[-1] != "pipe:1":
+                Path(command[-1]).write_bytes(b"partial")
+        with patch.object(CHECK, "require_refusal", side_effect=refuse), \
+                self.assertRaisesRegex(AssertionError, "rate created output"):
+            self.drive_case(representation="u8", output_rate=16000)
 
 
 class WaveRefusals(unittest.TestCase):
