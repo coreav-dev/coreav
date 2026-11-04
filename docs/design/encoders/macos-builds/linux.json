@@ -1,0 +1,135 @@
+{
+  "binary": {
+    "bytes": 1550336,
+    "sha256": "31ee4692fed366e40395c1ad33bd82cad5edca3c994c98afd4ab768e44ccc0c5"
+  },
+  "build_output": {
+    "stderr_sha256": "c23374d0ce7d010277fc2ce3f1552a3364bc1c5b853ac3c218dda3ade0049957",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "configuration": {
+    "command": [
+      "cargo",
+      "+1.99.1",
+      "build",
+      "--locked",
+      "--offline",
+      "--frozen",
+      "--manifest-path",
+      "crates/coreav-backend-apple/Cargo.toml",
+      "--profile",
+      "dist",
+      "--example",
+      "videotoolbox",
+      "--target",
+      "x86_64-unknown-linux-gnu",
+      "--target-dir",
+      "{target}"
+    ],
+    "environment": {
+      "CARGO_HOME": "d082daeb967b495b38b04c80439d404ecc254cfc59c2e395351f0486c2181fd9",
+      "HOME": "b98d692c4574a80e508cf6fa38e6f27ae5348e616448edaa7fe675e363669fd2",
+      "LC_ALL": "C",
+      "PATH": "671f9890968e42bb52b8e4911ec835652e6274eeae105ab7092aebb57baf38e6",
+      "RUSTUP_AUTO_INSTALL": "0",
+      "RUSTUP_HOME": "d06da5e000ef9175ee9b0e406a3ad92998bf9ce0db7a5275f4dce47f70e90ed7"
+    },
+    "host": {
+      "machine": "x86_64",
+      "release": "6.1.158+",
+      "system": "Linux"
+    },
+    "inputs": {
+      "Cargo.toml": "460b5c8426f343b202d50b066028180e7c3389f66d2ad2783b0cf1eee3c951f0",
+      "crates/coreav-backend-apple/Cargo.lock": "9f6f7281e0e176973cc979c4306702ecb49cf7aa34c70af8eab3437387cc5750",
+      "crates/coreav-backend-apple/Cargo.toml": "615b4189480918f0daca57586e7beb37f81fba17e33191b104a92c60a5696b5e",
+      "crates/coreav-h264/Cargo.toml": "0859cebbc767460d4f703a8026a67c8763cd7d04c40daeb27d7fe51d7f8cc0e2",
+      "crates/coreav-kernels-h264/Cargo.toml": "d13e321db956caec5aea52f79d5c45a1662351f5fadd36223dd4a85baab98dd7",
+      "rust-toolchain.toml": "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce",
+      "scripts/rust-dist.env": "cb0406335a99751da3cbcaea0701fdab3dd34814a72336e82fe1c68854672c83"
+    },
+    "metadata_sha256": "6ad9cccf3f2109d7c5f12f9264bde077f999039ddf46d70931a809de99eca41f",
+    "packages": [
+      {
+        "checksum": null,
+        "files_sha256": null,
+        "manifest": "crates/coreav-backend-apple/Cargo.toml",
+        "name": "coreav-backend-apple",
+        "source": null,
+        "version": "0.0.1"
+      },
+      {
+        "checksum": null,
+        "files_sha256": null,
+        "manifest": "crates/coreav-h264/Cargo.toml",
+        "name": "coreav-h264",
+        "source": null,
+        "version": "0.0.1"
+      },
+      {
+        "checksum": null,
+        "files_sha256": null,
+        "manifest": "crates/coreav-kernels-h264/Cargo.toml",
+        "name": "coreav-kernels-h264",
+        "source": null,
+        "version": "0.0.1"
+      },
+      {
+        "checksum": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
+        "files_sha256": "eb82b94ffd62019112c4c607a4bf5a0fb44fd81668858ee5e4d765f0fb634ebf",
+        "manifest": null,
+        "name": "itoa",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "version": "1.0.18"
+      },
+      {
+        "checksum": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+        "files_sha256": "4d8cc12ffde71c113b03b3ae3f2fb7cc43b1c41e71e18d373874dad9487e7890",
+        "manifest": null,
+        "name": "memchr",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "version": "2.8.3"
+      },
+      {
+        "checksum": "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48",
+        "files_sha256": "d85b951b88b709d6d938b9e06f7d020e29ea9df01636147157b7384a222a0e4f",
+        "manifest": null,
+        "name": "serde_core",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "version": "1.0.229"
+      },
+      {
+        "checksum": "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6",
+        "files_sha256": "335579029219f20b8031b0a378576a12b2786665bed910683b074ef43ba9e46d",
+        "manifest": null,
+        "name": "serde_json",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "version": "1.0.154"
+      },
+      {
+        "checksum": "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b",
+        "files_sha256": "e0d264523399b1b9f1c8c3a7beaa8ecf326f788e37115dd14a80b44bfd42bd5f",
+        "manifest": null,
+        "name": "zmij",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "version": "1.0.23"
+      }
+    ],
+    "profile": {
+      "codegen-units": 1,
+      "inherits": "release",
+      "lto": "fat"
+    },
+    "target": "x86_64-unknown-linux-gnu",
+    "toolchain": {
+      "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)\nrelease: 1.99.1\ncommit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e\ncommit-date: 2026-08-27\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Ubuntu 24.4.0 (noble) [64-bit]\n",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+    }
+  },
+  "configuration_sha256": "6d33a0280efb565fe6c3a5e47eac46d3084cd140dc5b53cae1893b9c7bb03d88",
+  "schema": "coreav.videotoolbox-coreav-build/1",
+  "source": {
+    "commit": "7abf723411f9dacb6e8f5dca148fa5ea03b62932",
+    "tree": "253b1863171f7dab13bd96d2e1ecb10382a5fb24"
+  }
+}
