@@ -1160,7 +1160,6 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
 fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
-    let mut first = None;
     for path in paths {
         let size = std::fs::metadata(path)
             .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?
@@ -1174,8 +1173,13 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
         else {
             return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
         };
-        let first = *first.get_or_insert(start);
-        let offset = end.saturating_sub(start).saturating_add(first);
+        if offsets.is_empty() && start != 0 {
+            return Err(Refusal::not_native(
+                "a concat list whose first input starts at a nonzero time",
+            )
+            .into());
+        }
+        let offset = end.saturating_sub(start);
         offsets.push(
             Rational::new(offset, 1_000_000)
                 .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
@@ -1185,12 +1189,10 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     Ok(offsets)
 }
 
-/// Why a join is not native: a track it copies has more than one edit in
-/// its file (an empty one included), which the demuxer reads by its own
-/// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits. The edits are counted in each file, as edits that meet merge in
-/// the output.
-fn several_edits(
+/// Why a join's edit handling differs from the concat demuxer's: positive
+/// AAC edits, even in unselected audio, or several edits in a copied track
+/// (docs/design/concat-aac-edits.md and docs/design/edit-list-writers.md).
+fn join_edit_refusal(
     paths: &[PathBuf],
     summary: &JoinSummary,
 ) -> Result<Option<&'static str>, WriteFailure> {
@@ -1198,6 +1200,15 @@ fn several_edits(
         let file = FileSource::open(path)?;
         let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
             .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
+        if movie.tracks.iter().any(|track| {
+            track.kind == coreav_isobmff::TrackKind::Audio
+                && std::iter::once(&track.description)
+                    .chain(&track.later_descriptions)
+                    .any(|description| description.codec == coreav_isobmff::Codec::Aac)
+                && track.edits.iter().any(|edit| edit.media_time > 0)
+        }) {
+            return Ok(Some("a concat input with a positive AAC edit offset"));
+        }
         let copied = [Some(&input.video), input.audio.as_ref()];
         let edited = |track: &Track| {
             track.edits.len() > 1
@@ -1761,7 +1772,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = several_edits(paths, &summary)? {
+            if let Some(words) = join_edit_refusal(paths, &summary)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),
@@ -1889,6 +1900,7 @@ mod tests {
         };
         let report = Report {
             iso_names_supported: None,
+            iso_format_output: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
                 stream(
@@ -1941,6 +1953,7 @@ mod tests {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             iso_names_supported: None,
+            iso_format_output: None,
             streams: vec![
                 Stream {
                     kind: StreamKind::Video,

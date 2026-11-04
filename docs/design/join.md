@@ -129,6 +129,7 @@ media edits kept:
   composed after its last edit ends (a frame its edits cut out, or one a
   clip keeps only for decoding): the running edit would show that frame,
   so the gap stays an empty edit.
+  Without an input edit, the full sample-derived composition span is kept. The media header's decode-duration sum does not impose a presentation endpoint; doing so cuts the tail of a stream with a composition delay. See [unedited span preservation](concat-unedited-spans.md).
 - **Decode times.** Each input's samples follow the previous input's, and
   every composition time of an input lies before every composition time of
   the next. When an input's frames are composed past where the next input's

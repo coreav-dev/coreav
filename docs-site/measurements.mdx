@@ -27,6 +27,8 @@ The media corpus that the correctness bars use is private and is never published
 | Page | What it measures |
 |---|---|
 | [`coreav ffprobe`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) | Which `ffprobe` command lines it covers, how often its values agree with `ffprobe`'s, and its speed |
+| [GitHub command-shape coverage](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/github-shapes-200.md) | Exact-output coverage of 200 shapes in a frozen public-code presence sample, with repository weights and every miss retained |
+| [V2 coverage with exact image capture](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/codec-v2-images.md) | The registered 488-command coverage result, supplemental inputs, and exact image-reference differences against FFmpeg 9.0.2 |
 | [B4 development calibration](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe/round10-calibration.md) | The round 10 identical-argument controls, without a product speed verdict |
 
 ## Speed of the command
@@ -54,6 +56,7 @@ These records do not change the historical measurements below, frozen judging in
 | [`coreav transcode`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md) | Correctness and speed of the transcode against FFmpeg with libx264 |
 | [Native FLAC output](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/flac-output.md) | The failed registered size comparison and shared-host timing diagnostics against FFmpeg |
 | [Native FLAC output after residual changes](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/flac-output-round2.md) | The second registered round passes size but misses the diagnostic speed bar |
+| [Native FLAC cost-cache comparison](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/flac-cost-cache.md) | Complete before-change triples retain the speed and startup-calibration misses; size passes |
 | [The `x264` program on 10-bit sources](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode-x264-10bit.md) | Where the extra time on 10-bit sources goes |
 | [VP9 through libvpx](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/vp9-libvpx.md) | `coreav thumbnail` and `coreav transcode` on VP9 with libvpx |
 | [Release VP9 decode cost](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/vp9-release-cost.md) | Allocator and frame-export experiments that do not meet full-set CPU parity |

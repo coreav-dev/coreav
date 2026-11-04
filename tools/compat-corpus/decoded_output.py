@@ -160,7 +160,8 @@ def video_command(ffmpeg, source, inputs, index, decoded):
             '-i', str(source), '-map', f'0:{index}', '-noautoscale', *decoded, '-']
 
 
-def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None, copied_streams=()):
+def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=None, copied_streams=(),
+            registered_codecs=()):
     expected = probe(reference, ffprobe, env, inputs)
     if expected is None:
         return 'unverified', 'reference probe'
@@ -171,7 +172,7 @@ def compare(mine, reference, ffmpeg, ffprobe, env, scratch, inputs=(), stream=No
         description = expected['streams'][index]
         codec = description.get('codec_name', '')
         copied = index in copied_streams and codec in ('h264', 'aac', 'vp9', 'opus')
-        if not copied and codec not in LOSSLESS | {'mp3'} and not PCM.fullmatch(codec):
+        if not copied and codec not in LOSSLESS | {'mp3'} | set(registered_codecs) and not PCM.fullmatch(codec):
             return 'unverified', f'unregistered codec {codec}'
         if description.get('codec_type') == 'audio' and description.get('sample_fmt') not in (
                 'u8', 'u8p', 's16', 's16p', 's32', 's32p', 'flt', 'fltp', 'dbl', 'dblp'):

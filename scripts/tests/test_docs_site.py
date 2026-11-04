@@ -15,10 +15,16 @@ and link check run in .github/workflows/docs-site.yml.
 
     python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
 """
+import gzip
+import hashlib
 import json
+import os
 import pathlib
 import re
+import shlex
+import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -155,6 +161,78 @@ class DocsSite(unittest.TestCase):
             with self.subTest(page=page.name):
                 self.assertTrue(f'docs/measurements/{page.name})' in index,
                                 f'docs/measurements/{page.name} is not listed on docs-site/measurements.mdx: add a row for it')
+
+    def replay_shell_fixture(self, directory):
+        page = (ROOT / 'docs/measurements/codec-v2-images.md').read_text()
+        block = re.search(r'```sh\n(.*?)\n```', page, re.S)
+        self.assertIsNotNone(block)
+        programs = directory / 'bin'
+        programs.mkdir()
+        driver = programs / 'python3'
+        driver.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -I - "$@" <<\'PY\'\n'
+                          'import os, pathlib, sys\n'
+                          'if os.environ["COREAV_REPLAY_TEST_FAIL"] == "1":\n'
+                          '    print("synthetic replay failure", file=sys.stderr)\n'
+                          '    sys.exit(2)\n'
+                          'output = pathlib.Path(sys.argv[sys.argv.index("--summary") + 1])\n'
+                          'output.write_bytes(pathlib.Path(os.environ["COREAV_REPLAY_TEST_SUMMARY"]).read_bytes())\n'
+                          'PY\n')
+        driver.chmod(0o755)
+        return block.group(1), {**os.environ, 'TMPDIR': str(directory),
+                                'PATH': str(programs) + os.pathsep + os.environ['PATH'],
+                                'COREAV_REPLAY_TEST_FAIL': '0',
+                                'COREAV_REPLAY_TEST_SUMMARY': str(ROOT / 'docs/measurements/codec-v2-images/summary.json')}
+
+    def test_v2_image_evidence_matches_its_recorded_digests(self):
+        data = ROOT / 'docs/measurements/codec-v2-images'
+        digests = json.loads((data / 'evidence-digests.json').read_text())
+        for name, expected in digests['files'].items():
+            with self.subTest(file=name):
+                self.assertEqual(hashlib.sha256((data / name).read_bytes()).hexdigest(), expected)
+        for name, expected in digests['decompressed'].items():
+            with self.subTest(decompressed=name):
+                self.assertEqual(hashlib.sha256(gzip.decompress((data / name).read_bytes())).hexdigest(), expected)
+        retention = json.loads((data / 'retention.json').read_text())
+        for key in ('evidence', 'binaries'):
+            with self.subTest(archive=key):
+                self.assertEqual(retention['archives'][key + '.zip']['sha256'],
+                                 digests['artifacts'][key]['digest'].removeprefix('sha256:'))
+
+    def test_v2_image_replay_cannot_pass_with_a_stale_summary(self):
+        data = ROOT / 'docs/measurements/codec-v2-images'
+        expected = (data / 'summary.json').read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            command, env = self.replay_shell_fixture(directory)
+            for valid in (True, False):
+                with self.subTest(valid=valid):
+                    summary = directory / 'v2-image-summary.json'
+                    summary.write_bytes(expected)
+                    result = subprocess.run(['/bin/sh', '-c', command], cwd=ROOT,
+                                            env={**env, 'COREAV_REPLAY_TEST_FAIL': '0' if valid else '1'},
+                                            capture_output=True, text=True)
+                    if valid:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertIn('synthetic replay failure', result.stderr)
+                        self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(summary.read_bytes(), expected)
+
+    def test_v2_image_replay_does_not_follow_a_preexisting_summary_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            command, env = self.replay_shell_fixture(directory)
+            target = directory / 'synthetic-target.json'
+            original = b'synthetic target, not a summary'
+            target.write_bytes(original)
+            summary = directory / 'v2-image-summary.json'
+            summary.symlink_to(target)
+            result = subprocess.run(['/bin/sh', '-c', command], cwd=ROOT,
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(target.read_bytes(), original)
+            self.assertTrue(summary.is_symlink())
+            self.assertEqual(set(directory.iterdir()), {target, summary, directory / 'bin'})
 
     def test_every_agents_area_file_is_listed(self):
         index = (ROOT / 'AGENTS.md').read_text()

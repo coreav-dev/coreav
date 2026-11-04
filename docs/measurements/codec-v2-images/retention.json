@@ -1,0 +1,18 @@
+{
+  "archive_key": "codec-v2-images-e42fc012",
+  "source_sha": "e42fc012b13e782babc596e709c8f740840cba2d",
+  "retention": "maintainer-held complete copy with no scheduled expiration",
+  "verified_on": "2026-11-04",
+  "verification": "Reassembled retained chunks match the original GitHub artifact ZIP digests",
+  "archives": {
+    "evidence.zip": {
+      "bytes": 428914256,
+      "sha256": "4f3aad9c1dcd58404f1ad4db828f0b6f758895380fbf89d25f21c19a1791f4c5"
+    },
+    "binaries.zip": {
+      "bytes": 19515090,
+      "sha256": "b7e2564a729966a30793f2f99d26d60845288d180738b85a2f3e61011d8cc8c2"
+    }
+  },
+  "previous_acquisition": "Permanently void; its retained components are preserved separately and contribute no counts"
+}

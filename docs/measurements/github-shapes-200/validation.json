@@ -1,0 +1,23 @@
+{
+  "capture_and_full_replay": "success on the registered Actions host",
+  "commit": "7fe3c6c67fadc5826e26b4602cadfaf0e9d285fa",
+  "independent_bundle_validation": [
+    "complete byte inventory",
+    "merged method identity",
+    "build and oracle identity",
+    "complete roster and invocations",
+    "staged fixture identity",
+    "fallback records",
+    "all probe judgments replayed without invoking media commands",
+    "weighted arithmetic recomputed"
+  ],
+  "set_sha256": "0ca6bcb9b983ade0625f795bd5098cffa12ee638d5ddf94a37c1cefb782d9045",
+  "sha256": {
+    "build.json": "44806f63ef7b8d16e91476b1a52a8f74709368f8cfc580f649cf7ef08f68bca3",
+    "host.json": "ff5a2a32c74fea12a301b01c82445027f98d12a7537d88a064f8fb9268477a31",
+    "manifest.json": "3f18cbb1159167533c5135d0b74d7e3de947f86620baefc2b7e4ef3afdf2ffee",
+    "records.json": "1dba821abf7b188300eec640157734bb80142bc0c8f6c2401de81c716d6dd759",
+    "summary.json": "fe69dcb0070aca781d3ec07538f3c6bf869d37495f834e5f5eb715a5d5e4d99b"
+  },
+  "workflow_url": "https://github.com/coreav-dev/coreav/actions/runs/41794034132"
+}

@@ -1,0 +1,590 @@
+{
+  "schema": 1,
+  "plan_sha256": "45f07337c9eb520820fcce3dc903bda112e67b4548eda00b25ef309438b7c604",
+  "allocation_sha256": "9597e41c9af974922b58a1e9d00716ebdf149e89d7bd05ebcefc5bb6edeb70be",
+  "acquisition_sha256": "98c294c2a2744d435c0593b7882829a1c58c06c844bcb325cf186e67d9061378",
+  "snapshot": {
+    "operator/amended-state.json": "5869dd3e4295dc1e1c13b01386917eceeacd131f9d128cfc3b9ebe2101ac13ef",
+    "collection.json": "a83e03a7fb80da494585ad6eebd842cd4bbdcd3d16ac0bdbe2090e54ca8240c9",
+    "roster.json": "52229d2e7073bd5df11eaf5c445b37635ad75180998c5a266dccf1bad7fe2e0f",
+    "acquisition-report.json": "d9f674883d658b3cde5e60b8c0b1e39116f259a7844aeef0d4761f7ac0999c3e"
+  },
+  "counts": {
+    "sd": 16,
+    "720p": 16,
+    "1080p": 16,
+    "4k": 9
+  },
+  "inputs": [
+    {
+      "label": "h000",
+      "class": "1080p",
+      "source_sha256": "6423e81e8b6bcd8276b346e8e4db1ce1a7866c41f799cbd5bbaf000cf2b71e76",
+      "sha256": "4c721c53948bd9dcb53ecd2aee1cb59c746feb46fbd6d0faac21c64a3ef0de8c",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 12927,
+      "frames": 300
+    },
+    {
+      "label": "h001",
+      "class": "sd",
+      "source_sha256": "c2bbc8e6f515635e2769b9fe9e31e15396f2480c9460cb6540beae1ff9d1bb5c",
+      "sha256": "4c88f816b8d975de15286ffb9582bc75d991c1cd715bb6459ff044a443593958",
+      "width": 552,
+      "height": 412,
+      "source_frames": 50054,
+      "frames": 1800
+    },
+    {
+      "label": "h002",
+      "class": "1080p",
+      "source_sha256": "7b692f8d20e0c4271a9d9cee0764f9acd87009aa397ebea82feb7d33c6b64dda",
+      "sha256": "137dd7ffa89f9f0cbf4d135272019ae25164eaf2de782a0d46bb1e79cb5e3fb3",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 26355,
+      "frames": 300
+    },
+    {
+      "label": "h003",
+      "class": "1080p",
+      "source_sha256": "c0741598595216be49aa576bfcc68f83f8ddc23e1ceb8a9a669ee7ddae6795b2",
+      "sha256": "ce4c5420c6d614ed2c3b3ccb0601811950000169d935f35b6b5ee2ee74453c77",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 8991,
+      "frames": 300
+    },
+    {
+      "label": "h004",
+      "class": "720p",
+      "source_sha256": "2e7e7f83ef3fdc74fc3801550292cb89a79a372fa97f85eedda27831e94383e3",
+      "sha256": "6cb930468bb5d6f5a7b5d2dc627e9662855b3378f93138cc3853ddcd4ca6a05f",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 533,
+      "frames": 533
+    },
+    {
+      "label": "h005",
+      "class": "720p",
+      "source_sha256": "4fd6471cc3899989a830c662f58cfb7b78ee75230469eb67177916b6274a7a67",
+      "sha256": "9a1c9bb017be7fcf648a780d92d0e09149e1d879c4b219749be3c1a0c6a02592",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 34046,
+      "frames": 900
+    },
+    {
+      "label": "h006",
+      "class": "1080p",
+      "source_sha256": "7b60b655897da21094c0007d71476799d3afce727b31fec0a4b93e0b63b39b56",
+      "sha256": "275804db3f4021202ee7355f5791b535e663599f2b7cd5985f11dd7c73ccdbae",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 1203,
+      "frames": 300
+    },
+    {
+      "label": "h007",
+      "class": "1080p",
+      "source_sha256": "24122331eaa731b22c0193dc20cd0258b93c6341032f9e7301e9ca0ef000cd3e",
+      "sha256": "f6d9a04c5e4b7f4405fb8bb2127212f5c283a3529a05ef261188c9fbcfdab50d",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 6988,
+      "frames": 300
+    },
+    {
+      "label": "h008",
+      "class": "1080p",
+      "source_sha256": "f136769cba23a72313af1e37193f81318fdf1926a03418f42c07af77ea296013",
+      "sha256": "8ccebcba46762e654ecaf38efc4dfdacc0053aacc134d62e9223c7cdfbc71544",
+      "width": 480,
+      "height": 854,
+      "source_frames": 176,
+      "frames": 176
+    },
+    {
+      "label": "h009",
+      "class": "720p",
+      "source_sha256": "7d58649b6d7f592bf3535173fa11e31ece3a5f6b9defa17accb8a810159b4713",
+      "sha256": "5f59cb8ba46d4aa1a3728889ef133add302626fd24cbfe4999b9fdbf4f4379aa",
+      "width": 706,
+      "height": 480,
+      "source_frames": 40598,
+      "frames": 900
+    },
+    {
+      "label": "h010",
+      "class": "720p",
+      "source_sha256": "aa1978f954052a97d9ccc76431a8df087ec28b799c2a398f15524866a06d2a00",
+      "sha256": "e2c91130564e11a6c619f0580bcbb27d26c7812ae99019b4061eb109a91451a8",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 90672,
+      "frames": 900
+    },
+    {
+      "label": "h011",
+      "class": "1080p",
+      "source_sha256": "51707320dfe848657743dcd6636c78b842296e7389752603d378e37dfa2bb2a6",
+      "sha256": "97810e32fecbdaad4c5b91d24f8c3cffd99fbb301905840936c1e6435ef006c8",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 11903,
+      "frames": 300
+    },
+    {
+      "label": "h012",
+      "class": "720p",
+      "source_sha256": "ca77341e04d327170efced73ec5a4cbf45949128e25be0f6c03939a7fcd7e77e",
+      "sha256": "3b41b836c58e3d062f5aab4cfa98fcc66e8622ceba113aad5cc9ed19d269e26a",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 601,
+      "frames": 601
+    },
+    {
+      "label": "h013",
+      "class": "720p",
+      "source_sha256": "63f26ee993ff079e4e14374a8dd958fd6f8a48dc8dc676f86e299cc5a6485f48",
+      "sha256": "652c155a5720f47430df841c090ebb8c4c2601c4a582b89ab497be491204b78f",
+      "width": 856,
+      "height": 480,
+      "source_frames": 2423,
+      "frames": 900
+    },
+    {
+      "label": "h014",
+      "class": "sd",
+      "source_sha256": "40c02553a0313be12f88dd9d17bce4d6debc803123374f79bb932274e4ea4f85",
+      "sha256": "5665c9e8c046008d26cfe32dbee3f0d3f65c3b1574f24198ab4db865c5e62bb9",
+      "width": 640,
+      "height": 480,
+      "source_frames": 1909,
+      "frames": 1800
+    },
+    {
+      "label": "h015",
+      "class": "sd",
+      "source_sha256": "63fb5d6fb145f23ea688f71103cf696dfb8734c52a77f5a64ca20a8d191caf1d",
+      "sha256": "c5760b89b6030e2a1aa1a2d06a9ab06e22275d94d143c83b142cb986f33dc098",
+      "width": 640,
+      "height": 360,
+      "source_frames": 43613,
+      "frames": 1800
+    },
+    {
+      "label": "h016",
+      "class": "720p",
+      "source_sha256": "4bc15d90fca68d30ec8417bf9952b994abdc30d6c73a1d0550768e2627897dac",
+      "sha256": "e03c0d6ead6b9eb233a1471543e2fd4125c1e9640629b139c22cfc64a6fce1e7",
+      "width": 406,
+      "height": 720,
+      "source_frames": 5270,
+      "frames": 900
+    },
+    {
+      "label": "h017",
+      "class": "sd",
+      "source_sha256": "842ea052769976ddea30b71f1fa9cd4d923ed6192ab03d51fa3d58a00886db5f",
+      "sha256": "ce3a3125a7700eaa092645c0b2d40906658452deece5a4836d83d8d9d3d9f05d",
+      "width": 480,
+      "height": 360,
+      "source_frames": 37424,
+      "frames": 1800
+    },
+    {
+      "label": "h018",
+      "class": "720p",
+      "source_sha256": "7cfd346398d008083a8b3cae9d399ac0a6093f9f2f919ff44d669e21ac0c0d87",
+      "sha256": "8965a2943e894521a8906db295db2400197624671e06ad76d11123da5633c51c",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 34048,
+      "frames": 900
+    },
+    {
+      "label": "h019",
+      "class": "720p",
+      "source_sha256": "4503d96c2ec1c0fbdfbee685f72d79306b1c58c1caba9ba8aeb65e7721ea3e14",
+      "sha256": "5e0c3a726b8d4320dd49574ca7149b21066a6fe8fffc553ac1752b0307a4df0f",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 6520,
+      "frames": 900
+    },
+    {
+      "label": "h020",
+      "class": "1080p",
+      "source_sha256": "01e912b7f80442ecc7b70f2f20d4b8f0cdcd8d4df587d8842ed0f9a48cb23d1b",
+      "sha256": "3a661a616087e8dbdd98d431a20ebfc1cf139de4d6bd771076446b82471d6dd1",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 33550,
+      "frames": 300
+    },
+    {
+      "label": "h021",
+      "class": "720p",
+      "source_sha256": "aa3309bb74f265c05729be85bf1cac80e6afbefcdfdfe09d9fdd2ba2e4eb4c1b",
+      "sha256": "6cb53da64a9df7317f03fadea47befe79fa9a5c50688d33f251ab8f04c8fde7c",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 21884,
+      "frames": 900
+    },
+    {
+      "label": "h022",
+      "class": "1080p",
+      "source_sha256": "405fa66c74b54251c75bd79ad09c384577d7fe746fc6d934eab97c9a749a275a",
+      "sha256": "cb6f773f9a08cf49ba757a1022226d9f4061a3dea32e3f69e97f6e16c721327e",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 1725,
+      "frames": 300
+    },
+    {
+      "label": "h023",
+      "class": "sd",
+      "source_sha256": "ee25f23d3e41515c3a90d67fb40563fe413590843002b62b067b87865e1c2ec6",
+      "sha256": "16bb3cfcc33c357ed2be107fced161f0b315907348fbf1a94d62728099a79eef",
+      "width": 640,
+      "height": 360,
+      "source_frames": 34048,
+      "frames": 1800
+    },
+    {
+      "label": "h024",
+      "class": "1080p",
+      "source_sha256": "ebde04a4e49b5855c890748af3d5b3f92a7d12d07eee3e814c33a8dfc97d208d",
+      "sha256": "4492a2d348d107dda886433f82c7e671ed645007bba1be851c03629ae14efa94",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 7925,
+      "frames": 300
+    },
+    {
+      "label": "h025",
+      "class": "4k",
+      "source_sha256": "f4929bfd7e49dd07e5639b66c0222dc6e7928f391d526922d3e3d94212b487c3",
+      "sha256": "b9c609133def121b87ace73d788696e1e3e5b36aa490c097ca679b000192f207",
+      "width": 1080,
+      "height": 1920,
+      "source_frames": 1453,
+      "frames": 150
+    },
+    {
+      "label": "h026",
+      "class": "4k",
+      "source_sha256": "81e3b18c676759a2e01c968f9dc70ae6ad7dfc13d70ecb65a4dbb18367a7cf22",
+      "sha256": "a15fe7149cb7aa69aea6d51915d357bad7aa4dd99a20ea176d135e960c58756a",
+      "width": 3840,
+      "height": 2160,
+      "source_frames": 920,
+      "frames": 150
+    },
+    {
+      "label": "h027",
+      "class": "sd",
+      "source_sha256": "a776a5b8fdbb204c116981b83226d7ed3cf7ce70344d6a14590ff7afda63a890",
+      "sha256": "88bf1cd41b82f2651ea9621bdfafcd19f2e363dcad60c4947d208c6c0a85b24d",
+      "width": 640,
+      "height": 360,
+      "source_frames": 31646,
+      "frames": 1800
+    },
+    {
+      "label": "h028",
+      "class": "720p",
+      "source_sha256": "61540fc7bab12ab0fca1682601b4b9d990b2463f25683b259257929b9e79cb03",
+      "sha256": "db29a659520f077223552ce54cfa015152a897d4f58187d7f8f06292040104a5",
+      "width": 848,
+      "height": 480,
+      "source_frames": 3123,
+      "frames": 900
+    },
+    {
+      "label": "h029",
+      "class": "1080p",
+      "source_sha256": "5b034cf712ea2e71c89b26a6077b592af1cf19d3bf3c407baec18b71ea6584ae",
+      "sha256": "ed605c2c7899c77ece3d82ff7bbdcda617d21cd6ae3c1f13f27e5cc1d8e141df",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 4995,
+      "frames": 300
+    },
+    {
+      "label": "h030",
+      "class": "1080p",
+      "source_sha256": "0463ba3e8d60ce67278b83090f3384507769d93a5555f274a9352e1b5c426d8e",
+      "sha256": "f1e6eca4382f7cd5dbb3ca9527e32139d3094f02ba3861dc6f9950896cdd8cfc",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 10519,
+      "frames": 300
+    },
+    {
+      "label": "h031",
+      "class": "1080p",
+      "source_sha256": "54e9b18df805eab2ad26d7a73cef0d4286ef4fd5caca138dc6c9b68e9ea7bb7a",
+      "sha256": "13d1130cda21d517f8ac5b4d322c0c9f67da32325add7ce1f1f44b6e1d512a67",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 1095,
+      "frames": 300
+    },
+    {
+      "label": "h032",
+      "class": "sd",
+      "source_sha256": "0baaa1755892aed41232e34c97f87206954880a311fd6174445d789a50cc6e1a",
+      "sha256": "ade9700cf357003d2ef2eeea679303b31a9f500c0726f0bb7838642036423978",
+      "width": 480,
+      "height": 360,
+      "source_frames": 39274,
+      "frames": 1800
+    },
+    {
+      "label": "h033",
+      "class": "sd",
+      "source_sha256": "9c002b79fdf5569e46ee7d148893ff896b804e3f806cfb694a739cb34b527a4b",
+      "sha256": "bc285759c4001384fd33a6079cf8efe1773e7be5175365f6431c3e5d83205a40",
+      "width": 640,
+      "height": 360,
+      "source_frames": 10152,
+      "frames": 1800
+    },
+    {
+      "label": "h034",
+      "class": "4k",
+      "source_sha256": "00368bb77c97a93776ab8130e3bd3149b657c9bce038748361644c84c449f1b3",
+      "sha256": "cd9dffad64520c337db69e6993eef01d8324f53082297c4dcb1b05d71c128168",
+      "width": 3840,
+      "height": 2160,
+      "source_frames": 266,
+      "frames": 150
+    },
+    {
+      "label": "h035",
+      "class": "sd",
+      "source_sha256": "3a182c80939c7819a0dc016fb98a347ea35225699737309eda613b32e05db04c",
+      "sha256": "bc198413e80bb421f96c56cf5bcc58809600b9b3b4bb17abb78a8bae5b356fbf",
+      "width": 640,
+      "height": 360,
+      "source_frames": 39709,
+      "frames": 1800
+    },
+    {
+      "label": "h036",
+      "class": "sd",
+      "source_sha256": "e57c46e47d01b7cf8e2499dc7bf0ae3267b7cc6fc01743bc6902ea170ba627b1",
+      "sha256": "deffb543ffd4d2c0920f20a97f1f3facd60ea6ec846a2e0b1a0910d187acb128",
+      "width": 640,
+      "height": 360,
+      "source_frames": 40886,
+      "frames": 1800
+    },
+    {
+      "label": "h037",
+      "class": "4k",
+      "source_sha256": "007c15952bedfc327f13d71f3205ab61c30559453abb02868077aca2696f34df",
+      "sha256": "a43571ddb9580539aa6b5570dc50f151149ad6ab34befbb2b5e6846fd3888a47",
+      "width": 720,
+      "height": 1280,
+      "source_frames": 806,
+      "frames": 150
+    },
+    {
+      "label": "h038",
+      "class": "1080p",
+      "source_sha256": "8be6e6a2fe6647b0ad223b90e23fbff1fc7f5cb491d29bffec91d21ddeed9326",
+      "sha256": "fc5903e8c83092bbe5d481803a641a28c4538f388cb2654d3d09baa9b6e31a64",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 64151,
+      "frames": 300
+    },
+    {
+      "label": "h039",
+      "class": "720p",
+      "source_sha256": "8ad13634c171014281294e9baba8e0daa5d4acef7701674dde8adb30719534fe",
+      "sha256": "1dafc6860108281f898a175fd3e45daec1e88b396ff27c9faf5b7913974d8a67",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 417,
+      "frames": 417
+    },
+    {
+      "label": "h040",
+      "class": "720p",
+      "source_sha256": "1462c087f6c3d5f577bb352c2f2bba50b0e73977c5cfdfdd1bfcf7885b47b959",
+      "sha256": "6411b607e81867215a0537ae83288ae1ce42d28808bf16777dd07c4dbe46c5b0",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 12450,
+      "frames": 900
+    },
+    {
+      "label": "h041",
+      "class": "sd",
+      "source_sha256": "8114e37f124210fc19434716fc5a762c10f98437f955730df80aa00e2a9bb19e",
+      "sha256": "af72d778d8360355e856d60e6461774cc3da32e6809fce9d4d9ac9dbdb879854",
+      "width": 638,
+      "height": 480,
+      "source_frames": 30626,
+      "frames": 1800
+    },
+    {
+      "label": "h042",
+      "class": "sd",
+      "source_sha256": "0b36b3fbc8ac204cc42cb7b3073a27689d6033ea61cdf44bef9f142db9f3339d",
+      "sha256": "d2658fa6651f73e2f8bbccdf9df187db939a899340786b3cbb30ceb92d6979f8",
+      "width": 192,
+      "height": 144,
+      "source_frames": 1090,
+      "frames": 1090
+    },
+    {
+      "label": "h043",
+      "class": "sd",
+      "source_sha256": "b3ef5a18175723799a6da5ba4ea6398177c7d9288bc1cff0a211df857d6dec42",
+      "sha256": "46d0f05af43d574582d0ef11a789d8e859b43af7d4e2b8159d82d590cae6d0c3",
+      "width": 480,
+      "height": 350,
+      "source_frames": 1892,
+      "frames": 1800
+    },
+    {
+      "label": "h044",
+      "class": "sd",
+      "source_sha256": "8db5db88922772b8e656d7c2a9e0ca5ea8b4e8180d02fe24adc32c494a410ca5",
+      "sha256": "5e126da8113558cec0469770d5a9f042d396871454ea17a54af32e966e958907",
+      "width": 640,
+      "height": 480,
+      "source_frames": 54565,
+      "frames": 1800
+    },
+    {
+      "label": "h045",
+      "class": "720p",
+      "source_sha256": "ced8d25249b24ba86909a3e7b63ac7a94694467e67122de23373eb82323e895e",
+      "sha256": "425c427e61122c7620b6f7ed7d89b34be3e6151e334c4bc5e5c30d4f0d9f0e59",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 33014,
+      "frames": 900
+    },
+    {
+      "label": "h046",
+      "class": "1080p",
+      "source_sha256": "bf1b4aa3f3b4f6d86bd527642ea8c14a91d7f1470563ea923de3226e993d1fbd",
+      "sha256": "b58f201370fd09689adc18e927851a70c8eeffc1b4d496600dfbf0634d4af8e2",
+      "width": 1364,
+      "height": 768,
+      "source_frames": 15483,
+      "frames": 300
+    },
+    {
+      "label": "h047",
+      "class": "1080p",
+      "source_sha256": "e4733b9645a1cabbb6202bfa7968090669a7239920344bc41be1db9d7c31dbfb",
+      "sha256": "accdb2317570b6c92bd916f95d6e222bb7e9c59bc6d751759e5106fc2c76bb73",
+      "width": 1920,
+      "height": 1080,
+      "source_frames": 1620,
+      "frames": 300
+    },
+    {
+      "label": "h048",
+      "class": "720p",
+      "source_sha256": "d20098e0089fbabdd278cce61269fd72e69e95a8370e719b7297acd0546c4a2b",
+      "sha256": "73016d38d5a37405d0433092bdba5a074eb87e57906f3b923d9401efc2ed3287",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 34095,
+      "frames": 900
+    },
+    {
+      "label": "h049",
+      "class": "720p",
+      "source_sha256": "9de228ad0cabdd41d9ec77cc4ae0c4e68de6083461382369a0a8f1a94c7592cd",
+      "sha256": "a56aaa349ca7584c60c54b0a11aa89ebb5ad91dfd0348ada807749eb197dea44",
+      "width": 1280,
+      "height": 720,
+      "source_frames": 685,
+      "frames": 685
+    },
+    {
+      "label": "h050",
+      "class": "sd",
+      "source_sha256": "8d1001fb4bf5289fc1fe3e5fad283482ec38c61da593652039f1cd950c48fd2c",
+      "sha256": "69c7901611706d6fc4a76ebae1828a0249df5129c16c1b9760d36497582aa860",
+      "width": 480,
+      "height": 360,
+      "source_frames": 67569,
+      "frames": 1800
+    },
+    {
+      "label": "h051",
+      "class": "sd",
+      "source_sha256": "6803c158b7da407b75d59580b6d3edca2e3f475251bdd09d9bee4274c623abb4",
+      "sha256": "ceb9d0bcc460dd82b2c5d4f980ead03b34719e73c8de33e92a0dee1a9ee1bce3",
+      "width": 640,
+      "height": 360,
+      "source_frames": 45,
+      "frames": 45
+    },
+    {
+      "label": "h052",
+      "class": "4k",
+      "source_sha256": "62dc324e7c4cb060bea166ea540cdca063299e5db55c8501b60c11f4dbeb128a",
+      "sha256": "c4a6dd3ba31682e6092dfd98a259f3323dd45262278862ef8445875f6dc37d07",
+      "width": 1080,
+      "height": 1920,
+      "source_frames": 493,
+      "frames": 150
+    },
+    {
+      "label": "h053",
+      "class": "4k",
+      "source_sha256": "84c6c0c3d15b97b0144271cfcf01a2289800d9f1f191bc179ec8ac9c32b6d598",
+      "sha256": "9a6975d80218af4d8ffb0365d24256919a793bc0f2d3bc303279807db6fdf6b1",
+      "width": 2560,
+      "height": 1440,
+      "source_frames": 1794,
+      "frames": 150
+    },
+    {
+      "label": "h054",
+      "class": "4k",
+      "source_sha256": "9727b10de1c0e6f7e11f2a4e190b532c34a183b0ea7cc29e3bfac80b578a90e3",
+      "sha256": "864f1fcffcc8e10dd7affdde364c4aa3a3d83e3579a83b490b138ba473d2c6bd",
+      "width": 720,
+      "height": 1280,
+      "source_frames": 192,
+      "frames": 150
+    },
+    {
+      "label": "h055",
+      "class": "4k",
+      "source_sha256": "94d1d6367dcb6d49ecf8d1ed9085efb583dd925f979a59c557588778a7cb9703",
+      "sha256": "d67d629c4a8aba4c7fa8aad21f3bddcda3ac048a5c349f721d330ce7545d3364",
+      "width": 720,
+      "height": 1280,
+      "source_frames": 150,
+      "frames": 150
+    },
+    {
+      "label": "h056",
+      "class": "4k",
+      "source_sha256": "a0f396c97368d6a8383830485ba760a156b4c56d452d27d00b0125b7a2e31503",
+      "sha256": "129d84dc18e9d50857de687aaf18cc229a293bb28a7027ae8a49f6f54effa253",
+      "width": 3840,
+      "height": 2160,
+      "source_frames": 590,
+      "frames": 150
+    }
+  ]
+}
