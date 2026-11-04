@@ -2,6 +2,10 @@
 
 This is milestone 1 of [the HEVC design](../../docs/design/hevc.md). It acquires published data, checks every admitted stream's headers to EOF, and records the fixed 54-file profile/container census. It does not reconstruct pictures with CoreAV, measure speed, or pass later correctness gates.
 
+The [complete evidence-source table](evidence-sources.md) records the verified census at `028ca00a6831b64faa226614252edd0290ce642d`: 147 archives, 144 distinct official bitstreams, 144 header/reference checks, two named maintainer exclusions and one named unequal-depth refusal. The 126 hash-validated-oracle count rows represent 123 distinct streams; those counts are not labelled published. The separate four synthetic sources supply eight Main10 G2 candidates. Published candidates supply three 8-bit G2, eleven 8-bit G3 and six Main10 G3 pictures. All four depth/gate sets are nonempty; these are candidates, not reconstruction passes.
+
+The metadata-only census also completed all 54 fixed files. Its public aggregate has 42 Main, 11 Main10 and one RExt profile result with unspecified depth. This is metadata observation, not native-profile admission. Per-file records and container details remain sealed; the public artifact contains only the roster digest, completion flag, aggregate counts and file total.
+
 ## Registration
 
 `archives.json` maps all 147 direct ZIP links in the official HEVC_v1 listing to all 147 rows of H.265.1 (10/2018), Table 1, pages 91 through 97. The listing contains 129,093,824 compressed bytes. The largest archive is 9,529,728 bytes. Case differences are recorded. The table's `WP_B_MAIN10_Toshiba_3` maps to `WP_MAIN10_B_Toshiba_3.zip`; wrapped table filenames are joined, including a doubled underscore at the WPP Main10 line break. The mapping does not prove that an archive contains exactly one distinct stream. Acquisition inventories every bitstream and its SHA-256. Duplicate stream hashes remain visible rather than disappearing from the denominator.
