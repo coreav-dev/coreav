@@ -1,0 +1,1063 @@
+{
+  "version": 1,
+  "status": "registered candidates; acquisition evidence is generated, not assumed",
+  "listing_url": "https://www.itu.int/wftp3/av-arch/jctvc-site/bitstream_exchange/draft_conformance/HEVC_v1/",
+  "listing_sha256": "a690c5cca2fedf9a8f1a385585bba6ba4e45afc8ebe1336107427213d9dfe4bd",
+  "specification_url": "https://www.itu.int/rec/T-REC-H.265.1-201810-I/en",
+  "specification_pdf_sha256": "8529aee091ab8bd8773882a6ff4bccdd22c3587974ede572ce628238aa62257f",
+  "reconciliation": "H.265.1 (10/2018) Table 1, pages 91..97; 147 rows matched bijectively to 147 direct ZIP links. Wrapped text joined. WPP Main10 table double underscore normalized; WP_B_MAIN10 filename maps to listing WP_MAIN10_B. No replacement or extension directory included.",
+  "archive_count": 147,
+  "compressed_bytes": 129093824,
+  "archives": [
+    {
+      "archive": "AMP_A_Samsung_7.zip",
+      "bytes": 266095,
+      "test": "AMP_A",
+      "table_page": 95,
+      "table_file": "AMP_A_Samsung_7"
+    },
+    {
+      "archive": "AMP_B_Samsung_7.zip",
+      "bytes": 932351,
+      "test": "AMP_B",
+      "table_page": 95,
+      "table_file": "AMP_B_Samsung_7"
+    },
+    {
+      "archive": "AMP_D_Hisilicon_3.zip",
+      "bytes": 716532,
+      "test": "AMP_D",
+      "table_page": 95,
+      "table_file": "AMP_D_Hisilicon_3"
+    },
+    {
+      "archive": "AMP_E_Hisilicon_3.zip",
+      "bytes": 808100,
+      "test": "AMP_E",
+      "table_page": 95,
+      "table_file": "AMP_E_Hisilicon_3"
+    },
+    {
+      "archive": "AMP_F_Hisilicon_3.zip",
+      "bytes": 558283,
+      "test": "AMP_F",
+      "table_page": 95,
+      "table_file": "AMP_F_Hisilicon_3"
+    },
+    {
+      "archive": "AMVP_A_MTK_4.zip",
+      "bytes": 18585,
+      "test": "AMVP_A",
+      "table_page": 91,
+      "table_file": "AMVP_A_MTK_4"
+    },
+    {
+      "archive": "AMVP_B_MTK_4.zip",
+      "bytes": 24723,
+      "test": "AMVP_B",
+      "table_page": 91,
+      "table_file": "AMVP_B_MTK_4"
+    },
+    {
+      "archive": "AMVP_C_Samsung_7.zip",
+      "bytes": 308139,
+      "test": "AMVP_C",
+      "table_page": 91,
+      "table_file": "AMVP_C_Samsung_7"
+    },
+    {
+      "archive": "BUMPING_A_ericsson_1.zip",
+      "bytes": 528429,
+      "test": "BUMPING_A",
+      "table_page": 96,
+      "table_file": "BUMPING_A_ericsson_1",
+      "published_output_count": {
+        "value": 49,
+        "source": "H.265.1 6.6.12.33: POC 0..65, excluding 17 named POCs"
+      }
+    },
+    {
+      "archive": "CAINIT_A_SHARP_4.zip",
+      "bytes": 1898631,
+      "test": "CAINIT_A",
+      "table_page": 94,
+      "table_file": "CAINIT_A_SHARP_4"
+    },
+    {
+      "archive": "CAINIT_B_SHARP_4.zip",
+      "bytes": 1907270,
+      "test": "CAINIT_B",
+      "table_page": 94,
+      "table_file": "CAINIT_B_SHARP_4"
+    },
+    {
+      "archive": "CAINIT_C_SHARP_3.zip",
+      "bytes": 2111011,
+      "test": "CAINIT_C",
+      "table_page": 94,
+      "table_file": "CAINIT_C_SHARP_3"
+    },
+    {
+      "archive": "CAINIT_D_SHARP_3.zip",
+      "bytes": 1974356,
+      "test": "CAINIT_D",
+      "table_page": 94,
+      "table_file": "CAINIT_D_SHARP_3"
+    },
+    {
+      "archive": "CAINIT_E_SHARP_3.zip",
+      "bytes": 2099374,
+      "test": "CAINIT_E",
+      "table_page": 94,
+      "table_file": "CAINIT_E_SHARP_3"
+    },
+    {
+      "archive": "CAINIT_F_SHARP_3.zip",
+      "bytes": 1929217,
+      "test": "CAINIT_F",
+      "table_page": 94,
+      "table_file": "CAINIT_F_SHARP_3"
+    },
+    {
+      "archive": "CAINIT_G_SHARP_3.zip",
+      "bytes": 2175936,
+      "test": "CAINIT_G",
+      "table_page": 94,
+      "table_file": "CAINIT_G_SHARP_3"
+    },
+    {
+      "archive": "CAINIT_H_SHARP_3.zip",
+      "bytes": 2012336,
+      "test": "CAINIT_H",
+      "table_page": 94,
+      "table_file": "CAINIT_H_SHARP_3"
+    },
+    {
+      "archive": "CIP_A_Panasonic_3.zip",
+      "bytes": 17895,
+      "test": "CIP_A",
+      "table_page": 91,
+      "table_file": "CIP_A_Panasonic_3"
+    },
+    {
+      "archive": "cip_B_NEC_3.zip",
+      "bytes": 14003,
+      "test": "CIP_B",
+      "table_page": 91,
+      "table_file": "CIP_B_NEC_3",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "CIP_C_Panasonic_2.zip",
+      "bytes": 60954,
+      "test": "CIP_C",
+      "table_page": 91,
+      "table_file": "CIP_C_Panasonic_2"
+    },
+    {
+      "archive": "CONFWIN_A_Sony_1.zip",
+      "bytes": 284207,
+      "test": "CONFWIN_A",
+      "table_page": 97,
+      "table_file": "CONFWIN_A_Sony_1"
+    },
+    {
+      "archive": "DBLK_A_MAIN10_VIXS_4.zip",
+      "bytes": 101230,
+      "test": "DBLK_A_MAIN10",
+      "table_page": 97,
+      "table_file": "DBLK_A_MAIN10_VIXS_4"
+    },
+    {
+      "archive": "DBLK_A_SONY_3.zip",
+      "bytes": 279218,
+      "test": "DBLK_A",
+      "table_page": 93,
+      "table_file": "DBLK_A_SONY_3"
+    },
+    {
+      "archive": "DBLK_B_SONY_3.zip",
+      "bytes": 75677,
+      "test": "DBLK_B",
+      "table_page": 93,
+      "table_file": "DBLK_B_SONY_3"
+    },
+    {
+      "archive": "DBLK_C_SONY_3.zip",
+      "bytes": 852033,
+      "test": "DBLK_C",
+      "table_page": 93,
+      "table_file": "DBLK_C_SONY_3"
+    },
+    {
+      "archive": "DBLK_D_VIXS_2.zip",
+      "bytes": 17420,
+      "test": "DBLK_D",
+      "table_page": 93,
+      "table_file": "DBLK_D_VIXS_2"
+    },
+    {
+      "archive": "DBLK_E_VIXS_2.zip",
+      "bytes": 27438,
+      "test": "DBLK_E",
+      "table_page": 93,
+      "table_file": "DBLK_E_VIXS_2"
+    },
+    {
+      "archive": "DBLK_F_VIXS_2.zip",
+      "bytes": 27444,
+      "test": "DBLK_F",
+      "table_page": 93,
+      "table_file": "DBLK_F_VIXS_2"
+    },
+    {
+      "archive": "DBLK_G_VIXS_2.zip",
+      "bytes": 27437,
+      "test": "DBLK_G",
+      "table_page": 93,
+      "table_file": "DBLK_G_VIXS_2"
+    },
+    {
+      "archive": "DELTAQP_A_BRCM_4.zip",
+      "bytes": 9529728,
+      "test": "DELTAQP_A",
+      "table_page": 92,
+      "table_file": "DELTAQP_A_BRCM_4"
+    },
+    {
+      "archive": "DELTAQP_B_SONY_3.zip",
+      "bytes": 5374760,
+      "test": "DELTAQP_B",
+      "table_page": 92,
+      "table_file": "DELTAQP_B_SONY_3"
+    },
+    {
+      "archive": "DELTAQP_C_SONY_3.zip",
+      "bytes": 1381335,
+      "test": "DELTAQP_C",
+      "table_page": 92,
+      "table_file": "DELTAQP_C_SONY_3"
+    },
+    {
+      "archive": "DSLICE_A_HHI_5.zip",
+      "bytes": 371423,
+      "test": "DSLICE_A",
+      "table_page": 96,
+      "table_file": "DSLICE_A_HHI_5"
+    },
+    {
+      "archive": "DSLICE_B_HHI_5.zip",
+      "bytes": 374392,
+      "test": "DSLICE_B",
+      "table_page": 96,
+      "table_file": "DSLICE_B_HHI_5"
+    },
+    {
+      "archive": "DSLICE_C_HHI_5.zip",
+      "bytes": 371764,
+      "test": "DSLICE_C",
+      "table_page": 96,
+      "table_file": "DSLICE_C_HHI_5"
+    },
+    {
+      "archive": "ENTP_A_QUALCOMM_1.zip",
+      "bytes": 2624919,
+      "test": "ENTP_A",
+      "table_page": 94,
+      "table_file": "ENTP_A_QUALCOMM_1"
+    },
+    {
+      "archive": "ENTP_B_Qualcomm_1.zip",
+      "bytes": 312095,
+      "test": "ENTP_B",
+      "table_page": 94,
+      "table_file": "ENTP_B_Qualcomm_1"
+    },
+    {
+      "archive": "ENTP_C_Qualcomm_1.zip",
+      "bytes": 219316,
+      "test": "ENTP_C",
+      "table_page": 94,
+      "table_file": "ENTP_C_Qualcomm_1"
+    },
+    {
+      "archive": "EXT_A_ericsson_4.zip",
+      "bytes": 27780,
+      "test": "EXT_A",
+      "table_page": 97,
+      "table_file": "EXT_A_ericsson_4",
+      "published_output_count": {
+        "value": 3,
+        "source": "H.265.1 6.6.12.36"
+      }
+    },
+    {
+      "archive": "FILLER_A_Sony_1.zip",
+      "bytes": 284359,
+      "test": "FILLER_A",
+      "table_page": 95,
+      "table_file": "FILLER_A_Sony_1"
+    },
+    {
+      "archive": "HRD_A_Fujitsu_3.zip",
+      "bytes": 147331,
+      "test": "HRD_A",
+      "table_page": 97,
+      "table_file": "HRD_A_Fujitsu_3"
+    },
+    {
+      "archive": "INITQP_A_Sony_1.zip",
+      "bytes": 289519,
+      "test": "INITQP_A",
+      "table_page": 92,
+      "table_file": "INITQP_A_Sony_1"
+    },
+    {
+      "archive": "INITQP_B_Main10_Sony_1.zip",
+      "bytes": 406174,
+      "test": "INITQP_B_Main10",
+      "table_page": 97,
+      "table_file": "INITQP_B_Main10_Sony_1"
+    },
+    {
+      "archive": "ipcm_A_NEC_3.zip",
+      "bytes": 6037,
+      "test": "IPCM_A",
+      "table_page": 95,
+      "table_file": "IPCM_A_NEC_3",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "ipcm_B_NEC_3.zip",
+      "bytes": 6557,
+      "test": "IPCM_B",
+      "table_page": 95,
+      "table_file": "IPCM_B_NEC_3",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "ipcm_C_NEC_3.zip",
+      "bytes": 6795,
+      "test": "IPCM_C",
+      "table_page": 95,
+      "table_file": "IPCM_C_NEC_3",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "ipcm_D_NEC_3.zip",
+      "bytes": 6767,
+      "test": "IPCM_D",
+      "table_page": 95,
+      "table_file": "IPCM_D_NEC_3",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "ipcm_E_NEC_2.zip",
+      "bytes": 6408,
+      "test": "IPCM_E",
+      "table_page": 95,
+      "table_file": "IPCM_E_NEC_2",
+      "name_reconciliation": "case only"
+    },
+    {
+      "archive": "IPRED_A_docomo_2.zip",
+      "bytes": 336302,
+      "test": "IPRED_A",
+      "table_page": 91,
+      "table_file": "IPRED_A_docomo_2"
+    },
+    {
+      "archive": "IPRED_B_Nokia_3.zip",
+      "bytes": 302514,
+      "test": "IPRED_B",
+      "table_page": 91,
+      "table_file": "IPRED_B_Nokia_3",
+      "published_output_count": {
+        "value": 1,
+        "source": "H.265.1 6.6.3.1"
+      }
+    },
+    {
+      "archive": "IPRED_C_Mitsubishi_3.zip",
+      "bytes": 258524,
+      "test": "IPRED_C",
+      "table_page": 91,
+      "table_file": "IPRED_C_Mitsubishi_3"
+    },
+    {
+      "archive": "LS_A_Orange_2.zip",
+      "bytes": 594107,
+      "test": "LS_A",
+      "table_page": 95,
+      "table_file": "LS_A_Orange_2"
+    },
+    {
+      "archive": "LS_B_Orange_4.zip",
+      "bytes": 3700777,
+      "test": "LS_B",
+      "table_page": 95,
+      "table_file": "LS_B_Orange_4"
+    },
+    {
+      "archive": "LTRPSPS_A_Qualcomm_1.zip",
+      "bytes": 490893,
+      "test": "LTRPSPS",
+      "table_page": 96,
+      "table_file": "LTRPSPS_A_Qualcomm_1"
+    },
+    {
+      "archive": "MAXBINS_A_TI_5.zip",
+      "bytes": 302251,
+      "test": "MAXBINS_A",
+      "table_page": 93,
+      "table_file": "MAXBINS_A_TI_5"
+    },
+    {
+      "archive": "MAXBINS_B_TI_5.zip",
+      "bytes": 166197,
+      "test": "MAXBINS_B",
+      "table_page": 93,
+      "table_file": "MAXBINS_B_TI_5"
+    },
+    {
+      "archive": "MAXBINS_C_TI_5.zip",
+      "bytes": 165306,
+      "test": "MAXBINS_C",
+      "table_page": 93,
+      "table_file": "MAXBINS_C_TI_5"
+    },
+    {
+      "archive": "MERGE_A_TI_3.zip",
+      "bytes": 16967,
+      "test": "MERGE_A",
+      "table_page": 91,
+      "table_file": "MERGE_A_TI_3"
+    },
+    {
+      "archive": "MERGE_B_TI_3.zip",
+      "bytes": 16676,
+      "test": "MERGE_B",
+      "table_page": 91,
+      "table_file": "MERGE_B_TI_3"
+    },
+    {
+      "archive": "MERGE_C_TI_3.zip",
+      "bytes": 16588,
+      "test": "MERGE_C",
+      "table_page": 91,
+      "table_file": "MERGE_C_TI_3"
+    },
+    {
+      "archive": "MERGE_D_TI_3.zip",
+      "bytes": 16599,
+      "test": "MERGE_D",
+      "table_page": 91,
+      "table_file": "MERGE_D_TI_3"
+    },
+    {
+      "archive": "MERGE_E_TI_3.zip",
+      "bytes": 16563,
+      "test": "MERGE_E",
+      "table_page": 91,
+      "table_file": "MERGE_E_TI_3"
+    },
+    {
+      "archive": "MERGE_F_MTK_4.zip",
+      "bytes": 25247,
+      "test": "MERGE_F",
+      "table_page": 91,
+      "table_file": "MERGE_F_MTK_4"
+    },
+    {
+      "archive": "MERGE_G_HHI_4.zip",
+      "bytes": 67055,
+      "test": "MERGE_G",
+      "table_page": 91,
+      "table_file": "MERGE_G_HHI_4"
+    },
+    {
+      "archive": "MVCLIP_A_qualcomm_3.zip",
+      "bytes": 100255,
+      "test": "MVCLIP_A",
+      "table_page": 92,
+      "table_file": "MVCLIP_A_qualcomm_3"
+    },
+    {
+      "archive": "MVDL1ZERO_A_docomo_4.zip",
+      "bytes": 1945632,
+      "test": "MVDL1ZERO_A",
+      "table_page": 92,
+      "table_file": "MVDL1ZERO_A_docomo_4"
+    },
+    {
+      "archive": "MVEDGE_A_qualcomm_3.zip",
+      "bytes": 52420,
+      "test": "MVEDGE_A",
+      "table_page": 92,
+      "table_file": "MVEDGE_A_qualcomm_3"
+    },
+    {
+      "archive": "NoOutPrior_A_Qualcomm_1.zip",
+      "bytes": 140200,
+      "test": "NoOutPrior_A",
+      "table_page": 96,
+      "table_file": "NoOutPrior_A_Qualcomm_1"
+    },
+    {
+      "archive": "NoOutPrior_B_Qualcomm_1.zip",
+      "bytes": 142489,
+      "test": "NoOutPrior_B",
+      "table_page": 96,
+      "table_file": "NoOutPrior_B_Qualcomm_1"
+    },
+    {
+      "archive": "NUT_A_ericsson_5.zip",
+      "bytes": 302365,
+      "test": "NUT_A",
+      "table_page": 95,
+      "table_file": "NUT_A_ericsson_5"
+    },
+    {
+      "archive": "OPFLAG_A_Qualcomm_1.zip",
+      "bytes": 501886,
+      "test": "OPFLAG_A",
+      "table_page": 96,
+      "table_file": "OPFLAG_A_Qualcomm_1"
+    },
+    {
+      "archive": "OPFLAG_B_Qualcomm_1.zip",
+      "bytes": 2056800,
+      "test": "OPFLAG_B",
+      "table_page": 96,
+      "table_file": "OPFLAG_B_Qualcomm_1"
+    },
+    {
+      "archive": "OPFLAG_C_Qualcomm_1.zip",
+      "bytes": 278961,
+      "test": "OPFLAG_C",
+      "table_page": 96,
+      "table_file": "OPFLAG_C_Qualcomm_1"
+    },
+    {
+      "archive": "PICSIZE_A_Bossen_1.zip",
+      "bytes": 420346,
+      "test": "PICSIZE_A",
+      "table_page": 96,
+      "table_file": "PICSIZE_A_Bossen_1"
+    },
+    {
+      "archive": "PICSIZE_B_Bossen_1.zip",
+      "bytes": 338263,
+      "test": "PICSIZE_B",
+      "table_page": 96,
+      "table_file": "PICSIZE_B_Bossen_1"
+    },
+    {
+      "archive": "PICSIZE_C_Bossen_1.zip",
+      "bytes": 161056,
+      "test": "PICSIZE_C",
+      "table_page": 96,
+      "table_file": "PICSIZE_C_Bossen_1"
+    },
+    {
+      "archive": "PICSIZE_D_Bossen_1.zip",
+      "bytes": 77220,
+      "test": "PICSIZE_D",
+      "table_page": 96,
+      "table_file": "PICSIZE_D_Bossen_1"
+    },
+    {
+      "archive": "PMERGE_A_TI_3.zip",
+      "bytes": 16580,
+      "test": "PMERGE_A",
+      "table_page": 91,
+      "table_file": "PMERGE_A_TI_3"
+    },
+    {
+      "archive": "PMERGE_B_TI_3.zip",
+      "bytes": 16628,
+      "test": "PMERGE_B",
+      "table_page": 91,
+      "table_file": "PMERGE_B_TI_3"
+    },
+    {
+      "archive": "PMERGE_C_TI_3.zip",
+      "bytes": 16664,
+      "test": "PMERGE_C",
+      "table_page": 91,
+      "table_file": "PMERGE_C_TI_3"
+    },
+    {
+      "archive": "PMERGE_D_TI_3.zip",
+      "bytes": 16781,
+      "test": "PMERGE_D",
+      "table_page": 91,
+      "table_file": "PMERGE_D_TI_3"
+    },
+    {
+      "archive": "PMERGE_E_TI_3.zip",
+      "bytes": 16977,
+      "test": "PMERGE_E",
+      "table_page": 91,
+      "table_file": "PMERGE_E_TI_3"
+    },
+    {
+      "archive": "POC_A_Bossen_3.zip",
+      "bytes": 86243,
+      "test": "POC_A",
+      "table_page": 96,
+      "table_file": "POC_A_Bossen_3"
+    },
+    {
+      "archive": "PPS_A_qualcomm_7.zip",
+      "bytes": 407388,
+      "test": "PPS_A",
+      "table_page": 95,
+      "table_file": "PPS_A_qualcomm_7"
+    },
+    {
+      "archive": "PS_B_VIDYO_3.zip",
+      "bytes": 18766,
+      "test": "PS_B",
+      "table_page": 95,
+      "table_file": "PS_B_VIDYO_3"
+    },
+    {
+      "archive": "RAP_A_docomo_6.zip",
+      "bytes": 111169,
+      "test": "RAP_A",
+      "table_page": 96,
+      "table_file": "RAP_A_docomo_6"
+    },
+    {
+      "archive": "RAP_B_Bossen_2.zip",
+      "bytes": 120428,
+      "test": "RAP_B",
+      "table_page": 96,
+      "table_file": "RAP_B_Bossen_2"
+    },
+    {
+      "archive": "RPLM_A_qualcomm_4.zip",
+      "bytes": 204287,
+      "test": "RPLM_A",
+      "table_page": 96,
+      "table_file": "RPLM_A_qualcomm_4"
+    },
+    {
+      "archive": "RPLM_B_qualcomm_4.zip",
+      "bytes": 219626,
+      "test": "RPLM_B",
+      "table_page": 96,
+      "table_file": "RPLM_B_qualcomm_4"
+    },
+    {
+      "archive": "RPS_A_docomo_5.zip",
+      "bytes": 66960,
+      "test": "RPS_A",
+      "table_page": 96,
+      "table_file": "RPS_A_docomo_5"
+    },
+    {
+      "archive": "RPS_B_qualcomm_5.zip",
+      "bytes": 220876,
+      "test": "RPS_B",
+      "table_page": 96,
+      "table_file": "RPS_B_qualcomm_5"
+    },
+    {
+      "archive": "RPS_C_ericsson_5.zip",
+      "bytes": 354979,
+      "test": "RPS_C",
+      "table_page": 96,
+      "table_file": "RPS_C_ericsson_5"
+    },
+    {
+      "archive": "RPS_D_ericsson_6.zip",
+      "bytes": 561804,
+      "test": "RPS_D",
+      "table_page": 96,
+      "table_file": "RPS_D_ericsson_6"
+    },
+    {
+      "archive": "RPS_E_qualcomm_5.zip",
+      "bytes": 436970,
+      "test": "RPS_E",
+      "table_page": 96,
+      "table_file": "RPS_E_qualcomm_5"
+    },
+    {
+      "archive": "RPS_F_docomo_2.zip",
+      "bytes": 80776,
+      "test": "RPS_F",
+      "table_page": 96,
+      "table_file": "RPS_F_docomo_2"
+    },
+    {
+      "archive": "RQT_A_HHI_4.zip",
+      "bytes": 67173,
+      "test": "RQT_A",
+      "table_page": 92,
+      "table_file": "RQT_A_HHI_4"
+    },
+    {
+      "archive": "RQT_B_HHI_4.zip",
+      "bytes": 67077,
+      "test": "RQT_B",
+      "table_page": 92,
+      "table_file": "RQT_B_HHI_4"
+    },
+    {
+      "archive": "RQT_C_HHI_4.zip",
+      "bytes": 67023,
+      "test": "RQT_C",
+      "table_page": 92,
+      "table_file": "RQT_C_HHI_4"
+    },
+    {
+      "archive": "RQT_D_HHI_4.zip",
+      "bytes": 67007,
+      "test": "RQT_D",
+      "table_page": 92,
+      "table_file": "RQT_D_HHI_4"
+    },
+    {
+      "archive": "RQT_E_HHI_4.zip",
+      "bytes": 85748,
+      "test": "RQT_E",
+      "table_page": 92,
+      "table_file": "RQT_E_HHI_4"
+    },
+    {
+      "archive": "RQT_F_HHI_4.zip",
+      "bytes": 66958,
+      "test": "RQT_F",
+      "table_page": 92,
+      "table_file": "RQT_F_HHI_4"
+    },
+    {
+      "archive": "RQT_G_HHI_4.zip",
+      "bytes": 67245,
+      "test": "RQT_G",
+      "table_page": 92,
+      "table_file": "RQT_G_HHI_4"
+    },
+    {
+      "archive": "SAO_A_MediaTek_4.zip",
+      "bytes": 52930,
+      "test": "SAO_A",
+      "table_page": 93,
+      "table_file": "SAO_A_MediaTek_4"
+    },
+    {
+      "archive": "SAO_B_MediaTek_5.zip",
+      "bytes": 163718,
+      "test": "SAO_B",
+      "table_page": 93,
+      "table_file": "SAO_B_MediaTek_5"
+    },
+    {
+      "archive": "SAO_C_Samsung_5.zip",
+      "bytes": 449819,
+      "test": "SAO_C",
+      "table_page": 93,
+      "table_file": "SAO_C_Samsung_5"
+    },
+    {
+      "archive": "SAO_D_Samsung_5.zip",
+      "bytes": 463353,
+      "test": "SAO_D",
+      "table_page": 93,
+      "table_file": "SAO_D_Samsung_5"
+    },
+    {
+      "archive": "SAO_E_Canon_4.zip",
+      "bytes": 152330,
+      "test": "SAO_E",
+      "table_page": 93,
+      "table_file": "SAO_E_Canon_4"
+    },
+    {
+      "archive": "SAO_F_Canon_3.zip",
+      "bytes": 50857,
+      "test": "SAO_F",
+      "table_page": 93,
+      "table_file": "SAO_F_Canon_3"
+    },
+    {
+      "archive": "SAO_G_Canon_3.zip",
+      "bytes": 24604,
+      "test": "SAO_G",
+      "table_page": 93,
+      "table_file": "SAO_G_Canon_3"
+    },
+    {
+      "archive": "SAO_H_Parabola_1.zip",
+      "bytes": 33641,
+      "test": "SAO_H",
+      "table_page": 93,
+      "table_file": "SAO_H_Parabola_1"
+    },
+    {
+      "archive": "SAODBLK_A_MainConcept_4.zip",
+      "bytes": 1386846,
+      "test": "SAODBLK_A",
+      "table_page": 93,
+      "table_file": "SAODBLK_A_MainConcept_4"
+    },
+    {
+      "archive": "SAODBLK_B_MainConcept_4.zip",
+      "bytes": 4342805,
+      "test": "SAODBLK_B",
+      "table_page": 93,
+      "table_file": "SAODBLK_B_MainConcept_4"
+    },
+    {
+      "archive": "SDH_A_Orange_4.zip",
+      "bytes": 1099127,
+      "test": "SDH_A",
+      "table_page": 94,
+      "table_file": "SDH_A_Orange_4"
+    },
+    {
+      "archive": "SLICES_A_Rovi_3.zip",
+      "bytes": 65113,
+      "test": "SLICES_A",
+      "table_page": 96,
+      "table_file": "SLICES_A_Rovi_3"
+    },
+    {
+      "archive": "SLIST_A_Sony_5.zip",
+      "bytes": 338351,
+      "test": "SLIST_A",
+      "table_page": 92,
+      "table_file": "SLIST_A_Sony_5"
+    },
+    {
+      "archive": "SLIST_B_Sony_9.zip",
+      "bytes": 342838,
+      "test": "SLIST_B",
+      "table_page": 92,
+      "table_file": "SLIST_B_Sony_9"
+    },
+    {
+      "archive": "SLIST_C_Sony_4.zip",
+      "bytes": 333156,
+      "test": "SLIST_C",
+      "table_page": 92,
+      "table_file": "SLIST_C_Sony_4"
+    },
+    {
+      "archive": "SLIST_D_Sony_9.zip",
+      "bytes": 364708,
+      "test": "SLIST_D",
+      "table_page": 92,
+      "table_file": "SLIST_D_Sony_9"
+    },
+    {
+      "archive": "SLPPLP_A_VIDYO_2.zip",
+      "bytes": 23627,
+      "test": "SLPPLP_A",
+      "table_page": 95,
+      "table_file": "SLPPLP_A_VIDYO_2"
+    },
+    {
+      "archive": "STRUCT_A_Samsung_7.zip",
+      "bytes": 319768,
+      "test": "STRUCT_A",
+      "table_page": 91,
+      "table_file": "STRUCT_A_Samsung_7"
+    },
+    {
+      "archive": "STRUCT_B_Samsung_7.zip",
+      "bytes": 325036,
+      "test": "STRUCT_B",
+      "table_page": 91,
+      "table_file": "STRUCT_B_Samsung_7"
+    },
+    {
+      "archive": "TILES_A_Cisco_2.zip",
+      "bytes": 485979,
+      "test": "TILES_A",
+      "table_page": 94,
+      "table_file": "TILES_A_Cisco_2"
+    },
+    {
+      "archive": "TILES_B_Cisco_1.zip",
+      "bytes": 529009,
+      "test": "TILES_B",
+      "table_page": 94,
+      "table_file": "TILES_B_Cisco_1"
+    },
+    {
+      "archive": "TMVP_A_MS_3.zip",
+      "bytes": 1628704,
+      "test": "TMVP_A",
+      "table_page": 92,
+      "table_file": "TMVP_A_MS_3"
+    },
+    {
+      "archive": "TSCL_A_VIDYO_5.zip",
+      "bytes": 48346,
+      "test": "TSCL_A",
+      "table_page": 94,
+      "table_file": "TSCL_A_VIDYO_5"
+    },
+    {
+      "archive": "TSCL_B_VIDYO_4.zip",
+      "bytes": 55794,
+      "test": "TSCL_B",
+      "table_page": 94,
+      "table_file": "TSCL_B_VIDYO_4"
+    },
+    {
+      "archive": "TSKIP_A_MS_3.zip",
+      "bytes": 6969739,
+      "test": "TS_A",
+      "table_page": 95,
+      "table_file": "TSKIP_A_MS_3"
+    },
+    {
+      "archive": "TSUNEQBD_A_MAIN10_Technicolor_2.zip",
+      "bytes": 216376,
+      "test": "TSUNEQBD_A_MAIN10",
+      "table_page": 97,
+      "table_file": "TSUNEQBD_A_MAIN10_Technicolor_2",
+      "expected_refusal": "unequal component depths",
+      "scope_evidence": "H.265.1 6.6.13.3: luma 10, chroma 9"
+    },
+    {
+      "archive": "TUSIZE_A_Samsung_1.zip",
+      "bytes": 1239737,
+      "test": "TUSIZE_A",
+      "table_page": 92,
+      "table_file": "TUSIZE_A_Samsung_1"
+    },
+    {
+      "archive": "VPSID_A_VIDYO_2.zip",
+      "bytes": 25106,
+      "test": "VPSID_A",
+      "table_page": 95,
+      "table_file": "VPSID_A_VIDYO_2"
+    },
+    {
+      "archive": "VPSSPSPPS_A_MainConcept_1.zip",
+      "bytes": 99927,
+      "test": "VPSSPSPPS_A",
+      "table_page": 95,
+      "table_file": "VPSSPSPPS_A_MainConcept_1"
+    },
+    {
+      "archive": "WP_A_MAIN10_Toshiba_3.zip",
+      "bytes": 719732,
+      "test": "WP_A_MAIN10",
+      "table_page": 97,
+      "table_file": "WP_A_MAIN10_Toshiba_3"
+    },
+    {
+      "archive": "WP_A_Toshiba_3.zip",
+      "bytes": 739017,
+      "test": "WP_A",
+      "table_page": 92,
+      "table_file": "WP_A_Toshiba_3"
+    },
+    {
+      "archive": "WP_B_Toshiba_3.zip",
+      "bytes": 706118,
+      "test": "WP_B",
+      "table_page": 92,
+      "table_file": "WP_B_Toshiba_3"
+    },
+    {
+      "archive": "WP_MAIN10_B_Toshiba_3.zip",
+      "bytes": 703530,
+      "test": "WP_B_MAIN10",
+      "table_page": 97,
+      "table_file": "WP_B_MAIN10_Toshiba_3",
+      "name_reconciliation": "word order"
+    },
+    {
+      "archive": "WPP_A_ericsson_MAIN10_2.zip",
+      "bytes": 6838327,
+      "test": "WPP_A_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_A_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_A_ericsson_MAIN_2.zip",
+      "bytes": 4110130,
+      "test": "WPP_A",
+      "table_page": 94,
+      "table_file": "WPP_A_ericsson_MAIN_2"
+    },
+    {
+      "archive": "WPP_B_ericsson_MAIN10_2.zip",
+      "bytes": 6819559,
+      "test": "WPP_B_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_B_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_B_ericsson_MAIN_2.zip",
+      "bytes": 4167549,
+      "test": "WPP_B",
+      "table_page": 94,
+      "table_file": "WPP_B_ericsson_MAIN_2"
+    },
+    {
+      "archive": "WPP_C_ericsson_MAIN10_2.zip",
+      "bytes": 6855110,
+      "test": "WPP_C_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_C_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_C_ericsson_MAIN_2.zip",
+      "bytes": 4219517,
+      "test": "WPP_C",
+      "table_page": 94,
+      "table_file": "WPP_C_ericsson_MAIN_2"
+    },
+    {
+      "archive": "WPP_D_ericsson_MAIN10_2.zip",
+      "bytes": 1448102,
+      "test": "WPP_D_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_D_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_D_ericsson_MAIN_2.zip",
+      "bytes": 892742,
+      "test": "WPP_D",
+      "table_page": 94,
+      "table_file": "WPP_D_ericsson_MAIN_2"
+    },
+    {
+      "archive": "WPP_E_ericsson_MAIN10_2.zip",
+      "bytes": 2421464,
+      "test": "WPP_E_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_E_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_E_ericsson_MAIN_2.zip",
+      "bytes": 1528860,
+      "test": "WPP_E",
+      "table_page": 94,
+      "table_file": "WPP_E_ericsson_MAIN_2"
+    },
+    {
+      "archive": "WPP_F_ericsson_MAIN10_2.zip",
+      "bytes": 3117574,
+      "test": "WPP_F_MAIN10",
+      "table_page": 97,
+      "table_file": "WPP_F_ericsson_MAIN10_2"
+    },
+    {
+      "archive": "WPP_F_ericsson_MAIN_2.zip",
+      "bytes": 1900774,
+      "test": "WPP_F",
+      "table_page": 94,
+      "table_file": "WPP_F_ericsson_MAIN_2"
+    }
+  ]
+}
