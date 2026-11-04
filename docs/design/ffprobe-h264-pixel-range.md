@@ -18,10 +18,13 @@ pinned binary, not inferred from the reported colour field.
 
 At the existing ISO H.264 video-info boundary, derive the pixel-format
 range from the codec configuration's retained parameter-set colour.
-Do not pass the merged container-facing colour range to the H.264
-configuration adapter. Keep `compat::reported_color` and its consumers
-unchanged. An absent parameter-set range remains the limited pixel-format
-default; it does not become an explicit reported colour declaration.
+Do not let the merged container-facing range override an explicit SPS
+range in the H.264 configuration adapter. Keep `compat::reported_color` and its consumers
+unchanged. An absent parameter-set range keeps the existing container
+fallback; it does not become an explicit reported colour declaration.
+An empty track cannot establish a pixel format from this configuration
+alone, so leave that field unknown. External-reference colour reporting
+keeps its existing behavior and is not part of this change.
 
 Reuse the existing SPS parser, sample-entry facts and pixel-format mapper.
 Add no source reads, packet scan, parser, allocation budget or new cap.

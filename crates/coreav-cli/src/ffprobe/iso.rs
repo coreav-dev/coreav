@@ -1022,7 +1022,14 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
     };
     match d.codec {
         Codec::H264 => {
-            let mut info = record(b"avcC").and_then(|r| video::avc(r, full_range))?;
+            let codec_range = d
+                .parameter_set_color
+                .and_then(|c| c.full_range)
+                .unwrap_or(full_range);
+            let mut info = record(b"avcC").and_then(|r| video::avc(r, codec_range))?;
+            if track.sample_count == 0 && track.fragment_samples == 0 {
+                info.pix_fmt = None;
+            }
             if info.has_b_frames.is_none() {
                 info.has_b_frames = Some(head.reorder);
             }
