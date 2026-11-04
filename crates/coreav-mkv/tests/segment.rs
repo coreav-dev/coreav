@@ -56,6 +56,40 @@ fn probes_a_small_webm_file() {
     assert_eq!(audio.audio.unwrap().channels, 2);
 }
 
+#[test]
+fn metadata_completeness_distinguishes_unread_and_omitted_elements() {
+    let data = small_webm();
+    let plain = probe_bytes(&data).unwrap();
+    assert!(!plain.metadata_complete);
+    let read = probe_with_metadata(
+        SliceSource::new(&data),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    assert!(read.metadata_complete);
+    for (parent, child) in [(0x1254_C367, 0x7373), (0x1043_A770, 0x45B9)] {
+        let data = file(
+            "matroska",
+            &[
+                info(Some(40.0)),
+                el(TRACKS, &video_track(1, "V_VP9", 64, 48, &[])),
+                el(parent, &el(child, &[0; 512])),
+                cluster(0, &[simple_block(1, 0, true, &VP9_KEY_FRAME)]),
+            ],
+        );
+        let limits = Limits {
+            max_element_bytes: 128,
+            ..Limits::default()
+        };
+        let segment =
+            probe_with_metadata(SliceSource::new(&data), &limits, &Allowlist::all()).unwrap();
+        assert!(!segment.metadata_complete);
+        assert!(segment.tags.is_empty());
+        assert!(segment.editions.is_empty());
+    }
+}
+
 /// A source whose `fail_at`-th read fails with an I/O error.
 struct FailingAt<'a> {
     data: SliceSource<'a>,

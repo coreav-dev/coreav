@@ -1,6 +1,7 @@
 pub(super) struct Md5 {
     state: [u32; 4],
-    pending: Vec<u8>,
+    pending: [u8; 64],
+    pending_len: usize,
     bytes: u64,
 }
 
@@ -8,45 +9,56 @@ impl Md5 {
     pub(super) fn new() -> Self {
         Self {
             state: [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476],
-            pending: Vec::with_capacity(64),
+            pending: [0; 64],
+            pending_len: 0,
             bytes: 0,
         }
     }
 
     pub(super) fn update(&mut self, mut input: &[u8]) {
         self.bytes = self.bytes.wrapping_add(input.len() as u64);
-        if !self.pending.is_empty() {
-            let take = (64 - self.pending.len()).min(input.len());
+        if self.pending_len != 0 {
+            let take = (64 - self.pending_len).min(input.len());
             let (prefix, rest) = input.split_at(take);
-            self.pending.extend_from_slice(prefix);
+            for (slot, byte) in self.pending.iter_mut().skip(self.pending_len).zip(prefix) {
+                *slot = *byte;
+            }
+            self.pending_len += take;
             input = rest;
-            if self.pending.len() == 64 {
-                let block = std::mem::take(&mut self.pending);
+            if self.pending_len == 64 {
+                let block = self.pending;
                 self.block(&block);
-                self.pending = block;
-                self.pending.clear();
+                self.pending_len = 0;
+            } else {
+                return;
             }
         }
         let mut chunks = input.chunks_exact(64);
         for block in &mut chunks {
             self.block(block);
         }
-        self.pending.extend_from_slice(chunks.remainder());
+        let remainder = chunks.remainder();
+        for (slot, byte) in self.pending.iter_mut().zip(remainder) {
+            *slot = *byte;
+        }
+        self.pending_len = remainder.len();
     }
 
     pub(super) fn finish(mut self) -> [u8; 16] {
         let bits = self.bytes.wrapping_mul(8);
-        let padding = if self.pending.len() < 56 {
-            56 - self.pending.len()
+        let padding = if self.pending_len < 56 {
+            56 - self.pending_len
         } else {
-            120 - self.pending.len()
+            120 - self.pending_len
         };
-        let mut tail = vec![0; padding];
+        let mut tail = [0; 72];
         if let Some(first) = tail.first_mut() {
             *first = 0x80;
         }
-        tail.extend_from_slice(&bits.to_le_bytes());
-        self.update(&tail);
+        for (slot, byte) in tail.iter_mut().skip(padding).zip(bits.to_le_bytes()) {
+            *slot = byte;
+        }
+        self.update(tail.get(..padding + 8).unwrap_or_default());
         let mut result = [0; 16];
         for (bytes, word) in result.chunks_exact_mut(4).zip(self.state) {
             bytes.copy_from_slice(&word.to_le_bytes());
@@ -98,3 +110,25 @@ const CONSTANTS: [u32; 64] = [
     0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
     0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::Md5;
+
+    #[test]
+    fn fixed_buffers_preserve_every_incremental_block_boundary() {
+        let input =
+            b"12345678901234567890123456789012345678901234567890123456789012345678901234567890";
+        let expected = [
+            0x57, 0xed, 0xf4, 0xa2, 0x2b, 0xe3, 0xc9, 0x55, 0xac, 0x49, 0xda, 0x2e, 0x21, 0x07,
+            0xb6, 0x7a,
+        ];
+        for size in 1..=input.len() {
+            let mut digest = Md5::new();
+            for chunk in input.chunks(size) {
+                digest.update(chunk);
+            }
+            assert_eq!(digest.finish(), expected);
+        }
+    }
+}

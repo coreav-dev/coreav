@@ -40,7 +40,38 @@ fn read(bytes: &[u8], limits: &Limits) -> Result<Report, Failure> {
         "own.flac",
         limits,
         0,
+        Purpose::Structured,
     )
+}
+
+fn read_summary(bytes: &[u8], limits: &Limits) -> Result<Report, Failure> {
+    probe(
+        &mut SliceSource::new(bytes),
+        bytes.len() as u64,
+        "own.flac",
+        limits,
+        0,
+        Purpose::Summary,
+    )
+}
+
+fn encoded_payload(channels: u16, frames: usize) -> Vec<u8> {
+    use coreav_audio::{OutputFormat, SampleFormat, Sink};
+    let format = OutputFormat {
+        channels,
+        sample_rate: 44_100,
+        format: SampleFormat::S16,
+        channel_mask: coreav_audio::flac::encode::channel_mask(channels).unwrap(),
+    };
+    let mut bytes = Vec::new();
+    let mut encoder =
+        coreav_audio::flac::encode::FlacSink::new(&mut bytes, coreav_audio::Limits::default());
+    encoder.start(&format).unwrap();
+    encoder
+        .write(&vec![0; frames * usize::from(channels) * 2])
+        .unwrap();
+    let header = encoder.finish().unwrap();
+    bytes.split_off(header.len())
 }
 
 fn entry<'a>(report: &'a Report, key: &str) -> &'a Value {
@@ -63,6 +94,117 @@ fn streaminfo_supplies_fields_and_unknown_samples_stay_unknown() {
     assert_eq!(entry(&report, "extradata_size"), &Value::Int(34));
     assert_eq!(entry(&report, "bits_per_raw_sample"), &model::s("16"));
     assert_eq!(report.time_bases, [(1, 44_100)]);
+}
+
+#[test]
+fn summary_admission_preserves_layout_and_metadata_provenance() {
+    for (channels, fields, complete) in [
+        (1, vec![], true),
+        (2, vec!["TITLE=first", "TITLE=second"], true),
+        (6, vec![], false),
+        (6, vec!["WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x3f"], true),
+        (2, vec!["WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x4"], false),
+        (2, vec!["WAVEFORMATEXTENSIBLE_CHANNEL_MASK=0x3"; 2], false),
+        (2, vec!["language=eng"], false),
+        (2, vec!["DESCRIPTION=first", "comment=second"], false),
+        (2, vec!["TRACKNUMBER=1", "track=2"], false),
+    ] {
+        let mut bytes = file(&[(0, streaminfo(channels, 16)), (4, comment(&fields))]);
+        bytes.extend_from_slice(&encoded_payload(channels as u16, 16));
+        let structured = read(&bytes, &Limits::default()).ok().unwrap();
+        assert!(matches!(structured.summary, SummaryEvidence::Unverified));
+        let report = read_summary(&bytes, &Limits::default()).ok().unwrap();
+        assert_eq!(
+            matches!(report.summary, SummaryEvidence::Complete { .. }),
+            complete
+        );
+        assert_eq!(entry(&report, "channels"), &Value::Int(i64::from(channels)));
+    }
+    for samples in [0, 16] {
+        let bytes = file(&[(0, streaminfo(2, samples))]);
+        let report = read_summary(&bytes, &Limits::default()).ok().unwrap();
+        assert!(matches!(report.summary, SummaryEvidence::Unsupported(_)));
+    }
+}
+
+#[test]
+fn summary_payload_validation_does_not_change_structured_probing() {
+    let mut bytes = file(&[(0, streaminfo(2, 8192))]);
+    let offset = bytes.len();
+    bytes.extend_from_slice(&encoded_payload(2, 8192));
+    let summary = read_summary(&bytes, &Limits::default()).ok().unwrap();
+    assert!(matches!(
+        summary.summary,
+        SummaryEvidence::Complete { start: Some(0), .. }
+    ));
+    struct Headers<'a> {
+        bytes: &'a [u8],
+        end: u64,
+    }
+    impl Source for Headers<'_> {
+        fn len(&mut self) -> Result<u64, Error> {
+            Ok(self.bytes.len() as u64)
+        }
+        fn read_exact_at(&mut self, offset: u64, out: &mut [u8]) -> Result<(), Error> {
+            if offset + out.len() as u64 > self.end {
+                return Err(Error::Io(std::io::ErrorKind::PermissionDenied));
+            }
+            SliceSource::new(self.bytes).read_exact_at(offset, out)
+        }
+    }
+    let mut headers = Headers {
+        bytes: &bytes,
+        end: offset as u64,
+    };
+    assert!(
+        probe(
+            &mut headers,
+            bytes.len() as u64,
+            "own.flac",
+            &Limits::default(),
+            0,
+            Purpose::Structured
+        )
+        .is_ok()
+    );
+    assert!(matches!(
+        probe(
+            &mut headers,
+            bytes.len() as u64,
+            "own.flac",
+            &Limits::default(),
+            0,
+            Purpose::Summary
+        ),
+        Err(Failure::Library(Error::Io(
+            std::io::ErrorKind::PermissionDenied
+        )))
+    ));
+    for limits in [
+        Limits {
+            max_sample_work: 128,
+            ..Limits::default()
+        },
+        Limits {
+            max_packet_bytes: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_retained_bytes: 16 << 10,
+            ..Limits::default()
+        },
+    ] {
+        assert!(read(&bytes, &limits).is_ok());
+        assert!(read_summary(&bytes, &limits).is_err());
+    }
+    bytes[offset..].fill(0);
+    let structured = read(&bytes, &Limits::default()).ok().unwrap();
+    assert_eq!(entry(&structured, "start_pts"), &Value::Int(0));
+    assert!(matches!(structured.summary, SummaryEvidence::Unverified));
+    assert!(matches!(
+        read_summary(&bytes, &Limits::default()),
+        Err(Failure::Unsupported(_))
+    ));
 }
 
 #[test]
@@ -316,7 +458,17 @@ fn positioned_skip_does_not_read_padding_or_seektable_payload() {
         max_box_bytes: 34,
         ..Limits::default()
     };
-    assert!(probe(&mut source, size, "own.flac", &limits, 0).is_ok());
+    assert!(
+        probe(
+            &mut source,
+            size,
+            "own.flac",
+            &limits,
+            0,
+            Purpose::Structured
+        )
+        .is_ok()
+    );
     assert_eq!(source.reads, [(0, 4), (4, 4), (8, 34), (42, 4), (8238, 4)]);
 }
 
@@ -351,7 +503,7 @@ fn source_io_and_limit_errors_are_never_optional_metadata() {
             error: error.clone(),
         };
         assert!(
-            matches!(probe(&mut source, size, "own.flac", &Limits::default(), 0), Err(Failure::Library(found)) if found == error)
+            matches!(probe(&mut source, size, "own.flac", &Limits::default(), 0, Purpose::Structured), Err(Failure::Library(found)) if found == error)
         );
     }
 }

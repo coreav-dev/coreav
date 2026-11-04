@@ -62,6 +62,164 @@ fn md5_of_rfc_1321() {
     assert_eq!(hex(&md5(long)), "57edf4a22be3c955ac49da2e2107b67a");
 }
 
+#[test]
+fn complete_validation_checks_reference_samples_and_integrity() {
+    use coreav_audio::flac::{StreamInfo, validate_stream};
+    use coreav_audio::{Error, LimitKind, Limits};
+    for (example, offset, count) in [(EXAMPLE_1, 42, 1), (EXAMPLE_2, 136, 2), (EXAMPLE_3, 42, 1)] {
+        let bytes = from_dump(example);
+        let info = StreamInfo::parse(&bytes[8..42]).unwrap();
+        let payload = &bytes[offset..];
+        assert_eq!(
+            validate_stream(info, payload, &Limits::default()).unwrap(),
+            count
+        );
+        let mut damaged = payload.to_vec();
+        *damaged.last_mut().unwrap() ^= 1;
+        assert!(validate_stream(info, &damaged, &Limits::default()).is_err());
+        assert!(validate_stream(info, &payload[..payload.len() - 1], &Limits::default()).is_err());
+        let mut trailing = payload.to_vec();
+        trailing.extend_from_slice(b"trailing");
+        assert!(validate_stream(info, &trailing, &Limits::default()).is_err());
+        let mut changed = info;
+        changed.md5[0] ^= 1;
+        assert!(validate_stream(changed, payload, &Limits::default()).is_err());
+        changed = info;
+        changed.total_samples += 1;
+        assert!(validate_stream(changed, payload, &Limits::default()).is_err());
+        assert!(matches!(
+            validate_stream(
+                info,
+                payload,
+                &Limits {
+                    max_packet_bytes: payload.len() as u64 - 1,
+                    ..Limits::default()
+                }
+            ),
+            Err(Error::LimitExceeded(LimitKind::PacketBytes))
+        ));
+        assert!(matches!(
+            validate_stream(
+                info,
+                payload,
+                &Limits {
+                    max_output_samples: 0,
+                    ..Limits::default()
+                }
+            ),
+            Err(Error::LimitExceeded(LimitKind::OutputSamples))
+        ));
+        let mut limits = Limits::default();
+        limits.isobmff.max_retained_bytes = 0;
+        assert!(matches!(
+            validate_stream(info, payload, &limits),
+            Err(Error::Isobmff(_))
+        ));
+    }
+}
+
+fn constant_frame(number: u8, variable: bool, block: u8) -> Vec<u8> {
+    let header = vec![
+        0xff,
+        0xf8 | u8::from(variable),
+        0x69,
+        0x08,
+        number,
+        block - 1,
+    ];
+    checked_frame(header, &[0, 0, 0])
+}
+
+fn checked_frame(mut bytes: Vec<u8>, subframes: &[u8]) -> Vec<u8> {
+    let mut crc8 = 0u8;
+    for &byte in &bytes {
+        crc8 ^= byte;
+        for _ in 0..8 {
+            crc8 = (crc8 << 1) ^ if crc8 & 0x80 != 0 { 7 } else { 0 };
+        }
+    }
+    bytes.push(crc8);
+    bytes.extend_from_slice(subframes);
+    let mut crc16 = 0u16;
+    for &byte in &bytes {
+        crc16 ^= u16::from(byte) << 8;
+        for _ in 0..8 {
+            crc16 = (crc16 << 1) ^ if crc16 & 0x8000 != 0 { 0x8005 } else { 0 };
+        }
+    }
+    bytes.extend_from_slice(&crc16.to_be_bytes());
+    bytes
+}
+
+#[test]
+fn complete_validation_rejects_crc_correct_reserved_fields_and_padding() {
+    use coreav_audio::Limits;
+    use coreav_audio::flac::{StreamInfo, validate_stream};
+    let mut info = StreamInfo {
+        min_block_size: 16,
+        max_block_size: 16,
+        min_frame_size: 0,
+        max_frame_size: 0,
+        sample_rate: 44_100,
+        channels: 1,
+        bits_per_sample: 16,
+        total_samples: 16,
+        md5: [0; 16],
+    };
+    for header in [
+        vec![0xff, 0xf8, 0x69, 0x09, 0, 15],
+        vec![0xff, 0xf8, 0x69, 0x08, 0xc0, 0x80, 15],
+    ] {
+        let payload = checked_frame(header, &[0, 0, 0]);
+        assert!(validate_stream(info, &payload, &Limits::default()).is_err());
+    }
+    info.bits_per_sample = 20;
+    let valid = checked_frame(vec![0xff, 0xf8, 0x69, 0x0a, 0, 15], &[0, 0, 0, 0]);
+    assert_eq!(
+        validate_stream(info, &valid, &Limits::default()).unwrap(),
+        1
+    );
+    let damaged = checked_frame(vec![0xff, 0xf8, 0x69, 0x0a, 0, 15], &[0, 0, 0, 1]);
+    assert!(validate_stream(info, &damaged, &Limits::default()).is_err());
+}
+
+#[test]
+fn complete_validation_requires_zero_origin_and_contiguous_numbers() {
+    use coreav_audio::Limits;
+    use coreav_audio::flac::{StreamInfo, validate_stream};
+    let mut info = StreamInfo {
+        min_block_size: 16,
+        max_block_size: 16,
+        min_frame_size: 0,
+        max_frame_size: 0,
+        sample_rate: 44_100,
+        channels: 1,
+        bits_per_sample: 16,
+        total_samples: 32,
+        md5: [0; 16],
+    };
+    for (sequence, valid) in [
+        (vec![(0, false, 16), (1, false, 16)], true),
+        (vec![(0, true, 16), (16, true, 16)], true),
+        (vec![(1, false, 16), (2, false, 16)], false),
+        (vec![(16, true, 16), (32, true, 16)], false),
+        (vec![(0, false, 16), (0, false, 16)], false),
+        (vec![(0, false, 16), (2, false, 16)], false),
+        (vec![(0, false, 16), (16, true, 16)], false),
+        (vec![(0, false, 16), (1, false, 8)], true),
+    ] {
+        info.total_samples = sequence.iter().map(|(_, _, block)| u64::from(*block)).sum();
+        let payload: Vec<u8> = sequence
+            .into_iter()
+            .flat_map(|(number, variable, block)| constant_frame(number, variable, block))
+            .collect();
+        assert_eq!(
+            validate_stream(info, &payload, &Limits::default()).is_ok(),
+            valid
+        );
+    }
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

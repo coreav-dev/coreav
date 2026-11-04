@@ -140,7 +140,7 @@ def wave_identity(payload, representation, output_format):
 
 def require_replay(command, encoded, env):
     replay = subprocess.run(command, input=encoded, capture_output=True, env=env, timeout=30)
-    expected = ("\n".join(str(arg) for arg in command[2:]) + "\n").encode() + encoded
+    expected = ("-hide_banner\n" + "\n".join(str(arg) for arg in command[2:]) + "\n").encode() + encoded
     if replay.returncode != 7 or replay.stdout != expected:
         raise AssertionError(f"WAVE original-byte replay failed ({replay.returncode}): "
                              f"{replay.stderr[-2000:].decode(errors='replace')}")
@@ -418,7 +418,7 @@ def conformance_paths(coreav, oracle, root):
                 count += 1
                 replay = subprocess.run(command, input=encoded.read_bytes(), capture_output=True,
                                         env=replay_env, timeout=30)
-                expected = ("\n".join(command[2:]) + "\n").encode() + encoded.read_bytes()
+                expected = ("-hide_banner\n" + "\n".join(command[2:]) + "\n").encode() + encoded.read_bytes()
                 if replay.returncode != 7 or replay.stdout != expected:
                     raise AssertionError(f"decoder replay failed ({replay.returncode}): "
                                          f"{replay.stderr[-2000:].decode(errors='replace')}")

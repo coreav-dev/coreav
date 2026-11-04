@@ -371,6 +371,70 @@ fn clean_aperture_refuses_every_selection_without_output() {
 }
 
 #[test]
+fn clean_aperture_summaries_refuse_before_output() {
+    for (name, bytes) in [
+        ("summary-first", movie(true)),
+        ("summary-later-unused", multiple_descriptions(true, 1)),
+        ("summary-later-used", multiple_descriptions(true, 2)),
+    ] {
+        let mut source = SliceSource::new(&bytes);
+        let probed = coreav_cli::ffprobe::probe(&mut source, bytes.len() as u64, "crop.mp4", None)
+            .unwrap_or_else(|failure| panic!("{}", failure.to_json()));
+        assert!(probed.report.iso_clean_aperture);
+        assert!(matches!(
+            probed.report.summary,
+            coreav_cli::ffprobe::SummaryEvidence::Unsupported(
+                "ISO clean-aperture metadata or visual layout is unqualified"
+            )
+        ));
+        let dir = FixtureDir::new(name);
+        let path = dir.0.join("input.mp4");
+        std::fs::write(&path, &bytes).unwrap();
+        #[cfg(all(unix, feature = "ffmpeg-fallback"))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            for tool in ["ffprobe", "ffmpeg"] {
+                let standin = dir.0.join(tool);
+                std::fs::write(&standin, "#!/bin/sh\nprintf '%s\\n' \"$@\"\nexit 17\n").unwrap();
+                std::fs::set_permissions(&standin, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+        }
+        for args in [vec!["ffprobe"], vec!["ffprobe", "-i"], vec!["ffmpeg", "-i"]] {
+            let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(&args)
+                .arg(&path)
+                .env_clear()
+                .env("COREAV_STRICT_SAFE", "1")
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(4), "{args:?}: {output:?}");
+            assert!(output.stdout.is_empty());
+            assert!(!String::from_utf8_lossy(&output.stderr).contains("Input #"));
+            #[cfg(all(unix, feature = "ffmpeg-fallback"))]
+            {
+                let output = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .args(&args)
+                    .arg(&path)
+                    .env_clear()
+                    .env("PATH", &dir.0)
+                    .output()
+                    .unwrap();
+                let mut expected = vec!["-hide_banner"];
+                expected.extend(args.iter().skip(1).copied());
+                expected.push(path.to_str().unwrap());
+                assert_eq!(output.status.code(), Some(17), "{args:?}: {output:?}");
+                assert_eq!(
+                    output.stdout,
+                    format!("{}\n", expected.join("\n")).as_bytes()
+                );
+                assert!(!String::from_utf8_lossy(&output.stderr).contains("Input #"));
+            }
+        }
+    }
+}
+
+#[test]
 fn no_clean_aperture_remains_native() {
     let dir = FixtureDir::new("control");
     let path = dir.0.join("input.mp4");
@@ -428,6 +492,6 @@ fn fallback_preserves_original_arguments_and_status() {
     assert_eq!(out.status.code(), Some(17));
     assert_eq!(
         String::from_utf8(out.stdout).unwrap(),
-        format!("{}\n", args.join("\n"))
+        format!("-hide_banner\n{}\n", args.join("\n"))
     );
 }

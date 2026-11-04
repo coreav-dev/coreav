@@ -1043,7 +1043,10 @@ fn concat_positive_aac_edits_forward_the_original_fallback_arguments() {
         "{}",
         String::from_utf8_lossy(&r.stderr)
     );
-    let expected: Vec<u8> = args.iter().flat_map(|arg| arg.bytes().chain([0])).collect();
+    let expected: Vec<u8> = std::iter::once("-hide_banner")
+        .chain(args)
+        .flat_map(|arg| arg.bytes().chain([0]))
+        .collect();
     assert_eq!(r.stdout, expected);
     assert!(!output.exists());
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);

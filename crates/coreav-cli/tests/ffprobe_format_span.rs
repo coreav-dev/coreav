@@ -245,3 +245,31 @@ fn format_output_counts_all_cover_picture_streams() {
         }
     }
 }
+
+#[test]
+fn summaries_refuse_a_separate_format_output_span() {
+    for (duration, reason) in [
+        (2000, "some ISO metadata cannot be summarized natively"),
+        (
+            2500,
+            "ISO decoder properties or timing do not have a qualified summary model",
+        ),
+    ] {
+        let mut bytes = movie(0, &[duration], false, true);
+        let video = bytes.windows(4).position(|word| word == b"avc1").unwrap();
+        bytes[video..video + 4].copy_from_slice(b"vp09");
+        let header = bytes.windows(4).position(|word| word == b"mvhd").unwrap();
+        bytes[header + 20..header + 24].copy_from_slice(&2000u32.to_be_bytes());
+        let mut source = coreav_isobmff::SliceSource::new(&bytes);
+        let probed = coreav_cli::ffprobe::probe(&mut source, bytes.len() as u64, "span.mov", None)
+            .unwrap_or_else(|failure| panic!("{}", failure.to_json()));
+        assert!(
+            matches!(
+                probed.report.summary,
+                coreav_cli::ffprobe::SummaryEvidence::Unsupported(actual) if actual == reason
+            ),
+            "{duration}: {:?}",
+            probed.report.summary
+        );
+    }
+}

@@ -93,6 +93,8 @@ pub struct Segment {
     /// stored order. An edition larger than `max_element_bytes` is left
     /// out. Read only by [`probe_with_metadata`]; empty otherwise.
     pub editions: Vec<Edition>,
+    /// Metadata was requested and no tag or chapter was omitted for size.
+    pub metadata_complete: bool,
     /// Recoverable problems in the segment.
     pub warnings: Vec<Warning>,
     /// Where the segment's elements end: the declared end, or the end of the
@@ -588,6 +590,7 @@ struct Info {
 
 #[derive(Default)]
 struct Found {
+    metadata_omitted: bool,
     seek: Vec<(u32, u64)>,
     seek_heads: Vec<u64>,
     info: Option<Info>,
@@ -979,7 +982,11 @@ impl<S: Source> Walk<'_, S> {
     ) -> Result<Vec<T>, Error> {
         let mut out = Vec::new();
         self.children_headers(parent, |walk, child| {
-            if child.id != id || child.size.is_none_or(|s| s > walk.limits.max_element_bytes) {
+            if child.id != id {
+                return Ok(());
+            }
+            if child.size.is_none_or(|s| s > walk.limits.max_element_bytes) {
+                walk.found.metadata_omitted = true;
                 return Ok(());
             }
             let data = read_data(
@@ -1151,6 +1158,7 @@ impl<S: Source> Walk<'_, S> {
             attachments: found.attachments.unwrap_or_default(),
             tags: found.tag_list,
             editions: found.editions,
+            metadata_complete: self.metadata && !found.metadata_omitted,
             warnings: self.warnings,
             end: self.end,
             max_size_len: self.max_size_len,

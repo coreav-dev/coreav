@@ -14,6 +14,10 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../coreav-mkv/tests/common/mod.rs"]
+mod mkv;
+#[path = "../../coreav-mpegts/tests/common/mod.rs"]
+mod ts;
 
 #[path = "common/standalone_audio.rs"]
 mod standalone_audio;
@@ -570,7 +574,7 @@ fn native_audio_reports_do_not_invoke_fallback_but_listings_still_do() {
             assert_eq!(fallback.code, 7, "{option}: {}", fallback.stderr);
             assert_eq!(
                 fallback.stdout,
-                format!("args: {option} -show_streams -of json {input}\n")
+                format!("args: -hide_banner {option} -show_streams -of json {input}\n")
             );
             let refused = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
             assert_eq!(refused.code, 4, "{option}: {}", refused.stderr);
@@ -617,13 +621,160 @@ fn malformed_native_audio_fails_without_running_fallback() {
 }
 
 #[test]
-fn no_section_fallback_notice_suggests_native_sections() {
-    let dir = tmp("no-section-hint");
+fn unsupported_summary_fallback_has_no_section_hint_or_partial_output() {
+    let dir = tmp("unsupported-summary-notice");
     let input = movie(&dir);
-    let r = coreav(&["ffprobe", &input], &[stand_in()], &[]);
-    assert_eq!(r.code, 7);
-    let notice = r.stderr.lines().next().unwrap();
-    assert!(notice.contains("-show_format -show_streams"), "{notice}");
+    for arguments in [vec!["ffprobe", &input], vec!["ffprobe", "-i", &input]] {
+        let r = coreav(&arguments, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert_eq!(
+            r.stdout,
+            format!("args: -hide_banner {}\n", arguments[1..].join(" "))
+        );
+        let notice = r.stderr.lines().next().unwrap();
+        assert!(notice.ends_with("(not native: input summary)"), "{notice}");
+        assert!(!notice.contains("-show_format -show_streams"), "{notice}");
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+        let r = coreav(&arguments, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{}", r.stderr);
+        assert!(r.stdout.is_empty(), "{}", r.stdout);
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+    }
+    let r = coreav(
+        &["ffprobe", "-show_format", "-show_streams", &input],
+        &[stand_in()],
+        &[("COREAV_STRICT_SAFE", "1")],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(r.stderr.is_empty(), "{}", r.stderr);
+    assert!(r.stdout.contains("[STREAM]"), "{}", r.stdout);
+}
+
+#[test]
+fn file_url_summaries_preserve_the_original_fallback_arguments() {
+    let dir = tmp("summary-file-url");
+    let input = format!("file:{}", movie(&dir));
+    for args in [
+        vec!["ffprobe", &input],
+        vec!["ffprobe", "-i", &input],
+        vec!["ffmpeg", "-i", &input],
+    ] {
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert_eq!(
+            r.stdout,
+            format!("args: -hide_banner {}\n", args[1..].join(" "))
+        );
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+        let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{}", r.stderr);
+        assert!(r.stdout.is_empty());
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+    }
+}
+
+#[test]
+fn non_iso_summary_analysis_errors_use_atomic_fallback() {
+    let dir = tmp("summary-non-iso-analysis");
+    let large_name = mkv::string(0x536E, &"a".repeat((1 << 20) + 1));
+    let track = mkv::audio_track(1, "A_PCM/INT/LIT", 48_000.0, 1, &large_name);
+    let matroska = mkv::file(
+        "matroska",
+        &[
+            mkv::info(Some(1.0)),
+            mkv::el(mkv::TRACKS, &track),
+            mkv::cluster(0, &[mkv::simple_block(1, 0, true, &[0; 96])]),
+        ],
+    );
+    let mut transport = ts::Mux::default();
+    for _ in 0..8 {
+        transport.packet(0x1fff, false, &[0xff; 184]);
+    }
+    for (name, bytes) in [
+        ("large-track.mkv", matroska),
+        ("no-programs.ts", transport.out),
+    ] {
+        let mut source = coreav_isobmff::SliceSource::new(&bytes);
+        let probed = coreav_cli::ffprobe::probe(&mut source, bytes.len() as u64, name, None);
+        assert!(matches!(
+            (name, probed),
+            (
+                "large-track.mkv",
+                Err(coreav_cli::error::Failure::Matroska(
+                    coreav_mkv::Error::LimitExceeded { .. }
+                ))
+            ) | (
+                "no-programs.ts",
+                Err(coreav_cli::error::Failure::Mpegts(
+                    coreav_mpegts::Error::NoPrograms
+                ))
+            )
+        ));
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        let input = path.to_string_lossy();
+        for args in [
+            vec!["ffprobe", &input],
+            vec!["ffprobe", "-i", &input],
+            vec!["ffmpeg", "-i", &input],
+        ] {
+            let r = coreav(&args, &[stand_in()], &[]);
+            assert_eq!(r.code, 7, "{name}: {}", r.stderr);
+            assert_eq!(
+                r.stdout,
+                format!("args: -hide_banner {}\n", args[1..].join(" "))
+            );
+            assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+            let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+            assert_eq!(r.code, 4, "{name}: {}", r.stderr);
+            assert!(r.stdout.is_empty());
+            assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+        }
+    }
+}
+
+#[test]
+fn unqualified_container_analysis_falls_back_without_a_partial_summary() {
+    let dir = tmp("summary-analysis-failure");
+    let input = dir.join("truncated.mp4");
+    std::fs::write(&input, b"\0\0\0\x20ftypisom").unwrap();
+    let input = input.to_string_lossy();
+    for args in [
+        vec!["ffprobe", &input],
+        vec!["ffprobe", "-i", &input],
+        vec!["ffmpeg", "-i", &input],
+    ] {
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert_eq!(
+            r.stdout,
+            format!("args: -hide_banner {}\n", args[1..].join(" "))
+        );
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+        let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{}", r.stderr);
+        assert!(r.stdout.is_empty());
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+    }
+    let missing = dir.join("missing.mp4");
+    let input = missing.to_string_lossy();
+    for args in [
+        vec!["ffprobe", &input],
+        vec!["ffprobe", "-i", &input],
+        vec!["ffmpeg", "-i", &input],
+    ] {
+        let r = coreav(&args, &[stand_in()], &[]);
+        assert_eq!(r.code, 7, "{}", r.stderr);
+        assert_eq!(
+            r.stdout,
+            format!("args: -hide_banner {}\n", args[1..].join(" "))
+        );
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+        let r = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "1")]);
+        assert_eq!(r.code, 4, "{}", r.stderr);
+        assert!(r.stdout.is_empty());
+        assert!(!r.stderr.contains("Input #"), "{}", r.stderr);
+    }
 }
 
 #[test]
@@ -803,7 +954,7 @@ fn a_command_that_is_not_native_runs_the_program_coreav_fallback_names() {
         );
         assert_eq!(r.code, 7, "{named}: {}", r.stderr);
         assert_eq!(
-            r.stdout, "args: -i - -af volume=2 -f mpegts -\npiped bytes",
+            r.stdout, "args: -hide_banner -i - -af volume=2 -f mpegts -\npiped bytes",
             "{named}"
         );
         assert_eq!(
@@ -834,7 +985,7 @@ fn the_first_program_on_path_that_is_not_coreav_runs() {
     );
     for r in [direct, multicall] {
         assert_eq!(r.code, 7, "{}", r.stderr);
-        assert_eq!(r.stdout, "args: -show_data in.mp4\n");
+        assert_eq!(r.stdout, "args: -hide_banner -show_data in.mp4\n");
         assert!(
             r.stderr
                 .starts_with(&format!("{expected} (not native: -show_data)\n")),
@@ -1037,7 +1188,8 @@ fn coreav_ffmpeg_help_on_a_topic_is_ffmpegs() {
     let r = coreav(&args, &[stand_in()], &[("COREAV_FALLBACK", dir)]);
     assert_eq!(r.code, 7, "{}", r.stderr);
     assert!(
-        r.stdout.starts_with("args: -h encoder=libx264\n"),
+        r.stdout
+            .starts_with("args: -hide_banner -h encoder=libx264\n"),
         "{}",
         r.stdout
     );
@@ -1299,7 +1451,7 @@ fn coreav_ffprobe_help_is_its_own_and_help_on_a_topic_is_ffprobes() {
     let r = coreav(&["ffprobe", "-h", "demuxer=mov"], &[stand_in()], &env);
     assert_eq!(r.code, 7, "{}", r.stderr);
     assert!(
-        r.stdout.starts_with("args: -h demuxer=mov\n"),
+        r.stdout.starts_with("args: -hide_banner -h demuxer=mov\n"),
         "{}",
         r.stdout
     );
@@ -1350,7 +1502,10 @@ fn coreav_ffmpeg_runs_ffmpeg_for_what_it_refuses_once_the_input_is_read() {
     let ask = ["ffmpeg", "-i", &input, "-c", "copy", o];
     let ran = coreav(&ask, &[], &env);
     assert_eq!(ran.code, 7, "{}", ran.stderr);
-    assert_eq!(ran.stdout, format!("args: -i {input} -c copy {o}\n"));
+    assert_eq!(
+        ran.stdout,
+        format!("args: -hide_banner -i {input} -c copy {o}\n")
+    );
     let words = "asking whether to overwrite an existing output (pass -y or -n)";
     assert!(
         ran.stderr.starts_with(&format!(
@@ -1394,7 +1549,10 @@ fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
     ] {
         let r = coreav(&args, &[], &[("COREAV_FALLBACK", dir)]);
         assert_eq!(r.code, 7, "{args:?}: {}", r.stderr);
-        assert_eq!(r.stdout, format!("args: {}\n", args[1..].join(" ")));
+        assert_eq!(
+            r.stdout,
+            format!("args: -hide_banner {}\n", args[1..].join(" "))
+        );
         assert!(
             r.stderr.starts_with(&format!(
                 "coreav: ran {dir}/ffmpeg instead (not native: an "
@@ -1434,7 +1592,10 @@ fn coreav_ffmpeg_hands_libopus_lines_on_without_the_libopus_feature() {
     ] {
         let ran = coreav(line, &[], &[("COREAV_FALLBACK", dir)]);
         assert_eq!(ran.code, 7, "{line:?}: {}", ran.stderr);
-        assert_eq!(ran.stdout, format!("args: {}\n", line[1..].join(" ")));
+        assert_eq!(
+            ran.stdout,
+            format!("args: -hide_banner {}\n", line[1..].join(" "))
+        );
         assert_eq!(
             ran.stderr,
             format!("coreav: ran {dir}/ffmpeg instead (not native: {words})\nguard=1\n")
@@ -1483,7 +1644,10 @@ fn coreav_ffmpeg_hands_aac_lines_it_does_not_take_on() {
     ] {
         let ran = coreav(line, &[], &[("COREAV_FALLBACK", dir)]);
         assert_eq!(ran.code, 7, "{line:?}: {}", ran.stderr);
-        assert_eq!(ran.stdout, format!("args: {}\n", line[1..].join(" ")));
+        assert_eq!(
+            ran.stdout,
+            format!("args: -hide_banner {}\n", line[1..].join(" "))
+        );
         assert_eq!(
             ran.stderr,
             format!("coreav: ran {dir}/ffmpeg instead (not native: {words})\nguard=1\n")

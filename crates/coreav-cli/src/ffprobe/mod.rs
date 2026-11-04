@@ -19,6 +19,7 @@ mod metadata;
 mod mkv;
 pub mod model;
 mod names;
+pub mod summary;
 mod ts;
 pub(crate) mod video;
 pub mod writer;
@@ -199,6 +200,10 @@ pub struct FormatTiming {
 /// Everything but the packets.
 #[derive(Clone, Debug, Default)]
 pub struct Report {
+    /// Admission of the separate diagnostic input summary.
+    pub summary: SummaryEvidence,
+    /// The origin of each stream's reported aspect ratio.
+    pub summary_aspects: Vec<SummaryAspect>,
     /// The streams, in index order.
     pub streams: Vec<Stream>,
     /// Each stream's time base, for the packets' times.
@@ -224,6 +229,36 @@ pub struct Report {
     pub covers: Vec<(usize, u64)>,
     /// ISO clean aperture is present or a visual child layout is incomplete.
     pub iso_clean_aperture: bool,
+}
+
+/// Whether the native analysis retained the facts an input summary needs.
+#[derive(Clone, Debug, Default)]
+pub enum SummaryEvidence {
+    /// This report producer has not qualified input summaries.
+    #[default]
+    Unverified,
+    /// Some summary-visible information was not retained.
+    Unsupported(&'static str),
+    /// Metadata and timing were retained without a best-effort omission.
+    Complete {
+        /// The input start in microseconds, absent when unknown.
+        start: Option<i64>,
+        /// The input duration in microseconds, absent when unknown.
+        duration: Option<i64>,
+    },
+}
+
+/// The source of an aspect ratio in the input diagnostic.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum SummaryAspect {
+    /// The diagnostic provenance was not retained.
+    #[default]
+    Unverified,
+    /// The codec-description ratio is known, independently of the stream ratio.
+    Complete {
+        /// The codec-description sample aspect ratio, absent when unspecified.
+        codec: Option<(u32, u32)>,
+    },
 }
 
 /// A probed file: its report and what lists its packets.
@@ -262,8 +297,43 @@ pub fn probe_limited<'a, S: Source + 'a>(
     force: Option<args::Container>,
     limits: &coreav_isobmff::Limits,
 ) -> Result<Probed<'a>, Failure> {
+    probe_with_purpose(source, size, name, force, limits, Purpose::Structured)
+}
+
+/// Probes and qualifies a complete input summary, including audio payload
+/// validation where header facts alone cannot establish diagnostic timing.
+pub fn probe_summary<'a, S: Source + 'a>(
+    source: &'a mut S,
+    size: u64,
+    name: &str,
+    force: Option<args::Container>,
+) -> Result<Probed<'a>, Failure> {
+    probe_with_purpose(
+        source,
+        size,
+        name,
+        force,
+        &coreav_isobmff::Limits::default(),
+        Purpose::Summary,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    Structured,
+    Summary,
+}
+
+fn probe_with_purpose<'a, S: Source + 'a>(
+    source: &'a mut S,
+    size: u64,
+    name: &str,
+    force: Option<args::Container>,
+    limits: &coreav_isobmff::Limits,
+    purpose: Purpose,
+) -> Result<Probed<'a>, Failure> {
     let mut buffered = coreav_isobmff::BufferedSource::new(source);
-    if let Some(probed) = audio::probe(&mut buffered, size, name, force, limits)? {
+    if let Some(probed) = audio::probe(&mut buffered, size, name, force, limits, purpose)? {
         return Ok(probed);
     }
     let matroska = crate::matroska::detect_source(&mut buffered)?;

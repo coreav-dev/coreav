@@ -532,7 +532,28 @@ fn a_command_that_asks_for_no_section_is_refused() {
     let r = ffprobe(&[path.as_str()]);
     assert_eq!(r.code, 4);
     assert!(r.stdout.is_empty());
-    assert!(r.stderr.contains("not reproduced"));
+    assert!(
+        r.stderr.contains("cannot be summarized natively"),
+        "{}",
+        r.stderr
+    );
+}
+
+#[test]
+fn an_explicit_writer_keeps_empty_structured_output() {
+    let path = movie("ffprobe-writer-only.mp4");
+    for option in ["-of", "-print_format", "-output_format"] {
+        for (writer, expected) in [("json", "{\n\n}\n"), ("default", ""), ("csv", "")] {
+            let result = ffprobe(&["-v", "error", path.as_str(), option, writer]);
+            assert_eq!(result.code, 0, "{option} {writer}: {}", result.stderr);
+            assert_eq!(result.stdout, expected, "{option} {writer}");
+            assert!(
+                result.stderr.is_empty(),
+                "{option} {writer}: {}",
+                result.stderr
+            );
+        }
+    }
 }
 
 #[test]

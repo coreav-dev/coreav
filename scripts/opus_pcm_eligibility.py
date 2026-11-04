@@ -175,7 +175,7 @@ def check(coreav, oracle, tool, work):
                 env.pop('COREAV_STRICT_SAFE', None)
                 replay = subprocess.run(replay_args, input=changed,
                     capture_output=True, timeout=30, env=env)
-                expected = ('\n'.join(replay_args[2:]) + '\n').encode() + changed
+                expected = ('-hide_banner\n' + '\n'.join(replay_args[2:]) + '\n').encode() + changed
                 if replay.returncode != 7 or replay.stdout != expected:
                     raise ValueError('Opus profile refusal lost original fallback arguments or stdin')
             for rate in (0, 8000, 44100, 192000):

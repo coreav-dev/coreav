@@ -24,7 +24,7 @@
 use crate::bits::Bits;
 use crate::crc::{crc8, crc16};
 use crate::limits::check_channels;
-use crate::{Error, Limits, Pcm};
+use crate::{Error, LimitKind, Limits, Pcm, Plane};
 
 /// Native lossless FLAC encoding from interleaved integer samples.
 pub mod encode;
@@ -239,7 +239,7 @@ impl FlacDecoder {
             ));
         }
         let block_size = header.block_size as usize;
-        let samples = out.int_buffer(usize::from(channels), block_size, bits_per_sample);
+        let samples = out.try_int_buffer(usize::from(channels), block_size, bits_per_sample)?;
         let mut bits = Bits::new(data.get(header_len..).unwrap_or_default());
         let mut wide_channel = None;
         for (index, plane) in samples.chunks_exact_mut(block_size.max(1)).enumerate() {
@@ -247,6 +247,9 @@ impl FlacDecoder {
             let depth = bits_per_sample + u32::from(side);
             if depth > 32 {
                 self.wide.clear();
+                self.wide
+                    .try_reserve_exact(block_size)
+                    .map_err(|_| Error::LimitExceeded(LimitKind::OutputSamples))?;
                 self.wide.resize(block_size, 0);
                 subframe_wide(&mut bits, &mut self.wide, depth)?;
                 wide_channel = Some(index);
@@ -260,7 +263,7 @@ impl FlacDecoder {
             block_size,
             wide_channel.map(|i| (i, self.wide.as_slice())),
         )?;
-        bits.align();
+        bits.align_zero()?;
         let body = header_len
             .checked_add(bits.byte_position())
             .ok_or(Error::Truncated)?;
@@ -282,6 +285,124 @@ impl FlacDecoder {
     }
 }
 
+/// Validates a complete zero-origin FLAC payload without recovery and returns
+/// its frame count. Every frame, sequence number, sample total and declared
+/// nonzero MD5 must agree; input and decoded channel-samples obey `limits`.
+pub fn validate_stream(info: StreamInfo, mut data: &[u8], limits: &Limits) -> Result<u64, Error> {
+    if !(1..=8).contains(&info.channels)
+        || !(4..=32).contains(&info.bits_per_sample)
+        || info.sample_rate == 0
+        || info.min_block_size < 16
+        || info.max_block_size < info.min_block_size
+        || info.total_samples == 0
+    {
+        return Err(Error::Invalid("FLAC validation stream info"));
+    }
+    if data.len() as u64 > limits.max_packet_bytes {
+        return Err(Error::LimitExceeded(LimitKind::PacketBytes));
+    }
+    let mut decoder = FlacDecoder::new(info, limits)?;
+    let mut pcm = Pcm::new();
+    let mut digest = md5::Md5::new();
+    let mut samples = 0u64;
+    let mut frames = 0u64;
+    let mut strategy = None;
+    let mut nominal = None;
+    let memory_failure = || {
+        Error::Isobmff(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::RetainedBytes,
+            offset: 0,
+        })
+    };
+    while !data.is_empty() {
+        let block = frame_samples(data).ok_or(Error::Invalid("FLAC frame header"))?;
+        if block == 0 || block > u32::from(info.max_block_size) {
+            return Err(Error::Invalid("FLAC frame block size"));
+        }
+        let end = samples
+            .checked_add(u64::from(block))
+            .ok_or(Error::Invalid("FLAC sample total"))?;
+        let scalar = end
+            .checked_mul(u64::from(info.channels))
+            .ok_or(Error::LimitExceeded(LimitKind::OutputSamples))?;
+        if scalar > limits.max_output_samples {
+            return Err(Error::LimitExceeded(LimitKind::OutputSamples));
+        }
+        if end > info.total_samples {
+            return Err(Error::Invalid("FLAC sample total"));
+        }
+        let scratch = pcm
+            .retained_bytes()
+            .max(u64::from(block) * u64::from(info.channels) * 4)
+            .checked_add(
+                (decoder.wide.capacity() as u64)
+                    .saturating_mul(8)
+                    .max(u64::from(block) * 8),
+            )
+            .and_then(|bytes| bytes.checked_add(1024))
+            .ok_or_else(memory_failure)?;
+        if scratch > limits.isobmff.max_retained_bytes {
+            return Err(memory_failure());
+        }
+        let frame = decoder.decode(data, &mut pcm)?;
+        let retained = pcm
+            .retained_bytes()
+            .checked_add((decoder.wide.capacity() as u64).saturating_mul(8))
+            .and_then(|bytes| bytes.checked_add(1024))
+            .ok_or_else(memory_failure)?;
+        if retained > limits.isobmff.max_retained_bytes {
+            return Err(memory_failure());
+        }
+        if !frame.crc_ok || frame.bytes == 0 || frame.bytes > data.len() {
+            return Err(Error::Invalid("FLAC frame integrity"));
+        }
+        let remaining = data.get(frame.bytes..).ok_or(Error::Truncated)?;
+        if strategy.is_some_and(|variable| variable != frame.variable)
+            || frame.number != if frame.variable { samples } else { frames }
+            || (!remaining.is_empty() && frame.block_size < u32::from(info.min_block_size))
+            || (!frame.variable
+                && nominal.is_some_and(|block| {
+                    frame.block_size > block || (!remaining.is_empty() && block != frame.block_size)
+                }))
+            || (info.min_frame_size != 0 && (frame.bytes as u64) < u64::from(info.min_frame_size))
+            || (info.max_frame_size != 0 && (frame.bytes as u64) > u64::from(info.max_frame_size))
+        {
+            return Err(Error::Invalid("FLAC frame sequence"));
+        }
+        strategy = Some(frame.variable);
+        nominal.get_or_insert(frame.block_size);
+        if info.md5 != [0; 16] {
+            let width = usize::from(info.bits_per_sample).div_ceil(8);
+            for sample in 0..pcm.frames() {
+                for channel in 0..pcm.channels() {
+                    let Some(Plane::Int { samples, .. }) = pcm.plane(channel) else {
+                        return Err(Error::Invalid("FLAC integer samples"));
+                    };
+                    let value = samples
+                        .get(sample)
+                        .ok_or(Error::Invalid("FLAC sample plane"))?;
+                    let bytes = value.to_le_bytes();
+                    digest.update(
+                        bytes
+                            .get(..width)
+                            .ok_or(Error::Invalid("FLAC sample depth"))?,
+                    );
+                }
+            }
+        }
+        samples = end;
+        frames += 1;
+        data = remaining;
+    }
+    if frames == 0
+        || samples != info.total_samples
+        || (info.md5 != [0; 16] && digest.finish() != info.md5)
+    {
+        return Err(Error::Invalid("FLAC stream integrity"));
+    }
+    Ok(frames)
+}
+
 /// The block size of the frame at the start of `data`, from its header,
 /// without decoding it; `None` when the header is not valid.
 pub fn frame_samples(data: &[u8]) -> Option<u32> {
@@ -295,6 +416,9 @@ fn parse_header(data: &[u8]) -> Result<(Header, usize), Error> {
     let [b0, b1, b2, b3] = <[u8; 4]>::try_from(fixed).map_err(|_| Error::Truncated)?;
     if b0 != 0xFF || b1 & 0xFE != 0xF8 {
         return Err(Error::Invalid("no FLAC frame sync code"));
+    }
+    if b3 & 1 != 0 {
+        return Err(Error::Invalid("reserved FLAC header bit set"));
     }
     let variable = b1 & 1 == 1;
     let size_bits = b2 >> 4;
@@ -338,6 +462,14 @@ fn parse_header(data: &[u8]) -> Result<(Header, usize), Error> {
             return Err(Error::Invalid("malformed coded number"));
         }
         number = (number << 6) | u64::from(byte & 0x3F);
+    }
+    let minimum = match extra {
+        0 => 0,
+        1 => 1 << 7,
+        n => 1u64 << (n * 5 + 1),
+    };
+    if number < minimum {
+        return Err(Error::Invalid("noncanonical FLAC coded number"));
     }
     if !variable && number > u64::from(u32::MAX >> 1) {
         return Err(Error::Invalid("frame number above 31 bits"));

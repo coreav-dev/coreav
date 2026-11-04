@@ -281,7 +281,11 @@ fn incomplete_group_counts_reach_fallback_before_output() {
             .unwrap();
         assert_eq!(fallback.status.code(), Some(7), "{:?}", fallback.stderr);
         assert_eq!(fallback.stdout, b"fallback-only\n");
-        let expected = format!("{}\n{}\n", args[1..].join("\n"), path.display());
+        let expected = format!(
+            "-hide_banner\n{}\n{}\n",
+            args[1..].join("\n"),
+            path.display()
+        );
         assert_eq!(std::fs::read_to_string(&log).unwrap(), expected);
         std::fs::remove_file(&log).unwrap();
     }
