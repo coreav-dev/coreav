@@ -108,7 +108,7 @@ class AcquisitionAndReplay(unittest.TestCase):
         fixture.mkdir()
         (fixture / 'source.mp4').write_bytes(b'synthetic control, not media')
         self.fake = self.root / 'fake'
-        self.fake.write_text('#!' + sys.executable + '\nprint("control result")\n')
+        self.fake.write_text('#!' + sys.executable + '\nprint("control_sentinel=control result")\n')
         self.fake.chmod(0o755)
         self.programs = {key: str(self.fake) for key in ('$COREAV', '$FFMPEG', '$FFPROBE', '$X264')}
         self.record = run.acquire_one(row(), self.bundle, self.programs, run.environment())
@@ -121,8 +121,8 @@ class AcquisitionAndReplay(unittest.TestCase):
         self.assertEqual(self.judge(), 'counted')
         self.record['outcome'] = 'counted'
         candidate = self.bundle / 'calls/1/candidate'
-        (candidate / 'stdout').write_bytes(b'wrong value\n')
-        (candidate / 'command.stdout').write_bytes(b'wrong value\n')
+        (candidate / 'stdout').write_bytes(b'control_sentinel=wrong value\n')
+        (candidate / 'command.stdout').write_bytes(b'control_sentinel=wrong value\n')
         self.assertEqual(self.judge(), 'different')
 
     def test_refusal_timeout_and_error_are_misses(self):
@@ -263,6 +263,71 @@ class ExactPredicate(unittest.TestCase):
             folder = Path(tmp)
             (folder / 'command.stderr').write_text('Stream #0:7 -> #1:0 (copy)\nStream #0:1 -> #0:2 (copy)\n')
             self.assertEqual(run.jobs(folder), {(1, 0): 'copy', (0, 2): 'copy'})
+
+
+class ProbeAvailability(unittest.TestCase):
+    def capture(self, options, reference, candidate):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / 'bundle'
+            (bundle / 'fixtures').mkdir(parents=True)
+            (bundle / 'fixtures/source.mp4').write_bytes(b'synthetic probe control')
+            fake = root / 'fake'
+            fake.write_text('#!' + sys.executable + '\nimport sys\n' +
+                            f'sys.stdout.write({candidate!r} if sys.argv[1] == "ffprobe" else {reference!r})\n')
+            fake.chmod(0o755)
+            programs = {key: str(fake) for key in ('$COREAV', '$FFMPEG', '$FFPROBE', '$X264')}
+            entry = row()
+            entry['shape'] = shape(options=options)
+            record = run.acquire_one(entry, bundle, programs, run.environment())
+            return run.judge(entry, record, bundle, programs, run.environment(), root)
+
+    def test_empty_json_containers_and_missing_sections_never_count(self):
+        options = [['-of', 'json'], ['-show_streams', None]]
+        for payload in ('', ' \n', '{}', '{"streams":[]}', '{"streams":[{}]}',
+                        '{"format":{"duration":"2"}}'):
+            with self.subTest(payload=payload):
+                self.assertEqual(self.capture(options, payload, payload), 'no_oracle')
+
+    def test_unavailable_requested_scalar_and_omitted_field_never_count(self):
+        cases = [([['-of', 'json'], ['-show_entries', 'format=control_sentinel']],
+                  '{"format":{"control_sentinel":"N/A"}}'),
+                 ([['-of', 'json'], ['-show_entries', 'format=control_sentinel']],
+                  '{"format":{"filename":"input"}}'),
+                 ([['-of', 'default=nk=<value>:nw=<value>'], ['-show_entries', 'format=control_sentinel']], 'N/A\n')]
+        for options, payload in cases:
+            with self.subTest(payload=payload):
+                self.assertEqual(self.capture(options, payload, payload), 'no_oracle')
+
+    def test_empty_or_unavailable_output_on_either_side_is_a_miss(self):
+        options = [['-of', 'json'], ['-show_entries', 'stream=index']]
+        valid = '{"streams":[{"index":0}]}'
+        for unavailable in ('', '{}', '{"streams":[]}', '{"streams":[{"index":"N/A"}]}'):
+            for reference, candidate in ((unavailable, valid), (valid, unavailable)):
+                with self.subTest(reference=reference, candidate=candidate):
+                    self.assertEqual(self.capture(options, reference, candidate), 'no_oracle')
+
+    def test_populated_response_counts_only_when_exact(self):
+        options = [['-of', 'json'], ['-show_streams', None]]
+        valid = '{"streams":[{"index":0,"codec_name":"control"}]}'
+        self.assertEqual(self.capture(options, valid, valid), 'counted')
+        self.assertEqual(self.capture(options, valid, valid.replace('control', 'changed')), 'different')
+
+    def test_non_json_writers_require_values_not_just_framing(self):
+        cases = [('csv=p=<value>', 'stream,7\n', 'stream,\n'),
+                 ('default=nk=<value>:nw=<value>', '7\n', 'N/A\n'),
+                 ('compact', 'stream|index=7\n', 'stream\n'),
+                 ('flat=s=<value>', 'streams.stream.0.index=7\n', 'streams.stream.0.index=""\n')]
+        for writer, valid, empty in cases:
+            command = inputs.instantiate(shape(options=[['-of', writer], ['-show_entries', 'stream=index']]))
+            with self.subTest(writer=writer):
+                self.assertTrue(run.probe_available(command, valid.encode()))
+                self.assertFalse(run.probe_available(command, empty.encode()))
+
+    def test_each_requested_json_section_needs_substantive_data(self):
+        options = [['-of', 'json'], ['-show_format', None], ['-show_streams', None]]
+        payload = '{"format":{"duration":"2"},"streams":[]}'
+        self.assertEqual(self.capture(options, payload, payload), 'no_oracle')
 
 
 class AccountingAndGate(unittest.TestCase):

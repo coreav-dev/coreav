@@ -1,9 +1,11 @@
 """Acquire and replay the registered GitHub Shapes 200 measurement."""
 import argparse
 import collections
+import csv
 import fractions
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -219,12 +221,103 @@ def raw_description(command, index, source):
     return []
 
 
+def probe_available(command, data):
+    if not data.strip():
+        return False
+    args = command.args
+    requested = {}
+    if '-show_entries' in args:
+        for entry in args[args.index('-show_entries') + 1].split(':'):
+            section, _, fields = entry.partition('=')
+            requested[section] = fields.split(',') if fields else []
+    for option, section in (('-show_streams', 'stream'), ('-show_format', 'format')):
+        if option in args:
+            requested.setdefault(section, [])
+    if not requested:
+        return False
+    def available(value):
+        if isinstance(value, dict):
+            return any(available(v) for v in value.values())
+        if isinstance(value, list):
+            return bool(value) and all(available(v) for v in value)
+        if isinstance(value, float):
+            return math.isfinite(value)
+        return value is not None and str(value).strip().casefold() not in ('', '""', "''", 'n/a', 'unknown', 'nan', 'inf', '-inf')
+    writer = args[args.index('-of') + 1] if '-of' in args else 'default'
+    writer, _, settings = writer.partition('=')
+    try:
+        text = data.decode('utf-8')
+        if writer == 'json':
+            document = json.loads(text)
+            for section, fields in requested.items():
+                value = document.get('streams' if section == 'stream' else section)
+                records = value if isinstance(value, list) else [value]
+                if not records or any(not isinstance(record, dict) or not available(record) or
+                    any(field not in record or not available(record[field]) for field in fields) for record in records):
+                    return False
+            return True
+        settings = dict(setting.split('=', 1) for setting in settings.split(':') if setting)
+        fields = [field for names in requested.values() for field in names]
+        sections = set()
+        if writer == 'csv':
+            records = list(csv.reader(text.splitlines(), delimiter=settings.get('s', ','), strict=True))
+            for record in records:
+                required = fields
+                if record and record[0] in requested:
+                    sections.add(record[0])
+                    required = requested[record[0]]
+                    record = record[1:]
+                if not record or len(record) < len(required) or not all(available(value) for value in record):
+                    return False
+            return bool(records) and (len(requested) == 1 or sections == set(requested))
+        if writer not in ('default', 'flat', 'compact'):
+            return False
+        values = []
+        found = set()
+        current = next(iter(requested)) if len(requested) == 1 else None
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            if line.startswith('[') and line.endswith(']'):
+                section = line[1:-1].lower()
+                if section in requested:
+                    current = section
+                elif section.startswith('/') and section[1:] == current:
+                    current = None
+                continue
+            parts = next(csv.reader([line], delimiter='|', escapechar='\\')) if writer == 'compact' else [line]
+            for part in parts:
+                if writer == 'compact' and part in requested:
+                    current = part
+                    continue
+                key, equals, value = part.partition('=')
+                if not equals:
+                    if writer != 'default' or not (settings.get('nk') == '1' or settings.get('nokey') == '1'):
+                        return False
+                    value = part
+                else:
+                    found.add(key.rsplit('.', 1)[-1])
+                    if writer == 'flat':
+                        prefix = key.split('.', 1)[0]
+                        current = 'stream' if prefix == 'streams' else prefix
+                if writer == 'flat' and value.startswith('"'):
+                    value = json.loads(value)
+                if not available(value):
+                    return False
+                if current in requested:
+                    sections.add(current)
+                values.append(value)
+        if fields and found and not set(fields).issubset(found):
+            return False
+        return bool(values) and len(values) >= len(fields) and sections == set(requested)
+    except (ValueError, TypeError, AttributeError, UnicodeError, csv.Error):
+        return False
+
+
 def compare_outputs(command, base, programs, env, scratch):
     ref, mine = base / 'reference', base / 'candidate'
     if command.tool == 'ffprobe':
-        if not any(key.startswith('-show_') or key == '-count_frames' for key in command.args):
-            return 'no_oracle'
-        if not (ref / 'stdout').stat().st_size:
+        if not all(probe_available(command, (folder / 'stdout').read_bytes()) for folder in (ref, mine)):
             return 'no_oracle'
         return 'counted' if decoded_output.same_files(ref / 'stdout', mine / 'stdout') else 'different'
     if any(dict(zip(opts, opts[1:])).get('-f') in ('hls', 'null') for opts in command.output_options) or any(
