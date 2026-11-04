@@ -80,9 +80,11 @@ Encoder groups follow FFmpeg's stream mapping, not the output filename. A comman
 | other encoders | 145 | 3 | `refused` 122, `failed` 2, `ffmpeg_job` 11, `no_oracle` 2, `oracle` 5 |
 | copy only | 139 | 25 | `refused` 102, `failed` 1, `no_oracle` 8, `oracle` 3 |
 
-## Image conversion differences
+## Image-reference differences
 
 Five image commands reached capture comparison, covering 106 frames. Every decoded CoreAV image exactly equals its captured pre-encode RGB, with zero unequal samples. All five commands still miss because that RGB differs from FFmpeg's same-command output. Their only image-comparison failure is `reference_pixels`; no metadata disagreement was recorded for these five commands.
+
+The reference comparison includes upstream decoding and frame selection as well as conversion. These differences do not isolate a converter defect.
 
 Indices are zero-based rows in the fixed command set. Maximum errors are absolute 8-bit channel differences in R, G, B order. They are diagnostics, not permitted errors.
 
@@ -107,7 +109,7 @@ The JSON evidence is byte-identical to the validated acquisition artifact. The v
 - [Reference fixture checks](codec-v2-images/fixture-reference.json.gz) retain all registered supplemental attempts.
 - [Evidence digests](codec-v2-images/evidence-digests.json) identify these files and the complete retained archives.
 
-Replaying the summary at the measured source reproduces the retained summary exactly:
+Run the replay from the repository root of a checkout containing these evidence files and the measured judging-tool versions. The measured source alone predates the evidence files. The replay reproduces the retained summary exactly:
 
 ```sh
 TMPDIR="${TMPDIR:-/tmp}"
