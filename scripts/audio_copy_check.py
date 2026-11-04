@@ -20,6 +20,11 @@ with the given ffprobe and ffmpeg, used as black boxes:
   output's audio packets are the source's twice;
 - every output decodes without an error.
 
+The AC-3 and E-AC-3 compatibility concat cases must refuse their multi-edit
+audio timeline, preserve the destination and use byte-identical pinned
+fallback. They are reported as refusals, not native passes. Their native
+join cases retain all of the packet and decode checks above.
+
 Clips, segments and joins change the edit lists, so their packets are
 compared with edit lists ignored. The binaries are black boxes; no
 implementation source is read. Exits 1 if any check fails.
@@ -29,6 +34,7 @@ usage: audio_copy_check.py --coreav PATH [--ffmpeg PATH] [--ffprobe PATH]
 """
 import argparse
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -85,9 +91,12 @@ EXPECTED = {
     "twice": lambda a, b: a + a == b,
 }
 
+CONCAT_REFUSALS = {"av_ac3.mp4", "av_eac3.mp4"}
+CONCAT_REASON = b"coreav ffmpeg: not supported by coreav ffmpeg: a concat output that needs several audio edits"
 
-def run(args):
-    return subprocess.run(args, capture_output=True, timeout=TIMEOUT, check=False)
+
+def run(args, env=None):
+    return subprocess.run(args, capture_output=True, timeout=TIMEOUT, check=False, env=env)
 
 
 def ffprobe_json(ffprobe, *args):
@@ -187,6 +196,46 @@ def check_packets(tools, source, outputs, problems, expected):
                         f"source's {len(a)}")
 
 
+def check_concat_refusal(tools, args, output, done, problems):
+    if done.returncode != 4 or done.stdout or done.stderr.strip() != CONCAT_REASON:
+        problems.append("concat must refuse the multi-edit audio timeline with exit 4 and its exact reason")
+        return
+    if output.exists():
+        problems.append("refused concat published an output")
+        return
+    sentinel = b"existing audio-copy output"
+    output.write_bytes(sentinel)
+    before = set(output.parent.iterdir())
+    overwrite = [args[0], "-y", *args[1:]]
+    repeated = run([tools.coreav, "--strict-safe", *overwrite])
+    if (repeated.returncode != 4 or repeated.stdout or repeated.stderr.strip() != CONCAT_REASON
+            or not output.exists() or output.read_bytes() != sentinel
+            or set(output.parent.iterdir()) != before):
+        problems.append("refused concat did not preserve the destination and staging state")
+        return
+    reference = output.with_name(output.stem + ".reference.mp4")
+    reference.unlink(missing_ok=True)
+    copied = run([tools.ffmpeg, "-y", *args[1:-1], str(reference)])
+    if (copied.returncode != 0 or copied.stdout or copied.stderr or not reference.is_file()
+            or reference.stat().st_size == 0):
+        problems.append("pinned concat reference did not complete cleanly")
+        return
+    env = dict(os.environ)
+    for name in ("COREAV_STRICT_SAFE", "COREAV_FALLBACK_ACTIVE", "COREAV_FALLBACK_LOG"):
+        env.pop(name, None)
+    program = shutil.which(str(tools.ffmpeg))
+    if program is None:
+        problems.append("pinned fallback program is unavailable")
+        return
+    env["COREAV_FALLBACK"] = str(pathlib.Path(program).resolve())
+    fallback = run([tools.coreav, *overwrite], env=env)
+    if fallback.returncode != 0 or fallback.stdout or not output.is_file():
+        problems.append("concat fallback did not complete")
+        return
+    if output.read_bytes() != reference.read_bytes():
+        problems.append("concat fallback differs from the complete pinned output")
+
+
 def cases(source, out):
     """(command, coreav arguments, the outputs it writes, kind of check)."""
     stem = source.name
@@ -204,7 +253,8 @@ def cases(source, out):
     listing = out / f"{stem}.concat.txt"
     listing.write_text(f"file '{source}'\nfile '{source}'\n")
     yield "ffmpeg -f concat -c copy", ["ffmpeg", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(listing),
-                                       "-c", "copy", str(concat)], lambda: [concat], "twice"
+                                       "-c", "copy", str(concat)], lambda: [concat], \
+        "refused" if stem in CONCAT_REFUSALS else "twice"
 
 
 def main():
@@ -236,7 +286,9 @@ def main():
             # case alone; the other cases still run and the report is kept.
             try:
                 done = run([tools.coreav, "--strict-safe", *args])
-                if done.returncode != 0:
+                if kind == "refused":
+                    check_concat_refusal(tools, args, outputs()[0], done, problems)
+                elif done.returncode != 0:
                     problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
                 elif kind == "copy":
                     check_copy(tools, source, outputs()[0], problems)
@@ -244,13 +296,17 @@ def main():
                     check_packets(tools, source, outputs(), problems, EXPECTED[kind])
             except (subprocess.TimeoutExpired, RuntimeError, KeyError, IndexError, ValueError) as error:
                 problems.append(f"{type(error).__name__}: {str(error)[:500]}")
-            results.append({"source": name, "command": command, "problems": problems})
+            results.append({"source": name, "command": command, "problems": problems,
+                            "expected_refusal": kind == "refused"})
     for r in results:
-        print(f"{'FAIL' if r['problems'] else 'ok  '} {r['command']:24} {r['source']}"
+        status = "FAIL" if r["problems"] else "refused" if r.get("expected_refusal") else "ok  "
+        print(f"{status} {r['command']:24} {r['source']}"
               + "".join(f"\n       {p}" for p in r["problems"]))
     version = run([tools.ffmpeg, "-version"]).stdout.decode().splitlines()[:1]
     failed = sum(bool(r["problems"]) for r in results)
-    summary = {"ffmpeg": version[0] if version else None, "cases": len(results), "failed": failed}
+    refused = sum(r.get("expected_refusal", False) and not r["problems"] for r in results)
+    summary = {"ffmpeg": version[0] if version else None, "cases": len(results), "failed": failed,
+               "refused": refused, "native": len(results) - failed - refused}
     if tools.report:
         tools.report.write_text(json.dumps({"summary": summary, "results": results}, indent=1) + "\n")
     print(json.dumps(summary))

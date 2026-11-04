@@ -1181,6 +1181,158 @@ fn concat_nonzero_first_origin_is_refused_without_changing_native_join() {
 }
 
 #[test]
+fn concat_audio_gaps_are_refused_with_exact_pinned_fallback() {
+    let Some((ffmpeg_bin, _)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-concat-audio-gaps");
+    for (name, duration, rate) in [("short", "3", "24"), ("fractional", "3.25", "30000/1001")] {
+        let edited = dir.join(format!("{name}-edited.mp4"));
+        let source = dir.join(format!("{name}.mp4"));
+        let generated = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+            .arg(format!("testsrc2=size=64x48:rate={rate}:duration=3.25"))
+            .args(["-f", "lavfi", "-i"])
+            .arg(format!(
+                "sine=frequency=751:sample_rate=44100:duration={duration}"
+            ))
+            .args([
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-g",
+                "24",
+                "-bf",
+                "2",
+                "-c:a",
+                "aac",
+            ])
+            .arg(&edited)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let unedited = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(&edited)
+            .args(["-c", "copy", "-use_editlist", "0"])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            unedited.status.success(),
+            "{}",
+            String::from_utf8_lossy(&unedited.stderr)
+        );
+        let movie = coreav_isobmff::probe(
+            coreav_isobmff::FileSource::open(&source).unwrap(),
+            &Default::default(),
+            &coreav_isobmff::Allowlist::listing(),
+        )
+        .unwrap();
+        assert!(movie.tracks.iter().all(|track| track.edits.is_empty()));
+        let path = std::env::join_paths(
+            std::iter::once(ffmpeg_bin.parent().unwrap().to_path_buf()).chain(
+                std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+            ),
+        )
+        .unwrap();
+        for inputs in [2, 3] {
+            let list = dir.join("list.txt");
+            std::fs::write(&list, format!("file '{name}.mp4'\n").repeat(inputs)).unwrap();
+            for (safe, options) in [
+                (true, vec!["-c", "copy"]),
+                (false, vec!["-c", "copy"]),
+                (true, vec!["-map", "0", "-c", "copy"]),
+                (true, vec!["-c", "copy", "-movflags", "+faststart"]),
+            ] {
+                let output = dir.join("output.mp4");
+                let reference = dir.join("reference.mp4");
+                let mut args = vec!["-y", "-f", "concat"];
+                if safe {
+                    args.extend(["-safe", "0"]);
+                }
+                args.extend(["-i", list.to_str().unwrap()]);
+                args.extend(&options);
+                args.push(output.to_str().unwrap());
+                for existing in [false, true] {
+                    if existing {
+                        std::fs::write(&output, b"existing output").unwrap();
+                    }
+                    let before = std::fs::read_dir(&dir).unwrap().count();
+                    let result = ffmpeg(&args);
+                    assert_eq!(
+                        result.code, 4,
+                        "{name}, {inputs}, {options:?}: {}",
+                        result.stderr
+                    );
+                    assert!(
+                        result.stderr.contains("several audio edits"),
+                        "{}",
+                        result.stderr
+                    );
+                    assert!(result.stdout.is_empty());
+                    if existing {
+                        assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+                    } else {
+                        assert!(!output.exists());
+                    }
+                    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);
+                }
+                let copied = Command::new(&ffmpeg_bin)
+                    .args(["-nostdin", "-v", "error"])
+                    .args(&args[..args.len() - 1])
+                    .arg(&reference)
+                    .output()
+                    .unwrap();
+                assert!(
+                    copied.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&copied.stderr)
+                );
+                let fallback = Command::new(bin())
+                    .arg("ffmpeg")
+                    .args(&args)
+                    .env("PATH", &path)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .output()
+                    .unwrap();
+                assert!(
+                    fallback.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&fallback.stderr)
+                );
+                assert_eq!(
+                    std::fs::read(&output).unwrap(),
+                    std::fs::read(&reference).unwrap()
+                );
+                std::fs::remove_file(&output).unwrap();
+            }
+            let video = dir.join("video.mp4");
+            let result = ffmpeg(&[
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                list.to_str().unwrap(),
+                "-an",
+                "-c",
+                "copy",
+                video.to_str().unwrap(),
+            ]);
+            assert_eq!(result.code, 0, "{}", result.stderr);
+        }
+    }
+}
+
+#[test]
 fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;
