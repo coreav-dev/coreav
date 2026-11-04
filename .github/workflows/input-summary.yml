@@ -24,6 +24,7 @@ on:
       - crates/coreav-frame/**
       - scripts/input_summary_*.py
       - scripts/standalone_audio_probe_check.py
+      - scripts/mkv_craft.py
       - scripts/oracle_audio.py
       - scripts/oracle-audio-args.txt
       - scripts/oracle-ffmpeg.env

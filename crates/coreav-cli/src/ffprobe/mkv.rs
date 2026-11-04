@@ -108,8 +108,8 @@ const FRAME_HEAD: u64 = 64;
 /// Element visits allowed for the early packets.
 const EARLY_WORK: u64 = 1 << 16;
 
-/// Bytes of clusters, from the first packet, and packets the early scan
-/// reads at most: a track with few packets must not make it read the file.
+/// Maximum cluster span and processed packets of the early window. One
+/// bounded packet-header lookahead distinguishes its cap from end of input.
 const EARLY_SPAN: u64 = 64 << 20;
 const EARLY_TOTAL: usize = 1 << 14;
 
@@ -240,6 +240,7 @@ fn early_packets<S: Source>(
         };
         let first = *start.get_or_insert(packet.block_offset);
         if packet.block_offset.saturating_sub(first) > EARLY_SPAN {
+            incomplete = true;
             break;
         }
         seq += 1;
@@ -269,6 +270,9 @@ fn early_packets<S: Source>(
         if early.packets.len() == EARLY_PACKETS && av(track) {
             pending -= 1;
         }
+    }
+    if pending > 0 && seq == EARLY_TOTAL && iter.next().is_some() {
+        incomplete = true;
     }
     (out, incomplete)
 }
@@ -3488,6 +3492,89 @@ mod tests {
             panic!("the summary fixture does not probe");
         };
         probed.report
+    }
+
+    #[test]
+    fn summary_distinguishes_early_scan_caps_from_end_of_input() {
+        let track = |number, kind, codec: &[u8]| {
+            el(
+                &[0xAE],
+                &[
+                    el(&[0xD7], &[number]),
+                    el(&[0x73, 0xC5], &[number]),
+                    el(&[0x83], &[kind]),
+                    el(&[0x86], codec),
+                    el(&[0xE0], &[el(&[0xB0], &[16]), el(&[0xBA], &[16])].concat()),
+                    el(
+                        &[0xE1],
+                        &[
+                            el(&[0xB5], &48_000f64.to_be_bytes()),
+                            el(&[0x9F], &[1]),
+                            el(&[0x62, 0x64], &[16]),
+                        ]
+                        .concat(),
+                    ),
+                ]
+                .concat(),
+            )
+        };
+        let tracks = el(
+            &[0x16, 0x54, 0xAE, 0x6B],
+            &[track(1, 1, b"V_VP8"), track(2, 2, b"A_PCM/INT/LIT")].concat(),
+        );
+        let video = el(
+            &[0xA3],
+            &[0x81, 0, 0, 0x80, 0x10, 0, 0, 0x9d, 1, 0x2a, 16, 0, 16, 0],
+        );
+        let audio = el(&[0xA3], &[0x82, 0, 0, 0x80, 0, 0]);
+        for (name, audio_count, later_video, gap, complete) in [
+            ("packet cap", EARLY_TOTAL - 1, 1, 0, false),
+            ("span cap", EARLY_PACKETS, 1, EARLY_SPAN as usize, false),
+            ("short eof", 1, 0, 0, true),
+            ("exact packet-cap eof", EARLY_TOTAL - 1, 0, 0, true),
+            (
+                "complete windows",
+                EARLY_PACKETS,
+                EARLY_PACKETS - 1,
+                0,
+                true,
+            ),
+        ] {
+            let mut cluster = el(&[0xE7], &[0]);
+            cluster.extend_from_slice(&video);
+            cluster.extend(audio.repeat(audio_count));
+            if gap > 0 {
+                cluster.extend(el(&[0xEC], &vec![0; gap]));
+            }
+            cluster.extend(video.repeat(later_video));
+            let data = [
+                el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"matroska")),
+                el(
+                    &[0x18, 0x53, 0x80, 0x67],
+                    &[
+                        el(&[0x15, 0x49, 0xA9, 0x66], &[]),
+                        tracks.clone(),
+                        el(&[0x1F, 0x43, 0xB6, 0x75], &cluster),
+                    ]
+                    .concat(),
+                ),
+            ]
+            .concat();
+            let report = summary_report(&data);
+            assert_eq!(
+                matches!(
+                    report.summary,
+                    super::super::SummaryEvidence::Complete { .. }
+                ),
+                complete,
+                "{name}"
+            );
+            assert_eq!(
+                super::super::summary::render(&report, 0, "fixture.mkv").is_ok(),
+                complete,
+                "{name}"
+            );
+        }
     }
 
     #[test]

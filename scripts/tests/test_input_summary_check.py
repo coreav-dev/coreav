@@ -266,16 +266,17 @@ class Commands(unittest.TestCase):
             Path(command[-1]).write_bytes(b"generated")
             return result(b"")
 
-        with tempfile.TemporaryDirectory() as directory, patch.object(check.subprocess, "run", side_effect=child):
+        with tempfile.TemporaryDirectory() as directory, patch.object(check.subprocess, "run", side_effect=child), \
+                patch.object(check, "matroska_without_default_duration", side_effect=lambda data: data):
             root = Path(directory)
             (root / "unrelated").write_bytes(b"leave alone")
             first = check.generate_fixtures(oracle, root, audio=True)
             second = check.generate_fixtures(oracle, root, audio=True)
             self.assertEqual(first, second)
-            self.assertEqual(len(first), 30)
+            self.assertEqual(len(first), 31)
             by_name = {fixture.name: fixture for fixture in first}
             for name in ("mov-pcm", "ts-av", "ts-audio", "ts-programs", "ts-mp2-unassigned", "mp4-fractional-rotation", "ts-offset", "mp4-split-utf8",
-                         "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title"):
+                         "mp4-fragmented", "mp4-irregular-clock", "mkv-large-track-title", "mkv-analysis-packet-cap"):
                 self.assertFalse(by_name[name].native, name)
             for name in ("mov-aac", "ts-mp2", "ts-mp2-offset", "ts-mp2-programs",
                          "mp4-chapters", "mp4-hdr", "mp4-hdr-rotation", "mp4-long-metadata"):
@@ -286,6 +287,18 @@ class Commands(unittest.TestCase):
             self.assertFalse(list(root.glob(".input-summary-*")))
             for fixture in second:
                 self.assertEqual(fixture.path.read_bytes(), b"generated")
+
+    def test_matroska_rate_fixture_keeps_packets_but_omits_stale_indexes_and_defaults(self):
+        craft = check.mkv_craft
+        track = craft.element(craft.TRACK_NUMBER, b"\x01") + craft.element(craft.DEFAULT_DURATION, b"\x01")
+        tracks = craft.element(craft.TRACKS, craft.element(craft.TRACK_ENTRY, track))
+        cluster = craft.element(craft.CLUSTER, craft.element(craft.TIMESTAMP, b"\x00")
+                                + craft.element(craft.SIMPLE_BLOCK, b"\x81\x00\x00\x80frame"))
+        indexes = b''.join(craft.element(kind, b"unused") for kind in (craft.SEEK_HEAD, craft.CUES, craft.TAGS))
+        data = craft.element(craft.SEGMENT, indexes + tracks + cluster)
+        expected = craft.element(craft.SEGMENT, craft.element(craft.TRACKS,
+            craft.element(craft.TRACK_ENTRY, craft.element(craft.TRACK_NUMBER, b"\x01"))) + cluster)
+        self.assertEqual(check.matroska_without_default_duration(data), expected)
 
     def test_structured_side_data_rejects_reordering_status_and_diagnostics(self):
         expected = b'{"streams":[{"side_data_list":["matrix","mastering","light"]}]}\n'
@@ -349,7 +362,7 @@ class Commands(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/input-summary.yml").read_text()
         commands = [line.strip() for line in workflow.splitlines() if line.strip().startswith("run:")]
         self.assertTrue(any("scripts/input_summary_check.py" in line and "--audio" in line for line in commands))
-        for path in ("crates/coreav-audio/**", "scripts/standalone_audio_probe_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt"):
+        for path in ("crates/coreav-audio/**", "scripts/standalone_audio_probe_check.py", "scripts/mkv_craft.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt"):
             self.assertIn(f"      - {path}\n", workflow)
 
     def test_generation_failure_never_reuses_a_stale_fixture(self):

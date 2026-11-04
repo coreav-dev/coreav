@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oracle_pin
 import oracle_pin_macos
 import standalone_audio_probe_check as audio_probe
+import mkv_craft
 
 
 MISSING_OUTPUT = b"At least one output file must be specified\n"
@@ -205,6 +206,20 @@ def compare_unsupported(coreav, oracle, media, name):
     return failures
 
 
+def matroska_without_default_duration(data, parent=None):
+    out = []
+    for kind, body, end, _ in mkv_craft.children(data, 0, len(data)):
+        if parent == mkv_craft.TRACK_ENTRY and kind == mkv_craft.DEFAULT_DURATION:
+            continue
+        if parent == mkv_craft.SEGMENT and kind in (mkv_craft.SEEK_HEAD, mkv_craft.CUES, mkv_craft.TAGS):
+            continue
+        payload = data[body:end]
+        if kind in (mkv_craft.SEGMENT, mkv_craft.TRACKS, mkv_craft.TRACK_ENTRY):
+            payload = matroska_without_default_duration(payload, kind)
+        out.append(mkv_craft.element(kind, payload))
+    return b''.join(out)
+
+
 def generate_fixtures(oracle, directory, *, audio=False):
     """Regenerate only owned names; publish no partial fixture generation."""
     directory = Path(directory).resolve()
@@ -217,10 +232,10 @@ def generate_fixtures(oracle, directory, *, audio=False):
         h264 = ["-c:v", "libx264", "-threads:v", "1", "-pix_fmt", "yuv420p"]
         av = [*video, *sound, "-map", "0:v", "-map", "1:a", *h264, "-c:a", "aac"]
 
-        def make(name, extension, options, *, side_data=(), native=True, structured_side_data=False):
+        def make(name, extension, options, *, side_data=(), native=True, structured_side_data=False, duration="0.4"):
             path = root / f"{name}.{extension}"
             result = run([oracle.ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-y",
-                          *options, "-t", "0.4", path], f"generate-{name}")
+                          *options, "-t", duration, path], f"generate-{name}")
             if result.returncode or not path.is_file() or path.stat().st_size == 0:
                 raise CheckFailure(f"generate-{name}")
             if side_data:
@@ -289,6 +304,15 @@ def generate_fixtures(oracle, directory, *, audio=False):
              side_data=(b"  No Program\n",), native=False)
         make("mkv-negative-start", "mkv", [*av, "-avoid_negative_ts", "disabled",
                                           "-output_ts_offset", "-0.2"], native=False)
+        make("mkv-analysis-packet-cap", "mkv", [
+            "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=24:duration=2",
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=0.5",
+            "-map", "0:v", "-map", "1:a", "-vf", r"setpts=if(eq(N\,0)\,0\,PTS+0.35/TB)",
+            "-af", "asetnsamples=n=1:p=0", "-fps_mode", "passthrough",
+            "-c:v", "libvpx", "-threads:v", "1", "-c:a", "pcm_s16le",
+        ], native=False, duration="2.4")
+        capped = root / "mkv-analysis-packet-cap.mkv"
+        capped.write_bytes(matroska_without_default_duration(capped.read_bytes()))
         make("mp4-rotation", "mp4", ["-display_rotation", "90", "-i", root / "mp4-av.mp4",
                                      "-map", "0", "-c", "copy"], side_data=(b"Display Matrix:",))
         make("mp4-fractional-rotation", "mp4", ["-display_rotation", "12.5", "-i", root / "mp4-av.mp4",
