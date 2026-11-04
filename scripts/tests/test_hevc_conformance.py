@@ -842,6 +842,7 @@ class Conformance(unittest.TestCase):
                     runner.download(url, self.root / 'download', 10)
             open_url.assert_not_called()
 
+    @unittest.skipUnless(sys.platform == 'linux', 'media subprocess limits require Linux')
     def test_media_subprocesses_do_not_receive_credentials_or_home_configuration(self):
         with mock.patch.dict(os.environ, {'R2_SECRET_ACCESS_KEY': 'test-canary', 'CAPY_API_KEY': 'test-canary'}):
             code, output, _ = runner.child([sys.executable, '-c',
@@ -872,6 +873,7 @@ class Conformance(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'output order'):
             runner.compare(*fixture)
 
+    @unittest.skipUnless(sys.platform == 'linux', 'online media census requires Linux')
     def test_online_census_releases_each_owned_media_file_and_keeps_receipts(self):
         files = [dict(sha256=character * 64, ext='mp4', size=3, partition='development', sets=[])
                  for character in ('a', 'b')]
