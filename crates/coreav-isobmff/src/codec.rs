@@ -277,6 +277,9 @@ pub struct SampleDescription {
     /// each as stored, in the entry's order (ISO/IEC 14496-12). The clip
     /// writer copies them.
     pub entry_boxes: Vec<CodecConfig>,
+    /// The visual child walk is complete and contains only known leaf boxes.
+    /// True for non-visual entries.
+    pub visual_children_complete: bool,
     /// Types of the other child boxes of a visual entry, each listed once,
     /// at most [`MAX_OTHER_BOXES`]: what a copy of the entry leaves out.
     pub other_boxes: Vec<FourCc>,
@@ -464,6 +467,7 @@ pub(crate) fn parse_sample_entry(
         dolby_vision: None,
         ambient: None,
         entry_boxes: Vec::new(),
+        visual_children_complete: true,
         other_boxes: Vec::new(),
         parameter_set_size: None,
         parameter_set_color: None,
@@ -489,7 +493,7 @@ pub(crate) fn parse_sample_entry(
     let mut profile = None;
     let mut btrt = None;
     let mut lossless = None;
-    visit_children(
+    let children_complete = visit_children(
         children.rest(),
         children.offset(),
         2,
@@ -516,6 +520,20 @@ pub(crate) fn parse_sample_entry(
                 desc.parameter_set_color = signalled_color(&kind.0, payload);
             }
             if layout == EntryLayout::Visual {
+                desc.visual_children_complete &= ENTRY_BOXES.contains(&&kind.0)
+                    || CONFIG_BOXES.contains(&&kind.0)
+                    || (kind == FourCc(*b"d263") && payload.len() == 7)
+                    || matches!(
+                        &kind.0,
+                        b"free"
+                            | b"skip"
+                            | b"fiel"
+                            | b"glbl"
+                            | b"dvcC"
+                            | b"dvvC"
+                            | b"dvwC"
+                            | b"amve"
+                    );
                 if ENTRY_BOXES.contains(&&kind.0) {
                     if !desc.entry_boxes.iter().any(|b| b.kind == kind) {
                         crate::planning::reserve(planning, &mut desc.entry_boxes, 1, offset)?;
@@ -632,6 +650,7 @@ pub(crate) fn parse_sample_entry(
             Ok(())
         },
     )?;
+    desc.visual_children_complete &= layout != EntryLayout::Visual || children_complete;
     if desc.color.full_range.is_none() {
         desc.color.full_range = codec_range;
     }
@@ -1535,30 +1554,32 @@ fn audio_fields<'a>(
 /// Calls `visit` for every child box inside `data`, descending into QuickTime
 /// `wave` boxes up to `depth` levels. A malformed child list ends the walk
 /// without an error; codec configuration is optional metadata.
+/// Returns whether every child was inspected without changing retained metadata.
 fn visit_children(
     data: &[u8],
     offset: u64,
     depth: u32,
     visit: &mut impl FnMut(FourCc, &[u8]) -> Result<(), Error>,
-) -> Result<(), Error> {
+) -> Result<bool, Error> {
     let mut bytes = Bytes::new(data, offset);
+    let mut complete = true;
     while bytes.remaining() >= 8 {
         let size = bytes.u32()?;
         let kind = bytes.fourcc()?;
         let Some(len) = (size as usize).checked_sub(8) else {
-            // A terminator (size 0) or a malformed size ends the list.
-            return Ok(());
+            return Ok(false);
         };
         let Ok(payload) = bytes.take(len) else {
-            return Ok(());
+            return Ok(false);
         };
         if kind == FourCc(*b"wave") && depth > 0 {
-            visit_children(payload, 0, depth - 1, visit)?;
+            complete &= visit_children(payload, 0, depth - 1, visit)?;
         } else {
+            complete &= kind != FourCc(*b"wave");
             visit(kind, payload)?;
         }
     }
-    Ok(())
+    Ok(complete && bytes.remaining() == 0)
 }
 
 /// The colour description the parameter set of an `avcC`, `hvcC` or `av1C`
@@ -1780,6 +1801,50 @@ fn descriptor(data: &[u8], at: &mut usize) -> Option<(u8, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn child_walk_completeness_preserves_the_existing_visits() {
+        let boxed = |kind: &[u8; 4], payload: &[u8]| {
+            let mut out = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
+            out.extend_from_slice(kind);
+            out.extend_from_slice(payload);
+            out
+        };
+        let clear = boxed(b"free", b"clap");
+        let zero = b"\0\0\0\0clap".to_vec();
+        let mut extended = b"\0\0\0\x01clap".to_vec();
+        extended.extend_from_slice(&48u64.to_be_bytes());
+        extended.extend_from_slice(&[0; 32]);
+        for (data, complete, expected) in [
+            (clear.clone(), true, vec![FourCc(*b"free")]),
+            (zero.clone(), false, vec![]),
+            (extended, false, vec![]),
+            (b"\0\0\x27\x0ffree".to_vec(), false, vec![]),
+            (
+                [clear.clone(), b"tail".to_vec()].concat(),
+                false,
+                vec![FourCc(*b"free")],
+            ),
+            (
+                [boxed(b"wave", &zero), clear].concat(),
+                false,
+                vec![FourCc(*b"free")],
+            ),
+            (
+                boxed(b"wave", &boxed(b"wave", &boxed(b"wave", &[]))),
+                false,
+                vec![FourCc(*b"wave")],
+            ),
+        ] {
+            let mut visited = Vec::new();
+            let result = visit_children(&data, 0, 2, &mut |kind, _| {
+                visited.push(kind);
+                Ok(())
+            });
+            assert_eq!(result.ok(), Some(complete));
+            assert_eq!(visited, expected);
+        }
+    }
 
     /// The record's fields at their bit positions; cut short, none.
     #[test]

@@ -1910,6 +1910,7 @@ mod tests {
             programs: vec![],
             setups: vec![],
             covers: vec![],
+            iso_clean_aperture: false,
         };
         let job = |options: &str| {
             let line = format!("-i in.mp4 {options} out.mp4");
@@ -1969,6 +1970,7 @@ mod tests {
             programs: vec![],
             setups: vec![],
             covers: vec![],
+            iso_clean_aperture: false,
         };
         let plan_options = |options: &str, report: &Report| {
             let line = format!("-i in.webm {options} out.mp4");

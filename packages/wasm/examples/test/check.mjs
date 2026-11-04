@@ -427,7 +427,8 @@ try {
   ]) assert.equal((await get(media, path)).status, status);
   assert.equal(compressedRequests.length, 1);
   assert.ok(compressedRequests[0].split(",").every((value) => value.trim() === "identity"));
-  assert.equal((await get(media, "/ffprobe?key=tenant%2FSECRETKEY.mp4")).status, 200);
+  const tenantProbe = await get(media, "/ffprobe?key=tenant%2FSECRETKEY.mp4");
+  assert.equal(tenantProbe.status, 200, "stage=tenant-key-ffprobe reason=unexpected_status");
   await recordMemory(media, "media-start");
   for (const route of [routes[7], routes[0], routes[6]]) { await compareMedia(media, "av.mp4", route, "key"); await recordMemory(media, `media-${route[0]}`); }
   const cap = new Uint8Array(16 * 1024 * 1024); cap.set(files.get("av.mp4").bytes);
