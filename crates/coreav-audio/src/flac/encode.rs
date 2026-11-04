@@ -454,6 +454,43 @@ fn lpc_shift(largest: f64) -> u8 {
         .unwrap_or(0)
 }
 
+fn autocorrelation(windowed: &[f64], max_order: usize) -> Vec<f64> {
+    let mut correlation = vec![std::iter::empty::<f64>().sum(); max_order + 1];
+    for (group, sums) in correlation.chunks_mut(4).enumerate() {
+        let lag = group * 4;
+        if let [s0, s1, s2, s3] = sums {
+            for (terms, b) in windowed.windows(4).skip(lag).zip(windowed) {
+                if let [a0, a1, a2, a3] = terms {
+                    *s0 += a0 * b;
+                    *s1 += a1 * b;
+                    *s2 += a2 * b;
+                    *s3 += a3 * b;
+                }
+            }
+            let common = windowed.len().saturating_sub(lag + 3);
+            for (offset, sum) in sums.iter_mut().enumerate() {
+                for (a, b) in windowed
+                    .iter()
+                    .skip(lag + offset + common)
+                    .zip(windowed.iter().skip(common))
+                {
+                    *sum += a * b;
+                }
+            }
+        } else {
+            for (offset, sum) in sums.iter_mut().enumerate() {
+                *sum = windowed
+                    .iter()
+                    .skip(lag + offset)
+                    .zip(windowed)
+                    .map(|(a, b)| a * b)
+                    .sum();
+            }
+        }
+    }
+    correlation
+}
+
 impl Subframe {
     fn plan(input: &[i64], bits: u8, residual: &mut Vec<u32>) -> Self {
         let wasted = input
@@ -499,16 +536,7 @@ impl Subframe {
                 *sample as f64 * (1.0 - position * position)
             })
             .collect();
-        let correlation: Vec<f64> = (0..=max_order)
-            .map(|lag| {
-                windowed
-                    .iter()
-                    .skip(lag)
-                    .zip(&windowed)
-                    .map(|(a, b)| a * b)
-                    .sum()
-            })
-            .collect();
+        let correlation = autocorrelation(&windowed, max_order);
         let mut error = correlation.first().copied().unwrap_or(0.0);
         let mut coefficients: Vec<f64> = Vec::new();
         for order in 1..=max_order {
@@ -647,6 +675,78 @@ impl Subframe {
     }
 }
 
+struct RiceCosts<'a> {
+    residual: &'a [u32],
+    order: u8,
+    partition: usize,
+    predictor: usize,
+    quotients: [[u64; 16]; 31],
+    computed: u32,
+    widths: [u8; 16],
+}
+
+impl<'a> RiceCosts<'a> {
+    fn new(residual: &'a [u32], samples: usize, predictor: usize, order: u8) -> Self {
+        let partition = samples >> order;
+        let mut sums = [0; 16];
+        let mut widths = [0; 16];
+        let mut remaining = residual;
+        for (index, (sum, width)) in sums
+            .iter_mut()
+            .zip(&mut widths)
+            .take(1 << order)
+            .enumerate()
+        {
+            let count = partition - if index == 0 { predictor } else { 0 };
+            let (values, rest) = remaining.split_at(count);
+            remaining = rest;
+            let (total, maximum) = values.iter().fold((0, 0), |(sum, maximum), value| {
+                (sum + u64::from(*value), maximum.max(*value))
+            });
+            *sum = total;
+            *width = (32 - maximum.leading_zeros()) as u8;
+        }
+        Self {
+            residual,
+            order,
+            partition,
+            predictor,
+            quotients: std::array::from_fn(|k| if k == 0 { sums } else { [0; 16] }),
+            computed: 1,
+            widths,
+        }
+    }
+
+    fn quotient_sum(&mut self, order: u8, partition: usize, k: u8) -> u64 {
+        let Some(sums) = self.quotients.get_mut(usize::from(k)) else {
+            return 0;
+        };
+        if self.computed & (1 << k) == 0 {
+            let mut remaining = self.residual;
+            for (index, sum) in sums.iter_mut().take(1 << self.order).enumerate() {
+                let count = self.partition - if index == 0 { self.predictor } else { 0 };
+                let (values, rest) = remaining.split_at(count);
+                remaining = rest;
+                *sum = values.iter().map(|v| u64::from(*v >> k)).sum();
+            }
+            self.computed |= 1 << k;
+        }
+        let leaves = 1 << (self.order - order);
+        sums.iter().skip(partition * leaves).take(leaves).sum()
+    }
+
+    fn escaped_width(&self, order: u8, partition: usize) -> u8 {
+        let leaves = 1 << (self.order - order);
+        self.widths
+            .iter()
+            .skip(partition * leaves)
+            .take(leaves)
+            .copied()
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 impl Rice {
     fn plan(residual: &[u32], samples: usize, predictor: usize) -> Self {
         let mut best = Self {
@@ -655,66 +755,69 @@ impl Rice {
             parameters: Vec::new(),
             cost: u64::MAX,
         };
-        for order in 0..=4 {
+        let Some(max_order) = (0..=4)
+            .take_while(|order| samples % (1 << order) == 0 && samples >> order > predictor)
+            .last()
+        else {
+            return best;
+        };
+        let mut costs = RiceCosts::new(residual, samples, predictor, max_order);
+        for order in 0..=max_order {
             let partition = samples >> order;
-            if samples % (1 << order) != 0 || partition <= predictor {
-                break;
-            }
-            for parameter_bits in [4, 5] {
-                let max_parameter = (1u8 << parameter_bits) - 2;
-                let mut cost = 6;
-                let mut parameters = Vec::new();
-                let mut remaining = residual;
-                for index in 0..1 << order {
-                    let count = partition - if index == 0 { predictor } else { 0 };
-                    let (values, rest) = remaining.split_at(count);
-                    remaining = rest;
-                    let sum: u64 = values.iter().map(|v| u64::from(*v)).sum();
-                    let code_cost = |k: u8| {
-                        count as u64 * (u64::from(k) + 1)
-                            + values.iter().map(|v| u64::from(*v >> k)).sum::<u64>()
-                    };
-                    let mut parameter = (sum / count as u64)
-                        .checked_ilog2()
-                        .unwrap_or(0)
-                        .min(u32::from(max_parameter))
-                        as u8;
-                    let mut bits = code_cost(parameter);
-                    for k in (0..parameter).rev() {
-                        let candidate = code_cost(k);
-                        if candidate > bits {
-                            break;
-                        }
-                        parameter = k;
-                        bits = candidate;
+            let mut candidates = [4, 5].map(|parameter_bits| Self {
+                parameter_bits,
+                order,
+                parameters: Vec::new(),
+                cost: 6,
+            });
+            for index in 0..1 << order {
+                let count = partition - if index == 0 { predictor } else { 0 };
+                let sum = costs.quotient_sum(order, index, 0);
+                let mut code_cost =
+                    |k: u8| count as u64 * (u64::from(k) + 1) + costs.quotient_sum(order, index, k);
+                let mut parameter = (sum / count as u64).checked_ilog2().unwrap_or(0).min(30) as u8;
+                let mut bits = code_cost(parameter);
+                for k in (0..parameter).rev() {
+                    let candidate = code_cost(k);
+                    if candidate > bits {
+                        break;
                     }
-                    for k in parameter + 1..=max_parameter {
-                        let candidate = code_cost(k);
-                        if candidate >= bits {
-                            break;
-                        }
-                        parameter = k;
-                        bits = candidate;
+                    parameter = k;
+                    bits = candidate;
+                }
+                for k in parameter + 1..=30 {
+                    let candidate = code_cost(k);
+                    if candidate >= bits {
+                        break;
                     }
-                    let width =
-                        (32 - values.iter().copied().max().unwrap_or(0).leading_zeros()) as u8;
-                    let escaped = 5 + count as u64 * u64::from(width);
+                    parameter = k;
+                    bits = candidate;
+                }
+                let four_parameter = parameter.min(14);
+                let four_bits = if four_parameter == parameter {
+                    bits
+                } else {
+                    code_cost(four_parameter)
+                };
+                let width = costs.escaped_width(order, index);
+                let escaped = 5 + count as u64 * u64::from(width);
+                for (candidate, (parameter, mut bits)) in candidates
+                    .iter_mut()
+                    .zip([(four_parameter, four_bits), (parameter, bits)])
+                {
                     let selected = if width <= 31 && escaped < bits {
                         bits = escaped;
                         Partition::Escape(width)
                     } else {
                         Partition::Rice(parameter)
                     };
-                    parameters.push(selected);
-                    cost += u64::from(parameter_bits) + bits;
+                    candidate.parameters.push(selected);
+                    candidate.cost += u64::from(candidate.parameter_bits) + bits;
                 }
-                if cost < best.cost {
-                    best = Self {
-                        parameter_bits,
-                        order,
-                        parameters,
-                        cost,
-                    };
+            }
+            for candidate in candidates {
+                if candidate.cost < best.cost {
+                    best = candidate;
                 }
             }
         }
@@ -726,6 +829,139 @@ impl Rice {
 #[allow(clippy::indexing_slicing, clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_quotients_and_widths_match_every_scalar_partition() {
+        assert!(std::mem::size_of::<RiceCosts<'_>>() <= 4096 + 128);
+        let mut state = 19u32;
+        for samples in [
+            1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 257,
+            4095, 4096,
+        ] {
+            for predictor in 0..=8.min(samples - 1) {
+                let max_order = (0..=4)
+                    .filter(|order| samples % (1 << order) == 0 && samples >> order > predictor)
+                    .max()
+                    .unwrap();
+                for mode in 0..4 {
+                    let residual: Vec<u32> = (predictor..samples)
+                        .map(|_| {
+                            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                            match mode {
+                                0 => 0,
+                                1 => state >> 31,
+                                2 => state & 0x7fff_ffff,
+                                _ => state.min(u32::MAX - 1),
+                            }
+                        })
+                        .collect();
+                    let mut costs = RiceCosts::new(&residual, samples, predictor, max_order);
+                    for order in (0..=max_order).rev() {
+                        let partition = samples >> order;
+                        let mut start = 0;
+                        for index in 0..1 << order {
+                            let count = partition - if index == 0 { predictor } else { 0 };
+                            let values = &residual[start..start + count];
+                            let maximum = values.iter().copied().max().unwrap_or(0);
+                            assert_eq!(
+                                costs.escaped_width(order, index),
+                                (32 - maximum.leading_zeros()) as u8
+                            );
+                            for k in (0..=30).rev().chain(0..=30) {
+                                let expected: u64 = values.iter().map(|v| u64::from(v >> k)).sum();
+                                assert_eq!(costs.quotient_sum(order, index, k), expected);
+                            }
+                            start += count;
+                        }
+                        assert_eq!(start, residual.len());
+                    }
+                    assert_eq!(costs.computed, 0x7fff_ffff);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cached_plans_match_exhaustive_choices_at_partition_boundaries() {
+        let mut state = 29u32;
+        for samples in [
+            9, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 257, 4095, 4096,
+        ] {
+            for predictor in 0..=8 {
+                for shift in [0, 16, 31] {
+                    let residual: Vec<u32> = (predictor..samples)
+                        .map(|index| {
+                            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                            let value = (state >> shift).min(u32::MAX - 1);
+                            if index % 17 < 8 { value } else { 0 }
+                        })
+                        .collect();
+                    let actual = Rice::plan(&residual, samples, predictor);
+                    let expected = exhaustive(&residual, samples, predictor);
+                    assert_eq!(
+                        (actual.cost, actual.order, actual.parameter_bits),
+                        (expected.cost, expected.order, expected.parameter_bits)
+                    );
+                    let choices = |rice: &Rice| {
+                        rice.parameters
+                            .iter()
+                            .map(|p| match p {
+                                Partition::Rice(k) => (false, *k),
+                                Partition::Escape(width) => (true, *width),
+                            })
+                            .collect::<Vec<_>>()
+                    };
+                    assert_eq!(choices(&actual), choices(&expected));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn interleaved_autocorrelation_preserves_every_scalar_reduction_bit() {
+        let mut state = 37u32;
+        for length in (0usize..=33).chain([63, 64, 65, 127, 128, 129, 4095, 4096]) {
+            for mode in 0..4 {
+                let windowed: Vec<f64> = (0..length)
+                    .map(|index| {
+                        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                        match mode {
+                            0 => 0.0,
+                            1 => -0.0,
+                            2 => {
+                                let position = 2.0 * index as f64
+                                    / length.saturating_sub(1).max(1) as f64
+                                    - 1.0;
+                                f64::from(state as i32 >> 7) * (1.0 - position * position)
+                            }
+                            _ => f64::from(state as i32) / f64::from(1u32 << (index % 31)),
+                        }
+                    })
+                    .collect();
+                for max_order in 0..=8 {
+                    let expected: Vec<_> = (0..=max_order)
+                        .map(|lag| {
+                            windowed
+                                .iter()
+                                .skip(lag)
+                                .zip(&windowed)
+                                .map(|(a, b)| a * b)
+                                .sum::<f64>()
+                                .to_bits()
+                        })
+                        .collect();
+                    let actual: Vec<_> = autocorrelation(&windowed, max_order)
+                        .iter()
+                        .map(|v| v.to_bits())
+                        .collect();
+                    assert_eq!(
+                        actual, expected,
+                        "length={length}, mode={mode}, order={max_order}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn residual_planning_includes_escapes_and_five_bit_parameters() {

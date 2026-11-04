@@ -12,6 +12,8 @@ All work ran remotely on on-demand c4-standard-8, Intel Emerald Rapids, SMT disa
 
 The primary reference retains the registered default options. A separate diagnostic reference uses compression level 5, 4,096-sample frames, Levinson prediction, precision 15, LPC orders 1–8 with exhaustive order search, partition orders 0–4 and exact Rice parameters. These align exposed bounds and Rice calculation, not every internal encoder decision. Both references remain visible; the more expensive aligned reference does not replace the default reference or its bar.
 
+Plain CoreAV takes 3.1–6.1× the bounds-aligned reference time and 5.9–14.6× the default-reference time on these four diagnostic cases. These are distinct comparisons; the smaller range is not a default-reference ratio.
+
 Five alternating/reverse-order repetitions per arm record a wall invocation and a separate hardware-counter invocation. Every accepted invocation passes complete samples, CRC, MD5 and probe checks. Plain and instrumented native outputs must also be identical complete files. All hardware-counter lines were fully scheduled. Native source recordings report no lost samples. Profiles use native symbols/source lines only.
 
 Approximate cycle buckets, in case order:
