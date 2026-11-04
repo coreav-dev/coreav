@@ -668,10 +668,19 @@ fn rate(option: &str, text: &str) -> Result<u32, Refusal> {
 type Group<'a> = Vec<(&'a str, Option<&'a str>)>;
 
 /// Parses `ffmpeg`'s arguments, without the program name.
-pub fn parse(args: &[String]) -> Result<Command, Refusal> {
+struct Grouped<'a> {
+    inputs: Vec<(&'a str, Group<'a>)>,
+    outputs: Vec<(&'a str, Group<'a>)>,
+    yes: bool,
+    no: bool,
+    level: &'a str,
+}
+
+fn grouped(args: &[String]) -> Result<Grouped<'_>, Refusal> {
     let mut inputs: Vec<(&str, Group)> = Vec::new();
     let mut outputs: Vec<(&str, Group)> = Vec::new();
     let (mut yes, mut no) = (false, false);
+    let mut level = "info";
     let mut group: Group = Vec::new();
     let mut i = 0;
     while let Some(arg) = args.get(i) {
@@ -730,8 +739,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
             ("-y", _) => yes = true,
             ("-n", _) => no = true,
-            ("-v" | "-loglevel", Some(level)) => crate::ffprobe::args::loglevel(level)
-                .map_err(|_| usage(format!("Invalid loglevel \"{level}\".")))?,
+            ("-v" | "-loglevel", Some(value)) => {
+                crate::ffprobe::args::loglevel(value)
+                    .map_err(|_| usage(format!("Invalid loglevel \"{value}\".")))?;
+                level = value;
+            }
             ("-hide_banner" | "-nostdin" | "-ignore_unknown", _) => {}
             _ => group.push((arg, value)),
         }
@@ -739,6 +751,63 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if !group.is_empty() {
         return Err(Refusal::not_native("an option after the last output file"));
     }
+    Ok(Grouped {
+        inputs,
+        outputs,
+        yes,
+        no,
+        level,
+    })
+}
+
+/// The validated input probes of a command without output files.
+pub fn summary(args: &[String]) -> Result<Option<Vec<crate::ffprobe::args::Options>>, Refusal> {
+    let grouped = grouped(args)?;
+    if !grouped.outputs.is_empty() || grouped.inputs.is_empty() {
+        return Ok(None);
+    }
+    if grouped.yes && grouped.no {
+        return Err(usage("Error, both -y and -n supplied. Exiting."));
+    }
+    if grouped.inputs.len() > coreav_isobmff_write::MAX_REMUX_INPUTS {
+        return Err(Refusal::not_native("more than sixteen input files"));
+    }
+    let mut out = Vec::with_capacity(grouped.inputs.len());
+    for (input, options) in grouped.inputs {
+        let mut probe_args = vec!["-v".to_owned(), grouped.level.to_owned()];
+        for (option, value) in options {
+            if option != "-f" {
+                return Err(Refusal::not_native(
+                    "an input option in a summary-only command",
+                ));
+            }
+            probe_args.push(option.to_owned());
+            if let Some(value) = value {
+                probe_args.push(value.to_owned());
+            }
+        }
+        probe_args.push("-i".to_owned());
+        probe_args.push(input.to_owned());
+        out.push(
+            crate::ffprobe::args::parse(&probe_args).map_err(|refusal| match refusal {
+                crate::ffprobe::args::Refusal::Unsupported(reason) => Refusal::NotNative(reason),
+                crate::ffprobe::args::Refusal::Usage(text) => Refusal::Usage(text),
+                crate::ffprobe::args::Refusal::Help => Refusal::Help,
+            })?,
+        );
+    }
+    Ok(Some(out))
+}
+
+/// Parses an invocation that writes an output file.
+pub fn parse(args: &[String]) -> Result<Command, Refusal> {
+    let Grouped {
+        inputs,
+        outputs,
+        yes,
+        no,
+        ..
+    } = grouped(args)?;
     let overwrite = match (yes, no) {
         (true, true) => return Err(usage("Error, both -y and -n supplied. Exiting.")),
         (true, false) => Overwrite::Yes,

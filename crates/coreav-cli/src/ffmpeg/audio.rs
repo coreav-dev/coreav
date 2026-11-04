@@ -248,19 +248,7 @@ mod tests {
 
     #[test]
     fn resolved_external_encoders_are_refused_before_discovery() {
-        let report = Report {
-            streams: vec![],
-            time_bases: vec![],
-            format: vec![],
-            format_tags: vec![],
-            iso_names_supported: None,
-            iso_format_output: None,
-            chapters: vec![],
-            programs: vec![],
-            setups: vec![],
-            covers: vec![],
-            iso_clean_aperture: false,
-        };
+        let report = Report::default();
         for (name, output, encoder) in [
             ("AAC", "out.m4a", AudioEncoder::Aac),
             ("MP3", "out.mp3", AudioEncoder::Libmp3lame),

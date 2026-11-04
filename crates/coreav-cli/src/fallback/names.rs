@@ -2882,6 +2882,8 @@ bits_per_raw_sample
 bits_per_sample
 bl_present_flag
 block_additional_id
+blue_x
+blue_y
 buffer_size
 captions
 category
@@ -2902,6 +2904,7 @@ color_range
 color_space
 color_transfer
 comment
+compatible_brands
 compilation
 composer
 copyright
@@ -2932,6 +2935,7 @@ duration_time
 duration_ts
 dv_bl_signal_compatibility_id
 dv_level
+dv_md_compression
 dv_profile
 dv_version_major
 dv_version_minor
@@ -2954,6 +2958,8 @@ format_name
 gapless_playback
 gbrp
 genre
+green_x
+green_y
 grouping
 has_b_frames
 hd_video
@@ -2979,15 +2985,19 @@ lossless
 ltrt_cmixlev
 ltrt_surmixlev
 lyrics
+major_brand
 make
 max_average
 max_bit_rate
 max_bitrate
 max_content
+max_luminance
 media_type
 metadata
 mime_codec_string
 min_bitrate
+min_luminance
+minor_version
 model
 monow
 mp1
@@ -3036,6 +3046,8 @@ qtrle
 quarter_sample
 r_frame_rate
 rating
+red_x
+red_y
 refs
 repeat_pict
 rgb24
@@ -3083,6 +3095,8 @@ visual_impaired
 vorbis
 vp8
 warning
+white_point_x
+white_point_y
 width
 yaw
 yuv410p

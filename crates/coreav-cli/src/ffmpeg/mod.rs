@@ -2013,6 +2013,8 @@ mod tests {
         };
         let report = Report {
             iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
             iso_format_output: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
@@ -2066,6 +2068,8 @@ mod tests {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
             iso_names_supported: None,
+            summary: Default::default(),
+            summary_aspects: Vec::new(),
             iso_format_output: None,
             streams: vec![
                 Stream {

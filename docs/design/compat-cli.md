@@ -1055,12 +1055,15 @@ appear and in what order, and `-show_entries`'s selection rules, as the
 pinned `ffprobe` 7.0.2 prints them for the same command. The black box is
 the only source for those rules.
 
-**Standard error is not.** `ffprobe` writes a banner and a summary of the
-input on standard error at the default log level; CoreAV writes nothing on
-standard error on success, at any `-v`. A command that asks for no section
-(`ffprobe INPUT`, `ffprobe -v debug -i INPUT`) exists only for that summary,
-so it is refused (exit 4), never run to print nothing. `-show_error` prints
-the error section on standard output, as `ffprobe` does.
+**Input summaries on standard error** are a separate native output contract for `ffprobe INPUT` and `ffprobe -i INPUT` without section options. The [input-summary plan](input-summary.md) requires byte-identical summary text against the pinned FFmpeg 9.0.2, including metadata, chapters, programs and supported stream side data. An unsupported summary falls back before printing any partial summary, or exits 4 under strict-safe. Diagnostic levels below info suppress the summary; detailed or decorated logging uses fallback. Sectioned commands retain their existing standard-error behavior. `-show_error` prints the error section on standard output, as `ffprobe` does.
+
+An explicit `-of`, `-print_format` or `-output_format` remains a structured request even without selected sections; JSON retains its empty document rather than entering bare-summary admission. Program summaries count every membership entry, including repeated entries, and print `No Program` before unassigned streams only when that entry count is less than the stream count. A sole language metadata key is omitted case-insensitively; case variants beside other metadata remain visible.
+
+Display-matrix summaries admit only axis-aligned matrices with nonzero axes: diagonal or anti-diagonal linear components. They emit fixed quarter-turn text, preserving signed zero, without a C math dependency. Every non-axis matrix, including fractional, nearby and scaled variants, refuses before summary emission. Whole-degree structured rotation keeps its existing calculation and truncation unchanged.
+
+`ffmpeg -i INPUT` without an output uses the same summary and then prints `At least one output file must be specified` with status 1. CoreAV always suppresses FFmpeg's version and configuration banner, including on fallback. This deliberate identity divergence is not an exception to the summary's byte comparison.
+
+Standalone WAVE and FLAC summaries use the existing audio readers under the [summary admission bounds](input-summary.md#native-admission). An explicit speaker layout and complete source extents qualify WAVE; FLAC also qualifies mono/stereo without a mask. Unproved layouts, precision disagreements, incomplete extents and ambiguous metadata retain atomic fallback. Structured audio reports keep their existing behavior.
 
 **Keys.** Every key the sections have in `ffprobe`, in its order, with the
 value derived from what the container and the codec configuration say,
@@ -2423,8 +2426,9 @@ installs both tools.
 
 ### Running it
 
-The program gets the arguments unchanged, standard input, output and error
-inherited, and the environment with one variable added. On Unix CoreAV
+The program gets `-hide_banner` followed by the original arguments. It inherits
+standard output and standard error. It inherits standard input unless CoreAV
+supplies a replay file. The environment has one variable added. On Unix CoreAV
 replaces itself with it (`exec`), so the process id, signals and exit status
 are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.

@@ -65,6 +65,29 @@ fn movie(dir: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+fn fallback_arguments(args: &[&str]) -> Vec<u8> {
+    std::iter::once("-hide_banner")
+        .chain(args.iter().copied())
+        .flat_map(|arg| arg.bytes().chain([0]))
+        .collect()
+}
+
+#[test]
+fn fallback_argument_expectations_keep_the_banner_and_exact_original_bytes() {
+    let args = ["-y", "-i", "file with spaces.mp4", "-c", "copy"];
+    let expected = b"-hide_banner\0-y\0-i\0file with spaces.mp4\0-c\0copy\0";
+    assert_eq!(fallback_arguments(&args), expected);
+    assert_ne!(fallback_arguments(&args[1..]), expected);
+    assert_ne!(
+        fallback_arguments(&["-i", "file with spaces.mp4", "-y", "-c", "copy"]),
+        expected
+    );
+    assert_ne!(
+        fallback_arguments(&["-y", "-i", "changed.mp4", "-c", "copy"]),
+        expected
+    );
+}
+
 #[test]
 fn a_stream_copy_runs_and_prints_nothing() {
     let dir = scratch("ffmpeg-copy");
@@ -1043,8 +1066,7 @@ fn concat_positive_aac_edits_forward_the_original_fallback_arguments() {
         "{}",
         String::from_utf8_lossy(&r.stderr)
     );
-    let expected: Vec<u8> = args.iter().flat_map(|arg| arg.bytes().chain([0])).collect();
-    assert_eq!(r.stdout, expected);
+    assert_eq!(r.stdout, fallback_arguments(&args));
     assert!(!output.exists());
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);
 }
@@ -1171,11 +1193,7 @@ fn concat_nonzero_first_origin_is_refused_without_changing_native_join() {
             "{}",
             String::from_utf8_lossy(&r.stderr)
         );
-        let expected: Vec<u8> = original
-            .iter()
-            .flat_map(|arg| arg.bytes().chain([0]))
-            .collect();
-        assert_eq!(r.stdout, expected);
+        assert_eq!(r.stdout, fallback_arguments(&original));
         assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
     }
 }
@@ -3326,12 +3344,7 @@ fn first_input_only_maps_reuse_ordinary_copy_timing() {
                 .output()
                 .unwrap();
             assert_eq!(result.status.code(), Some(19));
-            assert_eq!(
-                result.stdout,
-                args.iter()
-                    .flat_map(|arg| arg.bytes().chain([0]))
-                    .collect::<Vec<_>>()
-            );
+            assert_eq!(result.stdout, fallback_arguments(&args));
         }
         std::fs::remove_file(output).unwrap();
     }

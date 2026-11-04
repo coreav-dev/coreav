@@ -53,7 +53,7 @@ pub enum Reason {
     /// what is refused (`-f lavfi`).
     Option(String, Option<String>),
     /// What the command asks for, in fixed words that hold no user data
-    /// (`no section`, `standard input`).
+    /// (`input summary`, `standard input`).
     Property(&'static str),
 }
 

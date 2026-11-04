@@ -76,7 +76,7 @@ fn input_thread_expressions_reach_fallback_without_consuming_stdin() {
     assert_eq!(result.stdout, bytes);
     assert_eq!(
         std::fs::read_to_string(record).unwrap(),
-        args.join("\n") + "\n"
+        format!("-hide_banner\n{}\n", args.join("\n"))
     );
 }
 
@@ -390,7 +390,7 @@ fn replayed_fallback_keeps_full_windows_exit_codes_and_cleans_its_spool() {
         assert_eq!(std::fs::read(record).unwrap(), bytes);
         assert_eq!(
             String::from_utf8(result.stdout).unwrap(),
-            format!("args: {}\n", args.join(" "))
+            format!("args: -hide_banner {}\n", args.join(" "))
         );
         assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
     }
@@ -437,7 +437,7 @@ fn consumed_encoded_stdin_reaches_fallback_with_original_arguments() {
     assert_ne!(result.stdout, samples);
     assert_eq!(
         std::fs::read_to_string(record).unwrap(),
-        args.join("\n") + "\n"
+        format!("-hide_banner\n{}\n", args.join("\n"))
     );
     assert!(String::from_utf8_lossy(&result.stderr).contains("ran"));
     assert_eq!(std::fs::read_dir(temporary).unwrap().count(), 0);
@@ -826,6 +826,7 @@ fn opus_pcm_keeps_refusal_and_the_existing_ffmpeg_fallback() {
                 .unwrap();
             assert_eq!(ran.status.code(), Some(7), "{ran:?}");
             let expected = [
+                "-hide_banner",
                 "-i",
                 input.to_str().unwrap(),
                 "-y",

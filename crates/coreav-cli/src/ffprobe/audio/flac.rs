@@ -1,5 +1,5 @@
 use super::super::model::{self, Unit, Value};
-use super::super::{Entries, Report, Stream, StreamKind, iso, names};
+use super::super::{Entries, Purpose, Report, Stream, StreamKind, SummaryEvidence, iso, names};
 use crate::error::Failure;
 use coreav_isobmff::{Error, LimitKind, Limits, Source};
 use std::mem::size_of;
@@ -10,6 +10,7 @@ pub(super) fn probe<S: Source>(
     name: &str,
     limits: &Limits,
     start: u64,
+    purpose: Purpose,
 ) -> Result<Report, Failure> {
     if limits.max_tracks == 0 {
         return Err(limit(LimitKind::Tracks, start));
@@ -21,6 +22,7 @@ pub(super) fn probe<S: Source>(
         source,
         size,
         limits,
+        purpose,
         offset: start,
         blocks: 0,
         work: 0,
@@ -36,6 +38,7 @@ pub(super) fn probe<S: Source>(
     let mut seektable = false;
     let mut tags = Vec::new();
     let mut mask = None;
+    let mut summary_complete = true;
     loop {
         reader.blocks = reader
             .blocks
@@ -88,7 +91,13 @@ pub(super) fn probe<S: Source>(
                     .source
                     .read_exact_at(reader.offset, &mut bytes)
                     .map_err(Failure::library)?;
-                parse_comments(&bytes, &mut reader, &mut tags, &mut mask)?;
+                parse_comments(
+                    &bytes,
+                    &mut reader,
+                    &mut tags,
+                    &mut mask,
+                    &mut summary_complete,
+                )?;
                 reader.offset = end;
             }
             127 => return Err(Failure::Invalid("FLAC forbidden metadata block type")),
@@ -104,28 +113,24 @@ pub(super) fn probe<S: Source>(
     }
     let info = info.ok_or(Failure::Invalid("FLAC missing STREAMINFO"))?;
     for (key, _) in &mut tags {
-        let alias = if key.eq_ignore_ascii_case("DESCRIPTION") {
-            Some("comment")
-        } else if key.eq_ignore_ascii_case("TRACKNUMBER") {
-            Some("track")
-        } else if key.eq_ignore_ascii_case("DISCNUMBER") {
-            Some("disc")
-        } else if key.eq_ignore_ascii_case("ALBUMARTIST") {
-            Some("album_artist")
-        } else {
-            None
-        };
-        if let Some(alias) = alias {
+        summary_complete &= !key.eq_ignore_ascii_case("language");
+        let alias = comment_key(key);
+        if alias != key {
             *key = reader.tag_text(alias)?;
         }
     }
-    report(info, tags, mask, name, &mut reader)
+    summary_complete &= mask.map_or(info.channels <= 2, |mask| {
+        mask.count_ones() == info.channels
+    });
+    summary_complete &= info.samples != 0 && reader.size > reader.offset;
+    report(info, tags, mask, name, &mut reader, summary_complete)
 }
 
 struct Reader<'a, S> {
     source: &'a mut S,
     size: u64,
     limits: &'a Limits,
+    purpose: Purpose,
     offset: u64,
     blocks: u32,
     work: u64,
@@ -244,6 +249,7 @@ impl<S: Source> Reader<'_, S> {
 }
 
 struct Info {
+    body: [u8; 34],
     rate: u32,
     channels: u32,
     bits: u16,
@@ -255,8 +261,8 @@ struct Info {
 }
 
 impl Info {
-    fn parse(bytes: [u8; 34]) -> Result<Self, Failure> {
-        let mut bytes = bytes.as_slice();
+    fn parse(body: [u8; 34]) -> Result<Self, Failure> {
+        let mut bytes = body.as_slice();
         let min_block = number(&mut bytes, 2)?;
         let max_block = number(&mut bytes, 2)?;
         let min_frame = number(&mut bytes, 3)?;
@@ -278,6 +284,7 @@ impl Info {
             ));
         }
         Ok(Self {
+            body,
             rate,
             channels,
             bits,
@@ -342,6 +349,7 @@ fn parse_comments<S: Source>(
     reader: &mut Reader<'_, S>,
     tags: &mut Vec<(String, String)>,
     mask: &mut Option<u32>,
+    summary_complete: &mut bool,
 ) -> Result<(), Failure> {
     field(&mut bytes)?;
     let count = little(&mut bytes)?;
@@ -372,6 +380,7 @@ fn parse_comments<S: Source>(
                 .ok_or(Failure::Invalid("FLAC channel mask"))?;
             let parsed =
                 u32::from_str_radix(hex, 16).map_err(|_| Failure::Invalid("FLAC channel mask"))?;
+            *summary_complete &= mask.is_none() && parsed != 0 && parsed & !0x3ffff == 0;
             if parsed != 0 && parsed & !0x3ffff == 0 {
                 if mask.is_none() {
                     *mask = Some(parsed);
@@ -395,6 +404,8 @@ fn parse_comments<S: Source>(
         let mut found = None;
         for (index, (existing, _)) in tags.iter().enumerate() {
             reader.work(1)?;
+            *summary_complete &= existing.eq_ignore_ascii_case(key)
+                || !comment_key(existing).eq_ignore_ascii_case(comment_key(key));
             if existing.eq_ignore_ascii_case(key) {
                 found = Some(index);
                 break;
@@ -429,17 +440,74 @@ fn parse_comments<S: Source>(
     Ok(())
 }
 
+fn comment_key(key: &str) -> &str {
+    if key.eq_ignore_ascii_case("DESCRIPTION") {
+        "comment"
+    } else if key.eq_ignore_ascii_case("TRACKNUMBER") {
+        "track"
+    } else if key.eq_ignore_ascii_case("DISCNUMBER") {
+        "disc"
+    } else if key.eq_ignore_ascii_case("ALBUMARTIST") {
+        "album_artist"
+    } else {
+        key
+    }
+}
+
 fn report<S: Source>(
     info: Info,
     tags: Vec<(String, String)>,
     mask: Option<u32>,
     name: &str,
     reader: &mut Reader<'_, S>,
+    summary_complete: bool,
 ) -> Result<Report, Failure> {
     let duration = (info.samples != 0).then_some(info.samples as i64);
     let start = info.start(reader.size - reader.offset)?;
     let micros = duration
         .map(|samples| (samples * 1_000_000 + i64::from(info.rate) / 2) / i64::from(info.rate));
+    let summary = match reader.purpose {
+        Purpose::Structured => SummaryEvidence::Unverified,
+        Purpose::Summary if !summary_complete => {
+            SummaryEvidence::Unsupported("unqualified FLAC summary facts")
+        }
+        Purpose::Summary => {
+            let payload = reader.size - reader.offset;
+            reader.box_bytes(payload)?;
+            if payload > reader.limits.max_packet_bytes {
+                return Err(limit(LimitKind::PacketBytes, reader.offset));
+            }
+            reader.work(payload)?;
+            let length = usize::try_from(payload).map_err(|_| overflow(reader.offset))?;
+            let mut bytes = Vec::new();
+            reader.reserve(&mut bytes, length, false)?;
+            bytes.resize(length, 0);
+            reader
+                .source
+                .read_exact_at(reader.offset, &mut bytes)
+                .map_err(Failure::library)?;
+            let config = coreav_audio::flac::StreamInfo::parse(&info.body)
+                .map_err(|_| Failure::Unsupported("FLAC summary configuration".to_owned()))?;
+            let mut container_limits = *reader.limits;
+            container_limits.max_retained_bytes = reader
+                .limits
+                .max_retained_bytes
+                .saturating_sub(reader.retained);
+            let audio_limits = coreav_audio::Limits {
+                isobmff: container_limits,
+                max_channels: 8,
+                max_packet_bytes: reader.limits.max_packet_bytes,
+                max_output_samples: reader.limits.max_sample_work.saturating_sub(reader.work) / 64,
+                ..coreav_audio::Limits::default()
+            };
+            let frames = coreav_audio::flac::validate_stream(config, &bytes, &audio_limits)
+                .map_err(|_| Failure::Unsupported("FLAC summary payload validation".to_owned()))?;
+            SummaryEvidence::Complete {
+                start: (frames > 1).then_some(0),
+                duration: micros,
+            }
+        }
+    };
     let layout = layout(info.channels, mask, reader)?;
     let filename = reader.text(name)?;
     let mut entries: Entries = Vec::new();
@@ -553,6 +621,7 @@ fn report<S: Source>(
     reader.reserve(&mut time_bases, 1, false)?;
     time_bases.push((1, i64::from(info.rate)));
     Ok(Report {
+        summary,
         streams,
         time_bases,
         format,

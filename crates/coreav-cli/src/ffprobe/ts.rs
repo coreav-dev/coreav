@@ -225,6 +225,14 @@ pub fn probe<'a, S: Source + 'a>(
             times.1 = file.span;
         }
         report.streams.push(stream(&ts, st, i, h, facts, times));
+        let aspect = st
+            .video
+            .and_then(|v| video_aspect(st, facts, v.width, v.height))
+            .and_then(|(a, b)| Some((u32::try_from(a).ok()?, u32::try_from(b).ok()?)))
+            .map_or(super::SummaryAspect::Unverified, |codec| {
+                super::SummaryAspect::Complete { codec: Some(codec) }
+            });
+        report.summary_aspects.push(aspect);
         report.time_bases.push((1, TIMESCALE));
     }
     let services = if ts.services.is_empty() {
@@ -234,6 +242,33 @@ pub fn probe<'a, S: Source + 'a>(
     };
     report.programs = programs(&ts, &services);
     report.format = format(&ts, &file, size, name, report.programs.len());
+    report.summary = if report.streams.iter().any(|stream| {
+        stream.kind == StreamKind::Data
+            && stream.entries.iter().any(|(key, value)| {
+                *key == "codec_name" && matches!(value, Value::Str(codec) if codec == "bin_data")
+            })
+    }) {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream private decoder identity is unqualified",
+        )
+    } else if ts
+        .streams
+        .iter()
+        .any(|stream| matches!(stream.codec, Codec::Aac | Codec::AacLatm))
+    {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream AAC decoder extensions and analysis window are unqualified",
+        )
+    } else if !ts.warnings.is_empty() || !ts.dropped.is_empty() {
+        super::SummaryEvidence::Unsupported(
+            "transport-stream analysis omitted information needed by the input summary",
+        )
+    } else {
+        super::SummaryEvidence::Complete {
+            start: file.start.and_then(micros_of),
+            duration: file.micros,
+        }
+    };
     Ok(Probed {
         report,
         packets: Box::new(TsPackets {
@@ -1502,6 +1537,28 @@ fn has_b_frames(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<u32> {
     }
 }
 
+fn video_aspect(
+    st: &coreav_mpegts::Stream,
+    facts: &Facts,
+    width: u32,
+    height: u32,
+) -> Option<(u64, u64)> {
+    match st.codec {
+        Codec::H264 | Codec::Hevc => facts
+            .sps
+            .and_then(|sps| sps.vui.sar)
+            .map(|(a, b)| (u64::from(a), u64::from(b))),
+        Codec::Mpeg1Video | Codec::Mpeg2Video => facts
+            .mpeg
+            .and_then(|m| mpeg_sar(&m, st.codec == Codec::Mpeg1Video, width, height)),
+        Codec::Mpeg4 => facts
+            .vol
+            .and_then(|v| v.sar)
+            .map(|(a, b)| (u64::from(a), u64::from(b))),
+        _ => None,
+    }
+}
+
 /// The video entries, from `width` to `refs` and the H.264 pair after.
 fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut Entries) {
     let (w, h) = match facts.vol {
@@ -1525,22 +1582,11 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
     e.push(("film_grain", Value::Int(0)));
     let sps = facts.sps;
     let mpeg = facts.mpeg;
-    let mpeg1 = st.codec == Codec::Mpeg1Video;
     e.push((
         "has_b_frames",
         has_b_frames(st, facts).map_or(Value::Na, int),
     ));
-    let sar = match st.codec {
-        Codec::H264 | Codec::Hevc => sps
-            .and_then(|sps| sps.vui.sar)
-            .map(|(a, b)| (u64::from(a), u64::from(b))),
-        Codec::Mpeg1Video | Codec::Mpeg2Video => mpeg.and_then(|m| mpeg_sar(&m, mpeg1, w, h)),
-        Codec::Mpeg4 => facts
-            .vol
-            .and_then(|v| v.sar)
-            .map(|(a, b)| (u64::from(a), u64::from(b))),
-        _ => None,
-    };
+    let sar = video_aspect(st, facts, w, h);
     e.push((
         "sample_aspect_ratio",
         sar.and_then(|(a, b)| ratio(a, b)).map_or(Value::Na, s),

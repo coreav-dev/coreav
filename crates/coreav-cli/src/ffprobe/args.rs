@@ -110,8 +110,10 @@ pub struct Options {
     pub read_intervals: Vec<Interval>,
     /// `-f`.
     pub force: Option<Container>,
-    /// Whether any section was asked for.
+    /// Whether a section or an explicit structured writer was asked for.
     pub sections: bool,
+    /// The last requested diagnostic level, before summary admission.
+    pub diagnostic_level: String,
 }
 
 const VALUE_OPTIONS: [&str; 13] = [
@@ -210,6 +212,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
     let mut read_intervals = Vec::new();
     let mut force = None;
     let mut sections = false;
+    let mut diagnostic_level = "info".to_owned();
     // Every option is checked before any is acted on, so that a refusal
     // names the first option outside the vocabulary.
     let mut i = 0;
@@ -272,7 +275,10 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                 }
                 input = Some(value.to_owned());
             }
-            "-v" | "-loglevel" => loglevel(value)?,
+            "-v" | "-loglevel" => {
+                loglevel(value)?;
+                diagnostic_level = value.to_owned();
+            }
             "-probesize" | "-analyzeduration" | "-threads" => {
                 let default = match option {
                     "-probesize" => "5000000",
@@ -289,7 +295,10 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                     ));
                 }
             }
-            "-of" | "-print_format" | "-output_format" => writer = parse_writer(option, value)?,
+            "-of" | "-print_format" | "-output_format" => {
+                writer = parse_writer(option, value)?;
+                sections = true;
+            }
             "-show_entries" => {
                 parse_entries(value, &mut selection)?;
                 sections = true;
@@ -394,7 +403,38 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
         read_intervals,
         force,
         sections,
+        diagnostic_level,
     })
+}
+
+/// The supported diagnostic level for an input summary.
+pub fn summary_level(level: &str) -> Result<i32, NotNative> {
+    let level = level.strip_prefix("repeat+").unwrap_or(level);
+    let level = level.strip_prefix("+repeat+").unwrap_or(level);
+    let level = match level {
+        "quiet" => -8,
+        "panic" => 0,
+        "fatal" => 8,
+        "error" => 16,
+        "warning" => 24,
+        "info" => 32,
+        "verbose" => 40,
+        "debug" => 48,
+        "trace" => 56,
+        text => text.parse::<i32>().map_err(|_| {
+            NotNative::property(
+                "diagnostic formatting",
+                "the requested diagnostic flags are not supported by the native input summary",
+            )
+        })?,
+    };
+    if level >= 40 {
+        return Err(NotNative::property(
+            "detailed diagnostics",
+            "verbose, debug and trace input diagnostics require the installed FFmpeg",
+        ));
+    }
+    Ok(level)
 }
 
 fn is_option(arg: &str) -> bool {

@@ -453,6 +453,8 @@ pub fn probe<S: Source>(
         }),
         ..Report::default()
     };
+    let mut aac_qualified = true;
+    let mut summary_complete = !movie.has_fragments();
     // The iTunes gapless tag gives the AAC priming of a file without an
     // edit list, which `ffprobe` skips as the edit list's (ISO/IEC 14496-12
     // 8.6.6 does it for files with one).
@@ -477,6 +479,37 @@ pub fn probe<S: Source>(
             .and_then(Option::as_ref)
             .map(|p| unprotected(original, p));
         let track = unwrapped.as_ref().unwrap_or(original);
+        summary_complete &= track.descriptions == 1
+            && !track.external_data
+            && unwrapped.is_none()
+            && !matches!(
+                &track.description.fourcc.0,
+                b"avc3" | b"hev1" | b"MAC3" | b"MAC6"
+            )
+            && track.description.codec != Codec::Av1
+            && !track
+                .description
+                .entry_boxes
+                .iter()
+                .any(|config| config.kind.0 == *b"clap")
+            && (track.description.codec != Codec::Pcm
+                || meta.pcm_layouts.get(i).copied().flatten().is_some());
+        if track.description.codec == Codec::Aac {
+            aac_qualified &= matches!(
+                track.description.profile,
+                Some(coreav_isobmff::Profile::Aac {
+                    object_type: 2,
+                    sbr: false,
+                    ps: false,
+                })
+            ) && track
+                .description
+                .codec_config
+                .as_ref()
+                .filter(|config| config.kind.0 == *b"esds")
+                .and_then(|config| esds_config(&config.data))
+                .is_some_and(coreav_isobmff::aac_has_explicit_no_sbr);
+        }
         let mut head = head(movie, track, &mut *source, limits).map_err(Failure::library)?;
         let skip = if track.kind != TrackKind::Audio {
             0
@@ -496,13 +529,56 @@ pub fn probe<S: Source>(
             if movie.timescale > 0 {
                 let ticks = u128::from(empty) * u128::from(track.timescale);
                 let den = u128::from(movie.timescale);
-                head.start = i64::try_from((ticks + den / 2) / den).ok();
+                let start = i64::try_from((ticks + den / 2) / den).ok();
+                summary_complete &=
+                    track.kind != TrackKind::Video || (head.start.is_some() && head.start == start);
+                head.start = start;
             }
         }
         priming.push(skip);
         shifts.push(dts_shift(movie, track, &mut *source, limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
+        if track.kind == TrackKind::Video {
+            let mut intervals = head.decode_times.windows(2).map(|pair| {
+                pair.first()
+                    .zip(pair.get(1))
+                    .and_then(|(a, b)| b.checked_sub(*a))
+            });
+            let first = intervals.next().flatten();
+            summary_complete &= (head.decode_times.len() < 2
+                || first.is_some_and(|first| first > 0))
+                && intervals.all(|interval| interval.is_some() && interval == first);
+            if track.description.codec == Codec::H264 {
+                let entry = track
+                    .description
+                    .width
+                    .zip(track.description.height)
+                    .map(|(w, h)| (u32::from(w), u32::from(h)));
+                summary_complete &= info
+                    .as_ref()
+                    .is_some_and(|v| v.coded_size.is_some() && v.coded_size == entry);
+            }
+        }
+        let aspect = match track.description.codec {
+            Codec::Av1 => super::SummaryAspect::Complete {
+                codec: Some((1, 1)),
+            },
+            Codec::Vp9 => super::SummaryAspect::Complete { codec: None },
+            _ if matches!(
+                codec_name(movie, track).as_deref(),
+                Some("h264" | "hevc" | "mpeg1video" | "mpeg2video" | "mpeg4")
+            ) =>
+            {
+                info.as_ref()
+                    .and_then(|v| v.sar)
+                    .map_or(super::SummaryAspect::Unverified, |codec| {
+                        super::SummaryAspect::Complete { codec: Some(codec) }
+                    })
+            }
+            _ => super::SummaryAspect::Unverified,
+        };
+        report.summary_aspects.push(aspect);
         let mut audio_header = Vec::new();
         if matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3") {
             if let Some((offset, size)) = head.first {
@@ -517,6 +593,21 @@ pub fn probe<S: Source>(
             .push((1, i64::from(track.timescale.max(1))));
         let frame_bit_rate = eac3_frame_bit_rate(track, &audio_header);
         let mut stream = stream(movie, track, &head, info, frame_bit_rate);
+        if track.kind == TrackKind::Video {
+            let get =
+                |key| {
+                    stream.entries.iter().find(|(k, _)| *k == key).and_then(
+                        |(_, value)| match value {
+                            Value::Str(value) => Some(value.as_str()),
+                            _ => None,
+                        },
+                    )
+                };
+            let real = get("r_frame_rate");
+            summary_complete &= real.is_some()
+                && real == get("avg_frame_rate")
+                && !matches!(real, Some("0/0" | "1/0"));
+        }
         super::metadata::downmix(&mut stream.entries, &audio_header);
         // The samples the first packet's side data skips; with one media
         // edit, counted from the first sample listed, not the first stored.
@@ -605,8 +696,47 @@ pub fn probe<S: Source>(
             (st.kind, *ts, get("start_pts"), get("duration_ts"))
         })
         .collect();
-    report.format = format(movie, &probed, name, span(&spans), meta.stream_group_count);
-    report.iso_format_output = Some(format_timing(probed.size, output_span(&spans)));
+    let (start, duration) = span(&spans);
+    report.format = format(
+        movie,
+        &probed,
+        name,
+        (start, duration),
+        meta.stream_group_count,
+    );
+    let output_timing = output_span(&spans);
+    report.iso_format_output = Some(format_timing(probed.size, output_timing));
+    summary_complete &= (start, duration) == output_timing
+        && duration
+            == movie
+                .ffprobe_format_duration_micros()
+                .and_then(|value| i64::try_from(value).ok());
+    report.summary = if report.iso_clean_aperture {
+        super::SummaryEvidence::Unsupported(
+            "ISO clean-aperture metadata or visual layout is unqualified",
+        )
+    } else if !aac_qualified {
+        super::SummaryEvidence::Unsupported(
+            "AAC decoder extensions are not explicitly ruled out by the configuration",
+        )
+    } else if !summary_complete {
+        super::SummaryEvidence::Unsupported(
+            "ISO decoder properties or timing do not have a qualified summary model",
+        )
+    } else if !meta.summary_complete {
+        super::SummaryEvidence::Unsupported("some ISO metadata cannot be summarized natively")
+    } else if movie
+        .tracks
+        .iter()
+        .any(|t| !t.warnings.is_empty() || hdr_boxes(&t.description.entry_boxes).is_none())
+        || !movie.dropped.is_empty()
+    {
+        super::SummaryEvidence::Unsupported(
+            "a damaged or unsupported ISO stream cannot be summarized natively",
+        )
+    } else {
+        super::SummaryEvidence::Complete { start, duration }
+    };
     let ends: Vec<Listed> = report
         .streams
         .iter()
@@ -873,7 +1003,11 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
             plain
         },
         bit_rate: bit_rate.filter(|r| *r > 0),
-        service,
+        service: if service == 7 && acmod > 1 {
+            8
+        } else {
+            service
+        },
     })
 }
 
@@ -1664,6 +1798,9 @@ fn stream(
             ],
         });
     }
+    if video {
+        side_data.extend(hdr_boxes(&d.entry_boxes).unwrap_or_default());
+    }
     // The ambient viewing environment after the display matrix, as
     // `ffprobe` lists them.
     if let Some((lux, x, y)) = d.ambient.filter(|_| video) {
@@ -1698,6 +1835,86 @@ fn stream(
         tags,
         side_data,
     }
+}
+
+fn hdr_boxes(entry_boxes: &[coreav_isobmff::CodecConfig]) -> Option<Vec<SideData>> {
+    let mut out = Vec::new();
+    let boxes = |kind| entry_boxes.iter().filter(move |box_| box_.kind.0 == kind);
+    if boxes(*b"mdcv").count() > 1 || boxes(*b"clli").count() > 1 {
+        return None;
+    }
+    for box_ in boxes(*b"mdcv").chain(boxes(*b"clli")) {
+        match &box_.kind.0 {
+            b"mdcv" => {
+                let (coordinates, luminance) = box_.data.split_at_checked(16)?;
+                let [max0, max1, max2, max3, min0, min1, min2, min3] = luminance else {
+                    return None;
+                };
+                let values: Vec<u16> = coordinates
+                    .chunks_exact(2)
+                    .filter_map(|v| {
+                        let [a, b] = v else { return None };
+                        Some(u16::from_be_bytes([*a, *b]))
+                    })
+                    .collect();
+                let [gx, gy, bx, by, rx, ry, wx, wy] = values.as_slice() else {
+                    return None;
+                };
+                let mut entries = vec![("side_data_type", s("Mastering display metadata"))];
+                for (key, value) in [
+                    ("red_x", rx),
+                    ("red_y", ry),
+                    ("green_x", gx),
+                    ("green_y", gy),
+                    ("blue_x", bx),
+                    ("blue_y", by),
+                    ("white_point_x", wx),
+                    ("white_point_y", wy),
+                ] {
+                    entries.push((key, s(format!("{value}/50000"))));
+                }
+                entries.push((
+                    "min_luminance",
+                    s(format!(
+                        "{}/10000",
+                        u32::from_be_bytes([*min0, *min1, *min2, *min3])
+                    )),
+                ));
+                entries.push((
+                    "max_luminance",
+                    s(format!(
+                        "{}/10000",
+                        u32::from_be_bytes([*max0, *max1, *max2, *max3])
+                    )),
+                ));
+                out.push(SideData {
+                    typ: "mastering_display_metadata",
+                    entries,
+                });
+            }
+            b"clli" => {
+                let [max0, max1, average0, average1] = box_.data.as_slice() else {
+                    return None;
+                };
+                out.push(SideData {
+                    typ: "content_light_level_metadata",
+                    entries: vec![
+                        ("side_data_type", s("Content light level metadata")),
+                        (
+                            "max_content",
+                            Value::Int(i64::from(u16::from_be_bytes([*max0, *max1]))),
+                        ),
+                        (
+                            "max_average",
+                            Value::Int(i64::from(u16::from_be_bytes([*average0, *average1]))),
+                        ),
+                    ],
+                });
+            }
+            _ => {}
+        }
+    }
+    Some(out)
 }
 
 /// A track's own duration in its ticks, as `ffprobe` reads it: without
@@ -3914,6 +4131,48 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::indexing_slicing)]
+    fn hdr_summary_fields_are_bounded_and_have_canonical_order() {
+        use coreav_isobmff::{CodecConfig, FourCc};
+        let mut mastering = Vec::new();
+        for value in [13250u16, 34500, 7500, 3000, 34000, 16000, 15635, 16450] {
+            mastering.extend_from_slice(&value.to_be_bytes());
+        }
+        mastering.extend_from_slice(&10_000_000u32.to_be_bytes());
+        mastering.extend_from_slice(&1u32.to_be_bytes());
+        let mut boxes = vec![
+            CodecConfig {
+                kind: FourCc(*b"clli"),
+                data: vec![3, 232, 1, 144],
+            },
+            CodecConfig {
+                kind: FourCc(*b"mdcv"),
+                data: mastering,
+            },
+        ];
+        let result = hdr_boxes(&boxes).unwrap_or_default();
+        assert_eq!(
+            result.iter().map(|side| side.typ).collect::<Vec<_>>(),
+            vec!["mastering_display_metadata", "content_light_level_metadata"]
+        );
+        assert!(
+            result
+                .first()
+                .is_some_and(|side| side.entries.contains(&("red_x", s("34000/50000"))))
+        );
+        assert!(
+            result
+                .first()
+                .is_some_and(|side| side.entries.contains(&("min_luminance", s("1/10000"))))
+        );
+        boxes[0].data.pop();
+        assert!(hdr_boxes(&boxes).is_none());
+        boxes[0].data.push(144);
+        boxes.push(boxes[0].clone());
+        assert!(hdr_boxes(&boxes).is_none());
+    }
 
     #[test]
     fn format_span_uses_all_starts_and_the_ancillary_end_cutoff() {
