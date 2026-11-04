@@ -23,6 +23,10 @@ on:
       - .github/workflows/flac-output.yml
   workflow_dispatch:
     inputs:
+      rice_ceiling:
+        description: Build a diagnostic-only Rice decision capture and replay arm
+        type: boolean
+        default: false
       build_only:
         description: Build diagnostic binaries without running profiles
         type: boolean
@@ -131,6 +135,9 @@ jobs:
       - name: Prepare diagnostic tools and pinned executable oracle
         run: |
           test '${{ inputs.measure }}' != true
+          if [ '${{ inputs.rice_ceiling }}' = true ]; then
+            test '${{ inputs.build_only }}' = true
+          fi
           if [ '${{ inputs.build_only }}' != true ]; then
             sudo apt-get update -qq
             sudo apt-get install -y linux-tools-common linux-tools-generic
@@ -164,7 +171,13 @@ jobs:
         run: |
           cargo build --locked --release -p coreav-cli
           cp target/release/coreav "$RUNNER_TEMP/plain-coreav"
-          CARGO_PROFILE_RELEASE_DEBUG=2 RUSTFLAGS='-C force-frame-pointers=yes' cargo build --locked --release -p coreav-cli
+          if [ '${{ inputs.rice_ceiling }}' = true ]; then
+            sha256sum crates/coreav-audio/src/flac/encode.rs > "$RUNNER_TEMP/encoder-before.sha256"
+            python3 -I scripts/flac_rice_ceiling.py --instrument crates/coreav-audio/src/flac/encode.rs
+            cargo build --locked --release -p coreav-cli
+          else
+            CARGO_PROFILE_RELEASE_DEBUG=2 RUSTFLAGS='-C force-frame-pointers=yes' cargo build --locked --release -p coreav-cli
+          fi
       - name: Capture unjudged counters and native profiles
         if: ${{ !inputs.build_only }}
         run: |
@@ -179,6 +192,10 @@ jobs:
           cp -r "$RUNNER_TEMP/oracle" "$RUNNER_TEMP/flac-build/oracle"
           git rev-parse HEAD > "$RUNNER_TEMP/flac-build/source.txt"
           rustc --version > "$RUNNER_TEMP/flac-build/rustc.txt"
+          if [ '${{ inputs.rice_ceiling }}' = true ]; then
+            cp crates/coreav-audio/src/flac/encode.rs "$RUNNER_TEMP/flac-build/instrumented-encode.rs"
+            cp "$RUNNER_TEMP/encoder-before.sha256" "$RUNNER_TEMP/flac-build/"
+          fi
           cd "$RUNNER_TEMP/flac-build"
           find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
