@@ -187,6 +187,66 @@ fn title_atoms_do_not_infer_names() {
     assert!(result["format"]["tags"].get("name").is_none());
 }
 
+#[test]
+fn name_encoding_uses_the_full_payload_length_before_nul() {
+    for (payload, expected) in [
+        (b"\xc3\xa9\0\xff".as_slice(), "√©"),
+        (b"\xc3\xa9\0\0\0".as_slice(), "é"),
+        (b"\xff\xfeA\0".as_slice(), "ˇ˛A"),
+        (b"\xef\xbb\xbfA".as_slice(), "ÔªøA"),
+        (b"\xef\xbb\xbfA\0".as_slice(), "\u{feff}A"),
+    ] {
+        let items = [(b"name", payload)];
+        let result = probe(&movie([&items, &[]], &items), None);
+        assert_eq!(result["streams"][0]["tags"]["name"], expected);
+        assert_eq!(result["format"]["tags"]["name"], expected);
+    }
+}
+
+#[test]
+fn unsupported_name_encodings_refuse_before_output_but_not_unrelated_fields() {
+    for payload in [
+        b"\xff\xfeA\0B\0".as_slice(),
+        b"\xfe\xffA\0B\0".as_slice(),
+        b"\xc3\xc3\xc3\xc3".as_slice(),
+        b"\xe1\x80\xffAB".as_slice(),
+        b"\xc0\x80ABC".as_slice(),
+        b"\xed\xa0\x80AB".as_slice(),
+    ] {
+        for (tracks, format) in [
+            ([&[(b"name", payload)][..], &[][..]], &[][..]),
+            ([&[][..], &[][..]], &[(b"name", payload)][..]),
+        ] {
+            let bytes = movie(tracks, format);
+            for writer in ["json", "default"] {
+                for entries in [
+                    "stream_tags=name",
+                    "format_tags=NAME",
+                    "packet=stream_index:stream_tags=name",
+                    "stream=index:format=nb_streams",
+                ] {
+                    let mut source = SliceSource::new(&bytes);
+                    let mut probed =
+                        ffprobe::probe(&mut source, bytes.len() as u64, "names.mov", None)
+                            .unwrap_or_else(|failure| panic!("{}", failure.to_json()));
+                    let args =
+                        ["-show_entries", entries, "-of", writer, "names.mov"].map(str::to_owned);
+                    let options = ffprobe::args::parse(&args).ok().unwrap();
+                    let mut output = Vec::new();
+                    let result = ffprobe::emit(&options, &mut probed, &mut output);
+                    if entries == "stream=index:format=nb_streams" {
+                        assert!(result.is_ok());
+                        assert!(!output.is_empty());
+                    } else {
+                        assert!(matches!(result, Err(Failure::Unsupported(_))));
+                        assert!(output.is_empty());
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn move_udta_before(bytes: &mut Vec<u8>, before: &[u8; 4]) {
     let at = bytes.windows(4).position(|w| w == b"udta").unwrap() - 4;
     let target = bytes.windows(4).position(|w| w == before).unwrap() - 4;

@@ -106,8 +106,8 @@ pub struct IsoMeta {
     /// every track box of the movie, dropped streams included (index =
     /// `Track::stream_index`, `DroppedStream::stream_index`).
     pub all_streams: Vec<StreamMeta>,
-    /// Every metadata box was read within the existing bounds.
-    pub metadata_complete: bool,
+    /// Complete metadata establishes names in supported encodings.
+    pub names_supported: bool,
 }
 
 /// One stream's metadata.
@@ -240,6 +240,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
         })
         .map(|t| t.track_id)
         .collect();
+    let mut names_supported = meta.complete;
     let mut all_streams = Vec::with_capacity(meta.tracks.len());
     for (index, track) in meta.tracks.iter().enumerate() {
         let kept = movie.tracks.iter().find(|t| t.stream_index == index);
@@ -256,6 +257,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
                 timecode,
                 quicktime,
                 names.get(index).map(Vec::as_slice).unwrap_or_default(),
+                &mut names_supported,
             ),
             disposition: disposition(
                 track,
@@ -273,11 +275,12 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S, limits: &Limits) -> Result
                 .filter(|(_, d)| *d > 0),
         });
     }
+    let format_tags = format_tags(&meta, &timecodes, &mut names_supported);
     let mut out = IsoMeta {
-        metadata_complete: meta.complete,
+        names_supported,
         stream_group_count: stream_group_count(&meta),
         covers: covers(&meta),
-        format_tags: format_tags(&meta, &timecodes),
+        format_tags,
         chapters: chapters(movie, &chapter_list, &meta, &mut *source, limits)?,
         chapter_pictures,
         protection_headers: meta.protection_headers > 0,
@@ -461,11 +464,12 @@ fn utf8(bytes: &[u8]) -> String {
     String::from_utf8_lossy(c_str(bytes)).into_owned()
 }
 
-fn user_data_name(bytes: &[u8]) -> String {
-    let bytes = c_str(bytes);
-    std::str::from_utf8(bytes)
-        .map(str::to_owned)
-        .unwrap_or_else(|_| mac_roman(bytes))
+fn user_data_name(bytes: &[u8]) -> Option<String> {
+    if bytes.len() > 4 {
+        return std::str::from_utf8(c_str(bytes)).ok().map(str::to_owned);
+    }
+    let value = mac_roman(bytes);
+    (value.len() <= bytes.len() * 2).then_some(value)
 }
 
 /// Mac OS Roman bytes as text (`ffprobe`'s table above 0x7f).
@@ -770,7 +774,11 @@ fn location(payload: &[u8]) -> Option<(u16, String)> {
     Some((lang, value))
 }
 
-fn format_tags(meta: &Metadata, timecodes: &[Option<String>]) -> Vec<(String, String)> {
+fn format_tags(
+    meta: &Metadata,
+    timecodes: &[Option<String>],
+    names_supported: &mut bool,
+) -> Vec<(String, String)> {
     let mut dict = Dict::default();
     for file_type in &meta.file_types {
         dict.set("major_brand", utf8(&file_type.major_brand.0));
@@ -788,7 +796,11 @@ fn format_tags(meta: &Metadata, timecodes: &[Option<String>]) -> Vec<(String, St
             && kind.0 == *b"name"
         {
             if item.track.is_none() {
-                dict.set("name", user_data_name(payload));
+                if let Some(name) = user_data_name(payload) {
+                    dict.set("name", name);
+                } else {
+                    *names_supported = false;
+                }
             }
         } else {
             item_tags(&mut dict, item);
@@ -856,6 +868,7 @@ fn stream_tags(
     timecode: Option<String>,
     quicktime: bool,
     names: &[(usize, &[u8])],
+    names_supported: &mut bool,
 ) -> Vec<(String, String)> {
     let mut tags = Dict::default();
     let mut push = |key: &str, value: String| tags.set(key, value);
@@ -863,7 +876,11 @@ fn stream_tags(
     while let Some((_, value)) =
         names.next_if(|(position, _)| *position < track.media_item_position)
     {
-        push("name", user_data_name(value));
+        if let Some(name) = user_data_name(value) {
+            push("name", name);
+        } else {
+            *names_supported = false;
+        }
     }
     if let Some(time) = creation_time(track.media_created) {
         push("creation_time", time);
@@ -894,7 +911,11 @@ fn stream_tags(
         }
     }
     for (_, value) in names {
-        push("name", user_data_name(value));
+        if let Some(name) = user_data_name(value) {
+            push("name", name);
+        } else {
+            *names_supported = false;
+        }
     }
     if let Some(timecode) = timecode {
         push("timecode", timecode);

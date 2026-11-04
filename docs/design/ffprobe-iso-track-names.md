@@ -16,9 +16,24 @@ no new box parser, source read or larger budget is needed.
 Use the atom's track position, not its track ID or the selected stream's
 index. Collect names in one pass over retained items, then attach them to
 the existing per-track metadata. The last `name` in a scope wins, including
-an empty value. Text stops at its first NUL. Pinned FFmpeg 9.0.2 preserves
-valid UTF-8 and uses Mac OS Roman when the bytes are not valid UTF-8.
-Keep this decoding in one owner shared by track and movie names.
+an empty value. Select decoding from the original payload length before
+stopping text at its first NUL. Pinned FFmpeg 9.0.2 treats payloads of at
+most four bytes as Mac OS Roman, including valid UTF-8 byte sequences.
+Longer payloads use UTF-8. Keep decoding in one fallible owner shared by
+track and movie names.
+
+Admit a short name only when its converted UTF-8 text fits twice the
+original payload length. Generated short controls beyond that boundary
+show truncated oracle text; do not imitate that truncation. For longer
+payloads, admit only valid UTF-8 before NUL. Invalid sequences, including
+UTF-16 BOMs, have oracle replacement behavior that differs from Rust's
+lossy decoder and are unsupported rather than silently approximated.
+
+The byte control `c3 a9 00 ff` therefore reports `√©` in either scope,
+while `c3 a9 00 00 00` reports `é`. The control `ff fe 41 00 42 00`
+would report two replacement characters followed by `A` in the oracle;
+CoreAV refuses a requested name instead. These are pinned-binary
+observations, not a claim that ISO mandates either legacy text encoding.
 
 Do not add `name` to the generic unscoped atom mapping: that would copy
 track names into format metadata. Reuse the existing tag ordering and
@@ -30,9 +45,11 @@ before creation/language tags without new reads or a second parser. Emit
 an early name before those tags and a late name after the existing track
 tags but before derived timecode.
 
-Retain the existing metadata-completeness fact in the report. If a bound
-or malformed box leaves names uncertain, requesting a stream or format
-name refuses before writer or packet output, using the existing fallback.
+Carry one name-support fact in the report. If a bound, malformed box or
+unsupported retained name leaves names uncertain, requesting a stream or
+format name refuses before writer or packet output, using the existing
+fallback. This conservatively applies even if selection or a later
+duplicate would hide that unsupported name.
 Tag selection is case-insensitive like the writer. Requests that do not
 select names keep their existing native behavior. No bound is raised.
 

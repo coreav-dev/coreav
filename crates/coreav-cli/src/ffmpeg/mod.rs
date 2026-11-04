@@ -1871,7 +1871,7 @@ mod tests {
             side_data: Vec::new(),
         };
         let report = Report {
-            iso_metadata_complete: None,
+            iso_names_supported: None,
             streams: vec![
                 stream(StreamKind::Video, vec![]),
                 stream(
@@ -1922,7 +1922,7 @@ mod tests {
     fn implicit_aac_takes_verified_opus_without_changing_explicit_choices() {
         use crate::ffprobe::model::Unit;
         let mut report = Report {
-            iso_metadata_complete: None,
+            iso_names_supported: None,
             streams: vec![
                 Stream {
                     kind: StreamKind::Video,
