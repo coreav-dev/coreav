@@ -106,6 +106,276 @@ fn a_stream_copy_runs_and_prints_nothing() {
 }
 
 #[test]
+fn leading_negative_maps_preserve_destinations_and_match_pinned_fallback() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-leading-negative-maps");
+    let first = dir.join("first.mp4");
+    let second = dir.join("second.mp4");
+    for (path, size, frequency) in [(&first, "64x48", "751"), (&second, "80x64", "919")] {
+        let result = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+            .arg(format!("testsrc2=size={size}:rate=24:duration=1"))
+            .args(["-f", "lavfi", "-i"])
+            .arg(format!(
+                "sine=frequency={frequency}:sample_rate=44100:duration=1"
+            ))
+            .args([
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-bf",
+                "0",
+                "-c:a",
+                "aac",
+                "-metadata",
+            ])
+            .arg(format!("title={size}"))
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    let path = std::env::join_paths(
+        std::iter::once(ffmpeg_bin.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        )),
+    )
+    .unwrap();
+    for (inputs, maps) in [
+        (2, vec!["-1:a", "0"]),
+        (2, vec!["-0:a", "0"]),
+        (2, vec!["-1:s", "0"]),
+        (2, vec!["-0:a", "-1:v", "0"]),
+        (2, vec!["-1:a"]),
+        (1, vec!["-0:a", "0"]),
+    ] {
+        let mut args = vec!["-y", "-i", first.to_str().unwrap()];
+        if inputs == 2 {
+            args.extend(["-i", second.to_str().unwrap()]);
+        }
+        args.extend(["-c", "copy"]);
+        for map in &maps {
+            args.extend(["-map", *map]);
+        }
+        let output = dir.join("refused.mp4");
+        let reference = dir.join("rejected-reference.mp4");
+        for existing in [false, true] {
+            if existing {
+                std::fs::write(&output, b"existing output").unwrap();
+                std::fs::write(&reference, b"existing output").unwrap();
+            }
+            let pin = Command::new(&ffmpeg_bin)
+                .args(["-nostdin", "-v", "error"])
+                .args(&args)
+                .arg(&reference)
+                .output()
+                .unwrap();
+            assert!(!pin.status.success(), "{maps:?}");
+            assert!(String::from_utf8_lossy(&pin.stderr).contains("matches no streams"));
+            let count = std::fs::read_dir(&dir).unwrap().count();
+            let mut full = args.clone();
+            full.push(output.to_str().unwrap());
+            let strict = ffmpeg(&full);
+            assert_eq!(strict.code, 4, "{maps:?}: {}", strict.stderr);
+            assert!(
+                strict
+                    .stderr
+                    .contains("negative -map before any positive -map"),
+                "{}",
+                strict.stderr
+            );
+            assert!(strict.stdout.is_empty());
+            if existing {
+                assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+                assert_eq!(std::fs::read(&reference).unwrap(), b"existing output");
+            } else {
+                assert!(!output.exists() && !reference.exists());
+            }
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), count);
+            let fallback = Command::new(bin())
+                .arg("ffmpeg")
+                .args(&full)
+                .env("PATH", &path)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(
+                fallback.status.code(),
+                pin.status.code(),
+                "{}",
+                String::from_utf8_lossy(&fallback.stderr)
+            );
+            assert_eq!(fallback.stdout, pin.stdout);
+            if existing {
+                assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+            } else {
+                assert!(!output.exists());
+            }
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let directory = dir.join("fallback-bin");
+            std::fs::create_dir_all(&directory).unwrap();
+            let program = directory.join("ffmpeg");
+            std::fs::write(&program, "#!/bin/sh\nprintf '%s\\0' \"$@\"\nexit 19\n").unwrap();
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let mut full = args.clone();
+            full.push(output.to_str().unwrap());
+            let replay = Command::new(bin())
+                .arg("ffmpeg")
+                .args(&full)
+                .env_clear()
+                .env("PATH", &directory)
+                .output()
+                .unwrap();
+            assert_eq!(replay.status.code(), Some(19));
+            assert_eq!(
+                replay.stdout,
+                full.iter()
+                    .flat_map(|arg| arg.bytes().chain([0]))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+        }
+        std::fs::remove_file(output).unwrap();
+        std::fs::remove_file(reference).unwrap();
+    }
+    let observe = |file: &Path| -> Value {
+        let result = Command::new(&ffprobe_bin).args(["-v", "error", "-show_streams", "-show_packets", "-show_format", "-show_data_hash", "sha256", "-show_entries",
+            "stream=codec_name,codec_type,time_base,start_pts,duration_ts,width,height,sample_rate,channels:stream_tags=language:packet=stream_index,pts,dts,duration,size,data_hash:format=start_time,duration:format_tags=title", "-of", "json"])
+            .arg(file).output().unwrap();
+        assert!(result.status.success() && result.stderr.is_empty());
+        let mut result: Value = serde_json::from_slice(&result.stdout).unwrap();
+        let packets = result["packets"].take();
+        let mut per_stream = vec![Vec::new(); result["streams"].as_array().unwrap().len()];
+        for packet in packets.as_array().unwrap() {
+            per_stream[packet["stream_index"].as_u64().unwrap() as usize].push(packet.clone());
+        }
+        result["packets"] = serde_json::to_value(per_stream).unwrap();
+        result
+    };
+    for maps in [
+        vec!["0", "-1:a"],
+        vec!["0", "-0:a"],
+        vec!["0", "-0", "0:a"],
+        vec!["0", "-0", "-1:a", "0:a"],
+        vec!["1", "-1:a", "0:a"],
+        vec!["0", "-0:v", "1:v"],
+    ] {
+        let mut args = vec![
+            "-y",
+            "-i",
+            first.to_str().unwrap(),
+            "-i",
+            second.to_str().unwrap(),
+            "-c",
+            "copy",
+        ];
+        for map in &maps {
+            args.extend(["-map", *map]);
+        }
+        let output = dir.join("native.mp4");
+        let reference = dir.join("reference.mp4");
+        let mut full = args.clone();
+        full.push(output.to_str().unwrap());
+        let result = ffmpeg(&full);
+        assert_eq!(result.code, 0, "{maps:?}: {}", result.stderr);
+        let pin = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(&args)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(
+            pin.status.success(),
+            "{}",
+            String::from_utf8_lossy(&pin.stderr)
+        );
+        assert_eq!(observe(&output), observe(&reference), "{maps:?}");
+    }
+    for maps in [vec!["-1:a?", "0"], vec!["0:s?", "-1:a", "0"]] {
+        let mut args = vec![
+            "-y",
+            "-i",
+            first.to_str().unwrap(),
+            "-i",
+            second.to_str().unwrap(),
+            "-c",
+            "copy",
+        ];
+        for map in maps {
+            args.extend(["-map", map]);
+        }
+        let output = dir.join("optional.mp4");
+        let reference = dir.join("optional-reference.mp4");
+        let mut full = args.clone();
+        full.push(output.to_str().unwrap());
+        let strict = ffmpeg(&full);
+        assert_eq!(strict.code, 4);
+        assert!(strict.stderr.contains("optional -map"));
+        assert!(!output.exists());
+        let pin = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error"])
+            .args(&args)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        let fallback = Command::new(bin())
+            .arg("ffmpeg")
+            .args(&full)
+            .env("PATH", &path)
+            .env_remove("COREAV_STRICT_SAFE")
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(fallback.status.code(), pin.status.code());
+        if pin.status.success() {
+            assert_eq!(
+                std::fs::read(&output).unwrap(),
+                std::fs::read(&reference).unwrap()
+            );
+            std::fs::remove_file(&output).unwrap();
+            std::fs::remove_file(&reference).unwrap();
+        } else {
+            assert!(!output.exists() && !reference.exists());
+        }
+    }
+    let output = dir.join("all-removed.mp4");
+    let args = [
+        "-y",
+        "-i",
+        first.to_str().unwrap(),
+        "-i",
+        second.to_str().unwrap(),
+        "-c",
+        "copy",
+        "-map",
+        "0",
+        "-map",
+        "-0",
+    ];
+    let mut full = args.to_vec();
+    full.push(output.to_str().unwrap());
+    assert_eq!(ffmpeg(&full).code, 2);
+    let pin = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(args)
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(!pin.status.success() && !output.exists());
+}
+
+#[test]
 fn mapped_inputs_copy_streams_in_map_order() {
     let dir = scratch("ffmpeg-mapped-inputs");
     let input = movie(&dir);
