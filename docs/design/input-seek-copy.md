@@ -18,6 +18,8 @@ Clock admission also refuses source video timescales below 10,000 ticks per seco
 
 ## Verification
 
+The maintainer approved current-CI contract changes for only the `basic.mp4` C18 benchmark command (`-ss 0.5 -i INPUT -to 1.5 -c copy`), the `aac.m4a` C19 benchmark command (`-ss 0.5 -i INPUT -t 1 -c:a copy`), and the synthetic format-span input-seek test. Each requires strict-safe exit 4, destination preservation and exact real pinned fallback. The existing format-span checksum remains attached to unchanged output seeking. Required refusals receive no native credit or instruction count. The separate R3 command-family native floor and every other fixture, baseline, cap and tolerance remain unchanged.
+
 - Add a pinned red regression before implementation for the reproduced reordered AV input seek and neighboring inter/all-intra, video-only/audio-only, zero/nonzero seek and aligned/unaligned endpoints.
 - Require strict-safe refusal with absent/existing destination and staging preservation wherever admission cannot prove equality; verify byte-identical real pinned fallback and exact original argument forwarding.
 - Compare admitted aligned video-only controls with the pin's complete packets, stream fields and all decoded pixels, and preserve the existing input-origin regression.
