@@ -21,6 +21,52 @@ fn bounds() -> tstd::Bounds {
     }
 }
 
+#[test]
+fn presentation_cannot_precede_its_decode_time() {
+    let facts = AvcCopyFacts {
+        profile_idc: 100,
+        constraint_flags: 0,
+        level_idc: 30,
+        sps_id: 0,
+        chroma_format_idc: 1,
+        bit_depth_luma_minus8: 0,
+        bit_depth_chroma_minus8: 0,
+        frame_mbs_only: true,
+        max_num_ref_frames: 1,
+        num_units_in_tick: 1,
+        time_scale: 60,
+        fixed_frame_rate: false,
+        max_num_reorder_frames: Some(1),
+        max_dec_frame_buffering: Some(4),
+    };
+    let mut units: Vec<_> = [0, 2, 1]
+        .into_iter()
+        .enumerate()
+        .map(|(index, slot)| Au {
+            pts90: 129_000 + slot * 3000,
+            dts90: 126_000 + index as u64 * 3000,
+            idr: index == 0,
+            data: vec![],
+        })
+        .collect();
+    let check = |units: &[Au]| {
+        presentation(
+            units,
+            3000,
+            facts,
+            &PlanningBudget::new(4096),
+            &mut Work { used: 0, max: 100 },
+        )
+    };
+    assert_eq!(check(&units), Ok(()));
+    for unit in &mut units {
+        unit.pts90 -= 3000;
+    }
+    assert_eq!(units[2].pts90, 129_000);
+    assert_eq!(units[2].dts90, 132_000);
+    reason(check(&units), "AVC presentation precedes decode time");
+}
+
 fn units(count: usize) -> Vec<Au> {
     (0..count)
         .map(|index| Au {
@@ -778,6 +824,29 @@ fn preparation_refuses_parser_readable_cadence_and_composition_mutations() {
                 "accepted ctts shift {shift}"
             );
         }
+        let mut changed = input.to_vec();
+        changed[ctts.start] = 1;
+        let origin = i32::try_from(baseline[0].cts).unwrap();
+        assert!(origin > 0);
+        for entry in changed[ctts.start + 8..ctts.end].chunks_exact_mut(8) {
+            let offset = i32::from_be_bytes(entry[4..8].try_into().unwrap());
+            entry[4..8].copy_from_slice(&(offset - origin).to_be_bytes());
+        }
+        let packets = fixture_packets(&changed);
+        assert!(packets.iter().all(|packet| packet.cts >= 0));
+        assert!(packets.iter().any(|packet| packet.cts < packet.dts));
+        for (packet, original) in packets.iter().zip(&baseline) {
+            assert_eq!(packet.cts, original.cts - i64::from(origin));
+            assert_eq!(packet.dts, original.dts);
+            assert_eq!(
+                (packet.offset, packet.size),
+                (original.offset, original.size)
+            );
+        }
+        assert_eq!(
+            prepared(&changed, &Limits::default()).err(),
+            Some(unsupported("AVC presentation precedes decode time"))
+        );
     }
 }
 

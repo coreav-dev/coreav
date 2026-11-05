@@ -314,6 +314,9 @@ fn presentation(
     let mut retired = 0;
     for (index, unit) in units.iter().enumerate() {
         work.charge(1)?;
+        if unit.pts90 < unit.dts90 {
+            return Err(unsupported("AVC presentation precedes decode time"));
+        }
         let relative = unit
             .pts90
             .checked_sub(first)
