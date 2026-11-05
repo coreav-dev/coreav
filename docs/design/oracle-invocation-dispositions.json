@@ -5,7 +5,7 @@
     "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
     "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
     "scripts/oracle_pin_macos.py": "70c0f515b3a58cf6b6d2d11938b537b2e8824f0fafbfe6ab9578669c1d857879",
-    "scripts/test_oracle.py": "e16c34d603508ece64cb5e05ae926426080f44cb1031a49089213c663671db99",
+    "scripts/test_oracle.py": "af9e07a0f66cc1daca5574333cf129a9d92bc8465de868c6332bb7e4a83a7812",
     "test-support/oracle.rs": "3559a8f47cbec57f10bd7e27f254217b226fb5d4b9b4a9e4a5b387660a91ffce"
   },
   "frozen": {
@@ -15,7 +15,7 @@
     "bench/audio-decode/oracle.py": "6999bc89af9f0ffb4dade872e30b2b0ba7342648b32e22aaeeca50936316b32a",
     "bench/audio-decode/receipts.py": "bec504c954c8750df703116325e37ea21c2844696df68e23856495bf95a18783",
     "bench/audio-decode/run.py": "516120decdaf44a5e206c5e57da485ad15d3f9aa010422daa027508bb2ef6112",
-    "crates/coreav-cli/tests/ffmpeg.rs": "b241c0478ec19fc8ae6fd67e9443dcfdced286b920c8af1ef2293e95924c19aa",
+    "crates/coreav-cli/tests/ffmpeg.rs": "14c7db0ca9a7fdd8d349dc807c2293ee6a84198519b1615a537f544ef59f9d5c",
     "crates/coreav-isobmff/tests/common/fragments.rs": "a9e161349e40328ca2b95ffa593aff35af0e1739648d74fc0767100cda3f0b89",
     "crates/coreav-isobmff/tests/common/mod.rs": "fcd4b45894250821d93290d802d8324dfc8cbc1b27c56980a6a6075955744d71",
     "crates/coreav-isobmff/tests/common/sound.rs": "7db44a00ee6bc2671517fdf5e8bb8b31b25ac224c856b04948aed5bb1875ef03",
@@ -791,69 +791,6 @@
         "Rust"
       ],
       "lines": [
-        443,
-        654
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
-      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
-      "verdict": "excluded"
-    },
-    {
-      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
-      "id": "rust-compiled-target",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        41,
-        180,
-        238,
-        443,
-        654
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
-      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
-      "verdict": "excluded"
-    },
-    {
-      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
-      "id": "rust-owner-return",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        109,
-        143,
-        431
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
-      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
-      "verdict": "qualified-via-owner"
-    },
-    {
-      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
-      "id": "rust-owner-return",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
-        109,
-        143,
-        187,
-        245,
-        431
-      ],
-      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
-      "pattern": "(?s)\\&ffmpeg",
-      "verdict": "qualified-via-owner"
-    },
-    {
-      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
-      "id": "rust-compiled-target",
-      "kinds": [
-        "Rust"
-      ],
-      "lines": [
         50
       ],
       "path": "crates/coreav-cli/tests/ffprobe_ancillary_bit_rate.rs",
@@ -1574,7 +1511,7 @@
     }
   ],
   "schema": 1,
-  "source_snapshot_sha256": "6a45af9b605a90aaee295d51f92b848fa87f2dabd6f717c32504505857e6c521",
+  "source_snapshot_sha256": "8e19debfcc25d021944c4cef59a4acaaf5610200aef01385b3b4af8b170832d7",
   "sources": {
     "crates/coreav-audio/tests/flac_encode.rs": "6b63b16444965850c74da0651859128602a9093fe487a15865f8a82093bf6880",
     "crates/coreav-backend-dav1d/tests/decode.rs": "9094fa0b3a4957d348e9b92420c658fda930329cac3b9c2da17e5c3248e0e791",
@@ -1595,7 +1532,6 @@
     "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs": "2d72e6aed47edfdf3dc1a53a79b6489a7ecaee75e72e96d7cf5a33b78eceff60",
     "crates/coreav-cli/tests/ffmpeg_pcm.rs": "c700046642796bb6ab27f09b7d7991059088f175cbae71c4541113a6ed25dd22",
     "crates/coreav-cli/tests/ffmpeg_raw.rs": "e695c08e045f8dd07d2296fd1e4054c1e95a49493922973768b14c0785d7ad0f",
-    "crates/coreav-cli/tests/ffmpeg_wav.rs": "5b7ee1855630fec70c1190411a64f535980afc56e7bd0a123891f27080cde383",
     "crates/coreav-cli/tests/ffprobe_ancillary_bit_rate.rs": "948d83c773436cce55aa0328544f61405b84b243efd926762e7cd23ca0772da3",
     "crates/coreav-cli/tests/ffprobe_aspect_ratio.rs": "b8a9a4dba8d8ffa75457f929bd87805261663ee93777c5eadcf76be921bc636c",
     "crates/coreav-cli/tests/ffprobe_clean_aperture.rs": "a0d0e45785bfcbf64e1de08823df4ba253eccc3859b60a876b2c67b5f22fe056",

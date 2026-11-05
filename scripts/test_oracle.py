@@ -76,7 +76,8 @@ def require(ffmpeg=None, ffprobe=None):
     if selected is None:
         selected = shutil.which('ffmpeg') or '/opt/coreav-oracle-bin/ffmpeg'
     selected = executable_path(selected)
-    probe = ffprobe if ffprobe is not None else os.environ.get('COREAV_FFPROBE')
+    probe = ffprobe if ffprobe is not None else (
+        os.environ.get('COREAV_FFPROBE') if ffmpeg is None else None)
     probe = executable_path(probe) if probe is not None else selected.with_name('ffprobe')
     requested = (selected.resolve(), probe.resolve())
     with _lock:

@@ -46,7 +46,6 @@
   ],
   "crates/coreav-cli/tests/ffmpeg.rs": [
     "av1_video_concat_compares_every_exposed_sample_entry_field_and_packet_byte",
-    "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
     "contributing_inputs_preserve_complete_packet_order_and_decoded_output",
     "copied_video_aac_encoding_preserves_destinations_and_exact_fallback",
     "copied_video_reconstructs_conflicting_declared_media_durations",
@@ -67,12 +66,16 @@
     "stream_metadata_agrees_with_the_pinned_ffmpeg",
     "stripped_metadata_agrees_with_the_pinned_ffmpeg",
     "the_0_1_0_commands_on_the_fixtures",
-    "unedited_audiovisual_concat_matches_the_pinned_ffmpeg",
     "unedited_video_copy_normalizes_its_origin_without_losing_frames",
     "unqualified_primed_aac_concat_preserves_outputs_and_real_fallback"
   ],
   "crates/coreav-cli/tests/ffmpeg_aac_filter.rs": [
     "aac_filter_is_an_exact_concat_identity_or_preserved_fallback"
+  ],
+  "crates/coreav-cli/tests/ffmpeg_concat.rs": [
+    "concat_audio_gaps_are_refused_with_exact_pinned_fallback",
+    "lossless_audiovisual_concat_preserves_complete_native_output",
+    "unedited_audiovisual_concat_matches_the_pinned_ffmpeg"
   ],
   "crates/coreav-cli/tests/ffmpeg_flac.rs": [
     "complete_raw_bytes_match_the_pin_for_files_stdout_and_stdin",
@@ -125,6 +128,7 @@
     "aac_raw_output_refuses_with_exact_pinned_fallback"
   ],
   "crates/coreav-cli/tests/ffmpeg_wav.rs": [
+    "aac_s16_wav_forms_match_complete_pinned_outputs_and_retain_native_metadata_cases",
     "integer_wav_output_matches_complete_pinned_files",
     "wave_wav_stdout_refuses_without_literal_files_and_matches_fallback"
   ],

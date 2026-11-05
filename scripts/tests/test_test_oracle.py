@@ -82,6 +82,15 @@ class Qualification(unittest.TestCase):
                    '    raise AssertionError("second selection accepted")\n')
         self.assertEqual(len(self.log.read_text().splitlines()), 2)
 
+    def test_explicit_ffmpeg_selects_its_sibling_before_the_configured_probe(self):
+        self.pair(self.root / 'other')
+        self.child('from pathlib import Path\n'
+                   'root = Path(sys.argv[2])\n'
+                   'pair = owner.require(root / "other/ffmpeg")\n'
+                   'assert pair.ffmpeg == root / "other/ffmpeg"\n'
+                   'assert pair.ffprobe == root / "other/ffprobe"\n')
+        self.assertCountEqual(self.log.read_text().splitlines(), ['ffmpeg', 'ffprobe'])
+
     def test_missing_siblings_and_malformed_or_failed_versions_fail(self):
         for name in ('ffmpeg', 'ffprobe'):
             with self.subTest(missing=name):
@@ -281,7 +290,9 @@ class Qualification(unittest.TestCase):
                    '         ("oracle", ["capture", "missing", "missing"]),\n'
                    '         ("thumbnail_oracle", ["--coreav", "missing", "--decode-oracle", "missing"]),\n'
                    '         ("exact_skip_check", ["--decode-oracle", "missing"]),\n'
-                   '         ("seek_check", ["--decode-oracle", "missing"])]\n'
+                   '         ("seek_check", ["--decode-oracle", "missing"]),\n'
+                   '         ("transcode_speed", ["select", "--work", "missing", "--selection", "missing"]),\n'
+                   '         ("transcode_speed", ["run"])]\n'
                    'for name, args in cases:\n'
                    '    spec = importlib.util.spec_from_file_location("driver_" + name, repo / "scripts" / (name + ".py"))\n'
                    '    driver = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(driver)\n'
@@ -295,6 +306,24 @@ class Qualification(unittest.TestCase):
                    '        try: driver.main()\n'
                    '        except StopIteration: pass\n'
                    '        else: raise AssertionError("selection boundary was not reached")\n')
+
+    def test_frame_comparisons_honor_the_configured_pair_over_path(self):
+        self.pair(self.root / 'shadow', version='0.0.0')
+        self.child('import importlib.util, os\nfrom pathlib import Path\nfrom unittest.mock import patch\n'
+                   'root = Path(sys.argv[2])\nrepo = Path(sys.argv[1]).parent\nrequire = owner.require\n'
+                   'os.environ["PATH"] = str(root / "shadow") + os.pathsep + os.environ["PATH"]\n'
+                   'spec = importlib.util.spec_from_file_location("frames", repo / "tools/compat-corpus/frames.py")\n'
+                   'driver = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(driver)\n'
+                   'def inspect_selected(ffmpeg=None, ffprobe=None):\n'
+                   '    pair = require(ffmpeg, ffprobe)\n'
+                   '    assert pair.ffmpeg == root / "ffmpeg"\n'
+                   '    assert pair.ffprobe == root / "ffprobe"\n'
+                   '    raise StopIteration\n'
+                   'sys.argv = ["frames.py", "--coreav", "missing", "--media", "missing"]\n'
+                   'with patch.object(driver.test_oracle, "require", side_effect=inspect_selected):\n'
+                   '    try: driver.main()\n'
+                   '    except StopIteration: pass\n'
+                   '    else: raise AssertionError("selection boundary was not reached")\n')
 
     def test_transcode_select_qualifies_and_retains_the_pair_before_dispatch(self):
         self.child('from pathlib import Path\n'

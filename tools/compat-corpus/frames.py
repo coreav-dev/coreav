@@ -145,7 +145,7 @@ def judge(opts, native, args, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--coreav', required=True)
-    ap.add_argument('--ffprobe', default='ffprobe')
+    ap.add_argument('--ffprobe')
     ap.add_argument('--media', nargs='+', required=True)
     ap.add_argument('--native-h264', action='store_true',
                     help='the coreav binary is built with the native-h264 feature')
@@ -154,8 +154,12 @@ def main():
     ap.add_argument('--report')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     opts = ap.parse_args()
-    probe = test_oracle.executable_path(opts.ffprobe)
-    opts.ffprobe = str(test_oracle.require(probe.with_name('ffmpeg'), probe).ffprobe)
+    if opts.ffprobe is None:
+        pair = test_oracle.require()
+    else:
+        probe = test_oracle.executable_path(opts.ffprobe)
+        pair = test_oracle.require(probe.with_name('ffmpeg'), probe)
+    opts.ffprobe = str(pair.ffprobe)
     native = NATIVE | ({f'h264 {f}' for f in H264_PIX_FMTS} if opts.native_h264 else set())
     files = media_files(opts.media)
     names = set()
