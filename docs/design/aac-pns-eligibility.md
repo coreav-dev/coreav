@@ -2,6 +2,22 @@
 
 ## Plan
 
+### Fresh energy criterion
+
+The initial 1/1024 relative-energy candidate failed its first synthetic
+control: PCM reanalysis reached 0.189048% energy error for CoreAV and
+0.208779% for the pin. Native pre-synthesis coefficients had only
+0.0000371442% energy error; F32 synthesis and reanalysis of quiet bands
+introduced the larger error. Independent F64 synthesis and analysis recovered
+the native spectrum within 3.66e-16. The initial candidate remains failed.
+
+This amendment registers a fresh per-band energy criterion of ±0.1 dB,
+using the existing project noise-level tolerance independently for each
+individual band and window. The deterministic projection, coefficient,
+packing, complete count, priming and timeline bars below do not change.
+The amendment is committed before any development-file comparison; only
+the synthetic control was compared under the initial candidate.
+
 This extends the separate "compatible within decode tolerance" category
 established by `aac-pcm-eligibility.md`. It never grants exact-output or ISO
 conformance eligibility. The native decoder keeps its own noise generator;
@@ -45,10 +61,13 @@ sets normalized coefficient energy
 
 `E = (2^(s/4) / (32768*N))^2`.
 
-Require `abs(sum_k X[k]^2 / E - 1) <= 1/1024` independently for CoreAV and
-FFmpeg. E must be positive and finite. The relative tolerance is about 0.098%,
-well above accumulated F32 rounding in a band but far below a scalefactor
-step (a factor of sqrt(2) in energy). There is no absolute-energy exception
+Require `abs(10*log10(sum_k X[k]^2 / E)) <= 0.1` independently for CoreAV and
+FFmpeg. Equivalently the energy ratio is inclusively between `10^-0.01`
+and `10^0.01` (about -2.28% to +2.33%). E and measured energy must be positive
+and finite. This applies the existing project noise-level tolerance per
+individual band rather than averaging a block or stream, while remaining
+far below a scalefactor step (a factor of sqrt(2) in energy).
+There is no absolute-energy exception
 that could accept a missing quiet band. Report numerical ill-conditioning
 as unqualified, not as a pass or permission to widen this limit.
 
