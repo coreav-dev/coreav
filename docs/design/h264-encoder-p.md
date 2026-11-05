@@ -4,7 +4,7 @@ Status: Deblocking and one-reference P pictures are implemented. The bounded mot
 
 ## Sources and delivery order
 
-The sole algorithm source is Rec. ITU-T H.264, version 15, 08/2024. Clauses 6.4, 7, 8.2, 8.3, 8.4, 8.5, 8.7, and 9.2 define neighbours, syntax, reference pictures, prediction, reconstruction, filtering, and CAVLC. Tables and equations come from the specification. Existing CoreAV scalar kernels supply normative sample arithmetic. No other encoder or decoder implementation source is an input. FFmpeg and JM are black-box test executables only.
+The normative source is Rec. ITU-T H.264, version 15, 08/2024. Clauses 6.4, 7, 8.2, 8.3, 8.4, 8.5, 8.7, and 9.2 define neighbours, syntax, reference pictures, prediction, reconstruction, filtering, and CAVLC. Tables and equations come from the specification. Existing CoreAV scalar kernels supply normative sample arithmetic. No other encoder or decoder implementation source is opened during implementation. The later search-efficiency work also uses the reviewed technique note listed under Prior art. FFmpeg and JM are black-box test executables only.
 
 The implementation is a dependent stack with a plan commit before code in each layer:
 
@@ -154,6 +154,16 @@ Measure each area separately before combining it. Report actual probes and full 
 The reviewed [search-efficiency technique note](../technique-notes/h264-encoder-speed.md) compares this design with x264 core 165 at `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee` (GPL-2.0-or-later) and OpenH264 v2.7.0 at `1bca62311e447fd9c39fc93de2c4b96cd5ce971c` (BSD-2-Clause). It supplies prose about avoided work, not code or measured optimization results. The implementation session uses that note without opening either source. The independently derived choices above remain the starting arm; competing note-derived choices require same-run measurements before adoption.
 
 The implementation context has read no other encoder source and accepts no unreviewed study report. A separate study compares this committed design with pinned implementations. Its independently reviewed, committed prose note is the only source-derived input a fresh implementation context may receive.
+
+## Search-efficiency implementation
+
+The first implementation takes three bounded changes from the design above. It stops further inter search after an admitted normative P_Skip has zero distortion in all three components. It still compares that skip with the already evaluated intra candidates. This is a search policy, not a proof that no omitted candidate could have a lower syntax cost. Any nonzero luma or chroma error retains the existing bounded partition search.
+
+Reference prediction uses a checked read-only region directly when the complete interpolation footprint lies inside the coded reference. Integer SAD similarly reads checked rows. At edges and for outlying predictor seeds, the existing sampled edge-extension path remains the fallback. Unlike a persistent padded-window or half-sample cache, this alternative adds no preparation, reference lifetime, or storage. It preserves every prediction and cheap score. Fractional interpolation itself is unchanged.
+
+The forward 4x4 transform and luma DC Hadamard use separable row and column arithmetic derived from their existing bases. Quantization, signed ties, coefficient admission, inverse reconstruction, and chroma DC remain unchanged. Basis-position tests include signed extremes; generic-matrix comparisons cover DC levels and refusals at every admitted QP.
+
+Each change is compared separately with the unchanged bounded encoder, then combined in the same reference run. The implementation does not add heuristic split pruning, SATD, score cutoffs, reciprocal quantization, interpolation caches, or further incremental finalist state. Their storage and quality tradeoffs remain open rather than being selected from the technique note without measurement. The existing full three-decoder conformance matrix and exact-head encoder similarity guard still apply.
 
 ## Next design-only slice
 
