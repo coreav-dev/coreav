@@ -398,7 +398,8 @@ def diagnose_picture(binary, source, directory, stream, candidate, native, metad
     formats = {frame['pix_fmt'] for frame in stream['frames']}
     require(len(formats) == 1, 'diagnostic_packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc',
-               '-c:v', 'hevc', *harness.HEVC_DECODE_INPUT, '-i', source, '-map', '0:v:0',
+               '-c:v', 'hevc', *harness.HEVC_DECODE_INPUT, *harness.AUDIO_DECODE_INPUT,
+               '-i', source, '-map', '0:v:0',
                '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'rawvideo', '-']
     code, raw, stderr = harness.child(command, directory, 'diagnostic-raw')
