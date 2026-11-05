@@ -55,8 +55,13 @@ mod ics;
 mod tables;
 mod tools;
 
+#[cfg(feature = "diagnostics")]
+mod diagnostic;
+
 pub use config::Config;
 pub use decoder::{Decoder, Frame};
+#[cfg(feature = "diagnostics")]
+pub use diagnostic::{ChannelDiagnostic, NoiseBand};
 pub use error::Error;
 
 /// Bounds on what a configuration may ask for.
