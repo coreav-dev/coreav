@@ -225,6 +225,19 @@ impl Search<'_> {
             Err(Error::Syntax) => return Ok(None),
             Err(e) => return Err(e),
         };
+        let mut bits = Bits::count();
+        difference.write(&mut bits)?;
+        let motion_cost = (1u64 << (self.decision.qp / 6)) * bits.len as u64;
+        let cutoff = motions
+            .ranked
+            .last()
+            .copied()
+            .flatten()
+            .zip(motions.integer)
+            .map(|(ranked, integer)| ranked.0.max(integer.0));
+        if cutoff.is_some_and(|limit| motion_cost > limit) {
+            return Ok(None);
+        }
         let reference = self.reference.first().ok_or(Error::Internal)?;
         let mut sad = 0u64;
         if mv.x % 4 == 0 && mv.y % 4 == 0 {
@@ -256,6 +269,9 @@ impl Search<'_> {
                         sad += u64::from(a.abs_diff(reference.sample(ix + x as i32, iy)?));
                     }
                 }
+                if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
+                    return Ok(None);
+                }
             }
         } else {
             part.mv = mv;
@@ -268,15 +284,12 @@ impl Search<'_> {
                     let predicted = *tile.0.get(at).ok_or(Error::Internal)?;
                     sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
                 }
+                if cutoff.is_some_and(|limit| sad + motion_cost > limit) {
+                    return Ok(None);
+                }
             }
         }
-        let mut bits = Bits::count();
-        difference.write(&mut bits)?;
-        let value = (
-            sad + (1u64 << (self.decision.qp / 6)) * bits.len as u64,
-            bits.len,
-            mv,
-        );
+        let value = (sad + motion_cost, bits.len, mv);
         motions.insert(value)?;
         Ok(Some(value))
     }
@@ -886,6 +899,159 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn row_cutoffs_preserve_complete_scores_rankings_and_integer_centres() {
+        let mut rejected = 0;
+        for textured in [false, true] {
+            let mut reference = [
+                FramePlane::new(32, 32).unwrap(),
+                FramePlane::new(16, 16).unwrap(),
+                FramePlane::new(16, 16).unwrap(),
+            ];
+            let mut source = Tile::empty();
+            let csources = [Tile::empty(), Tile::empty()];
+            if textured {
+                for (p, value) in reference[0].data.iter_mut().enumerate() {
+                    *value = ((p * 71 + p / 32 * 19) % 256) as u8;
+                }
+                for y in 0..16 {
+                    for x in 0..16 {
+                        source.0[Tile::at(x, y)] = ((x * 17 + y * 43) % 256) as u8;
+                    }
+                }
+            }
+            for qp in [10, 16, 28, 40, 51] {
+                let decision = Decision {
+                    source: &source,
+                    csources: &csources,
+                    context: MbContext {
+                        top: None,
+                        left: None,
+                        p_slice: true,
+                    },
+                    qp,
+                    pending_skip: 0,
+                };
+                for origin in [0, 1] {
+                    let search = Search {
+                        reference: &reference,
+                        decision: &decision,
+                        border: Border::default(),
+                        mx: origin,
+                        my: origin,
+                        previous: 0,
+                    };
+                    for (width, height) in
+                        [(16, 16), (16, 8), (8, 16), (8, 8), (8, 4), (4, 8), (4, 4)]
+                    {
+                        let part = Part {
+                            width,
+                            height,
+                            ..Part::default()
+                        };
+                        for predictor in
+                            [Mv::default(), Mv { x: 3, y: -7 }, Mv { x: 8191, y: 2047 }]
+                        {
+                            let mut probes = vec![Mv::default(), predictor];
+                            for x in [-8, -4, 0, 4, 8] {
+                                for y in [-8, -4, 0, 4, 8] {
+                                    probes.push(Mv { x, y });
+                                }
+                            }
+                            for x in -3..=3 {
+                                for y in -3..=3 {
+                                    probes.push(Mv { x, y });
+                                }
+                            }
+                            probes.extend([Mv { x: -8192, y: -2048 }, Mv { x: 8191, y: 2047 }]);
+                            let mut actual = Motions::new();
+                            let mut expected = Motions::new();
+                            for &mv in probes.iter().chain(probes.iter().rev()) {
+                                let complete = search
+                                    .score(part, mv, predictor, &mut Motions::new())
+                                    .unwrap()
+                                    .unwrap();
+                                let bounded =
+                                    search.score(part, mv, predictor, &mut actual).unwrap();
+                                if !expected.seen.iter().flatten().any(|value| value.2 == mv) {
+                                    expected.insert(complete).unwrap();
+                                }
+                                if let Some(value) = bounded {
+                                    assert_eq!(value, complete);
+                                } else {
+                                    rejected += 1;
+                                    assert!(complete.0 > expected.ranked[3].unwrap().0);
+                                    assert!(complete.0 > expected.integer.unwrap().0);
+                                }
+                                assert_eq!(actual.ranked, expected.ranked);
+                                assert_eq!(actual.integer, expected.integer);
+                            }
+                            assert_eq!(
+                                actual.finalists(predictor).unwrap(),
+                                expected.finalists(predictor).unwrap()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(rejected > 0);
+    }
+
+    #[test]
+    fn score_cutoffs_protect_integer_centres_and_equal_cost_ties() {
+        let reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        let source = Tile([0; STRIDE * 18]);
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 10,
+            pending_skip: 0,
+        };
+        let search = Search {
+            reference: &reference,
+            decision: &decision,
+            border: Border::default(),
+            mx: 0,
+            my: 0,
+            previous: 0,
+        };
+        let part = Inter::new(Layout::Whole).unwrap().parts[0];
+        let mut motions = Motions::new();
+        motions.insert((200, 2, Mv::default())).unwrap();
+        for x in 1..=4 {
+            motions.insert((x as u64, 2, Mv { x, y: 1 })).unwrap();
+        }
+        let candidate = search
+            .score(part, Mv { x: 4, y: 0 }, Mv::default(), &mut motions)
+            .unwrap()
+            .unwrap();
+        assert_eq!(motions.integer, Some(candidate));
+        assert!(candidate.0 > motions.ranked[3].unwrap().0);
+
+        let mut motions = Motions::new();
+        motions.insert((8, 2, Mv::default())).unwrap();
+        for y in 1..=3 {
+            motions.insert((16, 8, Mv { x: 3, y })).unwrap();
+        }
+        let mv = Mv { x: -4, y: 0 };
+        assert_eq!(
+            search.score(part, mv, Mv::default(), &mut motions).unwrap(),
+            Some((16, 8, mv))
+        );
+        assert!(motions.ranked.contains(&Some((16, 8, mv))));
     }
 
     #[test]
