@@ -161,6 +161,12 @@ class Classification(unittest.TestCase):
         (self.root / 'new.py').write_text('import subprocess\nsubprocess.run(["renamed-program"])\n')
         self.assertFalse(classifier.classify(self.root, sites, record)['source_snapshot_valid'])
 
+    def test_a_renamed_executable_cannot_escape_by_losing_its_extension(self):
+        sites = self.sites('import subprocess\nsubprocess.run(command)\n')
+        record = self.record(sites, 'qualified-via-owner')
+        (self.root / 'renamed-reference').write_text('#!/bin/sh\nexec ffmpeg "$@"\n')
+        self.assertFalse(classifier.classify(self.root, sites, record)['source_snapshot_valid'])
+
     def test_unknown_row_wins_over_a_qualified_row_at_the_same_location(self):
         sites = self.sites('import subprocess\nsubprocess.run(command)\n')
         record = self.record(sites, 'qualified-via-owner')

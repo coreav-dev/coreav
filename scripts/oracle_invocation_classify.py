@@ -13,8 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import oracle_invocation_check as discovery
 
 RECORD = 'docs/design/oracle-invocation-dispositions.json'
-SOURCE_SUFFIXES = {'.py', '.rs', '.sh', '.bash', '.js', '.mjs', '.cjs', '.ts', '.tsx',
-                   '.yml', '.yaml', '.toml', '.c', '.h', '.cpp', '.cc', '.mm', '.swift'}
 DEPENDENCIES = ('scripts/test_oracle.py', 'test-support/oracle.rs',
                 'scripts/oracle_pin.py', 'scripts/oracle_pin_macos.py',
                 'scripts/oracle-ffmpeg.env', 'scripts/oracle-ffmpeg-macos.env',
@@ -34,9 +32,19 @@ def source_snapshot(root):
                                          '--others', '--exclude-standard'], text=True).split('\0')
     else:
         paths = [path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()]
-    selected = {path for path in paths if path and not path.startswith(discovery.HISTORICAL_BOUNDARY + '/')
-                and (Path(path).suffix in SOURCE_SUFFIXES or path in DEPENDENCIES or Path(path).name == 'package.json')}
-    hashes = {path: digest(root / path) for path in sorted(selected)}
+    selected = {path for path in paths if path and path != RECORD
+                and not path.startswith(discovery.HISTORICAL_BOUNDARY + '/')}
+    hashes = {}
+    for path in sorted(selected):
+        file = root / path
+        if file.is_symlink():
+            target = file.resolve(strict=True)
+            if not target.is_relative_to(root) or not target.is_file():
+                raise ValueError('invocation input link must name a repository file: ' + path)
+            value = 'link:' + str(file.readlink()) + ':' + digest(target)
+            hashes[path] = hashlib.sha256(value.encode()).hexdigest()
+        else:
+            hashes[path] = digest(file)
     return hashlib.sha256(json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
@@ -144,6 +152,8 @@ def main():
     parser.add_argument('--json', type=Path, required=True)
     args = parser.parse_args()
     root = args.root.resolve()
+    if args.json.resolve().is_relative_to(root):
+        parser.error('write the report outside the checkout so it cannot change the input snapshot')
     report = classify(root, discovery.inventory(root))
     args.json.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({key: report[key] for key in ('source_snapshot_valid', 'counts', 'top_patterns', 'reconciliation')}, sort_keys=True))
