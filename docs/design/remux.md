@@ -36,6 +36,13 @@ It is the shared full-file path: metadata sanitization builds on
 `remux_mp4`, and the Matroska/WebM remux (and any other demuxer) on the
 `mux` module below.
 
+Ordinary ISO compatibility video copy opts into `RemuxOptions::interleave_packets`
+when several streams are kept. It stores one sample per chunk and orders the
+chunks by edited rational DTS, with output track order breaking ties. The same
+schedule supplies header offsets and copied payloads; existing table limits
+charge the extra chunks. Native remux, single-stream copy and other consumers
+retain their existing layout. See [the packet-order plan](copy-packet-order.md).
+
 `RemuxOptions::video_origin` is an explicit exception to timeline preservation for one unedited, unfragmented video track. It subtracts a positive origin only when that origin rounds to the track's first composition time, without removing samples or changing their stored clocks. The compatibility command uses this to normalize ordinary copy; the native remux, Python and WASM entry points leave it unset. Other shapes refuse before output. See [the origin plan](copy-video-origin.md) for the exact edit mapping and bounds.
 
 `RemuxOptions::rebuild_durations` independently opts single-source copy into sample-derived media durations and track durations computed from the validated edits or media. It ignores declared header overrides without changing packet clocks or sample selection. Simple edits must cover the complete presentation, except for a partial final AAC sample, and cannot extend beyond the sample end's ceiling in source movie ticks. An overlong AAC edit is shortened only when the complete end is exactly representable in that clock; other out-of-range endpoints refuse before output. Ordinary ISO compatibility copy enables this policy, and a video origin also implies it; native remux and replacement defaults leave it disabled. See [the copied-header plan](copy-header-durations.md).

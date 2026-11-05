@@ -246,6 +246,7 @@ pub(crate) fn interleave<E: From<Error>>(
 struct Next {
     index: usize,
     timescale: u32,
+    decode_start: i64,
     chunk: Chunk,
     ties: Ties,
 }
@@ -255,6 +256,7 @@ impl Next {
         Self {
             index,
             timescale: tables.timescale(),
+            decode_start: tables.decode_start,
             chunk,
             ties,
         }
@@ -264,8 +266,10 @@ impl Next {
 impl Ord for Next {
     fn cmp(&self, other: &Self) -> Ordering {
         // start / timescale compared exactly: a / b < c / d iff a d < c b.
-        let mine = u128::from(self.chunk.start).saturating_mul(u128::from(other.timescale));
-        let theirs = u128::from(other.chunk.start).saturating_mul(u128::from(self.timescale));
+        let mine = (i128::from(self.chunk.start) + i128::from(self.decode_start))
+            * i128::from(other.timescale);
+        let theirs = (i128::from(other.chunk.start) + i128::from(other.decode_start))
+            * i128::from(self.timescale);
         let size = match self.ties {
             Ties::TrackOrder => Ordering::Equal,
             Ties::SmallerFirst => self.chunk.bytes.cmp(&other.chunk.bytes),

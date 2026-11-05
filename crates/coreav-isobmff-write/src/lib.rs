@@ -266,6 +266,11 @@ pub enum OnUnsupported {
 /// What [`remux_mp4`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemuxOptions {
+    /// Store copied packets in edited decode-time order, with output track
+    /// order breaking ties. Uses one sample per chunk under the existing
+    /// table budget. Unsupported edit clocks fail before writing; native
+    /// remux defaults retain their approximately one-second chunks.
+    pub interleave_packets: bool,
     /// Derive track and media durations from copied samples and validated
     /// edits instead of preserving declared header overrides. Single-source
     /// copy only, without replacements. The default keeps the native remux

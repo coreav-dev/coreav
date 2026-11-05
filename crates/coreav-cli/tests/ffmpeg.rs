@@ -2748,6 +2748,176 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
 }
 
 #[test]
+fn ordinary_copy_preserves_complete_packet_order() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("ffmpeg-copy-packet-order");
+    let capture = |path: &Path| {
+        let result = Command::new(&ffprobe_bin)
+            .args([
+                "-v",
+                "error",
+                "-show_streams",
+                "-show_packets",
+                "-show_data_hash",
+                "sha256",
+                "-of",
+                "json",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(result.stderr.is_empty());
+        let document: Value = serde_json::from_slice(&result.stdout).unwrap();
+        let streams = document["streams"].as_array().unwrap();
+        let packets: Vec<_> = document["packets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|packet| {
+                let stream = packet["stream_index"].as_u64().unwrap() as usize;
+                let (num, den) = streams[stream]["time_base"]
+                    .as_str()
+                    .unwrap()
+                    .split_once('/')
+                    .unwrap();
+                let num: i128 = num.parse().unwrap();
+                let den: u64 = den.parse().unwrap();
+                let clocks = ["pts", "dts", "duration"].map(|key| {
+                    packet[key].as_i64().map(|value| {
+                        coreav_isobmff::Rational::new(i128::from(value) * num, den).unwrap()
+                    })
+                });
+                (
+                    stream,
+                    packet["data_hash"].as_str().unwrap().to_owned(),
+                    clocks,
+                )
+            })
+            .collect();
+        assert!(!packets.is_empty());
+        (document, packets)
+    };
+    let audio_inputs: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    for (rate, frames, delay) in [
+        (48_000, 0, false),
+        (48_000, 2, false),
+        (44_100, 2, false),
+        (48_000, 2, true),
+    ] {
+        let source = dir.join(format!("source-{rate}-{frames}-{delay}.mp4"));
+        let mut generation = Command::new(&ffmpeg_bin);
+        generation
+            .args(["-nostdin", "-v", "error", "-f", "lavfi"])
+            .args(&audio_inputs)
+            .args(["-i", "testsrc2=size=80x64:rate=10:duration=1.4"]);
+        if delay {
+            generation.args(["-itsoffset", "0.1"]);
+        }
+        let generated = generation
+            .args(["-f", "lavfi"])
+            .args(&audio_inputs)
+            .args([
+                "-i",
+                &format!("sine=frequency=523:sample_rate={rate}:duration=1.4"),
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-bf",
+                &frames.to_string(),
+                "-c:a",
+                "aac",
+            ])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        for (name, options, extra_input) in [
+            ("ordinary", vec!["-c", "copy"], false),
+            (
+                "faststart",
+                vec!["-c", "copy", "-movflags", "+faststart"],
+                false,
+            ),
+            ("explicit", vec!["-c:v", "copy", "-c:a", "copy"], false),
+            ("all", vec!["-map", "0", "-c", "copy"], false),
+            (
+                "audio-first",
+                vec!["-map", "0:a", "-map", "0:v", "-c", "copy"],
+                false,
+            ),
+            (
+                "duplicate",
+                vec!["-map", "0:v", "-map", "0:a", "-map", "0:a", "-c", "copy"],
+                false,
+            ),
+            (
+                "input-zero",
+                vec!["-map", "0:v:0", "-map", "0:a:0", "-c", "copy"],
+                true,
+            ),
+            ("video-only", vec!["-an", "-c:v", "copy"], false),
+            ("audio-only", vec!["-vn", "-c:a", "copy"], false),
+        ] {
+            let actual = dir.join("actual.mp4");
+            let expected = dir.join("expected.mp4");
+            let mut args = vec!["-y", "-i", source.to_str().unwrap()];
+            if extra_input {
+                args.extend(["-i", source.to_str().unwrap()]);
+            }
+            args.extend(options);
+            let reference = Command::new(&ffmpeg_bin)
+                .args(["-nostdin", "-v", "error"])
+                .args(&args)
+                .arg(&expected)
+                .output()
+                .unwrap();
+            assert!(
+                reference.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&reference.stderr)
+            );
+            let result = ffmpeg(&[args.as_slice(), &[actual.to_str().unwrap()]].concat());
+            assert_eq!(result.code, 0, "{name}: {}", result.stderr);
+            let (mine, packets) = capture(&actual);
+            let (theirs, reference_packets) = capture(&expected);
+            assert_eq!(
+                packets, reference_packets,
+                "{name}: {rate}/{frames}/{delay}"
+            );
+            for (a, b) in mine["streams"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(theirs["streams"].as_array().unwrap())
+            {
+                for key in [
+                    "codec_name",
+                    "codec_type",
+                    "width",
+                    "height",
+                    "sample_rate",
+                    "channels",
+                    "start_time",
+                    "duration",
+                ] {
+                    assert_eq!(a[key], b[key], "{name}: {key}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn unedited_video_copy_normalizes_its_origin_without_losing_frames() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;

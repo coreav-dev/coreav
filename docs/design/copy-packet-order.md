@@ -27,8 +27,24 @@ Any compatibility-only scheduling must drive both chunk offsets in the
 header and payload copying from the same policy, include edit-derived decode
 origins, use exact rational comparisons, and remain under the existing table
 and sample-work budgets. Add no media-sized packet buffer or second parser.
-Settle the smallest representation after the pinned controls establish the
-root and update this note to describe that decision.
+`RemuxOptions::interleave_packets` opts ordinary ISO compatibility copy into
+this layout when it keeps several streams including video. Native callers
+leave it disabled. Set the existing chunk byte threshold to zero so even an
+empty sample owns one chunk, charged against the existing table allowance.
+Retain one signed decode origin per table, derived from the final output
+edits. No edit means zero; a media edit subtracts its media time; a preceding
+empty edit adds its delay in media ticks. Inexact delays or unsupported edit
+shapes refuse before the header is written. The existing heap merges these
+sample chunks by signed rational DTS, then output track index. Header offsets
+and payload copying both consume that same schedule. Cross-products fit in
+128 signed bits because starts are 64-bit and media clocks are 32-bit.
+
+Pinned generated controls establish output-track-order ties, including an
+audio-first map. For both zero and two B-frames, the initial implementation
+has identical per-stream hashes and clocks but a different complete packet
+sequence. The compatibility schedule corrects that interleaving without
+changing the stream clocks or payloads. The existing one-second chunk layout
+remains the native default, including single-stream compatibility copies.
 
 ## Verification
 
