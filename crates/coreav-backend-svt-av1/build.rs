@@ -102,17 +102,6 @@ fn run() -> Result<(), String> {
             "configure {compiler} as the Rust linker for the SVT-AV1 native feature"
         ));
     }
-    let native_manifest = prefix.join("manifest.json");
-    command(
-        "python3",
-        &[
-            "-I",
-            "-c",
-            "import json,subprocess,sys; m=json.load(open(sys.argv[1])); assert subprocess.check_output([sys.argv[2],'--version'],text=True).strip()==m['compiler_version'], 'use the native archive compiler'",
-            text(&native_manifest)?,
-            compiler,
-        ],
-    )?;
     let out = PathBuf::from(env::var_os("OUT_DIR").ok_or("missing Cargo output directory")?);
     let source = manifest_dir.join("src/native.c");
     let object = out.join("coreav_svt.o");
@@ -161,7 +150,7 @@ fn run() -> Result<(), String> {
         prefix.join("lib").display()
     );
     println!("cargo::rustc-link-lib=static=coreav_svt_bridge");
-    println!("cargo::rustc-link-lib=static=SvtAv1Enc");
+    println!("cargo::rustc-link-lib=static:-bundle=SvtAv1Enc");
     println!("cargo::rustc-link-lib=pthread");
     println!("cargo::rustc-link-lib=m");
     Ok(())

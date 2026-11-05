@@ -48,7 +48,7 @@ Neither feature decodes input. A decoder backend is still required. The native b
 
 The [SVT-AV1 design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/encoders/svt-av1.md#static-library-build) describes the recipe and target requirements. A distribution that includes SVT-AV1 must carry its complete copyright, licence and patent notices, as described by the [native notice checks](https://github.com/coreav-dev/coreav/blob/main/docs/release/notices.md#native-svt-av1-notice-checks).
 
-Native encoding and release packaging remain unverified. Neither release feature set below selects `svt-av1-native` yet.
+Neither release feature set below selects `svt-av1-native` automatically. Native Unix full packages can opt in with `COREAV_SVT_AV1=1`; the package script builds the pinned library and includes its notices. For example: `COREAV_SVT_AV1=1 packages/cli/scripts/platform.sh linux-x64 x86_64-unknown-linux-musl full`. This requires a native host with the recipe's build tools, including `musl-gcc` on Linux.
 
 ## Release builds
 

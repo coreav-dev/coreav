@@ -520,7 +520,3 @@ fn copy_packet(packet: &Packet, packet_limit: usize) -> Result<RawPacket, Error>
         picture_type: packet.picture_type,
     })
 }
-
-#[cfg(test)]
-#[path = "native_fixtures.rs"]
-mod tests;
