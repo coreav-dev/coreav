@@ -165,6 +165,64 @@ The forward 4x4 transform and luma DC Hadamard use separable row and column arit
 
 Each change is compared separately with the unchanged bounded encoder, then combined in the same reference run. The implementation does not add heuristic split pruning, SATD, score cutoffs, reciprocal quantization, interpolation caches, or further incremental finalist state. Their storage and quality tradeoffs remain open rather than being selected from the technique note without measurement. The existing full three-decoder conformance matrix and exact-head encoder similarity guard still apply.
 
+## Partition-search cost design
+
+This is the design for the next speed round, committed before its separate study. It does not change encoder behavior. The starting implementation already has bounded motion probes, unchanged-region preparation, exact zero-distortion skip termination, checked interior reference access, and separable transforms. The first comparison arm retains its complete search order and encoded bytes. No unsafe code, SIMD, rate control, new coding tools, or default-build change belongs in this round.
+
+### Local profile
+
+One reference-only run profiles the first four prepared pictures of an existing clip at 640x480, QP 28, fixed GOP 32, and enabled deblocking with zero offsets. This is one IDR picture and three P pictures, not the earlier 60-picture throughput workload. The prepared 60-picture YUV420 input has SHA-256 `756fa818691a60fa95f987bc606b00c95776a81142e7500cb39fac263cae9583`. Its preparation differs from the earlier reference bytes, so this profile does not establish a throughput change against that reference.
+
+The source is main at `a1b5c6b6b6dc32ba071913993404f849a827770a`. The encoder and its H.264 kernel and decoder sources are unchanged from `fddcb94a6f7e38dfa058cd6601ca6f45b20cb83e`. The host exposes two AMD EPYC logical CPUs. The driver runs on CPU 0, with Rust 1.99.1 and an optimized release build with debug information. FFmpeg 9.0.2, build `n9.0.2-17-g2a571b6068`, prepares the input and independently decodes the output as a black box.
+
+Build with `CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --release -p coreav-h264-encoder --features full --example p`. Prepare 60 pictures using `ffmpeg -i input.webm -vf fps=30 -frames:v 60 -pix_fmt yuv420p -f rawvideo input.yuv`, then copy the first 1,843,200 bytes into `profile.yuv`. Profile with `perf record -F 499 -e cycles:u --call-graph dwarf,16384 -- taskset -c 0 target/release/examples/p 640 480 28 4 profile.yuv out.h264 recon.yuv decoded.yuv true 32`. Use `perf script -F period,ip,sym,dso` to group each sample once by its search-stage ancestor, including inline frames, and sum event periods rather than counting samples equally.
+
+The run records 2,285 samples with no lost samples. The driver exits successfully and emits four pictures. Both its CoreAV decoder and pinned FFmpeg reproduce all 1,843,200 reconstruction bytes. The measured wrapper takes 4.97 seconds, including profiling, decoder verification, and file writes. That duration is not an uninstrumented encode-speed figure.
+
+| Disjoint stage | Share of sampled process cycles | Share within partition search |
+|---|---:|---:|
+| Cheap motion search | 39.04% | 44.03% |
+| Full-RDO finalists | 37.46% | 42.25% |
+| Unchanged-region preparation | 10.49% | 11.83% |
+| Remaining partition bookkeeping | 1.68% | 1.89% |
+| Outside partition search | 11.33% | Not applicable |
+
+Partition search accounts for 88.67% of sampled process cycles. Within the cheap-search row, fractional prediction takes 14.48 percentage points of the process total, visited-candidate lookup takes 8.53, motion-difference bit counting takes 2.88, and SAD plus remaining search work takes 13.15. Within the finalist row, coupled chroma reconstruction takes 8.99 points, changed-region prediction takes 4.32, complete syntax and cost evaluation takes 8.65, and residual transforms plus other finalist work takes 15.50. These subdivisions are disjoint within their parent row. This short sample identifies work to test, not a measured speedup ceiling or evidence that a particular rewrite wins.
+
+### 1. Can candidate lookup stay exact without scanning unused entries?
+
+Yes. The current visited list has 99 optional slots, but each lookup traverses the complete array. Keep one fixed-capacity dense prefix of scored vectors and search only its initialized entries. Preserve the existing four-entry ranking, protected seeds, returned cached score, and tuple tie order. This changes storage and traversal, not the candidates visited. Compare it with the current array before adding a coordinate-indexed lookup. A coordinate table needs initialization and an outlying-predictor path, which may cost more than a short dense scan. H.264 clauses 8.4.1 and 7.4.5.1 still govern vector and difference admission.
+
+### 2. Can a probe stop before computing every pixel while preserving search decisions?
+
+Yes, when a lower bound proves that the probe cannot affect any consumer of its score. Clause 9.1 permits deriving the signed Exp-Golomb length directly instead of passing motion differences through the generic bit counter. Add that exact motion cost before accumulating nonnegative row SAD. Stop only on strict excess, preserving equal-cost ties.
+
+The cutoff must protect more than the fourth ranked candidate. Integer probes can move the best integer search centre even when fractional seeds already occupy the ranking. Fractional probes can move their stage centre. Use a bound that cannot improve the full ranking or the active centre, and do not cut off while the required ranking is incomplete. Fully score protected seeds. A visited entry must distinguish an exact score from an abandoned probe, never return a partial sum as a cached score, and recompute if a later consumer cannot safely reuse its rejection. Compare the complete probe trace, ranking, centres, finalists, and output against the uncut evaluator. SAD is not a lower bound on full RDO, so this cannot reject a full candidate by its final distortion-and-rate objective.
+
+### 3. Can preparation survive selection of the preceding partition?
+
+Yes, if reuse follows the actual predicted blocks rather than the layout name alone. The current preparation reconstructs the unchanged region again for every searched partition. Retain macroblock-local predictions, luma levels, reconstructed luma, and chroma transforms and AC levels for the current base motion map. Each finalist replaces the blocks its partition overlaps. Selection advances that local base, while rejected trials cannot alter it. A layout transition revalidates the retained blocks against the new motion map, including the zero vectors of unsearched regions.
+
+Keep the complete shared syntax traversal and candidate admission initially. Clauses 8.4.1, 8.5, and 9.2 make motion differences, coefficient-neighbour counts, and coded-block patterns dependent on more than one retained block. Recompute coupled chroma DC and every reconstruction it affects, even where AC levels remain unchanged. Reuse a finalist's retained fractional prediction only when its reference, position, extent, component, and vector match. Keep the uncached evaluator as the test oracle for complete candidate keys, coefficients, reconstruction, refusals, and rollback. This design removes repeated preparation without claiming independent chroma-block costs.
+
+### 4. Is interpolation reuse worth extra reference storage?
+
+The profile makes it worth testing, but does not select a cache. Compare the existing checked reference access with a bounded macroblock-local window shared by probes and finalists. Prepare edge extension once and derive needed half-sample values lazily. Retain the precision, rounding, clipping, and negative-coordinate rules of clause 8.4.2.2.1. Chroma follows its separate clause 8.4.2.2.2 process. Valid predictors outside the ordinary search window use the existing sampled path.
+
+Prefer bounded local reuse over three additional full-picture half-sample planes until a same-input comparison shows that their preparation and memory traffic pay for themselves. Retaining predictions for ranked finalists is another comparison arm that avoids populating phases nobody uses. Reference replacement invalidates all retained data. Test every luma and chroma phase, partition extent, and picture edge against the existing predictor before timing it.
+
+### 5. Should cheap scores decide which partition layouts never receive RDO?
+
+Not in the byte-identical arm. Clauses 7.3.5 and 8.4 permit the supported layouts, but do not require an encoder to search all of them. Omitting a legal layout is a quality policy, not an exact consequence of a low whole-block SAD. The same applies to accepting a nonzero-distortion skip before searching alternatives. Keep the current exact-skip rule, layout order, greedy subgroup choices, motion budget, and finalist caps while testing the exact changes above.
+
+If those changes leave layout count as the dominant cost, compare the earlier design's whole-block-plus-best-split policy separately. Record the omitted searches, complete output bytes, bitrate, PSNR, and SSIM beside encode time on identical prepared pictures. Do not mix its output changes into an exact optimization or infer a quality win from equal numeric QP.
+
+### Comparison and study boundary
+
+Test each exact change separately against main before combining accepted changes. An A/B uses identical input bytes, settings, build flags, host, and affinity, and checks complete bitstream and reconstruction equality. Preserve normative coefficient and vector limits, the consecutive `MaxMvsPer2Mb` budget, the macroblock bit ceiling, and transactional failures. A technique from a later reviewed note must beat this independently derived design or another comparison arm in the same run before adoption. The existing three-decoder conformance and encoder similarity checks remain required.
+
+The prior-art input remains the already reviewed [search-efficiency technique note](../technique-notes/h264-encoder-speed.md), listed above. No new implementation source or unreviewed study output is an input to this design. A separate study can now compare its techniques with these five answers. Only its reviewed note, after commitment, may inform implementation.
+
 ## Next design-only slice
 
 The [picture-budget proposal](h264-encoder-rate-control.md) defines the next design-only slice after inter conformance. It separates a target-rate policy from normative QP and buffer constraints, defines failure and flush behavior, and proposes synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
