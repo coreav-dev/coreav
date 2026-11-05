@@ -24,6 +24,7 @@ mod frames;
 mod image_capture;
 mod pcm;
 mod raw_audio;
+mod ts;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -98,6 +99,11 @@ impl From<WriteFailure> for Stop {
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
+    /// One qualified ISO AVC video copied to MPEG-TS.
+    Mpegts {
+        /// Selected source stream index.
+        video: usize,
+    },
     /// A fully registered raw audio conversion.
     RawAudio(raw_audio::Plan),
     /// Selected streams written to AVI, with explicit audio jobs.
@@ -227,6 +233,7 @@ The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
 writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
   a copy to .mkv, .mka or .webm (or -f matroska/webm): container output
+  a copy to .ts (or -f mpegts): qualified ISO H.264 video with -an
   a copy of one audio stream to .m4a (or -f ipod): an audio extraction
   .avi (or -f avi): bounded H.264, MP3 and integer PCM packet output
   -ss, -t or -to, before or after -i: a clip
@@ -382,6 +389,7 @@ fn run_with_input(
         command.muxer,
         Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Flac
     ) && !command.muxer.frames()
+        && command.muxer != Muxer::Mpegts
     {
         encode::preflight(&command, strict_safe)?;
     }
@@ -688,6 +696,9 @@ pub fn plan(
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
     let decided = codecs(command, &output);
+    if command.muxer == Muxer::Mpegts {
+        return ts::plan(command, &output, &decided, container, list.is_some(), trims);
+    }
     if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
@@ -1756,6 +1767,9 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 /// moved into place only once the whole job succeeded. A transcode is
 /// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+    if let Job::Mpegts { video } = job {
+        return ts::write(command, *video);
+    }
     if let Job::RawAudio(plan) = job {
         return raw_audio::write(command, plan);
     }
@@ -1922,7 +1936,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Avi(_)
+        Job::Mpegts { .. }
+        | Job::Avi(_)
         | Job::Split(_)
         | Job::Transcode(_)
         | Job::Ffv1 { .. }

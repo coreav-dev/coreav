@@ -334,6 +334,168 @@ pub(crate) fn avc_timing(avcc: &[u8]) -> Option<(u32, u32)> {
     })
 }
 
+/// Complete SPS facts for the bounded, no-HRD AVC transport-copy profile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AvcCopyFacts {
+    /// H.264 profile code point.
+    pub profile_idc: u8,
+    /// Constraint flags, including the two reserved low bits.
+    pub constraint_flags: u8,
+    /// H.264 level code point.
+    pub level_idc: u8,
+    /// Sequence parameter-set identity.
+    pub sps_id: u32,
+    /// Chroma format code point.
+    pub chroma_format_idc: u32,
+    /// Luma bit depth minus eight.
+    pub bit_depth_luma_minus8: u32,
+    /// Chroma bit depth minus eight.
+    pub bit_depth_chroma_minus8: u32,
+    /// Whether every coded picture is a frame.
+    pub frame_mbs_only: bool,
+    /// Maximum reference frames stated by the SPS.
+    pub max_num_ref_frames: u32,
+    /// VUI nominal field-period numerator.
+    pub num_units_in_tick: u32,
+    /// VUI nominal field-period denominator.
+    pub time_scale: u32,
+    /// Whether the SPS asserts fixed frame timing.
+    pub fixed_frame_rate: bool,
+    /// Explicit presentation-reordering bound, absent without restrictions.
+    pub max_num_reorder_frames: Option<u32>,
+    /// Explicit decoded-picture-buffer bound, absent without restrictions.
+    pub max_dec_frame_buffering: Option<u32>,
+}
+
+/// Reads a complete High-profile SPS with timing but no HRD or picture-structure
+/// signaling (H.264 7.3.2.1.1 and E.1.1). Unknown syntax, scaling matrices,
+/// POC type one, malformed framing and SPS NALs over 4096 bytes return `None`.
+/// This does not certify the complete AVC configuration or coded pictures.
+pub fn avc_copy_facts(avcc: &[u8]) -> Option<AvcCopyFacts> {
+    if avcc.first() != Some(&1) || avcc.get(5)? & 0x1f == 0 {
+        return None;
+    }
+    let len = usize::from(be_u16_at(avcc, 6)?);
+    let nal = avcc.get(8..8usize.checked_add(len)?)?;
+    if len > 4096 || nal.first()? & 0x9f != 7 || nal.first()? & 0x60 == 0 {
+        return None;
+    }
+    let payload = nal.get(1..)?;
+    let mut zeros = 0usize;
+    for (index, &byte) in payload.iter().enumerate() {
+        if zeros == 2 {
+            if byte < 3 {
+                return None;
+            }
+            if byte == 3 {
+                if *payload.get(index.checked_add(1)?)? > 3 {
+                    return None;
+                }
+                zeros = 0;
+                continue;
+            }
+        }
+        zeros = if byte == 0 { zeros + 1 } else { 0 };
+    }
+    with_parameter_set_rbsp(payload, |rbsp| {
+        let mut bits = Bits::new(rbsp);
+        let profile_idc = u8::try_from(bits.bits(8)?).ok()?;
+        let constraint_flags = u8::try_from(bits.bits(8)?).ok()?;
+        let level_idc = u8::try_from(bits.bits(8)?).ok()?;
+        if profile_idc != 100 || constraint_flags & 3 != 0 {
+            return None;
+        }
+        let sps_id = bits.ue().filter(|id| *id <= 31)?;
+        let chroma_format_idc = bits.ue().filter(|id| *id <= 3)?;
+        if chroma_format_idc == 3 && bits.flag()? {
+            return None;
+        }
+        let bit_depth_luma_minus8 = bits.ue().filter(|depth| *depth <= 6)?;
+        let bit_depth_chroma_minus8 = bits.ue().filter(|depth| *depth <= 6)?;
+        if bits.flag()? || bits.flag()? {
+            return None;
+        }
+        bits.ue().filter(|width| *width <= 12)?;
+        match bits.ue()? {
+            0 => {
+                bits.ue().filter(|width| *width <= 12)?;
+            }
+            2 => {}
+            _ => return None,
+        }
+        let max_num_ref_frames = bits.ue().filter(|frames| *frames <= 16)?;
+        if bits.flag()? {
+            return None;
+        }
+        bits.ue()?;
+        bits.ue()?;
+        let frame_mbs_only = bits.flag()?;
+        if !frame_mbs_only {
+            bits.flag()?;
+        }
+        bits.flag()?;
+        if bits.flag()? {
+            for _ in 0..4 {
+                bits.ue()?;
+            }
+        }
+        if !bits.flag()? {
+            return None;
+        }
+        if bits.flag()? && bits.bits(8)? == 255 {
+            bits.skip(32)?;
+        }
+        if bits.flag()? {
+            bits.flag()?;
+        }
+        video_signal_type(&mut bits)?;
+        if bits.flag()? {
+            bits.ue().filter(|location| *location <= 5)?;
+            bits.ue().filter(|location| *location <= 5)?;
+        }
+        if !bits.flag()? {
+            return None;
+        }
+        let num_units_in_tick = bits.bits(32).filter(|units| *units > 0)?;
+        let time_scale = bits.bits(32).filter(|scale| *scale > 0)?;
+        let fixed_frame_rate = bits.flag()?;
+        if bits.flag()? || bits.flag()? || bits.flag()? {
+            return None;
+        }
+        let (max_num_reorder_frames, max_dec_frame_buffering) = if bits.flag()? {
+            bits.flag()?;
+            for _ in 0..4 {
+                bits.ue().filter(|bound| *bound <= 16)?;
+            }
+            let reorder = bits.ue().filter(|frames| *frames <= 16)?;
+            let buffering = bits.ue().filter(|frames| *frames <= 16)?;
+            if reorder > buffering || max_num_ref_frames > buffering {
+                return None;
+            }
+            (Some(reorder), Some(buffering))
+        } else {
+            (None, None)
+        };
+        bits.finish_rbsp()?;
+        Some(AvcCopyFacts {
+            profile_idc,
+            constraint_flags,
+            level_idc,
+            sps_id,
+            chroma_format_idc,
+            bit_depth_luma_minus8,
+            bit_depth_chroma_minus8,
+            frame_mbs_only,
+            max_num_ref_frames,
+            num_units_in_tick,
+            time_scale,
+            fixed_frame_rate,
+            max_num_reorder_frames,
+            max_dec_frame_buffering,
+        })
+    })
+}
+
 /// `max_num_ref_frames` of the first sequence parameter set in an `avcC`
 /// record (ITU-T H.264 7.4.2.1.1): the most frames a P or B frame may
 /// reference. `None` when the set cannot be read.

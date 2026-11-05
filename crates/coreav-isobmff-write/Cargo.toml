@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 coreav-isobmff = { path = "../coreav-isobmff" }
 coreav-mkv = { path = "../coreav-mkv" }
+coreav-mpegts = { path = "../coreav-mpegts" }
 
 [dev-dependencies]
 # Builds compressed movie boxes for the tests.

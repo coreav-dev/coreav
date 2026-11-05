@@ -35,6 +35,7 @@ mod size;
 mod source;
 mod tables;
 
+pub use bitstream::{AvcCopyFacts, avc_copy_facts};
 pub use codec::{
     Allowlist, Codec, CodecConfig, Color, ConfigRecord, DeclaredBitRate, DolbyVision,
     LosslessConfig, MAX_OTHER_BOXES, PcmFormat, ProResProfile, Profile, SampleDescription,

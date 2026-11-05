@@ -62,6 +62,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-ffv1"
+version = "0.0.1"
+dependencies = [
+ "coreav-frame",
+]
+
+[[package]]
 name = "coreav-frame"
 version = "0.0.1"
 
@@ -78,6 +85,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
  "coreav-mkv",
+ "coreav-mpegts",
 ]
 
 [[package]]
@@ -90,6 +98,13 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
  "miniz_oxide",
+]
+
+[[package]]
+name = "coreav-mpegts"
+version = "0.0.1"
+dependencies = [
+ "coreav-isobmff",
 ]
 
 [[package]]
@@ -118,6 +133,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-audio",
  "coreav-decode",
+ "coreav-ffv1",
  "coreav-frame",
  "coreav-isobmff",
  "coreav-isobmff-write",

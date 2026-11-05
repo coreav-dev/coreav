@@ -45,6 +45,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
  "coreav-mkv",
+ "coreav-mpegts",
 ]
 
 [[package]]
@@ -63,6 +64,13 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
  "miniz_oxide",
+]
+
+[[package]]
+name = "coreav-mpegts"
+version = "0.0.1"
+dependencies = [
+ "coreav-isobmff",
 ]
 
 [[package]]

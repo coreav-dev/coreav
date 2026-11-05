@@ -146,6 +146,18 @@ impl<'a> Bits<'a> {
         Some(self.bit()? == 1)
     }
 
+    pub(crate) fn finish_rbsp(&mut self) -> Option<()> {
+        if !self.flag()? {
+            return None;
+        }
+        while self.position % 8 != 0 {
+            if self.flag()? {
+                return None;
+            }
+        }
+        (self.position == self.data.len().checked_mul(8)?).then_some(())
+    }
+
     pub(crate) fn skip(&mut self, count: u32) -> Option<()> {
         for _ in 0..count {
             self.bit()?;
