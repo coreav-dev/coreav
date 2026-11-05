@@ -1262,6 +1262,8 @@ fn place(
                 }
                 let samples = int(i64::try_from(a.listed.duration).map_err(|_| overflow())?);
                 let local_end = scale(sub(end, offset)?, ta, 1)?;
+                // ISO/IEC 14496-12 8.6.6 presents each input from its edit media_time;
+                // AAC priming before that point is not part of the joined presentation.
                 for (s, e, media) in shown(&a.timeline, start, local_end)? {
                     let media = sub(media, int(a.listed.first_dts))?;
                     if lt(samples, add(media, sub(e, s)?)?)? {
