@@ -178,6 +178,8 @@ class Packing(unittest.TestCase):
                     command = child.call_args.args[0]
                     self.assertNotIn('-frames:v', command)
                     self.assertNotIn('-vf', command)
+                    self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                    self.assertLess(command.index('-export_side_data'), command.index('-i'))
                 self.assertEqual(report['changed_samples'], [1, 0, 0])
                 self.assertEqual(report['first_differences'], [dict(component=0, x=2, y=0, delta=1)])
                 self.assertFalse(output.exists())

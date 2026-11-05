@@ -25,6 +25,8 @@ class OracleDiagnostics(unittest.TestCase):
                 frames = [dict(width=2, height=2, pix_fmt='yuv420p')]
 
                 def child(command, path, label):
+                    self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                    self.assertLess(command.index('-export_side_data'), command.index('-i'))
                     self.assertEqual('-frames:v' in command, first_picture)
                     if first_picture:
                         self.assertEqual(command[command.index('-frames:v') + 1], '1')
@@ -335,6 +337,8 @@ class OracleDiagnostics(unittest.TestCase):
         self.assertEqual(attempt['layout'], 'whole_output_yuv_file')
         self.assertIn('repeat+error', attempt['command'])
         self.assertIn('-noautoscale', attempt['command'])
+        self.assertEqual(attempt['command'][attempt['command'].index('-export_side_data') + 1], '+enhancements')
+        self.assertLess(attempt['command'].index('-export_side_data'), attempt['command'].index('-i'))
         self.assertEqual(attempt['stdout_capture'], 'reference-md5.stdout')
         self.assertTrue(all(d['classification'] == 'unclassified' for d in diagnostics))
 
@@ -893,6 +897,8 @@ class Conformance(unittest.TestCase):
         command = child.call_args.args[0]
         self.assertEqual(command[command.index('-flags') + 1], 'unaligned')
         self.assertLess(command.index('-flags'), command.index(source))
+        self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+        self.assertLess(command.index('-export_side_data'), command.index(source))
 
     def test_output_order_uses_frame_packet_positions_when_the_oracle_exposes_them(self):
         fixture = list(self.fixture())

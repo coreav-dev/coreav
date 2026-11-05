@@ -29,6 +29,8 @@ import oracle_pin
 import hevc_oracle_input
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
+HEVC_DECODE_INPUT = ('-export_side_data', '+enhancements', *AUDIO_DECODE_INPUT)
+
 REGISTRATION = ROOT / 'bench/hevc-conformance/archives.json'
 ROSTER = ROOT / 'docs/measurements/hevc-native/roster.json'
 ARCHIVE_CAP = 16 << 20
@@ -585,7 +587,8 @@ def progress_line(item):
 def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=None, preparation=None):
     entries = ('frame=width,height,pix_fmt,pict_type,key_frame,pkt_pos' if frames else
                'packet=pos,size:stream=index,codec_name,profile,width,height,coded_width,coded_height,pix_fmt,field_order')
-    command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', '-f', 'hevc', '-select_streams', 'v:0',
+    command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', *HEVC_DECODE_INPUT,
+               '-f', 'hevc', '-select_streams', 'v:0',
                '-show_frames' if frames else '-show_packets', '-show_entries', entries,
                '-of', 'json', path]
     code, out, err = child(command, directory, 'frames' if frames else 'packets')
@@ -829,7 +832,7 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
-               *AUDIO_DECODE_INPUT, '-i', path,
+               *HEVC_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'md5', '-']
     attempt = dict(candidate=layout_registration['candidate'] if layout_registration else 'canonical_visible_planar',
@@ -924,7 +927,7 @@ def oracle_frames(binary, path, directory, frames, stream, references=None, *, f
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'oracle_changing_packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned',
-               *([] if first_picture else ['-f', 'hevc']), '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', path,
+               *([] if first_picture else ['-f', 'hevc']), '-c:v', 'hevc', *HEVC_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), *(['-frames:v', '1'] if first_picture else []),
                '-progress', 'pipe:2', '-f', 'framemd5', '-']
