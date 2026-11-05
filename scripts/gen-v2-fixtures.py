@@ -11,6 +11,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
+
 
 COMMAND_TIMEOUT = 180
 PROBE_TIMEOUT = 30
@@ -175,6 +178,9 @@ def main(argv=None):
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--only', nargs='+', action='extend', choices=FILES)
     args = parser.parse_args(argv)
+    if any(RECIPES[name].length is None and RECIPES[name].text is None
+           for name in selection(args.only)):
+        test_oracle.require(args.ffmpeg, args.ffprobe)
     try:
         names = generate(args.ffmpeg, args.ffprobe, args.out, args.only)
     except (GenerationError, OSError) as error:

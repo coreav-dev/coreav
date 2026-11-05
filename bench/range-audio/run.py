@@ -44,6 +44,8 @@ except ImportError:
     EXTRA = {}
 
 NATIVE = ROOT / 'target' / 'edge' / 'edge-native'
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 CLI = ROOT / 'target' / 'dist' / 'coreav'
 # R2 requests one object may cost the CLI at most: the warm-up and the
 # trials, each under its reader's cap of 10,000.
@@ -126,6 +128,7 @@ def main():
     parser.add_argument('--max-requests', type=int, default=400_000,
                         help='R2 requests the whole run may make (Class B, 0.36 USD per million)')
     args = parser.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     data = json.loads(Path(args.inputs).read_text())
     files = (data['held_out'] if args.held_out else data['files'])[:args.limit]
     if args.only:

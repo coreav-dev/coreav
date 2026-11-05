@@ -1,6 +1,9 @@
 #![doc = "Synthetic transcodes preserve complete pixels across diagnostic decoder hosts."]
 #![cfg(feature = "transcode")]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -53,14 +56,7 @@ fn hosting_pair(
     encoder: &str,
     backend: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if !ffmpeg.is_file() {
-        assert!(std::env::var_os("CI").is_none(), "missing pinned FFmpeg");
-        eprintln!("skipping diagnostic fixture without pinned FFmpeg");
-        return Ok(());
-    }
+    let ffmpeg = test_oracle::require().ffmpeg().to_path_buf();
     let dir = directory(codec)?;
     let input = dir.join("input.mkv");
     let generated = Command::new(&ffmpeg)

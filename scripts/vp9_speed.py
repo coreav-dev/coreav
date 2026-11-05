@@ -82,6 +82,7 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import test_oracle
 import thumbnail_oracle as to  # noqa: E402
 import transcode_check as tc  # noqa: E402
 
@@ -785,6 +786,7 @@ def main():
     for need in ('selection', 'files', 'out', 'ffmpeg', 'ffprobe'):
         if not getattr(args, need):
             p.error(f'{args.command} needs --{need.replace("_", "-")}')
+    test_oracle.require(args.ffmpeg, args.ffprobe)
     args.ffmpeg, args.ffprobe = os.path.abspath(args.ffmpeg), os.path.abspath(args.ffprobe)
     tc.ENV = tc.child_env(args.ffmpeg)
     to.ENV = tc.ENV

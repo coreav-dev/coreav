@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from opus_matroska_padding import matroska, run, wav_samples
 from opus_mp4_presentation import boxes, metadata
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from oracle_pin import verify_bin
+from test_oracle import verify_bin
 
 
 def native(coreav, source, after, output='pipe:', threads=1, strict=True):

@@ -55,6 +55,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import policy_ref  # noqa: E402
+import test_oracle
 
 TIMEOUT = 10
 MEMORY = 1 << 30
@@ -330,6 +331,8 @@ def main():
                         help='decode every frame with ffprobe for the oracle sizes (small files)')
     parser.add_argument('--report', type=pathlib.Path)
     args = parser.parse_args()
+    if args.ffprobe:
+        args.ffprobe = str(test_oracle.require(pathlib.Path(args.ffprobe).with_name('ffmpeg'), args.ffprobe).ffprobe)
     if args.media:
         files = sorted(p for p in args.media.iterdir()
                        if p.is_file() and p.name not in ('MANIFEST', 'manifest.json'))

@@ -39,6 +39,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 from aac_agreement import source  # noqa: E402
 from decode_audio_check import wav_data  # noqa: E402
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
@@ -861,6 +862,8 @@ def main():
     j.add_argument('--work', type=pathlib.Path, required=True)
     j.add_argument('--out', type=pathlib.Path, required=True)
     a = parser.parse_args()
+    if a.command != "encode":
+        test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
     return {'sources': sources, 'encode': encode, 'select': select, 'prepare': prepare, 'judge': judge}[a.command](a)
 
 

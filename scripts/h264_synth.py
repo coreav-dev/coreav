@@ -9,6 +9,9 @@ import argparse
 import json
 import os
 import subprocess
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 
 FFMPEG = os.environ.get('FFMPEG_BIN', '/opt/coreav-oracle-bin/ffmpeg')
 
@@ -56,6 +59,7 @@ def main():
     ap.add_argument('--out', required=True, help='directory for the streams')
     ap.add_argument('--frames', type=int, default=300)
     args = ap.parse_args()
+    test_oracle.require(FFMPEG)
     os.makedirs(args.out, exist_ok=True)
 
     made = []

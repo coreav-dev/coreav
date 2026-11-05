@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
 import decoded_output
 import oracle_pin
+import test_oracle
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 
@@ -86,7 +87,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     opts = parser.parse_args()
     opts.coreav, opts.ffmpeg, opts.ffprobe = (p.resolve() for p in (opts.coreav, opts.ffmpeg, opts.ffprobe))
-    problems = list(oracle_pin.verify_bin(opts.ffmpeg.parent))
+    problems = list(test_oracle.verify_bin(opts.ffmpeg.parent))
     if problems:
         raise RuntimeError('\n'.join(problems))
     opts.work.mkdir(parents=True, exist_ok=True)

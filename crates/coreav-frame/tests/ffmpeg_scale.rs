@@ -20,6 +20,9 @@
     clippy::indexing_slicing
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -34,17 +37,7 @@ fn max_diff(depth: u8) -> u32 {
 }
 
 fn ffmpeg() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("COREAV_FFMPEG") {
-        return Some(PathBuf::from(path));
-    }
-    let pinned = Path::new("/opt/coreav-oracle-bin/ffmpeg");
-    if pinned.is_file() {
-        return Some(pinned.to_path_buf());
-    }
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|d| d.join("ffmpeg"))
-        .find(|p| p.is_file())
+    Some(test_oracle::require().ffmpeg().to_path_buf())
 }
 
 fn ffmpeg_or_skip(what: &str) -> Option<PathBuf> {

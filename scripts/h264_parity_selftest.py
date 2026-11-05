@@ -26,6 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import h264_parity  # noqa: E402
 import h264_parity_gcp  # noqa: E402
+import oracle_pin
 PARITY = os.path.join(HERE, 'h264_parity.py')
 
 FAKE = '''#!/bin/sh
@@ -49,9 +50,17 @@ sleep $s
 def fake(root, name):
     d = os.path.join(root, name)
     os.makedirs(d)
-    path = os.path.join(d, 'run')
+    path = os.path.join(d, 'ffmpeg' if name == 'ff' else 'run')
+    program = FAKE
+    if name == 'ff':
+        build = oracle_pin.load()['BUILD']
+        program = FAKE.replace('#!/bin/sh\n', f'#!/bin/sh\nif [ "$1" = "-version" ]; then echo "ffmpeg version {build}"; exit 0; fi\n')
+        probe = os.path.join(d, 'ffprobe')
+        with open(probe, 'w') as f:
+            f.write(f'#!/bin/sh\necho "ffprobe version {build}"\n')
+        os.chmod(probe, 0o700)
     with open(path, 'w') as f:
-        f.write(FAKE)
+        f.write(program)
     os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
     return d, path
 
@@ -61,6 +70,9 @@ class Parity(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         root = self.tmp.name
         self.ff_dir, self.ff = fake(root, 'ff')
+        environment = mock.patch.dict(os.environ, COREAV_FFPROBE=os.path.join(self.ff_dir, 'ffprobe'))
+        environment.start()
+        self.addCleanup(environment.stop)
         self.dec_dir, self.dec = fake(root, 'dec')
         self.streams = []
         for n in ('a.sd.264', 'b.sd.264'):

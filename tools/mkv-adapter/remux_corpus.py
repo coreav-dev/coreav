@@ -42,6 +42,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / 'scripts'))
 import corpus  # noqa: E402
 import mkv_remux_check as checker  # noqa: E402
+import test_oracle
 
 TIMEOUT = 3600
 
@@ -207,6 +208,7 @@ def process(entry, args, env, endpoint, disk):
 
 
 def cmd_run(args):
+    test_oracle.require('ffmpeg', os.environ.get('FFPROBE', 'ffprobe'))
     out = pathlib.Path(args.out)
     (out / 'runs').mkdir(parents=True, exist_ok=True)
     pathlib.Path(args.work).mkdir(parents=True, exist_ok=True)

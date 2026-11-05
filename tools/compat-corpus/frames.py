@@ -28,6 +28,8 @@ import os
 import pathlib
 import subprocess
 import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+import test_oracle
 
 TIMEOUT = 600
 ENV = {**os.environ, 'COREAV_STRICT_SAFE': '1'}
@@ -152,6 +154,7 @@ def main():
     ap.add_argument('--report')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     opts = ap.parse_args()
+    opts.ffprobe = str(test_oracle.require(pathlib.Path(opts.ffprobe).with_name('ffmpeg'), opts.ffprobe).ffprobe)
     native = NATIVE | ({f'h264 {f}' for f in H264_PIX_FMTS} if opts.native_h264 else set())
     files = media_files(opts.media)
     names = set()

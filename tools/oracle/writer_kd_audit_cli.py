@@ -54,6 +54,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+import test_oracle
 
 WRAPPER = r'''#!/usr/bin/env python3
 import json, os, re, subprocess, sys
@@ -540,6 +541,7 @@ def main():
     parser.add_argument("--mediainfo")
     parser.add_argument("--report")
     args = parser.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     work = Path(tempfile.mkdtemp(prefix="writer-kd-audit-cli-"))
     atexit.register(shutil.rmtree, work, True)
     wrapper = work / "coreav"

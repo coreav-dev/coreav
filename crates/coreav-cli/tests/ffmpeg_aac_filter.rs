@@ -1,6 +1,9 @@
 //! AAC concat filtering stays refused until complete output is byte-exact.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -15,17 +18,9 @@ impl Drop for FixtureDir {
 
 #[test]
 fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if !ffmpeg.is_file() || !ffprobe.is_file() {
-        assert!(
-            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "set COREAV_FFMPEG to the pin"
-        );
-        return;
-    }
+    let pair = test_oracle::require();
+    let ffmpeg = pair.ffmpeg().to_path_buf();
+    let ffprobe = pair.ffprobe().to_path_buf();
     let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(format!("ffmpeg-aac-filter-{}", std::process::id()));
     std::fs::create_dir(&path).unwrap();

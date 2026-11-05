@@ -42,6 +42,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ts_speed_bars  # noqa: E402
+import test_oracle
 
 MACHINE = 'c4-standard-8'
 USD_PER_HOUR = 0.60
@@ -54,7 +55,7 @@ CAP_LIMIT = 10.0
 
 
 def job_script(run):
-    command = ['python3', 'ts_speed.py', '--coreav', './ts-speed', '--null', './ts-speed-null', '--lav', './lav/lav_ts',
+    command = ['python3', 'scripts/ts_speed.py', '--coreav', './ts-speed', '--null', './ts-speed-null', '--lav', './lav/lav_ts',
                '--core', str(CORE), '--rounds', str(run['rounds']), '--tmp', '/dev/shm', '--report', 'out/report.json']
     if run['commands']:
         command += ['--coreav-cli', './coreav', '--ffprobe', './lav/bin/ffprobe']
@@ -62,7 +63,7 @@ def job_script(run):
     return '\n'.join([
         'set -u', 'mkdir -p out', 'chmod +x ts-speed ts-speed-null lav/lav_ts' + (' coreav lav/bin/ffprobe' if run['commands'] else ''),
         '{ lscpu; nproc; uname -a; echo "smt active: $(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version;'
-        ' lav/lav_ts --identity; sha256sum ts-speed ts-speed-null lav/lav_ts lav/lib/* ts_speed.py'
+        ' lav/lav_ts --identity; sha256sum ts-speed ts-speed-null lav/lav_ts lav/lib/* scripts/*'
         + (' coreav lav/bin/ffprobe' if run['commands'] else '') + '; } > out/host.txt 2>&1',
         '{ sudo apt-get -q update && sudo DEBIAN_FRONTEND=noninteractive apt-get -q -y install linux-perf'
         ' && sudo sysctl -q kernel.perf_event_paranoid=1; } > out/perf-install.log 2>&1',
@@ -211,7 +212,7 @@ def main():
         shutil.copytree(args.lav_dir, os.path.join(up, 'lav'), symlinks=True)
         if args.coreav_cli:
             shutil.copy(args.coreav_cli, os.path.join(up, 'coreav'))
-        shutil.copy(os.path.join(HERE, 'ts_speed.py'), os.path.join(up, 'ts_speed.py'))
+        test_oracle.bundle(up, ['ts_speed.py'])
         os.makedirs(os.path.join(up, 'files'))
         for path in args.files:
             shutil.copy(path, os.path.join(up, 'files', os.path.basename(path)))

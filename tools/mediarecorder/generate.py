@@ -23,6 +23,8 @@ import urllib.parse
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1] / 'scripts'))
+import test_oracle
 
 VP8 = "video/webm;codecs=vp8,opus"
 VP9 = "video/webm;codecs=vp9,opus"
@@ -169,7 +171,7 @@ def kill(proc):
 
 def ffprobe(path):
     p = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
+        [str(test_oracle.require('ffmpeg', 'ffprobe').ffprobe), "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
         capture_output=True, text=True)
     info = {"exit": p.returncode, "stderr": p.stderr.strip()[:2000], "codecs": []}
     try:
@@ -239,6 +241,7 @@ def main():
     ap.add_argument("--chrome", default="google-chrome")
     ap.add_argument("--only", help="comma-separated config names to run")
     args = ap.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     args.out.mkdir(parents=True, exist_ok=True)
 
     matrix = MATRIX

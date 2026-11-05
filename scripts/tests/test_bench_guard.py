@@ -96,7 +96,7 @@ class FfmpegGuard(unittest.TestCase):
                     output.write_bytes(b"wrong" if fault == "bytes" else b"exact pinned output")
                     return SimpleNamespace(returncode=1 if fault == "status" else 0, stdout=b"")
 
-                with patch.object(bench_guard.shutil, "which", return_value="/pin/ffmpeg"), \
+                with patch.object(bench_guard.test_oracle, "require", return_value=SimpleNamespace(ffmpeg=pathlib.Path('/pin/ffmpeg'))), \
                      patch.object(bench_guard.subprocess, "run", side_effect=run):
                     error = bench_guard.required_refusal("coreav", command)
                 if fault is None:

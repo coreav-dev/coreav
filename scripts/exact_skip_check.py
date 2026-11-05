@@ -23,6 +23,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 import thumbnail_oracle  # noqa: E402
 
 CODECS = ('h264', 'hevc')
@@ -104,6 +105,7 @@ def main():
     p.add_argument('--report', type=pathlib.Path)
     p.add_argument('files', nargs='*', type=pathlib.Path)
     a = p.parse_args()
+    test_oracle.require(a.ffmpeg, a.ffprobe)
     files = list(a.files)
     if a.fixtures:
         files += sorted(f for f in a.fixtures.iterdir()

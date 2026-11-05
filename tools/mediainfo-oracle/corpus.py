@@ -31,6 +31,8 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(HERE))
 import mediainfo_oracle as mo  # noqa: E402
 
@@ -172,6 +174,8 @@ def check_provenance(captures, current):
 
 
 def cmd_run(args):
+    probe = pathlib.Path(os.environ.get('FFPROBE', 'ffprobe'))
+    test_oracle.require(probe.with_name('ffmpeg'), probe)
     entries = select(args.manifest, args.split, args.set.split(','))
     if args.limit:
         entries = entries[:args.limit]

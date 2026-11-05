@@ -278,7 +278,7 @@ class WrapperCollect(unittest.TestCase):
         es = self.r / 'es'
         es.mkdir()
         (es / 'a.0.sd.h264').touch()
-        for n in ('dec', 'ff', 'gate.h264'):
+        for n in ('dec', 'ff', 'ffprobe', 'gate.h264'):
             (self.r / n).touch()
         status, cmds = self.main('--out', str(self.out), '--es-dir', str(es), '--decoder', f'base={self.r / "dec"}',
                                  '--ffmpeg', str(self.r / 'ff'), '--gate-stream', str(self.r / 'gate.h264'),

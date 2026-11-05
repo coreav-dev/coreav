@@ -11,6 +11,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import oracle_pin
+import test_oracle
 
 
 def digest(path):
@@ -277,7 +278,7 @@ def main():
         args.fixtures = args.fixtures.resolve()
     if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
         raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
-    problems = list(oracle_pin.verify_bin(args.ffmpeg.parent))
+    problems = list(test_oracle.verify_bin(args.ffmpeg.parent))
     if problems:
         raise ValueError('; '.join(problems))
     out = args.output.resolve()

@@ -123,6 +123,23 @@ jobs:
       # docs/measurements/compat-ffprobe.md says what its JSON evidence
       # holds (tools/compat-corpus/record.py). It runs here, not in ci.yml,
       # because the notes it reads are behind that workflow's path filter.
+      - name: Cache the pinned test oracle
+        if: steps.result.outputs.reuse != 'true'
+        id: test-oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-test-oracle
+          key: linux-x64-test-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned test oracle
+        if: steps.result.outputs.reuse != 'true' && steps.test-oracle-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-test-oracle"
+      - name: Verify the test oracle before real Python discovery
+        if: steps.result.outputs.reuse != 'true'
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-test-oracle"
+          echo "COREAV_FFMPEG=$RUNNER_TEMP/coreav-test-oracle/ffmpeg" >> "$GITHUB_ENV"
+          echo "COREAV_FFPROBE=$RUNNER_TEMP/coreav-test-oracle/ffprobe" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/coreav-test-oracle" >> "$GITHUB_PATH"
       - name: Check the command-coverage set against its rules
         if: steps.result.outputs.reuse != 'true'
         env:

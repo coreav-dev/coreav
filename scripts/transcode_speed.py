@@ -60,6 +60,7 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import test_oracle
 import transcode_check as tc  # noqa: E402
 
 SALT = 'coreav-transcode-speed-v1:'
@@ -448,6 +449,7 @@ def main():
         rep = summarize(args.out, sel, args.classes)
         print(table(rep))
         return status(rep)
+    test_oracle.require(args.ffmpeg, args.ffprobe)
     args.arms = tc.parse_arms(args.arm, p)
     for need in ('selection', 'files', 'coreav', 'gate', 'out'):
         if not getattr(args, need):

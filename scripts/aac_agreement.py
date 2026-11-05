@@ -27,6 +27,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 SECONDS = 10
@@ -314,6 +315,7 @@ def main():
     j.add_argument('--work', type=pathlib.Path, required=True)
     j.add_argument('--out', type=pathlib.Path, required=True)
     a = parser.parse_args()
+    test_oracle.require(a.ffmpeg, getattr(a, "ffprobe", None))
     return prepare(a) if a.command == 'prepare' else judge(a)
 
 

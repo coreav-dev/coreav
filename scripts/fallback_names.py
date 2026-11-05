@@ -29,6 +29,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 import oracle_pin  # noqa: E402
+import test_oracle
 
 OUT = ROOT / 'crates/coreav-cli/src/fallback/names.rs'
 SOURCE = ROOT / 'crates/coreav-cli/src/ffprobe'
@@ -122,7 +123,7 @@ def rust_options(tool, name, found):
 
 
 def generate(bin_dir):
-    problems = list(oracle_pin.verify_bin(bin_dir))
+    problems = list(test_oracle.verify_bin(bin_dir))
     if problems:
         sys.exit('\n'.join(problems))
     ffmpeg, ffprobe = bin_dir / 'ffmpeg', bin_dir / 'ffprobe'

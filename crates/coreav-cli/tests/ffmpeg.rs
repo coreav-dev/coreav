@@ -2089,70 +2089,6 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
     }
 }
 
-fn qualify_local_oracle(pin: &Path) -> Result<(), String> {
-    let pin = std::path::absolute(pin).map_err(|error| error.to_string())?;
-    let installed = pin.with_file_name("ffmpeg");
-    if std::fs::canonicalize(&pin).map_err(|error| error.to_string())?
-        != std::fs::canonicalize(&installed).map_err(|error| error.to_string())?
-    {
-        return Err("selected FFmpeg differs from the installed oracle pair".into());
-    }
-    let verified = Command::new("python3")
-        .arg("-I")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
-        .arg("--verify-bin")
-        .arg(pin.parent().unwrap())
-        .output()
-        .map_err(|error| error.to_string())?;
-    if !verified.status.success() {
-        return Err(String::from_utf8_lossy(&verified.stderr).into_owned());
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
-fn local_oracle_qualification_rejects_unverified_executables() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let dir = oracle_scratch("ffmpeg-local-qualification");
-    let pin = dir.join("ffmpeg");
-    let probe = dir.join("ffprobe");
-    let build = include_str!("../../../scripts/oracle-ffmpeg.env")
-        .lines()
-        .find_map(|line| line.strip_prefix("BUILD="))
-        .unwrap();
-    let write = |path: &Path, body: &str| {
-        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
-    };
-    write(&pin, &format!("echo 'ffmpeg version {build}'"));
-    write(&probe, &format!("echo 'ffprobe version {build}'"));
-    qualify_local_oracle(&pin).unwrap();
-    let other = dir.join("renamed-ffmpeg");
-    write(&other, &format!("echo 'ffmpeg version {build}'"));
-    assert!(
-        qualify_local_oracle(&other)
-            .unwrap_err()
-            .contains("differs")
-    );
-    for body in [
-        "echo 'ffmpeg version 0.0.0'".to_owned(),
-        format!("echo 'ffmpeg version {build}0'"),
-        "echo malformed".to_owned(),
-        "exit 1".to_owned(),
-    ] {
-        write(&pin, &body);
-        assert!(qualify_local_oracle(&pin).is_err(), "{body}");
-    }
-    write(&pin, &format!("echo 'ffmpeg version {build}'"));
-    write(&probe, "echo 'ffprobe version 0.0.0'");
-    assert!(qualify_local_oracle(&pin).is_err());
-    std::fs::remove_file(&probe).unwrap();
-    assert!(qualify_local_oracle(&pin).is_err());
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
-}
-
 fn verify_input_seek_refusal(args: &[String], output: &Path) {
     let pin = std::env::var_os("COREAV_FFMPEG")
         .map(PathBuf::from)
@@ -2169,8 +2105,6 @@ fn verify_input_seek_refusal(args: &[String], output: &Path) {
         coreav_cli::fallback::executable(&pin),
         "stage=oracle_selection: pinned FFmpeg is not executable"
     );
-    qualify_local_oracle(&pin)
-        .unwrap_or_else(|error| panic!("stage=oracle_qualification: {error}"));
     let reference = output.with_file_name("reference.mp4");
     let directory = output.parent().unwrap();
     assert!(!output.exists(), "refusal left output before verification");
@@ -2979,8 +2913,6 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
         .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
     let ffprobe = ffmpeg.with_file_name("ffprobe");
     if ffmpeg.is_file() && ffprobe.is_file() {
-        qualify_local_oracle(&ffmpeg)
-            .unwrap_or_else(|error| panic!("stage=oracle_qualification: {error}"));
         return Some((ffmpeg, ffprobe));
     }
     let required =

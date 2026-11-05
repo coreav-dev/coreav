@@ -8,6 +8,9 @@
 
 mod support;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use coreav_audio::flac::encode::FlacSink;
 use coreav_audio::{Error, LimitKind, Limits, OutputFormat, SampleFormat, Sink};
 
@@ -103,13 +106,7 @@ fn complete_roundtrips_include_all_channels_widths_and_block_tails() {
 
 #[test]
 fn escaped_and_five_bit_files_decode_completely_with_the_independent_oracle() {
-    let Some(program) = std::env::var_os("COREAV_FFMPEG") else {
-        assert!(
-            std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "set COREAV_FFMPEG to the verified oracle"
-        );
-        return;
-    };
+    let program = test_oracle::require().ffmpeg().to_path_buf();
     for bits in [16, 24] {
         let samples: Vec<u8> = (0..4096i64)
             .flat_map(|index| {

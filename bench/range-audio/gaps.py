@@ -17,6 +17,8 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'shared'))
 from benchlib import R2  # noqa: E402
+sys.path.insert(0, str(HERE.parents[1] / 'scripts'))
+import test_oracle
 
 WINDOW = 64 << 10
 
@@ -55,6 +57,7 @@ def main():
     parser.add_argument('--stream', type=int, default=None)
     parser.add_argument('--only', default='')
     args = parser.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     files = json.loads(Path(args.inputs).read_text())['files']
     if args.only:
         files = [f for f in files if any(f['sha256'].startswith(p) for p in args.only.split(','))]

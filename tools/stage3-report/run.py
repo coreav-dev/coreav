@@ -32,6 +32,8 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(HERE))
 import causes  # noqa: E402
 import corpus  # noqa: E402
@@ -437,11 +439,13 @@ def main():
         extra_hostile.options(parser)
     args = parser.parse_args()
     work = pathlib.Path(args.work).resolve()
-    work.mkdir(parents=True, exist_ok=True)
     steps = args.steps.split(',')
     for step in steps:
         if step not in STEPS:
             sys.exit(f'unknown step {step}; steps: {", ".join(STEPS)}')
+    if set(steps) & {'fixtures', 'corpus', 'hostile'}:
+        test_oracle.require('ffmpeg', 'ffprobe')
+    work.mkdir(parents=True, exist_ok=True)
     for step in STEPS:
         if step in steps:
             print(f'== {step}', flush=True)

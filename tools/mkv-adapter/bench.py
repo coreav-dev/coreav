@@ -25,6 +25,8 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 TIMEOUT = 300
 
 
@@ -67,6 +69,7 @@ def main():
     parser.add_argument('--coreav', default=str(ROOT / 'target' / 'release' / 'coreav'))
     parser.add_argument('--adapter', default=str(ROOT / 'target' / 'release' / 'mkv-adapter'))
     args = parser.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     files = sorted(p for d in args.media for p in pathlib.Path(d).iterdir()
                    if p.suffix in ('.mkv', '.webm'))
     rows = []

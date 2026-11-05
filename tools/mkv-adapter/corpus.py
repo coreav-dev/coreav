@@ -37,6 +37,8 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(ROOT / 'tools' / 'mediainfo-oracle'))
 import mediainfo_oracle as mo  # noqa: E402
 
@@ -155,12 +157,14 @@ def process(entry, args, env, endpoint):
 
 
 def cmd_run(args):
+    probe = pathlib.Path(os.environ.get('FFPROBE', 'ffprobe'))
+    ffprobe = str(test_oracle.require(probe.with_name('ffmpeg'), probe).ffprobe)
     out = pathlib.Path(args.out)
     for sub in ('reference', 'candidate', 'mediainfo', 'runs'):
         (out / sub).mkdir(parents=True, exist_ok=True)
     pathlib.Path(args.work).mkdir(parents=True, exist_ok=True)
     provenance = out / 'PROVENANCE.json'
-    current = {'ffprobe': subprocess.run(['ffprobe', '-version'], capture_output=True, text=True).stdout.split('\n')[0],
+    current = {'ffprobe': subprocess.run([ffprobe, '-version'], capture_output=True, text=True).stdout.split('\n')[0],
                'mediainfo': subprocess.run([args.mediainfo, '--Version'], capture_output=True,
                                            text=True).stdout.strip().split('\n')[-1]}
     if provenance.exists() and json.loads(provenance.read_text()) != current:

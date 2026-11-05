@@ -15,3 +15,11 @@ Test a valid pair, a wrong version, a malformed or failed version command, a mis
 ## Scope
 
 This is oracle qualification only. It does not change runtime fallback, native admission, generated media, command registrations, comparison tolerances or measured coverage. The registered frozen harness and Python driver retain workflow-level verification because their dependency closure is immutable. FROZEN, JUDGING, their registered hashes and all their source files remain unchanged. No media corpus or performance round is needed.
+
+## Implemented boundaries
+
+Real callers use the common owner before fixture generation or comparison. Literal-only generated fixtures and mocked subprocess tests stay oracle-free; optional fixture and non-FFmpeg backend selection remains separate from oracle availability. The Linux CI job provisions its pair before any real backend test, and Python discovery provisions it before real fixture consumers. Registered macOS arm64 tests provision the existing macOS pair; other platform selections name and exclude their real oracle-dependent tests explicitly instead of treating a missing executable as a passing comparison.
+
+The owner retains both success and failure for the process, rejects a changed selection and delegates all version predicates to the existing platform verifier. The Rust adapter retains that result once per test binary. Remote source bundles retain the normal repository-relative `scripts` layout, both pin files, the common owner and its transitive local imports. Their binary selection and comparison arguments do not change. Bundle checks run with synthetic banner-only programs; no remote media or performance run is required.
+
+Registered measurement drivers remain exceptions: B4's `b4_round10.TOOL_FILES`, VP9's `CAPTURE_SCRIPTS`, audio-decode's `JUDGING_INPUTS`, and the registered H.264 PGO diagnostic and acquisition sources keep their existing pin, provenance and workflow verification. Their code and registered source rosters are unchanged. Adding an owner dependency to those drivers would change a registered source closure.

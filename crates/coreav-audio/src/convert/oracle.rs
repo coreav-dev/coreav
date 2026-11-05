@@ -1,8 +1,11 @@
 #![allow(clippy::indexing_slicing, clippy::unwrap_used)]
 
+#[path = "../../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use super::*;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn format(format: SampleFormat) -> (&'static str, &'static str) {
@@ -61,24 +64,7 @@ fn reference(
 
 #[test]
 fn sample_conversion_is_exact_against_the_pinned_oracle() {
-    let Some(ffmpeg) = std::env::var_os("COREAV_FFMPEG").map(PathBuf::from) else {
-        assert!(
-            std::env::var_os("CI").is_none(),
-            "CI requires COREAV_FFMPEG"
-        );
-        eprintln!("skipping sample conversion oracle; set COREAV_FFMPEG");
-        return;
-    };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    assert!(
-        Command::new("python3")
-            .arg(root.join("scripts/oracle_pin.py"))
-            .arg("--verify-bin")
-            .arg(ffmpeg.parent().unwrap())
-            .status()
-            .unwrap()
-            .success()
-    );
+    let ffmpeg = test_oracle::require().ffmpeg().to_path_buf();
     let formats = [
         SampleFormat::S16,
         SampleFormat::S24,

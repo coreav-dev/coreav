@@ -15,6 +15,7 @@ import tempfile
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from h264_g1_conformance import capture, compare, digest, require, same_planes, inspect_anchor
 import oracle_pin
+import test_oracle
 
 QPS = (16, 22, 28, 34, 40)
 METRICS = ('ssimulacra2', 'xpsnr_y')
@@ -373,7 +374,7 @@ def measure(args, manifest):
     require(str(pathlib.Path(tools['ffmpeg']).with_name('ffprobe')), tools['ffprobe'], 'paired pinned FFmpeg tools')
     for name, pin in manifest['tools'].items():
         require(digest(tools[name]), pin['sha256'], f'{name} executable')
-    problems = list(oracle_pin.verify_bin(pathlib.Path(tools['ffmpeg']).parent))
+    problems = list(test_oracle.verify_bin(pathlib.Path(tools['ffmpeg']).parent))
     if problems:
         raise ValueError('; '.join(problems))
     for clip in manifest['clips']:

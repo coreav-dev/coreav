@@ -100,7 +100,7 @@ class CurrentPolicy(unittest.TestCase):
                     mock.patch.object(current_ci, 'reporter', return_value=legacy), \
                     mock.patch.object(current_ci, 'refusals', side_effect=refusals), \
                     mock.patch.object(current_ci.shutil, 'which', side_effect=lambda n: '/oracle/' + n), \
-                    mock.patch.object(current_ci.oracle_pin, 'verify_bin', return_value=[]):
+                    mock.patch.object(current_ci.test_oracle, 'verify_bin', return_value=[]):
                 self.assertEqual(current_ci.main(), 1)
 
     def test_the_frozen_judging_files_keep_their_registered_hashes(self):
@@ -350,7 +350,7 @@ class PinnedOracle(unittest.TestCase):
         cls.ffmpeg, cls.ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
         if not cls.ffmpeg or not cls.ffprobe:
             raise AssertionError('fixture CI must install the pinned oracle')
-        problems = list(current_ci.oracle_pin.verify_bin(pathlib.Path(cls.ffmpeg).parent))
+        problems = list(current_ci.test_oracle.verify_bin(pathlib.Path(cls.ffmpeg).parent))
         if problems:
             raise AssertionError(problems)
         cls.env = {'PATH': os.environ.get('PATH', ''), 'GCONV_PATH': '/nonexistent/gconv'}

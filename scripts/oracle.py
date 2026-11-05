@@ -20,6 +20,9 @@ STREAM_MAP = {
 }
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
+
 def integer(value):
     return None if value is None or value == "N/A" else int(value)
 
@@ -231,6 +234,7 @@ def main():
     candidate.add_argument("--candidate-exe", type=Path)
     candidate.add_argument("--candidate-dir", type=Path)
     args = parser.parse_args()
+    test_oracle.require(args.ffmpeg, args.ffprobe)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.command == "run" and not (args.candidate_exe or args.candidate_dir):

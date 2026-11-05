@@ -22,6 +22,8 @@ import os
 import subprocess
 import sys
 import time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 
 
 def ffmpeg_frames(ffmpeg, stream, frames):
@@ -70,6 +72,7 @@ def main():
     ap.add_argument("--report")
     ap.add_argument("streams", nargs="+")
     args = ap.parse_args()
+    args.ffmpeg = str(test_oracle.require(args.ffmpeg).ffmpeg)
 
     results = []
     agree = 0

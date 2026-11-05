@@ -22,6 +22,9 @@ mod common;
 mod mkv;
 mod movies;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, LimitKind, Limits, Movie, Packet, Rational,
     SliceSource, Source, TrackKind, probe,
@@ -1116,7 +1119,7 @@ const FIXTURES: [(&str, usize); 10] = [
 ];
 
 fn ffprobe(path: &Path, args: &[&str]) -> String {
-    let out = Command::new("ffprobe")
+    let out = Command::new(test_oracle::require().ffprobe())
         .args(["-v", "error"])
         .args(args)
         .arg(path)
@@ -1281,7 +1284,7 @@ fn fixtures_present_as_the_plain_remux() {
     assert!(unsupported(replaced(&source, &own)).contains("simple model"));
     // H.264 with B-frames and AAC in Matroska, made by the oracle ffmpeg.
     let mkv_path = out.join("h264_aac.mkv");
-    let status = Command::new("ffmpeg")
+    let status = Command::new(test_oracle::require().ffmpeg())
         .args(["-hide_banner", "-loglevel", "error", "-y"])
         .args([
             "-f",

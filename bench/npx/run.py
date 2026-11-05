@@ -28,6 +28,8 @@ import time
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import test_oracle
 sys.path.insert(0, str(HERE.parent / 'shared'))
 from benchlib import R2, append_jsonl, download, machine, sha256_file, write_json  # noqa: E402
 
@@ -215,6 +217,7 @@ def main():
     parser.add_argument('--cache', default='/tmp/npx-cache')
     parser.add_argument('--path', choices=('native', 'wasi'), default='native')
     args = parser.parse_args()
+    test_oracle.require('ffmpeg', 'ffprobe')
     native = os.environ.get('COREAV_BIN')
     if not native or not MODULE.exists() or not (NATIVE_PACKAGE / 'bin' / 'coreav').exists():
         raise SystemExit('needs COREAV_BIN, packages/cli/scripts/build.sh and scripts/platform.sh linux-x64')

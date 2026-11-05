@@ -10,7 +10,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from oracle_pin import verify_bin
+from test_oracle import verify_bin
 
 RATES = [(44100, 48000), (44100, 22050), (44100, 16000),
          (48000, 44100), (48000, 22050), (48000, 16000),

@@ -16,6 +16,9 @@
 #[allow(dead_code)]
 mod schema;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,7 +77,7 @@ mod with_ffmpeg {
     use super::*;
 
     fn ffmpeg(args: &[&str]) {
-        let status = Command::new("ffmpeg")
+        let status = Command::new(test_oracle::require().ffmpeg())
             .args(["-hide_banner", "-loglevel", "error", "-y"])
             .args(args)
             .status()
@@ -83,7 +86,7 @@ mod with_ffmpeg {
     }
 
     fn rgb(path: &Path) -> Vec<u8> {
-        let out = Command::new("ffmpeg")
+        let out = Command::new(test_oracle::require().ffmpeg())
             .args(["-v", "error", "-i"])
             .arg(path)
             .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])

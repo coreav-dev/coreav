@@ -23,6 +23,9 @@
 
 mod stream;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -161,6 +164,9 @@ fn run(args: &[String]) -> Result<Value, String> {
         args: vec![coreav_worker::WORKER_ARG.into()],
     });
     worker.transfer = transfer;
+    if !native && backend == WorkerBackend::Ffmpeg {
+        worker.ffmpeg = Some(test_oracle::require().ffmpeg().to_path_buf());
+    }
     // The worker options' cap would otherwise hold the budget below it.
     if max_memory.is_some() {
         worker.address_space = max_memory;
@@ -185,7 +191,7 @@ fn run(args: &[String]) -> Result<Value, String> {
     } else if in_process && backend == WorkerBackend::Libvpx {
         in_process_libvpx(&stream, &options.decode_limits)?
     } else if in_process {
-        let program = coreav_worker::find_ffmpeg().ok_or("no ffmpeg")?;
+        let program = test_oracle::require().ffmpeg().to_path_buf();
         let options = coreav_backend_ffmpeg::FfmpegOptions {
             program,
             threads: None,
@@ -326,10 +332,14 @@ fn run_thumbnail(args: &[String]) -> Result<Value, String> {
     let program = std::env::current_exe().map_err(|e| e.to_string())?;
     let sandboxed = SandboxedBackend {
         backend,
-        options: WorkerOptions::new(WorkerCommand {
-            program,
-            args: vec![coreav_worker::WORKER_ARG.into()],
-        }),
+        options: WorkerOptions {
+            ffmpeg: (backend == WorkerBackend::Ffmpeg && !in_process)
+                .then(|| test_oracle::require().ffmpeg().to_path_buf()),
+            ..WorkerOptions::new(WorkerCommand {
+                program,
+                args: vec![coreav_worker::WORKER_ARG.into()],
+            })
+        },
     };
     let in_process_backend = in_process_dav1d_backend()?;
     let backends: [&dyn Backend; 1] = if in_process {

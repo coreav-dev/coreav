@@ -13,7 +13,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
-from oracle_pin import load, verify_bin
+from oracle_pin import load
+from test_oracle import verify_bin
 
 
 def run(args, *, env=None):

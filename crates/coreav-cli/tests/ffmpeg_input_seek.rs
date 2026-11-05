@@ -1,6 +1,9 @@
 //! Input-seek copies retain exact packet timing or refuse before publication.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -53,17 +56,9 @@ fn pixels(path: &Path, ffmpeg: &Path) -> Vec<u8> {
 
 #[test]
 fn input_seek_copy_keeps_only_exact_packet_timelines() {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if !ffmpeg.is_file() || !ffprobe.is_file() {
-        assert!(
-            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
-            "no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)"
-        );
-        return;
-    }
+    let pair = test_oracle::require();
+    let ffmpeg = pair.ffmpeg().to_path_buf();
+    let ffprobe = pair.ffprobe().to_path_buf();
     let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(format!("ffmpeg-input-seek-{}", std::process::id()));
     std::fs::create_dir(&path).unwrap();

@@ -144,6 +144,7 @@ from fractions import Fraction
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import test_oracle
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import composed_audio
 
@@ -1911,6 +1912,7 @@ def main():
         p.error('--coreav and at least one --arm are required')
     if not args.ffmpeg or not args.ffprobe:
         p.error('ffmpeg and ffprobe are required (--ffmpeg, --ffprobe)')
+    test_oracle.require(args.ffmpeg, args.ffprobe)
     global ENV
     ENV = child_env(args.ffmpeg)
     if identity is not None:
