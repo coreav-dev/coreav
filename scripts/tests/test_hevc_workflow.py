@@ -10,6 +10,19 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_packet_comparison_reuses_the_complete_private_census(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        job = (root / '.github/workflows/hevc-conformance.yml').read_text().split('  profile-census:\n', 1)[1]
+        command = job.split('python3 -I scripts/hevc_conformance.py corpus-online', 1)[1].split('\n      - name:', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[arguments.index('--packet-native') + 1], '$PWD/target/release/examples/packets')
+        for option, expected in [('--decode-memory-bytes', 1 << 30), ('--stream-bins', 1 << 40),
+                                 ('--picture-bins', 1 << 28)]:
+            self.assertEqual(int(arguments[arguments.index(option) + 1]), expected)
+        self.assertIn('--example packets', job)
+        self.assertIn("summary['packet_decode']", job)
+        self.assertIn('tar -czf records.tgz private', job)
+
     def test_complete_scalar_comparison_uses_the_full_current_census(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()

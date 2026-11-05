@@ -455,16 +455,18 @@ def manifest(args):
     write_json(args.out, data)
 
 
-def child_limits(file_limit=CAPTURE_CAP):
+def child_limits(file_limit=CAPTURE_CAP, cpu_seconds=None):
     resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))
     resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_CPU, (TIMEOUT, TIMEOUT))
+    cpu_seconds = TIMEOUT if cpu_seconds is None else cpu_seconds
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
 
 
-def child(command, directory, label, *, file_limit=CAPTURE_CAP):
+def child(command, directory, label, *, file_limit=CAPTURE_CAP, timeout=None):
     require(sys.platform == 'linux', 'hostile subprocesses require Linux limits')
     require(integer(file_limit) and CAPTURE_CAP <= file_limit <= 4 << 30, 'invalid subprocess file limit')
+    require(timeout is None or integer(timeout, 1) and timeout <= 1800, 'invalid subprocess timeout')
     directory.mkdir(parents=True, exist_ok=True)
     stdout, stderr = directory / f'{label}.stdout', directory / f'{label}.stderr'
     environment = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR')}
@@ -472,9 +474,10 @@ def child(command, directory, label, *, file_limit=CAPTURE_CAP):
     with stdout.open('wb') as out, stderr.open('wb') as err:
         process = subprocess.Popen(list(map(str, command)), stdout=out, stderr=err,
                                    env=environment, start_new_session=True,
-                                   preexec_fn=functools.partial(child_limits, file_limit))
+                                   preexec_fn=functools.partial(child_limits, file_limit) if timeout is None
+                                   else functools.partial(child_limits, file_limit, timeout))
         try:
-            code = process.wait(timeout=TIMEOUT)
+            code = process.wait(timeout=TIMEOUT if timeout is None else timeout)
         except BaseException:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
@@ -1196,6 +1199,10 @@ def fetch_corpus(args, inspect=False):
     files = roster()
     if inspect:
         require(not list(oracle_pin.verify_bin(args.oracle_bin)), 'pinned oracle binaries are required')
+        if getattr(args, 'packet_native', None):
+            require(args.parser and args.packet_native.is_file() and args.parser.is_file()
+                    and 0 < args.decode_memory_bytes <= 4 << 30
+                    and 0 < args.picture_bins <= args.stream_bins < 1 << 64, 'invalid complete-decode options')
     pool = round_files.pool()
     from r2pool import Limits
     pool.limits = Limits(requests=4000, bytes_=32 << 30)
@@ -1244,7 +1251,10 @@ def fetch_corpus(args, inspect=False):
                     try:
                         options = dict(native=args.native, parser=args.parser,
                                        max_memory_bytes=args.max_memory_bytes, max_bins=args.max_bins) if getattr(args, 'native', None) else None
-                        records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options)
+                        complete = dict(native=args.packet_native, parser=args.parser,
+                                        max_memory_bytes=args.decode_memory_bytes,
+                                        max_stream_bins=args.stream_bins, max_picture_bins=args.picture_bins) if getattr(args, 'packet_native', None) else None
+                        records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options, complete=complete)
                         write_json(args.out / 'corpus-census.json', corpus_result(records))
                     finally:
                         path.unlink(missing_ok=True)
@@ -1254,7 +1264,7 @@ def fetch_corpus(args, inspect=False):
         pool.close()
 
 
-def corpus_record(item, path, directory, oracle_bin, *, intra=None):
+def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=None):
     record = dict(item)
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
@@ -1278,11 +1288,21 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None):
             import hevc_intra
             record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle_bin, **intra)
             record['admission'] = 'first independent IRAP validated; full decode not established'
+        if complete:
+            import hevc_decode
+            scope_refusal = (record['profile'] not in ('Main', 'Main 10') or record['bit_depth'] not in (8, 10)
+                             or record['field_order'] not in (None, 'unknown', 'progressive'))
+            record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], oracle_bin,
+                                                       scope_refusal=scope_refusal, **complete)
+            record['admission'] = 'expected profile refusal' if 'expected_refusal' in record['decode'] else 'complete packet comparison'
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
         report = directory / item['sha256'] / 'intra.json'
         if intra and item['partition'] == 'development' and report.exists():
             record['intra'] = read_json(report)
+        report = directory / item['sha256'] / 'decode.json'
+        if complete and report.exists():
+            record['decode'] = read_json(report)
     return record
 
 
@@ -1306,6 +1326,21 @@ def corpus_result(records):
                 refusals[reason] += 1
         result['development_intra']['native_refusals'] = dict(refusals)
         result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
+    selected = [r for r in records if 'decode' in r]
+    if selected:
+        result['packet_decode'] = dict(expected=54, completed=sum(r['decode'].get('complete') is True for r in selected),
+            profile_refusals=sum('expected_refusal' in r['decode'] for r in selected),
+            prefix_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 120
+                               for r in selected for arm in r['decode'].get('results', [])),
+            eof_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 0
+                            for r in selected for arm in r['decode'].get('results', [])))
+        result['complete'] &= len(selected) == 54 and result['packet_decode']['completed'] == 54
+        for record in selected:
+            decode = record['decode']
+            arms = decode.get('results', [])
+            required = set() if 'expected_refusal' in decode else {120, 0} if 'b5' in record['sets'] else {120}
+            result['complete'] &= (len(arms) == len(required) and {arm['packet_limit'] for arm in arms} == required
+                                   and all(arm.get('complete') is True for arm in arms))
     return result
 
 
@@ -1351,6 +1386,10 @@ def main():
     online_parser.add_argument('--parser', type=pathlib.Path)
     online_parser.add_argument('--max-memory-bytes', type=int, default=256 << 20)
     online_parser.add_argument('--max-bins', type=int, default=1 << 28)
+    online_parser.add_argument('--packet-native', type=pathlib.Path)
+    online_parser.add_argument('--decode-memory-bytes', type=int, default=1 << 30)
+    online_parser.add_argument('--stream-bins', type=int, default=1 << 40)
+    online_parser.add_argument('--picture-bins', type=int, default=1 << 28)
     args = parser.parse_args()
     try:
         {'acquire': acquire, 'manifest': manifest, 'run': run,

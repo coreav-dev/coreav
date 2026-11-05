@@ -46,6 +46,8 @@ pub struct PictureOrder {
     pub output: bool,
     /// NoRaslOutputFlag of this picture's associated IRAP.
     pub no_rasl_output: bool,
+    /// Included in the target decoding set, before any sample reconstruction.
+    pub reconstruction_required: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -421,6 +423,7 @@ impl Dpb {
                 poc,
                 output: false,
                 no_rasl_output: self.irap.is_some_and(|i| i.no_rasl),
+                reconstruction_required: false,
             });
         }
         let prior_output_max = if irap && !no_rasl {
@@ -451,6 +454,7 @@ impl Dpb {
                 poc,
                 output: false,
                 no_rasl_output: true,
+                reconstruction_required: false,
             });
         }
         let highest = highest as usize;
@@ -616,6 +620,7 @@ impl Dpb {
         Ok(PictureOrder {
             poc,
             output,
+            reconstruction_required: true,
             no_rasl_output: if irap {
                 no_rasl
             } else {
@@ -1814,7 +1819,8 @@ mod tests {
             PictureOrder {
                 poc: 5,
                 output: false,
-                no_rasl_output: true
+                no_rasl_output: true,
+                reconstruction_required: false,
             }
         );
         push(&mut dpb, 1, &header(9, &[(-1, true)]), &s)?;

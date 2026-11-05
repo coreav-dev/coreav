@@ -32,12 +32,14 @@ class CompleteDecode(unittest.TestCase):
         budgets = dict(max_memory_bytes=1 << 20, max_stream_bins=100, max_picture_bins=50)
         summary = dict(type='summary', complete=True, headers=copy.deepcopy(headers), decoded_pictures=1,
                        skipped_pictures=0, stats=copy.deepcopy(stats), inter=copy.deepcopy(inter), memory_bytes=700000,
+                       skipped_picture_hashes=0, skipped_reserved_hashes=0,
                        input_bytes=123, input_capacity=123, input_byte_limit=runner.intra.INPUT_CAP,
                        max_nal_bytes=runner.intra.NAL_CAP, **budgets, output_pictures=1,
                        output_bytes=384 * sample_bytes, output_md5=digest)
         return dict(pictures=[picture], summary=summary, expected=[geometry],
                     outputs=[dict(picture_index=0, poc=0)], references=[dict(output_index=0, bytes=384 * sample_bytes, md5=digest)],
-                    header_summary=headers, source_size=123, published_md5=digest, budgets=budgets)
+                    header_summary=headers, source_size=123, published_md5=digest, budgets=budgets,
+                    dispositions=dict(pictures=[], skipped_picture_hashes=0, skipped_reserved_hashes=0))
 
     def test_complete_packing_and_counts_at_both_depths(self):
         for depth in (8, 10):
@@ -134,6 +136,146 @@ class CompleteDecode(unittest.TestCase):
             path.write_text('{"type":"summary","type":"summary","complete":true}\n')
             with self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
                 runner.records(path)
+
+
+class PacketDecode(unittest.TestCase):
+    def test_only_explicitly_suppressed_rasl_hashes_are_not_sample_checks(self):
+        pictures = [dict(picture_index=0, poc=0, nal_type=19, reconstruction_required=True),
+                    dict(picture_index=1, poc=-1, nal_type=9, no_rasl_output=True, reconstruction_required=False),
+                    dict(picture_index=2, poc=1, nal_type=1, pic_output_flag=False, reconstruction_required=True)]
+        rows = [dict(kind='nal', nal_type=40, picture_index=i, picture_hash=True, reserved_hashes=0) for i in range(3)]
+        rows.append(dict(kind='nal', nal_type=40, picture_index=1, picture_hash=False, reserved_hashes=1))
+        accounting = runner.hash_dispositions(rows, pictures)
+        self.assertEqual([p['picture_index'] for p in accounting['pictures']], [1])
+        self.assertEqual(accounting['skipped_picture_hashes'], 1)
+        self.assertEqual(accounting['skipped_reserved_hashes'], 1)
+        for key, value in [('no_rasl_output', False), ('nal_type', 1)]:
+            invalid = copy.deepcopy(pictures)
+            invalid[1][key] = value
+            with self.assertRaises(ValueError):
+                runner.hash_dispositions(rows, invalid)
+        fixture = CompleteDecode().fixture()
+        fixture['expected'] *= 3
+        fixture['dispositions'] = accounting
+        fixture['summary'].update(decoded_pictures=2, skipped_pictures=1, skipped_picture_hashes=1, skipped_reserved_hashes=1)
+        fixture['summary']['stats']['picture_hashes'] = 2
+        fixture['header_summary'].update(pictures=3, picture_hashes=3, reserved_hashes=1)
+        fixture['summary']['headers'] = copy.deepcopy(fixture['header_summary'])
+        runner.validate(**fixture)
+        for key in ('skipped_picture_hashes', 'skipped_reserved_hashes'):
+            bad = copy.deepcopy(fixture)
+            bad['summary'][key] = 0
+            with self.assertRaises(ValueError):
+                runner.validate(**bad)
+        bad = copy.deepcopy(fixture)
+        bad['summary']['stats']['picture_hashes'] = 1
+        with self.assertRaises(ValueError):
+            runner.validate(**bad)
+
+    def fixture(self):
+        fixture = CompleteDecode().fixture()
+        pictures = [copy.deepcopy(fixture['pictures'][0]) for _ in range(2)]
+        for index, picture in enumerate(pictures):
+            picture.update(picture_index=index, timestamp=[10, 30][index])
+        summary = copy.deepcopy(fixture['summary'])
+        summary.update(output_pictures=2, decoded_pictures=2, output_bytes=768)
+        summary['headers'].update(output_pictures=2, pictures=2)
+        pts = [10, 30] + list(range(40, 1230, 10))
+        pts[-1] = 15
+        oracle = [dict(pts=str(time), pos=str(index * 10), size='4', data_hash='SHA256:' + '0' * 64)
+                  for index, time in enumerate(pts)]
+        stream = dict(type='stream', container='mp4', length_size=4, stream_index=2,
+                      max_packet_bytes=64 << 20, max_packets=1_000_000,
+                      time_base=dict(num='1', den=1000), packet_count=121, sent_packets=120,
+                      clock='container_presentation_ticks_nearest_away', cutoff=15)
+        packets = [dict(type='packet', index=index, sent=index < 120, pts=time, media_pts=time + 5,
+                        presented=True, offset=index * 10, size=4) for index, time in enumerate(pts)]
+        payloads = [dict(type='payload', index=index, bytes=4, stored_sha256='0' * 64) for index in range(120)]
+        return [stream, *packets, *payloads, *pictures, summary], oracle, dict(index=2, time_base='1/1000')
+
+    def parse(self, rows, oracle, stream):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'records.jsonl'
+            path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+            return runner.packet_records(path, oracle, stream, 120)
+
+    def test_unsent_metadata_cutoff_follows_the_preserved_packet_clock(self):
+        rows, oracle, stream = self.fixture()
+        _, summary, pictures, selected = self.parse(rows, oracle, stream)
+        self.assertEqual(summary['output_pictures'], 2)
+        self.assertEqual([p['timestamp'] for p in pictures], [10, 30])
+        self.assertEqual([p['timestamp'] for p in selected], [10])
+
+    def test_packet_clock_payload_identity_and_completion_are_binding(self):
+        mutations = [(0, 'cutoff', 16), (0, 'time_base', dict(num='1', den=500)),
+                     (1, 'pts', 11), (1, 'offset', 1), (1, 'index', False),
+                     (122, 'stored_sha256', '1' * 64), (122, 'bytes', 0),
+                     (-3, 'timestamp', None), (-1, 'complete', False), (-1, 'output_pictures', 1)]
+        for index, key, value in mutations:
+            with self.subTest(index=index, key=key):
+                rows, oracle, stream = self.fixture()
+                rows[index][key] = value
+                with self.assertRaises(ValueError):
+                    self.parse(rows, oracle, stream)
+        rows, oracle, stream = self.fixture()
+        del rows[122]
+        with self.assertRaises(ValueError):
+            self.parse(rows, oracle, stream)
+
+    def test_integer_pts_packing_and_frame_samples_are_compared_in_order(self):
+        fixture = CompleteDecode().fixture(10)
+        picture = dict(fixture['pictures'][0], timestamp=-2)
+        reference = dict(pts=-2, width=16, height=16, bit_depth=10, bytes=768,
+                         md5=picture['output_md5'])
+        self.assertEqual(runner.compare_packet_pictures([picture], [reference], None), 1)
+        for key, value in [('timestamp', -1), ('width', 8), ('height', 32), ('bit_depth', 8),
+                           ('output_bytes', 384), ('output_md5', '1' * 32)]:
+            with self.subTest(key=key):
+                changed = dict(picture, **{key: value})
+                with self.assertRaises(ValueError):
+                    runner.compare_packet_pictures([changed], [reference], None)
+        with self.assertRaises(ValueError):
+            runner.compare_packet_pictures([picture], [reference], -3)
+
+    def test_oracle_demux_time_base_and_integer_pts_are_independently_checked(self):
+        digest = hashlib.md5(bytes(384)).hexdigest()
+        text = ('#hash: MD5\n#codec_id 0: rawvideo\n#media_type 0: video\n#tb 0: 1/1000\n'
+                f'0, -2, -2, 1, 384, {digest}\n')
+        frames = [dict(pts=-2, width=16, height=16, pix_fmt='yuv420p')]
+        rows = runner.presentation_hashes(text, frames, '1/1000')
+        self.assertEqual(rows[0]['pts'], -2)
+        with self.assertRaises(ValueError):
+            runner.presentation_hashes(text, frames, '1/500')
+        with self.assertRaises(ValueError):
+            runner.presentation_hashes(text, [dict(frames[0], pts=-1)], '1/1000')
+
+    def test_prefix_geometry_stops_near_the_original_prefix_not_the_whole_file(self):
+        packets = [dict(pts=str(i * 40), dts=str(i * 40 - 80)) for i in range(184)]
+        packets.append(dict(pts='10800000', dts='10800000'))
+        self.assertEqual(runner.geometry_end(packets, '1/1000'), '%8.320000')
+        self.assertEqual(runner.geometry_end([dict(pts='1', dts='0')], '1/3'), '%1.333334')
+        digest = hashlib.md5(bytes(384)).hexdigest()
+        text = ('#hash: MD5\n#codec_id 0: rawvideo\n#media_type 0: video\n#tb 0: 1/1000\n'
+                f'0, 10, 10, 1, 384, {digest}\n0, 30, 30, 1, 384, {digest}\n')
+        frames = [dict(pts=10, width=16, height=16, pix_fmt='yuv420p')]
+        self.assertEqual(len(runner.presentation_timestamps(text, '1/1000')), 2)
+        self.assertEqual(len(runner.presentation_hashes(text, frames, '1/1000', 20)), 1)
+        with self.assertRaises(ValueError):
+            runner.presentation_hashes(text, [], '1/1000', 20)
+
+    def test_all_roster_identities_and_each_b5_eof_arm_are_required(self):
+        files = [dict(item, status='inspected', profile='Main', bit_depth=8,
+                      decode=dict(complete=True, results=[dict(packet_limit=120, complete=True)]
+                          + ([dict(packet_limit=0, complete=True)] if 'b5' in item['sets'] else [])))
+                 for item in runner.harness.roster()]
+        summary = runner.harness.corpus_result(files)
+        self.assertTrue(summary['complete'])
+        self.assertEqual(summary['packet_decode']['prefix_matches'], 54)
+        self.assertEqual(summary['packet_decode']['eof_matches'], 8)
+        changed = copy.deepcopy(files)
+        next(row for row in changed if 'b5' in row['sets'])['decode']['results'].pop()
+        self.assertFalse(runner.harness.corpus_result(changed)['complete'])
+        self.assertFalse(runner.harness.corpus_result(files[:-1])['complete'])
 
 
 if __name__ == '__main__':

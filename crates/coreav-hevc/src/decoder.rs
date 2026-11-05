@@ -57,6 +57,11 @@ pub struct DecodeSummary {
     pub decoded_pictures: u64,
     /// Temporally extracted or suppressed RASL pictures with no reconstructed samples.
     pub skipped_pictures: u64,
+    /// Defined hash messages attached to pictures outside the target decoding set.
+    /// These messages have no reconstructed samples and receive no checked-hash credit.
+    pub skipped_picture_hashes: u64,
+    /// Reserved hash messages attached to pictures outside the target decoding set.
+    pub skipped_reserved_hashes: u64,
     /// Work and checked hashes over all reconstructed pictures, not only outputs.
     pub reconstruction: IntraStats,
     /// Effective inter work over all reconstructed pictures.
@@ -341,9 +346,20 @@ impl<F: FnMut(DecodedPicture<'_>) -> Result<()>> PictureObserver for Observer<'_
                 .ok_or(Error::Limit("reconstruction_memory"))?;
             let peak = frame.hash(info, fixed, self.pictures.limits.max_memory_bytes)?;
             self.pictures.summary.memory_bytes = self.pictures.summary.memory_bytes.max(peak);
-        } else if self.pictures.skipped.is_none()
-            && (info.picture_hash.is_some() || info.reserved_hashes != 0)
-        {
+        } else if self.pictures.skipped.is_some() {
+            self.pictures.summary.skipped_picture_hashes = self
+                .pictures
+                .summary
+                .skipped_picture_hashes
+                .checked_add(u64::from(info.picture_hash.is_some()))
+                .ok_or(Error::Limit("decode_work_count"))?;
+            self.pictures.summary.skipped_reserved_hashes = self
+                .pictures
+                .summary
+                .skipped_reserved_hashes
+                .checked_add(u64::from(info.reserved_hashes))
+                .ok_or(Error::Limit("decode_work_count"))?;
+        } else if info.picture_hash.is_some() || info.reserved_hashes != 0 {
             return Err(Error::InvalidData("picture_hash_without_samples"));
         }
         Ok(())
@@ -484,6 +500,59 @@ fn add_counts<const N: usize>(target: &mut [u64; N], source: [u64; N]) -> Result
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn skipped_hash_messages_never_receive_checked_sample_credit() -> Result<()> {
+        let mut decoder = PictureDecoder::new(DecodeLimits::default());
+        decoder.initialize()?;
+        let fixed = decoder.fixed_memory()?;
+        let session = decoder
+            .session
+            .first_mut()
+            .ok_or(Error::InvalidData("test_session"))?;
+        session.pictures.skipped = Some(7);
+        let mut emit = |_: DecodedPicture<'_>| Err(Error::InvalidData("unexpected_output"));
+        let mut observer = Observer {
+            pictures: &mut session.pictures,
+            fixed,
+            incoming_timestamp: None,
+            emit: &mut emit,
+        };
+        let mut dpb = Dpb::new_reconstruction();
+        let defined = SeiInfo {
+            messages: 1,
+            picture_hash: Some(crate::PictureHash::Crc([[0; 2]; 3])),
+            reserved_hashes: 0,
+        };
+        observer.sei(defined, &dpb, 0)?;
+        observer.sei(
+            SeiInfo {
+                messages: 1,
+                reserved_hashes: 1,
+                ..SeiInfo::default()
+            },
+            &dpb,
+            0,
+        )?;
+        assert_eq!(observer.pictures.summary.skipped_picture_hashes, 1);
+        assert_eq!(observer.pictures.summary.skipped_reserved_hashes, 1);
+        assert_eq!(observer.pictures.summary.reconstruction.picture_hashes, 0);
+        assert_eq!(observer.pictures.summary.reconstruction.reserved_hashes, 0);
+        observer.boundary(&mut dpb, 0)?;
+        assert_eq!(
+            observer.sei(defined, &dpb, 0),
+            Err(Error::InvalidData("picture_hash_without_samples"))
+        );
+        observer.pictures.skipped = Some(8);
+        observer.pictures.summary.skipped_picture_hashes = u64::MAX;
+        assert_eq!(
+            observer.sei(defined, &dpb, 0),
+            Err(Error::Limit("decode_work_count"))
+        );
+        Ok(())
+    }
+
     #[test]
     fn construction_keeps_parameter_slots_off_the_callers_stack() {
         assert!(core::mem::size_of::<super::PictureDecoder>() <= 128);

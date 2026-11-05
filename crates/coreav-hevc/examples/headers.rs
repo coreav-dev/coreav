@@ -78,6 +78,8 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
                 let additions = json!({"first_slice_segment_in_pic_flag":h.first,
                     "dependent_slice_segment_flag":h.dependent,"picture_index":picture_index,
                     "poc":order.map(|x| x.poc),"poc_lsb":h.poc_lsb,"slice_type":h.slice_type,
+                    "no_rasl_output":order.map(|x|x.no_rasl_output),
+                    "reconstruction_required":order.map(|x|x.reconstruction_required),
                     "pic_output_flag":h.output,"slice_qp_y":h.slice_qp_y,
                     "deblock_offsets":h.deblock_offsets,"loop_filter_slices":h.loop_filter_slices,
                     "chroma_qp_offsets":h.chroma_qp_offsets,"cabac_init_flag":h.cabac_init_flag,
@@ -129,6 +131,14 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
             }
             NalInfo::Sei(info) => {
                 if let Some(value) = value.as_object_mut() {
+                    value.insert(
+                        "picture_index".into(),
+                        json!(if header.unit_type == 40 {
+                            picture_index
+                        } else {
+                            None
+                        }),
+                    );
                     value.insert("sei_messages".into(), json!(info.messages));
                     value.insert("picture_hash".into(), json!(info.picture_hash.is_some()));
                     value.insert(

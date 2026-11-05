@@ -8,10 +8,12 @@ import pathlib
 import re
 import subprocess
 import sys
+from fractions import Fraction
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_conformance as harness
 import hevc_intra as intra
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 INTER_COUNTERS = ('skip_units', 'prediction_units', 'p_units', 'b_units', 'bi_units',
                   'merge_units', 'amvp_lists', 'temporal_units', 'weighted_units',
@@ -80,7 +82,32 @@ def counters(stats, inter, memory, bins):
             'native_strength_accounting')
 
 
-def validate(pictures, summary, expected, outputs, references, header_summary, source_size, published_md5, budgets):
+def hash_dispositions(rows, pictures):
+    skipped = []
+    for picture in pictures:
+        require(type(picture.get('reconstruction_required')) is bool, 'picture_decode_disposition')
+        if not picture['reconstruction_required']:
+            require(picture['nal_type'] in (8, 9) and picture.get('no_rasl_output') is True,
+                    'unexpected_extracted_picture')
+            skipped.append(dict(picture_index=picture['picture_index'], poc=picture['poc'],
+                                nal_type=picture['nal_type'], reason='suppressed_rasl'))
+    indices = {picture['picture_index'] for picture in skipped}
+    defined = reserved = 0
+    for row in rows:
+        if row.get('kind') != 'nal' or row.get('nal_type') != 40:
+            continue
+        if row.get('picture_hash') or row.get('reserved_hashes', 0):
+            require(harness.integer(row.get('picture_index')) and row['picture_index'] < len(pictures),
+                    'hash_coded_picture_identity')
+        if row.get('picture_index') in indices:
+            require(type(row.get('picture_hash')) is bool and harness.integer(row.get('reserved_hashes')),
+                    'skipped_hash_disposition')
+            defined += int(row['picture_hash'])
+            reserved += row['reserved_hashes']
+    return dict(pictures=skipped, skipped_picture_hashes=defined, skipped_reserved_hashes=reserved)
+
+
+def validate(pictures, summary, expected, outputs, references, header_summary, source_size, published_md5, budgets, dispositions):
     require(isinstance(summary.get('headers'), dict)
             and all(harness.integer(summary['headers'].get(key))
                     and summary['headers'][key] == header_summary[key] for key in HEADERS),
@@ -92,6 +119,7 @@ def validate(pictures, summary, expected, outputs, references, header_summary, s
             and summary['input_capacity'] <= intra.NAL_CAP + 65536 + 8
             and all(summary.get(key) == value for key, value in budgets.items()), 'native_budget_identity')
     require(harness.integer(summary.get('decoded_pictures')) and harness.integer(summary.get('skipped_pictures'))
+            and summary['skipped_pictures'] == len(dispositions['pictures'])
             and summary['decoded_pictures'] + summary['skipped_pictures'] == len(expected)
             and summary['decoded_pictures'] >= len(outputs)
             and harness.integer(summary.get('memory_bytes'), 1)
@@ -103,8 +131,11 @@ def validate(pictures, summary, expected, outputs, references, header_summary, s
             and harness.integer(summary.get('output_bytes'), 1)
             and summary['output_bytes'] == sum(p['output_bytes'] for p in pictures), 'native_published_whole_output')
     counters(summary['stats'], summary['inter'], budgets['max_memory_bytes'], budgets['max_stream_bins'])
-    require((summary['stats']['picture_hashes'], summary['stats']['reserved_hashes'])
-            == (header_summary['picture_hashes'], header_summary['reserved_hashes']), 'native_complete_coded_hashes')
+    for skipped, checked, total in [('skipped_picture_hashes', 'picture_hashes', 'picture_hashes'),
+                                    ('skipped_reserved_hashes', 'reserved_hashes', 'reserved_hashes')]:
+        require(harness.integer(summary.get(skipped)) and summary[skipped] == dispositions[skipped]
+                and summary['stats'][checked] + summary[skipped] == header_summary[total],
+                'native_complete_coded_hashes')
     for index, (picture, output, reference) in enumerate(zip(pictures, outputs, references)):
         require(harness.integer(picture.get('picture_index')) and picture['picture_index'] == output['picture_index']
                 and type(picture.get('poc')) is int and picture['poc'] == output['poc']
@@ -265,6 +296,9 @@ def run(args):
                 require(source.stat().st_size <= harness.BITSTREAM_CAP
                         and harness.digest(source) == entry['sha256'], 'source_identity')
                 header_summary, expected, outputs = harness.native_rows(stream['directory'] / 'native.stdout', source.read_bytes())
+                header_rows = [json.loads(line, object_pairs_hook=harness.unique_object)
+                               for line in (stream['directory'] / 'native.stdout').read_text().splitlines()]
+                hash_accounting = hash_dispositions(header_rows, expected)
                 frames = harness.read_json(stream['directory'] / 'frames.stdout')['frames']
                 references = stream['record']['reference_frames']
                 oracle_source = source
@@ -288,8 +322,9 @@ def run(args):
                 require(len(published) == 1 and published[0]['md5'] == stream['record']['reference_packing']['md5'],
                         'published_whole_output_anchor')
                 validate(pictures, summary, expected, outputs, references, header_summary, source.stat().st_size,
-                         published[0]['md5'], budgets)
+                         published[0]['md5'], budgets, hash_accounting)
                 entry.update(complete=True, stage='complete', pictures=pictures,
+                             hash_dispositions=hash_accounting,
                              reference_packing=stream['record']['reference_packing'], references=references,
                              reordered=[row['picture_index'] for row in outputs]
                              != sorted(row['picture_index'] for row in outputs))
@@ -334,6 +369,264 @@ def run(args):
         harness.write_json(args.out / 'result.json', result)
     require(result['passed'], 'complete_stream_comparison_failed')
     return result
+
+
+def packet_records(path, oracle_packets, oracle_stream, limit):
+    rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in path.read_text().splitlines()]
+    require(rows and all(isinstance(row, dict) for row in rows)
+            and rows[0].get('type') == 'stream' and rows[-1].get('type') == 'summary'
+            and rows[-1].get('complete') is True, 'packet_complete_records')
+    stream, summary = rows[0], rows[-1]
+    require(stream.get('container') in ('mp4', 'matroska')
+            and harness.integer(stream.get('length_size'), 1) and stream['length_size'] <= 4,
+            'packet_stream_shape')
+    require(all(harness.integer(stream.get(key)) for key in ('stream_index', 'packet_count', 'sent_packets'))
+            and stream.get('max_packet_bytes') == 64 << 20 and stream.get('max_packets') == 1_000_000
+            and isinstance(stream.get('time_base'), dict)
+            and isinstance(stream['time_base'].get('num'), str)
+            and re.fullmatch('[1-9][0-9]{0,19}', stream['time_base']['num'])
+            and harness.integer(stream['time_base'].get('den'), 1), 'packet_stream_bounds')
+    require(all(row.get('type') in ('packet', 'payload', 'picture') for row in rows[1:-1]),
+            'packet_record_types')
+    count = len(oracle_packets)
+    sent = count if limit == 0 else min(count, limit)
+    require(count > 0 and stream.get('packet_count') == count and stream.get('sent_packets') == sent
+            and stream.get('stream_index') == oracle_stream['index']
+            and Fraction(int(stream['time_base']['num']), stream['time_base']['den'])
+            == Fraction(oracle_stream['time_base'])
+            and stream.get('clock') == 'container_presentation_ticks_nearest_away', 'packet_clock_identity')
+    packets = rows[1:1 + count]
+    require(len(packets) == count and all(row.get('type') == 'packet' for row in packets),
+            'packet_metadata_order')
+    for index, (packet, oracle) in enumerate(zip(packets, oracle_packets)):
+        require(type(packet.get('index')) is int and packet['index'] == index
+                and type(packet.get('sent')) is bool and packet['sent'] == (index < sent)
+                and type(packet.get('pts')) is int and packet['pts'] == int(oracle['pts'])
+                and type(packet.get('media_pts')) is int and type(packet.get('presented')) is bool,
+                'packet_presentation_clock')
+        if stream['container'] == 'mp4':
+            require(packet.get('offset') == int(oracle['pos']) and packet.get('size') == int(oracle['size']),
+                    'packet_stored_identity')
+    cutoff = min((p['pts'] for p in packets[sent:]), default=None)
+    require(stream.get('cutoff') == cutoff, 'packet_unsent_cutoff')
+    payloads = [row for row in rows[1 + count:-1] if row['type'] == 'payload']
+    require(len(payloads) == sent, 'packet_payload_count')
+    for index, (payload, oracle) in enumerate(zip(payloads, oracle_packets)):
+        key = 'stored_sha256' if stream['container'] == 'mp4' else 'sha256'
+        require(type(payload.get('index')) is int and payload['index'] == index
+                and isinstance(payload.get(key), str) and re.fullmatch('[0-9a-f]{64}', payload[key])
+                and 'SHA256:' + payload[key] == oracle.get('data_hash')
+                and harness.integer(payload.get('bytes'), 1), 'packet_payload_identity')
+    pictures = [row for row in rows[1 + count:-1] if row['type'] == 'picture']
+    require(isinstance(summary.get('headers'), dict)
+            and all(harness.integer(summary['headers'].get(key)) for key in HEADERS)
+            and all(harness.integer(summary.get(key)) for key in ('decoded_pictures', 'skipped_pictures')),
+            'packet_summary_counts')
+    require(harness.integer(summary.get('output_pictures'))
+            and len(pictures) == summary['output_pictures'] == summary['headers']['output_pictures']
+            and summary['headers']['pictures'] <= sent
+            and summary['decoded_pictures'] + summary['skipped_pictures'] == summary['headers']['pictures']
+            and len({p['picture_index'] for p in pictures}) == len(pictures)
+            and summary.get('output_bytes') == sum(p['output_bytes'] for p in pictures), 'packet_output_count')
+    states = collections.defaultdict(set)
+    for packet in packets[:sent]:
+        states[packet['pts']].add(packet['presented'])
+    require(all(len(values) == 1 for values in states.values()), 'packet_ambiguous_presentation')
+    require(all(type(p.get('timestamp')) is int and p['timestamp'] in states for p in pictures),
+            'packet_timestamp_preservation')
+    selected = [p for p in pictures if True in states[p['timestamp']]
+                and (cutoff is None or p['timestamp'] < cutoff)]
+    return stream, summary, pictures, selected
+
+
+def presentation_timestamps(text, time_base):
+    matches = re.findall(r'^#tb 0: (\d+/\d+)$', text, re.MULTILINE)
+    require(len(matches) == 1 and Fraction(matches[0]) == Fraction(time_base), 'oracle_presentation_time_base')
+    times = []
+    for line in text.splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        columns = [column.strip() for column in line.split(',')]
+        require(len(columns) == 6 and columns[0] == '0'
+                and all(re.fullmatch('-?[0-9]+', value) for value in columns[1:4])
+                and int(columns[3]) > 0 and columns[4].isdecimal() and md5(columns[5]), 'oracle_presentation_row')
+        times.append(int(columns[2]))
+    require(times, 'oracle_presentation_empty')
+    return times
+
+
+def presentation_hashes(text, frames, time_base, cutoff=None):
+    times = presentation_timestamps(text, time_base)
+    if cutoff is not None:
+        frames = [frame for frame in frames if int(frame['pts']) < cutoff]
+        lines = []
+        index = 0
+        for line in text.splitlines():
+            if not line.strip() or line.startswith('#'):
+                lines.append(line)
+            else:
+                if times[index] < cutoff:
+                    lines.append(line)
+                index += 1
+        text = '\n'.join(lines)
+        times = [pts for pts in times if pts < cutoff]
+    result = harness.frame_hashes(text, frames)
+    require(len(times) == len(result) and all(int(frame['pts']) == pts for frame, pts in zip(frames, times)),
+            'oracle_presentation_timestamps')
+    return [dict(row, pts=pts, width=frame['width'], height=frame['height'],
+                 bit_depth=10 if frame['pix_fmt'] == 'yuv420p10le' else 8)
+            for row, pts, frame in zip(result, times, frames)]
+
+
+def geometry_end(packets, time_base):
+    clocks = [int(packet[key]) for packet in packets[:184] for key in ('pts', 'dts')
+              if packet.get(key) not in (None, 'N/A')]
+    require(clocks, 'presentation_geometry_clock')
+    end = max(clocks) * Fraction(time_base) + 1
+    scaled = end * 1_000_000
+    micros = -(-scaled.numerator // scaled.denominator)
+    sign = '-' if micros < 0 else ''
+    whole, fractional = divmod(abs(micros), 1_000_000)
+    return f'%{sign}{whole}.{fractional:06d}'
+
+
+def compare_packet_pictures(pictures, oracle, cutoff):
+    if cutoff is not None:
+        require(all(a['pts'] <= b['pts'] for a, b in zip(oracle, oracle[1:])),
+                'oracle_cutoff_requires_ordered_clock')
+    expected = [row for row in oracle if cutoff is None or row['pts'] < cutoff]
+    require(len(pictures) == len(expected) > 0, 'packet_picture_denominator')
+    for native, reference in zip(pictures, expected):
+        require(native['timestamp'] == reference['pts']
+                and all(native[key] == reference[key] for key in ('width', 'height', 'bit_depth'))
+                and native['output_bytes'] == reference['bytes']
+                and native['output_md5'] == reference['md5'], 'packet_picture_mismatch')
+    return len(expected)
+
+
+def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes,
+                  max_stream_bins, max_picture_bins, scope_refusal=False):
+    require(source.stat().st_size == item['size'] and harness.digest(source) == item['sha256'],
+            'packet_source_identity')
+    report = dict(complete=False, source_sha256=item['sha256'], source_bytes=item['size'],
+                  native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
+                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')},
+                  stage='configuration', results=[])
+    directory.mkdir(parents=True, exist_ok=True)
+    config = directory / 'configuration-prefix.hevc'
+    budgets = dict(max_memory_bytes=max_memory_bytes, max_stream_bins=max_stream_bins,
+                   max_picture_bins=max_picture_bins)
+    try:
+        code, _, _ = harness.child([oracle_bin / 'ffmpeg', '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, '-i', source,
+            '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-frames:v', '1',
+            '-f', 'hevc', '-y', config], directory, 'packet-configuration')
+        require(code == 0 and 0 < config.stat().st_size <= harness.BITSTREAM_CAP, 'packet_configuration')
+        report.update(configuration_sha256=harness.digest(config), configuration_bytes=config.stat().st_size)
+        code, out, err = harness.child([parser, config], directory, 'packet-headers')
+        if code != 0:
+            rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in out.read_text().splitlines()]
+            refusal = rows[-1] if rows else {}
+            require(scope_refusal and refusal.get('kind') == 'refusal' and refusal.get('category') == 'unsupported'
+                    and refusal.get('reason') in ('HEVC profile space', 'HEVC profile', 'HEVC chroma format',
+                        'HEVC bit depth', 'unequal component depths', 'HEVC field sequence',
+                        'HEVC SPS range extension', 'HEVC PPS range extension', 'HEVC SCC extension'),
+                    'packet_unexpected_header_refusal')
+            require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
+                    and harness.digest(parser) == report['parser_sha256']
+                    and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                    'packet_refusal_identity_changed')
+            report.update(complete=True, stage='profile_refusal', expected_refusal=refusal)
+            return report
+        require(code == 0, 'packet_header_admission')
+        report['stage'] = 'oracle_packets'
+        code, out, _ = harness.child([oracle_bin / 'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_packets', '-show_streams', '-show_data_hash', 'sha256',
+            '-show_entries', 'packet=pts,dts,pos,size,data_hash:stream=index,time_base,codec_name,pix_fmt',
+            '-of', 'json=compact=1', source], directory, 'presentation-packets')
+        require(code == 0, 'presentation_packet_oracle')
+        metadata = harness.read_json(out)
+        require(len(metadata.get('streams', [])) == 1 and metadata['streams'][0]['codec_name'] == 'hevc',
+                'presentation_selected_stream')
+        stream, packets = metadata['streams'][0], metadata['packets']
+        require(0 < len(packets) <= 1_000_000, 'presentation_packet_count')
+        for limit in ([120, 0] if 'b5' in item['sets'] else [120]):
+            arm = dict(packet_limit=limit, complete=False)
+            report['results'].append(arm)
+            report['stage'] = 'native_packets'
+            code, out, err = harness.child([native, source, config, str(stream['index']), str(limit),
+                str(max_memory_bytes), str(max_stream_bins), str(max_picture_bins)], directory, f'packet-native-{limit}',
+                timeout=1800 if limit == 0 else None)
+            if code != 0 and err.stat().st_size < harness.TEXT_CAP:
+                arm['native_refusal'] = harness.read_json(err)
+            require(code == 0, 'packet_native_decode')
+            packet_stream, summary, pictures, selected = packet_records(out, packets, stream, limit)
+            arm.update(stream=packet_stream, summary=summary, pictures=pictures)
+            require(all(summary.get(key) == value for key, value in budgets.items())
+                    and harness.integer(summary.get('memory_bytes'), 1)
+                    and summary['memory_bytes'] <= max_memory_bytes
+                    and all(picture['stats']['memory_bytes'] <= summary['memory_bytes'] for picture in pictures)
+                    and summary['input_bytes'] == config.stat().st_size + sum(row['bytes'] for row in (
+                        json.loads(line) for line in out.read_text().splitlines()) if row.get('type') == 'payload'),
+                    'packet_budget_identity')
+            counters(summary['stats'], summary['inter'], max_memory_bytes, max_stream_bins)
+            require(summary.get('max_nal_bytes') == intra.NAL_CAP
+                    and summary.get('input_byte_limit') == intra.INPUT_CAP
+                    and harness.integer(summary.get('input_capacity'), 1)
+                    and summary['input_capacity'] <= max(intra.NAL_CAP + 65536 + 8, 64 << 20),
+                    'packet_input_capacity')
+            for skipped, checked in [('skipped_picture_hashes', 'picture_hashes'),
+                                     ('skipped_reserved_hashes', 'reserved_hashes')]:
+                require(harness.integer(summary.get(skipped))
+                        and summary[skipped] + summary['stats'][checked] == summary['headers'][checked],
+                        'packet_hash_accounting')
+            for picture in pictures:
+                counters(picture['stats'], picture['inter'], max_memory_bytes, max_picture_bins)
+            bound = len(packets) + 1 if limit == 0 or len(packets) <= limit else 152
+            cutoff = packet_stream['cutoff']
+            report['stage'] = 'oracle_frame_geometry'
+            code, out, _ = harness.child([oracle_bin / 'ffprobe', '-v', 'error', '-flags', 'unaligned',
+                *harness.HEVC_DECODE_INPUT, '-select_streams', 'v:0', '-show_frames',
+                *(['-read_intervals', geometry_end(packets, stream['time_base'])] if cutoff is not None else []),
+                '-show_entries', 'frame=width,height,pix_fmt,pts', '-of', 'json=compact=1', source],
+                directory, f'presentation-geometry-{limit}')
+            require(code == 0, 'presentation_frame_geometry')
+            frames = harness.read_json(out)['frames']
+            compared_frames = [frame for frame in frames if cutoff is None or int(frame['pts']) < cutoff]
+            require(0 < len(compared_frames) <= len(packets)
+                    and len({frame['pix_fmt'] for frame in compared_frames}) == 1
+                    and compared_frames[0]['pix_fmt'] in ('yuv420p', 'yuvj420p', 'yuv420p10le'), 'presentation_frame_packing')
+            report['stage'] = 'oracle_samples'
+            command = [oracle_bin / 'ffmpeg', '-nostdin', '-v', 'repeat+error', '-copyts',
+                '-noautorotate', '-flags', 'unaligned', '-c:v', 'hevc', *harness.HEVC_DECODE_INPUT,
+                *AUDIO_DECODE_INPUT, '-i', source, '-map', '0:v:0', '-fps_mode', 'passthrough',
+                '-enc_time_base', 'demux', '-noautoscale', '-c:v', 'rawvideo',
+                '-pix_fmt', '+' + compared_frames[0]['pix_fmt'], '-frames:v', str(bound),
+                '-progress', 'pipe:2', '-f', 'framemd5', '-']
+            code, out, err = harness.child(command, directory, f'packet-oracle-{limit}')
+            require(code == 0, 'packet_oracle_decode')
+            collected = [harness.stderr_line(raw, item['sha256'], 'packet-frames', exit_code=code)
+                         for raw in harness.stderr_lines(err)]
+            for entry in collected:
+                if harness.progress_line(entry):
+                    entry['kind'] = 'progress'
+            progress = harness.reference_progress(collected)
+            times = presentation_timestamps(out.read_text(), stream['time_base'])
+            require(len(times) <= bound and int(progress[-1]['frame']) == len(times), 'packet_oracle_completion')
+            require(len(times) < bound or cutoff is not None and times[-1] >= cutoff,
+                    'packet_oracle_bound_before_cutoff')
+            oracle = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
+            arm.update(matched_pictures=compare_packet_pictures(selected, oracle, cutoff),
+                       oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
+                       if cutoff is not None else None, native_timeout=1800 if limit == 0 else harness.TIMEOUT, complete=True)
+        require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
+                and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
+                and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                'packet_run_identity_changed')
+        report.update(complete=True, stage='complete')
+        return report
+    finally:
+        harness.write_json(directory / 'decode.json', report)
+        config.unlink(missing_ok=True)
 
 
 def main():

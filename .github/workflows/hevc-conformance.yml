@@ -103,7 +103,7 @@ jobs:
   profile-census:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -111,7 +111,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra
+      - run: cargo build --locked --release -p coreav-hevc --features native-hevc --example headers --example intra --example packets
       - name: Install the pinned binary oracle
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
       - name: Inspect all fixed files with isolated metadata subprocesses
@@ -125,7 +125,9 @@ jobs:
           umask 077
           python3 -I scripts/hevc_conformance.py corpus-online --dest "$RUNNER_TEMP/media" \
             --out "$RUNNER_TEMP/private" --oracle-bin "$RUNNER_TEMP/oracle" \
-            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra"
+            --parser "$PWD/target/release/examples/headers" --native "$PWD/target/release/examples/intra" \
+            --packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 \
+            --stream-bins 1099511627776 --picture-bins 268435456
       - name: Retain only aggregate profile counts publicly
         if: always()
         run: |
@@ -139,6 +141,8 @@ jobs:
               summary['files'] = len(data['files'])
               if 'development_intra' in data:
                   summary['development_intra'] = data['development_intra']
+              if 'packet_decode' in data:
+                  summary['packet_decode'] = data['packet_decode']
               (root / 'profile-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
           PY
       - name: Seal private census records

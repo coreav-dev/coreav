@@ -53,6 +53,12 @@ python3 -I scripts/hevc_decode.py \
 
 The comparator consumes the complete source-bound census, preserves every archive disposition and requires the published whole-output anchor before comparing individual output pictures. It checks original coded/output identities, geometry, packing, hashes, effective work and budget controls. `--select-test` is diagnostic only and cannot report complete coverage. The `decode` example accepts `INPUT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`; `-` reads standard input. Its bounded JSON lines contain each output picture and a final successful-completion summary. Annex B timestamps remain null. This command and its fixture tests are implemented; original-media results and the separate C2 container-packet comparison are still pending.
 
+### Container packet comparison
+
+The existing Linux-only private census also compares every in-scope fixed-roster input through 120 selected-track packets and every designated EOF case. Build `headers`, `intra` and `packets` with `native-hevc`, then add `--packet-native "$PWD/target/release/examples/packets" --decode-memory-bytes 1073741824 --stream-bins 1099511627776 --picture-bins 268435456` to its `corpus-online` invocation. This reuses the same one-file-at-a-time acquisition and private evidence path; no additional media is registered. Per-file packet/clock/hash records stay private, while the public summary retains only completion and aggregate counts.
+
+The `packets` test tool accepts `INPUT CONFIG_ANNEXB STREAM_INDEX PACKET_LIMIT MAX_MEMORY_BYTES MAX_STREAM_BINS MAX_PICTURE_BINS`. Configuration NALs come from an original first-packet copy, not a generated bitstream. Packet limits are 120 or zero for EOF. The caller applies container edits and supplies presentation ticks; the codec preserves them through reordering. Native packet identities, oracle packet timestamps, the exact demux time base, per-frame geometry/packing and sample hashes must all agree. After prefix drain, only frames below the minimum timestamp of every unsent packet are compared. A bound hit, failed clock mapping or missing EOF arm fails rather than becoming an exclusion. Original C2 media execution is pending.
+
 ### Selected intra reconstruction
 
 Build both `headers` and `intra` examples with `native-hevc`. After the same acquisition, hash binding and synthetic verification above, run G1 with G2/G3 comparisons:

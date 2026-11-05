@@ -401,7 +401,10 @@ dependencies = [
 name = "coreav-hevc"
 version = "0.0.1"
 dependencies = [
+ "coreav-decode",
+ "coreav-isobmff",
  "coreav-kernels-hevc",
+ "coreav-thumbnail",
  "md-5",
  "serde_json",
  "sha2",

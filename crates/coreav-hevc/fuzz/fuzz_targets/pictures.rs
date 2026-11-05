@@ -41,6 +41,18 @@ fuzz_target!(|data: &[u8]| {
         assert!(summary.memory_bytes <= limits.max_memory_bytes);
         assert!(summary.reconstruction.bins <= limits.max_stream_bins);
         assert_eq!(summary.headers.output_pictures, outputs);
+        assert_eq!(
+            summary.decoded_pictures + summary.skipped_pictures,
+            summary.headers.pictures
+        );
+        assert_eq!(
+            summary.reconstruction.picture_hashes + summary.skipped_picture_hashes,
+            summary.headers.picture_hashes
+        );
+        assert_eq!(
+            summary.reconstruction.reserved_hashes + summary.skipped_reserved_hashes,
+            summary.headers.reserved_hashes
+        );
     }
     let _ = decoder.read_nal(&[], None, |_| Ok(()));
     let _ = decoder.finish(|_| Ok(()));
