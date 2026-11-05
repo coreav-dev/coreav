@@ -402,25 +402,45 @@ fn chroma(base: &[Tile; 2], source: &[Tile; 2], a: IntraAvail, mode: u8, qp: u8)
 }
 
 fn chroma_residual(base: &[Tile; 2], source: &[Tile; 2], qp: u8) -> Result<Chroma> {
+    let mut transformed = [[[0; 16]; 4]; 2];
+    let mut levels = [[[0; 16]; 4]; 2];
+    for (c, blocks) in transformed.iter_mut().enumerate() {
+        let tile = base.get(c).ok_or(Error::Internal)?;
+        let original = source.get(c).ok_or(Error::Internal)?;
+        for (k, block) in blocks.iter_mut().enumerate() {
+            *block = t::forward(&tile.residual(original, k % 2 * 4, k / 2 * 4)?)?;
+            *levels
+                .get_mut(c)
+                .and_then(|blocks| blocks.get_mut(k))
+                .ok_or(Error::Internal)? = t::quantize(block, qp, true)?;
+        }
+    }
+    chroma_reconstruct(base, &transformed, levels, qp)
+}
+
+fn chroma_reconstruct(
+    base: &[Tile; 2],
+    transformed: &[[[i64; 16]; 4]; 2],
+    levels: [[[i32; 16]; 4]; 2],
+    qp: u8,
+) -> Result<Chroma> {
     let mut out = Chroma {
         mode: 0,
-        levels: [[[0; 16]; 4]; 2],
+        levels,
         dc: [[0; 4]; 2],
         tiles: base.clone(),
     };
     for (c, tile) in out.tiles.iter_mut().enumerate() {
-        let original = source.get(c).ok_or(Error::Internal)?;
-        let blocks = out.levels.get_mut(c).ok_or(Error::Internal)?;
         let mut sums = [0; 4];
-        for (k, levels) in blocks.iter_mut().enumerate() {
-            let transformed = t::forward(&tile.residual(original, k % 2 * 4, k / 2 * 4)?)?;
-            *sums.get_mut(k).ok_or(Error::Internal)? =
-                *transformed.first().ok_or(Error::Internal)?;
-            *levels = t::quantize(&transformed, qp, true)?;
+        for (sum, block) in sums
+            .iter_mut()
+            .zip(transformed.get(c).ok_or(Error::Internal)?)
+        {
+            *sum = *block.first().ok_or(Error::Internal)?;
         }
         let (levels, dc) = t::chroma_dc(sums, qp)?;
         *out.dc.get_mut(c).ok_or(Error::Internal)? = levels;
-        for (k, levels) in blocks.iter().enumerate() {
+        for (k, levels) in out.levels.get(c).ok_or(Error::Internal)?.iter().enumerate() {
             tile.add(
                 k % 2 * 4,
                 k / 2 * 4,
