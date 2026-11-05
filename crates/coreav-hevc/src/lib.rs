@@ -69,6 +69,15 @@ impl std::error::Error for Error {}
 /// Result of parsing untrusted HEVC syntax.
 pub type Result<T> = core::result::Result<T, Error>;
 
+/// Tolerated declarations that do not change full-layer sample reconstruction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Warnings {
+    /// A non-coprime Extended_SAR was interpreted as an unspecified aspect ratio.
+    pub invalid_sample_aspect_ratio: bool,
+    /// A higher temporal layer used a NAL type inconsistent with temporal nesting.
+    pub temporal_nesting_nal_type: bool,
+}
+
 /// Operational budgets, separate from syntax and profile constraints.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {

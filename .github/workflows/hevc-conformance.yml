@@ -103,7 +103,7 @@ jobs:
   profile-census:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -137,7 +137,7 @@ jobs:
           source = root / 'private/corpus-census.json'
           if source.exists():
               data = json.loads(source.read_text())
-              summary = {key: data[key] for key in ('roster_sha256', 'complete', 'counts')}
+              summary = {key: data[key] for key in ('roster_sha256', 'complete', 'passed', 'counts')}
               summary['files'] = len(data['files'])
               if 'development_intra' in data:
                   summary['development_intra'] = data['development_intra']

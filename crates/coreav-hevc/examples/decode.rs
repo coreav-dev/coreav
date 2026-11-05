@@ -401,6 +401,10 @@ mod tests {
     fn summary(count: u64) -> DecodeSummary {
         DecodeSummary {
             headers: Summary {
+                warnings: coreav_hevc::Warnings {
+                    invalid_sample_aspect_ratio: true,
+                    temporal_nesting_nal_type: true,
+                },
                 nals: 10,
                 pictures: 3,
                 output_flag_pictures: 3,
@@ -479,7 +483,8 @@ mod tests {
             actual.get("headers"),
             Some(
                 &json!({"nals":10,"pictures":3,"output_flag_pictures":3,"output_pictures":2,
-            "independent_slices":3,"dependent_slices":1,"picture_hashes":3,"reserved_hashes":1})
+            "independent_slices":3,"dependent_slices":1,"picture_hashes":3,"reserved_hashes":1,
+            "warnings":{"invalid_sample_aspect_ratio":true,"temporal_nesting_nal_type":true}})
             )
         );
         for (key, value) in [

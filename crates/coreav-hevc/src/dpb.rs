@@ -111,6 +111,7 @@ enum State {
 }
 
 pub(crate) struct Dpb {
+    pub(crate) warnings: crate::Warnings,
     pictures: [Option<Picture>; 16],
     reconstruction: bool,
     pending: Option<Pending>,
@@ -129,6 +130,7 @@ pub(crate) struct Dpb {
 impl Dpb {
     pub(crate) fn new() -> Self {
         Self {
+            warnings: crate::Warnings::default(),
             pictures: [const { None }; 16],
             reconstruction: false,
             pending: None,
@@ -386,7 +388,7 @@ impl Dpb {
             return Err(Error::InvalidData("DPB temporal_id"));
         }
         if s.temporal_nesting && nal.temporal_id > 0 && !matches!(nal.unit_type, 2 | 3 | 6..=9) {
-            return Err(Error::InvalidData("temporal nesting NAL type"));
+            self.warnings.temporal_nesting_nal_type = true;
         }
         if self.count >= limits.max_pictures {
             return Err(Error::Limit("max_pictures"));
@@ -2240,6 +2242,28 @@ mod tests {
                 |_| Ok(())
             ),
             Err(Error::InvalidData("reference precedes STSA"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn complete_layers_warn_on_a_temporal_nesting_nal_type() -> Result<()> {
+        let mut dpb = Dpb::new();
+        let mut s = sps();
+        s.sub_layers = 1;
+        s.temporal_nesting = true;
+        push(&mut dpb, 19, &header(0, &[]), &s)?;
+        let mut n = nal(1);
+        n.temporal_id = 1;
+        let order = dpb.picture(n, &header(1, &[(-1, true)]), &s, &Limits::default(), |_| {
+            Ok(())
+        })?;
+        assert_eq!(order.poc, 1);
+        assert!(dpb.warnings.temporal_nesting_nal_type);
+        n.temporal_id = 2;
+        assert_eq!(
+            dpb.picture(n, &header(2, &[]), &s, &Limits::default(), |_| Ok(())),
+            Err(Error::InvalidData("DPB temporal_id"))
         );
         Ok(())
     }

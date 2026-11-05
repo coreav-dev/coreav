@@ -152,7 +152,7 @@ esac
         with tempfile.TemporaryDirectory() as directory:
             temp = pathlib.Path(directory)
             (temp / 'private').mkdir()
-            record = dict(roster_sha256='a' * 64, complete=True,
+            record = dict(roster_sha256='a' * 64, complete=False, passed=True,
                           counts=[dict(partition='development', profile='Main', bit_depth=8,
                                        status='inspected', files=1)],
                           files=[dict(source='private-canary', url='private-canary')])
@@ -164,7 +164,9 @@ esac
             summary = json.loads(text)
             self.assertNotIn('private-canary', text)
             self.assertEqual(summary['files'], 1)
-            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'counts', 'files'})
+            self.assertEqual(set(summary), {'roster_sha256', 'complete', 'passed', 'counts', 'files'})
+            self.assertFalse(summary['complete'])
+            self.assertTrue(summary['passed'])
             self.assertEqual(json.loads(source.read_text()), record)
 
 

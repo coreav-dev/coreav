@@ -187,7 +187,7 @@ class PacketDecode(unittest.TestCase):
         stream = dict(type='stream', container='mp4', length_size=4, stream_index=2,
                       max_packet_bytes=64 << 20, max_packets=1_000_000,
                       time_base=dict(num='1', den=1000), packet_count=121, sent_packets=120,
-                      clock='container_presentation_ticks_nearest_away', cutoff=15)
+                      clock='demux_presentation_ticks_nearest_away', cutoff=15)
         packets = [dict(type='packet', index=index, sent=index < 120, pts=time, media_pts=time + 5,
                         presented=True, offset=index * 10, size=4) for index, time in enumerate(pts)]
         payloads = [dict(type='payload', index=index, bytes=4, stored_sha256='0' * 64) for index in range(120)]
@@ -276,6 +276,30 @@ class PacketDecode(unittest.TestCase):
         next(row for row in changed if 'b5' in row['sets'])['decode']['results'].pop()
         self.assertFalse(runner.harness.corpus_result(changed)['complete'])
         self.assertFalse(runner.harness.corpus_result(files[:-1])['complete'])
+
+    def test_container_follow_ups_preserve_all_identities_without_pixel_credit(self):
+        files = [dict(item, status='inspected', profile='Main', bit_depth=8,
+                      decode=dict(complete=True, results=[dict(packet_limit=120, complete=True)]
+                          + ([dict(packet_limit=0, complete=True)] if 'b5' in item['sets'] else [])))
+                 for item in runner.harness.roster()]
+        files[0].update(status='follow_up', decode=dict(complete=False,
+            follow_up='packet_container_truncated', results=[dict(packet_limit=120, complete=False)]))
+        result = runner.harness.corpus_result(files)
+        self.assertTrue(result['passed'])
+        self.assertFalse(result['complete'])
+        self.assertEqual(len(result['files']), 54)
+        self.assertEqual(result['packet_decode']['completed'], 53)
+        self.assertEqual(result['packet_decode']['prefix_matches'], 53)
+        self.assertEqual(result['packet_decode']['follow_ups'], {'packet_container_truncated': 1})
+        for reason in ('intra_substream_end', 'packet_picture_mismatch', 'packet_presentation_clock', 'unknown'):
+            changed = copy.deepcopy(files)
+            changed[0]['decode']['follow_up'] = reason
+            with self.subTest(reason=reason):
+                self.assertFalse(runner.harness.corpus_result(changed)['passed'])
+        changed = copy.deepcopy(files)
+        next(row for row in changed[1:] if 'b5' in row['sets'])['decode']['results'].pop()
+        self.assertFalse(runner.harness.corpus_result(changed)['passed'])
+        self.assertFalse(runner.harness.corpus_result(files[:-1])['passed'])
 
 
 if __name__ == '__main__':

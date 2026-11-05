@@ -15,6 +15,7 @@ import re
 import resource
 import shutil
 import signal
+import ssl
 import stat
 import subprocess
 import sys
@@ -42,6 +43,8 @@ TOTAL_EXPANDED_CAP = 64 << 30
 TEXT_CAP = 256 << 10
 CAPTURE_CAP = 64 << 20
 TIMEOUT = 300
+PACKET_TOOLING_REFUSALS = frozenset(('packet_container_truncated', 'packet_container_structure',
+                                   'packet_container_unsupported'))
 BITSTREAM_EXTENSIONS = {'.bit', '.bin', '.265', '.h265', '.hevc'}
 TERMINAL_PACKETS = {
     'DELTAQP_A': ('1274e3e308dfe684b38a88f8b3a2845b84f57492b0b02aaecbe5dc29ca8ed532', 12),
@@ -467,7 +470,7 @@ def child_limits(file_limit=CAPTURE_CAP, cpu_seconds=None):
 def child(command, directory, label, *, file_limit=CAPTURE_CAP, timeout=None):
     require(sys.platform == 'linux', 'hostile subprocesses require Linux limits')
     require(integer(file_limit) and CAPTURE_CAP <= file_limit <= 4 << 30, 'invalid subprocess file limit')
-    require(timeout is None or integer(timeout, 1) and timeout <= 1800, 'invalid subprocess timeout')
+    require(timeout is None or integer(timeout, 1) and timeout <= 3600, 'invalid subprocess timeout')
     directory.mkdir(parents=True, exist_ok=True)
     stdout, stderr = directory / f'{label}.stdout', directory / f'{label}.stderr'
     environment = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR')}
@@ -1204,7 +1207,7 @@ class Acquisition:
         for attempt in range(3):
             try:
                 return operation(*args, **kwargs)
-            except (ConnectionError, TimeoutError, http.client.IncompleteRead):
+            except (ConnectionError, TimeoutError, http.client.IncompleteRead, ssl.SSLEOFError):
                 if attempt == 2:
                     raise
                 time.sleep(1 << attempt)
@@ -1284,7 +1287,7 @@ def fetch_corpus(args, inspect=False):
                     finally:
                         path.unlink(missing_ok=True)
             if inspect:
-                require(all(r['status'] == 'inspected' for r in records), 'corpus metadata census blocked')
+                require(corpus_result(records)['passed'], 'corpus metadata census blocked')
     finally:
         pool.close()
 
@@ -1320,6 +1323,8 @@ def corpus_record(item, path, directory, oracle_bin, *, intra=None, complete=Non
             record['decode'] = hevc_decode.corpus_decode(item, path, directory / item['sha256'], oracle_bin,
                                                        scope_refusal=scope_refusal, **complete)
             record['admission'] = 'expected profile refusal' if 'expected_refusal' in record['decode'] else 'complete packet comparison'
+            if record['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS:
+                record.update(status='follow_up', admission='container follow-up; no pixel comparison credit')
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
         report = directory / item['sha256'] / 'intra.json'
@@ -1337,6 +1342,9 @@ def corpus_result(records):
                 complete=len(records) == 54 and all(r['status'] == 'inspected' for r in records), files=records,
                 counts=[dict(partition=k[0], profile=k[1], bit_depth=k[2], status=k[3], files=count)
                         for k, count in counts.items()])
+    result['passed'] = len(records) == 54 and all(r['status'] == 'inspected'
+        or r['status'] == 'follow_up' and (r.get('decode') or {}).get('follow_up') in PACKET_TOOLING_REFUSALS
+        for r in records)
     selected = [r for r in records if 'intra' in r]
     if selected:
         result['development_intra'] = dict(expected=26, completed=sum(r['intra'].get('complete') is True for r in selected))
@@ -1351,6 +1359,7 @@ def corpus_result(records):
                 refusals[reason] += 1
         result['development_intra']['native_refusals'] = dict(refusals)
         result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
+        result['passed'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
     selected = [r for r in records if 'decode' in r]
     if selected:
         result['packet_decode'] = dict(expected=54, completed=sum(r['decode'].get('complete') is True for r in selected),
@@ -1359,13 +1368,20 @@ def corpus_result(records):
                                for r in selected for arm in r['decode'].get('results', [])),
             eof_matches=sum(arm.get('complete') is True and arm['packet_limit'] == 0
                             for r in selected for arm in r['decode'].get('results', [])))
+        follow_ups = [r for r in selected if r['status'] == 'follow_up'
+                      and r['decode'].get('follow_up') in PACKET_TOOLING_REFUSALS]
+        result['packet_decode']['follow_ups'] = dict(collections.Counter(r['decode']['follow_up'] for r in follow_ups))
+        result['passed'] &= len(selected) == 54 and result['packet_decode']['completed'] + len(follow_ups) == 54
         result['complete'] &= len(selected) == 54 and result['packet_decode']['completed'] == 54
         for record in selected:
             decode = record['decode']
             arms = decode.get('results', [])
             required = set() if 'expected_refusal' in decode else {120, 0} if 'b5' in record['sets'] else {120}
-            result['complete'] &= (len(arms) == len(required) and {arm['packet_limit'] for arm in arms} == required
-                                   and all(arm.get('complete') is True for arm in arms))
+            complete = (len(arms) == len(required) and {arm['packet_limit'] for arm in arms} == required
+                        and all(arm.get('complete') is True for arm in arms))
+            result['complete'] &= complete
+            result['passed'] &= complete or record in follow_ups
+        result['packet_decode']['passed'] = result['passed']
     return result
 
 

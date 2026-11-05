@@ -73,6 +73,8 @@ pub enum NalInfo {
 /// Counts of successfully parsed syntax, not reconstructed or output pictures.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Summary {
+    /// Tolerated display and sub-layer-switching declarations.
+    pub warnings: crate::Warnings,
     /// Complete NAL units validated or explicitly ignored.
     pub nals: u64,
     /// Coded picture boundaries from first-slice flags.
@@ -445,6 +447,8 @@ impl StreamCore {
             33 => {
                 let set = params::sps(&mut bits, &self.limits)?;
                 let id = set.id;
+                self.summary.warnings.invalid_sample_aspect_ratio |=
+                    set.vui.warnings.invalid_sample_aspect_ratio;
                 *self
                     .sps
                     .get_mut(id as usize)
@@ -736,6 +740,8 @@ impl StreamCore {
             _ => NalInfo::Ignored,
         };
         self.summary.nals = nals;
+        self.summary.warnings.temporal_nesting_nal_type =
+            self.dpb.warnings.temporal_nesting_nal_type;
         Ok(info)
     }
 }

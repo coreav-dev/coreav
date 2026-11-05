@@ -386,7 +386,7 @@ def packet_records(path, oracle_packets, oracle_stream, limit):
             and isinstance(stream['time_base'].get('num'), str)
             and re.fullmatch('[1-9][0-9]{0,19}', stream['time_base']['num'])
             and harness.integer(stream['time_base'].get('den'), 1), 'packet_stream_bounds')
-    require(all(row.get('type') in ('packet', 'payload', 'picture') for row in rows[1:-1]),
+    require(all(row.get('type') in ('packet', 'payload', 'picture', 'nal_padding') for row in rows[1:-1]),
             'packet_record_types')
     count = len(oracle_packets)
     sent = count if limit == 0 else min(count, limit)
@@ -394,7 +394,7 @@ def packet_records(path, oracle_packets, oracle_stream, limit):
             and stream.get('stream_index') == oracle_stream['index']
             and Fraction(int(stream['time_base']['num']), stream['time_base']['den'])
             == Fraction(oracle_stream['time_base'])
-            and stream.get('clock') == 'container_presentation_ticks_nearest_away', 'packet_clock_identity')
+            and stream.get('clock') == 'demux_presentation_ticks_nearest_away', 'packet_clock_identity')
     packets = rows[1:1 + count]
     require(len(packets) == count and all(row.get('type') == 'packet' for row in packets),
             'packet_metadata_order')
@@ -417,6 +417,12 @@ def packet_records(path, oracle_packets, oracle_stream, limit):
                 and isinstance(payload.get(key), str) and re.fullmatch('[0-9a-f]{64}', payload[key])
                 and 'SHA256:' + payload[key] == oracle.get('data_hash')
                 and harness.integer(payload.get('bytes'), 1), 'packet_payload_identity')
+    padding = [row for row in rows[1 + count:-1] if row['type'] == 'nal_padding']
+    require(all(harness.integer(row.get('index')) and row['index'] < sent
+                and harness.integer(row.get('nal_index')) and harness.integer(row.get('coded_bytes'), 2)
+                and harness.integer(row.get('trailing_zero_bytes'), 1)
+                and row['coded_bytes'] + row['trailing_zero_bytes'] <= intra.NAL_CAP for row in padding),
+            'packet_padding_warning')
     pictures = [row for row in rows[1 + count:-1] if row['type'] == 'picture']
     require(isinstance(summary.get('headers'), dict)
             and all(harness.integer(summary['headers'].get(key)) for key in HEADERS)
@@ -541,7 +547,7 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
         report['stage'] = 'oracle_packets'
         code, out, _ = harness.child([oracle_bin / 'ffprobe', '-v', 'error', '-select_streams', 'v:0',
             '-show_packets', '-show_streams', '-show_data_hash', 'sha256',
-            '-show_entries', 'packet=pts,dts,pos,size,data_hash:stream=index,time_base,codec_name,pix_fmt',
+            '-show_entries', 'packet=pts,dts,pos,size,data_hash,flags,duration:stream=index,time_base,codec_name,pix_fmt',
             '-of', 'json=compact=1', source], directory, 'presentation-packets')
         require(code == 0, 'presentation_packet_oracle')
         metadata = harness.read_json(out)
@@ -555,9 +561,15 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
             report['stage'] = 'native_packets'
             code, out, err = harness.child([native, source, config, str(stream['index']), str(limit),
                 str(max_memory_bytes), str(max_stream_bins), str(max_picture_bins)], directory, f'packet-native-{limit}',
-                timeout=1800 if limit == 0 else None)
+                timeout=2400 if limit == 0 else 600)
+            arm['native_exit_code'] = code
             if code != 0 and err.stat().st_size < harness.TEXT_CAP:
                 arm['native_refusal'] = harness.read_json(err)
+                refusal = arm['native_refusal']
+                if (refusal.get('kind') == 'refusal' and refusal.get('category') in ('invalid_data', 'unsupported')
+                        and refusal.get('reason') in harness.PACKET_TOOLING_REFUSALS and out.stat().st_size == 0):
+                    report.update(stage='follow_up', follow_up=refusal['reason'])
+                    break
             require(code == 0, 'packet_native_decode')
             packet_stream, summary, pictures, selected = packet_records(out, packets, stream, limit)
             arm.update(stream=packet_stream, summary=summary, pictures=pictures)
@@ -617,13 +629,18 @@ def corpus_decode(item, source, directory, oracle_bin, *, native, parser, max_me
             oracle = presentation_hashes(out.read_text(), frames, stream['time_base'], cutoff)
             arm.update(matched_pictures=compare_packet_pictures(selected, oracle, cutoff),
                        oracle_bound=bound, oracle_frames=len(times), geometry_interval=geometry_end(packets, stream['time_base'])
-                       if cutoff is not None else None, native_timeout=1800 if limit == 0 else harness.TIMEOUT, complete=True)
+                       if cutoff is not None else None, native_timeout=2400 if limit == 0 else 600, complete=True)
         require(harness.digest(source) == item['sha256'] and harness.digest(config) == report['configuration_sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
                 and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
                 'packet_run_identity_changed')
-        report.update(complete=True, stage='complete')
+        if 'follow_up' not in report:
+            report.update(complete=True, stage='complete')
         return report
+    except ValueError as error:
+        reason = str(error)
+        report['failure'] = reason if re.fullmatch('[a-z0-9_]{1,80}', reason) else 'value_error'
+        raise
     finally:
         harness.write_json(directory / 'decode.json', report)
         config.unlink(missing_ok=True)

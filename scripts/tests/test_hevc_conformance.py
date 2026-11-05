@@ -4,6 +4,7 @@ import importlib.util
 import json
 import pathlib
 import os
+import ssl
 import stat
 import sys
 import tempfile
@@ -19,6 +20,29 @@ SPEC.loader.exec_module(runner)
 
 
 class AcquisitionRetries(unittest.TestCase):
+    def test_tls_eof_retries_without_replacing_the_capped_pool(self):
+        pool = mock.Mock()
+        limits = pool.limits
+        pool.head.side_effect = [ssl.SSLEOFError(), (3, 'etag')]
+        reader = runner.Acquisition(pool)
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            self.assertEqual(reader.head('fixture'), (3, 'etag'))
+        self.assertIs(reader.pool, pool)
+        self.assertIs(pool.limits, limits)
+        self.assertEqual(pool.head.call_args_list, [mock.call('fixture')] * 2)
+        sleep.assert_called_once_with(1)
+
+    def test_other_tls_failures_do_not_retry(self):
+        for failure in (ssl.SSLCertVerificationError(), ssl.SSLError()):
+            with self.subTest(error=type(failure).__name__):
+                pool = mock.Mock()
+                pool.head.side_effect = failure
+                with mock.patch.object(runner.time, 'sleep') as sleep:
+                    with self.assertRaises(type(failure)):
+                        runner.Acquisition(pool).head('fixture')
+                self.assertEqual(pool.head.call_count, 1)
+                sleep.assert_not_called()
+
     def test_a_closed_idle_connection_retries_the_same_capped_pool(self):
         pool = mock.Mock()
         limits = pool.limits
