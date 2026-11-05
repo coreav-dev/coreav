@@ -472,9 +472,14 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn special_destinations_are_never_staged_or_replaced() {
-        use std::os::unix::fs::{MetadataExt, symlink};
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt, symlink};
         use std::os::unix::net::UnixListener;
-        let dir = scratch("special-destinations");
+        let tag = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = Path::new("/tmp").join(format!("co-{}-{tag}", std::process::id()));
+        std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
         let fifo = dir.join("fifo");
         assert!(
             std::process::Command::new("mkfifo")
@@ -484,6 +489,10 @@ mod tests {
                 .success()
         );
         let socket = dir.join("socket");
+        assert!(
+            socket.as_os_str().as_encoded_bytes().len() < 104,
+            "keep the fixture below macOS's 104-byte sun_path capacity"
+        );
         let _listener = UnixListener::bind(&socket).unwrap();
         let device = dir.join("device");
         symlink("/dev/null", &device).unwrap();
