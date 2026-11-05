@@ -2,7 +2,7 @@
 
 ## Goal and baseline
 
-Complete the remaining non-frozen oracle migration, account for every discovered invocation, and require qualification evidence in CI. This is one change with a plan commit before implementation. No comparison tolerance, test predicate, pin, installer, runtime fallback, native admission, media input or measured result changes.
+Complete the remaining non-frozen oracle migration, account for every discovered invocation, and require qualification evidence in CI. Delivery is split into two dependent changes. This change contains the evidence mechanism and the 43-site migration, with a plan commit before implementation. It remains report-only. Full classification, any remaining bypass repairs and the required gate follow only after this evidence mechanism is independently reviewed and merged. No comparison tolerance, test predicate, pin, installer, runtime fallback, native admission, media input or measured result changes.
 
 The earlier trusted census identified a lower bound of 43 bypass locations in seven files: 35 shell locations and eight Rust locations. The shell files are `scripts/gen-fixtures.sh`, `scripts/gen-fixtures-mkv.sh`, `scripts/gen-fixtures-ts.sh`, `scripts/oracle-ffprobe.sh` and `packages/cli/test/release-clips.sh`. The Rust files are `crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs` and `crates/coreav-cli/tests/frame_handoff.rs`.
 
@@ -38,8 +38,8 @@ Re-derive all 190 current Rust rows against their exact source text and position
 
 1. Land the catalogue representation and freshness tests without migrating consumers. Preserve the trusted 43-location, 50-row historical lower bound when re-expressing unchanged evidence; independently classify changed frozen sites.
 2. Migrate shell and Rust consumers. Require wrong-version, missing-sibling, substituted-file and malformed-owner-response controls to fail before output creation. Run affected real-pin tests and the strict oracle-free selection without changing test predicates.
-3. Review unknowns by file and evidence class. Publish exact row reconciliation and the reason for every disposition. New bypasses are repaired, not relabelled as qualified; unplaced sites remain failures. Stop for a scope decision if a repair would change protected sources or require an incoherent second implementation track.
+3. In the dependent follow-up, review unknowns by file and evidence class. Publish exact row reconciliation and the reason for every disposition. New bypasses are repaired, not relabelled as qualified; unplaced sites remain failures. Stop for a scope decision if a repair would change protected sources or require an incoherent second implementation track.
 4. Prove stale-source, helper-edit, anchor-edit, shadow-module, new-source, extensionless-script, executable-data, symlink, duplicate-entry and fold-origin negative controls. Preserve or strengthen every existing adversarial test.
-5. Only after trusted evidence has zero unknown and zero bypass rows, add the classifier to the unfiltered `deny-checks` job under its existing required report. Run it before checkout-writing steps and retain its report outside the checkout. No ruleset change or new check name is needed.
+5. In that follow-up, only after trusted evidence has zero unknown and zero bypass rows, add the classifier to the unfiltered `deny-checks` job under its existing required report. Run it before checkout-writing steps and retain its report outside the checkout. No ruleset change or new check name is needed.
 
 The complete change requires affected tests, final-head CI, exact-head similarity evidence and independent review. Source and generated regression checks are sufficient; do not start media-corpus, performance, remote-infrastructure or additional fuzz campaigns for this migration.
