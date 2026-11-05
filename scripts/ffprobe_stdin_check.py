@@ -2,9 +2,11 @@
 """Check complete structured stdin output and replay on generated inputs."""
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
+import selectors
 import subprocess
 import sys
 import tempfile
@@ -144,6 +146,59 @@ def check(coreav, oracle, root):
     if reference.returncode or reference.stderr or result.returncode or result.stderr \
             or result.stdout != reference.stdout:
         raise CheckFailure('local-file-regression')
+    relay = root / 'live-fallback'
+    relay.mkdir()
+    executable = relay / 'ffprobe'
+    executable.write_text('#!/usr/bin/env python3\n'
+                          'import hashlib, json, sys\n'
+                          'print("READY", flush=True)\n'
+                          'data = sys.stdin.buffer.read()\n'
+                          'print(json.dumps([sys.argv[1:], len(data), hashlib.sha256(data).hexdigest()]), flush=True)\n'
+                          'sys.exit(37)\n')
+    executable.chmod(0o700)
+    for data in (b'not media', b'\x00\x00\x00\x08ftyp\x00\x00\x00\x08moov'
+                 + b'\x80\x00\x00\x00mdat' + bytes(1_048_576 - 24)):
+        child = subprocess.Popen([str(coreav), 'ffprobe', *args, '-i', 'pipe:0'],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 env={**fallback_env, 'COREAV_FALLBACK': str(relay)})
+        try:
+            child.stdin.write(data)
+            child.stdin.flush()
+            with selectors.DefaultSelector() as ready:
+                ready.register(child.stdout, selectors.EVENT_READ)
+                if not ready.select(5) or child.stdout.readline() != b'READY\n':
+                    raise CheckFailure('live-fallback-start')
+            tail = b'live remainder\x00\xff'
+            output, diagnostics = child.communicate(tail, timeout=5)
+            if child.returncode != 37 or json.loads(output) != [
+                    ['-hide_banner', *args, '-i', 'pipe:0'], len(data + tail),
+                    hashlib.sha256(data + tail).hexdigest()] \
+                    or not diagnostics.startswith(b'coreav: ran '):
+                raise CheckFailure('live-fallback-replay')
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.communicate()
+    executable.write_text('#!/usr/bin/env python3\n'
+                          'import sys\n'
+                          'sys.exit(29)\n')
+    child = subprocess.Popen([str(coreav), 'ffprobe', *args, '-i', 'pipe:0'],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             env={**fallback_env, 'COREAV_FALLBACK': str(relay)})
+    try:
+        child.stdin.write(b'not media')
+        child.stdin.flush()
+        child.wait(timeout=5)
+        if child.returncode != 29 or child.stdout.read():
+            raise CheckFailure('live-fallback-early-exit')
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.communicate()
+    if list(root.glob('coreav-encoded-stdin-*')):
+        raise CheckFailure('input-cleanup')
     print('PASS generated structured stdin and complete replay')
 
 
@@ -161,7 +216,8 @@ def main():
     except CheckFailure as error:
         known = {'fixture-generation', 'fixture-buffer-contrast', 'logical-pipe-facts',
                  'input-cleanup', 'shape-before-stdin', 'temporary-file-failure', 'local-file-regression',
-                 'input-read-failure', 'fd-alias-fallback', 'child-timeout', 'child-spawn'}
+                 'input-read-failure', 'fd-alias-fallback', 'child-timeout', 'child-spawn',
+                 'live-fallback-start', 'live-fallback-replay', 'live-fallback-early-exit'}
         known.update(category + '-' + name for category in ('native', 'refusal', 'replay')
                      for name in ('faststart', 'faststart-large', 'tail-moov', 'fragmented',
                                   'matroska', 'transport', 'empty', 'truncated', 'malformed-movie'))
