@@ -45,7 +45,7 @@ mod driver {
     use serde_json::{Value, json};
     use std::collections::BTreeMap;
     use std::fs::File;
-    use std::io::{Cursor, Read, Write};
+    use std::io::{BufWriter, Cursor, Read, Write};
     use std::path::Path;
     use std::time::{Duration, Instant};
 
@@ -64,10 +64,15 @@ mod driver {
     }
 
     fn document(path: &Path, value: &Value) -> Result<()> {
-        let mut file = create(path)?;
+        write_document(create(path)?, value)
+    }
+
+    fn write_document(writer: impl Write, value: &Value) -> Result<()> {
+        let mut file = BufWriter::new(writer);
         serde_json::to_writer(&mut file, value).map_err(|_| "cannot write report".to_string())?;
         file.write_all(b"\n")
-            .map_err(|_| "cannot finish report".into())
+            .map_err(|_| "cannot finish report".to_string())?;
+        file.flush().map_err(|_| "cannot flush report".into())
     }
 
     fn implementation(identity: &Identity) -> (&Option<String>, &'static str) {
@@ -449,6 +454,72 @@ mod driver {
             fn drop(&mut self) {
                 let _ = std::fs::remove_dir_all(&self.0);
             }
+        }
+
+        #[derive(Default)]
+        struct ReportSink {
+            bytes: Vec<u8>,
+            writes: usize,
+            flushes: usize,
+            fail_write: bool,
+            fail_flush: bool,
+        }
+
+        impl Write for ReportSink {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.writes += 1;
+                if self.fail_write {
+                    return Err(std::io::Error::other("report sink write failure"));
+                }
+                self.bytes.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                self.flushes += 1;
+                if self.fail_flush {
+                    return Err(std::io::Error::other("report sink flush failure"));
+                }
+                Ok(())
+            }
+        }
+
+        #[test]
+        fn report_serialization_batches_writes_and_preserves_bytes() {
+            let frames: Vec<_> = (0..250)
+                .map(|id| {
+                    json!({"id": id, "pts_value": id * 1001, "pts_scale": 30_000,
+                        "duration_value": 1001, "duration_scale": 30_000, "sync": id == 0})
+                })
+                .collect();
+            let value = json!({"status": "encoded", "frames": frames});
+            let mut expected = serde_json::to_vec(&value).unwrap();
+            expected.push(b'\n');
+            let mut sink = ReportSink::default();
+            write_document(&mut sink, &value).unwrap();
+            assert_eq!(sink.bytes, expected);
+            assert!(sink.writes < 16, "report used {} sink writes", sink.writes);
+            assert_eq!(sink.flushes, 1);
+        }
+
+        #[test]
+        fn report_serialization_refuses_sink_write_failures() {
+            let mut sink = ReportSink {
+                fail_write: true,
+                ..ReportSink::default()
+            };
+            assert!(write_document(&mut sink, &json!({"status": "encoded"})).is_err());
+            assert!(sink.writes > 0);
+        }
+
+        #[test]
+        fn report_serialization_refuses_flush_failures() {
+            let mut sink = ReportSink {
+                fail_flush: true,
+                ..ReportSink::default()
+            };
+            assert!(write_document(&mut sink, &json!({"status": "encoded"})).is_err());
+            assert_eq!(sink.flushes, 1);
         }
 
         #[test]
