@@ -80,6 +80,37 @@ impl coreav_isobmff::Source for MetadataFault<'_> {
     }
 }
 
+fn with_field_payload(bytes: &[u8], field: &[u8]) -> Vec<u8> {
+    let mut output = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        let size = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        assert!(size >= 8 && at + size <= bytes.len());
+        let kind: &[u8; 4] = bytes[at + 4..at + 8].try_into().unwrap();
+        let payload = &bytes[at + 8..at + size];
+        let body = if kind == b"fiel" {
+            field.to_vec()
+        } else {
+            let prefix = match kind {
+                b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" => 0,
+                b"stsd" => 8,
+                b"av01" | b"vp09" | b"hvc1" => 78,
+                _ => payload.len(),
+            };
+            let mut body = payload[..prefix].to_vec();
+            if prefix < payload.len() {
+                body.extend(with_field_payload(&payload[prefix..], field));
+            }
+            body
+        };
+        output.extend_from_slice(&u32::try_from(body.len() + 8).unwrap().to_be_bytes());
+        output.extend_from_slice(kind);
+        output.extend(body);
+        at += size;
+    }
+    output
+}
+
 fn ffmpeg(args: &[&str]) -> Run {
     let out = Command::new(bin())
         .arg("ffmpeg")
@@ -223,6 +254,54 @@ fn native_video_metadata_compares_complete_records_and_all_packet_bytes() {
         let mut changed = bytes.clone();
         changed[at + 4..at + 8].copy_from_slice(b"free");
         std::fs::write(&absent, &changed).unwrap();
+        assert!(
+            bytes.windows(4).position(|x| x == b"mdat").unwrap()
+                < bytes.windows(4).position(|x| x == b"moov").unwrap()
+        );
+        for control in [
+            changed,
+            with_field_payload(&bytes, &[]),
+            with_field_payload(&bytes, &[1]),
+        ] {
+            let source = coreav_isobmff::probe(
+                coreav_isobmff::SliceSource::new(&control),
+                &Default::default(),
+                &Default::default(),
+            )
+            .unwrap();
+            let mut output = Vec::new();
+            let summary = coreav_isobmff_write::join_mp4(
+                (0..2)
+                    .map(|_| coreav_isobmff::SliceSource::new(&control))
+                    .collect(),
+                &Default::default(),
+                &Default::default(),
+                &coreav_isobmff_write::JoinOptions {
+                    video: coreav_isobmff_write::VideoChoice::First,
+                    audio: coreav_isobmff_write::JoinAudio::None,
+                    placement: coreav_isobmff_write::Placement::AfterVideo,
+                    compatibility: None,
+                },
+                &mut output,
+            )
+            .unwrap();
+            assert_eq!(
+                summary.boxes_left_out,
+                source.tracks[0].description.other_boxes
+            );
+            let written = coreav_isobmff::probe(
+                coreav_isobmff::SliceSource::new(&output),
+                &Default::default(),
+                &Default::default(),
+            )
+            .unwrap();
+            assert!(
+                !written.tracks[0]
+                    .description
+                    .other_boxes
+                    .contains(&coreav_isobmff::FourCc(*b"fiel"))
+            );
+        }
         let alternate = dir.join(format!("{codec}-alternate.mp4"));
         let mut changed = bytes.clone();
         changed[at + 8..at + 10].copy_from_slice(&[2, 9]);
@@ -328,6 +407,20 @@ fn native_video_metadata_compares_complete_records_and_all_packet_bytes() {
                     result.status.success(),
                     "{}",
                     String::from_utf8_lossy(&result.stderr)
+                );
+                let summary: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+                assert!(
+                    !summary["boxes_left_out"]
+                        .as_array()
+                        .unwrap()
+                        .contains(&serde_json::Value::from("fiel")),
+                    "retained field metadata is reported as omitted"
+                );
+                assert!(
+                    std::fs::read(&joined)
+                        .unwrap()
+                        .windows(10)
+                        .any(|bytes| bytes == b"\0\0\0\x0afiel\x01\0")
                 );
                 concat_output::compare(&reference, &probe, &joined, &expected, &list, "native");
             }

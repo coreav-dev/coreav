@@ -598,7 +598,14 @@ pub fn join_mp4<S: Source, W: Write>(
         audio_edits: audio_edit_count,
         duration: layout.end,
         bytes_written: data_start.saturating_add(data_bytes),
-        boxes_left_out: first.video.description.other_boxes.clone(),
+        boxes_left_out: first
+            .video
+            .description
+            .other_boxes
+            .iter()
+            .copied()
+            .filter(|kind| labels.fiel.is_none() || kind.0 != *b"fiel")
+            .collect(),
     })
 }
 
