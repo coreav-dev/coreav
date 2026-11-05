@@ -59,8 +59,8 @@ pub use join::join_mp4;
 pub use m4a::extract_audio;
 pub use matroska::{
     DroppedAdditions, MAX_LISTED_ADDITIONS, MatroskaDroppedTrack, MatroskaRemuxError,
-    MatroskaRemuxOptions, MatroskaRemuxSummary, MatroskaRemuxTrack, remux_matroska,
-    remux_matroska_replacing,
+    MatroskaRemuxOptions, MatroskaRemuxSummary, MatroskaRemuxTrack, check_matroska_aac_copy,
+    remux_matroska, remux_matroska_compatible, remux_matroska_replacing,
 };
 pub use remux::{remux_mp4, remux_mp4_inputs, remux_mp4_replacing, sanitize_mp4};
 pub use replace::{
