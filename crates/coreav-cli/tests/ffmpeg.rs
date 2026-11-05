@@ -291,9 +291,8 @@ fn leading_negative_maps_preserve_destinations_and_match_pinned_fallback() {
             assert_eq!(replay.status.code(), Some(19));
             assert_eq!(
                 replay.stdout,
-                full.iter()
-                    .flat_map(|arg| arg.bytes().chain([0]))
-                    .collect::<Vec<_>>()
+                fallback_arguments(&full),
+                "stage=fallback_argument_replay"
             );
             assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
         }

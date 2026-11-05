@@ -16,6 +16,7 @@ The rule applies to single and multiple inputs. It does not reject a negative ma
 
 - Add a pinned regression that fails on the current wrong success and checks leading negative maps of the same and another input, several leading removals, and a removal without a later positive map.
 - Verify absent and existing destinations, exact fallback exit behavior, and no published file for rejected pin commands.
+- Verify the inherited `-hide_banner` prefix and every original argument byte with the shared independent replay expectation; preserve the exit and destination assertions.
 - Keep positive-first remove/readd commands native and compare selected stream fields and complete per-stream packet clocks and payload hashes with the pin. Check that all-removed selections still fail.
 - Check optional leading and optional unmatched-positive maps through their unchanged refusal/fallback route, including exact output bytes when the pin succeeds.
 - Run affected CLI and feature tests, lint, formatting, public-text/reference checks and a canonical exact-public-head similarity guard. Record the pre-existing defect on the copy tracking issue. These checks are independent development diagnostics, not refreshed measured coverage.
