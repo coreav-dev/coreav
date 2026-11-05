@@ -24,9 +24,9 @@ SETTINGS = {"profile": "high", "reordering": False, "keyframe_seconds": 2,
             "pixel_format": "yuv420p", "warmups": 1, "pairs": 5,
             "bootstrap_resamples": 10000, "bootstrap_seed": 0,
             "output_storage": "ram", "input_cache": "warm"}
-HOST = {"profile": "ENC-MAC-1", "provider": "scaleway", "type": "M1-M",
+HOST = {"profile": "ENC-MAC-1", "provider": "private-reference", "type": "M1-M",
         "model": "Macmini9,1", "cpu": "Apple M1", "cores": 8, "memory": 8589934592,
-        "os_version": "15.7", "virtual": False, "dedicated": True}
+        "os_version": "15.8.2", "virtual": False, "dedicated": True}
 
 
 def clock(value):

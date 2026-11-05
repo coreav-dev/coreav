@@ -1,0 +1,11 @@
+Sequoia entries from softwareupdate --list-full-installers (exit 0):
+
+* Title: macOS Sequoia, Version: 15.8.2, Size: 15297393KiB, Build: 24H232, Deferred: NO
+* Title: macOS Sequoia, Version: 15.8.1, Size: 15297386KiB, Build: 24H32, Deferred: NO
+* Title: macOS Sequoia, Version: 15.8, Size: 15296950KiB, Build: 24H23, Deferred: NO
+* Title: macOS Sequoia, Version: 15.7.9, Size: 15289021KiB, Build: 24G830, Deferred: NO
+
+softwareupdate --fetch-full-installer --full-installer-version 15.7 (exit 1):
+
+Scanning for 15.7 installer
+Install failed with error: Update not found

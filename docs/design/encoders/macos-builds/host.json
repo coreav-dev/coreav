@@ -1,0 +1,15 @@
+{
+  "allocation_sha256": "80020aeb4aeae32b0b81378ae7d1c743aa58b8874c7b9eab1a7c45697d939a43",
+  "cores": 8,
+  "cpu": "Apple M1",
+  "dedicated": true,
+  "hardware_sha256": "05650620a4ea7ae63788202ba564af1985fa45b5971b7efb7c71520659d13dc6",
+  "memory": 8589934592,
+  "model": "Macmini9,1",
+  "os_build": "24H232",
+  "os_version": "15.8.2",
+  "profile": "ENC-MAC-1",
+  "provider": "private-reference",
+  "type": "M1-M",
+  "virtual": false
+}
