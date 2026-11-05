@@ -223,6 +223,28 @@ Test each exact change separately against main before combining accepted changes
 
 The prior-art input remains the already reviewed [search-efficiency technique note](../technique-notes/h264-encoder-speed.md), listed above. No new implementation source or unreviewed study output is an input to this design. A separate study can now compare its techniques with these five answers. Only its reviewed note, after commitment, may inform implementation.
 
+## Partition-search implementation
+
+The implementation uses the design above and the reviewed [partition-search reuse note](../technique-notes/h264-partition-search.md), without opening the studied sources. It adopts two exact changes. Visited-score lookup and finalist admission inspect only initialized entries. Motion probes count their signalling cost before SAD and stop only when accumulated cost strictly exceeds both the fourth ranked cost and the best integer-centre cost. Without four ranked entries and an integer centre, every probe completes. The initial protected seeds therefore complete. Fractional stage centres start at the best integer result and can only improve, so the integer bound also protects those decisions.
+
+An abandoned probe is not inserted into the score cache. A revisit can repeat its calculation, but can never retrieve a partial sum as an exact score. Complete scores retain the existing tuple order. No layout, seed, search pattern, finalist cap, complete RDO objective, normative admission, or committed sequence state changes. The new regressions compare every ranking and integer-centre update against complete scoring across partition extents, QP boundaries, edge extension, outlying predictors, and reverse-order revisits. Explicit fixtures protect an integer-centre improvement outside the top four and an equal-cost tie.
+
+### Reference comparisons
+
+Each isolated comparison runs five alternating before/after pairs on the four-picture input above. Both accepted changes reduce elapsed time in all five matched pairs and preserve complete stream and reconstruction bytes. These are local reference figures, not judged speed claims. The input is lossy. Builds, host, settings, and CPU affinity match the local profile. The timed command is the existing `p` driver, including its CoreAV decoder verification, input reads, and output writes, without a profiler. All comparisons use optimized release builds with `CARGO_PROFILE_RELEASE_DEBUG=1`.
+
+| Arm | Before wall seconds, in call order | After wall seconds, in call order | Median before | Median after |
+|---|---|---|---:|---:|
+| Initialized-prefix lookup against main | 3.816699, 4.590795, 3.815880, 4.081827, 4.120345 | 3.584350, 3.769618, 3.781091, 3.855414, 3.833405 | 4.081827 | 3.781091 |
+| Row cutoff against initialized-prefix lookup | 4.076100, 4.119784, 3.929944, 3.909300, 3.935649 | 3.791440, 3.711077, 3.706743, 3.549293, 3.656575 | 3.935649 | 3.706743 |
+| Direct motion-length arithmetic against initialized-prefix lookup, rejected | 3.763301, 3.778297, 3.533032, 3.551166, 3.970318 | 3.729738, 3.874050, 4.281814, 3.908159, 4.380935 | 3.763301 | 3.908159 |
+
+The direct signed Exp-Golomb length experiment preserved bytes but did not win, so the implementation retains the existing syntax counter. Further base-state retention, interpolation caches, and heuristic layout omission are not implemented in this round. They require their own comparisons rather than assuming that the profile or technique note establishes a win.
+
+A single full 60-picture pair compares main with both accepted changes. Wall time is 70.592323 seconds before and 64.620203 seconds after, or 0.850 and 0.929 pictures per second, a 1.092x throughput ratio. Process CPU time is 69.043010 and 61.692367 seconds respectively. This one-pair reference includes the driver's verification and IO and has no measured repeatability interval. It does not establish the same gain on other inputs or hosts.
+
+Both complete streams have SHA-256 `26e139c6f54b809565934ab1048c47527973b6589fa14d75b1efa9775ddc8a59`. Both complete 60-picture reconstructions have SHA-256 `d670fa1bdbc5e24308f390f831855de08fbd5b9153b6cb2e1445579749481ab4`, with all 27,648,000 bytes equal. Pinned FFmpeg independently reproduces those bytes. Rate and reconstruction quality are unchanged because the complete output bytes are unchanged, not because a rounded quality metric happens to agree.
+
 ## Next design-only slice
 
 The [picture-budget proposal](h264-encoder-rate-control.md) defines the next design-only slice after inter conformance. It separates a target-rate policy from normative QP and buffer constraints, defines failure and flush behavior, and proposes synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
