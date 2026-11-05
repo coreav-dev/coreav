@@ -1,0 +1,1793 @@
+{
+  "dependencies": {
+    "docs/design/oracle-historical-records.json": "85a032c2ae9e89f4368107672886f22ea758e69a96d9ec5f63b03bad9a7fcf52",
+    "scripts/oracle-ffmpeg-macos.env": "32805c5848146a1a1200a2c401f07f9c09cfb41628f656ef60dadcca956ae4bd",
+    "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+    "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
+    "scripts/oracle_pin_macos.py": "70c0f515b3a58cf6b6d2d11938b537b2e8824f0fafbfe6ab9578669c1d857879",
+    "scripts/test_oracle.py": "ba9bc428dae34681fa5b9c3f80863479c6fc0c0f45f267ec009d7d97ea004510",
+    "test-support/oracle.rs": "bda841d4ac18d3cb12d417ff29b1fbc0a5f083a2838e06b1d4b6e92a67c679c2"
+  },
+  "frozen": {
+    ".github/workflows/compat-0.1.0.yml": "b979061433995d3a504edddac660216fefbdef556080967f7facf76c89eb1a80",
+    "bench/audio-decode/agreement.py": "32f312ad10962d654568c85b6962041ae8cce82ccd74272dfddb3b0656ac0818",
+    "bench/audio-decode/capacity.py": "da27491bc077453e0fca6706bddaefdf8098e1d4bb8d1006ada34c6abedd1462",
+    "bench/audio-decode/oracle.py": "6999bc89af9f0ffb4dade872e30b2b0ba7342648b32e22aaeeca50936316b32a",
+    "bench/audio-decode/receipts.py": "bec504c954c8750df703116325e37ea21c2844696df68e23856495bf95a18783",
+    "bench/audio-decode/run.py": "516120decdaf44a5e206c5e57da485ad15d3f9aa010422daa027508bb2ef6112",
+    "crates/coreav-cli/tests/ffmpeg.rs": "15e49cefc43240d732903b37874a0fda544065777e331200cfe2ad6182eebefc",
+    "crates/coreav-isobmff/tests/common/fragments.rs": "a9e161349e40328ca2b95ffa593aff35af0e1739648d74fc0767100cda3f0b89",
+    "crates/coreav-isobmff/tests/common/mod.rs": "fcd4b45894250821d93290d802d8324dfc8cbc1b27c56980a6a6075955744d71",
+    "crates/coreav-isobmff/tests/common/sound.rs": "7db44a00ee6bc2671517fdf5e8bb8b31b25ac224c856b04948aed5bb1875ef03",
+    "crates/coreav-isobmff/tests/common/text_movie.rs": "14d531666bb6c356d27ad936e7ee2425a9b63a131a6ea0b013042d947a1f324f",
+    "docs/design/b4-calibration.md": "3222e7f6001f7f88d4fa380fbe87c525f0363eb3e2ad82ba7f5425ef0e1302a3",
+    "docs/known-divergences-clip.json": "58fcca78ddd8462ac2f194d4461efe9783f32c062a2699741dd6eba3f232e736",
+    "docs/known-divergences-decode-audio.json": "9b776384b90f23bad4c50d9613661f95fc2ccfb8da195e3bb76da00ea2d30a18",
+    "docs/known-divergences-extract.json": "e3cc703458a19150673dd30ccf1ba0a0990fb637e6ed304c8153eff4205d2ab1",
+    "docs/known-divergences-hls.json": "885310e6e2a2b976c6fd9c38e1de9145edd25eda96ccfca9270195d0ed58b0d5",
+    "docs/known-divergences-join.json": "aca15deefe581e69197de4998a81a41eec2ec28d4c4b776820daec9a3bf6872a",
+    "docs/known-divergences-mkv.json": "a7a73ce921ed7ce8f8eaaa7b4418f611feea3779528f9c2ef990261ff712c716",
+    "docs/known-divergences-remux.json": "2da90e34d112b9793d183755c0a6946a8c593bad17fb5004ff788ab92c388f3f",
+    "docs/known-divergences-split.json": "263d5365501db4935672c4c5b182768c14cd3a747bb6d11072741e44128d37a0",
+    "docs/known-divergences-ts.json": "44ef5eec8132cf5e490588dafa7c3c99e33676ea4ab17deb41dcf50f9ca303fc",
+    "docs/known-divergences.json": "25b7b962df7e72e47a35146418ff232726ed4c1f3cb781ae9d54c747a793203c",
+    "docs/measurements/compat-0.1.0/judging.json": "4b31ec8809f792c5f57d079782280ad0f34eeaba19389ed3e92992e95e206dc9",
+    "docs/measurements/compat-ffprobe/round10-plan.md": "027ed41e1d586ff8d62965b1fa8174fa024599c8acab21057544c55b326b5322",
+    "scripts/clip_check.py": "f448dcf2a98a88546fa988a4b24dbccf95fc3baa517bbbe34021e3df2bb588c4",
+    "scripts/compat_check.py": "6d5c1322a578632bcf9cb9fe6cd87519e427127589c39b8ba52ba70b51a250cc",
+    "scripts/compat_sources.py": "6df31864dd84ac9518a4140bcc32a86e8149b9b39377f51882eadcb7606824e5",
+    "scripts/decode_audio_check.py": "05277f5e3c9d17a352088d003b703705f6738354bf6dbf81be3620802dd448e2",
+    "scripts/extract_check.py": "d0ca1b1975d08acdb6fad7b9f185badfc1709d1444359037a0d94bb59aa834e7",
+    "scripts/gcp_vm_job.py": "aaadd972e8e12715d118c12ef569a7813e11024750336f2a73e900550ab23bec",
+    "scripts/h264_parity_bars.py": "35b87258d5254861a91c94baba6ad6c7a736637fb88b4feced06796894797f5b",
+    "scripts/h264_pgo_acquire.py": "b9d0942f33baee08d4bd7386318d658deede6190cf8113d5d0f5f80f1d2182e1",
+    "scripts/h264_pgo_diagnostics.py": "cb2c425e48af13b0b9be3548168fbe645672c5f546d84f26f35f99bbe8ba047c",
+    "scripts/hls_check.py": "629a7bea8045fbc04d115d784dd6ec033163b045e7fe75c5b1c0bc38351f10d5",
+    "scripts/install-oracle-ffmpeg.sh": "819e66bbdd3ee43327e5183be216997211299434db239eb4a41a22c41910bfd5",
+    "scripts/install-oracle-mediainfo.sh": "c8224047da52c9032d339270e51ce5bc9034daeee2c351bbf90cb270de1e4e36",
+    "scripts/join_check.py": "2af2682134b3bfb08b0be371032fb604ad8579008ecd8b76a354a68b78ae84e2",
+    "scripts/mkv_remux_check.py": "cf81d3d0b7395219374208f2ae24099c4f155b582190f9988224f77a9066ab9a",
+    "scripts/opus_identity.py": "c87a89900823e43b09bbf06a2ead35cd9390e9e7cd59b13ff075637b6e1fd987",
+    "scripts/oracle-audio-args.txt": "52720de7a4d973d387c1c7bffd770f40120b7315dcf307625841d04d5e000586",
+    "scripts/oracle-ffmpeg.env": "95601248eba142d1cbf8d81aaf46d5ebc61c1962fe1edafdc1ee2c1b7bd33f24",
+    "scripts/oracle_audio.py": "cc4a68c084aab8f22201a517fb35efbc427f85590b5007e3dfc852e6dc5a98f4",
+    "scripts/oracle_kd.py": "255f193b6bc6e2f67f32f7fe40bd5f91179ce13c91ce462a6514ecd4b0f50d52",
+    "scripts/oracle_kd_mkv.py": "f03b407674c5faa955381f2439bac16f412591041f31326bab241b2f81526b27",
+    "scripts/oracle_kd_ts.py": "a837051ee8900c860973e0e91bacfed14eb21be99b07260938cf1d409d322d31",
+    "scripts/oracle_pin.py": "b221378b054a6e6bae92051ae4e4e4fa1add451213f28e888825fa6e43f2f909",
+    "scripts/policy_ref.py": "782e327baef9626f4cd9631bb93e45476fdebd3234ca4b605ce4e9960317d1d1",
+    "scripts/registered_candidate.py": "93d5733c6e3645c9adc29b9eefcc5bb89e54cf6e96ef8de0d17976032b5f5604",
+    "scripts/remux_check.py": "8cccb3551736f918660c304d434b3fc3cc9501e98e8ade011ae75d0787c14670",
+    "scripts/split_check.py": "1cd37d7d66608a3d74230a247369d733deb0a13cb51ab1b9ce32a024107f3c61",
+    "scripts/track_boxes.py": "97965c1b8f23758c75fedc0eb1d0815fa01f51469ad50c7ae6b5d02fe007a967",
+    "scripts/vp9_pixel_build.py": "6a899aecd066379adfbd6016eea2dc8a6a708ae157aa931919676d5679fdf34f",
+    "scripts/vp9_pixel_ceiling.py": "10335257ea5cc07c5fc5e1f8e976c9856b0ea25a0f991621519ba825181711dc",
+    "scripts/vp9_pixel_job.sh": "db0226d50f4f5c3830a4465caa67146655a2baa8bc30b3f36ea04a9fef26bcde",
+    "scripts/vp9_pixel_profiles.py": "3f0cbe890a89b35d960ee18435831a409e6aeea6825638d6078ed04b1f9b05b9",
+    "scripts/vp9_pixel_round.py": "2dd7d856d5570741113489f76da099dfd5b11f5867b7e8334437db7d0f78961f",
+    "scripts/writer_boxes.py": "2aaa08ab4e82c78c240b9b594a4ace6639eaf478bef2dde99a50dd6b22acfbb9",
+    "tools/compat-corpus/b4_protocol.py": "16ad6f705c053e283ed7ee1046d2e012b133746c83726c04aafca7b4513966a8",
+    "tools/compat-corpus/b4_round10.py": "c71b1005b327d4b9d0ff00e671fd18b1dbb0250a0088114229535bb3b0438054",
+    "tools/compat-corpus/commands-0.1.0/commands.json": "abeae21f954d18b50ab4af5cef972dbfe14396453329c6f8c751034942bdac0f",
+    "tools/compat-corpus/commands-0.1.0/coverage.json": "077ed478f4693c5612ec3d018c9d3bbe96125a80eb635322ddf3d68dec6894c3",
+    "tools/compat-corpus/copy_check.py": "e73b39820ded04968f9c5cae7ac7a9157e1207a5b9e7351c24a6e6b007f20a75",
+    "tools/compat-corpus/ffmpeg9.json": "12204af1619cf806ede5e009dee43edc51edc361b5c9a93c96f0838ef9d0028d",
+    "tools/compat-corpus/r3.py": "0549a6b9f429e0cadd61d6d10498c971f17b901a7e89143d5d3043fa3b58d913",
+    "tools/compat-corpus/release_round.py": "b5c959bbfb004b8f4cffc65d25bdaf442d5f8e2920b968b844618c0fdfb6a2fa",
+    "tools/compat-corpus/round_files.py": "422d539f46c26443ac418a408261f64057c7a2155582146f1c6a9650d14494ce",
+    "tools/compat-corpus/run.py": "c39fa06827c17e57ba501fa7dde6c4b2fc2f319fc3e7616d62238d070ec056d7",
+    "tools/compat-corpus/speed.py": "adac065441a90301a2a026b89c4d3f0d609881770697cb8ba5c641794b448e21",
+    "tools/oracle/writer_corpus.py": "c4bb64463375c6b0fb10c6efe1ed582f6cb075bbbd3fd15666399230aebd830d",
+    "tools/stage3-report/corpus.py": "86741f53e0ff67df381fef5a875b905ee2037ae6742bcc6eec0e7ea8f4c685f0",
+    "tools/stage3-report/r2pool.py": "b0990e04927f66434dad4041af92ae41377277c6e26695b559ae5997024030ac"
+  },
+  "rules": [
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        133
+      ],
+      "path": "crates/coreav-audio/tests/flac_encode.rs",
+      "pattern": "(?s)\\&program",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        133
+      ],
+      "path": "crates/coreav-audio/tests/flac_encode.rs",
+      "pattern": "(?s)std::process::Command::new\\(\\&program\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        32,
+        47
+      ],
+      "path": "crates/coreav-backend-dav1d/tests/decode.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        32,
+        47
+      ],
+      "path": "crates/coreav-backend-dav1d/tests/decode.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        29,
+        40,
+        188
+      ],
+      "path": "crates/coreav-backend-ffmpeg/tests/decode.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        29,
+        40,
+        188
+      ],
+      "path": "crates/coreav-backend-ffmpeg/tests/decode.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        36,
+        48
+      ],
+      "path": "crates/coreav-backend-h264/tests/decode.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        36,
+        48
+      ],
+      "path": "crates/coreav-backend-h264/tests/decode.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        37
+      ],
+      "path": "crates/coreav-backend-h264/tests/memory.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        37
+      ],
+      "path": "crates/coreav-backend-h264/tests/memory.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        522
+      ],
+      "path": "crates/coreav-backend-h264/tests/one_idr.rs",
+      "pattern": "(?s)std::process::Command::new\\(test_oracle::require\\(\\)\\.ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        522
+      ],
+      "path": "crates/coreav-backend-h264/tests/one_idr.rs",
+      "pattern": "(?s)test_oracle::require\\(\\)\\.ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        49,
+        95,
+        197,
+        220
+      ],
+      "path": "crates/coreav-backend-libvpx/tests/decode.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        49,
+        95,
+        197,
+        220
+      ],
+      "path": "crates/coreav-backend-libvpx/tests/decode.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        24
+      ],
+      "path": "crates/coreav-cli/tests/avi.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        24
+      ],
+      "path": "crates/coreav-cli/tests/avi.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        317
+      ],
+      "path": "crates/coreav-cli/tests/check.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        317
+      ],
+      "path": "crates/coreav-cli/tests/check.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        491,
+        499
+      ],
+      "path": "crates/coreav-cli/tests/decode_audio.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        491,
+        499
+      ],
+      "path": "crates/coreav-cli/tests/decode_audio.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        24,
+        87
+      ],
+      "path": "crates/coreav-cli/tests/decoder_host.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        62,
+        115
+      ],
+      "path": "crates/coreav-cli/tests/decoder_host.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        62,
+        115
+      ],
+      "path": "crates/coreav-cli/tests/decoder_host.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        24
+      ],
+      "path": "crates/coreav-cli/tests/docs_site.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        24
+      ],
+      "path": "crates/coreav-cli/tests/docs_site.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        11,
+        25,
+        31
+      ],
+      "path": "crates/coreav-cli/tests/exec.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        11,
+        25,
+        31
+      ],
+      "path": "crates/coreav-cli/tests/exec.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        46
+      ],
+      "path": "crates/coreav-cli/tests/fallback_windows.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "pin() at lines 118-137 verifies the parent directory but returns the originally selected file. A different executable in that valid directory remains selectable.",
+      "id": "rust-parent-directory-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        154,
+        298,
+        326,
+        408,
+        497,
+        592
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "pin() at lines 118-137 verifies the parent directory but returns the originally selected file. A different executable in that valid directory remains selectable.",
+      "id": "rust-parent-directory-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        154,
+        298,
+        326,
+        408,
+        497,
+        592
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        75,
+        81
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_flac.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        63,
+        253,
+        295,
+        522
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_frames.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        63,
+        186,
+        253,
+        295,
+        522,
+        556
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_frames.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        40
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_frames.rs",
+      "pattern": "(?s)\\&oracle",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        76
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_matroska.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        76
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_matroska.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        180,
+        275,
+        347,
+        359,
+        476
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        62
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\).*",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        79
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)Command::new\\(ffprobe\\).*",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        180,
+        275,
+        347,
+        359,
+        476
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        62
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "oracle() at lines 27-39 reads COREAV_FFMPEG and checks only file presence. The private generator and reference callers pass that unchecked path or its unchecked ffprobe sibling.",
+      "id": "rust-environment-file-check-only",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        79
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)ffprobe",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        195,
+        217,
+        238,
+        305,
+        319,
+        333,
+        371,
+        491,
+        509
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        195,
+        217,
+        238,
+        305,
+        319,
+        333,
+        371,
+        491,
+        509
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        19,
+        118,
+        139,
+        186,
+        215,
+        226,
+        274,
+        316,
+        350,
+        405,
+        455,
+        497,
+        546,
+        588,
+        622,
+        942,
+        985,
+        1008
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_pcm.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        19,
+        118,
+        139,
+        186,
+        215,
+        226,
+        274,
+        316,
+        350,
+        405,
+        455,
+        497,
+        546,
+        588,
+        622,
+        942,
+        985,
+        1008
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_pcm.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        51,
+        94
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_pcm.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        51,
+        94
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_pcm.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        15
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_raw.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        15
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_raw.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        443,
+        654
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        41,
+        180,
+        238,
+        443,
+        654
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        109,
+        143,
+        431
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        109,
+        143,
+        187,
+        245,
+        431
+      ],
+      "path": "crates/coreav-cli/tests/ffmpeg_wav.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        50
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ancillary_bit_rate.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        50
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ancillary_bit_rate.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        61
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_aspect_ratio.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        61
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_aspect_ratio.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        75,
+        179,
+        215,
+        259,
+        287,
+        354,
+        404,
+        416,
+        442,
+        485
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_clean_aperture.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        75,
+        179,
+        215,
+        259,
+        287,
+        354,
+        404,
+        416,
+        442,
+        485
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_clean_aperture.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        51,
+        167,
+        193,
+        224
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        51,
+        167,
+        193,
+        224
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        209
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)Command::new\\(\\&pin\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        288
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)Command::new\\(oracle\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        209
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)\\&pin",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        288
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_format_span.rs",
+      "pattern": "(?s)oracle",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        102
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_fragment_bit_rate.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        102
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_fragment_bit_rate.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        113
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_pixel_range.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        113
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_pixel_range.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        54,
+        190,
+        234,
+        262,
+        274,
+        296
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_stream_groups.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        54,
+        190,
+        234,
+        262,
+        274,
+        296
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_stream_groups.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        84
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_track_names.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        52,
+        86,
+        115,
+        132,
+        169,
+        180,
+        207,
+        219
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ts_private.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        52,
+        86,
+        115,
+        132,
+        169,
+        180,
+        207,
+        219
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ts_private.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        84
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ts_tail.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        84
+      ],
+      "path": "crates/coreav-cli/tests/ffprobe_ts_tail.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "rust-environment-selection",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        37
+      ],
+      "path": "crates/coreav-cli/tests/frame_handoff.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        75
+      ],
+      "path": "crates/coreav-cli/tests/frame_handoff.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        72
+      ],
+      "path": "crates/coreav-cli/tests/legacy_encoders.rs",
+      "pattern": "(?s)test_oracle::require\\(\\)\\.ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        61,
+        103
+      ],
+      "path": "crates/coreav-cli/tests/probe_tuning.rs",
+      "pattern": "(?s)Command::new\\(env!\\(\"CARGO_BIN_EXE_coreav\"\\)\\).*",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        61,
+        103
+      ],
+      "path": "crates/coreav-cli/tests/probe_tuning.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        95
+      ],
+      "path": "crates/coreav-cli/tests/strict_safe.rs",
+      "pattern": "(?s)Command::new\\(\\&ffmpeg\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        95
+      ],
+      "path": "crates/coreav-cli/tests/strict_safe.rs",
+      "pattern": "(?s)\\&ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        16
+      ],
+      "path": "crates/coreav-cli/tests/strict_safe_limit.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        80,
+        89
+      ],
+      "path": "crates/coreav-cli/tests/thumbnail.rs",
+      "pattern": "(?s)Command::new\\(test_oracle::require\\(\\)\\.ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        80,
+        89
+      ],
+      "path": "crates/coreav-cli/tests/thumbnail.rs",
+      "pattern": "(?s)test_oracle::require\\(\\)\\.ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The compile-time Cargo binary identity is the program under test; reference launches are separate boundaries.",
+      "id": "rust-compiled-target",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        27,
+        612
+      ],
+      "path": "crates/coreav-cli/tests/transcode_selection.rs",
+      "pattern": "(?s)env!\\(\"CARGO_BIN_EXE_coreav\"\\)",
+      "verdict": "excluded"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        1287
+      ],
+      "path": "crates/coreav-isobmff-write/tests/replace.rs",
+      "pattern": "(?s)Command::new\\(test_oracle::require\\(\\)\\.ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        1122
+      ],
+      "path": "crates/coreav-isobmff-write/tests/replace.rs",
+      "pattern": "(?s)Command::new\\(test_oracle::require\\(\\)\\.ffprobe\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        1287
+      ],
+      "path": "crates/coreav-isobmff-write/tests/replace.rs",
+      "pattern": "(?s)test_oracle::require\\(\\)\\.ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        1122
+      ],
+      "path": "crates/coreav-isobmff-write/tests/replace.rs",
+      "pattern": "(?s)test_oracle::require\\(\\)\\.ffprobe\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        29,
+        129,
+        175,
+        267,
+        370,
+        478
+      ],
+      "path": "crates/coreav-worker/tests/ffmpeg.rs",
+      "pattern": "(?s)Command::new\\(ffmpeg\\(\\)\\).*",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "rust-owner-return",
+      "kinds": [
+        "Rust"
+      ],
+      "lines": [
+        29,
+        129,
+        175,
+        267,
+        370,
+        478
+      ],
+      "path": "crates/coreav-worker/tests/ffmpeg.rs",
+      "pattern": "(?s)ffmpeg\\(\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-array",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        21,
+        22,
+        23,
+        24,
+        25,
+        28
+      ],
+      "path": "packages/cli/test/release-clips.sh",
+      "pattern": "(?s)\"\\$\\{ff\\[@\\]\\}\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-command-word",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        13
+      ],
+      "path": "packages/cli/test/release-clips.sh",
+      "pattern": "(?s)ffmpeg(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
+      "id": "python-parent-directory-only",
+      "kinds": [
+        "command"
+      ],
+      "lines": [
+        79
+      ],
+      "path": "scripts/avi_fixture_check.py",
+      "pattern": "(?s)ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
+      "id": "python-parent-directory-only",
+      "kinds": [
+        "command"
+      ],
+      "lines": [
+        102,
+        107,
+        129,
+        132
+      ],
+      "path": "scripts/avi_fixture_check.py",
+      "pattern": "(?s)opts\\.ffmpeg",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "main() at lines 89-94 verifies opts.ffmpeg.parent, then passes the originally selected executable into the direct runner and video_equal. Neither basename nor selected-file identity is checked.",
+      "id": "python-parent-directory-only",
+      "kinds": [
+        "delegated"
+      ],
+      "lines": [
+        79,
+        102,
+        107,
+        129,
+        132
+      ],
+      "path": "scripts/avi_fixture_check.py",
+      "pattern": "(?s)run",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "main() at lines 25-31 verifies a directory and parent equality, not the requested files. Lines 42-65 forward those unchecked selections to the unchanged evaluator.",
+      "id": "python-parent-directory-forwarding",
+      "kinds": [
+        "delegated"
+      ],
+      "lines": [
+        65
+      ],
+      "path": "scripts/avi_v2_check.py",
+      "pattern": "(?s)v2\\.evaluate",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "python-owner-return",
+      "kinds": [
+        "command"
+      ],
+      "lines": [
+        336
+      ],
+      "path": "scripts/bench_guard.py",
+      "pattern": "(?s)pin",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "python-owner-return",
+      "kinds": [
+        "command"
+      ],
+      "lines": [
+        399,
+        428
+      ],
+      "path": "scripts/bench_guard.py",
+      "pattern": "(?s)str\\(test_oracle\\.require\\(\\)\\.ffmpeg\\)",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-array",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        42,
+        83,
+        143,
+        144,
+        166,
+        167,
+        169
+      ],
+      "path": "scripts/gen-fixtures-mkv.sh",
+      "pattern": "(?s)\"\\$\\{FF\\[@\\]\\}\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-command-word",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        26
+      ],
+      "path": "scripts/gen-fixtures-mkv.sh",
+      "pattern": "(?s)ffmpeg(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-array",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        41
+      ],
+      "path": "scripts/gen-fixtures-ts.sh",
+      "pattern": "(?s)\"\\$\\{FF\\[@\\]\\}\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-array",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        50,
+        60,
+        68,
+        69,
+        70,
+        73,
+        74,
+        289,
+        290,
+        293,
+        296,
+        619,
+        670,
+        671
+      ],
+      "path": "scripts/gen-fixtures.sh",
+      "pattern": "(?s)\"\\$\\{FF\\[@\\]\\}\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-unqualified-command-word",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        27
+      ],
+      "path": "scripts/gen-fixtures.sh",
+      "pattern": "(?s)ffmpeg(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-environment-default",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        80
+      ],
+      "path": "scripts/oracle-ffprobe.sh",
+      "pattern": "(?s)\"\\$FFMPEG\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The standalone entry point executes the recorded PATH or environment selection without qualifying that executable.",
+      "id": "shell-environment-default",
+      "kinds": [
+        "shell"
+      ],
+      "lines": [
+        36,
+        43,
+        51
+      ],
+      "path": "scripts/oracle-ffprobe.sh",
+      "pattern": "(?s)\"\\$FFPROBE\"(?:\\s.*)?",
+      "verdict": "confirmed-bypass"
+    },
+    {
+      "evidence": "The selected executable is the shared owner return value, directly or through the recorded same-file helper.",
+      "id": "python-owner-return",
+      "kinds": [
+        "command"
+      ],
+      "lines": [
+        199
+      ],
+      "path": "scripts/stsd_craft.py",
+      "pattern": "(?s)ffmpeg",
+      "verdict": "qualified-via-owner"
+    },
+    {
+      "evidence": "The select branch returns at lines 441-444 before require() at 452. select() forwards the unqualified selectors through child_env and make_prober at 84-86.",
+      "id": "python-prequalification-dispatch",
+      "kinds": [
+        "delegated"
+      ],
+      "lines": [
+        444
+      ],
+      "path": "scripts/transcode_speed.py",
+      "pattern": "(?s)select",
+      "verdict": "confirmed-bypass"
+    }
+  ],
+  "schema": 1,
+  "source_snapshot_sha256": "ad321073828929b008210135d37712f959a1ed985c450cf5bf0136dcc02e10db",
+  "sources": {
+    "crates/coreav-audio/tests/flac_encode.rs": "6b63b16444965850c74da0651859128602a9093fe487a15865f8a82093bf6880",
+    "crates/coreav-backend-dav1d/tests/decode.rs": "9094fa0b3a4957d348e9b92420c658fda930329cac3b9c2da17e5c3248e0e791",
+    "crates/coreav-backend-ffmpeg/tests/decode.rs": "3c7a77d92030a5f888aefa172809b0cb39871232a6b5bfafe3368baaf80c9854",
+    "crates/coreav-backend-h264/tests/decode.rs": "50e43655c3d95a5d20e5dd87c19015da109739c849e7ee78a54ee3d5a78fe806",
+    "crates/coreav-backend-h264/tests/memory.rs": "2c57b9ee0d6da9feaa15f165ee9e9680b84ecd8c1dad20df31e061f63bd0d3db",
+    "crates/coreav-backend-h264/tests/one_idr.rs": "b7fc2c4c44d990aac2022a62f2ab35df23b3010e9baf4595509b51742052136d",
+    "crates/coreav-backend-libvpx/tests/decode.rs": "408ab605d61c7883127c2373415288226814177c4e1b513044f9ad902c258515",
+    "crates/coreav-cli/tests/avi.rs": "5ea0bdc1146f1695f555d7666315e35642305c5ce287cd8265245be2b8b5c3b4",
+    "crates/coreav-cli/tests/check.rs": "d9b98d866436bf4cde837943a2aac7bd574c808657510997d0c721e4fb70f7e7",
+    "crates/coreav-cli/tests/decode_audio.rs": "117c3bc34dc63615335f9e78542f7b49e73661f2c43c8bc974601dcdd728b387",
+    "crates/coreav-cli/tests/decoder_host.rs": "e71be94fcc770e16d7f36e2b985eb6fec2fdb5e314c21739789c14dd8d014dc0",
+    "crates/coreav-cli/tests/docs_site.rs": "bd3979d63545179b8066a2132a1d31e25b72af558a3c60cb34d144c280471db1",
+    "crates/coreav-cli/tests/exec.rs": "8105821de01ac99e0096a40b0266de02411dd21f593d7b029d13d7c344209abe",
+    "crates/coreav-cli/tests/fallback_windows.rs": "5c97b42c1b3d351c564ccf266d51f3ab36a604080f7c78d18ed0d21ee22ffb92",
+    "crates/coreav-cli/tests/ffmpeg_flac.rs": "bdd12fd98b9dda64c059ff142b8c73e550b5341438542f6db926985319237613",
+    "crates/coreav-cli/tests/ffmpeg_frames.rs": "c14f50e8876d869a711b6b232c61f07412979dcb65ce3f458dfb7a3ec26aecab",
+    "crates/coreav-cli/tests/ffmpeg_matroska.rs": "9cba9336b1f21b9199ac4c2167f7f4e8ee2172f7e7acf302445a6283e7b2cb4b",
+    "crates/coreav-cli/tests/ffmpeg_mkv_aac_copy.rs": "2d72e6aed47edfdf3dc1a53a79b6489a7ecaee75e72e96d7cf5a33b78eceff60",
+    "crates/coreav-cli/tests/ffmpeg_pcm.rs": "c700046642796bb6ab27f09b7d7991059088f175cbae71c4541113a6ed25dd22",
+    "crates/coreav-cli/tests/ffmpeg_raw.rs": "e695c08e045f8dd07d2296fd1e4054c1e95a49493922973768b14c0785d7ad0f",
+    "crates/coreav-cli/tests/ffmpeg_wav.rs": "5b7ee1855630fec70c1190411a64f535980afc56e7bd0a123891f27080cde383",
+    "crates/coreav-cli/tests/ffprobe_ancillary_bit_rate.rs": "948d83c773436cce55aa0328544f61405b84b243efd926762e7cd23ca0772da3",
+    "crates/coreav-cli/tests/ffprobe_aspect_ratio.rs": "b8a9a4dba8d8ffa75457f929bd87805261663ee93777c5eadcf76be921bc636c",
+    "crates/coreav-cli/tests/ffprobe_clean_aperture.rs": "a0d0e45785bfcbf64e1de08823df4ba253eccc3859b60a876b2c67b5f22fe056",
+    "crates/coreav-cli/tests/ffprobe_format_span.rs": "8bbb34aa88990971917e869a8f5bf8dd4a43ebd483247bd22c93a145992d50cb",
+    "crates/coreav-cli/tests/ffprobe_fragment_bit_rate.rs": "73cd5dbf534ec2fa3a4b94f42ee303bf1a8cb260b805ace842928bdcd87a74ff",
+    "crates/coreav-cli/tests/ffprobe_pixel_range.rs": "57b580c255692bfdf2b2b5ebb7d40b3d4ca40cf99627903294325a636a6e3d3c",
+    "crates/coreav-cli/tests/ffprobe_stream_groups.rs": "1b8ea3c79cba429bd34b8a19c9b483a94726e0964af4ff88f1a455ca9499443e",
+    "crates/coreav-cli/tests/ffprobe_track_names.rs": "dbefa40cfdadb2a5c9933ce218e99f50e5d87db073def67a3d6076a7da6c0b34",
+    "crates/coreav-cli/tests/ffprobe_ts_private.rs": "dd405f3bc581cad8f67003f58ff0950e9b9ef841332a3451b614b8d6d20c4754",
+    "crates/coreav-cli/tests/ffprobe_ts_tail.rs": "46005c1efd657ea93d8515a475a907cfd2783e6b74f62f9ef564f8a7ced2b4f3",
+    "crates/coreav-cli/tests/frame_handoff.rs": "b78aa02ac5a202b16aea232c967b03a4564253c095f7f628e8ae1c9f71382dd2",
+    "crates/coreav-cli/tests/legacy_encoders.rs": "0b2f40a8462ec08b23538ca97d509f44af2c15c9958f36f90992f4d40311ef9f",
+    "crates/coreav-cli/tests/probe_tuning.rs": "dcf0bf0331730dea3114297310f82e59c00d5a37596ea9a0ec887fef51888f78",
+    "crates/coreav-cli/tests/strict_safe.rs": "a75f3d5c6a22eee49b44cefd43931f1199515218603f7126d62198a232db7699",
+    "crates/coreav-cli/tests/strict_safe_limit.rs": "0b11d217aea687a5d7e81a9d85cb8703fd0d8092c6d660c29ece8559e5cfc895",
+    "crates/coreav-cli/tests/thumbnail.rs": "3740eda708acee2bdb0f3ea4a0ac5819c80927c4bc361e3210d5acbe7d85279e",
+    "crates/coreav-cli/tests/transcode_selection.rs": "ee9deecabf5a4a2715ea8ece168ff89af163ecb3a31fc2598bc7a6ae1de294c6",
+    "crates/coreav-isobmff-write/tests/replace.rs": "c704b6600421661b444eed3c4ad88efcbda2d41636d10fedcac15b0be5268991",
+    "crates/coreav-worker/tests/ffmpeg.rs": "48ca0fb6ab070e47c3a8ea3f4d9f626b2c9696ef031b5225cef87010ba250d92",
+    "packages/cli/test/release-clips.sh": "870efad502950d8dbb9a3f88c8672a2c10d610dcada7fb8dfe5dbc12e29c37c1",
+    "scripts/avi_fixture_check.py": "0d87de769e2678e9f1299a1b8667a785ed0a9943443c2f5ee4f9a4fec8fcf97e",
+    "scripts/avi_v2_check.py": "731fb170c38f8694cbbefc9914f9f40836b3558651a45dda85bcc8ef9f2f74e1",
+    "scripts/bench_guard.py": "9906ca0e4d376bc5fde262d17297d699b5802212a293ff6676d588bdd4e03250",
+    "scripts/gen-fixtures-mkv.sh": "2edfdf356a214c97fc24c9e445892beaf9bd9e339d9fd519f100a800b1f05010",
+    "scripts/gen-fixtures-ts.sh": "d7f797724e4521b1a4840ce41953cfb5f1fd8e4b79a0266feacbf325bf4d5551",
+    "scripts/gen-fixtures.sh": "baa6378c62602ce2332f2d1138766965eaa979737864a29737cd4d92b16ab6cb",
+    "scripts/oracle-ffprobe.sh": "8ffb1e92747b2f7e5d668e9f70074b90ca99347fbfdbb2723aead2a536970ac5",
+    "scripts/stsd_craft.py": "4d683dd4fd8048ac1140d13cfafdfb18f57ebf314fe1a10b8a81770e8184402b",
+    "scripts/transcode_speed.py": "3084a9ba86a8834ef693c38843384b4b3e32b32fb017c709d3aed07990c425bc"
+  }
+}
