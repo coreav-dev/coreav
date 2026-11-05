@@ -171,7 +171,13 @@ impl Motions {
             .chain([Mv::default(), predictor])
         {
             if finalists.contains(&Some(mv))
-                || !self.seen.iter().flatten().any(|value| value.2 == mv)
+                || !self
+                    .seen
+                    .get(..self.len)
+                    .ok_or(Error::Internal)?
+                    .iter()
+                    .flatten()
+                    .any(|value| value.2 == mv)
             {
                 continue;
             }
@@ -201,7 +207,14 @@ impl Search<'_> {
         predictor: Mv,
         motions: &mut Motions,
     ) -> Result<Option<Ranked>> {
-        if let Some(&value) = motions.seen.iter().flatten().find(|value| value.2 == mv) {
+        if let Some(&value) = motions
+            .seen
+            .get(..motions.len)
+            .ok_or(Error::Internal)?
+            .iter()
+            .flatten()
+            .find(|value| value.2 == mv)
+        {
             return Ok(Some(value));
         }
         if !mv.valid() {
