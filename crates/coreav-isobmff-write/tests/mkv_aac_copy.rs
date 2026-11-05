@@ -199,6 +199,24 @@ fn unqualified_packet_facts_are_refused_in_both_passes() {
 }
 
 #[test]
+fn truncated_packets_do_not_become_timing_refusals() {
+    for change in ["", "origin"] {
+        let mut data = fixture(change);
+        data.pop();
+        assert!(matches!(
+            check(
+                &data,
+                &coreav_mkv::Limits::default(),
+                &coreav_isobmff::Limits::default(),
+            ),
+            Err(MatroskaRemuxError::Source(
+                coreav_mkv::Error::Truncated { .. }
+            ))
+        ));
+    }
+}
+
+#[test]
 fn timing_refusal_does_not_hide_terminal_limits() {
     let data = fixture("gap");
     let mux = coreav_isobmff::Limits {

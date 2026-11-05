@@ -62,7 +62,9 @@ pub use matroska::{
     MatroskaRemuxOptions, MatroskaRemuxSummary, MatroskaRemuxTrack, check_matroska_aac_copy,
     remux_matroska, remux_matroska_compatible, remux_matroska_replacing,
 };
-pub use remux::{remux_mp4, remux_mp4_inputs, remux_mp4_replacing, sanitize_mp4};
+pub use remux::{
+    remux_mp4, remux_mp4_inputs, remux_mp4_inputs_with_options, remux_mp4_replacing, sanitize_mp4,
+};
 pub use replace::{
     AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements, roll_boxes,
 };
@@ -318,6 +320,18 @@ pub struct InputStream {
     pub input: usize,
     /// Position of the stream in that source.
     pub stream: usize,
+}
+
+/// Optional compatibility policies for [`remux_mp4_inputs_with_options`].
+/// Defaults retain the native layout and declared header durations.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RemuxInputsOptions {
+    /// Order audiovisual chunks by final edited decode time, one sample each.
+    /// Additional chunks consume the existing table allowance.
+    pub interleave_packets: bool,
+    /// Reconstruct header durations from complete validated sample/edit windows.
+    /// Unsupported timing refuses before output rather than being approximated.
+    pub rebuild_durations: bool,
 }
 
 /// The most source files accepted by [`remux_mp4_inputs`].
