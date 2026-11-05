@@ -550,6 +550,7 @@ pub fn probe<S: Source>(
                 || first.is_some_and(|first| first > 0))
                 && intervals.all(|interval| interval.is_some() && interval == first);
             if track.description.codec == Codec::H264 {
+                summary_complete &= avc_summary_authority(track, &head, &mut *source, limits);
                 let entry = track
                     .description
                     .width
@@ -571,9 +572,14 @@ pub fn probe<S: Source>(
             ) =>
             {
                 info.as_ref()
-                    .and_then(|v| v.sar)
-                    .map_or(super::SummaryAspect::Unverified, |codec| {
-                        super::SummaryAspect::Complete { codec: Some(codec) }
+                    .map_or(super::SummaryAspect::Unverified, |v| match v.sar {
+                        video::Aspect::Ratio(num, den) => super::SummaryAspect::Complete {
+                            codec: Some((num, den)),
+                        },
+                        video::Aspect::Unspecified => {
+                            super::SummaryAspect::Complete { codec: None }
+                        }
+                        video::Aspect::Unverified => super::SummaryAspect::Unverified,
                     })
             }
             _ => super::SummaryAspect::Unverified,
@@ -1156,6 +1162,31 @@ fn head<S: Source>(
     })
 }
 
+fn avc_summary_authority<S: Source>(
+    track: &Track,
+    head: &Head,
+    source: &mut S,
+    limits: &Limits,
+) -> bool {
+    let mut proof = || -> Option<()> {
+        let config = track.description.codec_config.as_ref()?;
+        if config.kind.0 != *b"avcC" {
+            return None;
+        }
+        let (offset, size) = head.first?;
+        if u64::from(size) > limits.max_packet_bytes.min(limits.max_box_bytes) {
+            return None;
+        }
+        let size = usize::try_from(size).ok()?;
+        let mut sample = Vec::new();
+        sample.try_reserve_exact(size).ok()?;
+        sample.resize(size, 0);
+        source.read_exact_at(offset, &mut sample).ok()?;
+        video::avc_summary(&config.data, &sample)
+    };
+    proof().is_some()
+}
+
 /// The picture properties of a video track's configuration.
 fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<VideoInfo> {
     let d = &track.description;
@@ -1210,7 +1241,7 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
                             .and_then(super::mkv::video::mpeg4_profile)
                             .map(|(name, level)| (name.to_owned(), i64::from(level))),
                         mpeg4_flags: Some((m.quarter_sample, m.divx_packed)),
-                        sar: video::mpeg4_aspect(dsi),
+                        sar: video::mpeg4_aspect(dsi).into(),
                         color: m.color,
                         ..VideoInfo::default()
                     })
@@ -1458,7 +1489,7 @@ fn stream(
         e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
         let header = header_aspect(track.presentation_size, &matrix, w, h);
-        let aspect = d.pixel_aspect.or(info.sar).or(header).or_else(|| {
+        let aspect = d.pixel_aspect.or(info.sar.ratio()).or(header).or_else(|| {
             (d.codec == Codec::Av1 && d.parameter_set_size.is_some()).then_some((1, 1))
         });
         let (sar, dar) = match (aspect, w, h) {

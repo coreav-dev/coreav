@@ -1,6 +1,6 @@
 [package]
 name = "coreav-backend-apple"
-description = "Safe Apple AAC and H.264 encoding with checked output metadata"
+description = "Safe Apple AAC, H.264 and HEVC encoding with checked output metadata"
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.89"
@@ -9,6 +9,9 @@ repository = "https://github.com/coreav-dev/coreav"
 publish = false
 
 [workspace]
+
+[dependencies]
+coreav-hevc = { path = "../coreav-hevc", features = ["native-hevc"] }
 
 [dev-dependencies]
 coreav-h264 = { path = "../coreav-h264" }

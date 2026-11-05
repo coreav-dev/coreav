@@ -1,6 +1,7 @@
 #[cfg(feature = "aac")]
 mod aac;
 mod exact;
+mod flac;
 mod record;
 #[cfg(test)]
 mod tests;
@@ -34,6 +35,7 @@ enum DecoderPlan {
     Builtin(usize),
     Recorded(record::Admission),
     Pcm(crate::ffprobe::audio::wav::PcmEncoding),
+    Flac(usize),
 }
 
 /// The exact stages resolved before decoding or opening output.
@@ -137,6 +139,9 @@ pub(super) fn plan(
         _ => None,
     });
     let wave = super::format_name(report) == Some("wav");
+    if wave && command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native("WAVE to WAV stdout is not registered"));
+    }
     let pcm = if wave {
         Some(
             codec_name
@@ -180,6 +185,28 @@ pub(super) fn plan(
         })
         .ok_or_else(|| Refusal::not_native("raw audio with unknown sample rate"))?;
     let output_rate = command.sample_rate.unwrap_or(input_rate);
+    let standalone_flac = super::format_name(report) == Some("flac");
+    if standalone_flac && (input_rate != output_rate || channels != output_channels) {
+        return Err(Refusal::not_native(
+            "standalone FLAC with changed rate or channels",
+        ));
+    }
+    if command.muxer == Muxer::Wav
+        && wave
+        && (output_format != SampleFormat::S16
+            || output_rate != input_rate
+            || output_channels != channels
+            || !report.chapters.is_empty()
+            || command.map_metadata == MapMetadata::Default
+                && report
+                    .format_tags
+                    .iter()
+                    .any(|(key, _)| !key.eq_ignore_ascii_case("encoder")))
+    {
+        return Err(Refusal::not_native(
+            "WAVE to WAV output with unregistered packing, rate, channels or metadata",
+        ));
+    }
     if pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::F32)
         && (output_format != SampleFormat::F32 || output_rate != input_rate)
         || pcm == Some(crate::ffprobe::audio::wav::PcmEncoding::U8)
@@ -212,6 +239,7 @@ pub(super) fn plan(
     });
     let container = match super::format_name(report) {
         Some("wav") => "wav",
+        Some("flac") => "flac",
         Some("mov,mp4,m4a,3gp,3g2,mj2") => "mp4",
         Some("matroska,webm") => "matroska",
         _ => {
@@ -226,7 +254,14 @@ pub(super) fn plan(
         let row = exact::DECODERS
             .get(index)
             .ok_or_else(|| Refusal::not_native("missing decoder registration"))?;
-        (DecoderPlan::Builtin(index), row.eligibility)
+        (
+            if standalone_flac {
+                DecoderPlan::Flac(index)
+            } else {
+                DecoderPlan::Builtin(index)
+            },
+            row.eligibility,
+        )
     } else {
         let admission = codec
             .and_then(|codec| record::admission(codec, container))
@@ -486,7 +521,7 @@ fn decode_encoded(command: &Command, plan: &Plan, sink: &mut dyn Sink) -> Result
         }
     };
     let valid_decoder = match &plan.decoder {
-        DecoderPlan::Pcm(_) => false,
+        DecoderPlan::Pcm(_) | DecoderPlan::Flac(_) => false,
         DecoderPlan::Builtin(index) => exact::DECODERS.get(*index).is_some_and(|row| {
             plan.eligibility == row.eligibility
                 && decoded.stream.codec == row.codec
@@ -555,7 +590,7 @@ fn packet_presentation(command: &Command, plan: &Plan, pass: &Pass) -> Result<()
             }
             unsupported |= packet.corrupt;
             match &plan.decoder {
-                DecoderPlan::Pcm(_) => {
+                DecoderPlan::Pcm(_) | DecoderPlan::Flac(_) => {
                     unsupported = true;
                 }
                 DecoderPlan::Builtin(index) => {
@@ -656,9 +691,15 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     } else {
         super::check_output(command, Path::new(&command.output))?
     };
+    if matches!(plan.decoder, DecoderPlan::Flac(_)) {
+        return flac::write(command, plan, force);
+    }
     let before =
         decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
     packet_presentation(command, plan, &before)?;
+    if command.muxer == Muxer::Wav && matches!(plan.decoder, DecoderPlan::Pcm(_)) {
+        return wav::write(command, plan, &before, force);
+    }
     let header = if command.muxer == Muxer::Wav {
         let summary = before
             .converted

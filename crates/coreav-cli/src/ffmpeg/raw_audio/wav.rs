@@ -3,11 +3,91 @@ use crate::error::Failure;
 use crate::ffprobe::audio::wav::{self, Pcm, PcmEncoding};
 use coreav_audio::{Error, Limits, SampleFormat, Sink};
 use coreav_isobmff::{FileSource, Source};
+use std::io::Write;
 use std::path::Path;
 
 #[cfg(test)]
 #[path = "wav_tests.rs"]
 mod tests;
+
+pub(super) fn write(
+    command: &super::Command,
+    plan: &Plan,
+    before: &Pass,
+    force: bool,
+) -> Result<serde_json::Value, super::Stop> {
+    let bytes = before
+        .converted
+        .as_ref()
+        .and_then(|summary| {
+            summary
+                .output_frames
+                .checked_mul(u64::from(summary.output.channels) * 2)
+        })
+        .ok_or_else(|| super::Refusal::not_native("WAV output size overflows"))?;
+    let header =
+        output_header(plan.output_rate, plan.channels.output, bytes).map_err(super::prestart)?;
+    Ok(super::output::to_file(
+        Path::new(&command.output),
+        force,
+        |out| {
+            out.write_all(&header)
+                .map_err(|error| super::audio_failure(Error::Output(error)))?;
+            let mut payload = Payload { out, bytes: 0 };
+            let after =
+                super::decode(command, plan, &mut payload).map_err(DecodeError::terminal)?;
+            if before != &after || payload.bytes != bytes {
+                return Err(super::audio_failure(Error::Invalid(
+                    "WAVE audio changed between preflight and execution",
+                )));
+            }
+            Ok(serde_json::Value::Null)
+        },
+    )?)
+}
+
+fn output_header(rate: u32, channels: u16, bytes: u64) -> Result<Vec<u8>, Error> {
+    let info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0Lavf63.1.102\0\0";
+    let with_info = bytes
+        .checked_add(info.len() as u64)
+        .filter(|size| coreav_audio::wav::fits(*size))
+        .ok_or(Error::Unsupported(
+            "PCM output larger than the WAV size fields",
+        ))?;
+    let mask = if channels == 1 { 4 } else { 3 };
+    let mut header =
+        coreav_audio::wav::header(SampleFormat::S16, channels, rate, mask, Some(bytes));
+    let size = u32::try_from(with_info + header.len() as u64 - 8)
+        .map_err(|_| Error::Unsupported("PCM output larger than the WAV size fields"))?;
+    header
+        .get_mut(4..8)
+        .ok_or(Error::Invalid("WAV RIFF header"))?
+        .copy_from_slice(&size.to_le_bytes());
+    let data = header.split_off(header.len().saturating_sub(8));
+    header.extend_from_slice(info);
+    header.extend_from_slice(&data);
+    Ok(header)
+}
+
+struct Payload<'a> {
+    out: &'a mut dyn Write,
+    bytes: u64,
+}
+
+impl Sink for Payload<'_> {
+    fn start(&mut self, _: &coreav_audio::OutputFormat) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.out.write_all(bytes).map_err(Error::Output)?;
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len() as u64)
+            .ok_or(Error::Invalid("WAV output size overflows"))?;
+        Ok(())
+    }
+}
 
 pub(super) fn decode(
     command: &super::Command,

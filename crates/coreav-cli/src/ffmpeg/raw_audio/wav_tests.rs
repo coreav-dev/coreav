@@ -2,6 +2,16 @@
 
 use super::*;
 
+#[test]
+fn output_header_refuses_riff_overflow_without_allocating_the_payload() {
+    for bytes in [u64::from(u32::MAX), u64::MAX - 33, u64::MAX] {
+        assert!(matches!(
+            output_header(48000, 1, bytes),
+            Err(Error::Unsupported(_))
+        ));
+    }
+}
+
 struct Generated {
     pcm: Pcm,
     reads: usize,

@@ -40,6 +40,452 @@ fn strict() -> Command {
     command
 }
 
+fn info_tag(tag: &[u8; 4], text: &[u8]) -> Vec<u8> {
+    let mut payload = b"INFO".to_vec();
+    payload.extend_from_slice(tag);
+    payload.extend_from_slice(&(text.len() as u32 + 1).to_le_bytes());
+    payload.extend_from_slice(text);
+    payload.push(0);
+    if payload.len() % 2 != 0 {
+        payload.push(0);
+    }
+    let mut chunk = b"LIST".to_vec();
+    chunk.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+    chunk.extend(payload);
+    chunk
+}
+
+#[test]
+fn integer_wav_output_matches_complete_pinned_files() {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+        return;
+    }
+    let verified = Command::new("python3")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle_pin.py"))
+        .arg("--verify-bin")
+        .arg(ffmpeg.parent().unwrap())
+        .output()
+        .unwrap();
+    assert!(verified.status.success(), "{verified:?}");
+    let dir = scratch("output-oracle");
+    for bits in [8u16, 16, 24, 32] {
+        for channels in [1u16, 2] {
+            for frames in [0, 3, 40001] {
+                let samples: Vec<u8> = (0..frames * usize::from(channels))
+                    .flat_map(|n| {
+                        let value = match n % 7 {
+                            0 => i32::MIN,
+                            1 => i32::MAX,
+                            2 => 0,
+                            _ => (n as i32).wrapping_mul(1_073_741_789),
+                        };
+                        if bits == 8 {
+                            vec![((value >> 24) + 128) as u8]
+                        } else {
+                            (value >> (32 - bits)).to_le_bytes()[..usize::from(bits / 8)].to_vec()
+                        }
+                    })
+                    .collect();
+                let mut source = wav(1, bits, channels, &samples);
+                let info = info_tag(b"ISFT", b"Input encoder");
+                source.splice(36..36, info);
+                let size = source.len() as u32 - 8;
+                source[4..8].copy_from_slice(&size.to_le_bytes());
+                let input = dir.join("input.wav");
+                std::fs::write(&input, source).unwrap();
+                for explicit in [false, true] {
+                    let candidate = dir.join("candidate.wav");
+                    let reference = dir.join("reference.wav");
+                    let count = channels.to_string();
+                    let mut args = vec![
+                        "-y",
+                        "-i",
+                        input.to_str().unwrap(),
+                        "-ac",
+                        &count,
+                        "-ar",
+                        "48000",
+                        "-f",
+                        "wav",
+                    ];
+                    if explicit {
+                        args.extend(["-acodec", "pcm_s16le"]);
+                    }
+                    let pin = Command::new(&ffmpeg)
+                        .args(&args)
+                        .arg(&reference)
+                        .output()
+                        .unwrap();
+                    assert!(pin.status.success(), "{pin:?}");
+                    let native = strict()
+                        .args(&args)
+                        .arg(&candidate)
+                        .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                        .output()
+                        .unwrap();
+                    assert!(native.status.success(), "{native:?}");
+                    assert!(native.stdout.is_empty() && native.stderr.is_empty());
+                    assert_eq!(
+                        std::fs::read(&candidate).unwrap(),
+                        std::fs::read(&reference).unwrap(),
+                        "{bits} bits, {channels} channels, {frames} frames, explicit={explicit}"
+                    );
+                }
+            }
+        }
+    }
+    for rate in [16000u32, 96000] {
+        let mut source = wav(1, 16, 1, &[0, 128, 255, 127]);
+        source[24..28].copy_from_slice(&rate.to_le_bytes());
+        source[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
+        source.splice(36..36, info_tag(b"INAM", b"Discard this title"));
+        let size = source.len() as u32 - 8;
+        source[4..8].copy_from_slice(&size.to_le_bytes());
+        let input = dir.join("input.wav");
+        std::fs::write(&input, source).unwrap();
+        let args = ["-y", "-i", input.to_str().unwrap(), "-map_metadata", "-1"];
+        let reference = dir.join("reference.wav");
+        let pin = Command::new(&ffmpeg)
+            .args(args)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(pin.status.success(), "{pin:?}");
+        let candidate = dir.join("candidate.wav");
+        let native = strict().args(args).arg(&candidate).output().unwrap();
+        assert!(native.status.success(), "{native:?}");
+        assert!(native.stdout.is_empty() && native.stderr.is_empty());
+        assert_eq!(
+            std::fs::read(candidate).unwrap(),
+            std::fs::read(reference).unwrap()
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, symlink};
+        let source = dir.join("fifo-input.wav");
+        std::fs::write(&source, wav(1, 16, 1, &[0; 6])).unwrap();
+        let mut payloads = Vec::new();
+        for fallback in [false, true] {
+            let fifo = dir.join(if fallback { "fallback.wav" } else { "pin.wav" });
+            assert!(
+                Command::new("mkfifo")
+                    .arg(&fifo)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            let mut reader = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(rustix::fs::OFlags::NONBLOCK.bits().try_into().unwrap())
+                .open(&fifo)
+                .unwrap();
+            let mut command = if fallback {
+                let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                command.arg("ffmpeg");
+                command.env("COREAV_FALLBACK", &ffmpeg);
+                command.env_remove("COREAV_STRICT_SAFE");
+                command.env_remove("COREAV_FALLBACK_ACTIVE");
+                command
+            } else {
+                Command::new(&ffmpeg)
+            };
+            let result = command
+                .args(["-y", "-i"])
+                .arg(&source)
+                .args(["-f", "wav"])
+                .arg(&fifo)
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).unwrap();
+            assert_eq!(&bytes[4..8], &[255; 4]);
+            payloads.push(bytes);
+        }
+        assert_eq!(payloads[0], payloads[1]);
+        for kind in ["symlink", "dangling", "hardlink"] {
+            let mut payloads = Vec::new();
+            for fallback in [false, true] {
+                let tag = format!("{kind}-{fallback}");
+                let target = dir.join(format!("{tag}-target.wav"));
+                let destination = dir.join(format!("{tag}.wav"));
+                if kind != "dangling" {
+                    std::fs::write(&target, b"preserve target").unwrap();
+                }
+                if kind == "hardlink" {
+                    std::fs::hard_link(&target, &destination).unwrap();
+                } else {
+                    symlink(&target, &destination).unwrap();
+                }
+                let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+                let refused = strict()
+                    .args(["-y", "-i"])
+                    .arg(&source)
+                    .arg(&destination)
+                    .output()
+                    .unwrap();
+                assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+                assert!(refused.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                if kind == "dangling" {
+                    assert!(!target.exists());
+                } else {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+                }
+                let mut command = if fallback {
+                    let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                    command.arg("ffmpeg");
+                    command.env("COREAV_FALLBACK", &ffmpeg);
+                    command.env_remove("COREAV_STRICT_SAFE");
+                    command.env_remove("COREAV_FALLBACK_ACTIVE");
+                    command
+                } else {
+                    Command::new(&ffmpeg)
+                };
+                let result = command
+                    .args(["-y", "-i"])
+                    .arg(&source)
+                    .arg(&destination)
+                    .output()
+                    .unwrap();
+                assert!(result.status.success(), "{result:?}");
+                assert!(result.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                assert_eq!(destination.is_symlink(), kind != "hardlink");
+                assert_eq!(
+                    std::fs::read(&destination).unwrap(),
+                    std::fs::read(&target).unwrap()
+                );
+                payloads.push(std::fs::read(target).unwrap());
+            }
+            assert_eq!(payloads[0], payloads[1], "{kind}");
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, symlink};
+    use std::os::unix::net::UnixListener;
+    let tag = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = Path::new("/tmp").join(format!("cw-{}-{tag}", std::process::id()));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+    let input = dir.join("input.wav");
+    std::fs::write(&input, wav(1, 16, 1, &[0; 6])).unwrap();
+    let fifo = dir.join("fifo.wav");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let socket = dir.join("socket.wav");
+    assert!(
+        socket.as_os_str().as_encoded_bytes().len() < 104,
+        "keep the fixture below macOS's 104-byte sun_path capacity"
+    );
+    let _listener = UnixListener::bind(&socket).unwrap();
+    let directory = dir.join("directory.wav");
+    std::fs::create_dir(&directory).unwrap();
+    let device_link = dir.join("device.wav");
+    symlink("/dev/null", &device_link).unwrap();
+    let fifo_link = dir.join("fifo-link.wav");
+    symlink(&fifo, &fifo_link).unwrap();
+    let target = dir.join("target.wav");
+    std::fs::write(&target, b"preserve target").unwrap();
+    let regular_link = dir.join("regular-link.wav");
+    symlink(&target, &regular_link).unwrap();
+    let dangling_link = dir.join("dangling-link.wav");
+    symlink(dir.join("missing-target.wav"), &dangling_link).unwrap();
+    let hard_link = dir.join("hard-link.wav");
+    std::fs::hard_link(&target, &hard_link).unwrap();
+    for destination in [
+        &fifo,
+        &socket,
+        &directory,
+        &device_link,
+        &fifo_link,
+        &regular_link,
+        &dangling_link,
+        &hard_link,
+    ] {
+        let original = std::fs::symlink_metadata(destination).unwrap();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let result = strict()
+            .args(["-y", "-i"])
+            .arg(&input)
+            .arg(destination)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(4), "{result:?}");
+        assert!(result.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("non-regular destination"));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        let after = std::fs::symlink_metadata(destination).unwrap();
+        assert_eq!(original.file_type(), after.file_type());
+        assert_eq!(original.ino(), after.ino());
+        assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unregistered_wav_output_preserves_destinations() {
+    let dir = scratch("output-refusals");
+    let input = dir.join("input.wav");
+    let destination = dir.join("output.wav");
+    let integer = wav(1, 16, 1, &[0; 12]);
+    let float = wav(3, 32, 1, &[0; 16]);
+    let mut tagged = integer.clone();
+    tagged.splice(36..36, info_tag(b"INAM", b"Keep this title"));
+    let size = tagged.len() as u32 - 8;
+    tagged[4..8].copy_from_slice(&size.to_le_bytes());
+    for (source, options) in [
+        (&integer, vec!["-ar", "16000"]),
+        (&integer, vec!["-ac", "2"]),
+        (&integer, vec!["-ss", "0.1"]),
+        (&integer, vec!["-c:a", "copy"]),
+        (&float, vec![]),
+        (&tagged, vec![]),
+    ] {
+        std::fs::write(&input, source).unwrap();
+        std::fs::write(&destination, b"preserve").unwrap();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let result = strict()
+            .args(["-y", "-i"])
+            .arg(&input)
+            .args(options)
+            .arg(&destination)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(4), "{result:?}");
+        assert!(result.stdout.is_empty());
+        assert_eq!(std::fs::read(&destination).unwrap(), b"preserve");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+    }
+    std::fs::write(&input, &integer).unwrap();
+    let alias = strict()
+        .args(["-y", "-i"])
+        .arg(&input)
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert_eq!(alias.status.code(), Some(2), "{alias:?}");
+    assert_eq!(std::fs::read(&input).unwrap(), integer);
+    let mut truncated = integer;
+    truncated.pop();
+    std::fs::write(&input, truncated).unwrap();
+    let result = strict()
+        .args(["-y", "-i"])
+        .arg(&input)
+        .arg(&destination)
+        .output()
+        .unwrap();
+    assert!(!result.status.success(), "{result:?}");
+    assert!(result.stdout.is_empty());
+    assert_eq!(std::fs::read(destination).unwrap(), b"preserve");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn wave_wav_stdout_refuses_without_literal_files_and_matches_fallback() {
+    let dir = scratch("wav-stdout");
+    std::fs::write(dir.join("input.wav"), wav(1, 16, 1, &[0; 12])).unwrap();
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(
+            std::env::var_os("CI").is_none() && std::env::var_os("COREAV_REQUIRE_FFMPEG").is_none(),
+            "set COREAV_FFMPEG to the pin"
+        );
+    }
+    for destination in ["-", "pipe:1"] {
+        for existing in [false, true] {
+            if existing && cfg!(windows) && destination == "pipe:1" {
+                continue;
+            }
+            let literal = dir.join(destination);
+            if existing {
+                std::fs::write(&literal, b"preserve literal file").unwrap();
+            }
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            let refused = strict()
+                .current_dir(&dir)
+                .args(["-y", "-i", "input.wav", "-f", "wav", destination])
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(refused.status.code(), Some(4), "{destination}: {refused:?}");
+            assert!(refused.stdout.is_empty());
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+            if existing {
+                assert_eq!(std::fs::read(&literal).unwrap(), b"preserve literal file");
+            } else {
+                assert!(!literal.exists());
+            }
+            if ffmpeg.is_file() {
+                let pin = Command::new(&ffmpeg)
+                    .current_dir(&dir)
+                    .args(["-nostdin", "-v", "error", "-y"])
+                    .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                    .args(["-i", "input.wav", "-f", "wav", destination])
+                    .output()
+                    .unwrap();
+                assert!(
+                    pin.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&pin.stderr)
+                );
+                let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                    .current_dir(&dir)
+                    .args(["ffmpeg", "-y", "-i", "input.wav", "-f", "wav", destination])
+                    .env("COREAV_FALLBACK", &ffmpeg)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .output()
+                    .unwrap();
+                assert_eq!(fallback.status.code(), pin.status.code());
+                assert_eq!(fallback.stdout, pin.stdout);
+                assert!(!fallback.stdout.is_empty());
+                assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+                if existing {
+                    assert_eq!(std::fs::read(&literal).unwrap(), b"preserve literal file");
+                } else {
+                    assert!(!literal.exists());
+                }
+            }
+            if existing {
+                std::fs::remove_file(literal).unwrap();
+            }
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn wav_files_and_encoded_stdin_preserve_packing_without_decoder_workers() {
     let dir = scratch("identity");

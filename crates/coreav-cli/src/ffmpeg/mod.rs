@@ -37,8 +37,8 @@ use args::{AviAudio, Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spe
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
-    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions,
-    SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxInputsOptions,
+    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -108,6 +108,8 @@ pub enum Job {
         streams: Vec<InputStream>,
         /// Unselected cover pictures from input zero.
         left_out_covers: Vec<u64>,
+        /// Layout and duration admission for contributing video inputs.
+        options: RemuxInputsOptions,
     },
     /// One lossless audio stream decoded to PCM for a native audio writer.
     Pcm {
@@ -236,6 +238,10 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
   standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
     finite F32 sources support unchanged-rate F32 output only
+  bounded standalone FLAC: 16/24-bit mono/stereo to raw S16/F32,
+    with known totals and unchanged rate/channels; no explicit masks
+  standalone integer WAVE to .wav: S16 with unchanged rate and
+    mono/stereo channels; other metadata requires -map_metadata -1
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
     including streaming stdin without a whole-input spool
   -threads 0..16 or auto before -i: audio decoder workers
@@ -470,6 +476,8 @@ fn run_with_input(
     if let Job::AudioEncode { stream, encoder } = job {
         return audio::write(&command, &report, stream, encoder, strict_safe);
     }
+    drop(report);
+    drop(file);
     write(&command, &job)
 }
 
@@ -525,7 +533,11 @@ pub fn plan(
     list: Option<Vec<PathBuf>>,
 ) -> Result<Job, Refusal> {
     let container = match format_name(report) {
-        Some("wav") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+        Some("flac") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+            let selected = select(command, &report.streams)?;
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
+        Some("wav") if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::F32le) => {
             let selected = select(command, &report.streams)?;
             return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
         }
@@ -1684,9 +1696,19 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
             video_origin: None,
         });
     }
+    let compatibility = output
+        .iter()
+        .any(|(_, stream)| stream.kind == StreamKind::Video)
+        && mapped
+            .first()
+            .is_some_and(|first| mapped.iter().any(|stream| stream.input != first.input));
     Ok(Job::RemuxInputs {
         streams: mapped,
         left_out_covers: left_out_covers(first, &first_streams),
+        options: RemuxInputsOptions {
+            interleave_packets: compatibility,
+            rebuild_durations: compatibility,
+        },
     })
 }
 
@@ -1798,15 +1820,33 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         _ => Vec::new(),
     };
     let mut refused = None;
+    if let Job::Remux {
+        streams,
+        matroska: true,
+        ..
+    } = job
+    {
+        let source =
+            coreav_mkv::BufferedSource::new(FileSource::open(input).map_err(WriteFailure::from)?);
+        coreav_isobmff_write::check_matroska_aac_copy(
+            source,
+            &coreav_mkv::Limits::default(),
+            &Limits::default(),
+            &mkv_allowlist,
+            streams,
+        )
+        .map_err(WriteFailure::from)?;
+    }
     let written = output::to_file(&path, force, |out| match job {
         Job::RemuxInputs {
             streams,
             left_out_covers,
+            options,
         } => {
             let paths: Vec<&Path> = std::iter::once(input)
                 .chain(command.more_inputs.iter().map(Path::new))
                 .collect();
-            crate::remux::run_inputs(&paths, streams, left_out_covers, &allowlist, out)
+            crate::remux::run_inputs(&paths, streams, left_out_covers, options, &allowlist, out)
                 .map(|summary| crate::remux::document(&summary, &RemuxOptions::default()))
         }
         Job::MatroskaOutput { streams, matroska } => {
@@ -1862,8 +1902,18 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 on_unsupported: OnUnsupported::Fail,
                 drop_video: false,
             };
-            crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
-                .map(|summary| crate::remux::matroska_document(&summary))
+            coreav_isobmff_write::remux_matroska_compatible(
+                coreav_mkv::BufferedSource::new(
+                    FileSource::open(input).map_err(WriteFailure::from)?,
+                ),
+                &coreav_mkv::Limits::default(),
+                &Limits::default(),
+                &mkv_allowlist,
+                &options,
+                out,
+            )
+            .map_err(WriteFailure::from)
+            .map(|summary| crate::remux::matroska_document(&summary))
         }
         Job::ExtractAudio { stream, metadata } => crate::extract::run(
             input,

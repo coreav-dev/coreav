@@ -36,6 +36,7 @@ pub fn run_inputs<W: Write>(
     paths: &[&Path],
     streams: &[coreav_isobmff_write::InputStream],
     left_out_covers: &[u64],
+    options: &coreav_isobmff_write::RemuxInputsOptions,
     allowlist: &Allowlist,
     out: W,
 ) -> Result<RemuxSummary, ClipFailure> {
@@ -44,12 +45,13 @@ pub fn run_inputs<W: Write>(
         .map(|path| FileSource::open(path).map(BufferedSource::new))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| ClipFailure::Rejected(Failure::library(e)))?;
-    Ok(coreav_isobmff_write::remux_mp4_inputs(
+    Ok(coreav_isobmff_write::remux_mp4_inputs_with_options(
         inputs,
         streams,
         left_out_covers,
         &Limits::default(),
         allowlist,
+        options,
         out,
     )?)
 }

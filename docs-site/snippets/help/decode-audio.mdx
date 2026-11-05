@@ -13,6 +13,6 @@ Options:
       --format <FORMAT>  Sample format of the output: `s16` (16-bit integers, as ffmpeg writes WAV by default), `s24`, `s32` or `f32` (32-bit float) [default: s16] [possible values: s16, s24, s32, f32]
       --rate <HZ>        Sample rate of the output in Hz, 1000 to 768000 (default: the stream's), for example 16000 for speech recognition. Another rate is resampled
       --channels <N>     Channels of the output (default: the stream's): 1 or 2 downmix other layouts (ITU-R BS.775); mono becomes stereo at -3 dB
-      --force            Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+      --force            Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)
   -h, --help             Print help
 ```
