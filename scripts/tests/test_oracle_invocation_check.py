@@ -8,6 +8,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import oracle_invocation_check as check
 
 
+class Provisioning(unittest.TestCase):
+    def test_ci_installs_the_pinned_structural_parser_before_script_discovery(self):
+        workflow = (check.ROOT / '.github/workflows/deny.yml').read_text()
+        install = workflow.index('name: Install structural invocation discovery')
+        tests = workflow.index('name: Check the measurement analyzers')
+        self.assertLess(install, tests)
+        block = workflow[install:tests]
+        self.assertRegex(block, r'@ast-grep/cli@[0-9]+\.[0-9]+\.[0-9]+(?:\s|$)')
+        self.assertIn('--save-exact', block)
+        self.assertIn('"$RUNNER_TEMP/oracle-discovery/node_modules/.bin" >> "$GITHUB_PATH"', block)
+
+
 class HistoricalRecords(unittest.TestCase):
     def fixture(self, root):
         source = root / 'docs/measurements/past/run.py'
