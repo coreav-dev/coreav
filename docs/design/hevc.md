@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Milestones 1 and 2 are merged. `coreav-hevc` provides opt-in header inspection and selected-picture scalar intra reconstruction; G2 checked all 17 eligible pictures and 17 defined picture hashes. The milestone structure remains; the [milestone-2 design](hevc-intra.md) describes that path and [milestone 3](hevc-inloop.md) adds in-loop filters with the evidence rules and explicit C1 exclusions below. No production decode backend or default consumer selects it. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestones 1, 2 and 3 are merged. `coreav-hevc` provides opt-in header inspection and selected-picture scalar intra reconstruction with deblocking and SAO; G3 checked all 456 targets, 371 defined picture hashes and 26 development first-IRAP comparisons. The milestone structure remains; the [milestone-2 design](hevc-intra.md), [in-loop filters](hevc-inloop.md) and [milestone-4 inter plan](hevc-inter.md) retain the evidence rules and explicit C1 exclusions below. No production decode backend or default consumer selects it. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
