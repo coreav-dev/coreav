@@ -6,6 +6,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
+#[path = "../../coreav-audio/tests/support/flac_ranges.rs"]
+mod flac_ranges;
+
 fn scratch(name: &str) -> PathBuf {
     let tag = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -455,5 +458,141 @@ fn broken_stdout_is_quiet_and_never_delegates() {
     drop(child.stdout.take());
     let result = child.wait_with_output().unwrap();
     assert!(result.stderr.is_empty(), "{result:?}");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn invalid_reconstructed_ranges_refuse_before_any_output() {
+    let Some(ffmpeg) = pin() else {
+        return;
+    };
+    let dir = scratch("sample-ranges");
+    let input = dir.join("input.flac");
+    let output = dir.join("output.pcm");
+    for bits in [16, 24] {
+        let half = 1i64 << (bits - 1);
+        for (assignment, values, fixed) in [
+            (0, [half, 0], true),
+            (8, [half - 1, -2 * half], false),
+            (9, [2 * half - 1, half - 1], false),
+            (10, [half - 1, 2 * half - 1], false),
+        ] {
+            for late in [false, true] {
+                let bytes = flac_ranges::file(bits, assignment, values, fixed, late);
+                std::fs::write(&input, &bytes).unwrap();
+                for muxer in ["s16le", "f32le"] {
+                    let reference = Command::new(&ffmpeg)
+                        .args(["-v", "error", "-i"])
+                        .arg(&input)
+                        .args(["-f", muxer, "pipe:1"])
+                        .output()
+                        .unwrap();
+                    assert!(reference.status.success(), "{reference:?}");
+                    assert!(!reference.stdout.is_empty());
+                    if bits == 16 && assignment == 0 && !late && muxer == "f32le" {
+                        assert_eq!(reference.stdout, (-1.0f32).to_le_bytes().repeat(16));
+                    }
+                    for stdout in [false, true] {
+                        std::fs::write(&output, b"keep").unwrap();
+                        let native = strict()
+                            .args(["-y", "-i"])
+                            .arg(&input)
+                            .args(["-f", muxer])
+                            .arg(if stdout { Path::new("pipe:1") } else { &output })
+                            .output()
+                            .unwrap();
+                        assert!(
+                            !native.status.success(),
+                            "{bits}/{assignment}/{late}/{muxer}: {native:?}"
+                        );
+                        assert_ne!(native.status.code(), Some(4));
+                        assert!(native.stdout.is_empty());
+                        assert!(
+                            String::from_utf8_lossy(&native.stderr).contains("outside"),
+                            "{native:?}"
+                        );
+                        assert_eq!(std::fs::read(&output).unwrap(), b"keep");
+                        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+                    }
+                    std::fs::remove_file(&output).unwrap();
+                    let missing = strict()
+                        .args(["-y", "-i"])
+                        .arg(&input)
+                        .args(["-f", muxer])
+                        .arg(&output)
+                        .output()
+                        .unwrap();
+                    assert!(!missing.status.success());
+                    assert!(missing.stdout.is_empty());
+                    assert!(!output.exists());
+                    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+                    std::fs::write(&output, b"keep").unwrap();
+                    let normal = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                        .args(["ffmpeg", "-y", "-i"])
+                        .arg(&input)
+                        .args(["-f", muxer])
+                        .arg(&output)
+                        .env_remove("COREAV_STRICT_SAFE")
+                        .env("COREAV_FALLBACK", dir.join("must-not-run"))
+                        .output()
+                        .unwrap();
+                    assert!(!normal.status.success());
+                    assert_ne!(normal.status.code(), Some(4));
+                    assert!(normal.stdout.is_empty());
+                    assert!(!String::from_utf8_lossy(&normal.stderr).contains("must-not-run"));
+                    assert_eq!(std::fs::read(&output).unwrap(), b"keep");
+                    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+                }
+            }
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn valid_reconstructed_range_boundaries_match_complete_pinned_bytes() {
+    let Some(ffmpeg) = pin() else {
+        return;
+    };
+    let dir = scratch("range-boundaries");
+    let input = dir.join("input.flac");
+    for bits in [16, 24] {
+        let half = 1i64 << (bits - 1);
+        for (assignment, values, fixed) in [
+            (0, [half - 1, 0], true),
+            (0, [-half, 0], true),
+            (8, [half - 1, 2 * half - 1], false),
+            (9, [2 * half - 1, -half], false),
+            (10, [-1, 2 * half - 1], false),
+        ] {
+            for late in [false, true] {
+                std::fs::write(
+                    &input,
+                    flac_ranges::file(bits, assignment, values, fixed, late),
+                )
+                .unwrap();
+                for muxer in ["s16le", "f32le"] {
+                    let reference = Command::new(&ffmpeg)
+                        .args(["-v", "error", "-i"])
+                        .arg(&input)
+                        .args(["-f", muxer, "pipe:1"])
+                        .output()
+                        .unwrap();
+                    success(&reference);
+                    let native = strict()
+                        .arg("-i")
+                        .arg(&input)
+                        .args(["-f", muxer, "pipe:1"])
+                        .output()
+                        .unwrap();
+                    success(&native);
+                    assert_eq!(
+                        native.stdout, reference.stdout,
+                        "{bits}/{assignment}/{late}/{muxer}"
+                    );
+                }
+            }
+        }
+    }
     std::fs::remove_dir_all(dir).unwrap();
 }

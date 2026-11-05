@@ -7,6 +7,8 @@
     clippy::expect_used,
     clippy::panic
 )]
+#[path = "support/flac_ranges.rs"]
+mod flac_ranges;
 mod support;
 
 use support::{decode_raw, from_dump, md5};
@@ -214,6 +216,49 @@ fn prepared_stream_charges_both_walks_and_packing_before_start() {
             matches!(prepare_stream(info, payload, format, &limits).unwrap().write(&mut failing), Err(Error::Output(error)) if error.kind() == std::io::ErrorKind::BrokenPipe)
         );
         assert_eq!(failing.starts, 1);
+    }
+}
+
+#[test]
+fn invalid_reconstructed_ranges_fail_decoder_validator_and_preparation() {
+    use coreav_audio::flac::{FlacDecoder, StreamInfo, prepare_stream, validate_stream};
+    use coreav_audio::{Error, Limits, Pcm, SampleFormat};
+    for bits in [16, 24] {
+        let half = 1i64 << (bits - 1);
+        for (assignment, values, fixed) in [
+            (0, [half, 0], true),
+            (8, [half - 1, -2 * half], false),
+            (9, [2 * half - 1, half - 1], false),
+            (10, [half - 1, 2 * half - 1], false),
+        ] {
+            for late in [false, true] {
+                let bytes = flac_ranges::file(bits, assignment, values, fixed, late);
+                let info = StreamInfo::parse(&bytes[8..42]).unwrap();
+                let payload = &bytes[42..];
+                let limits = Limits::default();
+                let mut decoder = FlacDecoder::new(info, &limits).unwrap();
+                let mut pcm = Pcm::new();
+                let offset = if late {
+                    decoder.decode(payload, &mut pcm).unwrap().bytes
+                } else {
+                    0
+                };
+                assert!(matches!(
+                    decoder.decode(&payload[offset..], &mut pcm),
+                    Err(Error::Invalid(_))
+                ));
+                assert!(matches!(
+                    validate_stream(info, payload, &limits),
+                    Err(Error::Invalid(_))
+                ));
+                for packing in [SampleFormat::S16, SampleFormat::F32] {
+                    assert!(matches!(
+                        prepare_stream(info, payload, packing, &limits),
+                        Err(Error::Invalid(_))
+                    ));
+                }
+            }
+        }
     }
 }
 

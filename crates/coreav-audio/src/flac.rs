@@ -263,6 +263,7 @@ impl FlacDecoder {
             header.assignment,
             samples,
             block_size,
+            bits_per_sample,
             wide_channel.map(|i| (i, self.wide.as_slice())),
         )?;
         bits.align_zero()?;
@@ -692,7 +693,7 @@ fn fixed(out: &mut [i32], order: usize, width: u32) -> Result<(), Error> {
     let [mut a, mut b, mut c, mut d] = history;
     let mut ok = true;
     match order {
-        0 => {}
+        0 => ok = iter.all(|sample| fits(i64::from(*sample), width)),
         1 => {
             for slot in iter {
                 let v = i64::from(*slot) + a;
@@ -885,6 +886,7 @@ fn decorrelate(
     assignment: Assignment,
     samples: &mut [i32],
     block_size: usize,
+    width: u32,
     wide: Option<(usize, &[i64])>,
 ) -> Result<(), Error> {
     if let Assignment::Independent(_) = assignment {
@@ -896,37 +898,37 @@ fn decorrelate(
     match (assignment, wide) {
         (Assignment::LeftSide, None) => {
             for (left, side) in first.iter().zip(second.iter_mut()) {
-                *side = clamp(i64::from(*left) - i64::from(*side));
+                *side = reconstructed(i64::from(*left) - i64::from(*side), width)?;
             }
         }
         (Assignment::SideRight, None) => {
             for (side, right) in first.iter_mut().zip(second.iter()) {
-                *side = clamp(i64::from(*side) + i64::from(*right));
+                *side = reconstructed(i64::from(*side) + i64::from(*right), width)?;
             }
         }
         (Assignment::MidSide, None) => {
             for (mid, side) in first.iter_mut().zip(second.iter_mut()) {
                 let s = i64::from(*side);
                 let m = (i64::from(*mid) << 1) | (s & 1);
-                *mid = clamp((m + s) >> 1);
-                *side = clamp((m - s) >> 1);
+                *mid = reconstructed((m + s) >> 1, width)?;
+                *side = reconstructed((m - s) >> 1, width)?;
             }
         }
         (Assignment::LeftSide, Some((_, wide))) => {
             for ((left, side), &s) in first.iter().zip(second.iter_mut()).zip(wide) {
-                *side = clamp(i64::from(*left) - s);
+                *side = reconstructed(i64::from(*left) - s, width)?;
             }
         }
         (Assignment::SideRight, Some((_, wide))) => {
             for ((side, right), &s) in first.iter_mut().zip(second.iter()).zip(wide) {
-                *side = clamp(s + i64::from(*right));
+                *side = reconstructed(s + i64::from(*right), width)?;
             }
         }
         (Assignment::MidSide, Some((_, wide))) => {
             for ((mid, side), &s) in first.iter_mut().zip(second.iter_mut()).zip(wide) {
                 let m = (i64::from(*mid) << 1) | (s & 1);
-                *mid = clamp((m + s) >> 1);
-                *side = clamp((m - s) >> 1);
+                *mid = reconstructed((m + s) >> 1, width)?;
+                *side = reconstructed((m - s) >> 1, width)?;
             }
         }
         (Assignment::Independent(_), _) => {}
@@ -934,10 +936,15 @@ fn decorrelate(
     Ok(())
 }
 
-/// Narrows a decorrelated sample; only an invalid stream goes past 32 bits.
+/// Narrows a reconstructed sample only within the frame's declared bit depth.
 #[inline(always)]
-fn clamp(value: i64) -> i32 {
-    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+fn reconstructed(value: i64, width: u32) -> Result<i32, Error> {
+    if !fits(value, width) {
+        return Err(Error::Invalid(
+            "decoded sample outside the frame's bit depth",
+        ));
+    }
+    Ok(value as i32)
 }
 
 #[cfg(test)]
@@ -949,6 +956,12 @@ mod tests {
     /// every operation).
     #[test]
     fn runaway_fixed_predictions_fail_without_overflow() {
+        for width in [8, 12, 16, 20, 24, 31] {
+            let half = 1i32 << (width - 1);
+            assert!(fixed(&mut [-half, half - 1], 0, width).is_ok());
+            assert!(fixed(&mut [half], 0, width).is_err());
+            assert!(fixed(&mut [-half - 1], 0, width).is_err());
+        }
         for order in 1..=4 {
             let mut out = vec![(1 << 30) - 1; 4096];
             assert!(fixed(&mut out, order, 16).is_err(), "order {order}");
@@ -958,5 +971,57 @@ mod tests {
         let mut out = vec![(1 << 30) - 1; 4096];
         let coefficients = [(1 << 14) - 1; 32];
         assert!(lpc(&mut out, &coefficients, 0, 16).is_err());
+    }
+
+    #[test]
+    fn stereo_reconstruction_rejects_each_frame_width_before_narrowing() {
+        for width in [16, 24, 32] {
+            let half = 1i64 << (width - 1);
+            for assignment in [
+                Assignment::LeftSide,
+                Assignment::SideRight,
+                Assignment::MidSide,
+            ] {
+                let mut samples = match assignment {
+                    Assignment::LeftSide => [(half - 1) as i32, 0],
+                    Assignment::SideRight => [0, (half - 1) as i32],
+                    _ => [(half - 1) as i32, 0],
+                };
+                let wide = [if matches!(assignment, Assignment::LeftSide) {
+                    -2 * half
+                } else {
+                    2 * half - 1
+                }];
+                if width == 32 {
+                    assert!(
+                        decorrelate(assignment, &mut samples, 1, width, Some((0, &wide))).is_err()
+                    );
+                } else {
+                    if matches!(assignment, Assignment::SideRight) {
+                        samples[0] = wide[0] as i32;
+                    } else {
+                        samples[1] = wide[0] as i32;
+                    }
+                    assert!(decorrelate(assignment, &mut samples, 1, width, None).is_err());
+                }
+            }
+            for (assignment, mut samples, index) in [
+                (Assignment::LeftSide, [(half - 1) as i32, 0], 1),
+                (Assignment::SideRight, [0, -half as i32], 0),
+                (Assignment::MidSide, [-1, 0], 1),
+            ] {
+                let side = [2 * half - 1];
+                if width == 32 {
+                    assert!(
+                        decorrelate(assignment, &mut samples, 1, width, Some((index, &side)))
+                            .is_ok()
+                    );
+                } else {
+                    samples[index] = side[0] as i32;
+                    assert!(decorrelate(assignment, &mut samples, 1, width, None).is_ok());
+                }
+                assert_eq!(samples, [(half - 1) as i32, -half as i32]);
+            }
+        }
     }
 }
