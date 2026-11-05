@@ -60,7 +60,7 @@ fn every_sample_must_be_one_complete_selected_slice() {
         .unwrap()
     );
     for index in 0..samples.len() {
-        for kind in [32, 33, 34, 35, 39, 40, 63] {
+        for kind in [2, 3, 4, 5, 32, 33, 34, 35, 39, 40, 63] {
             let mut changed = samples.to_vec();
             changed[index] = sample(kind);
             let (bytes, movie) = self::movie(&changed);

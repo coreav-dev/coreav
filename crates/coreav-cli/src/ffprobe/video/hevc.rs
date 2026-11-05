@@ -193,7 +193,7 @@ fn sei(nal: &[u8]) -> Option<()> {
 
 pub(crate) fn slice_selects(config: &HevcConfig, prefix: &[u8]) -> Option<bool> {
     let kind = header(prefix)?;
-    if !matches!(kind, 0..=9 | 16..=21) {
+    if !matches!(kind, 0..=1 | 6..=9 | 16..=21) {
         return None;
     }
     let data = super::rbsp(prefix, 2);
@@ -493,7 +493,9 @@ pub(super) mod tests {
             let unit = [kind << 1, 1, payload];
             assert_eq!(
                 slice_selects(&config, &unit),
-                matches!(kind, 0..=9 | 16..=21).then_some(irap),
+                [0, 1, 6, 7, 8, 9, 16, 17, 18, 19, 20, 21]
+                    .contains(&kind)
+                    .then_some(irap),
                 "type {kind}"
             );
             for byte in [0, 2, 9] {
@@ -511,6 +513,17 @@ pub(super) mod tests {
         assert!(hevc_sps_end(&mut Bits::new(&[0x08]), HevcVui::Present(true)).is_some());
         for byte in [0x48, 0x28, 0x18, 0x00] {
             assert!(hevc_sps_end(&mut Bits::new(&[byte]), HevcVui::Present(true)).is_none());
+        }
+    }
+
+    #[test]
+    fn temporal_switching_units_cannot_belong_to_a_single_layer_summary() {
+        let config = summary_config(&fixture_record()).unwrap();
+        for kind in 2..=5 {
+            assert!(
+                slice_selects(&config, &[kind << 1, 1, 0xc0]).is_none(),
+                "type {kind}"
+            );
         }
     }
 
