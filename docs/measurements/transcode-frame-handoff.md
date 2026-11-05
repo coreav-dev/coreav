@@ -1,6 +1,6 @@
 # Transcode shared-frame handoff reference
 
-The handoff change does not bring these class medians within 1% of FFmpeg. AV1's paired point estimates improve by 1.66% with the FFmpeg encoder process and 1.29% with the x264 program. VP9's paired changes are smaller than the observed call variation.
+The phase A handoff change does not bring these class medians within 1% of FFmpeg. AV1's paired point estimates improve by 1.66% with the FFmpeg encoder process and 1.29% with the x264 program. VP9's paired changes are smaller than the observed call variation. The later [phase B snapshot helper](#phase-b-rejected-snapshot-helper) is rejected because it regresses the full-cohort medians.
 
 ## Class summaries
 
@@ -107,6 +107,83 @@ for codec in ("av1", "vp9"):
         main, candidate = "main_" + encoder, "candidate_" + encoder
         print(codec, encoder, *(s.median(t[f, a] / t[f, "ffmpeg"] for f in files) for a in (main, candidate)), s.median(t[f, candidate] / t[f, main] for f in files))
     print(codec, "split/video-only", s.median(t[f, "split_pipe"] / t[f, "video_only"] for f in files))
+PY
+```
+
+## Phase B: rejected snapshot helper
+
+Reject the snapshot helper. Its paired x264 time is 2.24% higher on AV1 and 15.10% higher on VP9, and none of the sixteen inputs is within 1% of FFmpeg. The helper is removed from the final change; production encoder paths, decoder isolation, defaults and release licensing remain unchanged.
+
+### Class summaries
+
+The same six AV1 and ten VP9 inputs use three-call medians per arm, followed by medians of per-file ratios. The candidate FFmpeg arm is an unchanged-path control. Candidate x264 selects the snapshot helper instead of the pipe-fed CLI. The paired column is computed directly per file, not by dividing the two class-level FFmpeg ratios.
+
+| Class | Encoder | Main / FFmpeg | Candidate / FFmpeg | Candidate / main | Candidate at most 1.01 × FFmpeg |
+|---|---|---|---|---|---|
+| AV1 | FFmpeg process | 1.0202 | 1.0191 | 0.9979 | 2/6 |
+| AV1 | x264 snapshot helper | 1.0251 | 1.0497 | 1.0224 | 0/6 |
+| VP9 | FFmpeg process | 1.0244 | 1.0249 | 1.0006 | 1/10 |
+| VP9 | x264 snapshot helper | 1.0354 | 1.1756 | 1.1510 | 0/10 |
+
+These are reference point estimates on previously used lossy inputs, not a held-out speed claim or a new acceptance bar. The helper's median within-cell range is 1.40% for AV1 and 0.88% for VP9; the largest helper cells span 1.63% and 6.42%, respectively. The unchanged FFmpeg controls stay near unity in the paired comparison, while the helper is slower on fifteen of sixteen files.
+
+### Per-file seconds
+
+| File | Class | FFmpeg | Main, FFmpeg encoder | Candidate, FFmpeg encoder | Main, x264 | Helper | Helper / main |
+|---|---|---|---|---|---|---|---|
+| `f51a56ed5718` | VP9 | 118.819727 | 121.017176 | 121.634382 | 122.371950 | 127.492211 | 1.0418 |
+| `a084bd45168c` | VP9 | 0.134224 | 0.132934 | 0.132764 | 0.133372 | 0.152943 | 1.1467 |
+| `70eec00bc7d2` | VP9 | 3.345926 | 3.434952 | 3.432961 | 3.478085 | 3.839117 | 1.1038 |
+| `9ffa165e752a` | VP9 | 128.453075 | 131.293372 | 131.379005 | 131.818721 | 141.632453 | 1.0744 |
+| `584a16b906bb` | VP9 | 1.101662 | 1.175359 | 1.176033 | 1.162020 | 2.207948 | 1.9001 |
+| `ea684713a5be` | VP9 | 97.343628 | 98.806160 | 99.349992 | 101.069787 | 109.626759 | 1.0847 |
+| `bb5d39d47357` | VP9 | 2.069051 | 2.144304 | 2.178706 | 2.136477 | 4.182934 | 1.9579 |
+| `b267a2ddac45` | VP9 | 7.428609 | 7.587586 | 7.600348 | 7.587154 | 8.943231 | 1.1787 |
+| `f944c05afaa1` | VP9 | 0.121368 | 0.131840 | 0.130858 | 0.131432 | 0.151845 | 1.1553 |
+| `59ad8ee403b3` | VP9 | 0.194146 | 0.215024 | 0.208053 | 0.208976 | 0.288591 | 1.3810 |
+| `effb7b78408d` | AV1 | 87.158027 | 89.070098 | 89.077062 | 89.222610 | 90.646357 | 1.0160 |
+| `357fb30f4693` | AV1 | 107.297256 | 109.276887 | 109.040614 | 125.641714 | 113.287492 | 0.9017 |
+| `d438e9cb804e` | AV1 | 108.998967 | 112.367290 | 111.972618 | 112.216201 | 113.744462 | 1.0136 |
+| `03e890cf5999` | AV1 | 2.921664 | 3.051124 | 3.061883 | 2.998889 | 4.314554 | 1.4387 |
+| `a34d5ee860fb` | AV1 | 0.844907 | 0.853333 | 0.851520 | 0.848301 | 0.872806 | 1.0289 |
+| `d9ab22f96e5e` | AV1 | 6.185457 | 6.187909 | 6.165491 | 6.239655 | 6.555983 | 1.0507 |
+
+The profiled 3840 × 2160 10-bit AV1 outlier, `357fb30f4693`, improves from 125.641714 to 113.287492 seconds, a 9.83% reduction. It still takes 1.0558 times FFmpeg, and its improvement does not offset the full-cohort regressions. The strongest regressions occur on some short inputs, but this capture contains no fresh candidate profile that separates startup, snapshot operations, scheduling and encoder API work. Do not attribute the regression to one component from these totals alone.
+
+### Capture and correctness
+
+All 240 calls complete with zero failures: sixteen files, five arms and three rotated rounds. Order starts at `(file_index + round_index) % 5` in `ffmpeg, main_ffmpeg, candidate_ffmpeg, main_x264, candidate_x264`. Source hashes and sizes are checked and source bytes warmed before timing; outputs use tmpfs. Output probing, frame hashing and complete-file hashing are outside timing. The job retains all calls, with no excluded or substituted input.
+
+Every arm produces the same 12,120 frames per round with matching dimensions and pixel formats. All 96 paired main/candidate complete-file comparisons match, covering both encoders and all three rounds; first-round decoded frame hashes match for all 32 CoreAV encoder pairs. This is identity with the existing CoreAV output, not with FFmpeg. Receipts identify the expected native decoder and encoder, stream maps and frame count, and each CoreAV call reports sandboxed decoding. A separate untimed execution trace confirms the candidate launches both the snapshot helper and its x264 timecode-clock probe.
+
+The helper passes 23 native protocol and byte-identity tests on the reference host. Before capture, six synthetic complete-MP4 comparisons through sandboxed AV1/VP9 decoders cover 8-bit, 10-bit and 4:4:4, while ownership and hostile-process tests cover immutable forwarded references, malformed output, crashes, missing acknowledgements, deadlines and sink refusal. These checks establish the evaluated candidate's behavior, not a reason to ship a slower transport.
+
+### Sources and limits
+
+Main is `a451e99e6845acf318c361282766e53c39c5c1d0`; the [evaluated candidate](https://github.com/coreav-dev/coreav/commit/842be356ccb467d0d4890b0ff9ea1f37e36a019b) is `842be356ccb467d0d4890b0ff9ea1f37e36a019b`. Main and candidate use independent Cargo target directories. An initial setup reused a baseline dependency from a common target directory and failed compilation before any timing; its output supplies no performance result. The corrected capture builds each source independently and runs a synthetic preflight before the full cohort.
+
+Capture ran on 2026-11-05 UTC on a standard on-demand `c4-standard-8`, SMT off, four available cores, Intel Xeon Platinum 8581C, Debian 13 and Linux `6.12.113+deb13-cloud-amd64`. Both release builds use Rust `1.99.1 (58cf8f9c3 2026-10-13)` with `native-h264,dav1d,libvpx,ffmpeg-fallback`. There is no affinity override or host-drift gate. FFmpeg and ffprobe are the pinned `n9.0.2-17-g2a571b6068-20260930` build, with explicit libdav1d or libvpx-vp9 decoding, libx264 medium/CRF 23 encoding, passthrough timing and copied audio. The unchanged x264 program and the helper's independently built libx264 use `0.165.3223 0480cb0`. Decoder source revisions remain dav1d `9711965b60bb692ae24004659acf61f5c7d9ed61` and libvpx `v1.17.0`; their CoreAV library builds are separate from the oracle's, as in phase A.
+
+The helper uses a fresh sealed file per frame, retains process isolation and validates output through the existing reader and muxer. It adds per-frame file creation, sealing, opening, mapping and acknowledgement work, plus a zero-frame CLI probe to preserve the encoder's timecode clock. Safety and byte identity do not establish a net speed gain. The full comparison rejects this design; no production helper interface or new linked encoder dependency remains.
+
+Exact normalized commands, helper-selection environment, executable hashes, per-call seconds, complete-file hashes, decoded frame hashes, source identities and host fields are retained in [the compressed phase B capture](transcode-frame-handoff/phase-b-reference.json.gz). No numerical capture field was changed. The source and protocol remain accessible at the evaluated commit for inspection, not as a shipped backend.
+
+To recompute the class ratios and check all paired files from this checkout:
+
+```sh
+python3 - <<'PY'
+import gzip, itertools, json, statistics as s
+p = json.load(gzip.open("docs/measurements/transcode-frame-handoff/phase-b-reference.json.gz", "rt"))
+c = {(x["sha256"], x["round"], x["arm"]): x for x in p["calls"]}
+assert p["status"] == "complete" and len(p["calls"]) == len(c) == 240 and not p["failures"]
+for f, n, e in itertools.product(p["inputs"], range(3), ("ffmpeg", "x264")):
+    assert c[f["sha256"], n, "main_" + e]["output"] == c[f["sha256"], n, "candidate_" + e]["output"]
+for codec in ("av1", "vp9"):
+    files = [f["sha256"] for f in p["inputs"] if f["class"] == codec]
+    t = {(f, a): s.median(c[f, n, a]["seconds"] for n in range(3)) for f in files for a in p["arms"]}
+    for e in ("ffmpeg", "x264"):
+        a, b = "main_" + e, "candidate_" + e
+        print(codec, e, *(s.median(t[f, x] / t[f, "ffmpeg"] for f in files) for x in (a, b)), s.median(t[f, b] / t[f, a] for f in files))
 PY
 ```
 

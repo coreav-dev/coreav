@@ -1,0 +1,6 @@
+{
+  "page_bytes": 4096,
+  "original_pipe_unread": 0,
+  "retained_pipe_changed_bytes": 4096,
+  "unsafe_to_reuse_on_pipe_drain": true
+}
