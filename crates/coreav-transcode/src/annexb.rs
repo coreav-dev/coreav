@@ -830,6 +830,29 @@ struct Sps {
     width: u32,
     height: u32,
     sample_aspect_ratio: Option<(u16, u16)>,
+    aspect_flag_bit: Option<u64>,
+}
+
+/// The aspect declaration's location in an SPS RBSP, excluding the NAL header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpsAspect {
+    /// Bit index of `aspect_ratio_info_present_flag`, excluding prevention bytes.
+    pub flag_bit: u64,
+    /// The valid ratio, when the VUI explicitly states one.
+    pub ratio: Option<(u16, u16)>,
+}
+
+/// Reads the existing SPS syntax owner through the VUI aspect declaration.
+/// Returns `None` when the SPS has no VUI; malformed syntax remains an error.
+pub fn sps_aspect_ratio_info(nal: &[u8]) -> Result<Option<SpsAspect>, Error> {
+    if nal.first().is_none_or(|header| header & 0x9f != 7) || nal.len() > 65_535 {
+        return Err(Invalid("SPS NAL header or length"));
+    }
+    let sps = parse_sps(nal)?;
+    Ok(sps.aspect_flag_bit.map(|flag_bit| SpsAspect {
+        flag_bit,
+        ratio: sps.sample_aspect_ratio,
+    }))
 }
 
 /// The profiles whose sequence parameter sets carry `chroma_format_idc`
@@ -958,7 +981,8 @@ fn parse_sps(nal: &[u8]) -> Result<Sps, Error> {
     let width = u32::try_from(width).map_err(|_| Error::Unsupported("frame width"))?;
     let height = u32::try_from(height).map_err(|_| Error::Unsupported("frame height"))?;
     let mut sample_aspect_ratio = None;
-    if r.flag()? && r.flag()? {
+    let aspect_flag_bit = if r.flag()? { Some(r.position()) } else { None };
+    if aspect_flag_bit.is_some() && r.flag()? {
         // vui_parameters (E.1.1): aspect_ratio_info only.
         sample_aspect_ratio = match r.byte()? {
             255 => {
@@ -990,6 +1014,7 @@ fn parse_sps(nal: &[u8]) -> Result<Sps, Error> {
         width,
         height,
         sample_aspect_ratio,
+        aspect_flag_bit,
     })
 }
 
@@ -1297,6 +1322,7 @@ struct Bits<'a> {
     zeros: u8,
     byte: u8,
     left: u8,
+    skipped: usize,
 }
 
 const TRUNCATED: Error = Invalid("a syntax element past the end of its NAL unit");
@@ -1309,7 +1335,15 @@ impl<'a> Bits<'a> {
             zeros: 0,
             byte: 0,
             left: 0,
+            skipped: 0,
         }
+    }
+
+    fn position(&self) -> u64 {
+        u64::try_from(self.at.saturating_sub(self.skipped))
+            .unwrap_or(u64::MAX)
+            .saturating_mul(8)
+            .saturating_sub(u64::from(self.left))
     }
 
     /// An upper bound of the bits left.
@@ -1327,6 +1361,7 @@ impl<'a> Bits<'a> {
                 let byte = *self.data.get(self.at).ok_or(TRUNCATED)?;
                 self.at += 1;
                 if self.zeros >= 2 && byte == 3 {
+                    self.skipped += 1;
                     self.zeros = 0;
                     continue;
                 }

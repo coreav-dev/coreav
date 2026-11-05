@@ -1149,3 +1149,27 @@ fn trailing_zeros_do_not_grow_a_unit() {
     };
     assert_eq!(read_with(limits, &stream, 3).unwrap().len(), 1);
 }
+
+#[test]
+fn aspect_location_counts_rbsp_bits_not_prevention_bytes() {
+    let nal = sps(&SpsSpec {
+        width_mbs: 1 << 27,
+        sar: Some((1, 1, 1)),
+        ..SpsSpec::default()
+    });
+    assert!(nal.windows(3).any(|bytes| bytes == [0, 0, 3]));
+    assert_eq!(
+        sps_aspect_ratio_info(&nal).unwrap(),
+        Some(SpsAspect {
+            flag_bit: 105,
+            ratio: Some((1, 1))
+        })
+    );
+    assert_eq!(
+        sps_aspect_ratio_info(&sps(&SpsSpec::default())).unwrap(),
+        None
+    );
+    assert!(sps_aspect_ratio_info(&nal[..4]).is_err());
+    assert!(sps_aspect_ratio_info(&[0x68, 0]).is_err());
+    assert!(sps_aspect_ratio_info(&vec![0x67; 65_536]).is_err());
+}
