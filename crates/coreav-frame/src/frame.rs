@@ -222,4 +222,11 @@ pub trait SharedMemory: Send + Sync {
     /// and remain, which is 0 from the end on; `None` when they are not
     /// inside the memory.
     fn read_packed(&self, at: usize, out: &mut [u8]) -> Option<usize>;
+
+    /// Writes the packed pixels to an unbuffered pipe, returning `false`
+    /// without writing when this memory has no direct pipe operation.
+    #[cfg(unix)]
+    fn write_to_pipe(&self, _pipe: std::os::fd::BorrowedFd<'_>) -> std::io::Result<bool> {
+        Ok(false)
+    }
 }

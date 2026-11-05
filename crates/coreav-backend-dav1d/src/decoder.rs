@@ -1,14 +1,111 @@
 //! The [`Decoder`] over dav1d.
+#![forbid(unsafe_code)]
 
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
+use crate::allocator::{self, Allocator};
 use coreav_decode::{
-    Backend, BackendKind, Codec, ConfigKind, Decoder, DecoderInfo, Error, ErrorKind, Isolation,
-    Limits, Packet, StreamConfig, StreamTraits, Support,
+    Backend, BackendKind, BufferLease, Codec, ConfigKind, Decoder, DecoderInfo, Error, ErrorKind,
+    Isolation, Limits, Packet, PictureAllocator, SharedFrame, StreamConfig, StreamTraits, Support,
 };
 use coreav_frame::{Chroma, ColorInfo, Frame, Picture, PixelFormat, Pixels, Plane};
 use dav1d::{PixelLayout, PlanarImageComponent, Settings};
+
+type PictureRef = dav1d::Picture<Allocator>;
+
+/// A displayed dav1d picture, valid until the lending callback returns.
+pub struct LentFrame<'a> {
+    picture: &'a PictureRef,
+    format: PixelFormat,
+    /// Presentation timestamp of this picture.
+    pub pts: Option<i64>,
+    /// Its colour description.
+    pub color: ColorInfo,
+}
+
+impl LentFrame<'_> {
+    /// Width in pixels.
+    pub fn width(&self) -> u32 {
+        self.picture.width()
+    }
+    /// Height in pixels.
+    pub fn height(&self) -> u32 {
+        self.picture.height()
+    }
+    /// Displayed pixel format.
+    pub fn format(&self) -> PixelFormat {
+        self.format
+    }
+    /// Displayed planes when the picture is already in a shared slot.
+    pub fn shared_frame(&self) -> Option<SharedFrame> {
+        self.picture
+            .allocator_data()?
+            .shared_frame(self.width(), self.height(), self.format)
+    }
+    /// Retains this picture's storage independently of dav1d's references.
+    pub fn shared_backing(&self) -> Option<BufferLease> {
+        let allocation = self.picture.allocator_data()?;
+        allocation.lease.shared_slot()?;
+        Some(allocation.lease.clone())
+    }
+    /// Copies only displayed rows, without decoder borders or padding.
+    pub fn write_packed(&self, mut target: &mut [u8]) -> Result<(), Error> {
+        let bad = || Error::new(ErrorKind::Backend, "dav1d picture outside its frame buffer");
+        for (index, component) in [
+            PlanarImageComponent::Y,
+            PlanarImageComponent::U,
+            PlanarImageComponent::V,
+        ]
+        .into_iter()
+        .take(self.format.plane_count())
+        .enumerate()
+        {
+            let (_, rows) = self
+                .format
+                .plane_size(index, self.width(), self.height())
+                .ok_or_else(bad)?;
+            let row = self
+                .format
+                .row_bytes(index, self.width(), self.height())
+                .ok_or_else(bad)?;
+            let stride = usize::try_from(self.picture.stride(component)).map_err(|_| bad())?;
+            let source = self.picture.plane(component);
+            for r in 0..rows as usize {
+                let start = r.checked_mul(stride).ok_or_else(bad)?;
+                let line = source
+                    .get(start..start.checked_add(row).ok_or_else(bad)?)
+                    .ok_or_else(bad)?;
+                let (dst, rest) = target.split_at_mut_checked(row).ok_or_else(bad)?;
+                dst.copy_from_slice(line);
+                #[cfg(target_endian = "big")]
+                if self.format.sample_bytes() == 2 {
+                    for pair in dst.chunks_exact_mut(2) {
+                        pair.swap(0, 1);
+                    }
+                }
+                target = rest;
+            }
+        }
+        if target.is_empty() {
+            Ok(())
+        } else {
+            Err(bad())
+        }
+    }
+}
+
+struct Decoded {
+    picture: PictureRef,
+    format: PixelFormat,
+    bytes: u64,
+}
+
+struct Layout {
+    format: PixelFormat,
+    planes: Vec<(usize, usize, usize)>,
+    bytes: u64,
+}
 
 /// Most rounds of handing dav1d the rest of a packet it held back
 /// (`Again`), taking its frames between rounds, before giving up.
@@ -50,16 +147,16 @@ impl Backend for Dav1dBackend {
 ///
 /// Packets are temporal units (the AV1 ISOBMFF and Matroska mappings), each
 /// sent with its pts as dav1d's timestamp, which dav1d gives back on the
-/// frame it decodes from it. Frames are copied out of dav1d's pictures
-/// into packed planes at once, so dav1d's buffers are never held.
+/// frame it decodes from it. Ordinary consumers receive packed planes;
+/// lending consumers retain decoder storage only until their callback ends.
 pub struct Dav1dDecoder {
-    decoder: dav1d::Decoder,
+    decoder: dav1d::Decoder<Allocator>,
     info: DecoderInfo,
     limits: Limits,
     color: ColorInfo,
     deadline: Instant,
     /// Frames taken from dav1d and not yet received, and their bytes.
-    ready: VecDeque<Frame>,
+    ready: VecDeque<Decoded>,
     ready_bytes: u64,
     /// Bytes of every frame output so far.
     decoded: u64,
@@ -84,6 +181,22 @@ impl Dav1dDecoder {
         stream: &StreamConfig,
         limits: &Limits,
     ) -> Result<Self, Error> {
+        Self::open_with_allocator(
+            options,
+            stream,
+            limits,
+            allocator::heap(limits.max_memory_bytes),
+        )
+    }
+
+    /// Opens dav1d with host-supplied picture storage. Allocations remain
+    /// owned until dav1d releases their reference pictures and all leases end.
+    pub fn open_with_allocator(
+        options: &Dav1dOptions,
+        stream: &StreamConfig,
+        limits: &Limits,
+        allocator: PictureAllocator,
+    ) -> Result<Self, Error> {
         if stream.codec != Codec::Av1 {
             return Err(Error::new(ErrorKind::Unsupported, "dav1d decodes AV1 only"));
         }
@@ -94,8 +207,8 @@ impl Dav1dDecoder {
         // operating point, as FFmpeg's decoders output.
         settings.set_all_layers(false);
         settings.set_frame_size_limit(u32::try_from(limits.max_pixels).unwrap_or(u32::MAX));
-        let decoder =
-            dav1d::Decoder::with_settings(&settings).map_err(|e| failure("opening", e))?;
+        let decoder = dav1d::Decoder::with_settings_and_allocator(&settings, Allocator(allocator))
+            .map_err(|e| failure("opening", e))?;
         let mut this = Self {
             decoder,
             info: DecoderInfo {
@@ -200,8 +313,7 @@ impl Dav1dDecoder {
                 return Ok(true);
             }
         }
-        let (mut frame, bytes) = convert(&picture, self.color, &self.limits)?;
-        frame.pts = pts;
+        let Layout { format, bytes, .. } = layout(&picture, &self.limits)?;
         self.decoded = self.decoded.saturating_add(bytes);
         if self.decoded > self.limits.max_decoded_bytes {
             return Err(Error::new(
@@ -216,13 +328,17 @@ impl Dav1dDecoder {
                 "frames waiting exceed the limit",
             ));
         }
-        self.ready.push_back(frame);
+        self.ready.push_back(Decoded {
+            picture,
+            format,
+            bytes,
+        });
         Ok(true)
     }
 
-    fn pop(&mut self) -> Option<Frame> {
+    fn pop(&mut self) -> Option<Decoded> {
         let frame = self.ready.pop_front()?;
-        self.ready_bytes = self.ready_bytes.saturating_sub(frame_bytes(&frame));
+        self.ready_bytes = self.ready_bytes.saturating_sub(frame.bytes);
         Some(frame)
     }
 
@@ -232,6 +348,51 @@ impl Dav1dDecoder {
             self.ready.clear();
         }
         result
+    }
+
+    /// Hands the next displayed picture to `take` before releasing its
+    /// decoder storage. Returns `false` when no picture is ready.
+    pub fn receive_frame_lending(
+        &mut self,
+        take: &mut dyn FnMut(&LentFrame<'_>) -> Result<(), Error>,
+    ) -> Result<bool, Error> {
+        let Some(frame) = self.next_picture()? else {
+            return Ok(false);
+        };
+        let frame = LentFrame {
+            picture: &frame.picture,
+            format: frame.format,
+            color: self.color,
+            pts: frame.picture.timestamp(),
+        };
+        let result = take(&frame);
+        self.guard(result)?;
+        Ok(true)
+    }
+
+    fn next_picture(&mut self) -> Result<Option<Decoded>, Error> {
+        if let Some(frame) = self.pop() {
+            return Ok(Some(frame));
+        }
+        if self.done {
+            return Ok(None);
+        }
+        self.usable()?;
+        if !self.eof {
+            let result = self.poll();
+            self.guard(result)?;
+            return Ok(self.pop());
+        }
+        loop {
+            let result = self.usable().and_then(|()| self.pull());
+            if !self.guard(result)? {
+                self.done = true;
+                return Ok(None);
+            }
+            if let Some(frame) = self.pop() {
+                return Ok(Some(frame));
+            }
+        }
     }
 }
 
@@ -265,30 +426,14 @@ impl Decoder for Dav1dDecoder {
     }
 
     fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
-        if let Some(frame) = self.pop() {
-            return Ok(Some(frame));
-        }
-        if self.done {
+        let Some(decoded) = self.next_picture()? else {
             return Ok(None);
-        }
-        self.usable()?;
-        if !self.eof {
-            let result = self.poll();
-            self.guard(result)?;
-            return Ok(self.pop());
-        }
-        // After the last packet, asking again and again drains dav1d: it
-        // gives the frames it delayed, then `Again`.
-        loop {
-            let result = self.usable().and_then(|()| self.pull());
-            if !self.guard(result)? {
-                self.done = true;
-                return Ok(None);
-            }
-            if let Some(frame) = self.pop() {
-                return Ok(Some(frame));
-            }
-        }
+        };
+        let result = convert(&decoded.picture, self.color, &self.limits).map(|(mut frame, _)| {
+            frame.pts = decoded.picture.timestamp();
+            Some(frame)
+        });
+        self.guard(result)
     }
 
     fn info(&self) -> &DecoderInfo {
@@ -373,20 +518,7 @@ fn failure(what: &str, error: dav1d::Error) -> Error {
     Error::new(kind, format!("dav1d {what}: {error}"))
 }
 
-fn frame_bytes(frame: &Frame) -> u64 {
-    match &frame.pixels {
-        Pixels::Cpu(picture) => u64::try_from(picture.packed_len()).unwrap_or(u64::MAX),
-        Pixels::Cuda(_) | Pixels::Shared(_) => 0,
-    }
-}
-
-/// Copies a dav1d picture into a frame with packed planes, checked against
-/// the limits first; also returns its bytes.
-fn convert(
-    picture: &dav1d::Picture,
-    color: ColorInfo,
-    limits: &Limits,
-) -> Result<(Frame, u64), Error> {
+fn layout(picture: &PictureRef, limits: &Limits) -> Result<Layout, Error> {
     let bad = |what: &str| Error::new(ErrorKind::Backend, format!("dav1d picture: {what}"));
     let (width, height) = (picture.width(), picture.height());
     let depth = picture
@@ -409,11 +541,6 @@ fn convert(
     if picture.bit_depth() != usize::from(depth) {
         return Err(bad("bit depth"));
     }
-    let components = [
-        PlanarImageComponent::Y,
-        PlanarImageComponent::U,
-        PlanarImageComponent::V,
-    ];
     let mut sizes = Vec::with_capacity(format.plane_count());
     let mut total = 0u64;
     for index in 0..format.plane_count() {
@@ -431,6 +558,26 @@ fn convert(
         sizes.push((row, rows, bytes));
     }
     limits.check_frame(width, height, total)?;
+    Ok(Layout {
+        format,
+        planes: sizes,
+        bytes: total,
+    })
+}
+
+fn convert(picture: &PictureRef, color: ColorInfo, limits: &Limits) -> Result<(Frame, u64), Error> {
+    let bad = |what: &str| Error::new(ErrorKind::Backend, format!("dav1d picture: {what}"));
+    let (width, height) = (picture.width(), picture.height());
+    let Layout {
+        format,
+        planes: sizes,
+        bytes: total,
+    } = layout(picture, limits)?;
+    let components = [
+        PlanarImageComponent::Y,
+        PlanarImageComponent::U,
+        PlanarImageComponent::V,
+    ];
     let mut planes = Vec::with_capacity(sizes.len());
     for (component, (row, rows, bytes)) in components.into_iter().zip(sizes) {
         let stride = usize::try_from(picture.stride(component)).map_err(|_| bad("stride"))?;

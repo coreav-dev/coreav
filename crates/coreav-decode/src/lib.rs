@@ -23,11 +23,15 @@
 
 #![forbid(unsafe_code)]
 
+mod buffer;
 mod error;
 mod stream;
 
 use std::time::{Duration, Instant};
 
+pub use buffer::{
+    BufferAllocator, BufferLease, BufferPlane, DecodeBuffer, PictureAllocator, SharedFrame,
+};
 pub use coreav_frame::{Frame, PixelFormat};
 pub use error::{Error, ErrorKind};
 pub use stream::{Codec, CodecConfig, ConfigKind, Packet, StreamConfig, StreamTraits};

@@ -15,8 +15,8 @@
 //! with its reader ([`opus`]).
 //!
 //! `unsafe` is denied crate-wide and allowed only in [`shm`], for the
-//! worker's `memmap2` mapping call and the parent's pointer copy out of its
-//! mapping; every other module is `#![forbid(unsafe_code)]`.
+//! worker mappings and the parent's raw copies and synchronous pipe writes;
+//! every other module is `#![forbid(unsafe_code)]`.
 
 #![deny(unsafe_code)]
 

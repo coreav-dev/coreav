@@ -227,6 +227,8 @@ pub enum Transfer {
         path: String,
         /// Number of slots.
         slots: u32,
+        /// Additional slots for decoder references and work pictures.
+        buffers: u32,
         /// Bytes per slot.
         slot_size: u64,
     },
@@ -449,11 +451,13 @@ fn encode_open(p: &mut Vec<u8>, open: &Open) {
         Transfer::Shared {
             path,
             slots,
+            buffers,
             slot_size,
         } => {
             p.push(1);
             put_bytes(p, path.as_bytes());
             put_u32(p, *slots);
+            put_u32(p, *buffers);
             put_u64(p, *slot_size);
         }
     }
@@ -500,6 +504,7 @@ fn decode_open(w: &mut Wire<'_>) -> Result<Open, ProtocolError> {
         1 => Transfer::Shared {
             path: String::from_utf8(w.bytes(4096)?.to_vec()).map_err(|_| ProtocolError("path"))?,
             slots: w.u32()?,
+            buffers: w.u32()?,
             slot_size: w.u64()?,
         },
         _ => return Err(ProtocolError("transfer")),
@@ -778,6 +783,7 @@ mod tests {
             transfer: Transfer::Shared {
                 path: "/proc/1/fd/3".into(),
                 slots: 2,
+                buffers: 24,
                 slot_size: 1 << 20,
             },
             sandbox: SandboxLimits {

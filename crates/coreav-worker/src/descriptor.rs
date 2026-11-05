@@ -101,19 +101,39 @@ pub fn accept(
 ) -> Result<Accepted, Error> {
     let checked = check(descriptor, inline.len(), expected_seq, slots, limits)?;
     let mut planes = Vec::with_capacity(checked.planes.len());
-    for (range, stride) in checked.planes {
+    for (index, (range, stride)) in checked.planes.into_iter().enumerate() {
+        let row = checked
+            .format
+            .row_bytes(index, checked.width, checked.height)
+            .ok_or_else(|| violation("row size"))?;
+        let (_, rows) = checked
+            .format
+            .plane_size(index, checked.width, checked.height)
+            .ok_or_else(|| violation("plane size"))?;
+        let len = row
+            .checked_mul(rows as usize)
+            .ok_or_else(|| violation("plane size"))?;
         let mut data = Vec::new();
-        data.try_reserve_exact(range.len())
+        data.try_reserve_exact(len)
             .map_err(|_| Error::new(ErrorKind::Limit, "out of memory for a frame"))?;
-        data.resize(range.len(), 0);
+        data.resize(len, 0);
         // The one read of the worker's bytes: copied once, then never
         // read from the slot again.
-        let copied = match (checked.slot, slots) {
-            (Some(_), Some(slots)) => slots.memory.copy_out(range.start, &mut data),
-            _ => inline.get(range).map(|source| data.copy_from_slice(source)),
-        };
-        copied.ok_or_else(|| violation("plane outside the slot"))?;
-        planes.push(Plane::new(data, stride));
+        for (r, target) in data.chunks_exact_mut(row).enumerate() {
+            let start = r
+                .checked_mul(stride)
+                .and_then(|n| range.start.checked_add(n))
+                .ok_or_else(|| violation("row offset"))?;
+            let copied = match (checked.slot, slots) {
+                (Some(_), Some(slots)) => slots.memory.copy_out(start, target),
+                _ => start
+                    .checked_add(row)
+                    .and_then(|end| inline.get(start..end))
+                    .map(|source| target.copy_from_slice(source)),
+            };
+            copied.ok_or_else(|| violation("plane outside the slot"))?;
+        }
+        planes.push(Plane::new(data, row));
     }
     let picture = Picture::new(checked.width, checked.height, checked.format, planes)
         .map_err(|e| violation(&e.to_string()))?;
@@ -180,10 +200,11 @@ pub fn check(
         return Err(violation("wrong number of planes"));
     }
     let ranges = plane_ranges(descriptor, format, region_len)?;
-    let bytes = ranges
-        .iter()
-        .try_fold(0u64, |sum, (r, _)| {
-            sum.checked_add(u64::try_from(r.len()).ok()?)
+    let bytes = (0..format.plane_count())
+        .try_fold(0u64, |sum, index| {
+            let row = u64::try_from(format.row_bytes(index, width, height)?).ok()?;
+            let (_, rows) = format.plane_size(index, width, height)?;
+            sum.checked_add(row.checked_mul(u64::from(rows))?)
         })
         .ok_or_else(|| violation("frame size overflows"))?;
     limits.check_frame(width, height, bytes)?;
@@ -320,6 +341,34 @@ mod tests {
         )
         .expect("inline");
         assert_eq!(a.slot, None);
+    }
+
+    #[test]
+    fn decoder_padding_is_not_copied_or_counted_as_pixels() {
+        let memory: Vec<u8> = (0..2048).map(|n| (n % 251) as u8).collect();
+        let slots = Slots {
+            memory: &memory,
+            count: 1,
+            size: 2048,
+        };
+        let mut planes = good_planes();
+        planes[0].stride = 1024;
+        planes[0].len = 1028;
+        planes[1].offset = 1028;
+        planes[2].offset = 1030;
+        let limits = Limits {
+            max_frame_bytes: 12,
+            max_pending_bytes: 12,
+            max_decoded_bytes: 12,
+            ..Limits::default()
+        };
+        let accepted =
+            accept(&descriptor(0, planes), &[], 0, Some(slots), &limits).expect("accepted");
+        assert_eq!(accepted.bytes, 12);
+        let picture = accepted.frame.to_cpu().expect("cpu");
+        assert_eq!(picture.packed_len(), 12);
+        assert_eq!(picture.planes()[0].data().len(), 8);
+        assert_eq!(picture.row(0, 1), memory.get(1024..1028));
     }
 
     #[test]

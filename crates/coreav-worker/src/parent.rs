@@ -404,11 +404,22 @@ impl SandboxedDecoder {
         limits: &Limits,
     ) -> Result<Self, Error> {
         let deadline = limits.deadline();
-        let memory = shared_memory(options, stream, limits);
+        let buffers = if matches!(backend, WorkerBackend::Dav1d | WorkerBackend::Libvpx) {
+            24
+        } else {
+            0
+        };
+        let memory = shared_memory(options, stream, limits, buffers);
+        let slot_count = if memory.is_some() {
+            options.slots.saturating_add(buffers)
+        } else {
+            0
+        };
         let transfer = match &memory {
             Some((memory, slot_size)) => Transfer::Shared {
                 path: memory.path(),
                 slots: options.slots,
+                buffers,
                 slot_size: *slot_size,
             },
             None => Transfer::Pipe,
@@ -495,7 +506,6 @@ impl SandboxedDecoder {
         };
         let kept = Arc::new(Mutex::new(Vec::new()));
         let (writer, jobs) = mpsc::channel::<WriteJob>();
-        let slot_count = if memory.is_some() { options.slots } else { 0 };
         let held: HeldSlots = Arc::new((0..slot_count).map(|_| AtomicBool::new(false)).collect());
         let queue = Arc::new(Queue::default());
         let (events_tx, events) = mpsc::channel();
@@ -515,7 +525,7 @@ impl SandboxedDecoder {
             let limits = limits.clone();
             let slots = memory.map(|(memory, size)| SharedSlots {
                 memory,
-                count: options.slots,
+                count: slot_count,
                 size,
                 lend: options.lend_frames,
             });
@@ -764,24 +774,38 @@ fn shared_memory(
     options: &WorkerOptions,
     stream: &StreamConfig,
     limits: &Limits,
+    buffers: u32,
 ) -> Option<(Memory, u64)> {
     if options.transfer != TransferMode::Shared || options.slots == 0 {
         return None;
     }
     let (w, h) = (stream.width?, stream.height?);
-    let slot = u64::from(w)
-        .checked_mul(u64::from(h))?
+    let width = if buffers > 0 {
+        u64::from(w).checked_add(256)? & !127
+    } else {
+        u64::from(w)
+    };
+    let height = if buffers > 0 {
+        u64::from(h).checked_add(256)? & !127
+    } else {
+        u64::from(h)
+    };
+    let bytes = width
+        .checked_mul(height)?
         .checked_mul(6)?
-        .min(limits.max_frame_bytes)
-        .checked_add(4095)?
-        & !4095;
-    let total = slot.checked_mul(u64::from(options.slots))?;
+        .min(if buffers > 0 {
+            limits.max_memory_bytes
+        } else {
+            limits.max_frame_bytes
+        });
+    let slot = u64::try_from(crate::shm::page_len(usize::try_from(bytes).ok()?)?).ok()?;
+    let total = slot.checked_mul(u64::from(options.slots.checked_add(buffers)?))?;
     let memory = crate::shm::ParentMemory::create(total).ok()?;
     Some((Memory(Arc::new(memory)), slot))
 }
 
 #[cfg(not(target_os = "linux"))]
-fn shared_memory(_: &WorkerOptions, _: &StreamConfig, _: &Limits) -> Option<(Memory, u64)> {
+fn shared_memory(_: &WorkerOptions, _: &StreamConfig, _: &Limits, _: u32) -> Option<(Memory, u64)> {
     None
 }
 
@@ -889,6 +913,20 @@ impl Lent {
 }
 
 impl SharedMemory for Lent {
+    #[cfg(unix)]
+    fn write_to_pipe(&self, pipe: std::os::fd::BorrowedFd<'_>) -> io::Result<bool> {
+        #[cfg(target_os = "linux")]
+        {
+            self.memory.0.write_ranges(pipe, &self.segments)?;
+            Ok(true)
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = pipe;
+            Ok(false)
+        }
+    }
+
     fn read_packed(&self, mut at: usize, out: &mut [u8]) -> Option<usize> {
         let mut filled = 0;
         for segment in &self.segments {

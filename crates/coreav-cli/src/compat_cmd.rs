@@ -22,6 +22,8 @@ use coreav_isobmff::{BufferedSource, FileSource, Source};
 
 use super::{EXIT_IO, EXIT_REJECTED, EXIT_USAGE, fallback_cmd};
 
+mod probe_stdin;
+
 /// Exit status of a command the compatibility layer does not implement:
 /// an option, a value or a property outside its vocabulary.
 pub const EXIT_UNSUPPORTED: u8 = 4;
@@ -112,17 +114,9 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
-            if let Some(mut input) = spool.take() {
-                let replay = input
-                    .file
-                    .as_mut()
-                    .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))
-                    .and_then(|file| file.rewind().and_then(|()| file.try_clone()));
-                #[cfg(unix)]
-                let replay =
-                    replay.and_then(|file| std::fs::remove_file(&input.path).map(|()| file));
-                match replay {
-                    Ok(file) => fallback_cmd::refuse_with_input(
+            if let Some(input) = spool.take() {
+                match input.into_replay() {
+                    Ok((file, input)) => fallback_cmd::refuse_with_input(
                         Tool::Ffmpeg,
                         &args,
                         refusal,
@@ -178,6 +172,10 @@ pub(super) struct EncodedInput {
 
 impl EncodedInput {
     fn read() -> std::io::Result<Self> {
+        Self::read_from(&mut std::io::stdin().lock(), 1_073_741_824)
+    }
+
+    fn read_from(reader: &mut dyn Read, limit: u64) -> std::io::Result<Self> {
         let tag = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(std::io::Error::other)?
@@ -214,11 +212,10 @@ impl EncodedInput {
             .file
             .as_mut()
             .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))?;
-        let mut stdin = std::io::stdin().lock();
         let mut bytes = [0u8; 65_536];
         let mut size = 0u64;
         loop {
-            let count = match stdin.read(&mut bytes) {
+            let count = match reader.read(&mut bytes) {
                 Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
                 result => result?,
             };
@@ -226,7 +223,7 @@ impl EncodedInput {
                 break;
             }
             size += count as u64;
-            if size > 1_073_741_824 {
+            if size > limit {
                 return Err(std::io::Error::other(
                     "encoded stdin exceeds the 1 GiB limit",
                 ));
@@ -239,6 +236,18 @@ impl EncodedInput {
         }
         file.rewind()?;
         Ok(input)
+    }
+
+    fn into_replay(mut self) -> std::io::Result<(std::fs::File, Self)> {
+        let file = self
+            .file
+            .as_mut()
+            .ok_or_else(|| std::io::Error::other("encoded stdin file is closed"))?;
+        file.rewind()?;
+        let replay = file.try_clone()?;
+        #[cfg(unix)]
+        std::fs::remove_file(&self.path)?;
+        Ok((replay, self))
     }
 }
 
@@ -314,6 +323,9 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    if ffmpeg::args::stdin(&options.input) {
+        return probe_stdin::run(&args, &options, strict_safe);
+    }
     #[cfg(not(feature = "net"))]
     if options.input.starts_with("http://") || options.input.starts_with("https://") {
         message(
@@ -601,5 +613,55 @@ fn run<S: Source>(
         Ok(()) => Ok(()),
         Err(Failure::Io(kind)) => Err(Outcome::Write(kind.into())),
         Err(other) => Err(Outcome::Read(other)),
+    }
+}
+
+#[cfg(test)]
+mod encoded_input_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    fn owned_names() -> std::collections::BTreeSet<std::path::PathBuf> {
+        let prefix = format!("coreav-encoded-stdin-{}-", std::process::id());
+        std::fs::read_dir(std::env::temp_dir())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
+            .map(|entry| entry.path())
+            .collect()
+    }
+
+    #[test]
+    fn acquisition_limit_read_failure_replay_and_cleanup_share_one_owner() {
+        let before = owned_names();
+        let input = EncodedInput::read_from(&mut std::io::Cursor::new(b"12345678"), 8).unwrap();
+        let path = input.path.clone();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let (mut replay, owner) = input.into_replay().unwrap();
+        #[cfg(unix)]
+        assert!(!path.exists());
+        let mut bytes = Vec::new();
+        replay.read_to_end(&mut bytes).unwrap();
+        assert_eq!(bytes, b"12345678");
+        drop(replay);
+        drop(owner);
+        assert!(!path.exists());
+        assert!(EncodedInput::read_from(&mut std::io::Cursor::new(b"123456789"), 8).is_err());
+        struct Failed;
+        impl Read for Failed {
+            fn read(&mut self, _bytes: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("read failed"))
+            }
+        }
+        assert!(EncodedInput::read_from(&mut Failed, 8).is_err());
+        assert_eq!(owned_names(), before);
     }
 }
