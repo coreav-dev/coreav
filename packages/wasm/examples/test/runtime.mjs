@@ -8,8 +8,13 @@ export class WorkerdDiagnostics {
     this.startupFailure = null;
     this.closed = new Promise(resolve => child.once("close", resolve));
     child.on("error", error => { this.launchError = error; });
-    child.stdout.on("data", chunk => this.stdout.push(chunk.toString()));
-    child.stderr.on("data", chunk => this.stderr.push(chunk.toString()));
+    child.stdout.setEncoding("utf8").on("data", chunk => this.stdout.push(chunk));
+    child.stderr.setEncoding("utf8").on("data", chunk => this.stderr.push(chunk));
+  }
+
+  async assertOutputAbsent(pattern) {
+    await this.closed;
+    if (pattern.test(this.stdout.join("") + this.stderr.join(""))) throw new Error("workerd output contains a secret marker");
   }
 
   failure(reason) {

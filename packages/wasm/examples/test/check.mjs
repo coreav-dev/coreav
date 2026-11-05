@@ -512,7 +512,7 @@ try {
   assert.equal(unauthorized.status, 401); assert.equal(unauthorized.headers.get("access-control-allow-origin"), "*");
   await stop(hls);
   assert.ok(comparisons > 0 && resources > 0 && files.size > 0, "empty verification is not a pass");
-  for (const runtime of runtimes) assert.doesNotMatch(runtime.stdout.join("") + runtime.stderr.join(""), secret);
+  await Promise.all(runtimes.map(runtime => runtime.assertOutputAbsent(secret)));
   const memoryVerdict = ledger.finish();
   assert.equal(memoryVerdict.state, "passed", `memory gates failed: ${memoryVerdict.failures.map((gate) => `${gate.step} (bar ${gate.bar} bytes)`).join(", ")}`);
   console.log(JSON.stringify({ fixtures: files.size, comparisons, resources, storedIndexes: records.size }));
