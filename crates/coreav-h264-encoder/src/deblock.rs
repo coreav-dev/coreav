@@ -1,3 +1,4 @@
+use crate::motion::MotionMb;
 use crate::{Error, Result};
 use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach, Scalar};
 
@@ -14,7 +15,34 @@ const TC0_3: [u8; 52] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3,
     3, 3, 4, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11, 13, 14, 16, 18, 20, 23, 25,
 ];
+const TC0_1: [u8; 52] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11, 13,
+];
+const TC0_2: [u8; 52] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+    2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 7, 8, 8, 10, 11, 12, 13, 15, 17,
+];
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Record {
+    pub(crate) motion: MotionMb,
+    pub(crate) nonzero: u16,
+}
+
+fn strength(p: Record, q: Record, pi: usize, qi: usize, external: bool) -> Result<u8> {
+    if p.motion.intra || q.motion.intra {
+        return Ok(if external { 4 } else { 3 });
+    }
+    if (p.nonzero & (1 << pi)) != 0 || (q.nonzero & (1 << qi)) != 0 {
+        return Ok(2);
+    }
+    let p = p.motion.vectors.get(pi).ok_or(Error::Internal)?;
+    let q = q.motion.vectors.get(qi).ok_or(Error::Internal)?;
+    Ok(u8::from((p.x - q.x).abs() >= 4 || (p.y - q.y).abs() >= 4))
+}
+
+#[cfg(test)]
 pub(crate) fn intra(
     data: &mut [u8],
     width: usize,
@@ -22,9 +50,29 @@ pub(crate) fn intra(
     qp: u8,
     chroma: bool,
 ) -> Result<()> {
+    picture(
+        data,
+        width,
+        height,
+        qp,
+        chroma,
+        |_, _| Ok(Record::default()),
+    )
+}
+
+pub(crate) fn picture(
+    data: &mut [u8],
+    width: usize,
+    height: usize,
+    qp: u8,
+    chroma: bool,
+    record: impl Fn(usize, usize) -> Result<Record>,
+) -> Result<()> {
     let index = usize::from(qp);
     let mut tc0 = [0; 8];
     *tc0.get_mut(3).ok_or(Error::Internal)? = *TC0_3.get(index).ok_or(Error::Internal)?;
+    *tc0.get_mut(1).ok_or(Error::Internal)? = *TC0_1.get(index).ok_or(Error::Internal)?;
+    *tc0.get_mut(2).ok_or(Error::Internal)? = *TC0_2.get(index).ok_or(Error::Internal)?;
     let mut params = EdgeParams {
         alpha: *ALPHA.get(index).ok_or(Error::Internal)?,
         beta: *BETA.get(index).ok_or(Error::Internal)?,
@@ -43,7 +91,29 @@ pub(crate) fn intra(
                     if offset == 0 && (if vertical { x } else { y }) == 0 {
                         continue;
                     }
-                    params.bs = [if offset == 0 { 4 } else { 3 }; 4];
+                    let q = record(x / n, y / n)?;
+                    let p = if offset != 0 {
+                        q
+                    } else if vertical {
+                        record(x / n - 1, y / n)?
+                    } else {
+                        record(x / n, y / n - 1)?
+                    };
+                    let edge = offset * 4 / n;
+                    for (segment, bs) in params.bs.iter_mut().enumerate() {
+                        let (qi, pi) = if vertical {
+                            (
+                                segment * 4 + edge,
+                                segment * 4 + if edge == 0 { 3 } else { edge - 1 },
+                            )
+                        } else {
+                            (
+                                edge * 4 + segment,
+                                (if edge == 0 { 3 } else { edge - 1 }) * 4 + segment,
+                            )
+                        };
+                        *bs = strength(p, q, pi, qi, offset == 0)?;
+                    }
                     let (q0, across, along) = if vertical {
                         (y * width + x + offset, 1, width)
                     } else {
@@ -142,5 +212,41 @@ mod tests {
                 assert_eq!(data, before, "beta equality chroma={chroma}");
             }
         }
+    }
+
+    #[test]
+    fn inter_strengths_follow_intra_then_coefficients_then_component_differences() {
+        let mut p = Record {
+            motion: MotionMb {
+                intra: false,
+                ..MotionMb::default()
+            },
+            nonzero: 0,
+        };
+        let mut q = p;
+        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 0);
+        for delta in [-4, 4] {
+            q.motion.vectors[0].x = delta;
+            assert_eq!(strength(p, q, 3, 0, true).unwrap(), 1);
+            q.motion.vectors[0].x = 0;
+            q.motion.vectors[0].y = delta;
+            assert_eq!(strength(p, q, 3, 0, true).unwrap(), 1);
+            q.motion.vectors[0].y = 0;
+        }
+        q.motion.vectors[0].x = 3;
+        q.motion.vectors[0].y = -3;
+        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 0);
+        p.nonzero = 1 << 3;
+        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 2);
+        p.nonzero = 0;
+        q.nonzero = 1;
+        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 2);
+        p.motion.intra = true;
+        assert_eq!(strength(p, q, 3, 0, true).unwrap(), 4);
+        assert_eq!(strength(p, q, 3, 0, false).unwrap(), 3);
+        assert_eq!(TC0_1[33], 2);
+        assert_eq!(TC0_2[33], 2);
+        assert_eq!(TC0_3[33], 3);
+        assert_eq!([TC0_1[51], TC0_2[51], TC0_3[51]], [13, 17, 25]);
     }
 }

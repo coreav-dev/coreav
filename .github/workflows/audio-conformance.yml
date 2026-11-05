@@ -58,6 +58,8 @@ jobs:
       - if: steps.oracle.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Verify the pinned oracle and native raw output
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
         run: |
           python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           cargo test --locked -p coreav-audio --test raw

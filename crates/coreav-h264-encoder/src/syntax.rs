@@ -62,14 +62,27 @@ pub(crate) fn pps(w: &mut Bits) -> Result<()> {
     w.flag(false)
 }
 
-pub(crate) fn slice(w: &mut Bits, e: &Encoder, id: u32) -> Result<()> {
+#[derive(Clone, Copy)]
+pub(crate) struct Slice {
+    pub(crate) idr: bool,
+    pub(crate) id: u32,
+    pub(crate) frame_num: u8,
+}
+
+pub(crate) fn slice(w: &mut Bits, e: &Encoder, slice: Slice) -> Result<()> {
     w.ue(0)?;
-    w.ue(7)?;
+    w.ue(if slice.idr { 7 } else { 5 })?;
     w.ue(0)?;
-    w.u(4, 0)?;
-    w.ue(id)?;
-    w.flag(false)?;
-    w.flag(false)?;
+    w.u(4, u64::from(slice.frame_num))?;
+    if slice.idr {
+        w.ue(slice.id)?;
+        w.flag(false)?;
+        w.flag(false)?;
+    } else {
+        w.flag(false)?;
+        w.flag(false)?;
+        w.flag(false)?;
+    }
     w.se(i32::from(e.settings.qp) - 26)?;
     match e.settings.deblocking {
         Deblocking::Disabled => w.ue(1),

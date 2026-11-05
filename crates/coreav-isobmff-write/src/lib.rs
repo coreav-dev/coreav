@@ -54,7 +54,7 @@ mod scan;
 mod split;
 mod tables;
 
-pub use clip::{clip_audio_mp4, clip_mp4};
+pub use clip::{clip_audio_mp4, clip_mp4, clip_mp4_input_seek};
 pub use join::join_mp4;
 pub use m4a::extract_audio;
 pub use matroska::{

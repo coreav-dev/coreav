@@ -333,8 +333,10 @@ pub fn to_file_patched<T>(
 }
 
 /// Moves the written `temporary` file to `path`. With `force` it replaces
-/// an admitted writable regular file and
-/// keeps the replaced file's permissions. Without it, the move is a hard
+/// a destination rechecked as a writable regular file and keeps its
+/// permissions. That check and the overwrite rename are separate operations:
+/// a concurrent change between them can still be replaced. This is not a
+/// filesystem confinement boundary. Without force, the move is a hard
 /// link, which fails rather than replace a file created at `path` after
 /// the command checked it ([`refuse`]); a file system without hard links
 /// gets a rename after one more check.

@@ -119,7 +119,7 @@ the implementation does not get to choose later:
   files. FFmpeg's semantics are the bar in both positions for the range a
   command names (where each time counts from and what it bounds), not an
   opinion of ours. What is written for that range is `coreav clip`'s,
-  judged by the clip oracle ("Times" under `coreav ffmpeg`).
+  judged by the clip oracle ("Times" under `coreav ffmpeg`). Input-seek copy additionally uses [exact packet-timeline admission](input-seek-copy.md): unsupported pre-roll, audio, composition offsets or fractional bounds refuse before publication or retain original-argument fallback. Native `coreav clip` and output-only seeking keep their own behavior.
 - **`-map` takes FFmpeg's selector grammar**: `FILE[:TYPE[:INDEX]]`,
   `FILE:m:KEY[:VALUE]` for a metadata tag, and a leading `-` to remove
   from what earlier `-map` options selected. Order matters, and a negative

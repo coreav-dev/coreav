@@ -134,7 +134,7 @@ pub(crate) struct Tables {
     /// Offset and sample count of the last composition-offset run.
     last_offset: Option<(u32, u32)>,
     /// Some offset is not 0.
-    offsets: bool,
+    pub(crate) offsets: bool,
     /// Some offset is negative (`ctts` version 1).
     negative: bool,
     /// Some offset is above `i32::MAX`, which only an unsigned version 0
