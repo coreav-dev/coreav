@@ -2092,7 +2092,19 @@ fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
 fn verify_input_seek_refusal(args: &[String], output: &Path) {
     let pin = std::env::var_os("COREAV_FFMPEG")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+        .or_else(|| {
+            std::env::var_os("PATH")
+                .iter()
+                .flat_map(std::env::split_paths)
+                .map(|directory| directory.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)))
+                .find(|path| coreav_cli::fallback::executable(path))
+        })
+        .expect("stage=oracle_selection: no pinned FFmpeg executable");
+    let pin = std::path::absolute(pin).unwrap();
+    assert!(
+        coreav_cli::fallback::executable(&pin),
+        "stage=oracle_selection: pinned FFmpeg is not executable"
+    );
     let reference = output.with_file_name("reference.mp4");
     let directory = output.parent().unwrap();
     assert!(!output.exists(), "refusal left output before verification");
@@ -2143,7 +2155,12 @@ fn verify_input_seek_refusal(args: &[String], output: &Path) {
             .env_remove("COREAV_FALLBACK_ACTIVE")
             .output()
             .unwrap();
-        assert_eq!(fallback.status.code(), expected.status.code(), "{args:?}");
+        assert_eq!(
+            fallback.status.code(),
+            expected.status.code(),
+            "stage=real_fallback_exit {args:?}: {}",
+            String::from_utf8_lossy(&fallback.stderr)
+        );
         assert_eq!(fallback.stdout, expected.stdout, "{args:?}");
         assert_eq!(
             std::fs::read(output).unwrap(),

@@ -229,7 +229,8 @@ fn input_seek_copy_keeps_only_exact_packet_timelines() {
             assert_eq!(replay.status.code(), Some(19));
             assert_eq!(
                 replay.stdout,
-                args.iter()
+                std::iter::once("-hide_banner")
+                    .chain(args.iter().copied())
                     .flat_map(|arg| arg.bytes().chain([0]))
                     .collect::<Vec<_>>()
             );
