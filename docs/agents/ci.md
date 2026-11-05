@@ -4,6 +4,7 @@ Workflow required checks, path filters, DCO, pinned actions, merge-group reuse, 
 
 | Rule | Enforced by |
 |---|---|
+| AAC qualification keeps its complete JSON report even when the comparison fails | The existing always-run artifact upload owns retention; `test_aac_qualification_report_survives_failure` checks its condition and report path. Rust types cannot govern workflow artifact paths |
 | Input-summary fixture CI starts for the registered default CLI build inputs and the inherited Cargo manifest and lockfile | `test_default_cli_build_inputs_trigger_summary_checks` pins the fourteen current local dependency crate paths and both root files, and names the filter entries to restore. The input set is checked against `cargo tree -p coreav-cli -e normal,build`; Rust types cannot govern GitHub path filters |
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
 | No `unsafe` outside the files `docs/unsafe-sites.md` lists; the change that adds or changes an `unsafe` site adds or updates its row there | `unsafe_code = "forbid"` (`Cargo.toml`); `scripts/unsafe_sites_check.py` (`ci.yml`) fails on a file with `unsafe` and no row. It checks files, not sites: a new site in a listed file passes it, so its row is review judgment |

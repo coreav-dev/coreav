@@ -145,13 +145,15 @@ fn io_object(message: &str) -> Value {
 pub fn refuse(input: &Path, output: &Path, force: bool) -> Option<String> {
     // A directory cannot be renamed onto: refused before any work, with
     // or without `--force`.
-    // A symbolic link to a directory is not one: `--force` replaces the link.
     if std::fs::symlink_metadata(output).is_ok_and(|m| m.is_dir()) {
         return Some(format!("{} is a directory", output.display()));
     }
-    if same_file(input, output) {
+    if let Some(message) = input_alias(input, output) {
+        return Some(message);
+    }
+    if check_regular_file(output).is_err() {
         return Some(format!(
-            "{} is the input file; write the output to another path",
+            "{} cannot be replaced atomically",
             output.display()
         ));
     }
@@ -162,6 +164,47 @@ pub fn refuse(input: &Path, output: &Path, force: bool) -> Option<String> {
         ));
     }
     None
+}
+
+pub(crate) fn input_alias(input: &Path, output: &Path) -> Option<String> {
+    same_file(input, output).then(|| {
+        format!(
+            "{} is the input file; write the output to another path",
+            output.display()
+        )
+    })
+}
+
+pub(crate) fn check_regular_file(path: &Path) -> std::io::Result<()> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if !metadata.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "output destination is not a regular file",
+        ));
+    }
+    if metadata.permissions().readonly() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "output destination is not writable",
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if metadata.nlink() > 1 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "output destination has multiple links",
+            ));
+        }
+        rustix::fs::access(path, rustix::fs::Access::WRITE_OK).map_err(std::io::Error::from)?;
+    }
+    Ok(())
 }
 
 /// Whether two paths name the same existing file (the same path, a link to
@@ -254,6 +297,7 @@ pub fn to_file_patched<T>(
     force: bool,
     write: impl FnOnce(&mut dyn Write) -> Result<(T, Option<Vec<u8>>), WriteFailure>,
 ) -> Result<T, WriteFailure> {
+    check_regular_file(path).map_err(|error| WriteFailure::output(&error))?;
     let temporary = temporary_path(path);
     let file = std::fs::OpenOptions::new()
         .write(true)
@@ -289,12 +333,15 @@ pub fn to_file_patched<T>(
 }
 
 /// Moves the written `temporary` file to `path`. With `force` it replaces
-/// what is there (a symbolic link is replaced, not written through) and
-/// keeps the replaced file's permissions. Without it, the move is a hard
+/// a destination rechecked as a writable regular file and keeps its
+/// permissions. That check and the overwrite rename are separate operations:
+/// a concurrent change between them can still be replaced. This is not a
+/// filesystem confinement boundary. Without force, the move is a hard
 /// link, which fails rather than replace a file created at `path` after
 /// the command checked it ([`refuse`]); a file system without hard links
 /// gets a rename after one more check.
 pub fn place(temporary: &Path, path: &Path, force: bool) -> std::io::Result<()> {
+    check_regular_file(path)?;
     if force {
         if let Ok(old) = std::fs::symlink_metadata(path) {
             if old.is_file() {
@@ -420,6 +467,117 @@ mod tests {
             assert!(message.contains("is a directory"), "{message}");
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn special_destinations_are_never_staged_or_replaced() {
+        use std::os::unix::fs::{MetadataExt, symlink};
+        use std::os::unix::net::UnixListener;
+        let dir = scratch("special-destinations");
+        let fifo = dir.join("fifo");
+        assert!(
+            std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let socket = dir.join("socket");
+        let _listener = UnixListener::bind(&socket).unwrap();
+        let device = dir.join("device");
+        symlink("/dev/null", &device).unwrap();
+        let link = dir.join("fifo-link");
+        symlink(&fifo, &link).unwrap();
+        for path in [&fifo, &socket, &device, &link] {
+            let original = std::fs::symlink_metadata(path).unwrap();
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            assert!(refuse(&dir.join("input"), path, true).is_some());
+            let mut ran = false;
+            let result = to_file(path, true, |_| {
+                ran = true;
+                Ok(())
+            });
+            assert!(result.is_err());
+            assert!(!ran);
+            let after = std::fs::symlink_metadata(path).unwrap();
+            assert_eq!(original.file_type(), after.file_type());
+            assert_eq!(original.ino(), after.ino());
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_fifo_created_during_output_is_not_replaced() {
+        use std::os::unix::fs::FileTypeExt;
+        let dir = scratch("late-fifo");
+        let path = dir.join("output");
+        let result = to_file(&path, true, |out| {
+            assert!(
+                std::process::Command::new("mkfifo")
+                    .arg(&path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            out.write_all(b"native output")
+                .map_err(|error| WriteFailure::output(&error))
+        });
+        assert!(result.is_err());
+        assert!(std::fs::metadata(&path).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_to_a_regular_output_is_refused_without_touching_its_target() {
+        use std::os::unix::fs::symlink;
+        let dir = scratch("regular-link");
+        let target = dir.join("target");
+        let path = dir.join("output");
+        std::fs::write(&target, b"target").unwrap();
+        symlink(&target, &path).unwrap();
+        let result = to_file(&path, true, |out| {
+            out.write_all(b"output")
+                .map_err(|error| WriteFailure::output(&error))
+        });
+        assert!(result.is_err());
+        assert!(path.is_symlink());
+        assert_eq!(std::fs::read(path).unwrap(), b"target");
+        assert_eq!(std::fs::read(target).unwrap(), b"target");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_outputs_are_preserved_before_staging_and_publication() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let dir = scratch("read-only");
+        let path = dir.join("output");
+        std::fs::write(&path, b"preserve").unwrap();
+        let inode = std::fs::metadata(&path).unwrap().ino();
+        for late in [false, true] {
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            if !late {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+            }
+            let mut ran = false;
+            let result = to_file(&path, true, |out| {
+                ran = true;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+                out.write_all(b"replace")
+                    .map_err(|error| WriteFailure::output(&error))
+            });
+            assert!(result.is_err());
+            assert_eq!(ran, late);
+            assert_eq!(std::fs::metadata(&path).unwrap().ino(), inode);
+            assert_eq!(std::fs::read(&path).unwrap(), b"preserve");
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[cfg(unix)]

@@ -60,7 +60,7 @@ fuzz_target!(|data: &[u8]| {
         } else {
             Keep::NOTHING
         }),
-        left_out_covers: Vec::new(),
+        ..RemuxOptions::default()
     };
     let mut out = Vec::new();
     let source = BufferedSource::new(SliceSource::new(input));

@@ -15,6 +15,13 @@ libfuzzer-sys = "0.4"
 coreav-hevc = { path = "..", features = ["native-hevc"] }
 
 [[bin]]
+name = "intra"
+path = "fuzz_targets/intra.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "headers"
 path = "fuzz_targets/headers.rs"
 test = false

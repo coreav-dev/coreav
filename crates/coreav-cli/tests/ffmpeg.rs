@@ -2925,6 +2925,437 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
     None
 }
 
+#[cfg(unix)]
+#[test]
+fn raw_s16_fifo_refuses_and_preserves_exact_pinned_fallback() {
+    use std::io::Read;
+    use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-fifo");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    let mut payloads = Vec::new();
+    for fallback in [false, true] {
+        let fifo = dir.join(if fallback { "fallback.s16" } else { "pin.s16" });
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let args = [
+            "-y",
+            "-f",
+            "s16le",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-i",
+            source.to_str().unwrap(),
+            "-f",
+            "s16le",
+            fifo.to_str().unwrap(),
+        ];
+        let inode = std::fs::metadata(&fifo).unwrap().ino();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let refused = Command::new(bin())
+            .args(["--strict-safe", "ffmpeg"])
+            .args(args)
+            .env("COREAV_FALLBACK", &pin)
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+        assert!(refused.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("non-regular destination"));
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        let mut reader = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NONBLOCK.bits().try_into().unwrap())
+            .open(&fifo)
+            .unwrap();
+        let mut command = if fallback {
+            let mut command = Command::new(bin());
+            command.arg("ffmpeg");
+            command.env("COREAV_FALLBACK", &pin);
+            command.env_remove("COREAV_STRICT_SAFE");
+            command.env_remove("COREAV_FALLBACK_ACTIVE");
+            command
+        } else {
+            Command::new(&pin)
+        };
+        let result = command.args(args).output().unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(result.stdout.is_empty());
+        let mut payload = Vec::new();
+        reader.read_to_end(&mut payload).unwrap();
+        assert_eq!(payload, bytes);
+        assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+        assert_eq!(std::fs::metadata(&fifo).unwrap().ino(), inode);
+        payloads.push(payload);
+    }
+    assert_eq!(payloads[0], payloads[1]);
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_linked_outputs_refuse_and_fall_back_through_the_target() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-links");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for (kind, flag) in [
+        ("symlink", "-y"),
+        ("dangling", "-y"),
+        ("dangling", "-n"),
+        ("hardlink", "-y"),
+    ] {
+        for fallback in [false, true] {
+            let tag = format!("{kind}-{flag}-{fallback}");
+            let target = dir.join(format!("{tag}-target.s16"));
+            let destination = dir.join(format!("{tag}.s16"));
+            if kind != "dangling" {
+                std::fs::write(&target, b"preserve target").unwrap();
+            }
+            if kind == "hardlink" {
+                std::fs::hard_link(&target, &destination).unwrap();
+            } else {
+                symlink(&target, &destination).unwrap();
+            }
+            let args = [
+                flag,
+                "-f",
+                "s16le",
+                "-ar",
+                "48000",
+                "-ac",
+                "1",
+                "-i",
+                source.to_str().unwrap(),
+                "-f",
+                "s16le",
+                destination.to_str().unwrap(),
+            ];
+            let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+            let entries = std::fs::read_dir(&dir).unwrap().count();
+            let refused = Command::new(bin())
+                .args(["--strict-safe", "ffmpeg"])
+                .args(args)
+                .output()
+                .unwrap();
+            assert_eq!(refused.status.code(), Some(4), "{refused:?}");
+            assert!(refused.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+            if kind == "dangling" {
+                assert!(!target.exists());
+            } else {
+                assert_eq!(std::fs::read(&target).unwrap(), b"preserve target");
+            }
+            let mut command = if fallback {
+                let mut command = Command::new(bin());
+                command.arg("ffmpeg");
+                command.env("COREAV_FALLBACK", &pin);
+                command.env_remove("COREAV_STRICT_SAFE");
+                command.env_remove("COREAV_FALLBACK_ACTIVE");
+                command
+            } else {
+                Command::new(&pin)
+            };
+            let result = command.args(args).output().unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert_eq!(
+                std::fs::symlink_metadata(&destination).unwrap().ino(),
+                inode
+            );
+            assert_eq!(destination.is_symlink(), kind != "hardlink");
+            assert_eq!(std::fs::read(&destination).unwrap(), bytes);
+            assert_eq!(std::fs::read(target).unwrap(), bytes);
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn raw_s16_unwritable_targets_preserve_the_pinned_exit_status() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+    let Some((pin, _)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("raw-s16-unwritable");
+    let source = dir.join("source.s16");
+    let bytes = [0u8, 128, 0, 0, 255, 127];
+    std::fs::write(&source, bytes).unwrap();
+    for dangling in [false, true] {
+        for flag in ["-y", "-n"] {
+            let mut outcomes = Vec::new();
+            for fallback in [false, true] {
+                let tag = format!("{dangling}-{flag}-{fallback}");
+                let target = if dangling {
+                    dir.join(format!("{tag}-missing/target.s16"))
+                } else {
+                    dir.join(format!("{tag}-target.s16"))
+                };
+                let destination = if dangling {
+                    let link = dir.join(format!("{tag}-link.s16"));
+                    symlink(&target, &link).unwrap();
+                    link
+                } else {
+                    std::fs::write(&target, b"preserve").unwrap();
+                    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o444))
+                        .unwrap();
+                    target.clone()
+                };
+                let args = [
+                    flag,
+                    "-f",
+                    "s16le",
+                    "-ar",
+                    "48000",
+                    "-ac",
+                    "1",
+                    "-i",
+                    source.to_str().unwrap(),
+                    "-f",
+                    "s16le",
+                    destination.to_str().unwrap(),
+                ];
+                let inode = std::fs::symlink_metadata(&destination).unwrap().ino();
+                let entries = std::fs::read_dir(&dir).unwrap().count();
+                let strict = Command::new(bin())
+                    .args(["--strict-safe", "ffmpeg"])
+                    .args(args)
+                    .output()
+                    .unwrap();
+                assert_eq!(strict.status.code(), Some(4), "{strict:?}");
+                assert!(strict.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+                if !dangling {
+                    assert_eq!(std::fs::read(&target).unwrap(), b"preserve");
+                }
+                let mut command = if fallback {
+                    let mut command = Command::new(bin());
+                    command.arg("ffmpeg");
+                    command.env("COREAV_FALLBACK", &pin);
+                    command.env_remove("COREAV_STRICT_SAFE");
+                    command.env_remove("COREAV_FALLBACK_ACTIVE");
+                    command
+                } else {
+                    Command::new(&pin)
+                };
+                let result = command.args(args).output().unwrap();
+                assert!(result.stdout.is_empty());
+                assert_eq!(
+                    std::fs::symlink_metadata(&destination).unwrap().ino(),
+                    inode
+                );
+                let payload = if dangling {
+                    assert!(!target.exists());
+                    None
+                } else {
+                    let payload = std::fs::read(&target).unwrap();
+                    if !result.status.success() || flag == "-n" {
+                        assert_eq!(payload, b"preserve");
+                    } else {
+                        assert_eq!(payload, bytes);
+                    }
+                    Some(payload)
+                };
+                outcomes.push((result.status.code(), payload));
+            }
+            assert_eq!(outcomes[0], outcomes[1], "dangling={dangling}, {flag}");
+        }
+    }
+}
+
+#[test]
+fn ordinary_copy_preserves_complete_packet_order() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("ffmpeg-copy-packet-order");
+    let capture = |path: &Path| {
+        let result = Command::new(&ffprobe_bin)
+            .args([
+                "-v",
+                "error",
+                "-show_streams",
+                "-show_packets",
+                "-show_data_hash",
+                "sha256",
+                "-of",
+                "json",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(result.stderr.is_empty());
+        let document: Value = serde_json::from_slice(&result.stdout).unwrap();
+        let streams = document["streams"].as_array().unwrap();
+        let packets: Vec<_> = document["packets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|packet| {
+                let stream = packet["stream_index"].as_u64().unwrap() as usize;
+                let (num, den) = streams[stream]["time_base"]
+                    .as_str()
+                    .unwrap()
+                    .split_once('/')
+                    .unwrap();
+                let num: i128 = num.parse().unwrap();
+                let den: u64 = den.parse().unwrap();
+                let clocks = ["pts", "dts", "duration"].map(|key| {
+                    packet[key].as_i64().map(|value| {
+                        coreav_isobmff::Rational::new(i128::from(value) * num, den).unwrap()
+                    })
+                });
+                (
+                    stream,
+                    packet["data_hash"].as_str().unwrap().to_owned(),
+                    clocks,
+                )
+            })
+            .collect();
+        assert!(!packets.is_empty());
+        (document, packets)
+    };
+    let audio_inputs: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    for (rate, frames, delay) in [
+        (48_000, 0, false),
+        (48_000, 2, false),
+        (44_100, 2, false),
+        (48_000, 2, true),
+    ] {
+        let source = dir.join(format!("source-{rate}-{frames}-{delay}.mp4"));
+        let mut generation = Command::new(&ffmpeg_bin);
+        generation
+            .args(["-nostdin", "-v", "error", "-f", "lavfi"])
+            .args(&audio_inputs)
+            .args(["-i", "testsrc2=size=80x64:rate=10:duration=1.4"]);
+        if delay {
+            generation.args(["-itsoffset", "0.1"]);
+        }
+        let generated = generation
+            .args(["-f", "lavfi"])
+            .args(&audio_inputs)
+            .args([
+                "-i",
+                &format!("sine=frequency=523:sample_rate={rate}:duration=1.4"),
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-bf",
+                &frames.to_string(),
+                "-c:a",
+                "aac",
+            ])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        for (name, options, extra_input) in [
+            ("ordinary", vec!["-c", "copy"], false),
+            (
+                "faststart",
+                vec!["-c", "copy", "-movflags", "+faststart"],
+                false,
+            ),
+            ("explicit", vec!["-c:v", "copy", "-c:a", "copy"], false),
+            ("all", vec!["-map", "0", "-c", "copy"], false),
+            (
+                "audio-first",
+                vec!["-map", "0:a", "-map", "0:v", "-c", "copy"],
+                false,
+            ),
+            (
+                "duplicate",
+                vec!["-map", "0:v", "-map", "0:a", "-map", "0:a", "-c", "copy"],
+                false,
+            ),
+            (
+                "input-zero",
+                vec!["-map", "0:v:0", "-map", "0:a:0", "-c", "copy"],
+                true,
+            ),
+            ("video-only", vec!["-an", "-c:v", "copy"], false),
+            ("audio-only", vec!["-vn", "-c:a", "copy"], false),
+        ] {
+            let actual = dir.join("actual.mp4");
+            let expected = dir.join("expected.mp4");
+            let mut args = vec!["-y", "-i", source.to_str().unwrap()];
+            if extra_input {
+                args.extend(["-i", source.to_str().unwrap()]);
+            }
+            args.extend(options);
+            let reference = Command::new(&ffmpeg_bin)
+                .args(["-nostdin", "-v", "error"])
+                .args(&args)
+                .arg(&expected)
+                .output()
+                .unwrap();
+            assert!(
+                reference.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&reference.stderr)
+            );
+            let result = ffmpeg(&[args.as_slice(), &[actual.to_str().unwrap()]].concat());
+            assert_eq!(result.code, 0, "{name}: {}", result.stderr);
+            let (mine, packets) = capture(&actual);
+            let (theirs, reference_packets) = capture(&expected);
+            assert_eq!(
+                packets, reference_packets,
+                "{name}: {rate}/{frames}/{delay}"
+            );
+            for (a, b) in mine["streams"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(theirs["streams"].as_array().unwrap())
+            {
+                for key in [
+                    "codec_name",
+                    "codec_type",
+                    "width",
+                    "height",
+                    "sample_rate",
+                    "channels",
+                    "start_time",
+                    "duration",
+                ] {
+                    assert_eq!(a[key], b[key], "{name}: {key}");
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn unedited_video_copy_normalizes_its_origin_without_losing_frames() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {

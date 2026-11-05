@@ -1,5 +1,8 @@
 use crate::{bits::Bits, nal, sei, *};
 
+#[path = "../fuzz/fuzz_targets/intra_parameters.rs"]
+mod intra_parameters;
+
 fn escaped(kind: u8, rbsp: &[u8]) -> Vec<u8> {
     let mut nal = vec![kind << 1, 1];
     let mut zeros = 0;
@@ -68,6 +71,639 @@ fn synthetic_sets() -> HeaderParser {
 
 fn idr() -> Vec<u8> {
     idr_segment(true)
+}
+
+struct PcmFixture {
+    sets: [Vec<u8>; 3],
+    nal: Vec<u8>,
+    planes: [Vec<u16>; 3],
+}
+
+fn fixture_profile(writer: &mut params::tests::Writer, depth: u32) {
+    writer.u(2, 0);
+    writer.flag(false);
+    writer.u(5, if depth == 10 { 2 } else { 1 });
+    writer.u(32, 0);
+    writer.u(4, 0);
+    writer.u(32, 0);
+    writer.u(12, 0);
+    writer.u(8, 120);
+}
+
+fn pcm_fixture(depth: u32, pcm_depth: u32, filtered: bool) -> Result<PcmFixture> {
+    let mut vps = params::tests::Writer::default();
+    vps.u(4, 0);
+    vps.flag(true);
+    vps.flag(true);
+    vps.u(6, 0);
+    vps.u(3, 0);
+    vps.flag(true);
+    vps.u(16, 0xffff);
+    fixture_profile(&mut vps, depth);
+    vps.flag(false);
+    for _ in 0..3 {
+        vps.ue(0);
+    }
+    vps.u(6, 0);
+    vps.ue(0);
+    vps.flag(false);
+    vps.flag(false);
+    let mut sps = params::tests::Writer::default();
+    sps.u(4, 0);
+    sps.u(3, 0);
+    sps.flag(true);
+    fixture_profile(&mut sps, depth);
+    for value in [0, 1, 8, 8] {
+        sps.ue(value);
+    }
+    sps.flag(false);
+    sps.ue(depth - 8);
+    sps.ue(depth - 8);
+    sps.ue(0);
+    sps.flag(false);
+    for value in [0, 0, 0, 0, 1, 0, 1, 0, 0] {
+        sps.ue(value);
+    }
+    for flag in [false, false, false, true] {
+        sps.flag(flag);
+    }
+    sps.u(4, pcm_depth - 1);
+    sps.u(4, pcm_depth - 1);
+    sps.ue(0);
+    sps.ue(0);
+    sps.flag(true);
+    sps.ue(0);
+    for _ in 0..5 {
+        sps.flag(false);
+    }
+    let mut pps = params::tests::Writer::default();
+    pps.ue(0);
+    pps.ue(0);
+    pps.flag(false);
+    pps.flag(false);
+    pps.u(3, 0);
+    pps.flag(false);
+    pps.flag(false);
+    pps.ue(0);
+    pps.ue(0);
+    pps.se(0);
+    for _ in 0..3 {
+        pps.flag(false);
+    }
+    pps.se(0);
+    pps.se(0);
+    for _ in 0..7 {
+        pps.flag(false);
+    }
+    pps.flag(true);
+    pps.flag(false);
+    pps.flag(!filtered);
+    if filtered {
+        pps.se(0);
+        pps.se(0);
+    }
+    pps.flag(false);
+    pps.flag(false);
+    pps.ue(0);
+    pps.flag(false);
+    pps.flag(false);
+    let mut slice = params::tests::Writer::default();
+    slice.flag(true);
+    slice.flag(false);
+    slice.ue(0);
+    slice.ue(2);
+    slice.se(0);
+    let mut rbsp = padded(slice);
+    rbsp.extend([0x86, 0x80]);
+    let raw: [Vec<u16>; 3] = core::array::from_fn(|component| {
+        let length = if component == 0 { 64 } else { 16 };
+        (0..length)
+            .map(|i| ((i * 17 + component * 67) & ((1 << pcm_depth) - 1)) as u16)
+            .collect()
+    });
+    let mut samples = params::tests::Writer::default();
+    for plane in &raw {
+        for value in plane {
+            samples.u(pcm_depth, u32::from(*value));
+        }
+    }
+    rbsp.extend(samples.bytes());
+    rbsp.extend([0xfe, 0x80]);
+    let planes = raw.map(|plane| {
+        plane
+            .into_iter()
+            .map(|v| v << (depth - pcm_depth))
+            .collect()
+    });
+    Ok(PcmFixture {
+        sets: [
+            escaped(32, &padded(vps)),
+            escaped(33, &padded(sps)),
+            escaped(34, &padded(pps)),
+        ],
+        nal: escaped(19, &rbsp),
+        planes,
+    })
+}
+
+#[test]
+fn original_pcm_picture_is_published_once_after_complete_eof() -> Result<()> {
+    for (depth, pcm_depth) in [(8, 8), (10, 10), (10, 8)] {
+        let fixture = pcm_fixture(depth, pcm_depth, false)?;
+        let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+        let mut emitted = 0;
+        for nal in fixture.sets.iter().chain([&fixture.nal]) {
+            decoder.read_nal(nal, |_| {
+                emitted += 1;
+                Ok(())
+            })?;
+        }
+        assert_eq!(emitted, 0);
+        let summary = decoder.finish(|picture| {
+            emitted += 1;
+            assert_eq!(picture.index, 0);
+            assert_eq!(
+                (
+                    picture.info.width,
+                    picture.info.height,
+                    picture.info.bit_depth
+                ),
+                (8, 8, depth)
+            );
+            for (plane, expected) in picture.planes.into_iter().zip(&fixture.planes) {
+                assert_eq!(plane.samples, expected);
+                assert_eq!(plane.stride, plane.width);
+                assert_eq!(plane.samples.len(), plane.width * plane.height);
+            }
+            assert_eq!(
+                (
+                    picture.stats.ctus,
+                    picture.stats.coding_units,
+                    picture.stats.pcm_units
+                ),
+                (1, 1, 1)
+            );
+            assert_eq!(picture.stats.bins, 3);
+            assert_eq!(picture.stats.transform_units, 0);
+            assert_eq!(
+                (picture.stats.picture_hashes, picture.stats.reserved_hashes),
+                (0, 0)
+            );
+            assert!(picture.stats.memory_bytes <= IntraLimits::default().max_memory_bytes);
+            Ok(())
+        })?;
+        assert_eq!((summary.pictures, emitted), (1, 1));
+        decoder.finish(|_| {
+            emitted += 1;
+            Ok(())
+        })?;
+        assert_eq!(emitted, 1);
+    }
+    Ok(())
+}
+
+#[test]
+fn selected_inter_picture_is_refused_before_sample_allocation() -> Result<()> {
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 1);
+    for set in two_ctu_parameter_nals() {
+        decoder.read_nal(&set, |_| Ok(()))?;
+    }
+    decoder.read_nal(&idr(), |_| Ok(()))?;
+    let inter = reference_segment(
+        1,
+        true,
+        1,
+        TestReferences {
+            short_term: Some((0, true)),
+            ..TestReferences::default()
+        },
+    );
+    let mut emitted = 0;
+    assert_eq!(
+        decoder.read_nal(&inter, |_| {
+            emitted += 1;
+            Ok(())
+        }),
+        Err(Error::Unsupported("selected_inter_picture"))
+    );
+    assert_eq!(emitted, 0);
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    Ok(())
+}
+
+fn coded_hash_payload(kind: u8, hex: &str) -> Result<Vec<u8>> {
+    let size = u8::try_from(hex.len() / 2 + 1).map_err(|_| Error::InvalidData("fixture_hash"))?;
+    let mut bytes = vec![132, size, kind];
+    for pair in hex.as_bytes().chunks_exact(2) {
+        let text = core::str::from_utf8(pair).map_err(|_| Error::InvalidData("fixture_hash"))?;
+        bytes.push(u8::from_str_radix(text, 16).map_err(|_| Error::InvalidData("fixture_hash"))?);
+    }
+    bytes.push(0x80);
+    Ok(bytes)
+}
+
+#[test]
+fn all_defined_suffix_algorithms_check_the_complete_coded_components() -> Result<()> {
+    for (kind, depth, hex) in [
+        (
+            0,
+            8,
+            "79bf8613946d23ec06a6259409ef4a7c34d2be1f186c459c16c628a601d89a04631161904fcb145a907c48bc2b6d0ae4",
+        ),
+        (1, 8, "59ca77b4cc8d"),
+        (2, 8, "00001fe00000082800000858"),
+        (
+            0,
+            10,
+            "d668aa9b26174848dde6aa5ec04375930e0b879cef1d71b5145d542804fd4be4e38097d76976f72f277de9f5c260cbe3",
+        ),
+        (1, 10, "7d4d82ff38f7"),
+        (2, 10, "000020be0000084000000870"),
+    ] {
+        let fixture = pcm_fixture(depth, depth, false)?;
+        for changed in [false, true] {
+            let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, |_| Ok(()))?;
+            }
+            let mut payload = coded_hash_payload(kind, hex)?;
+            if changed {
+                *payload
+                    .get_mut(3)
+                    .ok_or(Error::InvalidData("fixture_hash"))? ^= 1;
+            }
+            let mut emitted = 0;
+            let result = decoder.read_nal(&escaped(40, &payload), |_| {
+                emitted += 1;
+                Ok(())
+            });
+            assert_eq!(emitted, 0);
+            if changed {
+                assert_eq!(result, Err(Error::InvalidData("picture_hash_mismatch")));
+                assert!(decoder.finish(|_| Ok(())).is_err());
+            } else {
+                result?;
+                decoder.finish(|picture| {
+                    emitted += 1;
+                    assert_eq!(
+                        (picture.stats.picture_hashes, picture.stats.reserved_hashes),
+                        (1, 0)
+                    );
+                    Ok(())
+                })?;
+                assert_eq!(emitted, 1);
+            }
+        }
+    }
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    decoder.read_nal(&escaped(40, &[132, 1, 255, 0x80]), |_| Ok(()))?;
+    decoder.finish(|picture| {
+        assert_eq!(
+            (picture.stats.picture_hashes, picture.stats.reserved_hashes),
+            (0, 1)
+        );
+        Ok(())
+    })?;
+    Ok(())
+}
+
+#[test]
+fn accounted_peak_is_an_enforced_boundary_not_the_configured_maximum() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    let mut peak = 0;
+    decoder.finish(|picture| {
+        peak = picture.stats.memory_bytes;
+        Ok(())
+    })?;
+    assert!(peak > 0 && peak < IntraLimits::default().max_memory_bytes);
+    for bytes in [peak - 1, peak] {
+        let limits = IntraLimits {
+            max_memory_bytes: bytes,
+            ..IntraLimits::default()
+        };
+        let mut decoder = IntraPictureDecoder::new(limits, 0);
+        let mut emitted = 0;
+        let result = (|| {
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, |_| {
+                    emitted += 1;
+                    Ok(())
+                })?;
+            }
+            decoder.finish(|picture| {
+                emitted += 1;
+                assert_eq!(picture.stats.memory_bytes, peak);
+                Ok(())
+            })
+        })();
+        if bytes == peak {
+            result?;
+            assert_eq!(emitted, 1);
+        } else {
+            assert_eq!(result, Err(Error::Limit("reconstruction_memory")));
+            assert_eq!(emitted, 0);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn entropy_fuzz_bootstrap_matches_self_written_parameter_syntax() -> Result<()> {
+    for (depth, parameters) in [(8, intra_parameters::EIGHT), (10, intra_parameters::TEN)] {
+        let fixture = pcm_fixture(depth, depth, false)?;
+        for (literal, written) in parameters.into_iter().zip(fixture.sets) {
+            assert_eq!(literal, written);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn selected_picture_budgets_and_callback_errors_are_terminal() -> Result<()> {
+    let fixture = pcm_fixture(10, 10, false)?;
+    for limits in [
+        IntraLimits {
+            max_bins: 2,
+            ..IntraLimits::default()
+        },
+        IntraLimits {
+            max_memory_bytes: 1,
+            ..IntraLimits::default()
+        },
+    ] {
+        let mut decoder = IntraPictureDecoder::new(limits, 0);
+        let mut failure = None;
+        let mut emitted = 0;
+        for nal in fixture.sets.iter().chain([&fixture.nal]) {
+            if let Err(error) = decoder.read_nal(nal, |_| {
+                emitted += 1;
+                Ok(())
+            }) {
+                failure = Some(error);
+                break;
+            }
+        }
+        assert!(matches!(failure, Some(Error::Limit(_))));
+        assert_eq!(emitted, 0);
+        assert!(decoder.finish(|_| Ok(())).is_err());
+        assert!(decoder.read_nal(&fixture.nal, |_| Ok(())).is_err());
+    }
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    assert_eq!(
+        decoder.finish(|_| Err(Error::Limit("fixture_output"))),
+        Err(Error::Limit("fixture_output"))
+    );
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    Ok(())
+}
+
+#[test]
+fn absent_target_filtered_picture_and_truncated_entropy_never_publish() -> Result<()> {
+    for (target, filtered, truncated) in [(1, false, false), (0, true, false), (0, false, true)] {
+        let mut fixture = pcm_fixture(8, 8, filtered)?;
+        if truncated {
+            fixture.nal.pop();
+        }
+        let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), target);
+        let mut emitted = 0;
+        let result = (|| {
+            for nal in fixture.sets.iter().chain([&fixture.nal]) {
+                decoder.read_nal(nal, |_| {
+                    emitted += 1;
+                    Ok(())
+                })?;
+            }
+            decoder.finish(|_| {
+                emitted += 1;
+                Ok(())
+            })
+        })();
+        if filtered {
+            assert_eq!(result, Err(Error::Unsupported("selected_filtered_picture")));
+        } else {
+            assert!(matches!(result, Err(Error::InvalidData(_))));
+        }
+        assert_eq!(emitted, 0);
+        assert!(decoder.finish(|_| Ok(())).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn selection_uses_original_indices_without_decoding_unselected_entropy() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut first = nal::rbsp(&fixture.nal, &Limits::default())?;
+    first.truncate(2);
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 1);
+    for nal in &fixture.sets {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    decoder.read_nal(&escaped(19, &first), |_| Ok(()))?;
+    decoder.read_nal(&fixture.nal, |_| Ok(()))?;
+    let mut emitted = 0;
+    let summary = decoder.finish(|picture| {
+        emitted += 1;
+        assert_eq!(picture.index, 1);
+        Ok(())
+    })?;
+    assert_eq!((summary.pictures, emitted), (2, 1));
+    Ok(())
+}
+
+#[test]
+fn a_later_error_does_not_revoke_a_callback_or_make_the_session_pass() -> Result<()> {
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    for nal in &fixture.sets {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    decoder.read_nal(&fixture.nal, |_| Ok(()))?;
+    let mut emitted = 0;
+    decoder.read_nal(&fixture.nal, |_| {
+        emitted += 1;
+        Ok(())
+    })?;
+    assert_eq!(emitted, 1);
+    assert!(decoder.read_nal(&[0], |_| Ok(())).is_err());
+    assert!(
+        decoder
+            .finish(|_| {
+                emitted += 1;
+                Ok(())
+            })
+            .is_err()
+    );
+    assert_eq!(emitted, 1);
+    Ok(())
+}
+
+#[test]
+fn selected_suffix_hash_cannot_be_ignored_before_a_picture_or_after_publication() -> Result<()> {
+    let hash = escaped(40, &[132, 7, 1, 0, 0, 0, 0, 0, 0, 0x80]);
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    assert_eq!(
+        decoder.read_nal(&hash, |_| Ok(())),
+        Err(Error::InvalidData("suffix_sei_without_picture"))
+    );
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    let fixture = pcm_fixture(8, 8, false)?;
+    let mut decoder = IntraPictureDecoder::new(IntraLimits::default(), 0);
+    for nal in fixture.sets.iter().chain([&fixture.nal]) {
+        decoder.read_nal(nal, |_| Ok(()))?;
+    }
+    let mut emitted = 0;
+    decoder.read_nal(&escaped(36, &[]), |_| {
+        emitted += 1;
+        Ok(())
+    })?;
+    assert_eq!(emitted, 1);
+    assert_eq!(
+        decoder.read_nal(&hash, |_| Ok(())),
+        Err(Error::InvalidData("suffix_sei_without_picture"))
+    );
+    assert!(decoder.finish(|_| Ok(())).is_err());
+    Ok(())
+}
+
+#[test]
+fn slice_quantization_is_retained_without_changing_header_admission() {
+    for delta in [-26, 0, 25, 26] {
+        let mut w = params::tests::Writer::default();
+        w.flag(true);
+        w.flag(false);
+        w.ue(0);
+        w.ue(2);
+        w.flag(true);
+        w.flag(false);
+        w.flag(false);
+        w.se(delta);
+        w.flag(false);
+        let mut rbsp = padded(w);
+        rbsp.push(0x80);
+        let mut parser = synthetic_sets();
+        let result = parser.read_nal(&escaped(19, &rbsp), |_| Ok(()));
+        if delta == 26 {
+            assert_eq!(result, Err(Error::InvalidData("slice_qp")));
+            continue;
+        }
+        let NalInfo::Slice { header, .. } = result.unwrap() else {
+            panic!("expected slice")
+        };
+        assert_eq!(header.slice_qp_y, Some(26 + delta));
+        assert_eq!(header.chroma_qp_offsets, Some([0; 2]));
+        assert_eq!(header.cabac_init_flag, Some(false));
+    }
+}
+
+#[test]
+fn selected_stream_record_inherits_syntax_but_preserves_raw_dependent_header() -> Result<()> {
+    let mut sets = two_ctu_parameter_nals();
+    let pps_nal = sets.get_mut(2).ok_or(Error::InvalidData("fixture_pps"))?;
+    let mut pps = nal::rbsp(pps_nal, &Limits::default())?;
+    *pps.first_mut().ok_or(Error::InvalidData("fixture_pps"))? |= 1 << 5;
+    *pps_nal = escaped(34, &pps);
+    let mut core = parser::StreamCore::new(Limits::default());
+    for set in &sets {
+        core.read_nal(set, |_| Ok(()))?;
+    }
+    let mut first_syntax = None;
+    let first = idr_segment(true);
+    core.read_selected(
+        &first,
+        |_| Ok(()),
+        Some(0),
+        usize::MAX,
+        |input| {
+            assert_eq!(input.index, 0);
+            assert_eq!(input.original, first);
+            assert_eq!(input.picture.width, input.sps.width);
+            assert_eq!(input.pps.id, input.header.pps_id);
+            assert_eq!(input.layout.at_raster(1)?.tile_scan, 1);
+            assert_eq!(input.syntax.kind, 2);
+            assert_eq!(input.syntax.independent_address, 0);
+            assert_eq!(input.syntax.qp_y, 26);
+            assert!(input.scratch_bytes >= input.rbsp.len());
+            assert!(input.entry_lengths.is_empty());
+            first_syntax = Some(input.syntax);
+            Ok(())
+        },
+    )?;
+    let mut writer = params::tests::Writer::default();
+    writer.flag(false);
+    writer.flag(false);
+    writer.ue(0);
+    writer.flag(true);
+    writer.u(1, 1);
+    let mut rbsp = padded(writer);
+    rbsp.push(0x80);
+    let mut observed = 0;
+    let result = core.read_selected(
+        &escaped(19, &rbsp),
+        |_| Ok(()),
+        Some(0),
+        usize::MAX,
+        |input| {
+            observed += 1;
+            assert!(input.header.dependent);
+            assert_eq!(input.header.slice_qp_y, None);
+            assert_eq!(input.header.slice_type, None);
+            assert_eq!(Some(input.syntax), first_syntax);
+            Ok(())
+        },
+    )?;
+    assert!(matches!(
+        result,
+        NalInfo::Slice {
+            header: SliceHeader {
+                dependent: true,
+                ..
+            },
+            ..
+        }
+    ));
+    assert_eq!(observed, 1);
+    assert_eq!(core.finish(|_| Ok(()))?.dependent_slices, 1);
+    Ok(())
+}
+
+#[test]
+fn selected_observer_failure_and_retained_scratch_limit_end_the_core() -> Result<()> {
+    let mut core = parser::StreamCore::new(Limits::default());
+    for set in synthetic_parameter_nals() {
+        core.read_nal(&set, |_| Ok(()))?;
+    }
+    let refusal = Error::Limit("fixture_observer");
+    assert_eq!(
+        core.read_selected(&idr(), |_| Ok(()), Some(0), usize::MAX, |_| Err(refusal)),
+        Err(refusal)
+    );
+    assert_eq!(
+        core.finish(|_| Ok(())),
+        Err(Error::InvalidData("parser_failed"))
+    );
+    let mut core = parser::StreamCore::new(Limits::default());
+    let sets = synthetic_parameter_nals();
+    let first = sets.first().ok_or(Error::InvalidData("fixture_vps"))?;
+    assert_eq!(
+        core.read_selected(first, |_| Ok(()), Some(0), first.len() - 3, |_| Ok(())),
+        Err(Error::Limit("reconstruction_memory"))
+    );
+    assert_eq!(
+        core.read_nal(first, |_| Ok(())),
+        Err(Error::InvalidData("parser_failed"))
+    );
+    Ok(())
 }
 
 fn idr_segment(first: bool) -> Vec<u8> {
@@ -612,7 +1248,9 @@ fn equal_derived_long_term_references_do_not_hide_different_syntax() {
     let sps = params::sps(&mut Bits::new(&sps), &Limits::default()).unwrap();
     let pps = nal::rbsp(&sets[2], &Limits::default()).unwrap();
     let pps = params::pps(&mut Bits::new(&pps), &Limits::default()).unwrap();
-    let second = slice::parse(&mut bits, nal, prefix, &sps, &pps, &Limits::default()).unwrap();
+    let second = slice::parse(&mut bits, nal, prefix, &sps, &pps, &Limits::default(), None)
+        .unwrap()
+        .header;
     assert_eq!(first.long_term_count, second.long_term_count);
     assert_eq!(first.long_term, second.long_term);
     assert_eq!(
