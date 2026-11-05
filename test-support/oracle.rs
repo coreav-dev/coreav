@@ -67,54 +67,27 @@ pub fn try_require() -> Result<&'static Oracle, String> {
         std::fs::create_dir(&scripts)
             .map_err(|error| format!("cannot create oracle scripts directory: {error}"))?;
         for (name, source) in [
-            (
-                "test_oracle.py",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/test_oracle.py"
-                )),
-            ),
-            (
-                "oracle_pin.py",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle_pin.py"
-                )),
-            ),
+            ("test_oracle.py", include_str!("../scripts/test_oracle.py")),
+            ("oracle_pin.py", include_str!("../scripts/oracle_pin.py")),
             (
                 "oracle_pin_macos.py",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle_pin_macos.py"
-                )),
+                include_str!("../scripts/oracle_pin_macos.py"),
             ),
             (
                 "oracle_audio.py",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle_audio.py"
-                )),
+                include_str!("../scripts/oracle_audio.py"),
             ),
             (
                 "oracle-ffmpeg.env",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle-ffmpeg.env"
-                )),
+                include_str!("../scripts/oracle-ffmpeg.env"),
             ),
             (
                 "oracle-ffmpeg-macos.env",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle-ffmpeg-macos.env"
-                )),
+                include_str!("../scripts/oracle-ffmpeg-macos.env"),
             ),
             (
                 "oracle-audio-args.txt",
-                include_str!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../scripts/oracle-audio-args.txt"
-                )),
+                include_str!("../scripts/oracle-audio-args.txt"),
             ),
         ] {
             std::fs::OpenOptions::new()

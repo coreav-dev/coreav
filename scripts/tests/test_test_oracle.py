@@ -154,7 +154,8 @@ class Qualification(unittest.TestCase):
 
     def test_rust_adapter_embeds_the_complete_owner_support_set(self):
         source = (ROOT / 'test-support/oracle.rs').read_text()
-        embedded = set(re.findall(r'"/../../scripts/([^\"]+)"', source))
+        embedded = set(re.findall(r'"\.\./scripts/([^\"]+)"', source))
+        self.assertEqual(len(re.findall(r'\binclude_str!\(', source)), len(embedded))
         self.assertEqual(embedded, set(test_oracle.SUPPORT))
         root = self.root / 'embedded'
         test_oracle.bundle(root, [])
@@ -166,9 +167,10 @@ class Qualification(unittest.TestCase):
         manifest = build / 'crates/probe'
         manifest.mkdir(parents=True)
         test_oracle.bundle(build, [])
-        shutil.copy(ROOT / 'test-support/oracle.rs', manifest / 'oracle.rs')
+        (build / 'test-support').mkdir()
+        shutil.copy(ROOT / 'test-support/oracle.rs', build / 'test-support/oracle.rs')
         source = manifest / 'main.rs'
-        source.write_text('mod oracle;\nfn main() {\n'
+        source.write_text('#[path = "../../test-support/oracle.rs"] mod oracle;\nfn main() {\n'
                           'let mode = std::env::args().nth(1).unwrap();\n'
                           'if mode == "native" { return; }\n'
                           'for _ in 0..2 {\n'
@@ -178,7 +180,6 @@ class Qualification(unittest.TestCase):
                           '}\n}\n')
         binary = self.root / 'relocated'
         made = subprocess.run(['rustc', '--edition=2024', str(source), '-o', str(binary)],
-                              env=dict(os.environ, CARGO_MANIFEST_DIR=str(manifest)),
                               capture_output=True, text=True, timeout=60)
         self.assertEqual(made.returncode, 0, made.stderr)
         shutil.rmtree(build)
