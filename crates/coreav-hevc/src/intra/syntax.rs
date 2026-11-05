@@ -240,13 +240,7 @@ fn luma_qp(predictor: i32, delta: i32, offset: i32) -> i32 {
 fn component_qp(qp: i32, offset: i32, chroma_offset: Option<i32>) -> Result<u8> {
     let qp = if let Some(chroma_offset) = chroma_offset {
         let index = (qp + chroma_offset).clamp(-offset, 57);
-        match index {
-            30..=43 => *[29, 30, 31, 32, 33, 33, 34, 34, 35, 35, 36, 36, 37, 37]
-                .get((index - 30) as usize)
-                .ok_or(Error::InvalidData("intra_chroma_qp"))?,
-            44.. => index - 6,
-            _ => index,
-        }
+        kernels::chroma_qp_index(index)?
     } else {
         qp
     };

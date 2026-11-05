@@ -68,6 +68,23 @@ class Packing(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'sample_range'):
                 runner.compare_picture(struct.pack('<H', invalid) + raw[2:], metadata, candidate, oracle)
 
+    def test_row_streaming_and_nonoutput_references_do_not_invent_output_frames(self):
+        for depth in (8, 10):
+            raw, metadata, candidate, oracle = self.picture(depth)
+            with tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / 'coded.u16le'
+                path.write_bytes(raw)
+                self.assertEqual(runner.compare_picture(path, metadata, candidate, oracle),
+                                 runner.compare_picture(raw, metadata, candidate, oracle))
+            reference = dict(source_scope='coded-picture reference (SEI), not output',
+                             coded_component_md5=candidate['reference']['coded_component_md5'])
+            runner.compare_picture(raw, metadata, dict(reference=reference), None)
+            for ref, output in [(dict(reference, output_index=0), None), (reference, oracle)]:
+                with self.assertRaisesRegex(ValueError, 'mapping_invented'):
+                    runner.compare_picture(raw, metadata, dict(reference=ref), output)
+            with self.assertRaisesRegex(ValueError, 'coded_component_mismatch'):
+                runner.compare_picture(bytes([raw[0] ^ 1]) + raw[1:], metadata, dict(reference=reference), None)
+
 
 class Census(unittest.TestCase):
     def setUp(self):
@@ -141,11 +158,57 @@ class Census(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'eligible_coded_output_absent'):
             self.targets(record)
 
+    def test_g3_adds_original_filtered_candidates_without_moving_them_into_g2(self):
+        picture = dict(self.nal, sao=[True, False])
+        self.capture([picture, self.output, self.summary])
+        candidate = dict(self.candidate, gate='G3')
+        record = dict(self.record, intra_candidates=[candidate])
+        self.assertIsNone(self.targets(record))
+        result = runner.stream_targets(self.source, record, self.native, self.root,
+                                       'one', 'published_conformance', True)
+        self.assertEqual(len(result['targets']), 1)
+        self.assertEqual(result['targets'][0]['candidate']['gate'], 'G3')
+        self.assertEqual(result['targets'][0]['candidate']['reference'], self.reference)
+
+    def test_only_the_two_authorized_nonoutput_pictures_receive_original_sei_references(self):
+        pictures = [dict(self.picture, all_intra=i in (39, 73), filters_disabled=False) for i in range(74)]
+        rows = []
+        for i in (39, 73):
+            rows.extend([dict(self.nal, picture_index=i),
+                         dict(kind='nal', nal_type=40, picture_hash=True, reserved_hashes=0,
+                              picture_hash_reference=dict(algorithm='md5', components=[[i] * 16] * 3))])
+        self.capture(rows)
+        runner.harness.write_json(self.root / 'frames.stdout', dict(frames=[]))
+        record = dict(self.record, reference_count=dict(value=0), reference_frames=[], intra_candidates=[])
+        with mock.patch.object(runner.harness, 'native_rows', return_value=(self.summary, pictures, [])):
+            for test in ('other', 'OPFLAG_B'):
+                if test == 'other':
+                    with self.assertRaisesRegex(ValueError, 'output_absent'):
+                        runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                else:
+                    result = runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                    self.assertEqual([r['candidate']['picture_index'] for r in result['targets']], [39, 73])
+                    for target in result['targets']:
+                        self.assertNotIn('output_index', target['candidate']['reference'])
+                    for mutation in ('missing', 'reserved', 'short'):
+                        changed = copy.deepcopy(rows)
+                        if mutation == 'missing':
+                            changed.pop()
+                        elif mutation == 'reserved':
+                            changed[-1].update(picture_hash=False, reserved_hashes=1)
+                        else:
+                            changed[-1]['picture_hash_reference']['components'][0].pop()
+                        self.capture(changed)
+                        with self.assertRaises(ValueError):
+                            runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                        self.capture(rows)
+
     def metadata(self):
         return dict(kind='intra_picture', complete=True, picture_index=0,
                     coded_width=2, coded_height=2, width=2, height=2, bit_depth=8, profile_idc=1, ctb_log2=4,
                     packing='planar_y_cb_cr_u16le', input_bytes=len(self.data), nals=1, pictures=1,
                     input_byte_limit=runner.INPUT_CAP, caller_input_capacity_bytes=len(self.data),
+                    max_nal_bytes=runner.NAL_CAP,
                     max_memory_bytes=1024, max_bins=10, conformance_window=[0] * 4,
                     stats=dict({key: 0 for key in runner.COUNTERS}, ctus=1, coding_units=1,
                                memory_bytes=1024, bins=10, luma_modes=[0] * 35,

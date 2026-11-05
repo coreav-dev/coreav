@@ -26,9 +26,21 @@ class HevcWorkflow(unittest.TestCase):
         self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_intra.py'])
         self.assertEqual(int(arguments[arguments.index('--max-memory-bytes') + 1]), 256 << 20)
         self.assertEqual(int(arguments[arguments.index('--max-bins') + 1]), 1 << 28)
+        self.assertIn('--filters', arguments, 'Run original G3 comparisons in the shared driver')
         self.assertNotIn('scripts/hevc_conformance.py run', workflow)
         build = next(line for line in workflow.splitlines() if 'cargo build --locked --release' in line)
         self.assertIn('--example headers --example intra', build)
+
+    def test_development_intra_checks_cannot_be_dropped_from_the_metadata_job(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        job = workflow.split('  profile-census:\n',1)[1]
+        command = job.split('python3 -I scripts/hevc_conformance.py corpus-online',1)[1].split('\n      - name:',1)[0]
+        arguments = shlex.split(command.replace('\\\n',''))
+        self.assertIn('--native', arguments, 'Restore the development first-IRAP decoder')
+        self.assertIn('--parser', arguments, 'Restore original first-IRAP header validation')
+        self.assertIn('--example headers --example intra', job)
+        self.assertIn("summary['development_intra']", job)
 
     def test_feature_isolation_step_rejects_every_native_dependency_leak(self):
         root = pathlib.Path(__file__).resolve().parents[2]

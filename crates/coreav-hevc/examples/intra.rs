@@ -1,11 +1,11 @@
 //! Bounded u16le output for one original HEVC intra conformance picture.
 
-use coreav_hevc::{AnnexB, Error, IntraLimits, IntraPicture, IntraPictureDecoder};
+use coreav_hevc::{Error, IntraLimits, IntraPicture, IntraPictureDecoder};
 use serde_json::{Value, json};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
-const MAX_STREAM_BYTES: usize = 256 * 1024 * 1024;
+mod common;
 
 struct Output {
     path: PathBuf,
@@ -27,30 +27,6 @@ fn number<T: std::str::FromStr>(value: Option<std::ffi::OsString>) -> coreav_hev
         .and_then(|value| value.into_string().ok())
         .and_then(|value| value.parse().ok())
         .ok_or(Error::InvalidData("intra_arguments"))
-}
-
-fn input(path: &std::ffi::OsStr) -> coreav_hevc::Result<Vec<u8>> {
-    let mut file = std::fs::File::open(path).map_err(|_| Error::InvalidData("input_open"))?;
-    let mut data = Vec::new();
-    let mut buffer = [0u8; 65536];
-    loop {
-        let count = file
-            .read(&mut buffer)
-            .map_err(|_| Error::InvalidData("input_read"))?;
-        if count == 0 {
-            return Ok(data);
-        }
-        if data.len().saturating_add(count) > MAX_STREAM_BYTES {
-            return Err(Error::Limit("intra_stream_bytes"));
-        }
-        data.try_reserve_exact(count)
-            .map_err(|_| Error::Limit("intra_input_allocation"))?;
-        data.extend_from_slice(
-            buffer
-                .get(..count)
-                .ok_or(Error::InvalidData("input_read_size"))?,
-        );
-    }
 }
 
 fn picture(
@@ -140,7 +116,7 @@ fn run(stdout: &mut impl Write) -> coreav_hevc::Result<()> {
         writer: Some(std::io::BufWriter::new(file)),
         keep: false,
     };
-    let data = input(&source)?;
+    let source = std::fs::File::open(&source).map_err(|_| Error::InvalidData("input_open"))?;
     let limits = IntraLimits {
         max_memory_bytes,
         max_bins,
@@ -162,9 +138,9 @@ fn run(stdout: &mut impl Write) -> coreav_hevc::Result<()> {
         )?);
         Ok(())
     };
-    for framed in AnnexB::new(&data) {
-        decoder.read_nal(framed?, &mut emit)?;
-    }
+    let receipt = common::read_nals(source, limits.headers.max_nal_bytes, |_, bytes| {
+        decoder.read_nal(bytes, &mut emit)
+    })?;
     let summary = decoder.finish(&mut emit)?;
     let mut metadata = metadata.ok_or(Error::InvalidData("intra_target_absent"))?;
     let value = metadata
@@ -172,9 +148,13 @@ fn run(stdout: &mut impl Write) -> coreav_hevc::Result<()> {
         .ok_or(Error::InvalidData("intra_metadata"))?;
     value.insert("kind".into(), json!("intra_picture"));
     value.insert("complete".into(), json!(true));
-    value.insert("input_bytes".into(), json!(data.len()));
-    value.insert("caller_input_capacity_bytes".into(), json!(data.capacity()));
-    value.insert("input_byte_limit".into(), json!(MAX_STREAM_BYTES));
+    value.insert("input_bytes".into(), json!(receipt.bytes));
+    value.insert(
+        "caller_input_capacity_bytes".into(),
+        json!(receipt.capacity),
+    );
+    value.insert("input_byte_limit".into(), json!(common::INPUT_LIMIT));
+    value.insert("max_nal_bytes".into(), json!(limits.headers.max_nal_bytes));
     value.insert("nals".into(), json!(summary.nals));
     value.insert("pictures".into(), json!(summary.pictures));
     value.insert("max_memory_bytes".into(), json!(max_memory_bytes));

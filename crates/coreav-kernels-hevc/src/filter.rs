@@ -145,13 +145,7 @@ pub fn deblock_chroma(
     if edge.iter().flatten().any(|v| *v > depth.max_sample()) {
         return Err(Error::Sample);
     }
-    let qp = match qp {
-        30..=43 => *[29, 30, 31, 32, 33, 33, 34, 34, 35, 35, 36, 36, 37, 37]
-            .get((qp - 30) as usize)
-            .ok_or(Error::Qp)?,
-        44.. => qp - 6,
-        _ => qp,
-    };
+    let qp = crate::chroma_qp_index(qp)?;
     let tc = tc(qp + 2 + 2 * tc_offset) << (depth.bits() - 8);
     let [protect_p, protect_q] = protected;
     Ok(edge.map(|line| {

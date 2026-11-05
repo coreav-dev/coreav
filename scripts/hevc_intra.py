@@ -30,7 +30,8 @@ ARRAY_COUNTERS = {'luma_modes': 35, 'chroma_modes': 35, 'dct_blocks': 4,
                   'sao_blocks': 3, 'sao_changed_samples': 3}
 SERIAL_COUNTERS = {'tiles': 'tile_restarts', 'wpp': 'wpp_restarts',
                    'dependent_segments': 'dependent_segments'}
-INPUT_CAP = 256 << 20
+INPUT_CAP = 4 << 30
+NAL_CAP = 16 << 20
 
 
 def require(condition, reason):
@@ -187,8 +188,9 @@ def validate_metadata(metadata, target, stream, source, memory, bins):
             and metadata.get('nals') == stream['summary']['nals']
             and metadata.get('pictures') == stream['summary']['pictures']
             and metadata.get('input_byte_limit') == INPUT_CAP
+            and metadata.get('max_nal_bytes') == NAL_CAP
             and harness.integer(metadata.get('caller_input_capacity_bytes'))
-            and source.stat().st_size <= metadata['caller_input_capacity_bytes'] <= INPUT_CAP,
+            and 0 < metadata['caller_input_capacity_bytes'] <= NAL_CAP + 65536 + 8,
             'native_input_completion')
     require(metadata.get('max_memory_bytes') == memory and metadata.get('max_bins') == bins,
             'native_budget_identity')
@@ -213,6 +215,16 @@ def validate_metadata(metadata, target, stream, source, memory, bins):
     for key, length in ARRAY_COUNTERS.items():
         require(isinstance(stats.get(key), list) and len(stats[key]) == length
                 and all(harness.integer(value) for value in stats[key]), 'native_effective_arrays')
+    require(stats['sao_merges'] <= ctus, 'native_sao_merge_count')
+    for component in range(3):
+        scale = 1 if component == 0 else 2
+        require(stats['sao_blocks'][component] <= ctus
+                and stats['sao_changed_samples'][component] <= (width // scale) * (height // scale)
+                and stats['deblock_changed_samples'][component] <= stats['deblock_edges'][component] * (24 if component == 0 else 8),
+                'native_filter_counters')
+    if expected['filters_disabled']:
+        require(not stats['sao_merges'] and not any(stats['deblock_edges']) and not any(stats['sao_blocks']),
+                'unfiltered_picture_filter_work')
     require(sum(stats['dct_blocks']) + stats['dst_blocks'] <= stats['nonzero_transform_units'],
             'native_transform_counters')
     crop = metadata['conformance_window']
@@ -413,13 +425,14 @@ def run(args):
                 selected = candidate['picture_index']
                 output = directory / (str(selected) + '.u16le')
                 code, stdout, _ = harness.child(native_command(args.native, source, selected, output,
-                    args.max_memory_bytes, args.max_bins), directory, 'native-' + str(selected))
+                    args.max_memory_bytes, args.max_bins), directory, 'native-' + str(selected),
+                    file_limit=max(harness.CAPTURE_CAP, args.max_memory_bytes))
                 require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'native_failed')
                 lines = stdout.read_text().splitlines()
                 require(len(lines) == 1, 'native_metadata_count')
                 metadata = json.loads(lines[0], object_pairs_hook=harness.unique_object)
                 validate_metadata(metadata, target, stream, source, args.max_memory_bytes, args.max_bins)
-                require(output.stat().st_size < harness.CAPTURE_CAP, 'native_raw_limit')
+                require(output.stat().st_size < args.max_memory_bytes, 'native_raw_limit')
                 reference = candidate['reference']
                 comparison = compare_picture(output, metadata, candidate,
                                              oracle[reference['output_index']] if 'output_index' in reference else None)
@@ -442,9 +455,68 @@ def run(args):
             result['gate'] = 'G3'
             result['coverage_gaps'].append('unproved at 10-bit: tiles/dependent segments, no official candidate')
             result['serial_effective_coverage_complete'] = False
+            g2 = [row for row in denominator if row['gate'] == 'G2']
+            result['g2_regression'] = aggregate(g2, [row for row in result['results'] if row['candidate']['gate'] == 'G2'])
     finally:
         harness.write_json(args.out / 'result.json', result)
     return result
+
+
+def development_picture(item, source, directory, oracle_bin, *, native, parser, max_memory_bytes, max_bins):
+    require(item['partition'] == 'development' and source.stat().st_size == item['size']
+            and harness.digest(source) == item['sha256'], 'development_source_identity')
+    require(parser and 0 < max_memory_bytes <= 4 << 30 and 0 < max_bins < 1 << 64, 'development_options')
+    directory.mkdir(parents=True, exist_ok=True)
+    prefix, output = directory / 'first-irap.hevc', directory / 'first-irap.u16le'
+    report = dict(complete=False, stage='extract_first_picture', source_sha256=item['sha256'],
+                  source_bytes=item['size'], native_sha256=harness.digest(native), parser_sha256=harness.digest(parser),
+                  oracle={name: harness.digest(oracle_bin / name) for name in ('ffmpeg', 'ffprobe')})
+    try:
+        code, _, _ = harness.child([oracle_bin / 'ffmpeg', '-nostdin', '-v', 'error', '-i', source,
+            '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', 'hevc_mp4toannexb', '-frames:v', '1',
+            '-f', 'hevc', '-y', prefix], directory, 'extract-first-picture')
+        require(code == 0 and 0 < prefix.stat().st_size <= harness.BITSTREAM_CAP, 'development_prefix_failed')
+        report.update(stage='headers', prefix_sha256=harness.digest(prefix), prefix_bytes=prefix.stat().st_size)
+        code, stdout, _ = harness.child([parser, prefix], directory, 'headers')
+        require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'development_headers_failed')
+        summary, pictures, outputs = harness.native_rows(stdout, prefix.read_bytes())
+        require(len(pictures) == len(outputs) == 1 and outputs[0]['picture_index'] == 0
+                and pictures[0]['all_intra'] and 16 <= pictures[0]['nal_type'] <= 23, 'development_first_independent_irap')
+        picture = pictures[0]
+        rows = [json.loads(line, object_pairs_hook=harness.unique_object) for line in stdout.read_text().splitlines()]
+        hashes = selected_hashes(rows, 0)
+        report['stage'] = 'oracle'
+        frames = harness.probe(oracle_bin / 'ffprobe', prefix, directory, frames=True)['frames']
+        require(len(frames) == 1 and frames[0]['pict_type'] == 'I' and frames[0]['key_frame'] == 1,
+                'development_oracle_irap')
+        oracle = harness.oracle_frames(oracle_bin / 'ffmpeg', prefix, directory, frames, item['sha256'])
+        candidate = dict(picture_index=0, gate='G3', source_kind='development_first_independent_irap',
+                         stream_sha256=report['prefix_sha256'], source_sha256=item['sha256'],
+                         bit_depth=picture['bit_depth'], tiles=picture['tiles'], wpp=picture['wpp'],
+                         dependent_segments=picture['dependent_segments'],
+                         reference=dict(output_index=0, source_scope='development_first_irap_oracle', **oracle[0]))
+        target = dict(candidate=candidate, picture=picture, hashes=hashes)
+        stream = dict(source=prefix, summary=summary, rows=rows, targets=[target])
+        report.update(stage='reconstruction', candidate=candidate)
+        code, stdout, stderr = harness.child(native_command(native, prefix, 0, output, max_memory_bytes, max_bins),
+            directory, 'native', file_limit=max(harness.CAPTURE_CAP, max_memory_bytes))
+        if code != 0 and stderr.stat().st_size < harness.TEXT_CAP:
+            report['native_refusal'] = harness.read_json(stderr)
+        require(code == 0 and stdout.stat().st_size < harness.TEXT_CAP, 'development_native_failed')
+        metadata = harness.read_json(stdout)
+        validate_metadata(metadata, target, stream, prefix, max_memory_bytes, max_bins)
+        report.update(stage='comparison', metadata=metadata)
+        report['comparison'] = compare_picture(output, metadata, candidate, oracle[0])
+        require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
+                and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
+                and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
+                'development_identity_changed')
+        report.update(complete=True, stage='complete')
+        return report
+    finally:
+        harness.write_json(directory / 'intra.json', report)
+        prefix.unlink(missing_ok=True)
+        output.unlink(missing_ok=True)
 
 
 def main():

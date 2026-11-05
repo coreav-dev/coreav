@@ -893,7 +893,8 @@ class Conformance(unittest.TestCase):
             path.write_bytes(b'abc')
             return path
 
-        def inspect(item, path, out, oracle_bin):
+        def inspect(item, path, out, oracle_bin, *, intra=None):
+            self.assertIsNone(intra)
             self.assertEqual(path.read_bytes(), b'abc')
             return dict(item, status='inspected')
 
@@ -912,6 +913,38 @@ class Conformance(unittest.TestCase):
         self.assertFalse(receipt['complete'])
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
+
+    def test_development_pixel_work_never_decodes_the_metadata_only_partition(self):
+        source = self.root / 'original.mp4'
+        source.write_bytes(b'abc')
+        out, err = self.root / 'metadata.stdout', self.root / 'metadata.stderr'
+        runner.write_json(out, dict(format=dict(format_name='mp4'), streams=[dict(codec_type='video', codec_name='hevc',
+            profile='Main', width=16, height=16, pix_fmt='yuv420p', field_order='progressive')]))
+        err.write_text('')
+        options = dict(native=self.root / 'native', parser=self.root / 'headers', max_memory_bytes=1024, max_bins=100)
+        for partition in ('held-out-partition', 'development'):
+            item = dict(sha256=runner.digest(source), size=3, partition=partition)
+            with mock.patch.object(runner, 'child', return_value=(0,out,err)), \
+                    mock.patch('hevc_intra.development_picture', return_value=dict(complete=True)) as decode:
+                record = runner.corpus_record(item, source, self.root, self.root, intra=options)
+                self.assertEqual(record['status'], 'inspected')
+                if partition == 'development':
+                    self.assertTrue(record['intra']['complete'])
+                    decode.assert_called_once_with(item,source,self.root / item['sha256'],self.root,**options)
+                else:
+                    self.assertNotIn('intra', record)
+                    decode.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == 'linux', 'media subprocess limits require Linux')
+    def test_larger_raw_picture_files_keep_all_other_child_resource_limits(self):
+        code, out, _ = runner.child([sys.executable, '-c', 'import resource,json;print(json.dumps([resource.getrlimit(k) for k in '
+            '(resource.RLIMIT_AS,resource.RLIMIT_CPU,resource.RLIMIT_FSIZE,resource.RLIMIT_CORE)]))'],
+            self.root / 'limits', 'native', file_limit=256 << 20)
+        self.assertEqual(code,0)
+        self.assertEqual(json.loads(out.read_text()), [[6 << 30]*2, [runner.TIMEOUT]*2, [256 << 20]*2, [0,0]])
+        for limit in (0, runner.CAPTURE_CAP - 1, (4 << 30) + 1):
+            with self.assertRaises(ValueError):
+                runner.child([], self.root / 'invalid', 'limits', file_limit=limit)
 
 
 class AnchoredPictures(unittest.TestCase):

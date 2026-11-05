@@ -19,7 +19,9 @@ mod inverse;
 mod tables;
 
 #[cfg(feature = "native-hevc")]
-pub use domain::{BitDepth, Block, BlockMut, BlockSize, Component, Error, IntraMode};
+pub use domain::{
+    BitDepth, Block, BlockMut, BlockSize, Component, Error, IntraMode, chroma_qp_index,
+};
 #[cfg(feature = "native-hevc")]
 pub use filter::{SaoClass, deblock_chroma, deblock_luma, sao_sample};
 #[cfg(feature = "native-hevc")]
