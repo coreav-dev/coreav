@@ -126,12 +126,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         decoded.write_all(&actual)?;
         count += 1;
     }
-    if count != frames
-        || !pending.is_empty()
-        || !decoder.warnings().is_empty()
-        || decoder.warnings_dropped() != 0
-    {
+    if count != frames || !pending.is_empty() {
         return Err("CoreAV frame count mismatch".into());
+    }
+    if !decoder.warnings().is_empty() || decoder.warnings_dropped() != 0 {
+        return Err("CoreAV decoder reported warnings".into());
     }
     Ok(())
 }
