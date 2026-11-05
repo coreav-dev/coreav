@@ -221,7 +221,11 @@ pub(super) fn plan(
         let admission = codec
             .and_then(|codec| record::admission(codec, container))
             .ok_or_else(|| {
-                Refusal::not_native("an unregistered decoder representation or presentation")
+                Refusal::not_native(if codec_name == Some("aac") {
+                    "AAC raw output without a registered byte-exact decoder"
+                } else {
+                    "an unregistered decoder representation or presentation"
+                })
             })?;
         let kind = admission.kind;
         if admission
