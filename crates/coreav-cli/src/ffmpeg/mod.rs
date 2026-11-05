@@ -547,7 +547,12 @@ pub fn plan(
             let selected = select(command, &report.streams)?;
             return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
         }
-        Some("wav") if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::F32le) => {
+        Some("wav")
+            if matches!(
+                command.muxer,
+                Muxer::Wav | Muxer::S16le | Muxer::F32le | Muxer::Mp4
+            ) =>
+        {
             let selected = select(command, &report.streams)?;
             return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
         }

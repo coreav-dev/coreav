@@ -22,13 +22,11 @@ pub(super) fn write(
             None
         }
     });
-    let frames = u32::try_from(content.bytes / 2)
-        .ok()
-        .filter(|frames| *frames != 0)
-        .filter(|frames| {
-            content.bytes % 2 == 0 && declared.is_none_or(|count| count == u64::from(*frames))
-        })
-        .ok_or_else(|| Refusal::not_native("PCM in MP4 without a bounded nonempty frame count"))?;
+    let frames = frame_count(content.bytes, declared).ok_or_else(|| {
+        Refusal::not_native(
+            "PCM in MP4 requires a qualified nonempty frame count and a 32-bit mdat",
+        )
+    })?;
     let bytes = u64::from(frames) * 2;
     let mut muxer = Muxer::new(
         FileType {
@@ -39,7 +37,13 @@ pub(super) fn write(
         MovieHeader {
             timescale: 48_000,
             creation_time: 0,
-            boxes: vec![encoder_metadata()],
+            boxes: vec![
+                encoder_metadata(),
+                RawBox {
+                    kind: FourCc(*b"free"),
+                    payload: Vec::new(),
+                },
+            ],
         },
         &Limits::default(),
     )
@@ -122,6 +126,15 @@ pub(super) fn write(
         Ok(serde_json::Value::Null)
     })
     .map_err(Stop::Failed)
+}
+
+fn frame_count(bytes: u64, declared: Option<u64>) -> Option<u32> {
+    u32::try_from(bytes / 2).ok().filter(|frames| {
+        *frames != 0
+            && bytes % 2 == 0
+            && bytes <= u64::from(u32::MAX) - 8
+            && declared.is_none_or(|count| count == u64::from(*frames))
+    })
 }
 
 fn encoder_metadata() -> RawBox {
@@ -207,6 +220,91 @@ impl Sink for Tally<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frame_counts_refuse_empty_partial_unqualified_and_large_extents() {
+        assert_eq!(frame_count(105_600, Some(52_800)), Some(52_800));
+        assert_eq!(frame_count(105_600, None), Some(52_800));
+        for (bytes, declared) in [
+            (0, None),
+            (3, None),
+            (4, Some(3)),
+            (u64::from(u32::MAX) - 7, None),
+            (u64::MAX, None),
+        ] {
+            assert_eq!(frame_count(bytes, declared), None);
+        }
+        let maximum = u64::from(u32::MAX) - 9;
+        assert_eq!(frame_count(maximum, None), u32::try_from(maximum / 2).ok());
+    }
+
+    #[test]
+    fn changed_content_truncation_and_late_io_are_terminal_and_preserve_the_destination() {
+        use coreav_isobmff::{FileSource, Source};
+        let dir = std::env::temp_dir().join(format!("pcm-mp4-late-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("source.wav");
+        let output = dir.join("output.mp4");
+        let mut original =
+            coreav_audio::wav::header(coreav_audio::SampleFormat::S16, 1, 48_000, 4, Some(6144));
+        original.extend_from_slice(&[0x31; 6144]);
+        for change in [0, 1, 2] {
+            std::fs::write(&input, &original).unwrap();
+            std::fs::write(&output, b"destination").unwrap();
+            let arguments: Vec<String> = [
+                "-y",
+                "-i",
+                input.to_str().unwrap(),
+                "-ac",
+                "1",
+                "-ar",
+                "48000",
+                "-c:a",
+                "pcm_s16le",
+                "-vn",
+                output.to_str().unwrap(),
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+            let command = crate::ffmpeg::args::parse(&arguments).unwrap();
+            let mut source = FileSource::open(&input).unwrap();
+            let length = source.len().unwrap();
+            let probed = crate::ffprobe::probe(&mut source, length, input.to_str().unwrap(), None)
+                .unwrap_or_else(|_| panic!("probe failed"));
+            let plan =
+                crate::ffmpeg::raw_audio::plan(&command, &probed.report, &[0], false).unwrap();
+            let mut sink = std::io::sink();
+            let mut tally = Tally::new(&mut sink, None);
+            let before = match crate::ffmpeg::raw_audio::decode(&command, &plan, &mut tally) {
+                Ok(before) => before,
+                Err(_) => panic!("preflight failed"),
+            };
+            match change {
+                0 => {
+                    let mut changed = original.clone();
+                    *changed.last_mut().unwrap() ^= 1;
+                    std::fs::write(&input, changed).unwrap();
+                }
+                1 => {
+                    std::fs::write(&input, &original[..original.len() - 2]).unwrap();
+                }
+                _ => {
+                    std::fs::remove_file(&input).unwrap();
+                }
+            }
+            assert!(matches!(
+                write(&command, &plan, &before, tally.content(), true),
+                Err(Stop::Failed(_))
+            ));
+            assert_eq!(std::fs::read(&output).unwrap(), b"destination");
+            assert_eq!(
+                std::fs::read_dir(&dir).unwrap().count(),
+                if change == 2 { 1 } else { 2 }
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn content_detects_short_long_and_same_length_changes_independently_of_chunks() {

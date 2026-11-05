@@ -189,7 +189,8 @@ pub(super) fn plan(
     let output_rate = command.sample_rate.unwrap_or(input_rate);
     let standalone_flac = super::format_name(report) == Some("flac");
     if command.muxer == Muxer::Mp4
-        && (args::stdout(&command.output)
+        && (!command.no_video
+            || args::stdout(&command.output)
             || standalone_flac
             || output_format != SampleFormat::S16
             || channels != 1
