@@ -1032,6 +1032,7 @@ class Conformance(unittest.TestCase):
         receipt = runner.read_json(args.out / 'corpus-census.json')
         self.assertEqual([f['status'] for f in receipt['files']], ['inspected', 'inspected'])
         self.assertFalse(receipt['complete'])
+        self.assertFalse(receipt['passed'])
         self.assertTrue(all('key' not in f for f in receipt['files']))
         pool.close.assert_called_once()
 

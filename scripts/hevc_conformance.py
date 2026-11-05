@@ -1288,7 +1288,9 @@ def fetch_corpus(args, inspect=False):
                     finally:
                         path.unlink(missing_ok=True)
             if inspect:
-                require(corpus_result(records)['passed'], 'corpus metadata census blocked')
+                passed = (corpus_result(records)['passed'] if getattr(args, 'packet_native', None)
+                          else all(r['status'] == 'inspected' for r in records))
+                require(passed, 'corpus metadata census blocked')
     finally:
         pool.close()
 
