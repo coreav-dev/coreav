@@ -18,7 +18,9 @@ Generate short, bounded MP4 inputs separately with the pin's AV1, VP9 and HEVC e
 
 For each codec, exercise ordinary inferred-MP4 concat, explicit video selection with audio disabled, and faststart output. Exercise native `coreav join` with its existing audio selection and video-only form on the same inputs. Establish actual baseline-native cases before assigning any passing credit. Do not silently omit a codec, an audio-bearing case, a source declaration or a command that exposes a difference.
 
-Native join and compatibility concat have distinct existing placement contracts. Keep those contracts explicit in the receipts and compare their complete results with the corresponding same-input pinned concat reference. If a difference cannot be fixed without changing a promised native contract, report it rather than hiding a timing field or adding fallback.
+Native join and compatibility concat have distinct placement contracts. Preserve native join's per-input presentation for the specification's reason: ISO/IEC 14496-12 sections 8.6.5 and 8.6.6 define the edit list and its media-time mapping, so each input's AAC priming before its media edit is not presented. Do not change native join's timeline in this metadata correction. Cite section 8.6.6 at its timing owner and in the pull request.
+
+Report the three audio-bearing native join comparisons separately under Not covered: the declared native presentation is 48,000 audio ticks, while ordinary pinned concat presents 49,024; default probing exposes 75 versus 50 AAC packets, although ignoring edit lists exposes 50 stored AAC packets in both. The extra 1,024 presentation ticks in the reference present the second input's priming. Keep the complete records, do not register a known divergence, and do not change a predicate or any counted/frozen result. These three direct native join calls are not top-200 ffmpeg/ffprobe commands. Stop before further work if a counted command is found to have a changed result.
 
 ## Comparison
 
