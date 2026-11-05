@@ -1,6 +1,9 @@
 //! One-IDR admission and requested-allocation bounds, including packed transfer.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use coreav_backend_h264::NativeH264;
 use coreav_counting_alloc::{CountingAllocator, measure, report};
 use coreav_decode::{Backend, Codec, ErrorKind, Limits, Packet, StreamConfig};
@@ -516,7 +519,7 @@ fn generated_entropy_modes_and_pcm_fit_the_same_bound() {
         for (width, height) in [(640, 360), (1280, 720), (1920, 1080), (1080, 1920)] {
             let input = format!("testsrc2=size={width}x{height}:rate=1");
             let params = format!("cabac={cabac}:slices=4:keyint=1");
-            let output = std::process::Command::new("ffmpeg")
+            let output = std::process::Command::new(test_oracle::require().ffmpeg())
                 .args([
                     "-hide_banner",
                     "-loglevel",

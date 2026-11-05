@@ -7,6 +7,9 @@
 //! backends (dav1d, libvpx) are compared only where the sandbox enforces its
 //! memory limit (Linux).
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -23,13 +26,12 @@ struct Case {
 }
 
 fn ffmpeg() -> Option<String> {
-    let program = std::env::var("COREAV_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
-    Command::new(&program)
-        .arg("-version")
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|_| program)
+    Some(
+        test_oracle::require()
+            .ffmpeg()
+            .to_string_lossy()
+            .into_owned(),
+    )
 }
 
 fn scratch(test: &str) -> Option<PathBuf> {

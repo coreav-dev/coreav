@@ -41,6 +41,8 @@ import struct
 import subprocess
 import sys
 import zlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+import test_oracle
 
 
 def box(kind: bytes, payload: bytes) -> bytes:
@@ -732,6 +734,8 @@ def main():
     if len(args) != 3 or any(p not in PARTS for p in parts):
         sys.exit('usage: generate.py OUT_DIR FIXTURE_DIR FFMPEG '
                  '[--parts structural,mutation,pixelsmash,cve,matroska,mpegts,limits]')
+    if set(parts) & {'pixelsmash', 'cve', 'limits'}:
+        args[2] = str(test_oracle.require(args[2]).ffmpeg)
     out = pathlib.Path(args[0])
     out.mkdir(parents=True, exist_ok=True)
     fixtures = pathlib.Path(args[1])

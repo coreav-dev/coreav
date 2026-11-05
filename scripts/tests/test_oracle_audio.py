@@ -147,10 +147,10 @@ class AudioOracle(unittest.TestCase):
         rust = (ROOT / 'crates/coreav-cli/tests/decode_audio.rs').read_text()
         self.assertIn('.args(include_str!("../../../' + oracle_audio.ARG_FILE + '").split_whitespace())\n        .arg("-i")', rust)
 
-    @unittest.skipUnless(os.environ.get('COREAV_FIXTURES') and os.environ.get('COREAV_FFMPEG'),
-                         'needs existing fixtures and the pinned FFmpeg')
+    @unittest.skipUnless(os.environ.get('COREAV_FIXTURES'), 'needs existing fixtures')
     def test_clipped_lossless_fixtures_decode_the_source_samples(self):
-        ffmpeg = os.environ['COREAV_FFMPEG']
+        import test_oracle
+        ffmpeg = test_oracle.require().ffmpeg
         self.addCleanup(clip_check.clear_cache)
         extract_run = extract_check.run
         with tempfile.TemporaryDirectory() as tmp, patch.object(clip_check, 'THREADS', ['-threads', '8']):

@@ -60,6 +60,7 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import test_oracle
 import transcode_check as tc  # noqa: E402
 
 SALT = 'coreav-transcode-speed-v1:'
@@ -423,8 +424,8 @@ def main():
     p.add_argument('--files')
     p.add_argument('--coreav')
     p.add_argument('--arm', action='append', metavar='NAME=ARGS')
-    p.add_argument('--ffmpeg', default=shutil.which('ffmpeg'))
-    p.add_argument('--ffprobe', default=shutil.which('ffprobe'))
+    p.add_argument('--ffmpeg')
+    p.add_argument('--ffprobe')
     p.add_argument('--gate')
     p.add_argument('--out')
     p.add_argument('--tmp', default='/dev/shm/transcode-speed')
@@ -440,6 +441,8 @@ def main():
     if args.command == 'select':
         if not args.work or not args.selection:
             p.error('select needs --work and --selection')
+        qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+        args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
         return select(args)
     if args.command == 'summarize':
         if not args.out:
@@ -448,6 +451,8 @@ def main():
         rep = summarize(args.out, sel, args.classes)
         print(table(rep))
         return status(rep)
+    qualified = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     args.arms = tc.parse_arms(args.arm, p)
     for need in ('selection', 'files', 'coreav', 'gate', 'out'):
         if not getattr(args, need):

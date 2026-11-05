@@ -6,9 +6,12 @@
     clippy::panic
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use coreav_mkv::write::{CodecId, Media, Options, Packet, Track, plan};
 use coreav_mkv::{Allowlist, DocType, Error, Limits, SliceSource, probe};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 fn run(command: &mut Command) -> Vec<u8> {
@@ -186,21 +189,9 @@ fn rewrite(source: &[u8], doc_type: DocType) -> Vec<u8> {
 
 #[test]
 fn encoded_video_and_audio_decode_unchanged() {
-    let Some(ffmpeg) = std::env::var_os("COREAV_FFMPEG").map(PathBuf::from) else {
-        eprintln!("skipping generated oracle test; set COREAV_FFMPEG to the pinned oracle");
-        return;
-    };
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    assert!(
-        Command::new("python3")
-            .arg(root.join("scripts/oracle_pin.py"))
-            .arg("--verify-bin")
-            .arg(ffmpeg.parent().unwrap())
-            .status()
-            .unwrap()
-            .success()
-    );
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
+    let pair = test_oracle::require();
+    let ffmpeg = pair.ffmpeg().to_path_buf();
+    let ffprobe = pair.ffprobe().to_path_buf();
     let dir = std::env::temp_dir().join(format!("coreav-mkv-write-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     for (video, audio, doc_type, ext) in [

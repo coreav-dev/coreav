@@ -21,6 +21,9 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+import test_oracle
 
 import boto3
 from botocore.config import Config
@@ -84,6 +87,7 @@ def sparse(path, target):
 
 def main():
     ffprobe, env_file, out = sys.argv[1:4]
+    ffprobe = str(test_oracle.require(Path(ffprobe).with_name('ffmpeg'), ffprobe).ffprobe)
     bucket, s3 = client(env_file)
     with open(f'{out}/manifest.json') as handle:
         files = development_files(json.load(handle))

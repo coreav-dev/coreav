@@ -13,6 +13,8 @@ HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
 import release_round  # noqa: E402
+sys.path.insert(0, str(HERE.parents[1] / 'scripts'))
+import oracle_pin
 
 # ffprobe lists one video and one audio stream; ffmpeg writes its output and fails on WebM; coreav refuses a
 # command that seeks (an option), refuses every ffmpeg command on WebM (the file), and crashes on
@@ -20,6 +22,9 @@ import release_round  # noqa: E402
 FAKE = r'''#!/usr/bin/env python3
 import json, os, pathlib, sys
 name, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
+if args == ['-version'] and name in ('ffmpeg', 'ffprobe'):
+    print(name + ' version ORACLE_BUILD')
+    sys.exit(0)
 assert os.environ['GCONV_PATH'] == '/nonexistent/gconv' and os.environ['COREAV_STRICT_SAFE'] == '1'
 def refuse(reason):
     with open(os.environ['COREAV_FALLBACK_LOG'], 'a') as f:
@@ -44,6 +49,7 @@ if name == 'ffmpeg':
 '''
 
 
+@unittest.skipUnless(sys.platform == 'linux', 'Linux banner-only stand-in qualification')
 class Scan(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -52,7 +58,7 @@ class Scan(unittest.TestCase):
         cls.bin = d / 'bin'
         cls.bin.mkdir()
         for name in ('coreav', 'ffmpeg', 'ffprobe'):
-            (cls.bin / name).write_text(FAKE)
+            (cls.bin / name).write_text(FAKE.replace('ORACLE_BUILD', oracle_pin.load()['BUILD']))
             (cls.bin / name).chmod(0o755 | stat.S_IEXEC)
         media = d / 'media'
         media.mkdir()

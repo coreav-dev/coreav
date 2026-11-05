@@ -467,12 +467,13 @@ class Driver(unittest.TestCase):
     def execute(self):
         sys.path.insert(0, str(kd.ROOT / 'scripts'))
         import oracle_pin
+        import test_oracle
         args = ['corpus_kd.py', 'compare', '--inventory', str(self.inventory), '--files', str(self.files),
                 '--coreav', str(self.root / 'coreav'), '--oracle-dir', str(self.root), '--out', str(self.output)]
         with mock.patch.object(sys, 'argv', args), mock.patch.dict(os.environ), \
                 mock.patch.object(run, 'ENV', run.ENV.copy()), \
                 mock.patch.object(kd, 'inventory', return_value=self.frozen), \
-                mock.patch.object(oracle_pin, 'verify_bin', return_value=[]) as checked:
+                mock.patch.object(test_oracle, 'verify_bin', return_value=[]) as checked:
             result = kd.main()
             checked.assert_called_once_with(self.root)
             return result

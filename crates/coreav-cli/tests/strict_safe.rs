@@ -25,6 +25,9 @@
     clippy::panic
 )]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -87,13 +90,7 @@ fn source(dir: &Path) -> Option<PathBuf> {
 /// An H.264 MP4 with `audio` (the audio input and codec options) in `dir`,
 /// as [`source`] makes it.
 fn made(dir: &Path, name: &str, audio: &[&str]) -> Option<PathBuf> {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .or_else(|| {
-            let pinned = PathBuf::from("/opt/coreav-oracle-bin/ffmpeg");
-            pinned.is_file().then_some(pinned)
-        })
-        .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+    let ffmpeg = test_oracle::require().ffmpeg().to_path_buf();
     let path = dir.join(name);
     let made = Command::new(&ffmpeg)
         .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])

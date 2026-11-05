@@ -6,7 +6,7 @@
 #   tools/ts-speed/build-lav.sh DEST
 #
 # Downloads the archive, checks its SHA-256, keeps only its libraries, its
-# license and its ffprobe (DEST/bin/ffprobe, for the command arms of
+# license and its ffmpeg/ffprobe pair (DEST/bin/, for the command arms of
 # scripts/ts_speed.py), and writes DEST/lav_ts, which finds its libraries in
 # DEST/lib (an rpath relative to the binary, as the build's ffprobe has, so
 # DEST can be copied to another host as it is). The headers are used for
@@ -27,11 +27,11 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 curl --fail --location --retry 5 --retry-delay 10 --connect-timeout 20 --max-time 600 -o "$WORK/a.tar.xz" "${URL%/*}/$NAME.tar.xz"
 echo "$LAV_SHA256  $WORK/a.tar.xz" | sha256sum -c -
-tar -xJf "$WORK/a.tar.xz" -C "$WORK" "$NAME/include" "$NAME/lib" "$NAME/LICENSE.txt" "$NAME/bin/ffprobe"
+tar -xJf "$WORK/a.tar.xz" -C "$WORK" "$NAME/include" "$NAME/lib" "$NAME/LICENSE.txt" "$NAME/bin/ffmpeg" "$NAME/bin/ffprobe"
 rm -rf "$DEST/lib" "$DEST/include" "$DEST/bin"
 mkdir "$DEST/bin"
 mv "$WORK/$NAME/include" "$WORK/$NAME/lib" "$WORK/$NAME/LICENSE.txt" "$DEST/"
-mv "$WORK/$NAME/bin/ffprobe" "$DEST/bin/"
+mv "$WORK/$NAME/bin/ffmpeg" "$WORK/$NAME/bin/ffprobe" "$DEST/bin/"
 rm -rf "$DEST/lib/pkgconfig"
 gcc -O2 -Wall -Werror -DPINNED="\"$BUILD\"" -o "$DEST/lav_ts" "$HERE/lav_ts.c" -I"$DEST/include" -L"$DEST/lib" \
   -lavformat -lavcodec -lavutil -Wl,-rpath-link,"$DEST/lib" -Wl,--disable-new-dtags,-rpath,'$ORIGIN/lib'

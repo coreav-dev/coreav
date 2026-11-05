@@ -48,7 +48,7 @@ class DevelopmentAdmission(unittest.TestCase):
                     return subprocess.CompletedProcess(command, 0, b'', b'')
                 stdout, stderr = io.StringIO(), io.StringIO()
                 with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                        patch.object(CHECK.oracle_pin, 'verify_bin', return_value=diagnostics), \
+                        patch.object(CHECK.test_oracle, 'verify_bin', return_value=diagnostics), \
                         patch.object(CHECK.round_files, 'manifest', side_effect=manifests), \
                         patch.object(CHECK.round_files, 'pool') as pool, \
                         patch.object(CHECK.subprocess, 'run', side_effect=encrypt), \
@@ -118,7 +118,7 @@ class DevelopmentAdmission(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, b'', b'')
             stdout, stderr = io.StringIO(), io.StringIO()
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.oracle_pin, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[rows or [row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', side_effect=fetch), \
@@ -231,7 +231,7 @@ class DevelopmentAdmission(unittest.TestCase):
             stdout, stderr = io.StringIO(), io.StringIO()
             fault = subprocess.TimeoutExpired([marker], 30, output=marker.encode(), stderr=marker.encode())
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.oracle_pin, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[[row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', side_effect=fault), \
@@ -267,7 +267,7 @@ class DevelopmentAdmission(unittest.TestCase):
 
             stdout, stderr = io.StringIO(), io.StringIO()
             with patch.object(CHECK.sys, 'argv', arguments), patch.object(CHECK.sys, 'platform', 'linux'), \
-                    patch.object(CHECK.oracle_pin, 'verify_bin', return_value=[]), \
+                    patch.object(CHECK.test_oracle, 'verify_bin', return_value=[]), \
                     patch.object(CHECK.round_files, 'manifest', side_effect=[[row()], []]), \
                     patch.object(CHECK.round_files, 'pool', return_value=MagicMock()), \
                     patch.object(CHECK.round_files, 'fetch_one', return_value=root / 'not-opened.mp4'), \

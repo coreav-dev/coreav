@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import composed_audio as composed
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 import transcode_check as checker
+import test_oracle
 
 
 def main():
@@ -20,6 +21,8 @@ def main():
     for name in ('coreav', 'ffmpeg', 'ffprobe', 'opus-compare', 'fixtures'):
         parser.add_argument('--' + name, required=True)
     args = parser.parse_args()
+    oracle = test_oracle.require(args.ffmpeg, args.ffprobe)
+    args.ffmpeg, args.ffprobe = str(oracle.ffmpeg), str(oracle.ffprobe)
     env = checker.child_env(args.ffmpeg) | {'COREAV_X264': 'none'}
     checker.ENV = env
     composed.check_policy()

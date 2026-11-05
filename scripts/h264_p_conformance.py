@@ -540,7 +540,7 @@ def verify_tools(driver, ffmpeg, jm, decoder):
     for _, path in paths:
         if not path.is_file() or not os.access(path, os.X_OK):
             raise ValueError('required executable missing or not executable')
-    problems = list(g1.oracle_pin.verify_bin(ffmpeg.parent))
+    problems = list(g1.test_oracle.verify_bin(ffmpeg.parent))
     if problems:
         raise ValueError('; '.join(problems))
     pin = dict(line.split('=', 1) for line in (ROOT / 'scripts/jm-decoder.env').read_text().splitlines() if line)

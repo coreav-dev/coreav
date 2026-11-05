@@ -152,12 +152,12 @@ class SummaryComparison(unittest.TestCase):
 
 class Commands(unittest.TestCase):
     def oracle(self):
-        with patch.object(check.oracle_pin_macos, "verify_bin", return_value=[]), \
-                patch.object(check.oracle_pin, "verify_bin", return_value=[]):
+        with patch.object(check.test_oracle, "verify_bin", return_value=[]), \
+                patch.object(check.test_oracle, "verify_bin", return_value=[]):
             return check.Oracle(Path("oracle"))
 
     def test_platform_pin_is_verified_on_construction(self):
-        for platform, module in (("darwin", check.oracle_pin_macos), ("linux", check.oracle_pin)):
+        for platform, module in (("darwin", check.test_oracle), ("linux", check.test_oracle)):
             with self.subTest(platform=platform), patch.object(check.sys, "platform", platform), \
                     patch.object(module, "verify_bin", return_value=[]) as verify:
                 oracle = check.Oracle(Path("oracle"))
@@ -169,7 +169,7 @@ class Commands(unittest.TestCase):
             options = {"side_effect": failure} if isinstance(failure, BaseException) else {"return_value": failure}
             output = io.StringIO()
             with self.subTest(failure=failure), patch.object(check.sys, "platform", "darwin"), \
-                    patch.object(check.oracle_pin_macos, "verify_bin", **options), \
+                    patch.object(check.test_oracle, "verify_bin", **options), \
                     patch.object(check, "generate_fixtures") as generate, \
                     contextlib.redirect_stderr(output):
                 self.assertEqual(check.main(["--coreav", "coreav", "--oracle-dir", "oracle",

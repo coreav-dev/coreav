@@ -27,6 +27,8 @@ import shutil
 import subprocess
 import sys
 import time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_oracle
 
 LISTING = ('coreav', 'null', 'lav')
 COMMANDS = ('probe-coreav', 'probe-ffprobe')
@@ -99,6 +101,9 @@ def main():
     ap.add_argument('--tmp', default='/dev/shm')
     ap.add_argument('files', nargs='+')
     args = ap.parse_args()
+    if args.ffprobe:
+        probe = test_oracle.executable_path(args.ffprobe)
+        args.ffprobe = str(test_oracle.require(probe.with_name('ffmpeg'), probe).ffprobe)
     if (args.coreav_cli is None) != (args.ffprobe is None):
         ap.error('--coreav-cli and --ffprobe go together')
     if args.rounds < 1:

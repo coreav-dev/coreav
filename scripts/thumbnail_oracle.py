@@ -55,6 +55,10 @@ ALLOWED = ('h264', 'hevc', 'av1', 'vp9', 'vp8', 'prores')
 BACKEND_CODECS = {'dav1d': ('av1',), 'libvpx': ('vp9', 'vp8')}
 
 
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_oracle
+
 def default_video(path, ffprobe='ffprobe'):
     """The index of the video stream FFmpeg (and CoreAV) use by default: the
     highest resolution, the first on a tie; attached pictures left out."""
@@ -430,13 +434,15 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     p.add_argument('--coreav', required=True)
     p.add_argument('--decode-oracle', required=True)
-    p.add_argument('--ffmpeg', default=shutil.which('ffmpeg'))
-    p.add_argument('--ffprobe', default=shutil.which('ffprobe'))
+    p.add_argument('--ffmpeg')
+    p.add_argument('--ffprobe')
     p.add_argument('--backend', default='ffmpeg')
     p.add_argument('--fixtures')
     p.add_argument('--report')
     p.add_argument('files', nargs='*')
     a = p.parse_args()
+    qualified = test_oracle.require(a.ffmpeg, a.ffprobe)
+    a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     if a.fixtures:
         return fixtures(a)
     for f in a.files:

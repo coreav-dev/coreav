@@ -13,6 +13,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+import test_oracle
 
 
 def run(command, *, data=None, env=None):
@@ -162,12 +163,12 @@ def main():
     parser.add_argument('--fixtures', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    args.coreav, args.ffmpeg = args.coreav.resolve(), args.ffmpeg.resolve()
+    args.coreav = args.coreav.resolve()
     args.out.mkdir(parents=True, exist_ok=False)
     report = {'diagnostic_only': True, 'completed': False, 'results': []}
     report_path = args.out / 'report.json'
     try:
-        run([sys.executable, '-I', HERE / 'oracle_pin.py', '--verify-bin', args.ffmpeg.parent])
+        args.ffmpeg = test_oracle.require(args.ffmpeg).ffmpeg
         manifest = (args.fixtures / 'MANIFEST').read_text().splitlines()
         if 'generated browser.webm' not in manifest:
             raise ValueError('browser fixture is not registered as generated')

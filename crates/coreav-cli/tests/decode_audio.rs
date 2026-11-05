@@ -12,6 +12,9 @@
 #[path = "schema/mod.rs"]
 mod schema;
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -483,14 +486,7 @@ fn decodes_an_aac_track() {
 #[cfg(feature = "aac")]
 #[test]
 fn decodes_an_mp4_aac_track_as_ffmpeg_does() {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    if !ffmpeg.is_file() {
-        assert!(std::env::var_os("CI").is_none(), "no pinned ffmpeg");
-        eprintln!("skipping: no pinned ffmpeg (set COREAV_FFMPEG)");
-        return;
-    }
+    let ffmpeg = test_oracle::require().ffmpeg().to_path_buf();
     let input = path("da_aac.m4a");
     let status = Command::new(&ffmpeg)
         .args(["-v", "error", "-f", "lavfi", "-i"])

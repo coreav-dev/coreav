@@ -1,18 +1,16 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "../../../test-support/oracle.rs"]
+mod test_oracle;
+
 use std::path::PathBuf;
 use std::process::Command;
 
 #[test]
 fn probe_defaults_leave_pinned_output_byte_identical() {
-    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
-    let ffprobe = ffmpeg.with_file_name("ffprobe");
-    if !ffmpeg.is_file() || !ffprobe.is_file() {
-        eprintln!("Set COREAV_FFMPEG to the pinned ffmpeg to compare probe tuning defaults");
-        return;
-    }
+    let pair = test_oracle::require();
+    let ffmpeg = pair.ffmpeg().to_path_buf();
+    let ffprobe = pair.ffprobe().to_path_buf();
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("probe-tuning");
     std::fs::create_dir_all(&dir).unwrap();
     for extension in ["mp4", "mkv", "ts"] {

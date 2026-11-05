@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import oracle_pin
 import oracle_pin_macos
+import test_oracle
 import standalone_audio_probe_check as audio_probe
 import mkv_craft
 import stsd_craft
@@ -55,9 +56,8 @@ def run(command, case, *, env=None):
 class Oracle:
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
-        verifier = oracle_pin_macos if sys.platform == "darwin" else oracle_pin
         try:
-            problems = list(verifier.verify_bin(self.directory))
+            problems = list(test_oracle.verify_bin(self.directory))
         except (OSError, subprocess.SubprocessError, ValueError, SystemExit):
             raise CheckFailure("oracle-pin") from None
         if problems:

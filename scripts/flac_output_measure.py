@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools" / "compat-corpus"))
 
 from flac_output_check import make_source, probe, run
 from oracle_audio import INPUT_ARGS as AUDIO_INPUT
-from oracle_pin import verify_bin
+from test_oracle import verify_bin
 from speed import timed
 
 

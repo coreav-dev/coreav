@@ -84,11 +84,20 @@ fn main() -> ExitCode {
     if std::env::args().any(|a| a == "--list") {
         return ExitCode::SUCCESS;
     }
-    let filter: Vec<String> = std::env::args()
-        .skip(1)
-        .filter(|a| !a.starts_with('-'))
-        .collect();
+    let mut filter = Vec::new();
+    let mut excluded = Vec::new();
+    let mut arguments = std::env::args().skip(1);
+    while let Some(argument) = arguments.next() {
+        if argument == "--skip" {
+            excluded.push(arguments.next().expect("--skip requires a test name"));
+        } else if !argument.starts_with('-') {
+            filter.push(argument);
+        }
+    }
     for (name, case) in cases {
+        if excluded.iter().any(|f| name.contains(f.as_str())) {
+            continue;
+        }
         if !filter.is_empty() && !filter.iter().any(|f| name.contains(f.as_str())) {
             continue;
         }

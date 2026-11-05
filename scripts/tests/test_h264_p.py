@@ -721,7 +721,7 @@ class Report(unittest.TestCase):
         receipt += "BUILD_COMMAND=make -C JM/ldecod -j2 CC='cc -fcommon'\nsynthetic compiler\n"
         receipt += f'{p.g1.digest(paths[3])}  {paths[3]}\n'
         (self.root / 'jm-build.txt').write_text(receipt)
-        with patch.object(p.g1.oracle_pin, 'verify_bin', return_value=[]):
+        with patch.object(p.g1.test_oracle, 'verify_bin', return_value=[]):
             tools = p.verify_tools(paths[0], paths[1], paths[3], paths[4])
             self.assertEqual(set(tools['executables']), {'driver', 'ffmpeg', 'ffprobe', 'jm', 'decoder'})
             paths[3].write_bytes(b'changed')
@@ -730,7 +730,7 @@ class Report(unittest.TestCase):
             (self.root / 'jm-build.txt').write_text(receipt.replace('JM_VERSION=', 'WRONG='))
             with self.assertRaisesRegex(ValueError, 'receipt'):
                 p.verify_tools(paths[0], paths[1], paths[3], paths[4])
-        with patch.object(p.g1.oracle_pin, 'verify_bin', return_value=['wrong FFmpeg pin']):
+        with patch.object(p.g1.test_oracle, 'verify_bin', return_value=['wrong FFmpeg pin']):
             with self.assertRaisesRegex(ValueError, 'wrong FFmpeg pin'):
                 p.verify_tools(paths[0], paths[1], paths[3], paths[4])
 

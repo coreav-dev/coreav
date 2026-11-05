@@ -67,7 +67,7 @@ def main(argv=None):
     try:
         if os.environ.get('GITHUB_ACTIONS') != 'true' or sys.platform != 'linux':
             raise ValueError('media conformance runs only in Linux Actions, not on developer machines')
-        problems = list(g1.oracle_pin.verify_bin(ffmpeg.parent))
+        problems = list(g1.test_oracle.verify_bin(ffmpeg.parent))
         if problems:
             raise ValueError('; '.join(problems))
         report['tools'] = {name: {'sha256': g1.digest(path)} for name, path in

@@ -53,6 +53,8 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import test_oracle
 FRAMES = {'sd': 1800, '720p': 900, '1080p': 300, '4k': 150}
 CLASSES = tuple(FRAMES)
 MACHINE = 'c4-standard-16'
@@ -64,6 +66,9 @@ GATE1T = r'''"""gate1t.py ref|check LABEL: the host-health gate (docs/measuremen
 ref: one measurement (FFmpeg, taskset -c <the call's core>, -threads 1, median of 3, each reference stream) appended to out/gate-refs.json.
 check: a measurement compared with the median of the references, appended to out/gate-checks.log; exit 0 on PASS (all within 5%)."""
 import json, os, statistics, subprocess, sys, time
+sys.path.insert(0, 'scripts')
+import test_oracle
+test_oracle.require('./ffmpeg', './ffprobe')
 R = json.load(open('refs/refs.json'))
 S, CORE = R['streams'], str(R['core'])
 def measure():
@@ -117,9 +122,9 @@ MAX_UNRESOLVED = 2
 def job_script_1t(args, calls, decoders):
     """The `job.sh` of the one-thread class: host facts, three references five minutes apart, then per class a gate
     check, the call, a gate check; a call whose after-check fails is run again (GATE_ATTEMPTS)."""
-    lines = ['set -u', 'mkdir -p out', 'chmod +x decode-* ffmpeg',
+    lines = ['set -u', 'mkdir -p out', 'chmod +x decode-* ffmpeg ffprobe',
              '{ lscpu; nproc; uname -a; echo "smt active: $(cat /sys/devices/system/cpu/smt/active 2>&1)";'
-             ' python3 --version; sha256sum decode-* ffmpeg h264_parity.py gate1t.py gate.h264 refs/* es/*; } > out/host.txt 2>&1',
+             ' python3 --version; sha256sum decode-* ffmpeg ffprobe scripts/* gate1t.py gate.h264 refs/* es/*; } > out/host.txt 2>&1',
              # perf for the frequency samples (Debian's package; its counters need perf_event_paranoid at most 2)
              '[ "${PERF_INSTALL:-1}" = 0 ] || { sudo apt-get -q update && sudo DEBIAN_FRONTEND=noninteractive apt-get -q -y install '
              'linux-perf && sudo sysctl -q kernel.perf_event_paranoid=1; } > out/perf-install.log 2>&1',
@@ -140,7 +145,7 @@ def job_script_1t(args, calls, decoders):
                   # a call does not start on a host that fails its gate (HOST-GATE.md)
                   f'  if [ $ok = 0 ]; then echo "{tag} attempt $attempt: the host failed its gate, no call" >> out/progress.txt; continue; fi',
                   f'  echo "{tag} attempt $attempt $(date -u +%T)" >> out/progress.txt',
-                  f'  python3 h264_parity.py {decoders} {flags} --report out/{tag}.json '
+                  f'  python3 scripts/h264_parity.py {decoders} {flags} --report out/{tag}.json '
                   + ' '.join(shlex.quote(f) for f in files) + f' > out/{tag}.log 2>&1',
                   f'  echo "{tag} rc=$? $(date -u +%T)" >> out/progress.txt',
                   f'  ok=0; [ -f out/{tag}.json ] && python3 gate1t.py check "after {cls} #$attempt" && ok=1',
@@ -161,8 +166,9 @@ def job_script(args, calls):
         return job_script_1t(args, calls, decoders)
     ref = ('python3 - "$1" <<\'PY\'\n'
            'import argparse, json, sys\n'
-           'sys.path.insert(0, ".")\n'
+           'sys.path.insert(0, "scripts")\n'
            'import h264_parity as h\n'
+           'h.test_oracle.require("./ffmpeg", "./ffprobe")\n'
            'ns = argparse.Namespace(ffmpeg="./ffmpeg", gate_stream="gate.h264", gate_frames='
            f'{args.gate_frames}, gate_threads=8, gate_pin=None, prefix=[], min_seconds={args.min_seconds})\n'
            'median, repeat = h.gate_sample(ns)\n'
@@ -173,9 +179,9 @@ def job_script(args, calls):
            'd[sys.argv[1]] = {"median": median, "repeat": repeat}\n'
            'json.dump(d, open("out/ref.json", "w"), indent=1)\n'
            'PY\n')
-    lines = ['set -u', 'mkdir -p out', 'chmod +x decode-* ffmpeg',
+    lines = ['set -u', 'mkdir -p out', 'chmod +x decode-* ffmpeg ffprobe',
              '{ lscpu; nproc; uname -a; echo "smt active: $(cat /sys/devices/system/cpu/smt/active 2>&1)";'
-             ' python3 --version; sha256sum decode-* ffmpeg h264_parity.py gate.h264 es/*; } > out/host.txt 2>&1',
+             ' python3 --version; sha256sum decode-* ffmpeg ffprobe scripts/* gate.h264 es/*; } > out/host.txt 2>&1',
              'ref() {', ref.rstrip('\n'), '}',
              'ref before']
     for cls, files in calls:
@@ -194,7 +200,7 @@ def job_script(args, calls):
             flags += f' --require-cpu {shlex.quote(args.cpu_match)}'
         tag = f't{args.threads}.{cls}'
         lines.append(f'echo "{tag} $(date -u +%T)" >> out/progress.txt')
-        lines.append(f'python3 h264_parity.py {decoders} {flags} --report out/{tag}.json '
+        lines.append(f'python3 scripts/h264_parity.py {decoders} {flags} --report out/{tag}.json '
                      + ' '.join(shlex.quote(f) for f in files) + f' > out/{tag}.log 2>&1')
         lines.append(f'echo "{tag} rc=$?" >> out/progress.txt')
     lines += ['ref after', 'echo "end $(date -u +%T)" >> out/progress.txt']
@@ -383,6 +389,9 @@ def main():
     missing = [n for n in ('out', 'es_dir', 'decoder', 'ffmpeg', 'gate_stream', 'null_arm') if getattr(args, n) is None]
     if missing:
         ap.error('the following arguments are required: ' + ', '.join('--' + n.replace('_', '-') for n in missing))
+    selected = test_oracle.executable_path(args.ffmpeg)
+    oracle = test_oracle.require(selected, selected.with_name('ffprobe'))
+    args.ffmpeg = str(oracle.ffmpeg)
     if args.one_thread_class:
         args.machine, args.usd_per_hour = MACHINE_1T, USD_PER_HOUR_1T
         if args.threads not in (None, 1):
@@ -469,8 +478,9 @@ def main():
         for n, path in args.decoders:
             shutil.copy(path, os.path.join(up, f'decode-{n}'))
         shutil.copy(args.ffmpeg, os.path.join(up, 'ffmpeg'))
+        shutil.copy(oracle.ffprobe, os.path.join(up, 'ffprobe'))
         shutil.copy(args.gate_stream, os.path.join(up, 'gate.h264'))
-        shutil.copy(os.path.join(HERE, 'h264_parity.py'), os.path.join(up, 'h264_parity.py'))
+        test_oracle.bundle(up, ['h264_parity.py'])
         if args.one_thread_class:
             os.makedirs(os.path.join(up, 'refs'), exist_ok=True)
             names = {}

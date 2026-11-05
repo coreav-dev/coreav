@@ -23,6 +23,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import test_oracle
 import thumbnail_oracle  # noqa: E402
 
 CODECS = ('h264', 'hevc')
@@ -96,14 +97,16 @@ def check(decode_oracle, path, ffprobe, times=1):
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--decode-oracle', required=True)
-    p.add_argument('--ffmpeg', default=shutil.which('ffmpeg'))
-    p.add_argument('--ffprobe', default=shutil.which('ffprobe'))
+    p.add_argument('--ffmpeg')
+    p.add_argument('--ffprobe')
     p.add_argument('--fixtures', type=pathlib.Path)
     p.add_argument('--times', type=int, default=1)
     p.add_argument('--matroska', action='store_true')
     p.add_argument('--report', type=pathlib.Path)
     p.add_argument('files', nargs='*', type=pathlib.Path)
     a = p.parse_args()
+    qualified = test_oracle.require(a.ffmpeg, a.ffprobe)
+    a.ffmpeg, a.ffprobe = str(qualified.ffmpeg), str(qualified.ffprobe)
     files = list(a.files)
     if a.fixtures:
         files += sorted(f for f in a.fixtures.iterdir()

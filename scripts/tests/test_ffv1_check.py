@@ -140,6 +140,9 @@ class BoundaryFailures(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        verifier = patch.object(gate.test_oracle, 'verify_bin', side_effect=gate.oracle_pin.verify_bin)
+        verifier.start()
+        self.addCleanup(verifier.stop)
 
     def executable(self, name, body):
         path = self.root / name
