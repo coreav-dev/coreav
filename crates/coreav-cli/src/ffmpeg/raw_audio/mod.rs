@@ -624,6 +624,11 @@ fn mpeg1_frames(mut bytes: &[u8]) -> bool {
 }
 
 pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value, Stop> {
+    if command.muxer == Muxer::Wav
+        && std::fs::metadata(&command.output).is_ok_and(|metadata| !metadata.is_file())
+    {
+        return Err(Refusal::not_native("WAV output to a non-regular destination").into());
+    }
     let force = if args::stdout(&command.output) {
         false
     } else {

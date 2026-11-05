@@ -167,6 +167,98 @@ fn integer_wav_output_matches_complete_pinned_files() {
             std::fs::read(reference).unwrap()
         );
     }
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
+        let source = dir.join("fifo-input.wav");
+        std::fs::write(&source, wav(1, 16, 1, &[0; 6])).unwrap();
+        let mut payloads = Vec::new();
+        for fallback in [false, true] {
+            let fifo = dir.join(if fallback { "fallback.wav" } else { "pin.wav" });
+            assert!(
+                Command::new("mkfifo")
+                    .arg(&fifo)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            let mut reader = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(rustix::fs::OFlags::NONBLOCK.bits().try_into().unwrap())
+                .open(&fifo)
+                .unwrap();
+            let mut command = if fallback {
+                let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                command.arg("ffmpeg");
+                command.env("COREAV_FALLBACK", &ffmpeg);
+                command.env_remove("COREAV_STRICT_SAFE");
+                command.env_remove("COREAV_FALLBACK_ACTIVE");
+                command
+            } else {
+                Command::new(&ffmpeg)
+            };
+            let result = command
+                .args(["-y", "-i"])
+                .arg(&source)
+                .args(["-f", "wav"])
+                .arg(&fifo)
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{result:?}");
+            assert!(result.stdout.is_empty());
+            assert!(std::fs::metadata(&fifo).unwrap().file_type().is_fifo());
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).unwrap();
+            assert_eq!(&bytes[4..8], &[255; 4]);
+            payloads.push(bytes);
+        }
+        assert_eq!(payloads[0], payloads[1]);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn wav_non_regular_destinations_refuse_without_staging_or_replacement() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+    use std::os::unix::net::UnixListener;
+    let dir = scratch("special-destinations");
+    let input = dir.join("input.wav");
+    std::fs::write(&input, wav(1, 16, 1, &[0; 6])).unwrap();
+    let fifo = dir.join("fifo.wav");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let socket = dir.join("socket.wav");
+    let _listener = UnixListener::bind(&socket).unwrap();
+    let directory = dir.join("directory.wav");
+    std::fs::create_dir(&directory).unwrap();
+    let device_link = dir.join("device.wav");
+    symlink("/dev/null", &device_link).unwrap();
+    let fifo_link = dir.join("fifo-link.wav");
+    symlink(&fifo, &fifo_link).unwrap();
+    for destination in [&fifo, &socket, &directory, &device_link, &fifo_link] {
+        let original = std::fs::symlink_metadata(destination).unwrap();
+        let entries = std::fs::read_dir(&dir).unwrap().count();
+        let result = strict()
+            .args(["-y", "-i"])
+            .arg(&input)
+            .arg(destination)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(4), "{result:?}");
+        assert!(result.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("non-regular destination"));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
+        let after = std::fs::symlink_metadata(destination).unwrap();
+        assert_eq!(original.file_type(), after.file_type());
+        assert_eq!(original.ino(), after.ino());
+    }
     std::fs::remove_dir_all(dir).unwrap();
 }
 
