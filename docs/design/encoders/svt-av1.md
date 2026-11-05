@@ -1,6 +1,6 @@
 # SVT-AV1 output validation
 
-The [encoder contract](../encoders.md) defines the backend's scope and acceptance bars. This crate implements bounded AV1 framing, sequence and frame-header validation, complete temporal-unit samples, and a feature-gated native worker for 8-bit 4:2:0 SDR output. Parser-only builds link no native library. The standalone CLI route is implemented, but release feature sets do not select the native backend yet. Native runtime correctness and release linkage remain unverified.
+The [encoder contract](../encoders.md) defines the backend's scope. This crate implements bounded AV1 framing, sequence and frame-header validation, complete temporal-unit samples, and a feature-gated native worker for 8-bit 4:2:0 SDR output. Parser-only builds link no native library. The standalone CLI and Unix full packages can opt into native encoding; default feature sets remain unchanged. A small real encode/decode fixture checks correctness, while reference speed and quality figures are separate.
 
 ## Framing is a separate boundary
 

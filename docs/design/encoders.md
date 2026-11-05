@@ -1,6 +1,6 @@
 # Built-in encoders
 
-Status: Phase 1 integration in progress. The standalone explicit AV1 route and its version 2 summary are implemented for supported native builds. Parser-only builds and platform selections still refuse unavailable backends. Native correctness, release packaging and four-target runtime acceptance remain unverified.
+Status: The standalone explicit AV1 route and its version 2 summary are implemented for opt-in Unix native builds. Parser-only builds and platform selections still refuse unavailable backends. The small correctness fixture checks real encoding; reference performance figures are separate.
 
 The default output remains H.264 video with copied audio in MP4. AV1 is explicit. [Policy record 0043](encoder-policy.md) adds the platform and licence exceptions to record 0042. The existing [transcode design](transcode.md) continues to describe shipped behavior. This note specifies the new backend contract and its acceptance bars, not a claim that they have passed.
 
