@@ -87,6 +87,8 @@ class DecoderEligibility(unittest.TestCase):
 
     def test_aac_tolerance_cannot_grant_exactness_or_relax_its_scope(self):
         for field, value in [('f32_absolute', 2 ** -15), ('s16_lsb', 2),
+                             ('s16_lsb', True), ('s16_lsb', 1.0),
+                             ('sample_count', 'approximate'), ('priming', 'approximate'),
                              ('timeline', 'approximate'), ('feature', 'default')]:
             with self.subTest(field=field):
                 record = copy.deepcopy(self.record)
@@ -95,10 +97,65 @@ class DecoderEligibility(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
                     eligibility.validate(record)
         aac = next(row for row in self.record['decoders'] if row['codec'] == 'aac')
-        for requirements in ([], ['aac_lc'], ['aac_lc', 'supported_mp4_timeline']):
+        for requirements in ([], ['aac_lc'], ['aac_lc', 'supported_mp4_timeline'],
+                             ['aac_lc', 'ffmpeg_aac_mp4_timeline'],
+                             ['aac_separable_pns_or_no_noise', 'ffmpeg_aac_mp4_timeline'],
+                             ['aac_lc', 'aac_separable_pns_or_no_noise'],
+                             ['aac_lc', 'aac_separable_pns_or_no_noise',
+                              'ffmpeg_aac_mp4_timeline', 'supported_mp4_timeline']):
             aac['presentations'][0]['requirements'] = requirements
             with self.assertRaisesRegex(ValueError, 'content and presentation predicates'):
                 eligibility.validate(self.record)
+
+    def test_aac_pns_contract_is_exact_and_preserves_all_six_existing_fields(self):
+        aac = next(row for row in self.record['decoders'] if row['codec'] == 'aac')
+        self.assertEqual(aac['tolerance'], {
+            'f32_absolute': 2 ** -16, 's16_lsb': 1, 'sample_count': 'exact',
+            'priming': 'exact', 'timeline': 'exact', 'feature': 'aac',
+            'pns': {'energy_db': 0.1, 'sample_domain': 'non_pns_projection',
+                    'packing': 'per_decoder_f32'}})
+        self.assertEqual(aac['evidence'], 'docs/design/aac-pns-eligibility.md#plan')
+        self.assertEqual(aac['presentations'][0]['requirements'],
+                         ['aac_lc', 'aac_separable_pns_or_no_noise', 'ffmpeg_aac_mp4_timeline'])
+        for field in aac['tolerance']:
+            changed = copy.deepcopy(self.record)
+            row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+            row['tolerance'].pop(field)
+            with self.subTest(missing=field), self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
+                eligibility.validate(changed)
+        for field in ('energy_db', 'sample_domain', 'packing'):
+            changed = copy.deepcopy(self.record)
+            row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+            row['tolerance']['pns'].pop(field)
+            with self.subTest(missing_pns=field), self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
+                eligibility.validate(changed)
+
+    def test_aac_pns_limits_domain_packing_and_unknown_fields_are_refused(self):
+        for field, value in (('energy_db', 0.2), ('energy_db', 0.05), ('energy_db', '0.1'),
+                             ('sample_domain', 'complete_pcm'), ('packing', 'cross_decoder'),
+                             ('unknown', True)):
+            changed = copy.deepcopy(self.record)
+            row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+            row['tolerance']['pns'][field] = value
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
+                eligibility.validate(changed)
+        for value in (None, [], {}, True):
+            changed = copy.deepcopy(self.record)
+            row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+            row['tolerance']['pns'] = value
+            with self.subTest(pns=value), self.assertRaisesRegex(ValueError, 'tolerance or build scope'):
+                eligibility.validate(changed)
+        for field in ('tolerance', 'row'):
+            changed = copy.deepcopy(self.record)
+            row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+            (row['tolerance'] if field == 'tolerance' else row)['unknown'] = True
+            with self.subTest(unknown=field), self.assertRaises(ValueError):
+                eligibility.validate(changed)
+        changed = copy.deepcopy(self.record)
+        row = next(row for row in changed['decoders'] if row['codec'] == 'aac')
+        row['presentations'][0]['requirements'][1] = 'aac_no_noise_or_all_ms_intensity'
+        with self.assertRaisesRegex(ValueError, 'unknown requirement'):
+            eligibility.validate(changed)
 
     def test_opus_scope_needs_both_registered_profile_and_mp4_timeline(self):
         opus = next(row for row in self.record['decoders'] if row['codec'] == 'opus')

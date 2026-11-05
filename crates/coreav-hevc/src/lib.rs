@@ -3,8 +3,8 @@
 //! HEVC may require a patent licence. This unpublished, separately packaged
 //! crate is never part of default artifacts. Enable `native-hevc` explicitly.
 //! `HeaderParser` inspects headers without reconstructing samples.
-//! `IntraPictureDecoder` reconstructs one original unfiltered Main/Main10 intra
-//! picture; inter prediction, filters and production backend wiring are absent.
+//! `IntraPictureDecoder` reconstructs and filters one original Main/Main10 intra
+//! picture; inter prediction and production backend wiring are absent.
 
 #![forbid(unsafe_code)]
 #![cfg(feature = "native-hevc")]

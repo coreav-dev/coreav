@@ -82,7 +82,10 @@ The initial MPEG-1 Layer III MP4 admission is unchanged. Scoped Opus MP4
 now additionally requires mapping family 0, mono or stereo, zero gain,
 native 48 kHz and a warning-free timeline without inserted silence.
 AAC uses the separate [decode-tolerance qualification](aac-pcm-eligibility.md),
-not ISO conformance admission. Matroska presentation remains disabled.
+not ISO conformance admission. Its [PNS extension](aac-pns-eligibility.md)
+uses per-band noise energies and deterministic non-PNS projections, not
+pointwise agreement of complete noise-containing waveforms.
+Matroska presentation remains disabled.
 This does not remove support from the separate `decode-audio` command.
 
 ## Conformance gates

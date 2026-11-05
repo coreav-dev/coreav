@@ -44,6 +44,10 @@ pub struct SliceHeader {
     pub sao: Option<[bool; 2]>,
     /// Slice-level deblocking disable flag; absent for dependent segments.
     pub deblock_disabled: Option<bool>,
+    /// Effective beta/tC offsets in units of two, absent for dependent segments.
+    pub deblock_offsets: Option<[i32; 2]>,
+    /// Effective permission to filter across slices, absent for dependent segments.
+    pub loop_filter_slices: Option<bool>,
     /// Number of entry point offsets.
     pub entry_points: u32,
     /// Byte-aligned entropy-data start, measured in unescaped RBSP bytes.
@@ -103,6 +107,8 @@ pub(crate) fn parse(
         cabac_init_flag: None,
         sao: None,
         deblock_disabled: None,
+        deblock_offsets: None,
+        loop_filter_slices: None,
         entry_points: 0,
         rbsp_header_bytes: 0,
         no_output_of_prior_pics: prefix.no_output_prior,
@@ -296,17 +302,20 @@ pub(crate) fn parse(
         }
         h.chroma_qp_offsets = Some(chroma_offsets);
         let mut disabled = p.deblock_disabled;
+        let mut offsets = p.deblock_offsets;
         if p.deblock_override && bits.flag()? {
             disabled = bits.flag()?;
             if !disabled {
-                bits.se(-6, 6)?;
-                bits.se(-6, 6)?;
+                offsets = [bits.se(-6, 6)?, bits.se(-6, 6)?];
             }
         }
         h.deblock_disabled = Some(disabled);
+        h.deblock_offsets = Some(offsets);
+        let mut across = p.loop_filter_slices;
         if p.loop_filter_slices && (sao.iter().any(|x| *x) || !disabled) {
-            bits.flag()?;
+            across = bits.flag()?;
         }
+        h.loop_filter_slices = Some(across);
     }
     if p.tiles || p.wpp {
         h.entry_points = bits.ue(s.ctu_count.saturating_sub(1))?;

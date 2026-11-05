@@ -1,4 +1,5 @@
 import array
+import copy
 import importlib.util
 from pathlib import Path
 import unittest
@@ -12,6 +13,34 @@ SPEC.loader.exec_module(qualification)
 
 
 class PcmQualification(unittest.TestCase):
+    def test_pns_timeline_uses_explicit_priming_and_checked_terminal_padding(self):
+        metadata = {'packets': 2, 'frames': [{'offset': 100}, {'offset': 200}],
+                    'no_edits': False, 'media_duration': 2048, 'gapless_end': None}
+        listing = {'streams': [{'duration_ts': 1000}], 'packets': [
+            {'pos': '100', 'pts': -1024, 'dts': -1024, 'duration': 1024,
+             'side_data_list': [{'side_data_type': 'Skip Samples', 'skip_samples': 1024}]},
+            {'pos': '200', 'pts': 0, 'dts': 0, 'duration': 1000,
+             'side_data_list': [{'side_data_type': 'Skip Samples', 'discard_padding': 24}]}]}
+        self.assertEqual(qualification.presentation_interval(metadata, listing), (1024, 1000))
+        changed = copy.deepcopy(listing)
+        changed['packets'][-1]['side_data_list'][0]['discard_padding'] = 25
+        with self.assertRaisesRegex(ValueError, 'independently predicted endpoint'):
+            qualification.presentation_interval(metadata, changed)
+        for packet_list in (listing['packets'][1:], list(reversed(listing['packets']))):
+            changed = {**listing, 'packets': packet_list}
+            with self.assertRaisesRegex(ValueError, 'complete stored packet sequence'):
+                qualification.presentation_interval(metadata, changed)
+
+    def test_pns_no_edit_endpoint_uses_media_duration_and_gapless_metadata(self):
+        metadata = {'packets': 2, 'frames': [{'offset': 100}, {'offset': 200}],
+                    'no_edits': True, 'media_duration': 2048, 'gapless_end': 1800}
+        listing = {'streams': [{'duration_ts': 9999}], 'packets': [
+            {'pos': '100', 'pts': 0, 'dts': 0, 'duration': 1024},
+            {'pos': '200', 'pts': 1024, 'dts': 1024, 'duration': 1024}]}
+        self.assertEqual(qualification.presentation_interval(metadata, listing), (0, 1800))
+        metadata['gapless_end'] = None
+        self.assertEqual(qualification.presentation_interval(metadata, listing), (0, 2048))
+
     def test_native_input_threads_inherit_the_shared_audio_policy(self):
         with mock.patch.object(qualification, 'AUDIO_DECODE_INPUT', ('-threads:a', '2')):
             self.assertEqual(qualification.native('coreav', 'input', []),

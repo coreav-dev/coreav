@@ -13,14 +13,14 @@ SPEC.loader.exec_module(checker)
 
 
 class ConcatRefusal(unittest.TestCase):
-    def test_only_the_two_incompatible_concat_fixtures_require_refusal(self):
+    def test_only_the_four_h264_concat_fixtures_require_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
             out = Path(temporary)
-            for codec in ("ac3", "eac3", "flac", "alac"):
+            for codec in ("ac3", "eac3", "flac", "alac", "other"):
                 with self.subTest(codec=codec):
                     cases = list(checker.cases(out / f"av_{codec}.mp4", out))
                     self.assertEqual(next(c[3] for c in cases if c[0] == "join"), "twice")
-                    self.assertEqual(cases[-1][3], "refused" if codec in ("ac3", "eac3") else "twice")
+                    self.assertEqual(cases[-1][3], "refused" if codec != "other" else "twice")
                     self.assertTrue(all(c[3] != "refused" for c in cases[:-1]))
 
     def test_unexpected_native_success_wrong_reason_and_published_output_fail(self):
@@ -38,11 +38,11 @@ class ConcatRefusal(unittest.TestCase):
                     problems = []
                     done = subprocess.CompletedProcess([], code, stdout, stderr)
                     with mock.patch.object(checker, "run") as run:
-                        checker.check_concat_refusal(None, [], output, done, problems)
+                        checker.check_concat_refusal(None, [], output, done, problems, checker.CONCAT_REASON)
                     self.assertTrue(problems)
                     run.assert_not_called()
 
-    def exercise(self, fault=None):
+    def exercise(self, fault=None, reason=checker.CONCAT_REASON):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             output = root / "output.mp4"
@@ -61,7 +61,7 @@ class ConcatRefusal(unittest.TestCase):
                         output.write_bytes(b"changed destination")
                     if fault == "staging":
                         (root / "leaked-stage").write_bytes(b"staged")
-                    return subprocess.CompletedProcess(command, 4, b"", checker.CONCAT_REASON)
+                    return subprocess.CompletedProcess(command, 4, b"", reason)
                 if len(calls) == 2:
                     self.assertFalse(reference.exists())
                     self.assertEqual(command, [tools.ffmpeg, "-y", *args[1:-1], str(reference)])
@@ -89,15 +89,37 @@ class ConcatRefusal(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, b"", b"fallback notice")
 
             problems = []
-            done = subprocess.CompletedProcess([], 4, b"", checker.CONCAT_REASON)
+            done = subprocess.CompletedProcess([], 4, b"", reason)
             with mock.patch.object(checker, "run", run), mock.patch.object(checker.shutil, "which", return_value="/pinned/ffmpeg"):
-                checker.check_concat_refusal(tools, args, output, done, problems)
+                checker.check_concat_refusal(tools, args, output, done, problems, reason)
             return problems, len(calls)
 
     def test_exact_fallback_after_preserved_destination_passes(self):
         problems, calls = self.exercise()
         self.assertEqual(problems, [])
         self.assertEqual(calls, 3)
+
+    def test_h264_refusal_uses_the_same_complete_fallback_contract(self):
+        problems, calls = self.exercise(reason=checker.CONCAT_H264_REASON)
+        self.assertEqual(problems, [])
+        self.assertEqual(calls, 3)
+
+    def test_each_fixture_requires_its_own_reason(self):
+        self.assertEqual(checker.CONCAT_REFUSALS, {
+            "av_ac3.mp4": checker.CONCAT_REASON,
+            "av_eac3.mp4": checker.CONCAT_REASON,
+            "av_flac.mp4": checker.CONCAT_H264_REASON,
+            "av_alac.mp4": checker.CONCAT_H264_REASON,
+        })
+        for expected, observed in [(checker.CONCAT_REASON, checker.CONCAT_H264_REASON),
+                                   (checker.CONCAT_H264_REASON, checker.CONCAT_REASON)]:
+            with tempfile.TemporaryDirectory() as temporary:
+                problems = []
+                done = subprocess.CompletedProcess([], 4, b"", observed)
+                with mock.patch.object(checker, "run") as run:
+                    checker.check_concat_refusal(None, [], Path(temporary) / "output.mp4", done, problems, expected)
+                self.assertTrue(problems)
+                run.assert_not_called()
 
     def test_destination_and_staging_mutations_fail(self):
         for fault in ("destination", "staging"):

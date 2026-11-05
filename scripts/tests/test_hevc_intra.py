@@ -15,6 +15,67 @@ import hevc_intra as runner
 
 
 class Packing(unittest.TestCase):
+    def test_development_comparison_failure_retains_private_diagnostics_and_removes_raw_files(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                source = root / 'source'
+                source.write_bytes(b'self-written source identity')
+                for name in ('native', 'parser', 'ffmpeg', 'ffprobe'):
+                    (root / name).write_bytes(name.encode())
+                destination = root / 'result'
+                raw, metadata, _, oracle = self.picture()
+                pixels = bytearray(raw)
+                if changed:
+                    pixels[4] ^= 1
+                item = dict(partition='development', size=source.stat().st_size,
+                            sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+                picture = dict(all_intra=True, nal_type=19, bit_depth=8, tiles=False,
+                               wpp=False, dependent_segments=0)
+
+                def child(command, path, label, **kwargs):
+                    out, err = path / (label + '.stdout'), path / (label + '.stderr')
+                    out.write_text('')
+                    err.write_text('')
+                    if label == 'extract-first-picture':
+                        (path / 'first-irap.hevc').write_bytes(b'self-written packet-copy identity')
+                    if label == 'native':
+                        out.write_text(json.dumps(metadata))
+                        (path / 'first-irap.u16le').write_bytes(pixels)
+                    return 0, out, err
+
+                with mock.patch.object(runner.harness, 'child', side_effect=child), \
+                        mock.patch.object(runner.harness, 'native_rows', return_value=(
+                            {}, [picture], [dict(picture_index=0)])), \
+                        mock.patch.object(runner.harness, 'probe', return_value=dict(frames=[dict(
+                            pict_type='I', key_frame=1, pix_fmt='yuv420p')])), \
+                        mock.patch.object(runner.harness, 'oracle_frames', return_value=[oracle]), \
+                        mock.patch.object(runner, 'validate_metadata'), \
+                        mock.patch.object(runner, 'diagnose_picture', return_value=dict(
+                            available=True, changed_samples=[1, 0, 0])) as diagnostic:
+                    options = dict(native=root / 'native', parser=root / 'parser',
+                                   max_memory_bytes=256 << 20, max_bins=1 << 28)
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, 'native_reference_mismatch'):
+                            runner.development_picture(item, source, destination, root, **options)
+                        diagnostic.assert_called_once()
+                        stream = diagnostic.call_args.args[3]
+                        self.assertEqual(stream['record']['reference_frames'], [oracle])
+                        self.assertEqual(stream['record']['reference_packing']['md5'], oracle['md5'])
+                    else:
+                        self.assertTrue(runner.development_picture(item, source, destination, root,
+                                                                  **options)['complete'])
+                        diagnostic.assert_not_called()
+                report = json.loads((destination / 'intra.json').read_text())
+                self.assertEqual(report['complete'], not changed)
+                self.assertEqual(report['stage'], 'comparison' if changed else 'complete')
+                if changed:
+                    self.assertEqual(report['diagnostic']['changed_samples'], [1, 0, 0])
+                    self.assertEqual(report['source_first_frame'], oracle)
+                    self.assertNotEqual(report['native_packing']['md5'], oracle['md5'])
+                self.assertFalse((destination / 'first-irap.hevc').exists())
+                self.assertFalse((destination / 'first-irap.u16le').exists())
+
     def picture(self, depth=8):
         base = 0 if depth == 8 else 512
         planes = [[base + i for i in range(24)],
@@ -42,6 +103,15 @@ class Packing(unittest.TestCase):
             if depth == 10:
                 self.assertTrue(all(p['above_255'] and p['nonzero_low_two_bits'] for p in result['sample_proof']))
 
+    def test_different_oracle_geometry_cannot_produce_pixel_difference_coordinates(self):
+        _, metadata, candidate, oracle = self.picture()
+        candidate['reference']['bytes'] *= 2
+        stream = dict(record=dict(reference_frames=[oracle]))
+        with mock.patch.object(runner.harness, 'child') as child:
+            result = runner.diagnose_picture(None, None, None, stream, candidate, None, metadata)
+        self.assertEqual(result, dict(available=False, reason='different_output_geometry'))
+        child.assert_not_called()
+
     def test_samples_components_crops_lengths_and_hashes_cannot_be_mutated(self):
         for depth in (8, 10):
             raw, metadata, candidate, oracle = self.picture(depth)
@@ -67,6 +137,60 @@ class Packing(unittest.TestCase):
             raw, metadata, candidate, oracle = self.picture(depth)
             with self.assertRaisesRegex(ValueError, 'sample_range'):
                 runner.compare_picture(struct.pack('<H', invalid) + raw[2:], metadata, candidate, oracle)
+
+    def test_row_streaming_and_nonoutput_references_do_not_invent_output_frames(self):
+        for depth in (8, 10):
+            raw, metadata, candidate, oracle = self.picture(depth)
+            with tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / 'coded.u16le'
+                path.write_bytes(raw)
+                self.assertEqual(runner.compare_picture(path, metadata, candidate, oracle),
+                                 runner.compare_picture(raw, metadata, candidate, oracle))
+            reference = dict(source_scope='coded-picture reference (SEI), not output',
+                             coded_component_md5=candidate['reference']['coded_component_md5'])
+            runner.compare_picture(raw, metadata, dict(reference=reference), None)
+            for ref, output in [(dict(reference, output_index=0), None), (reference, oracle)]:
+                with self.assertRaisesRegex(ValueError, 'mapping_invented'):
+                    runner.compare_picture(raw, metadata, dict(reference=ref), output)
+            with self.assertRaisesRegex(ValueError, 'coded_component_mismatch'):
+                runner.compare_picture(bytes([raw[0] ^ 1]) + raw[1:], metadata, dict(reference=reference), None)
+
+    def test_failure_diagnostics_require_complete_anchored_output_and_remove_raw_oracle_bytes(self):
+        for depth in (8, 10):
+            raw, metadata, candidate, oracle = self.picture(depth)
+            metadata['ctb_log2'] = 4
+            base = 0 if depth == 8 else 512
+            values = [base + v for v in (2, 3, 8, 9, 51, 81)]
+            expected = bytes(values) if depth == 8 else b''.join(struct.pack('<H', v) for v in values)
+            with tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                output, stderr, native = root / 'oracle.raw', root / 'oracle.stderr', root / 'native.u16le'
+                changed = bytearray(raw)
+                changed[4] ^= 1
+                native.write_bytes(changed)
+                stderr.write_text('frame=1\ndup_frames=0\ndrop_frames=0\nprogress=end\n')
+                stream = dict(test='unit', frames=[dict(pix_fmt='yuv420p' if depth == 8 else 'yuv420p10le')],
+                              record=dict(reference_frames=[candidate['reference']], reference_packing=dict(md5=oracle['md5'])))
+                output.write_bytes(expected)
+                with mock.patch.object(runner.harness, 'child', return_value=(0, output, stderr)) as child:
+                    report = runner.diagnose_picture(root / 'ffmpeg', root / 'original.hevc', root,
+                                                     stream, candidate, native, metadata)
+                    command = child.call_args.args[0]
+                    self.assertNotIn('-frames:v', command)
+                    self.assertNotIn('-vf', command)
+                    self.assertEqual(command[command.index('-export_side_data') + 1], '+enhancements')
+                    self.assertLess(command.index('-export_side_data'), command.index('-i'))
+                self.assertEqual(report['changed_samples'], [1, 0, 0])
+                self.assertEqual(report['first_differences'], [dict(component=0, x=2, y=0, delta=1)])
+                self.assertFalse(output.exists())
+                self.assertEqual(native.read_bytes(), changed)
+                output.write_bytes(expected)
+                stream['record']['reference_packing']['md5'] = 'f' * 32
+                with mock.patch.object(runner.harness, 'child', return_value=(0, output, stderr)), \
+                        self.assertRaisesRegex(ValueError, 'whole_reference'):
+                    runner.diagnose_picture(root / 'ffmpeg', root / 'original.hevc', root,
+                                            stream, candidate, native, metadata)
+                self.assertFalse(output.exists())
 
 
 class Census(unittest.TestCase):
@@ -141,15 +265,63 @@ class Census(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'eligible_coded_output_absent'):
             self.targets(record)
 
+    def test_g3_adds_original_filtered_candidates_without_moving_them_into_g2(self):
+        picture = dict(self.nal, sao=[True, False])
+        self.capture([picture, self.output, self.summary])
+        candidate = dict(self.candidate, gate='G3')
+        record = dict(self.record, intra_candidates=[candidate])
+        self.assertIsNone(self.targets(record))
+        result = runner.stream_targets(self.source, record, self.native, self.root,
+                                       'one', 'published_conformance', True)
+        self.assertEqual(len(result['targets']), 1)
+        self.assertEqual(result['targets'][0]['candidate']['gate'], 'G3')
+        self.assertEqual(result['targets'][0]['candidate']['reference'], self.reference)
+
+    def test_only_the_two_authorized_nonoutput_pictures_receive_original_sei_references(self):
+        pictures = [dict(self.picture, all_intra=i in (39, 73), filters_disabled=False) for i in range(74)]
+        rows = []
+        for i in (39, 73):
+            rows.extend([dict(self.nal, picture_index=i),
+                         dict(kind='nal', nal_type=40, picture_hash=True, reserved_hashes=0,
+                              picture_hash_reference=dict(algorithm='md5', components=[[i] * 16] * 3))])
+        self.capture(rows)
+        runner.harness.write_json(self.root / 'frames.stdout', dict(frames=[]))
+        record = dict(self.record, reference_count=dict(value=0), reference_frames=[], intra_candidates=[])
+        with mock.patch.object(runner.harness, 'native_rows', return_value=(self.summary, pictures, [])):
+            for test in ('other', 'OPFLAG_B'):
+                if test == 'other':
+                    with self.assertRaisesRegex(ValueError, 'output_absent'):
+                        runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                else:
+                    result = runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                    self.assertEqual([r['candidate']['picture_index'] for r in result['targets']], [39, 73])
+                    for target in result['targets']:
+                        self.assertNotIn('output_index', target['candidate']['reference'])
+                    for mutation in ('missing', 'reserved', 'short'):
+                        changed = copy.deepcopy(rows)
+                        if mutation == 'missing':
+                            changed.pop()
+                        elif mutation == 'reserved':
+                            changed[-1].update(picture_hash=False, reserved_hashes=1)
+                        else:
+                            changed[-1]['picture_hash_reference']['components'][0].pop()
+                        self.capture(changed)
+                        with self.assertRaises(ValueError):
+                            runner.stream_targets(self.source, record, self.native, self.root, test, 'published_conformance', True)
+                        self.capture(rows)
+
     def metadata(self):
         return dict(kind='intra_picture', complete=True, picture_index=0,
                     coded_width=2, coded_height=2, width=2, height=2, bit_depth=8, profile_idc=1, ctb_log2=4,
                     packing='planar_y_cb_cr_u16le', input_bytes=len(self.data), nals=1, pictures=1,
                     input_byte_limit=runner.INPUT_CAP, caller_input_capacity_bytes=len(self.data),
+                    max_nal_bytes=runner.NAL_CAP,
                     max_memory_bytes=1024, max_bins=10, conformance_window=[0] * 4,
                     stats=dict({key: 0 for key in runner.COUNTERS}, ctus=1, coding_units=1,
                                memory_bytes=1024, bins=10, luma_modes=[0] * 35,
-                               chroma_modes=[0] * 35, dct_blocks=[0] * 4))
+                               chroma_modes=[0] * 35, dct_blocks=[0] * 4,
+                               deblock_edges=[0] * 3, deblock_changed_samples=[0] * 3,
+                               sao_blocks=[0] * 3, sao_changed_samples=[0] * 3))
 
     def test_native_completion_budgets_indices_and_suffix_coverage_are_required(self):
         stream = self.targets()
@@ -267,7 +439,8 @@ class Census(unittest.TestCase):
         census = dict(complete=True, archives=archives, intra_candidates=expected,
                       synthetic_census=dict(complete=True, streams=synthetic))
 
-        def targets(source, record, native, directory, name, source_kind):
+        def targets(source, record, native, directory, name, source_kind, filters=False):
+            self.assertFalse(filters)
             return descriptors[name]
 
         with mock.patch.object(runner.harness, 'registration', return_value=dict(archives=cases)), \
