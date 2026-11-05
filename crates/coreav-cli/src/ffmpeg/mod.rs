@@ -557,10 +557,28 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if command.muxer == Muxer::Wav
+        && selected.len() == 1
+        && selected
+            .first()
+            .and_then(|index| report.streams.get(*index))
+            .is_some_and(|stream| {
+                stream.entries.iter().any(|(key, value)| {
+                    *key == "codec_name" && matches!(value, Value::Str(name) if name == "aac")
+                })
+            })
+    {
+        return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
     if matches!(command.muxer, Muxer::S16le | Muxer::F32le)
         && !raw_audio::legacy(command, report, &selected)
     {
         return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
+    if command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native(
+            "WAV stdout requires qualified AAC decode tolerance",
+        ));
     }
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());

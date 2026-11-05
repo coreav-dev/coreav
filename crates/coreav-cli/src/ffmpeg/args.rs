@@ -1167,7 +1167,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         return Err(Refusal::not_native("an input from a pipe"));
     }
     if (output == "-" || output.starts_with("pipe:"))
-        && !(stdout(output) && matches!(command.muxer, Muxer::S16le | Muxer::F32le)
+        && !(stdout(output) && matches!(command.muxer, Muxer::S16le | Muxer::F32le | Muxer::Wav)
             || output == "-" && command.muxer == Muxer::Rawvideo)
     {
         return Err(Refusal::not_native("an output to a pipe"));

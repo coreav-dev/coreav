@@ -26,14 +26,15 @@
     },
     {
       "codec": "aac",
-      "kind": "conformance",
-      "decoder_eligible": false,
+      "kind": "decode_tolerance",
+      "decoder_eligible": true,
+      "tolerance": { "f32_absolute": 0.0000152587890625, "s16_lsb": 1, "sample_count": "exact", "priming": "exact", "timeline": "exact", "feature": "aac" },
       "presentations": [
-        { "container": "mp4", "eligible": false, "requirements": [] },
+        { "container": "mp4", "eligible": true, "requirements": ["aac_lc", "aac_no_noise_or_all_ms_intensity", "ffmpeg_aac_mp4_timeline"] },
         { "container": "matroska", "eligible": false, "requirements": [] }
       ],
-      "evidence": "docs/design/lossy-pcm-eligibility.md#aac-lc",
-      "limitations": ["ISO/IEC 14496-4 acceptance procedure has not been established by the existing project comparator", "AAC remains ineligible pending that proof", "HE-AAC is not registered", "Not byte-identical to FFmpeg"]
+      "evidence": "docs/design/aac-pcm-eligibility.md#adapter-scope",
+      "limitations": ["Compatible within decode tolerance, never exact-output or ISO conformance eligibility", "Only opt-in aac builds, mono/stereo LC, native rate and channels, nonfragmented registered MP4 timelines", "PNS and all-ones M/S intensity refuse before output", "At most 16384 packets and 64 MiB of encoded audio per pass", "HE-AAC/SBR and Matroska remain refused", "Not byte-identical to FFmpeg"]
     }
   ]
 }
