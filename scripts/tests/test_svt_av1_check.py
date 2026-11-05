@@ -58,6 +58,18 @@ class Correctness(unittest.TestCase):
     def test_moving_preset_zero_fixture(self):
         self.fixture(moving=True)
 
+    def test_shared_input_uses_av1_without_h264_encoder_options(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(CHECK.oracle_pin, 'verify_bin', return_value=iter(())), \
+                    patch.object(CHECK, 'run', side_effect=RuntimeError('generated')) as run:
+                with self.assertRaisesRegex(RuntimeError, 'generated'):
+                    CHECK.check(root / 'coreav', root, root / 'work', shared_input=True)
+                command = run.call_args.args[0]
+                self.assertEqual(command[command.index('-c:v') + 1], 'libaom-av1')
+                self.assertNotIn('-x264-params', command)
+                self.assertNotIn('-preset', command)
+
     def test_positive_decodes_and_refusal_controls(self):
         self.fixture()
         for mutation in ('segments', 'count', 'truncated', 'decoder', 'quality'):

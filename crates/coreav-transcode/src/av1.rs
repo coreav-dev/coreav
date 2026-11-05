@@ -21,7 +21,7 @@ use coreav_backend_svt_av1::{
     sequence::{ChromaPosition, ColorRange},
 };
 use coreav_decode::{Error, ErrorKind};
-use coreav_frame::{Picture, PixelFormat, Pixels};
+use coreav_frame::{PixelFormat, Pixels};
 use coreav_isobmff_write::mux::{Nclx, av01_sample_entry};
 use coreav_worker::{ExecLauncher, HugePages};
 
@@ -201,15 +201,26 @@ impl Encoder {
         )
     }
 
-    /// Checks and queues one owned planar 8-bit 4:2:0 picture at its source time.
+    /// Checks and queues owned CPU or shared planar pixels at their source time.
     /// Every failure is terminal and stops the process; no retry or fallback occurs.
-    pub fn send_frame(&mut self, picture: Picture, pts: i64) -> Result<(), Error> {
+    pub fn send_frame(&mut self, pixels: impl Into<Pixels>, pts: i64) -> Result<(), Error> {
+        let pixels = pixels.into();
         let process = match &mut self.state {
             State::Running(process) => process,
             State::Failed(error) => return Err(error.clone()),
         };
         let result = (|| {
-            if picture.format() != PixelFormat::YUV420P {
+            let format = match &pixels {
+                Pixels::Cpu(picture) => picture.format(),
+                Pixels::Shared(picture) => picture.format,
+                Pixels::Cuda(_) => {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "SVT-AV1 requires CPU or shared pixels",
+                    ));
+                }
+            };
+            if format != PixelFormat::YUV420P {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     "SVT-AV1 requires planar 8-bit 4:2:0",
@@ -218,18 +229,18 @@ impl Encoder {
             if let Some(source) = &mut self.source {
                 source.admit(pts)?;
             }
-            let frame = self.submitted.submit(picture, pts)?;
+            let frame = self.submitted.submit_pixels(&pixels, pts)?;
             let mut header = Vec::new();
             header
                 .try_reserve_exact(17)
                 .map_err(|_| Error::new(ErrorKind::Limit, "cannot store AV1 frame header"))?;
             header.extend_from_slice(&coreav_backend_svt_av1::protocol::frame_prefix(
-                frame.id().index(),
-                frame.pts(),
+                frame.index(),
+                pts,
             ));
             process.enqueue(Chunk::Frame {
                 head: header,
-                pixels: Pixels::Cpu(frame.into_picture()),
+                pixels,
             })?;
             self.frames += 1;
             Ok(())

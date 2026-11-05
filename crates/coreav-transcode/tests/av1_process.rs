@@ -228,6 +228,61 @@ fn complete() {
     }
 }
 
+fn shared_frame_pipe() {
+    use coreav_frame::{Pixels, SharedMemory, SharedPicture};
+    use std::sync::Arc;
+
+    struct Shared {
+        bytes: Vec<u8>,
+        written: Arc<AtomicU64>,
+        dropped: Arc<AtomicU64>,
+    }
+    impl SharedMemory for Shared {
+        fn read_packed(&self, _: usize, _: &mut [u8]) -> Option<usize> {
+            panic!("the shared input must go directly to the pipe")
+        }
+        #[cfg(unix)]
+        fn write_to_pipe(&self, pipe: std::os::fd::BorrowedFd<'_>) -> std::io::Result<bool> {
+            use std::io::Write;
+            let mut file = File::from(pipe.try_clone_to_owned()?);
+            file.write_all(&self.bytes)?;
+            self.written.fetch_add(1, Ordering::SeqCst);
+            Ok(true)
+        }
+    }
+    impl Drop for Shared {
+        fn drop(&mut self) {
+            self.dropped.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let written = Arc::new(AtomicU64::new(0));
+    let dropped = Arc::new(AtomicU64::new(0));
+    let (_temporary, mut encoder) = start(32, 10, Duration::from_secs(10), true);
+    for (index, pts) in [0, 1, 3, 4].into_iter().enumerate() {
+        let mut bytes = Vec::new();
+        picture(index as u8).write_packed(&mut bytes).unwrap();
+        encoder
+            .send_frame(
+                Pixels::Shared(SharedPicture {
+                    width: 64,
+                    height: 64,
+                    format: PixelFormat::YUV420P,
+                    memory: Arc::new(Shared {
+                        bytes,
+                        written: written.clone(),
+                        dropped: dropped.clone(),
+                    }),
+                }),
+                pts,
+            )
+            .unwrap();
+    }
+    let result = encoder.finish(NonZeroU64::new(3).unwrap()).unwrap();
+    assert_eq!(result.packets.len(), 4);
+    assert_eq!(written.load(Ordering::SeqCst), 4);
+    assert_eq!(dropped.load(Ordering::SeqCst), 4);
+}
+
 fn bad_output() {
     for (mode, expected) in [
         (33, ErrorKind::InvalidData),
@@ -503,6 +558,7 @@ fn main() -> ExitCode {
     }
     for (name, run) in [
         ("complete source clocks and packed planes", complete as fn()),
+        ("shared frame pipe ownership", shared_frame_pipe as fn()),
         ("bad wire and process exits", bad_output as fn()),
         ("terminal input refusals", bad_input as fn()),
         (

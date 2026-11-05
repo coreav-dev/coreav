@@ -19,7 +19,7 @@ def run(command):
                           timeout=180).stdout
 
 
-def check(coreav, oracle, work, moving=False):
+def check(coreav, oracle, work, moving=False, shared_input=False):
     problems = list(oracle_pin.verify_bin(oracle))
     if problems:
         raise ValueError('\n'.join(problems))
@@ -34,10 +34,13 @@ def check(coreav, oracle, work, moving=False):
     pattern = f'testsrc2=size={width}x{height}:rate={rate}'
     if moving:
         pattern += ',scroll=horizontal=0.03:vertical=0.02'
+    if shared_input:
+        pattern += ',setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=limited'
+    encoder = (['-c:v', 'libaom-av1', '-cpu-used', '8', '-crf', '18', '-b:v', '0']
+               if shared_input else ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+                                     '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709'])
     run([ffmpeg, '-v', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i',
-         pattern, '-frames:v', str(frames), '-c:v', 'libx264',
-         '-preset', 'ultrafast', '-crf', '18', '-pix_fmt', 'yuv420p',
-         '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709',
+         pattern, '-frames:v', str(frames), *encoder, '-pix_fmt', 'yuv420p',
          '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
          '-color_range', 'tv', source])
     run([ffmpeg, '-v', 'error', '-nostdin', '-y', '-i', source, '-an',
@@ -81,9 +84,11 @@ def main():
     parser.add_argument('--oracle', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--moving', action='store_true')
+    parser.add_argument('--shared-input', action='store_true')
     options = parser.parse_args()
     try:
-        check(options.coreav.resolve(), options.oracle.resolve(), options.work.resolve(), options.moving)
+        check(options.coreav.resolve(), options.oracle.resolve(), options.work.resolve(),
+              options.moving, options.shared_input)
     except subprocess.CalledProcessError as error:
         print(error.stderr.decode(errors='replace'), file=sys.stderr)
         return 1

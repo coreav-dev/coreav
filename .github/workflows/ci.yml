@@ -2485,6 +2485,7 @@ jobs:
         run: |
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-check"
           python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-motion" --moving
+          python3 scripts/svt_av1_check.py --coreav target/x86_64-unknown-linux-musl/release/coreav --oracle "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/svt-av1-shared-input" --shared-input
 
   ci-report:
     # Always runs, including when the filter above skipped every job, so

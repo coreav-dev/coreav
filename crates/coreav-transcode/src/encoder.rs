@@ -1205,23 +1205,9 @@ impl<S: Sink> Process<S> {
         deadline: Instant,
         sink: S,
     ) -> Result<Self, Error> {
-        Self::spawn_using(
-            name,
-            unit,
-            Start {
-                command,
-                program,
-                deadline,
-                sink,
-                keep_alive: None,
-            },
-            |stdin, shared| {
-                let _ = write_frames(stdin, shared);
-            },
-        )
+        Self::spawn_retaining(name, unit, command, program, deadline, sink, None)
     }
 
-    #[cfg(feature = "svt-av1")]
     pub(crate) fn spawn_retaining(
         name: &'static str,
         unit: &'static str,

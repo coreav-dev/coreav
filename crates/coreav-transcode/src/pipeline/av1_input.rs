@@ -6,7 +6,7 @@ use coreav_backend_svt_av1::{
     model::{Color, MAX_PACKET_BYTES, RETAINED_BYTES, Retention, Settings},
     protocol::{Limits, Request},
 };
-use coreav_frame::{Chroma, ChromaLocation, Picture};
+use coreav_frame::{Chroma, ChromaLocation};
 
 /// Options shared by the source, audio, decoder and output writer.
 #[derive(Clone, Debug)]
@@ -535,7 +535,7 @@ impl<'a> Run<'a> {
         if color != active.color {
             return Err(unsupported("the AV1 source colour changed"));
         }
-        let picture = prepare_picture(frame, active.settings, active.color, self.deadline)?;
+        let picture = prepare_pixels(frame, active.settings, active.color, self.deadline)?;
         active
             .encoder
             .send_frame(picture, pts)
@@ -617,7 +617,7 @@ impl<'a> Run<'a> {
             .map_err(|error| Error::Encode(av1::backend_error(error)))?;
         let duration = plan.timeline.last_duration();
         let frames = plan.timeline.frames();
-        let picture = prepare_picture(frame, settings, color, self.deadline)?;
+        let picture = prepare_pixels(frame, settings, color, self.deadline)?;
         let mut encoder = av1::Encoder::spawn_retaining(
             &plan.runtime.program,
             request,
@@ -809,13 +809,21 @@ fn exact_aspect(
     Ok(Some(terms))
 }
 
-fn prepare_picture(
+fn prepare_pixels(
     frame: Frame,
     settings: Settings,
     color: ColorInfo,
     deadline: Instant,
-) -> Result<Picture, Error> {
+) -> Result<Pixels, Error> {
     let original = (frame.width(), frame.height(), frame.format());
+    if (frame.width(), frame.height()) == (settings.width(), settings.height())
+        && !matches!(frame.pixels, Pixels::Cuda(_))
+    {
+        if Instant::now() >= deadline {
+            return Err(timed_out());
+        }
+        return Ok(frame.pixels);
+    }
     let mut picture = frame
         .pixels
         .into_cpu()
@@ -838,7 +846,7 @@ fn prepare_picture(
     if Instant::now() >= deadline {
         return Err(timed_out());
     }
-    Ok(picture)
+    Ok(Pixels::Cpu(picture))
 }
 
 #[cfg(test)]
@@ -850,6 +858,7 @@ mod fixtures;
 mod tests {
     use super::*;
     use coreav_backend_svt_av1::protocol::OutputWriter;
+    use coreav_frame::Picture;
     use coreav_isobmff::{Allowlist, Budget, FourCc, SliceSource};
     use coreav_isobmff_write::mux::{self, FileType, MovieHeader, Muxer, TrackHeader, TrackMedia};
     use std::{
@@ -1175,6 +1184,58 @@ mod tests {
         options.max_spool_bytes = 1 << 20;
         options.timeout = Duration::from_secs(10);
         options
+    }
+
+    #[test]
+    fn shared_av1_input_is_not_downloaded_without_scaling() {
+        struct Shared {
+            reads: Arc<AtomicUsize>,
+        }
+        impl coreav_frame::SharedMemory for Shared {
+            fn read_packed(&self, at: usize, out: &mut [u8]) -> Option<usize> {
+                self.reads.fetch_add(1, Ordering::SeqCst);
+                let len = 6144usize.saturating_sub(at).min(out.len());
+                out[..len].fill(0);
+                Some(len)
+            }
+        }
+        let reads = Arc::new(AtomicUsize::new(0));
+        let memory: Arc<dyn coreav_frame::SharedMemory> = Arc::new(Shared {
+            reads: reads.clone(),
+        });
+        let frame = Frame {
+            pts: Some(0),
+            color: color(),
+            pixels: Pixels::Shared(coreav_frame::SharedPicture {
+                width: 64,
+                height: 64,
+                format: PixelFormat::YUV420P,
+                memory: memory.clone(),
+            }),
+        };
+        for size in [64, 128] {
+            let settings = Settings::new(size, size, (6, 1), 8, 32, Color::default()).unwrap();
+            let pixels = prepare_pixels(
+                frame.clone(),
+                settings,
+                color(),
+                Instant::now() + Duration::from_secs(2),
+            )
+            .unwrap();
+            if size == 64 {
+                let Pixels::Shared(shared) = pixels else {
+                    panic!("unscaled input was copied")
+                };
+                assert!(Arc::ptr_eq(&shared.memory, &memory));
+                assert_eq!(reads.load(Ordering::SeqCst), 0);
+            } else {
+                let Pixels::Cpu(picture) = pixels else {
+                    panic!("scaled input was not resized")
+                };
+                assert_eq!((picture.width(), picture.height()), (size, size));
+                assert!(reads.load(Ordering::SeqCst) > 0);
+            }
+        }
     }
 
     fn packet_facts(bytes: &[u8], index: usize) -> Vec<(Option<Rational>, u32, Vec<u8>)> {
