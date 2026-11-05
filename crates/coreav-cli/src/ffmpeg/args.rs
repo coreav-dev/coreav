@@ -46,6 +46,8 @@ pub enum Muxer {
     Matroska,
     /// Audio-only automatic selection for .mka.
     MatroskaAudio,
+    /// MPEG transport stream with bounded H.264 video copy.
+    Mpegts,
     /// WebM with its restricted codec set.
     Webm,
     /// `wav` (`.wav`), with signed 16-bit PCM by default.
@@ -309,7 +311,8 @@ const GLOBAL: [(&str, Arity); 7] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 36] = [
+const PER_FILE: [(&str, Arity); 37] = [
+    ("-bsf:v", Arity::Value),
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
     ("-frames:v", Arity::Value),
@@ -844,6 +847,16 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         [one] => one.clone(),
         _ => return Err(Refusal::not_native("a command with several outputs")),
     };
+    let format = output_options
+        .iter()
+        .rev()
+        .find_map(|(option, value)| (*option == "-f").then_some(*value).flatten());
+    let transport = match format {
+        Some("mpegts") => true,
+        None => extension_muxer(output) == Some(Muxer::Mpegts),
+        _ => false,
+    };
+    transport_options(&input_options, &output_options, transport)?;
     let mut command = Command {
         input: file_path(input),
         more_inputs,
@@ -1021,6 +1034,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             continue;
         }
         match option {
+            "-bsf:v" => {}
             "-frames:v" | "-vframes" => {
                 command.frames.limit = Some(text.parse().map_err(|_| {
                     not_native(
@@ -1296,6 +1310,46 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     Ok(command)
 }
 
+fn transport_options(
+    input: &Group<'_>,
+    output: &Group<'_>,
+    transport: bool,
+) -> Result<(), Refusal> {
+    if !transport {
+        if let Some((option, value)) = output.iter().find(|(option, _)| *option == "-bsf:v") {
+            return Err(not_native(
+                option,
+                *value,
+                "bitstream filters are not applied",
+            ));
+        }
+        return Ok(());
+    }
+    for (option, value) in input {
+        if *option != "-f" {
+            return Err(not_native(
+                option,
+                *value,
+                "unqualified MPEG-TS copy input option",
+            ));
+        }
+    }
+    for (option, value) in output {
+        if codec_option(option).is_some()
+            || matches!(*option, "-f" | "-an" | "-sn" | "-dn" | "-map")
+            || *option == "-bsf:v" && *value == Some("h264_mp4toannexb")
+        {
+            continue;
+        }
+        return Err(not_native(
+            option,
+            *value,
+            "unqualified MPEG-TS copy output option",
+        ));
+    }
+    Ok(())
+}
+
 fn demuxer(name: &str) -> Result<Demuxer, Refusal> {
     match name {
         "mov,mp4,m4a,3gp,3g2,mj2" | "mov" | "mp4" | "m4a" | "3gp" | "3g2" | "mj2" => {
@@ -1360,6 +1414,7 @@ fn extension_muxer(output: &str) -> Option<Muxer> {
         "y4m" => Some(Muxer::Yuv4mpeg),
         "mkv" => Some(Muxer::Matroska),
         "mka" => Some(Muxer::MatroskaAudio),
+        "ts" => Some(Muxer::Mpegts),
         "webm" => Some(Muxer::Webm),
         _ => None,
     }
@@ -1380,11 +1435,12 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
         Some("rawvideo") => Ok(Muxer::Rawvideo),
         Some("yuv4mpegpipe") => Ok(Muxer::Yuv4mpeg),
         Some("matroska") => Ok(Muxer::Matroska),
+        Some("mpegts") => Ok(Muxer::Mpegts),
         Some("webm") => Ok(Muxer::Webm),
         Some(other) => Err(not_native(
             "-f",
             Some(other),
-            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, f32le, image2, rawvideo, yuv4mpegpipe, matroska, webm and segment",
+            "coreav ffmpeg writes avi, mp4, ipod (M4A), mp3, flac, wav, s16le, f32le, image2, rawvideo, yuv4mpegpipe, matroska, webm, mpegts and segment",
         )),
         None => extension_muxer(output)
             .ok_or_else(|| Refusal::not_native("an unsupported output container")),
@@ -1409,6 +1465,46 @@ mod tests {
             Err(Refusal::NotNative(n)) => n.reason,
             other => panic!("{text}: {other:?}"),
         }
+    }
+
+    #[test]
+    fn transport_options_cannot_disappear_in_mp4_parsing() {
+        for options in [
+            "-movflags +faststart",
+            "-max_muxing_queue_size 64",
+            "-threads 1",
+            "-map_metadata -1",
+            "-bsf:v null",
+            "-t 1",
+        ] {
+            assert!(matches!(
+                parse(&args(&format!("-i in.mp4 -an -c copy {options} out.ts"))),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for options in ["-fflags +genpts", "-threads 1", "-bsf:v h264_mp4toannexb"] {
+            assert!(matches!(
+                parse(&args(&format!("{options} -i in.mp4 -an -c copy out.ts"))),
+                Err(Refusal::NotNative(_))
+            ));
+        }
+        for output in ["out.ts", "-f mpegts out.bin"] {
+            let command = parse(&args(&format!(
+                "-i in.mp4 -an -c:v copy -bsf:v h264_mp4toannexb {output}"
+            )))
+            .unwrap();
+            assert_eq!(command.muxer, Muxer::Mpegts);
+        }
+        assert!(matches!(
+            parse(&args("-i in.mp4 -c copy -bsf:v h264_mp4toannexb out.mp4")),
+            Err(Refusal::NotNative(_))
+        ));
+        assert!(
+            parse(&args(
+                "-fflags +genpts -i in.mp4 -c copy -movflags +faststart out.mp4"
+            ))
+            .is_ok()
+        );
     }
 
     #[test]

@@ -2160,9 +2160,11 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
         Codec::H264 => {
             let record = match track.codec_private.as_ref().filter(|p| !p.is_empty()) {
                 Some(private) => private.clone(),
-                None => avc_record(&plan.parameter_sets).ok_or(coreav_mkv::Error::Unsupported {
-                    reason: "the first H.264 keyframe has no usable parameter sets",
-                })?,
+                None => avc_record(&plan.parameter_sets, None).ok_or(
+                    coreav_mkv::Error::Unsupported {
+                        reason: "the first H.264 keyframe has no usable parameter sets",
+                    },
+                )?,
             };
             children.push(raw(b"avcC", record));
             FourCc(if plan.avc3 { *b"avc3" } else { *b"avc1" })
@@ -2328,42 +2330,63 @@ fn raw(kind: &[u8; 4], payload: Vec<u8>) -> RawBox {
 /// An `AVCDecoderConfigurationRecord` (ISO/IEC 14496-15 5.3.3.1) of the
 /// sequence and picture parameter sets of the first keyframe, 4-byte NAL
 /// unit lengths.
-fn avc_record(units: &[Vec<u8>]) -> Option<Vec<u8>> {
-    let sps: Vec<&Vec<u8>> = units
+pub(crate) fn avc_record<T: AsRef<[u8]>>(
+    units: &[T],
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Option<Vec<u8>> {
+    let sps = units
         .iter()
-        .filter(|u| u.first().is_some_and(|h| h & 0x1f == 7))
-        .collect();
-    let pps: Vec<&Vec<u8>> = units
+        .map(AsRef::as_ref)
+        .filter(|u| u.first().is_some_and(|h| h & 0x1f == 7));
+    let pps = units
         .iter()
-        .filter(|u| u.first().is_some_and(|h| h & 0x1f == 8))
-        .collect();
-    let first = sps.first()?;
-    let [_, profile, compatibility, level, ..] = *first.as_slice() else {
+        .map(AsRef::as_ref)
+        .filter(|u| u.first().is_some_and(|h| h & 0x1f == 8));
+    let first = sps.clone().next()?;
+    let [_, profile, compatibility, level, ..] = *first else {
         return None;
     };
-    if pps.is_empty() || sps.len() > 31 || pps.len() > 255 {
+    let sps_count = sps.clone().count();
+    let pps_count = pps.clone().count();
+    if pps_count == 0 || sps_count > 31 || pps_count > 255 {
         return None;
     }
-    let mut record = vec![
+    let format = if matches!(profile, 100 | 110 | 122 | 144) {
+        Some(sps_format(first, planning)?)
+    } else {
+        None
+    };
+    let size = sps.clone().chain(pps.clone()).try_fold(
+        if format.is_some() { 11usize } else { 7 },
+        |size, unit| {
+            u16::try_from(unit.len()).ok()?;
+            size.checked_add(2)?.checked_add(unit.len())
+        },
+    )?;
+    let mut record = Vec::new();
+    match planning {
+        Some(planning) => planning.reserve_exact(&mut record, size).ok()?,
+        None => record.try_reserve_exact(size).ok()?,
+    }
+    record.extend_from_slice(&[
         1,
         profile,
         compatibility,
         level,
         0xFF,
-        0xE0 | u8::try_from(sps.len()).ok()?,
-    ];
-    for unit in &sps {
+        0xE0 | u8::try_from(sps_count).ok()?,
+    ]);
+    for unit in sps {
         record.extend_from_slice(&u16::try_from(unit.len()).ok()?.to_be_bytes());
         record.extend_from_slice(unit);
     }
-    record.push(u8::try_from(pps.len()).ok()?);
-    for unit in &pps {
+    record.push(u8::try_from(pps_count).ok()?);
+    for unit in pps {
         record.extend_from_slice(&u16::try_from(unit.len()).ok()?.to_be_bytes());
         record.extend_from_slice(unit);
     }
     // High profiles carry the chroma format and bit depths (5.3.3.1.2).
-    if matches!(profile, 100 | 110 | 122 | 144) {
-        let (chroma, luma_depth, chroma_depth) = sps_format(first)?;
+    if let Some((chroma, luma_depth, chroma_depth)) = format {
         record.push(0xFC | chroma);
         record.push(0xF8 | luma_depth);
         record.push(0xF8 | chroma_depth);
@@ -2375,8 +2398,15 @@ fn avc_record(units: &[Vec<u8>]) -> Option<Vec<u8>> {
 /// `chroma_format_idc`, `bit_depth_luma_minus8` and
 /// `bit_depth_chroma_minus8` of a high-profile sequence parameter set (ITU-T
 /// H.264 7.3.2.1.1).
-fn sps_format(sps: &[u8]) -> Option<(u8, u8, u8)> {
-    let mut rbsp = Vec::with_capacity(sps.len());
+fn sps_format(
+    sps: &[u8],
+    planning: Option<&coreav_isobmff::PlanningBudget>,
+) -> Option<(u8, u8, u8)> {
+    let mut rbsp = Vec::new();
+    match planning {
+        Some(planning) => planning.reserve_exact(&mut rbsp, sps.len()).ok()?,
+        None => rbsp.try_reserve_exact(sps.len()).ok()?,
+    }
     let mut zeros = 0;
     for &byte in sps.get(1..)? {
         if zeros >= 2 && byte == 3 {
@@ -2404,12 +2434,15 @@ fn sps_format(sps: &[u8]) -> Option<(u8, u8, u8)> {
     ))
 }
 
-struct Bits<'a> {
+pub(crate) struct Bits<'a> {
     data: &'a [u8],
     at: usize,
 }
 
 impl Bits<'_> {
+    pub(crate) fn new(data: &[u8]) -> Bits<'_> {
+        Bits { data, at: 0 }
+    }
     fn bit(&mut self) -> Option<u32> {
         let byte = self.data.get(self.at / 8)?;
         let bit = (byte >> (7 - self.at % 8)) & 1;
@@ -2417,7 +2450,7 @@ impl Bits<'_> {
         Some(u32::from(bit))
     }
 
-    fn ue(&mut self) -> Option<u32> {
+    pub(crate) fn ue(&mut self) -> Option<u32> {
         let mut zeros = 0;
         while self.bit()? == 0 {
             zeros += 1;

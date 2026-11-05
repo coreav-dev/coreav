@@ -55,10 +55,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-avi"
+version = "0.0.1"
+
+[[package]]
 name = "coreav-cli"
 version = "0.0.1"
 dependencies = [
  "coreav-audio",
+ "coreav-avi",
  "coreav-decode",
  "coreav-isobmff",
  "coreav-isobmff-write",
@@ -94,6 +99,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-isobmff",
  "coreav-mkv",
+ "coreav-mpegts",
 ]
 
 [[package]]

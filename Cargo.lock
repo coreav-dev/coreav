@@ -430,6 +430,7 @@ dependencies = [
  "coreav-counting-alloc",
  "coreav-isobmff",
  "coreav-mkv",
+ "coreav-mpegts",
  "miniz_oxide",
 ]
 

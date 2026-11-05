@@ -53,6 +53,7 @@ mod sanitize;
 mod scan;
 mod split;
 mod tables;
+pub mod ts_output;
 
 pub use clip::{clip_audio_mp4, clip_mp4, clip_mp4_input_seek};
 pub use join::join_mp4;
