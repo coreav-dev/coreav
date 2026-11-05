@@ -106,7 +106,7 @@ pub(crate) struct Tables {
     pub(crate) decode_start: i64,
     limit: u64,
     used: u64,
-    /// Media timescale; also the ticks after which a chunk is closed.
+    /// Media timescale.
     timescale: u32,
     chunk_ticks: u64,
     /// Bytes after which a chunk is closed.
@@ -151,6 +151,13 @@ impl Tables {
     /// most `limit` bytes. Chunks hold about one second of audio.
     pub(crate) fn new(timescale: u32, limit: u64) -> Self {
         Self::with_chunk_bytes(timescale, limit, u64::MAX)
+    }
+
+    pub(crate) fn contiguous(timescale: u32, limit: u64) -> Self {
+        Self {
+            chunk_ticks: u64::MAX,
+            ..Self::with_chunk_bytes(timescale, limit, u64::MAX)
+        }
     }
 
     /// The same, with chunks also closed once they hold `chunk_bytes`.
