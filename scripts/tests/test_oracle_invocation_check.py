@@ -1,5 +1,7 @@
 import hashlib
+import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -92,6 +94,50 @@ class HistoricalRecords(unittest.TestCase):
 
 
 class Discovery(unittest.TestCase):
+    def whole_inventory(self, sources):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            historical = 'docs/measurements/past/source.txt'
+            files = {
+                'scripts/compat_sources.py': 'FROZEN=()\nJUDGING=()\nJUDGING_REGISTRATION="registration.json"\n',
+                'tools/compat-corpus/b4_round10.py': 'TOOL_FILES=()\n',
+                'scripts/vp9_pixel_round.py': 'CAPTURE_SCRIPTS=()\n',
+                'bench/audio-decode/capacity.py': 'SCRIPT_INPUTS=()\n',
+                'scripts/h264_pgo_diagnostics.py': 'TOOLS=()\n',
+                historical: 'historical bytes\n',
+                check.HISTORICAL_RECORD: json.dumps(dict(schema=1, boundary='docs/measurements',
+                    files={historical: hashlib.sha256(b'historical bytes\n').hexdigest()})),
+                **sources,
+            }
+            for path, source in files.items():
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(source)
+            subprocess.run(['git', 'init', '--quiet', str(root)], check=True, capture_output=True)
+            return check.inventory(root)
+
+    def test_extensionless_shebang_scripts_are_discovered(self):
+        sites = self.whole_inventory({
+            'shell-runner': '#!/bin/sh\nffmpeg -version\n',
+            'python-runner': '#!/usr/bin/env python3\nimport subprocess\nsubprocess.run(["ffprobe", "-version"])\n',
+        })
+        self.assertTrue(any(site['path'] == 'shell-runner' and site['kind'] == 'shell' for site in sites))
+        self.assertTrue(any(site['path'] == 'python-runner' and site['program'] == "'ffprobe'"
+                            and site['role'] == 'oracle' for site in sites))
+
+    def test_extensionless_python_relays_have_explicit_source_dependencies(self):
+        sites = self.whole_inventory({'runner': '#!/usr/bin/env python3\nimport subprocess\n'
+            'def launch(command):\n    subprocess.run(command)\nlaunch(command)\n'})
+        delegated = [site for site in sites if site['path'] == 'runner' and site['kind'] == 'delegated']
+        self.assertEqual(len(delegated), 1)
+        self.assertEqual(delegated[0]['requires'], ['runner'])
+        self.assertEqual(delegated[0]['relay'], [['runner', 'launch']])
+
+    def test_shebang_like_yaml_comments_cannot_hide_workflow_commands(self):
+        sites = self.whole_inventory({'flow.yml': '#!/bin/sh\nsteps:\n  - run: ffmpeg -version\n'})
+        self.assertTrue(any(site['path'] == 'flow.yml' and site['program'] == 'ffmpeg -version'
+                            for site in sites))
+
     def test_shell_commands_are_not_confused_with_copy_operands(self):
         sites = check.shell_sites('ffmpeg -i in out\nmv ffmpeg dest\necho ffmpeg\n', 'run.sh')
         self.assertEqual(len(sites), 1)
