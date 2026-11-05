@@ -78,6 +78,94 @@ fn audio_clip(
 }
 
 #[test]
+fn audio_bearing_input_seek_plans_complete_samples_before_writing() {
+    let samples = |count, duration| {
+        (0..count)
+            .map(|index| S {
+                size: 20,
+                duration,
+                offset: 0,
+                sync: index % 4 == 0,
+            })
+            .collect()
+    };
+    let mut original = movie(&[
+        TrackSpec {
+            video: true,
+            timescale: 10_000,
+            samples: samples(20, 1024),
+            edits: vec![],
+            entry: *b"avc1",
+        },
+        TrackSpec {
+            video: false,
+            timescale: 48_000,
+            samples: samples(97, 1024),
+            edits: vec![(2048, 1024)],
+            entry: *b"mp4a",
+        },
+    ]);
+    h264_frames(&mut original, "IPPPIPPPIPPPIPPPIPPP");
+    let (_, source) = clip(&original, &options(q(0, 1), Some(q(256, 125)))).unwrap();
+    let request = options(q(64, 125), Some(q(128, 125)));
+    let run = |limits: &Limits, out: &mut Vec<u8>| {
+        clip_mp4_input_seek(
+            SliceSource::new(&source),
+            limits,
+            &Allowlist::default(),
+            &request,
+            out,
+        )
+    };
+    let mut output = Vec::new();
+    let summary = run(&Limits::default(), &mut output).unwrap();
+    assert_eq!(summary.video.first_sample, 4);
+    assert_eq!(summary.video.samples, 6);
+    assert_eq!(summary.audio.as_ref().unwrap().first_sample, 20);
+    assert_eq!(summary.audio.as_ref().unwrap().samples, 29);
+    assert_eq!(summary.written_end, q(128, 125));
+    let parsed = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 1024,
+            segment: 122_880
+        }
+    );
+    assert_eq!(
+        parsed.tracks[1].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 5120,
+            segment: 122_880
+        }
+    );
+    for limits in [
+        Limits {
+            max_table_bytes: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_sample_work: 1,
+            ..Limits::default()
+        },
+    ] {
+        let mut output = Vec::new();
+        assert!(matches!(
+            run(&limits, &mut output),
+            Err(ExtractError::Source(Error::LimitExceeded { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+}
+
+#[test]
 fn input_seek_admission_uses_the_retained_packet_tables() {
     let video = |offset, edits| TrackSpec {
         video: true,

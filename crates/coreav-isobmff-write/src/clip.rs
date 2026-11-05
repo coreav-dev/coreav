@@ -26,6 +26,8 @@ use coreav_isobmff::{
 use std::collections::VecDeque;
 use std::io::Write;
 
+mod input_seek;
+
 /// Output track IDs: the video is track 1, the audio track 2; audio alone
 /// is track 1.
 const VIDEO_ID: u32 = 1;
@@ -61,9 +63,11 @@ pub fn clip_mp4<S: Source, W: Write>(
 }
 
 /// Copies an input-seek interval only when native clipping preserves its
-/// complete packet timeline. Audio, composition offsets, shifted cut points,
-/// several edits, video clocks below 10,000 ticks per second and partial-sample
-/// bounds refuse before any output is written.
+/// complete packet timeline. Video-only copies refuse composition offsets,
+/// shifted cut points and partial-sample bounds. Bounded AVC/AAC copies use
+/// complete decode-ordered packets and presentation edits. Several edits,
+/// unqualified metadata and video clocks below 10,000 ticks per second refuse
+/// before any output is written.
 pub fn clip_mp4_input_seek<S: Source, W: Write>(
     source: S,
     limits: &Limits,
@@ -95,8 +99,20 @@ fn clip_mp4_inner<S: Source, W: Write>(
             return Err(unsupported("the clip ends at or before its start").into());
         }
     }
-    if input_seek && selected_audio.is_some() {
-        return Err(unsupported("an input-seek copy with audio").into());
+    if input_seek {
+        if let Some(audio) = selected_audio {
+            return input_seek::copy_av(
+                &movie,
+                video,
+                audio,
+                start,
+                end,
+                source,
+                limits,
+                out,
+                (video_entry, audio_entry.ok_or_else(overflow)?),
+            );
+        }
     }
     if input_seek && video.edit_list == EditList::Multiple {
         return Err(unsupported("an input-seek copy with several video edits").into());
