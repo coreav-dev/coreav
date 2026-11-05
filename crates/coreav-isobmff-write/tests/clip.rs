@@ -123,6 +123,7 @@ fn audio_bearing_input_seek_plans_complete_samples_before_writing() {
     assert_eq!(summary.video.samples, 6);
     assert_eq!(summary.audio.as_ref().unwrap().first_sample, 20);
     assert_eq!(summary.audio.as_ref().unwrap().samples, 29);
+    assert_eq!(summary.snapped_start, request.start);
     assert_eq!(summary.written_end, q(128, 125));
     let parsed = probe(
         SliceSource::new(&output),

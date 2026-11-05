@@ -602,11 +602,7 @@ pub(super) fn copy_av<S: Source, W: Write>(
         video: summary(video, &video_kept),
         audio: Some(summary(audio, &audio_kept)),
         start,
-        snapped_start: scale(
-            int(key.cts.checked_sub(video_edit).ok_or_else(overflow)?),
-            1,
-            video.timescale,
-        )?,
+        snapped_start: start,
         end: Some(end),
         written_end: add(
             start,

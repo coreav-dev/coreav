@@ -12,6 +12,8 @@ Build a separate audio-bearing packet plan before writing. Select the latest qua
 
 Each output media timeline starts decoding at zero. Preserve each retained sample's composition-minus-decode offset. A unit-rate edit starts presentation at the requested media position relative to the first retained decode time; samples outside that presentation interval are decode pre-roll, not extra output. Derive the edit duration from complete retained composition spans, not from a truncated last packet. Reconstruct `mdhd`, `tkhd` and `mvhd` from those media and presentation spans in exactly representable clocks.
 
+The summary reports that same presentation interval: `snapped_start` is the requested start, and `written_end` is that start plus the complete retained video presentation span. The earlier decode access point belongs to the retained sample range, not the reported presentation origin. Native clipping's existing snapped-sync summary remains unchanged.
+
 The container proof is independent of oracle equality. ISO/IEC 14496-12:2015 supplies these rules:
 
 - Sections 8.6.1.1 and 8.6.1.2 define decode time from the accumulated `stts` durations. Retained decode intervals must be contiguous and have positive duration.
