@@ -307,6 +307,55 @@ STATS = re.compile(r'^\{"remote_stats":(\{.*\})\}$', re.MULTILINE)
 REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
+REQUIRED_REFUSALS = {"ffmpeg-C18-clip-input", "ffmpeg-C19-clip-audio-input"}
+
+
+def required_refusal(coreav, command):
+    command = [command[0], "-y", *command[1:]]
+    environment = {k: v for k, v in os.environ.items()
+                   if k not in {"COREAV_STRICT_SAFE", "COREAV_FALLBACK_ACTIVE"}}
+    pin = shutil.which("ffmpeg")
+    if pin is None:
+        return "pinned ffmpeg missing"
+    output = pathlib.Path(command[-1])
+    reference = output.with_name("reference.mp4")
+    sentinel = b"preserve existing destination"
+    try:
+        for existing in (False, True):
+            if existing:
+                output.write_bytes(sentinel)
+            entries = set(output.parent.iterdir())
+            strict = subprocess.run([coreav, "--strict-safe", *command], capture_output=True,
+                                    timeout=120, env={**environment, "COREAV_FALLBACK": pin})
+            if strict.returncode != 4 or strict.stdout:
+                return "strict-safe did not refuse with exit 4 and empty stdout"
+            if set(output.parent.iterdir()) != entries:
+                return "strict-safe changed destination or staging entries"
+            if existing and output.read_bytes() != sentinel:
+                return "strict-safe replaced the destination"
+            expected = subprocess.run([pin, "-nostdin", "-hide_banner", *command[1:]], capture_output=True,
+                                      timeout=120, env=environment)
+            if expected.returncode != 0 or not output.is_file():
+                return "pinned reference did not succeed"
+            output.replace(reference)
+            if existing:
+                output.write_bytes(sentinel)
+            fallback = subprocess.run([coreav, *command], capture_output=True, timeout=120,
+                                      env={**environment, "COREAV_FALLBACK": pin})
+            if fallback.returncode != expected.returncode or fallback.stdout != expected.stdout:
+                return "fallback status or stdout differs from pin"
+            if not output.is_file() or output.read_bytes() != reference.read_bytes():
+                return "fallback bytes differ from pin"
+            output.unlink()
+            reference.unlink()
+        return None
+    except (OSError, subprocess.TimeoutExpired):
+        return "refusal verification process or filesystem failure"
+    finally:
+        output.unlink(missing_ok=True)
+        reference.unlink(missing_ok=True)
+
+
 def instructions(coreav, args, *, profile=None):
     """The instructions `coreav ARGS` executes, or the error. With a fallback
     that names no program, so that a command that stopped being native fails
@@ -688,7 +737,7 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
         rows.append(("start-up (`coreav --version`)", startup, change, status, None, None))
     else:
         rows.append(("start-up (`coreav --version`)", startup, None, "no baseline", None, None))
-    counts = {}
+    counts, refusals = {}, {}
     decoder_startup = None
     if args.decoder_coreav:
         decoder_startup, error = instructions(args.decoder_coreav, ["--version"],
@@ -711,7 +760,7 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
         if not path.is_file():
             # A case the baseline has must run: a fixture that went missing
             # would otherwise hide every regression of the case.
-            if name in expected:
+            if name in expected or (name in REQUIRED_REFUSALS and not args.report_only):
                 broken.append(name)
             why = not_generated.get(fixture, "")
             rows.append((name, None, None, f"fixture missing {why}".strip(), None, None))
@@ -744,6 +793,15 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
         command = []
         for a in template:
             command.extend(prepared[a] if a in prepared else [argument(a, path, index, out)])
+        if name in REQUIRED_REFUSALS and not args.report_only:
+            error = required_refusal(coreav, command)
+            if error:
+                broken.append(name)
+                rows.append((name, None, None, f"required refusal failed: {error}", None, None))
+            else:
+                refusals[name] = {"fixture": fixture, "sha256": digest, "status": "required refusal"}
+                rows.append((name, None, None, "required refusal; exact fallback; not native or measured", None, None))
+            continue
         total, error = instructions(coreav, command,
                                     profile=profile_dir / f"{name}.cg" if profile_dir else None)
         if error and args.report_only:
@@ -817,9 +875,11 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
                      f"{'' if change is None else f'{change:+.2%}'} | "
                      f"{'' if total is None else f'{total:,}'} | "
                      f"{'' if total_change is None else f'{total_change:+.2%}'} | {status} |")
-    lines.append("\nEvery case counts the instructions beyond start-up; its total counts the whole command, "
+    lines.append("\nEvery measured case counts the instructions beyond start-up; its total counts the whole command, "
                  "start-up included, against the baseline's start-up plus the case's; a case above the tolerance "
                  "passes only as work moved out of start-up, with start-up lower and the total no higher.")
+    lines.append("Required refusals verify strict-safe preservation and exact pinned fallback separately; "
+                 "they receive no native credit or instruction count.")
     lines += ["", "| URL case | Requests | Rounds | Bytes received | Change | Status |",
               "|---|---:|---:|---:|---|---|"]
     for name, got, change, status in url_rows:
@@ -842,7 +902,8 @@ def run_cases(args, baseline, tolerance, expected, tools, work):
 
     if args.write:
         args.write.write_text(json.dumps({"tolerance": tolerance, "tools": tools, "startup": startup,
-                                          "cases": counts, "url_cases": url_counts_}, indent=1) + "\n")
+                                          "cases": counts, "required_refusals": refusals,
+                                          "url_cases": url_counts_}, indent=1) + "\n")
     if broken:
         print(f"cases that did not run: {', '.join(broken)}", file=sys.stderr)
         return 1
