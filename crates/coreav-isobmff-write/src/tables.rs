@@ -411,6 +411,9 @@ impl Tables {
 
     /// Number of `stsc` entries: one per change of samples per chunk.
     fn stsc_entries(&self) -> Result<usize, Error> {
+        if self.chunk_bytes == 0 {
+            return Ok(usize::from(self.samples != 0));
+        }
         let mut entries = 0usize;
         let mut previous = None;
         self.each_chunk(|chunk| {
@@ -428,6 +431,14 @@ impl Tables {
         let mut stsc = Vec::new();
         stsc.try_reserve_exact(entries.saturating_mul(12))
             .map_err(|_| table_limit())?;
+        if self.chunk_bytes == 0 {
+            if entries != 0 {
+                for _ in 0..3 {
+                    stsc.extend_from_slice(&1u32.to_be_bytes());
+                }
+            }
+            return Ok(stsc);
+        }
         let mut number = 0u32;
         let mut previous = None;
         self.each_chunk(|chunk| {
@@ -604,6 +615,18 @@ impl ChunkIter<'_> {
     }
 
     fn step(&mut self) -> Result<Option<Chunk>, Error> {
+        if self.tables.chunk_bytes == 0 {
+            let Some((bytes, delta)) = self.next_sample()? else {
+                return Ok(None);
+            };
+            let start = self.ticks;
+            self.ticks = self.ticks.saturating_add(u64::from(delta));
+            return Ok(Some(Chunk {
+                samples: 1,
+                bytes,
+                start,
+            }));
+        }
         loop {
             let Some((size, delta)) = self.next_sample()? else {
                 return Ok(self.pending.take().map(|(chunk, _)| chunk));
@@ -864,6 +887,11 @@ mod tests {
         }
         assert_eq!(native.chunk_count(), 1);
         assert_eq!(packets.chunk_count(), 10);
+        assert_eq!(packets.stsc_entries().unwrap(), 1);
+        assert_eq!(packets.stsc(1).unwrap(), [1u32.to_be_bytes(); 3].concat());
+        let empty = Tables::with_chunk_bytes(1000, 1024, 0);
+        assert_eq!(empty.stsc_entries().unwrap(), 0);
+        assert!(empty.stsc(0).unwrap().is_empty());
         assert_eq!(packets.used() - native.used(), 9 * CHUNK_ENTRY);
         let mut limited = Tables::with_chunk_bytes(1000, packets.used() - 1, 0);
         for _ in 0..9 {

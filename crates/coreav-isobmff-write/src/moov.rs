@@ -228,14 +228,16 @@ pub(crate) fn interleave<E: From<Error>>(
         }
         cursors.push(chunks);
     }
-    while let Some(Reverse(next)) = queue.pop() {
-        f(next.index, next.chunk)?;
-        let (Some(chunks), Some(tables)) = (cursors.get_mut(next.index), tracks.get(next.index))
-        else {
+    while let Some(mut next) = queue.peek_mut() {
+        let index = next.0.index;
+        f(index, next.0.chunk)?;
+        let (Some(chunks), Some(tables)) = (cursors.get_mut(index), tracks.get(index)) else {
             return Err(overflow().into());
         };
         if let Some(chunk) = chunks.next().transpose().map_err(E::from)? {
-            queue.push(Reverse(Next::new(next.index, tables, chunk, ties)));
+            *next = Reverse(Next::new(index, tables, chunk, ties));
+        } else {
+            std::collections::binary_heap::PeekMut::pop(next);
         }
     }
     Ok(())
