@@ -16,7 +16,8 @@ mod avc;
 use crate::audio;
 use crate::boxes::Node;
 use crate::clip::{
-    Scaled, Timeline, gapless, movie_timescale, select_audio, select_video, video_sample_entry,
+    Scaled, Timeline, VisualLabels, gapless, movie_timescale, select_audio, select_video,
+    video_sample_entry, visual_sample_entry,
 };
 use crate::copy::{COPY_BUFFER, Shared, Window};
 use crate::m4a::{audio_sample_entry, audio_sample_entry_with_config, unsupported};
@@ -255,19 +256,27 @@ pub fn join_mp4<S: Source, W: Write>(
             edited_decode_start(&video_edits, tv, tm).map_err(JoinError::Output)?;
     }
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
-    let mut video_entry = first.video_entry.clone();
     let source = sources.first().ok_or(JoinError::NoInputs)?;
     let metadata = crate::scan::scan(&mut Shared(source), limits).map_err(|e| at(0, e))?;
-    if let Some(name) = metadata
-        .traks
-        .get(first.video.stream_index)
-        .and_then(|track| track.compressor_name)
+    let track_metadata = metadata.traks.get(first.video.stream_index);
+    let mut labels = VisualLabels {
+        compressor_name: track_metadata
+            .and_then(|track| track.compressor_name)
+            .unwrap_or([0; 32]),
+        fiel: None,
+    };
+    if matches!(
+        first.video.description.codec,
+        Codec::Av1 | Codec::Vp9 | Codec::Hevc
+    ) && let Some(header) = track_metadata.and_then(|track| track.fiel)
     {
-        video_entry
-            .get_mut(54..86)
-            .ok_or_else(|| JoinError::Output(overflow()))?
-            .copy_from_slice(&name);
+        let mut bytes = [0; 2];
+        Shared(source)
+            .read_exact_at(header.payload_offset(), &mut bytes)
+            .map_err(|e| at(0, e))?;
+        labels.fiel = Some(bytes);
     }
+    let video_entry = visual_sample_entry(first.video, &labels).map_err(JoinError::Output)?;
     Shared(source).release();
     let mut tracks = vec![TrackBox {
         handler_name: None,
@@ -776,7 +785,6 @@ fn table_limit() -> Error {
 /// The kept tracks of one input and their sample entries.
 struct Pick<'a> {
     video: &'a Track,
-    video_entry: Vec<u8>,
     audio: Option<PickAudio<'a>>,
 }
 
@@ -788,7 +796,7 @@ struct PickAudio<'a> {
 impl<'a> Pick<'a> {
     fn of(movie: &'a Movie, options: &JoinOptions) -> Result<Self, Error> {
         let video = select_video(movie, options.video)?;
-        let video_entry = video_sample_entry(video)?;
+        video_sample_entry(video)?;
         let audio = match options.audio {
             JoinAudio::None => None,
             JoinAudio::First => select_audio(movie, AudioChoice::First)?,
@@ -801,11 +809,7 @@ impl<'a> Pick<'a> {
             }),
             None => None,
         };
-        Ok(Self {
-            video,
-            video_entry,
-            audio,
-        })
+        Ok(Self { video, audio })
     }
 }
 

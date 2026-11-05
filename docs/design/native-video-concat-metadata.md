@@ -36,8 +36,16 @@ Prefer one visual-entry builder that receives the existing compressor-name value
 
 Keep fixed sample-entry syntax grounded in ISO/IEC 14496-12 section 12.1.3 and the existing AV1, VP and HEVC container bindings. Use public specifications and black-box pinned outputs only, never implementation sources or their history. Before implementing, obtain the scoped architecture review and reconcile the shared join interface with its owner.
 
+The `fiel` payload is the two unsigned-byte field count and detail declaration defined by [Apple Technical Note TN2162, Field/Frame Information](https://developer.apple.com/library/archive/technotes/tn2162/_index.html). Retain those stored bytes rather than inferring a new declaration from coded packets; the absent declaration remains absent.
+
 ## Verification
 
 First remove the AV1 control's source metadata suppression and show the complete-record regression fails on the unchanged baseline. Then verify every corrected baseline-native case remains native, with no new fallback, and that the full records and packet payloads agree. Retain existing split/join sample, timing, mismatch, limit and output-publication regressions. Exercise malformed or oversized metadata and late source/I/O failures through the existing error owners.
 
 Run the affected complete CLI and writer targets with the required pin, comparator mutation tests, formatting and all-target Clippy. Run the canonical required-oracle workspace suite with its complete generated fixture set. Before the batched publication, validate public text, signed commit shape and unchanged frozen identities. Obtain exact-head similarity evidence, CI and independent final-head review before handoff. Refs #25.
+
+## Development outcome
+
+The unchanged baseline captured 63 generated command executions: 51 native and twelve existing positive-AAC-edit compatibility refusals. After integrating the shared metadata owner and retaining field declarations, all 51 stay native, 48 complete stream/packet comparisons match, and only the three audio-bearing native joins differ as described above. There are zero native-to-fallback moves. These development results do not change any frozen or public count.
+
+The non-frozen `ffmpeg_concat` regression covers 63 successful joins across the three codecs, including selected second-video-track metadata, nine terminal fixed-prefix read failures, 36 rejected stream/packet mutations and three position-only record controls. The scan regressions retain field metadata beyond the display cap while preserving missing/short payload behavior and box budgets. The existing natural AV1 regression no longer suppresses source metadata and passes after wiring.

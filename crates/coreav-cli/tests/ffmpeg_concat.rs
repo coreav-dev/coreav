@@ -1,4 +1,4 @@
-//! Complete native H.264 concat output and atomic refusals against the pinned oracle.
+//! Complete native concat output and atomic refusals against the pinned oracle.
 #![allow(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -57,6 +57,29 @@ struct Run {
     stderr: String,
 }
 
+struct MetadataFault<'a> {
+    bytes: &'a [u8],
+    offset: u64,
+    error: coreav_isobmff::Error,
+}
+
+impl coreav_isobmff::Source for MetadataFault<'_> {
+    fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
+        Ok(self.bytes.len() as u64)
+    }
+
+    fn read_exact_at(
+        &mut self,
+        offset: u64,
+        bytes: &mut [u8],
+    ) -> Result<(), coreav_isobmff::Error> {
+        if offset == self.offset && bytes.len() == 2 {
+            return Err(self.error.clone());
+        }
+        coreav_isobmff::SliceSource::new(self.bytes).read_exact_at(offset, bytes)
+    }
+}
+
 fn ffmpeg(args: &[&str]) -> Run {
     let out = Command::new(bin())
         .arg("ffmpeg")
@@ -87,6 +110,285 @@ fn oracle() -> Option<(PathBuf, PathBuf)> {
     );
     eprintln!("skipping: no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)");
     None
+}
+
+#[test]
+fn native_video_metadata_compares_complete_records_and_all_packet_bytes() {
+    let Some((reference, probe)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("native-video-metadata");
+    let policy: Vec<_> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    for (codec, options) in [
+        (
+            "av1",
+            vec!["-c:v", "libaom-av1", "-cpu-used", "8", "-g", "12"],
+        ),
+        (
+            "vp9",
+            vec![
+                "-c:v",
+                "libvpx-vp9",
+                "-deadline",
+                "realtime",
+                "-cpu-used",
+                "8",
+                "-g",
+                "12",
+            ],
+        ),
+        (
+            "hevc",
+            vec![
+                "-c:v",
+                "libx265",
+                "-preset",
+                "ultrafast",
+                "-tag:v",
+                "hvc1",
+                "-x265-params",
+                "pools=none:frame-threads=1:keyint=12:min-keyint=12:scenecut=0:bframes=0:log-level=error",
+            ],
+        ),
+    ] {
+        let source = dir.join(format!("{codec}.mp4"));
+        let generated = Command::new(&reference)
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(&policy)
+            .args([
+                "-i",
+                "testsrc2=size=80x64:rate=24:duration=0.5",
+                "-an",
+                "-pix_fmt",
+                "yuv420p",
+                "-threads:v",
+                "1",
+            ])
+            .args(options)
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let bytes = std::fs::read(&source).unwrap();
+        let fields: Vec<_> = bytes
+            .windows(8)
+            .enumerate()
+            .filter_map(|(at, bytes)| (bytes == b"\0\0\0\x0afiel").then_some(at))
+            .collect();
+        assert_eq!(fields.len(), 1);
+        let at = fields[0];
+        assert_eq!(&bytes[at + 8..at + 10], &[1, 0]);
+        let offset = (at + 8) as u64;
+        for error in [
+            coreav_isobmff::Error::Io(std::io::ErrorKind::PermissionDenied),
+            coreav_isobmff::Error::Truncated { offset },
+            coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::ReadBytes,
+                offset,
+            },
+        ] {
+            let mut output = Vec::new();
+            let result = coreav_isobmff_write::join_mp4(
+                (0..2)
+                    .map(|_| MetadataFault {
+                        bytes: &bytes,
+                        offset,
+                        error: error.clone(),
+                    })
+                    .collect(),
+                &Default::default(),
+                &Default::default(),
+                &coreav_isobmff_write::JoinOptions {
+                    video: coreav_isobmff_write::VideoChoice::First,
+                    audio: coreav_isobmff_write::JoinAudio::None,
+                    placement: coreav_isobmff_write::Placement::AfterVideo,
+                    compatibility: None,
+                },
+                &mut output,
+            );
+            assert!(
+                matches!(result, Err(coreav_isobmff_write::JoinError::Input {
+                input: 0, error: coreav_isobmff_write::ExtractError::Source(ref actual),
+            }) if actual == &error)
+            );
+            assert!(output.is_empty());
+        }
+        let absent = dir.join(format!("{codec}-absent.mp4"));
+        let mut changed = bytes.clone();
+        changed[at + 4..at + 8].copy_from_slice(b"free");
+        std::fs::write(&absent, &changed).unwrap();
+        let alternate = dir.join(format!("{codec}-alternate.mp4"));
+        let mut changed = bytes.clone();
+        changed[at + 8..at + 10].copy_from_slice(&[2, 9]);
+        std::fs::write(&alternate, &changed).unwrap();
+        let blank = dir.join(format!("{codec}-blank.mp4"));
+        let remuxed = Command::new(&reference)
+            .args(["-v", "error"])
+            .args(&policy)
+            .arg("-i")
+            .arg(&source)
+            .args(["-c", "copy", "-metadata:s:v:0", "encoder="])
+            .arg(&blank)
+            .output()
+            .unwrap();
+        assert!(remuxed.status.success());
+        for (name, inputs, flags) in [
+            ("natural", vec![&source, &source], vec![]),
+            ("three", vec![&source, &source, &source], vec![]),
+            (
+                "faststart",
+                vec![&source, &source],
+                vec!["-movflags", "+faststart"],
+            ),
+            (
+                "mapped",
+                vec![&source, &source],
+                vec!["-map", "0:v:0", "-an"],
+            ),
+            ("absent", vec![&absent, &absent], vec![]),
+            ("first-present", vec![&source, &absent], vec![]),
+            ("first-absent", vec![&absent, &source], vec![]),
+            ("alternate", vec![&alternate, &source], vec![]),
+            ("blank", vec![&blank, &blank], vec![]),
+        ] {
+            let list = dir.join(format!("{codec}-{name}.txt"));
+            let entries: String = inputs
+                .iter()
+                .map(|input| format!("file '{}'\n", input.file_name().unwrap().to_str().unwrap()))
+                .collect();
+            std::fs::write(&list, entries).unwrap();
+            let expected = dir.join(format!("{codec}-{name}-reference.mp4"));
+            let copied = Command::new(&reference)
+                .args(["-v", "error", "-f", "concat"])
+                .args(&policy)
+                .arg("-i")
+                .arg(&list)
+                .args(["-c", "copy"])
+                .args(&flags)
+                .arg(&expected)
+                .output()
+                .unwrap();
+            assert!(
+                copied.status.success(),
+                "{}",
+                String::from_utf8_lossy(&copied.stderr)
+            );
+            for strict in [false, true] {
+                let candidate = dir.join(format!("{codec}-{name}-{strict}.mp4"));
+                let log = candidate.with_extension("fallback.log");
+                let mut command = Command::new(bin());
+                if strict {
+                    command.arg("--strict-safe");
+                }
+                let result = command
+                    .args(["ffmpeg", "-f", "concat", "-i"])
+                    .arg(&list)
+                    .args(["-c", "copy"])
+                    .args(&flags)
+                    .arg(&candidate)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env("COREAV_FALLBACK", dir.join("unavailable-ffmpeg"))
+                    .env("COREAV_FALLBACK_LOG", &log)
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{codec} {name}: {}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+                assert!(!log.exists());
+                concat_output::compare(
+                    &reference,
+                    &probe,
+                    &candidate,
+                    &expected,
+                    &list,
+                    if name == "natural" && strict {
+                        "native-mutations"
+                    } else {
+                        "native"
+                    },
+                );
+            }
+            if matches!(name, "natural" | "three") {
+                let joined = dir.join(format!("{codec}-{name}-joined.mp4"));
+                let result = Command::new(bin())
+                    .args(["join", "--audio", "none", "-o"])
+                    .arg(&joined)
+                    .args(&inputs)
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+                concat_output::compare(&reference, &probe, &joined, &expected, &list, "native");
+            }
+        }
+        let multiple = dir.join(format!("{codec}-multiple.mp4"));
+        let remuxed = Command::new(&reference)
+            .args(["-v", "error"])
+            .args(&policy)
+            .arg("-i")
+            .arg(&source)
+            .args(&policy)
+            .arg("-i")
+            .arg(&alternate)
+            .args([
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:v:0",
+                "-c",
+                "copy",
+                "-metadata:s:v:1",
+                "encoder=selected",
+            ])
+            .arg(&multiple)
+            .output()
+            .unwrap();
+        assert!(remuxed.status.success());
+        let list = dir.join(format!("{codec}-selected.txt"));
+        std::fs::write(&list, format!("file '{codec}-multiple.mp4'\n").repeat(2)).unwrap();
+        let expected = dir.join(format!("{codec}-selected-reference.mp4"));
+        let copied = Command::new(&reference)
+            .args(["-v", "error", "-f", "concat"])
+            .args(&policy)
+            .arg("-i")
+            .arg(&list)
+            .args(["-map", "0:v:1", "-c", "copy"])
+            .arg(&expected)
+            .output()
+            .unwrap();
+        assert!(copied.status.success());
+        let mut bytes = Vec::new();
+        coreav_isobmff_write::join_mp4(
+            vec![
+                coreav_isobmff::FileSource::open(&multiple).unwrap(),
+                coreav_isobmff::FileSource::open(&multiple).unwrap(),
+            ],
+            &Default::default(),
+            &Default::default(),
+            &coreav_isobmff_write::JoinOptions {
+                video: coreav_isobmff_write::VideoChoice::Stream(1),
+                audio: coreav_isobmff_write::JoinAudio::None,
+                placement: coreav_isobmff_write::Placement::AfterVideo,
+                compatibility: None,
+            },
+            &mut bytes,
+        )
+        .unwrap();
+        let selected = dir.join(format!("{codec}-selected.mp4"));
+        std::fs::write(&selected, bytes).unwrap();
+        concat_output::compare(&reference, &probe, &selected, &expected, &list, "native");
+    }
 }
 
 #[test]

@@ -410,6 +410,78 @@ fn frame_timing(program: &Path, path: &Path, stream: usize) -> Value {
     document
 }
 
+fn native_records(candidate: &Value, reference: &Value) {
+    assert!(!candidate["streams"].as_array().unwrap().is_empty());
+    assert_eq!(candidate["streams"], reference["streams"]);
+    let packets = |document: &Value| {
+        let mut packets = document["packets"].as_array().unwrap().clone();
+        assert!(!packets.is_empty());
+        for packet in &mut packets {
+            packet.as_object_mut().unwrap().remove("pos");
+        }
+        packets
+    };
+    assert_eq!(packets(candidate), packets(reference));
+}
+
+fn compare_native(ffprobe: &Path, candidate: &Path, reference: &Path) {
+    let (native, _) = probe(ffprobe, candidate);
+    let (oracle, _) = probe(ffprobe, reference);
+    native_records(&native, &oracle);
+    let native_bytes = std::fs::read(candidate).unwrap();
+    let oracle_bytes = std::fs::read(reference).unwrap();
+    for (native, oracle) in native["packets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(oracle["packets"].as_array().unwrap())
+    {
+        assert_eq!(
+            packet_bytes(native, &native_bytes),
+            packet_bytes(oracle, &oracle_bytes)
+        );
+    }
+}
+
+fn native_comparison_mutations(ffprobe: &Path, candidate: &Path) {
+    let (original, _) = probe(ffprobe, candidate);
+    native_records(&original, &original);
+    let changes = [
+        ("field_order", true),
+        ("codec_tag_string", true),
+        ("extradata", true),
+        ("unexpected_stream_field", true),
+        ("data", false),
+        ("data_hash", false),
+        ("size", false),
+        ("flags", false),
+        ("pts", false),
+    ];
+    for (key, stream) in changes {
+        let mut changed = original.clone();
+        let array = if stream { "streams" } else { "packets" };
+        changed[array][0][key] = json!("mutated");
+        assert!(
+            std::panic::catch_unwind(|| native_records(&changed, &original)).is_err(),
+            "accepted changed {key}"
+        );
+    }
+    let mut changed = original.clone();
+    changed["streams"][0]["tags"]["encoder"] = json!("mutated");
+    assert!(std::panic::catch_unwind(|| native_records(&changed, &original)).is_err());
+    let mut changed = original.clone();
+    changed["packets"].as_array_mut().unwrap().swap(0, 1);
+    assert!(std::panic::catch_unwind(|| native_records(&changed, &original)).is_err());
+    let mut changed = original.clone();
+    changed["packets"].as_array_mut().unwrap().pop();
+    assert!(std::panic::catch_unwind(|| native_records(&changed, &original)).is_err());
+    let mut changed = original.clone();
+    for packet in changed["packets"].as_array_mut().unwrap() {
+        packet["pos"] = json!("0");
+    }
+    native_records(&changed, &original);
+}
+
 pub fn compare(
     ffmpeg: &Path,
     ffprobe: &Path,
@@ -418,6 +490,13 @@ pub fn compare(
     list: &Path,
     case: &str,
 ) {
+    if matches!(case, "native" | "native-mutations") {
+        compare_native(ffprobe, candidate, reference);
+        if case == "native-mutations" {
+            native_comparison_mutations(ffprobe, candidate);
+        }
+        return;
+    }
     let (order, idrs, added_bytes) = match case {
         "01-unedited-av" => ("010011011011011010110110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110110101101101101011011011111010011011011011010110110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110110101101101101011011011111".to_owned(), vec![0,24,48,72,78,102,126,150], 304),
         "gap-short-2-video" => ("0".repeat(156), vec![0,24,48,72,78,102,126,150], 304),
