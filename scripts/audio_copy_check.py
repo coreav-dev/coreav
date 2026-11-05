@@ -20,9 +20,10 @@ with the given ffprobe and ffmpeg, used as black boxes:
   output's audio packets are the source's twice;
 - every output decodes without an error.
 
-The AC-3 and E-AC-3 compatibility concat cases must refuse their multi-edit
-audio timeline, preserve the destination and use byte-identical pinned
-fallback. They are reported as refusals, not native passes. Their native
+All four H.264 compatibility concat cases must refuse, preserve the
+destination and use byte-identical pinned fallback. AC-3 and E-AC-3 retain
+their earlier multi-edit reason; FLAC and ALAC require the H.264 packet
+conversion reason. These are refusals, not native passes. Their native
 join cases retain all of the packet and decode checks above.
 
 Clips, segments and joins change the edit lists, so their packets are
@@ -91,8 +92,14 @@ EXPECTED = {
     "twice": lambda a, b: a + a == b,
 }
 
-CONCAT_REFUSALS = {"av_ac3.mp4", "av_eac3.mp4"}
 CONCAT_REASON = b"coreav ffmpeg: not supported by coreav ffmpeg: a concat output that needs several audio edits"
+CONCAT_H264_REASON = b"coreav ffmpeg: not supported by coreav ffmpeg: H.264 concat packet conversion that CoreAV cannot copy exactly"
+CONCAT_REFUSALS = {
+    "av_ac3.mp4": CONCAT_REASON,
+    "av_eac3.mp4": CONCAT_REASON,
+    "av_flac.mp4": CONCAT_H264_REASON,
+    "av_alac.mp4": CONCAT_H264_REASON,
+}
 
 
 def run(args, env=None):
@@ -196,9 +203,9 @@ def check_packets(tools, source, outputs, problems, expected):
                         f"source's {len(a)}")
 
 
-def check_concat_refusal(tools, args, output, done, problems):
-    if done.returncode != 4 or done.stdout or done.stderr.strip() != CONCAT_REASON:
-        problems.append("concat must refuse the multi-edit audio timeline with exit 4 and its exact reason")
+def check_concat_refusal(tools, args, output, done, problems, reason):
+    if done.returncode != 4 or done.stdout or done.stderr.strip() != reason:
+        problems.append("concat must refuse with exit 4 and its exact reason")
         return
     if output.exists():
         problems.append("refused concat published an output")
@@ -208,7 +215,7 @@ def check_concat_refusal(tools, args, output, done, problems):
     before = set(output.parent.iterdir())
     overwrite = [args[0], "-y", *args[1:]]
     repeated = run([tools.coreav, "--strict-safe", *overwrite])
-    if (repeated.returncode != 4 or repeated.stdout or repeated.stderr.strip() != CONCAT_REASON
+    if (repeated.returncode != 4 or repeated.stdout or repeated.stderr.strip() != reason
             or not output.exists() or output.read_bytes() != sentinel
             or set(output.parent.iterdir()) != before):
         problems.append("refused concat did not preserve the destination and staging state")
@@ -287,7 +294,7 @@ def main():
             try:
                 done = run([tools.coreav, "--strict-safe", *args])
                 if kind == "refused":
-                    check_concat_refusal(tools, args, outputs()[0], done, problems)
+                    check_concat_refusal(tools, args, outputs()[0], done, problems, CONCAT_REFUSALS[name])
                 elif done.returncode != 0:
                     problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
                 elif kind == "copy":
