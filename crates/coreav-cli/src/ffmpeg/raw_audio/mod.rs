@@ -2,6 +2,7 @@
 mod aac;
 mod exact;
 mod flac;
+mod mp4;
 mod record;
 #[cfg(test)]
 mod tests;
@@ -187,6 +188,26 @@ pub(super) fn plan(
         .ok_or_else(|| Refusal::not_native("raw audio with unknown sample rate"))?;
     let output_rate = command.sample_rate.unwrap_or(input_rate);
     let standalone_flac = super::format_name(report) == Some("flac");
+    if command.muxer == Muxer::Mp4
+        && (args::stdout(&command.output)
+            || standalone_flac
+            || output_format != SampleFormat::S16
+            || channels != 1
+            || output_channels != 1
+            || input_rate != 48_000
+            || output_rate != 48_000
+            || !report.chapters.is_empty()
+            || stream
+                .disposition
+                .iter()
+                .any(|(key, value)| *key != "default" && !matches!(value, Value::Int(0)))
+            || command.map_metadata == MapMetadata::Default
+                && super::audio::has_unpreserved_metadata(report, stream))
+    {
+        return Err(Refusal::not_native(
+            "PCM in MP4 requires a regular output, unchanged mono 48 kHz audio and supported metadata",
+        ));
+    }
     if standalone_flac && (input_rate != output_rate || channels != output_channels) {
         return Err(Refusal::not_native(
             "standalone FLAC with changed rate or channels",
@@ -673,15 +694,18 @@ fn mpeg1_frames(mut bytes: &[u8]) -> bool {
 }
 
 pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value, Stop> {
-    if plan.eligibility == DecoderEligibilityKind::DecodeTolerance && !args::stdout(&command.output)
+    if (plan.eligibility == DecoderEligibilityKind::DecodeTolerance || command.muxer == Muxer::Mp4)
+        && !args::stdout(&command.output)
     {
         match std::fs::symlink_metadata(&command.output) {
             Ok(metadata)
                 if !metadata.file_type().is_file() || metadata.permissions().readonly() =>
             {
-                return Err(Refusal::not_native(
-                    "AAC PCM requires a writable regular-file destination",
-                )
+                return Err(Refusal::not_native(if command.muxer == Muxer::Mp4 {
+                    "PCM in MP4 requires a writable regular-file destination"
+                } else {
+                    "AAC PCM requires a writable regular-file destination"
+                })
                 .into());
             }
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
@@ -698,9 +722,21 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
     if matches!(plan.decoder, DecoderPlan::Flac(_)) {
         return flac::write(command, plan, force);
     }
-    let before =
-        decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?;
+    let mut content = None;
+    let before = if command.muxer == Muxer::Mp4 {
+        let mut out = std::io::sink();
+        let mut tally = mp4::Tally::new(&mut out, None);
+        let before = decode(command, plan, &mut tally).map_err(DecodeError::preflight)?;
+        content = Some(tally.content());
+        before
+    } else {
+        decode(command, plan, &mut Bytes(&mut std::io::sink())).map_err(DecodeError::preflight)?
+    };
     packet_presentation(command, plan, &before)?;
+    if command.muxer == Muxer::Mp4 {
+        let content = content.ok_or_else(|| Refusal::not_native("missing PCM in MP4 preflight"))?;
+        return mp4::write(command, plan, &before, content, force);
+    }
     if command.muxer == Muxer::Wav && matches!(plan.decoder, DecoderPlan::Pcm(_)) {
         return wav::write(command, plan, &before, force);
     }

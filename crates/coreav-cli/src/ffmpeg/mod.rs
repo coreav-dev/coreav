@@ -712,6 +712,11 @@ pub fn plan(
         return ts::plan(command, &output, &decided, container, list.is_some(), trims);
     }
     if decided.contains(&Some(Codec::AviAudio(AviAudio::PcmS16))) {
+        if command.muxer == Muxer::Mp4
+            && matches!(output.as_slice(), [(_, stream)] if stream.kind == StreamKind::Audio)
+        {
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
         return Err(Refusal::not_native(
             "pcm_s16le outside WAV or raw s16le output",
         ));

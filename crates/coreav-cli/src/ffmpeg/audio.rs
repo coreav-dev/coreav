@@ -78,17 +78,7 @@ pub(super) fn plan(
     }
     if command.muxer != Muxer::Mp3
         && command.map_metadata == MapMetadata::Default
-        && (report.format_tags.iter().any(|(key, _)| {
-            !matches!(
-                key.as_str(),
-                "major_brand" | "minor_version" | "compatible_brands" | "encoder" | "ENCODER"
-            )
-        }) || stream.tags.iter().any(|(key, value)| match key.as_str() {
-            "language" => value != "und",
-            "handler_name" => value != "SoundHandler",
-            "vendor_id" | "encoder" | "ENCODER" | "DURATION" => false,
-            _ => true,
-        }))
+        && has_unpreserved_metadata(report, stream)
     {
         return Err(Refusal::not_native(
             "source metadata on an audio-only encode",
@@ -101,6 +91,19 @@ pub(super) fn plan(
     })
 }
 
+pub(super) fn has_unpreserved_metadata(report: &Report, stream: &Stream) -> bool {
+    report.format_tags.iter().any(|(key, _)| {
+        !matches!(
+            key.as_str(),
+            "major_brand" | "minor_version" | "compatible_brands" | "encoder" | "ENCODER"
+        )
+    }) || stream.tags.iter().any(|(key, value)| match key.as_str() {
+        "language" => value != "und",
+        "handler_name" => value != "SoundHandler",
+        "vendor_id" | "encoder" | "ENCODER" | "DURATION" => false,
+        _ => true,
+    })
+}
 #[cfg(feature = "transcode")]
 pub(super) fn write(
     command: &Command,
