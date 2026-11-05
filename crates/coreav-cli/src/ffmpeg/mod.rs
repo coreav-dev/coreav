@@ -37,8 +37,8 @@ use args::{AviAudio, Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spe
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
-    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxOptions,
-    SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxInputsOptions,
+    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -108,6 +108,8 @@ pub enum Job {
         streams: Vec<InputStream>,
         /// Unselected cover pictures from input zero.
         left_out_covers: Vec<u64>,
+        /// Layout and duration admission for contributing video inputs.
+        options: RemuxInputsOptions,
     },
     /// One lossless audio stream decoded to PCM for a native audio writer.
     Pcm {
@@ -1684,9 +1686,19 @@ fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
             video_origin: None,
         });
     }
+    let compatibility = output
+        .iter()
+        .any(|(_, stream)| stream.kind == StreamKind::Video)
+        && mapped
+            .first()
+            .is_some_and(|first| mapped.iter().any(|stream| stream.input != first.input));
     Ok(Job::RemuxInputs {
         streams: mapped,
         left_out_covers: left_out_covers(first, &first_streams),
+        options: RemuxInputsOptions {
+            interleave_packets: compatibility,
+            rebuild_durations: compatibility,
+        },
     })
 }
 
@@ -1802,11 +1814,12 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::RemuxInputs {
             streams,
             left_out_covers,
+            options,
         } => {
             let paths: Vec<&Path> = std::iter::once(input)
                 .chain(command.more_inputs.iter().map(Path::new))
                 .collect();
-            crate::remux::run_inputs(&paths, streams, left_out_covers, &allowlist, out)
+            crate::remux::run_inputs(&paths, streams, left_out_covers, options, &allowlist, out)
                 .map(|summary| crate::remux::document(&summary, &RemuxOptions::default()))
         }
         Job::MatroskaOutput { streams, matroska } => {
