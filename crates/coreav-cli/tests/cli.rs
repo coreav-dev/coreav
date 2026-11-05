@@ -2541,19 +2541,9 @@ fn media_on_standard_output_are_the_file_bytes() {
     }
 }
 
-/// A standard output whose reader is gone: a socket whose other end is
-/// closed fails every write with `EPIPE`, like a pipe after `head` exits,
-/// without depending on when the reader exits.
-#[cfg(unix)]
-fn closed_reader() -> std::process::Stdio {
-    let (ours, theirs) = std::os::unix::net::UnixStream::pair().unwrap();
-    drop(theirs);
-    std::process::Stdio::from(std::os::fd::OwnedFd::from(ours))
-}
-
 /// A closed pipe ends the command with 141, as `SIGPIPE` would, without a
 /// message.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[test]
 fn a_closed_standard_output_exits_141_quietly() {
     let mut commands = succeeding_commands("stdout_pipe");
@@ -2580,9 +2570,11 @@ fn a_closed_standard_output_exits_141_quietly() {
         commands.push(args.iter().map(|a| (*a).to_owned()).collect());
     }
     for args in commands {
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
         let out = Command::new(bin())
             .args(&args)
-            .stdout(closed_reader())
+            .stdout(writer)
             .output()
             .unwrap();
         assert_eq!(out.status.code(), Some(141), "{args:?}");
