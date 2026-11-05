@@ -102,4 +102,4 @@ No rate-control or CABAC implementation belongs in this layer. Its completion re
 
 ## Next design-only slice
 
-Plan a bounded fixed-GOP rate controller after inter conformance. Its note must separate a target-rate policy from normative QP and buffer constraints, define failure and flush behavior, and propose synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.
+The [picture-budget proposal](h264-encoder-rate-control.md) defines the next design-only slice after inter conformance. It separates a target-rate policy from normative QP and buffer constraints, defines failure and flush behavior, and proposes synthetic acceptance checks before any implementation. CABAC, adaptive quantisation, lookahead, and any quality or speed acceptance method remain separate work.

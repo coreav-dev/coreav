@@ -1,8 +1,8 @@
 #![allow(unsafe_code)]
 
 use super::{
-    Availability, Control, Error, Frame, Hardware, HardwarePolicy, Identity, Limits, Operation,
-    RawSample, Settings, Time,
+    Availability, Codec, Control, Error, Frame, Hardware, HardwarePolicy, Identity, Limits,
+    Operation, RawSample, Settings, Time,
 };
 use std::ffi::c_void;
 use std::marker::PhantomData;
@@ -14,6 +14,7 @@ type Ref = *const c_void;
 type Callback = extern "C" fn(*mut c_void, *mut c_void, i32, u32, Ref);
 
 const AVC1: u32 = u32::from_be_bytes(*b"avc1");
+const HVC1: u32 = u32::from_be_bytes(*b"hvc1");
 const VIDEO: u32 = u32::from_be_bytes(*b"vide");
 const NV12: u32 = u32::from_be_bytes(*b"420v");
 const FRAME_DROPPED: u32 = 1 << 1;
@@ -109,6 +110,9 @@ unsafe extern "C" {
     fn CFGetTypeID(value: Ref) -> usize;
     fn CFEqual(a: Ref, b: Ref) -> u8;
     fn CFBooleanGetTypeID() -> usize;
+    fn CFDataGetTypeID() -> usize;
+    fn CFDataGetLength(data: Ref) -> isize;
+    fn CFDataGetBytePtr(data: Ref) -> *const u8;
     fn CFBooleanGetValue(value: Ref) -> u8;
     fn CFNumberGetTypeID() -> usize;
     fn CFNumberCreate(allocator: Ref, kind: isize, value: Ref) -> Ref;
@@ -198,6 +202,7 @@ unsafe extern "C" {
     static kVTCompressionPropertyKey_AverageBitRate: Ref;
     static kVTCompressionPropertyKey_ProfileLevel: Ref;
     static kVTProfileLevel_H264_High_AutoLevel: Ref;
+    static kVTProfileLevel_HEVC_Main_AutoLevel: Ref;
     static kVTCompressionPropertyKey_AllowFrameReordering: Ref;
     static kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration: Ref;
     static kVTCompressionPropertyKey_MaxKeyFrameInterval: Ref;
@@ -277,8 +282,17 @@ unsafe extern "C" {
         count: *mut usize,
         nal_length: *mut i32,
     ) -> i32;
+    fn CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(
+        format: Ref,
+        index: usize,
+        bytes: *mut *const u8,
+        length: *mut usize,
+        count: *mut usize,
+        nal_length: *mut i32,
+    ) -> i32;
     static kCMSampleAttachmentKey_NotSync: Ref;
     static kCMFormatDescriptionExtension_FullRangeVideo: Ref;
+    static kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms: Ref;
 }
 
 struct Owned(NonNull<c_void>);
@@ -543,7 +557,10 @@ impl Native {
                 ptr::null(),
                 width,
                 height,
-                AVC1,
+                match settings.codec {
+                    Codec::H264 => AVC1,
+                    Codec::Hevc => HVC1,
+                },
                 specification.get(),
                 attributes.get(),
                 ptr::null(),
@@ -608,7 +625,10 @@ impl Native {
                 ),
                 (
                     kVTCompressionPropertyKey_ProfileLevel,
-                    Expected::String(kVTProfileLevel_H264_High_AutoLevel),
+                    Expected::String(match settings.codec {
+                        Codec::H264 => kVTProfileLevel_H264_High_AutoLevel,
+                        Codec::Hevc => kVTProfileLevel_HEVC_Main_AutoLevel,
+                    }),
                     "ProfileLevel",
                 ),
                 (
@@ -1232,7 +1252,11 @@ unsafe fn extract(
         }
         let format = controlled(control, || Owned::retain(format))?;
         if CMFormatDescriptionGetMediaType(format.get()) != VIDEO
-            || CMFormatDescriptionGetMediaSubType(format.get()) != AVC1
+            || CMFormatDescriptionGetMediaSubType(format.get())
+                != match settings.codec {
+                    Codec::H264 => AVC1,
+                    Codec::Hevc => HVC1,
+                }
         {
             return Err(Error::Output);
         }
@@ -1278,10 +1302,18 @@ unsafe fn extract(
         }
         let mut count = 0;
         let mut nal_length = 0;
+        let get_parameter_set = match settings.codec {
+            Codec::H264 => CMVideoFormatDescriptionGetH264ParameterSetAtIndex,
+            Codec::Hevc => CMVideoFormatDescriptionGetHEVCParameterSetAtIndex,
+        };
+        let expected_count = match settings.codec {
+            Codec::H264 => 2,
+            Codec::Hevc => 3,
+        };
         controlled(control, || {
             status(
                 Operation::Format,
-                CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+                get_parameter_set(
                     format.get(),
                     0,
                     ptr::null_mut(),
@@ -1291,16 +1323,16 @@ unsafe fn extract(
                 ),
             )
         })?;
-        if count != 2 || nal_length != 4 {
+        if count != expected_count || nal_length != 4 {
             return Err(Error::Output);
         }
-        let mut sets = [(ptr::null::<u8>(), 0usize); 2];
+        let mut sets = [(ptr::null::<u8>(), 0usize); 3];
         let mut total = 15usize;
-        for (index, (pointer, length)) in sets.iter_mut().enumerate() {
+        for (index, (pointer, length)) in sets.iter_mut().take(expected_count).enumerate() {
             controlled(control, || {
                 status(
                     Operation::Format,
-                    CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+                    get_parameter_set(
                         format.get(),
                         index,
                         pointer,
@@ -1310,7 +1342,7 @@ unsafe fn extract(
                     ),
                 )
             })?;
-            if count != 2
+            if count != expected_count
                 || nal_length != 4
                 || pointer.is_null()
                 || *length == 0
@@ -1324,6 +1356,49 @@ unsafe fn extract(
         if total > limits.max_configuration_bytes {
             return Err(Error::Limit);
         }
+        let hvcc = if settings.codec == Codec::Hevc {
+            let atoms = CMFormatDescriptionGetExtension(
+                format.get(),
+                kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms,
+            );
+            if atoms.is_null() || CFGetTypeID(atoms) != CFDictionaryGetTypeID() {
+                return Err(Error::Output);
+            }
+            let key = controlled(control, || {
+                Owned::adopt(CFStringCreateWithBytes(
+                    ptr::null(),
+                    b"hvcC".as_ptr(),
+                    4,
+                    0x08000100,
+                    0,
+                ))
+            })?;
+            let data = CFDictionaryGetValue(atoms, key.get());
+            if data.is_null() || CFGetTypeID(data) != CFDataGetTypeID() {
+                return Err(Error::Output);
+            }
+            let length = usize::try_from(CFDataGetLength(data)).map_err(|_| Error::Output)?;
+            if length == 0
+                || total
+                    .checked_add(length)
+                    .is_none_or(|n| n > limits.max_configuration_bytes)
+            {
+                return Err(Error::Limit);
+            }
+            let source = CFDataGetBytePtr(data);
+            if source.is_null()
+                || length > isize::MAX as usize
+                || source.addr().checked_add(length).is_none()
+            {
+                return Err(Error::Output);
+            }
+            let mut bytes = initialized_bytes(length)?;
+            control.check()?;
+            bytes.copy_from_slice(std::slice::from_raw_parts(source, length));
+            bytes
+        } else {
+            Vec::new()
+        };
         let pts = CMSampleBufferGetPresentationTimeStamp(sample).time()?;
         let duration = CMSampleBufferGetDuration(sample).time()?;
         if duration.value <= 0 {
@@ -1366,7 +1441,16 @@ unsafe fn extract(
                 CMBlockBufferCopyDataBytes(block, 0, size, bytes.as_mut_ptr().cast()),
             )
         })?;
-        let [(sps, sps_len), (pps, pps_len)] = sets;
+        let [(first, first_len), (second, second_len), (third, third_len)] = sets;
+        let (vps, vps_len, sps, sps_len, pps, pps_len) = match settings.codec {
+            Codec::H264 => (ptr::null(), 0, first, first_len, second, second_len),
+            Codec::Hevc => (first, first_len, second, second_len, third, third_len),
+        };
+        let mut vps_bytes = initialized_bytes(vps_len)?;
+        if vps_len != 0 {
+            control.check()?;
+            vps_bytes.copy_from_slice(std::slice::from_raw_parts(vps, vps_len));
+        }
         let mut sps_bytes = initialized_bytes(sps_len)?;
         control.check()?;
         sps_bytes.copy_from_slice(std::slice::from_raw_parts(sps, sps_len));
@@ -1376,8 +1460,10 @@ unsafe fn extract(
         control.check()?;
         Ok(RawSample {
             bytes,
+            vps: vps_bytes,
             sps: sps_bytes,
             pps: pps_bytes,
+            hvcc,
             dimensions: (width, height),
             pts,
             duration,

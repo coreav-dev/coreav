@@ -709,6 +709,233 @@ fn mapped_inputs_keep_each_files_samples_and_track_order() {
 }
 
 #[test]
+fn mapped_input_policies_preserve_defaults_and_apply_source_timing_admission() {
+    use coreav_isobmff_write::{
+        InputStream, RemuxInputsOptions, remux_mp4_inputs, remux_mp4_inputs_with_options,
+    };
+    let first = build(&file(vec![video(50, 25), aac(95, false)]));
+    let second = first.clone();
+    let limits = Limits::default();
+    let allowlist = Allowlist::default();
+    let compatibility = RemuxInputsOptions {
+        interleave_packets: true,
+        rebuild_durations: true,
+    };
+    for maps in [
+        vec![
+            InputStream {
+                input: 0,
+                stream: 0,
+            },
+            InputStream {
+                input: 1,
+                stream: 1,
+            },
+        ],
+        vec![
+            InputStream {
+                input: 1,
+                stream: 0,
+            },
+            InputStream {
+                input: 1,
+                stream: 1,
+            },
+        ],
+        vec![
+            InputStream {
+                input: 0,
+                stream: 1,
+            },
+            InputStream {
+                input: 1,
+                stream: 1,
+            },
+        ],
+    ] {
+        let mut native = Vec::new();
+        remux_mp4_inputs(
+            vec![SliceSource::new(&first), SliceSource::new(&second)],
+            &maps,
+            &[],
+            &limits,
+            &allowlist,
+            &mut native,
+        )
+        .unwrap();
+        let mut defaulted = Vec::new();
+        remux_mp4_inputs_with_options(
+            vec![SliceSource::new(&first), SliceSource::new(&second)],
+            &maps,
+            &[],
+            &limits,
+            &allowlist,
+            &RemuxInputsOptions::default(),
+            &mut defaulted,
+        )
+        .unwrap();
+        assert_eq!(native, defaulted);
+    }
+    let maps = [
+        InputStream {
+            input: 0,
+            stream: 0,
+        },
+        InputStream {
+            input: 1,
+            stream: 1,
+        },
+    ];
+    let mut exact = Vec::new();
+    remux_mp4_inputs_with_options(
+        vec![SliceSource::new(&first), SliceSource::new(&second)],
+        &maps,
+        &[],
+        &limits,
+        &allowlist,
+        &compatibility,
+        &mut exact,
+    )
+    .unwrap();
+    let result = probe(SliceSource::new(&exact), &limits, &allowlist).unwrap();
+    assert_eq!(result.tracks.len(), 2);
+    for (index, track) in result.tracks.iter().enumerate() {
+        let copied = packets(&exact, &result, index);
+        assert!(!copied.is_empty());
+        assert_eq!(
+            track.mdhd_duration,
+            copied.iter().map(|p| u64::from(p.duration)).sum::<u64>()
+        );
+    }
+    for input in [0, 1] {
+        for declared in [0u32, 10_000, 100_000] {
+            let mut changed = first.clone();
+            for kind in [b"mdhd", b"tkhd"] {
+                let positions: Vec<_> = changed
+                    .windows(4)
+                    .enumerate()
+                    .filter_map(|(at, bytes)| {
+                        (bytes == kind).then_some(at + if kind == b"mdhd" { 20 } else { 24 })
+                    })
+                    .collect();
+                for at in positions {
+                    changed[at..at + 4].copy_from_slice(&declared.to_be_bytes());
+                }
+            }
+            let sources = if input == 0 {
+                vec![SliceSource::new(&changed), SliceSource::new(&second)]
+            } else {
+                vec![SliceSource::new(&first), SliceSource::new(&changed)]
+            };
+            let mut rebuilt = Vec::new();
+            remux_mp4_inputs_with_options(
+                sources,
+                &maps,
+                &[],
+                &limits,
+                &allowlist,
+                &compatibility,
+                &mut rebuilt,
+            )
+            .unwrap();
+            assert_eq!(rebuilt, exact, "input {input}, declaration {declared}");
+        }
+    }
+    let mut unequal = second.clone();
+    let header = unequal
+        .windows(4)
+        .position(|bytes| bytes == b"mvhd")
+        .unwrap();
+    unequal[header + 16..header + 20].copy_from_slice(&2000u32.to_be_bytes());
+    for bad in [unequal, common::fragmented_movie(Some(2048), None)] {
+        let mut output = Vec::new();
+        let result = remux_mp4_inputs_with_options(
+            vec![SliceSource::new(&first), SliceSource::new(&bad)],
+            &maps,
+            &[],
+            &limits,
+            &allowlist,
+            &compatibility,
+            &mut output,
+        );
+        assert!(matches!(
+            result,
+            Err(ExtractError::Source(Error::Unsupported { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+    for limited in [
+        Limits {
+            max_table_bytes: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_sample_work: 1,
+            ..Limits::default()
+        },
+        Limits {
+            max_retained_bytes: 1,
+            ..Limits::default()
+        },
+    ] {
+        let mut output = Vec::new();
+        let result = remux_mp4_inputs_with_options(
+            vec![SliceSource::new(&first), SliceSource::new(&second)],
+            &maps,
+            &[],
+            &limited,
+            &allowlist,
+            &compatibility,
+            &mut output,
+        );
+        assert!(matches!(
+            result,
+            Err(ExtractError::Source(Error::LimitExceeded { .. }))
+        ));
+        assert!(output.is_empty());
+    }
+    let mut ambiguous = video(50, 25);
+    ambiguous.samples[0].offset = 4096;
+    let mut trimmed = video(50, 25);
+    trimmed.edits = vec![(100, 0, 0x10000)];
+    let mut inexact = video(50, 25);
+    inexact.edits = vec![(1, -1, 0x10000), (2000, 0, 0x10000)];
+    let malformed = [ambiguous, trimmed, inexact];
+    for track in malformed {
+        let bad = build(&file(vec![track, aac(95, false)]));
+        for input in [0, 1] {
+            let mut output = Vec::new();
+            let sources = if input == 0 {
+                vec![SliceSource::new(&bad), SliceSource::new(&second)]
+            } else {
+                vec![SliceSource::new(&first), SliceSource::new(&bad)]
+            };
+            let selected = [
+                InputStream { input, stream: 0 },
+                InputStream {
+                    input: 1 - input,
+                    stream: 1,
+                },
+            ];
+            let result = remux_mp4_inputs_with_options(
+                sources,
+                &selected,
+                &[],
+                &limits,
+                &allowlist,
+                &compatibility,
+                &mut output,
+            );
+            assert!(
+                matches!(result, Err(ExtractError::Source(Error::Unsupported { .. }))),
+                "{result:?}"
+            );
+            assert!(output.is_empty());
+        }
+    }
+}
+
+#[test]
 fn mapped_inputs_refuse_invalid_sources_before_writing() {
     use coreav_isobmff_write::{InputStream, remux_mp4_inputs};
     let first = build(&file(vec![video(10, 5)]));

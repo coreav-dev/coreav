@@ -56,6 +56,8 @@ the same movie timescale. Movie metadata comes from input zero and track
 metadata follows each selected track. Replacements and sanitization remain
 single-input operations.
 
+`remux_mp4_inputs_with_options` accepts the same selection and cover offsets with `RemuxInputsOptions`. Its defaults preserve the original entry's bytes. Compatibility video copies with several contributing inputs opt into sample-derived duration admission and the shared packet scheduler together, as specified in [mapped packet order](mapped-copy-packet-order.md). Unsupported source edits still refuse before header output, and the existing aggregate budgets charge the additional one-sample chunks.
+
 The existing two-pass listing and interleaved copy are shared with the
 single-input remux. Sample-table, sample-work and retained-metadata budgets
 cover all output tracks together. Each input has its own source handle and

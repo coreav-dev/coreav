@@ -13,6 +13,6 @@ Options:
       --drop-unsupported     Matroska and WebM sources: also drop a video stream that MP4 cannot carry (or that the allowlist leaves out), writing the other streams; by default that fails, so a video never silently becomes an audio-only file. MP4 sources drop such streams anyway
       --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
       --strict               Reject the whole file when a stream's codec is not allowed
-      --force                Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+      --force                Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)
   -h, --help                 Print help
 ```
