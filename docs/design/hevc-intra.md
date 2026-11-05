@@ -4,7 +4,7 @@ Status: plan only. Milestone 1 is merged in coreav-dev/coreav#373. This note spe
 
 ## Outcome and limits
 
-Reconstruct independently decodable Main/Main10 intra pictures, at both 8 and 10 bits, with deblocking and SAO disabled by the original syntax. Implement scalar CABAC, coding and transform trees, intra prediction, inverse quantization and transforms, scaling lists, transform skip, transquant bypass and PCM. Serial tile, WPP and dependent-segment semantics belong here even though parallel scheduling does not.
+Reconstruct independently decodable Main intra pictures at 8 bits and Main10 intra pictures at 8 and 10 bits, with deblocking and SAO disabled by the original syntax. Implement scalar CABAC, coding and transform trees, intra prediction, inverse quantization and transforms, scaling lists, transform skip, transquant bypass and PCM. Serial tile, WPP and dependent-segment semantics belong here even though parallel scheduling does not.
 
 Inter prediction, in-loop filters, a `coreav-decode` backend, CLI selection, consumer wiring, default-feature changes, SIMD, unsafe code, threads, an encoder and timed runs are outside this work. Filtered pictures remain unsupported for reconstruction until milestone 3. Never change an official stream's filter flags or compare an intermediate native picture to a filtered reference.
 
