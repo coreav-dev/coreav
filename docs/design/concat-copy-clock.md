@@ -20,6 +20,14 @@ The following mapping is a hypothesis to test with checksum-verified FFmpeg 9.0.
 
 ## Implementation shape
 
+### First proved model
+
+Post-plan generated observations distinguish the origin policies: the shift is global, from the first file's raw AAC priming, including when audio is unselected. Each offset is its file slot minus its reported start plus that one shift, rounded from microseconds independently into each output track's clock. Rounding through the video's clock loses an audio tick and is not equivalent. Mixed edited/unedited orders establish this distinction even though those source shapes remain outside the initial native admission.
+
+The generated edited 48 kHz cases retain every audio packet, produce one-tick boundary deltas followed by recovery to the source cadence, and extend the preceding packet across a short-audio gap. Both tracks' media duration headers equal the output table's decode-duration sum, independently of the video edit's endpoint. Keep the existing video edit construction and hold/extension policy; preserve one full audio media edit instead of applying native join's redundant-edit removal. Movie and track durations still derive from their edit endpoints.
+
+Initially admit two-track, nonfragmented H.264/AAC-LC sources with explicit no-SBR mono/stereo 48 kHz configuration and a simple 1024-tick AAC priming edit. Require zero reported starts, equal priming, complete source presentation endpoints, contiguous zero-composition audio, full 1024-tick audio deltas except a positive tail no longer than a frame, and no unproved half-tick rounding. This admits a concrete positive family without changing the existing 44.1 kHz, synthetic partial-edit, multi-description or unedited-gap refusal contracts. Additional sample rates, mixed priming and bare-source leading deltas require separate evidence rather than guessed admission.
+
 Add one explicit compatibility concat placement carrying file slots and reported starts. Retain existing placement variants and route only the FFmpeg concat caller through the new policy after its command admission. The writer owns source edit admission, the effective origin and the final sample clock. Reuse typed AAC configuration, timelines, sample iteration, tables, header construction and chunk-copy scheduling; do not add a media parser or decoded buffering.
 
 The first listing collects and validates bounded clock facts. The second table listing applies the proved boundary deltas and rejects a changed source. Copying still visits each retained sample once, with the same bytes, sizes, sync state and composition order. Charge retained clock state and every listing to the existing allowances before allocation or writing. Keep native and compatibility policies structurally separate so a source edit cannot silently select the wrong meaning.
