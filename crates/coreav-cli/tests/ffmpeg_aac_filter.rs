@@ -1,4 +1,4 @@
-//! Identity AAC filtering on the existing atomic MP4 concat path.
+//! AAC concat filtering stays refused until complete output is byte-exact.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 
 use serde_json::Value;
@@ -11,61 +11,6 @@ impl Drop for FixtureDir {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
-}
-
-fn probe(path: &Path, ffprobe: &Path, section: &str) -> Value {
-    let result = Command::new(ffprobe)
-        .args(["-v", "error", "-show_data_hash", "sha256", "-show_entries"])
-        .arg(match section {
-            "streams" => "stream:stream_tags=language,handler_name",
-            "packets" => "packet=stream_index,pts,dts,duration,size,flags,data_hash",
-            _ => "frame=stream_index,best_effort_timestamp,pkt_dts,duration,nb_samples",
-        })
-        .args(["-of", "json"])
-        .arg(path)
-        .output()
-        .unwrap();
-    assert!(result.status.success() && result.stderr.is_empty());
-    serde_json::from_slice::<Value>(&result.stdout).unwrap()[section].clone()
-}
-
-fn decoded(path: &Path, ffmpeg: &Path, audio: bool) -> Vec<u8> {
-    let mut command = Command::new(ffmpeg);
-    command.args(["-nostdin", "-v", "error", "-xerror"]);
-    if audio {
-        command.args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace());
-    } else {
-        command.arg("-noautorotate");
-    }
-    command.arg("-i").arg(path);
-    command.args(if audio {
-        &[
-            "-map",
-            "0:a:0",
-            "-c:a",
-            "pcm_f64le",
-            "-f",
-            "f64le",
-            "pipe:1",
-        ][..]
-    } else {
-        &[
-            "-map",
-            "0:v:0",
-            "-an",
-            "-fps_mode",
-            "passthrough",
-            "-pix_fmt",
-            "yuv420p",
-            "-f",
-            "rawvideo",
-            "pipe:1",
-        ][..]
-    });
-    let result = command.output().unwrap();
-    assert!(result.status.success() && result.stderr.is_empty());
-    assert!(!result.stdout.is_empty());
-    result.stdout
 }
 
 #[test]
@@ -197,7 +142,7 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
                 std::fs::write(&output, b"existing output").unwrap();
             }
             let entries = std::fs::read_dir(dir).unwrap().count();
-            let filtered = Command::new(bin)
+            let refused = Command::new(bin)
                 .args(["--strict-safe", "ffmpeg"])
                 .args(&args)
                 .arg(&output)
@@ -205,59 +150,33 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
                 .output()
                 .unwrap();
             assert_eq!(
-                filtered.status.code(),
-                Some(0),
+                refused.status.code(),
+                Some(4),
                 "{}",
-                String::from_utf8_lossy(&filtered.stderr)
+                String::from_utf8_lossy(&refused.stderr)
             );
-            assert!(filtered.stdout.is_empty() && filtered.stderr.is_empty());
+            assert!(refused.stdout.is_empty());
+            assert_eq!(std::fs::read_dir(dir).unwrap().count(), entries);
+            if existing {
+                assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+            } else {
+                assert!(!output.exists());
+            }
+            let fallback = Command::new(bin)
+                .arg("ffmpeg")
+                .args(&args)
+                .arg(&output)
+                .env("COREAV_FALLBACK", &ffmpeg)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(fallback.status.code(), pin.status.code());
+            assert_eq!(fallback.stdout, pin.stdout);
             assert_eq!(
                 std::fs::read(&output).unwrap(),
-                std::fs::read(&ordinary).unwrap()
+                std::fs::read(&reference).unwrap()
             );
-            let mut mine = probe(&output, &ffprobe, "streams");
-            let mut theirs = probe(&reference, &ffprobe, "streams");
-            for streams in [&mut mine, &mut theirs] {
-                for stream in streams.as_array_mut().unwrap() {
-                    if stream["codec_type"] == "video" {
-                        stream.as_object_mut().unwrap().remove("bit_rate");
-                    }
-                }
-            }
-            assert_eq!(mine, theirs);
-            for section in ["packets", "frames"] {
-                let mine = probe(&output, &ffprobe, section);
-                let theirs = probe(&reference, &ffprobe, section);
-                for stream in 0..if video_only { 1 } else { 2 } {
-                    let select = |rows: &Value| {
-                        let mut selected = rows
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .filter(|row| row["stream_index"] == stream)
-                            .cloned()
-                            .collect::<Vec<_>>();
-                        if section == "packets" && stream == 0 {
-                            for row in &mut selected {
-                                row.as_object_mut().unwrap().remove("size");
-                                row.as_object_mut().unwrap().remove("data_hash");
-                            }
-                        }
-                        selected
-                    };
-                    assert_eq!(select(&mine), select(&theirs), "{section} stream {stream}");
-                }
-            }
-            assert_eq!(
-                decoded(&output, &ffmpeg, false),
-                decoded(&reference, &ffmpeg, false)
-            );
-            if !video_only {
-                assert_eq!(
-                    decoded(&output, &ffmpeg, true),
-                    decoded(&reference, &ffmpeg, true)
-                );
-            }
             assert_eq!(
                 std::fs::read_dir(dir).unwrap().count(),
                 entries + usize::from(!existing)
@@ -467,6 +386,18 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             "-bsf:a",
             "aac_adtstoasc",
         ],
+        vec![
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            list.to_str().unwrap(),
+            "-c",
+            "copy",
+            "-bsf:a:0",
+            "aac_adtstoasc",
+        ],
     ];
     for (index, args) in cases.iter().enumerate() {
         for existing in [false, true] {
@@ -498,7 +429,7 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             );
             assert!(strict.stdout.is_empty());
             if index < 2 {
-                assert!(String::from_utf8_lossy(&strict.stderr).contains("not an identity"));
+                assert!(String::from_utf8_lossy(&strict.stderr).contains("bitstream filters"));
             }
             if existing {
                 assert_eq!(std::fs::read(&output).unwrap(), b"existing output");

@@ -245,22 +245,6 @@ pub fn to_file<T>(
     to_file_patched(path, force, |out| write(out).map(|value| (value, None)))
 }
 
-/// Validates the completed, flushed file through its owned read handle before
-/// publication. A failed check removes staging and preserves the destination.
-pub fn to_file_checked<T>(
-    path: &Path,
-    force: bool,
-    write: impl FnOnce(&mut dyn Write) -> Result<T, WriteFailure>,
-    check: impl FnOnce(&std::fs::File) -> Result<(), WriteFailure>,
-) -> Result<T, WriteFailure> {
-    to_file_inner(
-        path,
-        force,
-        |out| write(out).map(|value| (value, None)),
-        Some(check),
-    )
-}
-
 /// [`to_file`] for an output whose first bytes are known only at its end,
 /// such as a WAV header's sizes: `write` returns them with its value, and
 /// they are written over the start of the file before it is moved into
@@ -270,24 +254,9 @@ pub fn to_file_patched<T>(
     force: bool,
     write: impl FnOnce(&mut dyn Write) -> Result<(T, Option<Vec<u8>>), WriteFailure>,
 ) -> Result<T, WriteFailure> {
-    to_file_inner(
-        path,
-        force,
-        write,
-        None::<fn(&std::fs::File) -> Result<(), WriteFailure>>,
-    )
-}
-
-fn to_file_inner<T>(
-    path: &Path,
-    force: bool,
-    write: impl FnOnce(&mut dyn Write) -> Result<(T, Option<Vec<u8>>), WriteFailure>,
-    check: Option<impl FnOnce(&std::fs::File) -> Result<(), WriteFailure>>,
-) -> Result<T, WriteFailure> {
     let temporary = temporary_path(path);
     let file = std::fs::OpenOptions::new()
         .write(true)
-        .read(check.is_some())
         .create_new(true)
         .open(&temporary)
         // `Failure::io` is an I/O failure (exit 3) despite the variant name.
@@ -297,18 +266,16 @@ fn to_file_inner<T>(
     // with the closure, so the file is closed before it is removed.
     let result = write(&mut out)
         .and_then(|(value, patch)| match out.into_inner() {
-            Ok(mut file) => {
-                if let Some(bytes) = patch {
+            Ok(mut file) => match patch {
+                Some(bytes) => {
                     use std::io::{Seek, SeekFrom};
                     file.seek(SeekFrom::Start(0))
                         .and_then(|_| file.write_all(&bytes))
                         .map_err(|e| WriteFailure::output(&e))?;
+                    Ok(value)
                 }
-                if let Some(check) = check {
-                    check(&file)?;
-                }
-                Ok(value)
-            }
+                None => Ok(value),
+            },
             Err(error) => Err(WriteFailure::output(error.error())),
         })
         .and_then(|value| match place(&temporary, path, force) {
@@ -366,88 +333,6 @@ fn kept_permissions(old: &std::fs::Metadata) -> std::fs::Permissions {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn checked_output_validates_flushed_bytes_before_placement_and_cleans_failures() {
-        use coreav_isobmff::{FileSource, Source};
-        struct CheckedDir(PathBuf);
-        impl Drop for CheckedDir {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_dir_all(&self.0);
-            }
-        }
-        let dir =
-            std::env::temp_dir().join(format!("coreav-checked-output-{}", std::process::id()));
-        std::fs::create_dir(&dir).unwrap();
-        let owner = CheckedDir(dir);
-        let dir = &owner.0;
-        let path = dir.join("output.mp4");
-        for existing in [false, true] {
-            if existing {
-                std::fs::write(&path, b"old").unwrap();
-            }
-            let result = to_file_checked(
-                &path,
-                existing,
-                |out| {
-                    out.write_all(b"complete")
-                        .map_err(|e| WriteFailure::output(&e))
-                },
-                |file| {
-                    let mut source = FileSource::from_file(file.try_clone().unwrap()).unwrap();
-                    let mut bytes = [0; 8];
-                    source.read_exact_at(0, &mut bytes).unwrap();
-                    assert_eq!(&bytes, b"complete");
-                    Err(WriteFailure::Rejected(Failure::Unsupported(
-                        "identity cannot be proved".to_owned(),
-                    )))
-                },
-            );
-            assert!(result.is_err());
-            if existing {
-                assert_eq!(std::fs::read(&path).unwrap(), b"old");
-            } else {
-                assert!(!path.exists());
-            }
-            assert!(!temporary_path(&path).exists());
-            if existing {
-                std::fs::remove_file(&path).unwrap();
-            }
-        }
-        let called = std::cell::Cell::new(false);
-        let result = to_file_checked::<()>(
-            &path,
-            false,
-            |out| {
-                out.write_all(b"partial").unwrap();
-                Err(WriteFailure::output(&std::io::Error::other("failed write")))
-            },
-            |_| {
-                called.set(true);
-                Ok(())
-            },
-        );
-        assert!(result.is_err() && !called.get());
-        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 0);
-        to_file_inner(
-            &path,
-            false,
-            |out| {
-                out.write_all(b"----body").unwrap();
-                Ok(((), Some(b"HEAD".to_vec())))
-            },
-            Some(|file: &std::fs::File| {
-                let mut source = FileSource::from_file(file.try_clone().unwrap()).unwrap();
-                let mut bytes = [0; 8];
-                source.read_exact_at(0, &mut bytes).unwrap();
-                assert_eq!(&bytes, b"HEADbody");
-                Ok(())
-            }),
-        )
-        .unwrap_or_else(|error| panic!("{}", error.to_json()));
-        assert_eq!(std::fs::read(&path).unwrap(), b"HEADbody");
-        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1);
-    }
 
     fn temporary_name(name: &str) -> String {
         let path = temporary_path(&Path::new("dir").join(name));
