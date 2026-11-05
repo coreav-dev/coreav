@@ -16,7 +16,7 @@ Commit the attribution before modifying production code. The split-process FFmpe
 
 If transport is material, evaluate shared-memory handoff to a separately installed encoder helper. The parent must validate immutable descriptors before publication; pixel bytes may change under a compromised decoder and must never become trusted control data or Rust references into concurrently writable storage. Hold a frame lease until the encoder has finished reading it. Keep bounded credits, crash cleanup and deadline cancellation. An encoder must not obtain compressed input, writable decoder control state or destination-file access.
 
-Do not link or bundle a GPL encoder in a CoreAV artifact. A new helper or transport must respect the encoder policy and use only public interface documentation. If it requires a licensing or isolation exception, stop for a maintainer decision. If profiling identifies another material source, fix that source instead of building an unnecessary transport.
+Do not link or bundle a GPL encoder in a CoreAV artifact. Keep default and release builds unchanged in licence. Designs requiring GPL dependencies in those builds are excluded, not an escalation option. A new helper or transport must respect the encoder policy and use only public interface documentation. Stop if a design would weaken decoder isolation. If profiling identifies another material source, fix that source instead of building an unnecessary transport.
 
 ## Initial attribution
 
