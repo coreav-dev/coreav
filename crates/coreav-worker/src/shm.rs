@@ -1,6 +1,6 @@
 //! Shared memory for frames (`docs/design/decode.md`, "Shared memory"):
-//! the only module of `coreav-worker` allowed `unsafe`, for one mapping
-//! call through `memmap2` and one copy out of a mapping.
+//! the only module of `coreav-worker` allowed `unsafe`, for mappings,
+//! owned copies and synchronous pipe writes from raw mapped addresses.
 //!
 //! The parent creates an anonymous memory file, sizes it and seals it
 //! against shrinking and growing, all through `rustix`'s safe API, then maps
@@ -8,17 +8,17 @@
 //! `unsafe`). The worker opens it through `/proc/<parent>/fd/<n>` and maps
 //! it read-write. Unmapping is `Drop`.
 //!
-//! Why the two `unsafe` sites are sound here:
-//! - Truncation (both): a read or write past the end of a file that shrank
+//! Why mapped accesses are sound here:
+//! - Truncation: a read or write past the end of a file that shrank
 //!   while mapped faults. The parent seals the file with `F_SEAL_SHRINK`
 //!   and `F_SEAL_GROW` (then `F_SEAL_SEAL`) before the worker can open it,
-//!   and both sides map exactly the sealed length, so no process can shrink
+//!   and every mapped range lies within that length, so no process can shrink
 //!   it under either mapping.
 //! - Concurrent writes (the parent's copy): a compromised worker may write
 //!   a slot while the parent copies it. The parent never creates a Rust
 //!   reference to the mapping, whose contents another process changes: it
-//!   copies each validated plane once, by raw pointer
-//!   ([`ParentMemory::copy_out`]), into memory it owns. A racing write can
+//!   copies validated ranges by raw pointer into owned bytes, or lets a
+//!   synchronous pipe write copy them into the kernel. A racing write can
 //!   only change the copied pixel values, which the worker controls anyway
 //!   (every bit pattern is a valid `u8`); no byte of the mapping is read
 //!   twice or steers the parent, since descriptors come from the pipe.
@@ -293,6 +293,29 @@ impl Drop for Pooled {
 }
 
 impl Pool {
+    fn reclaim(&self, state: &mut PoolState, storage: Storage) -> Result<(), Error> {
+        if let Storage::Shared { slot, map } = &storage {
+            let offset = u64::from(*slot) * self.0.slot_size as u64;
+            if rustix::fs::fallocate(
+                &self.0.file,
+                rustix::fs::FallocateFlags::PUNCH_HOLE | rustix::fs::FallocateFlags::KEEP_SIZE,
+                offset,
+                map.len() as u64,
+            )
+            .is_err()
+            {
+                state.free.push(storage);
+                return Err(Error::new(
+                    ErrorKind::Limit,
+                    "cannot reclaim decoder backing pages",
+                ));
+            }
+            state.unused.push(*slot);
+        }
+        state.bytes = state.bytes.saturating_sub(storage.len());
+        Ok(())
+    }
+
     pub(crate) fn open(
         path: &str,
         slots: u32,
@@ -352,10 +375,7 @@ impl BufferAllocator for Pool {
                 let Some(storage) = state.free.pop() else {
                     return Err(fail());
                 };
-                state.bytes = state.bytes.saturating_sub(storage.len());
-                if let Storage::Shared { slot, .. } = storage {
-                    state.unused.push(slot);
-                }
+                self.reclaim(&mut state, storage)?;
             }
             if len <= self.0.slot_size && state.unused.is_empty() {
                 if let Some(index) = state
@@ -364,10 +384,7 @@ impl BufferAllocator for Pool {
                     .position(|s| matches!(s, Storage::Shared { .. }))
                 {
                     let storage = state.free.swap_remove(index);
-                    state.bytes = state.bytes.saturating_sub(storage.len());
-                    if let Storage::Shared { slot, .. } = storage {
-                        state.unused.push(slot);
-                    }
+                    self.reclaim(&mut state, storage)?;
                 }
             }
             let shared_slot = if len <= self.0.slot_size {
@@ -436,13 +453,17 @@ mod tests {
 
     #[test]
     fn growing_a_released_buffer_keeps_its_shared_slot() {
+        use std::os::unix::fs::MetadataExt;
         let parent = ParentMemory::create(2 * 8192).expect("memory");
         let pool = Pool::open(&parent.path_for_worker(), 1, 1, 8192, 8192).expect("pool");
-        let first = pool.allocate(1).expect("small");
+        let mut first = pool.allocate(1).expect("small");
         let slot = first.shared_slot();
+        first.bytes_mut().fill(55);
+        assert!(parent.file.metadata().expect("metadata").blocks() > 0);
         drop(first);
         let grown = pool.allocate(8192).expect("grown");
         assert_eq!(grown.shared_slot(), slot);
+        assert_eq!(parent.file.metadata().expect("metadata").blocks(), 0);
     }
 
     #[test]
