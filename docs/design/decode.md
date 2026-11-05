@@ -338,7 +338,7 @@ all through `rustix`'s safe API. The worker opens it read-write through
 child processes do not inherit it. The parent maps it read-only as a raw
 mapping (`memmap2::MmapRaw`, created without `unsafe`, which hands out
 pointers, never references), the worker read-write with one `memmap2`
-call. The crate's only `unsafe` is in `shm.rs`, for mapping, copying and direct writes from raw mapped addresses to a pipe. Decoder slots allow padded dimensions, borders and 16-bit 4:4:4 samples. Their mappings are created lazily at the requested capacity, not at the arena's full virtual size.
+call. The crate's only `unsafe` is in `shm.rs`, for mapping, copying and direct writes from raw mapped addresses to a pipe. Decoder slots allow padded dimensions, borders and 16-bit 4:4:4 samples. Slot sizes and allocation capacities round to the kernel's reported page size. Their mappings are created lazily at the requested capacity, not at the arena's full virtual size.
 
 The decoder's allocation callback never waits for an acknowledgement. Reference pictures can occupy the entire shared pool, so an allocation that does not fit a shared slot uses reusable private storage within the same memory budget and the existing copy path. Live and cached capacities count together. Eviction punches holes in the released slot before returning its capacity budget, so the shared file does not retain unaccounted backing pages. The operating-system address-space limit is unchanged. Transfer slots are mapped separately from decoder slots, so obtaining writable transfer bytes never aliases a decoder's live C pointers.
 

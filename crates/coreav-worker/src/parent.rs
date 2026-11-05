@@ -790,16 +790,15 @@ fn shared_memory(
     } else {
         u64::from(h)
     };
-    let slot = width
+    let bytes = width
         .checked_mul(height)?
         .checked_mul(6)?
         .min(if buffers > 0 {
             limits.max_memory_bytes
         } else {
             limits.max_frame_bytes
-        })
-        .checked_add(4095)?
-        & !4095;
+        });
+    let slot = u64::try_from(crate::shm::page_len(usize::try_from(bytes).ok()?)?).ok()?;
     let total = slot.checked_mul(u64::from(options.slots.checked_add(buffers)?))?;
     let memory = crate::shm::ParentMemory::create(total).ok()?;
     Some((Memory(Arc::new(memory)), slot))

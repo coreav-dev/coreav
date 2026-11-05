@@ -43,6 +43,19 @@ fn seals() -> SealFlags {
     SealFlags::SHRINK | SealFlags::GROW | SealFlags::SEAL
 }
 
+pub(crate) fn page_len(len: usize) -> Option<usize> {
+    round_to_page(len, rustix::param::page_size())
+}
+
+fn round_to_page(len: usize, page: usize) -> Option<usize> {
+    let remainder = len.checked_rem(page)?;
+    if remainder == 0 {
+        Some(len)
+    } else {
+        len.checked_add(page - remainder)
+    }
+}
+
 /// The parent's sealed memory file, mapped read-only, read only by copying.
 pub struct ParentMemory {
     file: File,
@@ -323,6 +336,9 @@ impl Pool {
         slot_size: u64,
         budget: u64,
     ) -> io::Result<Self> {
+        if slot_size == 0 || slot_size % rustix::param::page_size() as u64 != 0 {
+            return Err(io::Error::other("slot is not system-page aligned"));
+        }
         let count = slots
             .checked_add(buffers)
             .ok_or_else(|| io::Error::other("too many slots"))?;
@@ -353,11 +369,7 @@ impl Pool {
 impl BufferAllocator for Pool {
     fn allocate(&self, len: usize) -> Result<Box<dyn DecodeBuffer>, Error> {
         let fail = || Error::new(ErrorKind::Limit, "out of memory for a decoder buffer");
-        let len = len
-            .checked_add(4095)
-            .map(|n| n & !4095)
-            .filter(|n| *n > 0)
-            .ok_or_else(fail)?;
+        let len = page_len(len).filter(|n| *n > 0).ok_or_else(fail)?;
         let mut state = self.0.state.lock().map_err(|_| fail())?;
         let index = state
             .free
@@ -430,8 +442,16 @@ mod tests {
 
     #[test]
     fn decoder_and_parent_leases_both_end_before_pool_reuse() {
-        let parent = ParentMemory::create(3 * 4096).expect("memory");
-        let pool = Pool::open(&parent.path_for_worker(), 1, 2, 4096, 4 * 4096).expect("pool");
+        let page = rustix::param::page_size();
+        let parent = ParentMemory::create((3 * page) as u64).expect("memory");
+        let pool = Pool::open(
+            &parent.path_for_worker(),
+            1,
+            2,
+            page as u64,
+            (4 * page) as u64,
+        )
+        .expect("pool");
         let mut decoder = pool.allocate(128).expect("first");
         let first = decoder.shared_slot();
         decoder.bytes_mut().fill(37);
@@ -446,7 +466,7 @@ mod tests {
         let mut reused = pool.allocate(128).expect("reuse");
         assert_eq!(reused.shared_slot(), first);
         assert!(reused.bytes_mut().iter().all(|byte| *byte == 37));
-        assert!(pool.allocate(8 * 4096).is_err());
+        assert!(pool.allocate(8 * page).is_err());
         drop((second, private, reused));
         assert!(pool.allocate(usize::MAX).is_err());
     }
@@ -454,16 +474,43 @@ mod tests {
     #[test]
     fn growing_a_released_buffer_keeps_its_shared_slot() {
         use std::os::unix::fs::MetadataExt;
-        let parent = ParentMemory::create(2 * 8192).expect("memory");
-        let pool = Pool::open(&parent.path_for_worker(), 1, 1, 8192, 8192).expect("pool");
+        let slot_size = 2 * rustix::param::page_size();
+        let parent = ParentMemory::create((2 * slot_size) as u64).expect("memory");
+        let pool = Pool::open(
+            &parent.path_for_worker(),
+            1,
+            1,
+            slot_size as u64,
+            slot_size as u64,
+        )
+        .expect("pool");
         let mut first = pool.allocate(1).expect("small");
         let slot = first.shared_slot();
         first.bytes_mut().fill(55);
         assert!(parent.file.metadata().expect("metadata").blocks() > 0);
         drop(first);
-        let grown = pool.allocate(8192).expect("grown");
+        let grown = pool.allocate(slot_size).expect("grown");
         assert_eq!(grown.shared_slot(), slot);
         assert_eq!(parent.file.metadata().expect("metadata").blocks(), 0);
+    }
+
+    #[test]
+    fn page_rounding_covers_large_page_kernels_and_overflow() {
+        for page in [4096, 16384, 65536] {
+            assert_eq!(round_to_page(0, page), Some(0));
+            assert_eq!(round_to_page(1, page), Some(page));
+            assert_eq!(round_to_page(page, page), Some(page));
+            assert_eq!(round_to_page(page + 1, page), Some(2 * page));
+            assert_eq!(round_to_page(usize::MAX, page), None);
+        }
+        assert_eq!(round_to_page(1, 0), None);
+        assert_eq!(page_len(1), Some(rustix::param::page_size()));
+        for len in [1, 4095, 4096, 65537, 12345678] {
+            assert_eq!(
+                round_to_page(len, 4096),
+                len.checked_add(4095).map(|n| n & !4095)
+            );
+        }
     }
 
     #[test]

@@ -31,7 +31,7 @@ coreav-backend-libopus = { path = "../coreav-backend-libopus", optional = true }
 rustix = { version = "1", default-features = false, features = ["std", "process"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-rustix = { version = "1", default-features = false, features = ["std", "fs", "process", "thread"] }
+rustix = { version = "1", default-features = false, features = ["std", "fs", "param", "process", "thread"] }
 memmap2 = "0.9"
 libc = "0.2"
 
