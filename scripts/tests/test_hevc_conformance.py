@@ -1,4 +1,5 @@
 import copy
+import http.client
 import importlib.util
 import json
 import pathlib
@@ -15,6 +16,66 @@ PATH = pathlib.Path(__file__).resolve().parents[1] / 'hevc_conformance.py'
 SPEC = importlib.util.spec_from_file_location('hevc_conformance', PATH)
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
+
+
+class AcquisitionRetries(unittest.TestCase):
+    def test_a_closed_idle_connection_retries_the_same_capped_pool(self):
+        pool = mock.Mock()
+        limits = pool.limits
+        pool.head.side_effect = [http.client.RemoteDisconnected(), (3, 'etag')]
+        reader = runner.Acquisition(pool)
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            self.assertEqual(reader.head('fixture'), (3, 'etag'))
+        self.assertIs(reader.pool, pool)
+        self.assertIs(pool.limits, limits)
+        self.assertEqual(pool.head.call_args_list, [mock.call('fixture')] * 2)
+        sleep.assert_called_once_with(1)
+
+    def test_partial_range_retry_preserves_offsets_etag_and_sink(self):
+        pool = mock.Mock()
+        target = bytearray(b'------')
+        calls = []
+
+        def sink(offset, data):
+            target[offset:offset + len(data)] = data
+
+        def get(key, size, etag, offset, length, *, sink):
+            calls.append((key, size, etag, offset, length))
+            if len(calls) == 1:
+                sink(offset, b'xx')
+                raise http.client.IncompleteRead(b'xx', 1)
+            sink(offset, b'abc')
+            return 3
+
+        pool.get.side_effect = get
+        with mock.patch.object(runner.time, 'sleep'):
+            result = runner.Acquisition(pool).get('fixture', 6, 'etag', 2, 3, sink=sink)
+        self.assertEqual(result, 3)
+        self.assertEqual(target, b'--abc-')
+        self.assertEqual(calls, [('fixture', 6, 'etag', 2, 3)] * 2)
+
+    def test_transport_exhaustion_is_bounded_and_still_fails(self):
+        pool = mock.Mock()
+        failure = http.client.RemoteDisconnected()
+        pool.head.side_effect = failure
+        with mock.patch.object(runner.time, 'sleep') as sleep:
+            with self.assertRaises(http.client.RemoteDisconnected) as caught:
+                runner.Acquisition(pool).head('fixture')
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(pool.head.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_budget_and_response_integrity_failures_never_retry(self):
+        for failure in [RuntimeError('R2 run cap exceeded'), RuntimeError('unexpected ETag'),
+                        ValueError('invalid range')]:
+            with self.subTest(failure=type(failure).__name__):
+                pool = mock.Mock()
+                pool.get.side_effect = failure
+                with mock.patch.object(runner.time, 'sleep') as sleep:
+                    with self.assertRaises(type(failure)):
+                        runner.Acquisition(pool).get('fixture', 3, 'etag')
+                self.assertEqual(pool.get.call_count, 1)
+                sleep.assert_not_called()
 
 
 class OracleDiagnostics(unittest.TestCase):

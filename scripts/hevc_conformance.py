@@ -6,6 +6,7 @@ import bisect
 import collections
 import contextlib
 import hashlib
+import http.client
 import functools
 import json
 import os
@@ -1192,6 +1193,29 @@ def roster(path=ROSTER):
     return files
 
 
+class Acquisition:
+    """Retry untimed immutable reads without replacing the pool or its caps."""
+
+    def __init__(self, pool):
+        self.pool = pool
+
+    @staticmethod
+    def request(operation, *args, **kwargs):
+        for attempt in range(3):
+            try:
+                return operation(*args, **kwargs)
+            except (ConnectionError, TimeoutError, http.client.IncompleteRead):
+                if attempt == 2:
+                    raise
+                time.sleep(1 << attempt)
+
+    def head(self, key):
+        return self.request(self.pool.head, key)
+
+    def get(self, *args, **kwargs):
+        return self.request(self.pool.get, *args, **kwargs)
+
+
 def fetch_corpus(args, inspect=False):
     require(sys.platform == 'linux', 'hostile corpus files require Linux')
     sys.path.insert(0, str(ROOT / 'tools/compat-corpus'))
@@ -1206,6 +1230,7 @@ def fetch_corpus(args, inspect=False):
     pool = round_files.pool()
     from r2pool import Limits
     pool.limits = Limits(requests=4000, bytes_=32 << 30)
+    acquisition = Acquisition(pool)
     args.dest.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
         required_space = (max(f['size'] for f in files) if inspect else sum(f['size'] for f in files)) + (128 << 20)
@@ -1218,9 +1243,9 @@ def fetch_corpus(args, inspect=False):
                 manifest = read_json(path)
             else:
                 key = f'corpus/{corpus_name}/manifest.json'
-                size, etag = pool.head(key)
+                size, etag = acquisition.head(key)
                 require(size <= 32 << 20, 'manifest exceeds byte cap')
-                manifest = json.loads(pool.get(key, size, etag), object_pairs_hook=unique_object)
+                manifest = json.loads(acquisition.get(key, size, etag), object_pairs_hook=unique_object)
             entries_list = manifest['files'] if isinstance(manifest, dict) else manifest
             for entry in entries_list:
                 sha = entry.get('sha256')
@@ -1246,7 +1271,7 @@ def fetch_corpus(args, inspect=False):
                 if inspect:
                     require(shutil.disk_usage(destination).free >= item['size'] + (128 << 20),
                             'insufficient per-file acquisition disk space')
-                path = round_files.fetch_one(pool, entries[item['sha256']], destination)
+                path = round_files.fetch_one(acquisition, entries[item['sha256']], destination)
                 if inspect:
                     try:
                         options = dict(native=args.native, parser=args.parser,
