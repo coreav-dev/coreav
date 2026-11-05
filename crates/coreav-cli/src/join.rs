@@ -7,8 +7,7 @@ use crate::output::WriteFailure;
 use crate::pretty::{write_array, write_indented};
 use coreav_isobmff::{Allowlist, BufferedSource, Error, FileSource, Limits, Rational};
 use coreav_isobmff_write::{
-    ConcatOptions, ExtractError, JoinError, JoinOptions, JoinSummary, JoinedInput, concat_mp4,
-    join_mp4,
+    ExtractError, JoinError, JoinOptions, JoinSummary, JoinedInput, join_mp4,
 };
 use serde_json::{Value, json};
 use std::io::Write;
@@ -38,10 +37,6 @@ impl JoinFailure {
                 // As every command maps a writer's failure; the message
                 // below names the input.
                 let failure = WriteFailure::from(error.clone());
-                (failure.to_json(), failure.is_io(), Some(*input))
-            }
-            JoinError::Inspection { input, error } => {
-                let failure = Failure::library(error.clone());
                 (failure.to_json(), failure.is_io(), Some(*input))
             }
             JoinError::Mismatch { input, .. } => {
@@ -109,33 +104,6 @@ pub fn run<W: Write>(
     allowlist: &Allowlist,
     out: W,
 ) -> Result<JoinSummary, JoinFailure> {
-    join_mp4(
-        open_sources(paths)?,
-        &Limits::default(),
-        allowlist,
-        options,
-        out,
-    )
-    .map_err(|e| JoinFailure::new(&e))
-}
-
-pub(crate) fn run_concat<W: Write>(
-    paths: &[PathBuf],
-    options: &ConcatOptions,
-    allowlist: &Allowlist,
-    out: W,
-) -> Result<JoinSummary, JoinFailure> {
-    concat_mp4(
-        open_sources(paths)?,
-        &Limits::default(),
-        allowlist,
-        options,
-        out,
-    )
-    .map_err(|e| JoinFailure::new(&e))
-}
-
-fn open_sources(paths: &[PathBuf]) -> Result<Vec<BufferedSource<FileSource>>, JoinFailure> {
     let mut sources = Vec::new();
     for (input, path) in paths.iter().enumerate() {
         let file = FileSource::open(path).map_err(|e| {
@@ -146,7 +114,7 @@ fn open_sources(paths: &[PathBuf]) -> Result<Vec<BufferedSource<FileSource>>, Jo
         })?;
         sources.push(BufferedSource::new(file));
     }
-    Ok(sources)
+    join_mp4(sources, &Limits::default(), allowlist, options, out).map_err(|e| JoinFailure::new(&e))
 }
 
 /// Writes the `coreav.join/1` summary (`docs/schema/join-v1.md`) to `out`
@@ -217,24 +185,6 @@ mod tests {
     use super::*;
     use coreav_isobmff::{Codec, FourCc};
     use coreav_isobmff_write::{ClipTrack, LeftOut, LeftOutReason};
-
-    #[test]
-    fn inspection_failures_are_terminal_even_for_unsupported_parser_structures() {
-        let error = Error::Unsupported {
-            reason: "an unreadable hidden description",
-        };
-        let inspection = JoinFailure::new(&JoinError::Inspection {
-            input: 1,
-            error: error.clone(),
-        });
-        assert!(inspection.not_native.is_none());
-        assert_eq!(inspection.json.get("input"), Some(&json!(1)));
-        let eligibility = JoinFailure::new(&JoinError::Input {
-            input: 1,
-            error: ExtractError::Source(error),
-        });
-        assert!(eligibility.not_native.is_some());
-    }
 
     #[test]
     fn the_streamed_summary_is_the_whole_document_pretty_printed() {

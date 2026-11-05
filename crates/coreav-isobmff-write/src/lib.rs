@@ -55,7 +55,7 @@ mod split;
 mod tables;
 
 pub use clip::{clip_audio_mp4, clip_mp4, clip_mp4_input_seek};
-pub use join::{concat_mp4, join_mp4};
+pub use join::join_mp4;
 pub use m4a::extract_audio;
 pub use matroska::{
     DroppedAdditions, MAX_LISTED_ADDITIONS, MatroskaDroppedTrack, MatroskaRemuxError,
@@ -635,15 +635,6 @@ pub enum JoinAudio {
     None,
 }
 
-/// Reported file facts for compatibility concat packet clocks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ConcatFile {
-    /// File slot after preceding file durations, in seconds at microsecond precision.
-    pub slot: Rational,
-    /// Reported file start, in seconds at microsecond precision.
-    pub start: Rational,
-}
-
 /// Where [`join_mp4`] places each input on the output's timeline.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Placement {
@@ -659,17 +650,6 @@ pub enum Placement {
     /// an input whose video would start before the previous input's video
     /// ends, fails the join.
     At(Vec<Rational>),
-}
-
-/// Stream selection and reported file facts for [`concat_mp4`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ConcatOptions {
-    /// Video stream copied from every input.
-    pub video: VideoChoice,
-    /// Audio stream copied from every input.
-    pub audio: JoinAudio,
-    /// File slots and reported starts, in input order.
-    pub files: Vec<ConcatFile>,
 }
 
 /// What [`join_mp4`] keeps.
@@ -915,14 +895,6 @@ impl fmt::Display for Mismatch {
 pub enum JoinError {
     /// No input was given.
     NoInputs,
-    /// Listing re-probe failed for a concat input accepted by the copy probe.
-    /// This is terminal, even when the parser names an unsupported structure.
-    Inspection {
-        /// The input whose hidden audio descriptions could not be inspected.
-        input: usize,
-        /// The original parser or source error.
-        error: Error,
-    },
     /// An input (0-based) cannot be read, or cannot be joined on its own:
     /// the errors a clip of it would give, and joining's own (a video that
     /// does not start with a sync sample, say).
@@ -953,7 +925,6 @@ impl fmt::Display for JoinError {
             Self::Mismatch { input, mismatch } => {
                 write!(f, "input {input} cannot be joined to the first: {mismatch}")
             }
-            Self::Inspection { input, error } => write!(f, "input {input} inspection: {error}"),
             Self::Output(error) => write!(f, "output: {error}"),
             Self::Write(kind) => write!(f, "write error: {kind}"),
         }

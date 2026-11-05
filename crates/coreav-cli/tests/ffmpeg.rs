@@ -833,6 +833,7 @@ fn frame_metadata_refusals_create_no_output() {
 fn a_concat_list_is_joined() {
     let dir = scratch("ffmpeg-concat");
     let input = movie(&dir);
+    vp9_file(&dir.join("in.mp4"));
     let list = dir.join("list.txt");
     std::fs::write(&list, "ffconcat version 1.0\nfile in.mp4\nfile 'in.mp4'\n").unwrap();
     let output = dir.join("out.mp4");
@@ -875,6 +876,7 @@ fn a_concat_list_is_joined() {
 fn a_join_refuses_audio_it_does_not_copy() {
     let dir = scratch("ffmpeg-concat-amr");
     std::fs::write(dir.join("in.mp4"), av_movie(b"samr")).unwrap();
+    vp9_file(&dir.join("in.mp4"));
     let list = dir.join("list.txt");
     std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
     let output = dir.join("out.mp4");
@@ -909,6 +911,33 @@ fn retracked(traks: impl Fn(&[u8], &[u8]) -> Vec<Vec<u8>>) -> Vec<u8> {
     let size = u32::try_from(bytes.len() - moov).unwrap();
     bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
     bytes
+}
+
+fn vp9_video(video: &[u8]) -> Vec<u8> {
+    let mut video = video.to_vec();
+    let stsd = video.windows(4).position(|word| word == b"stsd").unwrap();
+    let start = stsd + 12;
+    let old = u32::from_be_bytes(video[start..start + 4].try_into().unwrap()) as usize;
+    let entry = common::visual_entry(b"vp09", &full(b"vpcC", 1, 0, &[0, 10, 0x82, 1, 1, 1, 0, 0]));
+    for kind in [b"trak", b"mdia", b"minf", b"stbl", b"stsd"] {
+        let at = video.windows(4).position(|word| word == kind).unwrap() - 4;
+        let size = u32::from_be_bytes(video[at..at + 4].try_into().unwrap()) as usize;
+        video[at..at + 4].copy_from_slice(&((size + entry.len() - old) as u32).to_be_bytes());
+    }
+    video.splice(start..start + old, entry);
+    video
+}
+
+fn vp9_file(path: &Path) {
+    let mut bytes = std::fs::read(path).unwrap();
+    let moov = bytes.windows(4).position(|word| word == b"moov").unwrap() - 4;
+    let start = bytes.windows(4).position(|word| word == b"trak").unwrap() - 4;
+    let size = u32::from_be_bytes(bytes[start..start + 4].try_into().unwrap()) as usize;
+    let video = vp9_video(&bytes[start..start + size]);
+    let old = u32::from_be_bytes(bytes[moov..moov + 4].try_into().unwrap()) as usize;
+    bytes[moov..moov + 4].copy_from_slice(&((old + video.len() - size) as u32).to_be_bytes());
+    bytes.splice(start..start + size, video);
+    std::fs::write(path, bytes).unwrap();
 }
 
 /// `trak` (as [`av_movie_with`] writes it, `tkhd` first) with track ID
@@ -1037,7 +1066,7 @@ fn a_join_refuses_video_it_does_not_copy() {
     let movie = retracked(|video, audio| {
         vec![
             track(video, 1, true, b"avc1", b"mp4v"),
-            track(video, 3, true, b"avc1", b"avc1"),
+            track(&vp9_video(video), 3, true, b"vp09", b"vp09"),
             audio.to_vec(),
         ]
     });
@@ -1081,7 +1110,7 @@ fn a_join_selects_the_streams_the_concat_demuxer_exposes() {
     let channels = |n: u8| -> Vec<u8> { [&b"mp4a"[..], &[0; 7], &[1], &[0; 9], &[n]].concat() };
     let movie = retracked(|video, audio| {
         vec![
-            video.to_vec(),
+            vp9_video(video),
             track(audio, 2, true, &channels(2), &channels(1)),
             track(audio, 3, false, &channels(2), &channels(2)),
         ]
@@ -1151,6 +1180,7 @@ fn a_join_places_each_file_where_the_concat_demuxer_does() {
             (1, &[1000, 160], &[1000, 320]),
         ],
     );
+    vp9_file(&dir.join("long.mp4"));
     let list = dir.join("list.txt");
     std::fs::write(&list, "file long.mp4\nfile long.mp4\n").unwrap();
     let output = dir.join("out.mp4");
@@ -1255,7 +1285,7 @@ fn concat_aac_edit(media_time: u32, later_aac: bool) -> Vec<u8> {
         }
         let edits = full(b"elst", 0, 0, &u32s(&[1, 160, media_time, 0x10000]));
         vec![
-            video.to_vec(),
+            vp9_video(video),
             bx(b"trak", &cat(&[audio[8..].to_vec(), bx(b"edts", &edits)])),
         ]
     })
@@ -1265,6 +1295,7 @@ fn concat_aac_edit(media_time: u32, later_aac: bool) -> Vec<u8> {
 fn concat_positive_aac_edits_are_refused_without_publishing_output() {
     let dir = scratch("ffmpeg-concat-aac-edits");
     movie(&dir);
+    vp9_file(&dir.join("in.mp4"));
     let list = dir.join("list with spaces.txt");
     let output = dir.join("out.mp4");
     let l = list.to_str().unwrap();
@@ -1345,112 +1376,6 @@ fn concat_positive_aac_edits_are_refused_without_publishing_output() {
     assert!(coreav_cli::join::run(&paths, &options, &Default::default(), Vec::new()).is_ok());
     let r = ffmpeg(&["-i", paths[0].to_str().unwrap(), "-c", "copy", o]);
     assert_eq!(r.code, 0, "{}", r.stderr);
-}
-
-#[test]
-fn dropped_non_aac_edits_keep_video_concat_native() {
-    let dir = oracle_scratch("ffmpeg-concat-dropped-audio");
-    let source = dir.join("source.mp4");
-    let mut bytes = concat_aac_edit(512, false);
-    let entry = bytes.windows(4).position(|word| word == b"mp4a").unwrap();
-    bytes[entry..entry + 4].copy_from_slice(b"zzzz");
-    std::fs::write(&source, bytes).unwrap();
-    let parsed = coreav_isobmff::probe(
-        coreav_isobmff::FileSource::open(&source).unwrap(),
-        &Default::default(),
-        &coreav_isobmff::Allowlist::listing(),
-    )
-    .unwrap();
-    assert_eq!(
-        parsed.tracks[1].description.codec,
-        coreav_isobmff::Codec::Other
-    );
-    assert_eq!(parsed.tracks[1].edits[0].media_time, 512);
-    let list = dir.join("list.txt");
-    std::fs::write(&list, "file source.mp4\nfile source.mp4\n").unwrap();
-    let output = dir.join("output.mp4");
-    let result = ffmpeg(&[
-        "-f",
-        "concat",
-        "-i",
-        list.to_str().unwrap(),
-        "-an",
-        "-c",
-        "copy",
-        output.to_str().unwrap(),
-    ]);
-    assert_eq!(result.code, 0, "{}", result.stderr);
-    assert!(result.stdout.is_empty());
-    let mut native = Vec::new();
-    let options = coreav_isobmff_write::JoinOptions {
-        audio: coreav_isobmff_write::JoinAudio::None,
-        video: coreav_isobmff_write::VideoChoice::First,
-        placement: coreav_isobmff_write::Placement::AfterVideo,
-    };
-    assert!(
-        coreav_cli::join::run(
-            &[source.clone(), source],
-            &options,
-            &Default::default(),
-            &mut native,
-        )
-        .is_ok()
-    );
-    assert_eq!(std::fs::read(output).unwrap(), native);
-
-    struct InspectionFailure {
-        bytes: Vec<u8>,
-        inspections: usize,
-    }
-    impl coreav_isobmff::Source for InspectionFailure {
-        fn len(&mut self) -> Result<u64, coreav_isobmff::Error> {
-            self.inspections += 1;
-            if self.inspections == 2 {
-                return Err(coreav_isobmff::Error::Unsupported {
-                    reason: "a failed source inspection",
-                });
-            }
-            Ok(self.bytes.len() as u64)
-        }
-        fn read_exact_at(
-            &mut self,
-            offset: u64,
-            buf: &mut [u8],
-        ) -> Result<(), coreav_isobmff::Error> {
-            coreav_isobmff::Source::read_exact_at(
-                &mut coreav_isobmff::SliceSource::new(&self.bytes),
-                offset,
-                buf,
-            )
-        }
-    }
-    let mut out = Vec::new();
-    let error = coreav_isobmff_write::concat_mp4(
-        vec![InspectionFailure {
-            bytes: std::fs::read(dir.join("source.mp4")).unwrap(),
-            inspections: 0,
-        }],
-        &Default::default(),
-        &Default::default(),
-        &coreav_isobmff_write::ConcatOptions {
-            video: coreav_isobmff_write::VideoChoice::First,
-            audio: coreav_isobmff_write::JoinAudio::None,
-            files: vec![coreav_isobmff_write::ConcatFile {
-                slot: coreav_isobmff::Rational::from_int(0),
-                start: coreav_isobmff::Rational::from_int(0),
-            }],
-        },
-        &mut out,
-    )
-    .unwrap_err();
-    assert!(matches!(
-        error,
-        coreav_isobmff_write::JoinError::Inspection {
-            input: 0,
-            error: coreav_isobmff::Error::Unsupported { .. }
-        }
-    ));
-    assert!(out.is_empty());
 }
 
 #[cfg(unix)]
@@ -1771,13 +1696,52 @@ fn concat_audio_gaps_are_refused_with_exact_pinned_fallback() {
                 "copy",
                 video.to_str().unwrap(),
             ]);
-            assert_eq!(result.code, 0, "{}", result.stderr);
+            assert_eq!(result.code, 4, "{}", result.stderr);
+            assert!(result.stderr.contains("H.264 concat packet conversion"));
+            assert!(!video.exists());
+            let reference = dir.join("video-reference.mp4");
+            let reference_run = Command::new(&ffmpeg_bin)
+                .args([
+                    "-nostdin", "-v", "error", "-y", "-f", "concat", "-safe", "0",
+                ])
+                .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+                .arg("-i")
+                .arg(&list)
+                .args(["-an", "-c", "copy"])
+                .arg(&reference)
+                .output()
+                .unwrap();
+            assert!(
+                reference_run.status.success(),
+                "{}",
+                String::from_utf8_lossy(&reference_run.stderr)
+            );
+            let fallback = Command::new(bin())
+                .args(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i"])
+                .arg(&list)
+                .args(["-an", "-c", "copy"])
+                .arg(&video)
+                .env("PATH", &path)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert!(
+                fallback.status.success(),
+                "{}",
+                String::from_utf8_lossy(&fallback.stderr)
+            );
+            assert_eq!(
+                std::fs::read(&video).unwrap(),
+                std::fs::read(reference).unwrap()
+            );
+            std::fs::remove_file(video).unwrap();
         }
     }
 }
 
 #[test]
-fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
+fn primed_aac_concat_refuses_and_preserves_complete_pinned_fallback() {
     let Some((reference, probe)) = oracle() else {
         return;
     };
@@ -1785,6 +1749,12 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
     let policy: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
         .split_whitespace()
         .collect();
+    let path = std::env::join_paths(
+        std::iter::once(reference.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        )),
+    )
+    .unwrap();
     let run = |program: &Path, args: &[&str]| {
         let mut command = Command::new(program);
         command.args(["-v", "error"]);
@@ -1839,9 +1809,6 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
                 ],
             );
         }
-        if channels == "1" && duration == "2.25" {
-            concat_payload_faults_are_terminal(&dir.join(&source));
-        }
         for (count, video_only, faststart, mixed) in [
             (2, false, false, false),
             (3, false, true, false),
@@ -1877,11 +1844,38 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
             }
             let mut native = args.clone();
             native.push(candidate.to_str().unwrap());
+            let _ = std::fs::remove_file(&candidate);
             let result = ffmpeg(&native);
-            assert_eq!(result.code, 0, "{}", result.stderr);
+            assert_eq!(result.code, 4, "{}", result.stderr);
             assert!(result.stdout.is_empty());
+            assert!(!candidate.exists());
+            std::fs::write(&candidate, b"existing output").unwrap();
+            let before = std::fs::read_dir(&dir).unwrap().count();
+            let result = ffmpeg(&native);
+            assert_eq!(result.code, 4, "{}", result.stderr);
+            assert!(result.stdout.is_empty());
+            assert_eq!(std::fs::read(&candidate).unwrap(), b"existing output");
+            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), before);
             args.push(expected.to_str().unwrap());
             run(&reference, &args);
+            let fallback = Command::new(bin())
+                .arg("ffmpeg")
+                .args(&native)
+                .env("PATH", &path)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert!(
+                fallback.status.success(),
+                "{}",
+                String::from_utf8_lossy(&fallback.stderr)
+            );
+            assert!(fallback.stdout.is_empty());
+            assert_eq!(
+                std::fs::read(&candidate).unwrap(),
+                std::fs::read(&expected).unwrap()
+            );
             let metadata = |path: &Path, entries: &str| {
                 serde_json::from_slice::<Value>(&run(
                     &probe,
@@ -1899,6 +1893,27 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
                 .unwrap()
             };
             let fields = "format=start_time,duration:stream=index,codec_name,time_base,start_pts,duration_ts,nb_frames,width,height,pix_fmt,sample_rate,channels:packet=stream_index,pts,dts,duration,size,flags,data_hash,side_data_list";
+            let complete_streams = |path: &Path| {
+                serde_json::from_slice::<Value>(&run(
+                    &probe,
+                    &[
+                        "-i",
+                        path.to_str().unwrap(),
+                        "-show_streams",
+                        "-show_data",
+                        "-show_data_hash",
+                        "sha256",
+                        "-of",
+                        "json",
+                    ],
+                ))
+                .unwrap()
+            };
+            assert_eq!(
+                complete_streams(&candidate),
+                complete_streams(&expected),
+                "complete stream and sample-entry fields"
+            );
             let actual = metadata(&candidate, fields);
             let wanted = metadata(&expected, fields);
             assert_eq!(actual["streams"], wanted["streams"]);
@@ -1910,7 +1925,7 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
                 &coreav_isobmff::Allowlist::listing(),
             )
             .unwrap();
-            assert_eq!(parsed.tracks[0].description.fourcc.0, *b"avc3");
+            assert_eq!(parsed.tracks[0].description.fourcc.0, *b"avc1");
             for index in 0..if video_only { 1 } else { 2 } {
                 let packets = |value: &Value| {
                     value["packets"]
@@ -1974,185 +1989,6 @@ fn primed_aac_concat_keeps_complete_packet_clocks_and_payloads() {
                 );
             }
         }
-    }
-}
-
-fn concat_payload_faults_are_terminal(source: &Path) {
-    use coreav_isobmff::{
-        Allowlist, Budget, Error, FileSource, LimitKind, Limits, Rational, SliceSource, Source,
-    };
-    use coreav_isobmff_write::{
-        ConcatFile, ConcatOptions, ExtractError, JoinAudio, JoinError, VideoChoice, concat_mp4,
-    };
-    use std::sync::Arc;
-
-    #[derive(Clone, Copy)]
-    enum Fault {
-        Io,
-        Truncated,
-        Changed,
-    }
-    struct Input {
-        bytes: Arc<Vec<u8>>,
-        target: u64,
-        visits: usize,
-        fail_at: usize,
-        fault: Fault,
-    }
-    impl Source for Input {
-        fn len(&mut self) -> Result<u64, Error> {
-            Ok(self.bytes.len() as u64)
-        }
-        fn read_exact_at(&mut self, offset: u64, buf: &mut [u8]) -> Result<(), Error> {
-            SliceSource::new(&self.bytes).read_exact_at(offset, buf)?;
-            if offset == self.target && buf.len() == 5 {
-                self.visits += 1;
-                if self.visits == self.fail_at {
-                    match self.fault {
-                        Fault::Io => return Err(Error::Io(std::io::ErrorKind::Other)),
-                        Fault::Truncated => return Err(Error::Truncated { offset }),
-                        Fault::Changed => buf[4] = 9,
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-    let limits = Limits::default();
-    let movie = coreav_isobmff::probe(
-        FileSource::open(source).unwrap(),
-        &limits,
-        &Allowlist::listing(),
-    )
-    .unwrap();
-    let mut budget = Budget::new(&limits);
-    let first = movie
-        .packets(0, FileSource::open(source).unwrap(), &limits, &mut budget)
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap();
-    let bytes = Arc::new(std::fs::read(source).unwrap());
-    let input = |fail_at, fault| Input {
-        bytes: Arc::clone(&bytes),
-        target: first.offset,
-        visits: 0,
-        fail_at,
-        fault,
-    };
-    let options = ConcatOptions {
-        video: VideoChoice::First,
-        audio: JoinAudio::First,
-        files: vec![
-            ConcatFile {
-                slot: Rational::from_int(0),
-                start: Rational::from_int(0),
-            },
-            ConcatFile {
-                slot: Rational::new(9, 4).unwrap(),
-                start: Rational::from_int(0),
-            },
-        ],
-    };
-    for fault in [Fault::Io, Fault::Truncated, Fault::Changed] {
-        for pass in 1..=3 {
-            if pass == 1 && matches!(fault, Fault::Changed) {
-                continue;
-            }
-            let mut out = Vec::new();
-            let error = concat_mp4(
-                vec![input(pass, fault), input(0, fault)],
-                &limits,
-                &Allowlist::listing(),
-                &options,
-                &mut out,
-            )
-            .unwrap_err();
-            match fault {
-                Fault::Io => assert!(matches!(
-                    error,
-                    JoinError::Input {
-                        input: 0,
-                        error: ExtractError::Source(Error::Io(_))
-                    }
-                )),
-                Fault::Truncated => assert!(matches!(
-                    error,
-                    JoinError::Input {
-                        input: 0,
-                        error: ExtractError::Source(Error::Truncated { .. })
-                    }
-                )),
-                Fault::Changed => assert!(matches!(
-                    error,
-                    JoinError::Input {
-                        input: 0,
-                        error: ExtractError::SourceChanged
-                    }
-                )),
-            }
-            assert_eq!(out.is_empty(), pass < 3);
-        }
-    }
-    let mut out = Vec::new();
-    let error = concat_mp4(
-        vec![input(1, Fault::Changed), input(1, Fault::Io)],
-        &limits,
-        &Allowlist::listing(),
-        &options,
-        &mut out,
-    )
-    .unwrap_err();
-    assert!(matches!(
-        error,
-        JoinError::Input {
-            input: 1,
-            error: ExtractError::Source(Error::Io(_))
-        }
-    ));
-    assert!(out.is_empty());
-    for (limits, expected) in [
-        (
-            Limits {
-                max_packet_bytes: u64::from(first.size),
-                ..limits
-            },
-            LimitKind::PacketBytes,
-        ),
-        (
-            Limits {
-                max_sample_work: 200,
-                ..limits
-            },
-            LimitKind::SampleWork,
-        ),
-        (
-            Limits {
-                max_table_bytes: 1,
-                ..limits
-            },
-            LimitKind::TableBytes,
-        ),
-    ] {
-        let mut out = Vec::new();
-        let error = concat_mp4(
-            vec![input(0, Fault::Io), input(0, Fault::Io)],
-            &limits,
-            &Allowlist::listing(),
-            &options,
-            &mut out,
-        )
-        .unwrap_err();
-        let limit = match error {
-            JoinError::Input {
-                error: ExtractError::Source(Error::LimitExceeded { limit, .. }),
-                ..
-            }
-            | JoinError::Output(Error::LimitExceeded { limit, .. }) => limit,
-            error => panic!("expected {expected:?}, got {error:?}"),
-        };
-        assert_eq!(limit, expected);
-        assert!(out.is_empty());
     }
 }
 
@@ -2312,18 +2148,121 @@ fn unqualified_primed_aac_concat_preserves_outputs_and_real_fallback() {
 }
 
 #[test]
+fn av1_video_concat_compares_every_exposed_sample_entry_field_and_packet_byte() {
+    let Some((reference, probe)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("ffmpeg-concat-av1-complete");
+    let policy: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
+    let source = dir.join("source.mp4");
+    let generated = Command::new(&reference)
+        .args(["-v", "error", "-f", "lavfi"])
+        .args(&policy)
+        .args([
+            "-i",
+            "testsrc2=size=80x64:rate=24:duration=1",
+            "-an",
+            "-c:v",
+            "libaom-av1",
+            "-cpu-used",
+            "8",
+            "-threads:v",
+            "1",
+            "-metadata:s:v:0",
+            "encoder=",
+        ])
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let mut bytes = std::fs::read(&source).unwrap();
+    let field = bytes.windows(4).position(|word| word == b"fiel").unwrap();
+    bytes[field..field + 4].copy_from_slice(b"free");
+    std::fs::write(&source, bytes).unwrap();
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file source.mp4\nfile source.mp4\n").unwrap();
+    let candidate = dir.join("candidate.mp4");
+    let expected = dir.join("reference.mp4");
+    let result = ffmpeg(&[
+        "-f",
+        "concat",
+        "-i",
+        list.to_str().unwrap(),
+        "-c",
+        "copy",
+        candidate.to_str().unwrap(),
+    ]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let copied = Command::new(&reference)
+        .args(["-v", "error", "-f", "concat"])
+        .args(&policy)
+        .arg("-i")
+        .arg(&list)
+        .args(["-c", "copy"])
+        .arg(&expected)
+        .output()
+        .unwrap();
+    assert!(
+        copied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&copied.stderr)
+    );
+    let capture = |path: &Path| {
+        let output = Command::new(&probe)
+            .args(["-v", "error"])
+            .args(&policy)
+            .arg("-i")
+            .arg(path)
+            .args([
+                "-show_streams",
+                "-show_packets",
+                "-show_data",
+                "-show_data_hash",
+                "sha256",
+                "-of",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        for packet in document["packets"].as_array_mut().unwrap() {
+            packet.as_object_mut().unwrap().remove("pos");
+        }
+        document
+    };
+    assert_eq!(capture(&candidate), capture(&expected));
+}
+
+#[test]
 fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;
     };
     let dir = scratch("ffmpeg-concat-unedited-oracle");
+    let audio_input: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
+        .split_whitespace()
+        .collect();
     let make = |args: &[&str]| {
-        let result = Command::new(&ffmpeg_bin)
-            .args(["-nostdin", "-v", "error"])
-            .args(args)
-            .current_dir(&dir)
-            .output()
-            .unwrap();
+        let mut command = Command::new(&ffmpeg_bin);
+        command.args(["-nostdin", "-v", "error"]);
+        for arg in args {
+            if *arg == "-i" {
+                command.args(&audio_input);
+            }
+            command.arg(arg);
+        }
+        let result = command.current_dir(&dir).output().unwrap();
         assert!(
             result.status.success(),
             "{}",
@@ -2391,8 +2330,32 @@ fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
         "copy",
         candidate.to_str().unwrap(),
     ]);
-    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(r.stderr.contains("H.264 concat packet conversion"));
     assert!(r.stdout.is_empty());
+    assert!(!candidate.exists());
+    let path = std::env::join_paths(
+        std::iter::once(ffmpeg_bin.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        )),
+    )
+    .unwrap();
+    let fallback = Command::new(bin())
+        .args(["ffmpeg", "-f", "concat", "-i"])
+        .arg(&list)
+        .args(["-c", "copy"])
+        .arg(&candidate)
+        .env("PATH", path)
+        .env_remove("COREAV_STRICT_SAFE")
+        .env_remove("COREAV_FALLBACK_ACTIVE")
+        .output()
+        .unwrap();
+    assert!(
+        fallback.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fallback.stderr)
+    );
+    assert!(fallback.stdout.is_empty());
     make(&[
         "-f",
         "concat",
@@ -2403,9 +2366,44 @@ fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
         "reference.mp4",
     ]);
     let reference = dir.join("reference.mp4");
-    let audio_input: Vec<&str> = include_str!("../../../scripts/oracle-audio-args.txt")
-        .split_whitespace()
-        .collect();
+    assert_eq!(
+        std::fs::read(&candidate).unwrap(),
+        std::fs::read(&reference).unwrap()
+    );
+    let complete = |path: &Path| {
+        let result = Command::new(&ffprobe_bin)
+            .args(["-v", "error"])
+            .args(&audio_input)
+            .arg("-i")
+            .arg(path)
+            .args([
+                "-show_streams",
+                "-show_packets",
+                "-show_data",
+                "-show_data_hash",
+                "sha256",
+                "-of",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        serde_json::from_slice::<Value>(&result.stdout).unwrap()
+    };
+    let actual = complete(&candidate);
+    let expected = complete(&reference);
+    assert_eq!(
+        actual["packets"], expected["packets"],
+        "complete packet bytes and global order"
+    );
+    assert_eq!(
+        actual["streams"], expected["streams"],
+        "complete stream and sample-entry fields"
+    );
     let metadata = |path: &Path, stream: &str| {
         let r = Command::new(&ffprobe_bin).args(["-v", "error"]).args(&audio_input)
             .arg("-i").arg(path).args(["-select_streams", stream]).args(["-show_entries", "format=start_time,duration:stream=index,codec_name,time_base,start_pts,duration_ts,width,height,pix_fmt,sample_rate,channels:frame=stream_index,best_effort_timestamp,duration,nb_samples,width,height,pix_fmt", "-of", "json"])
