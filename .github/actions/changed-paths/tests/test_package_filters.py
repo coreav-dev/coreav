@@ -176,6 +176,18 @@ const execute = new AsyncFunction('github', 'context', 'require', config.script)
         }), text=True, capture_output=True, cwd=ROOT)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_wasm_contract_installs_the_real_runtime_before_example_tests(self):
+        script = ('puts JSON.generate(Psych.load_file(ARGV[0])'
+                  '["jobs"]["wasm-contract"]["steps"])')
+        steps = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e', script,
+             str(ROOT / '.github/workflows/wasm.yml')], text=True))
+        commands = [step.get('run', '') for step in steps]
+        testing = commands.index('npm test --prefix packages/wasm/examples')
+        self.assertIn('npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples',
+                      commands[:testing],
+                      'install the example lockfile before running its real workerd regression')
+
     def test_mixed_changes_and_renames_keep_native_validation(self):
         for paths in (['packages/wasm/src/node.js', 'packages/cli/lib/main.js'],
                       ['packages/cli/lib/main.js', 'packages/wasm/src/node.js'],

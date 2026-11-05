@@ -95,6 +95,7 @@ jobs:
       - run: npm test --prefix packages/wasm && npm run test:types --prefix packages/wasm
       - run: npm test --prefix packages/wasm-h264 && npm run test:types --prefix packages/wasm-h264
       - run: python3 -m unittest discover -s scripts/tests -p test_wasm_thumbnail_fixtures.py
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefix packages/wasm/examples
       - run: npm test --prefix packages/wasm/examples
 
   wasm-module:
