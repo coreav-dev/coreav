@@ -7,6 +7,8 @@
     clippy::expect_used,
     clippy::panic
 )]
+#[path = "support/flac_ranges.rs"]
+mod flac_ranges;
 mod support;
 
 use support::{decode_raw, from_dump, md5};
@@ -115,6 +117,148 @@ fn complete_validation_checks_reference_samples_and_integrity() {
             validate_stream(info, payload, &limits),
             Err(Error::Isobmff(_))
         ));
+    }
+}
+
+#[test]
+fn prepared_stream_charges_both_walks_and_packing_before_start() {
+    use coreav_audio::flac::{StreamInfo, prepare_stream};
+    use coreav_audio::{Error, LimitKind, Limits, OutputFormat, SampleFormat, Sink};
+    struct Capture {
+        starts: usize,
+        bytes: Vec<u8>,
+        fail: bool,
+    }
+    impl Sink for Capture {
+        fn start(&mut self, _: &OutputFormat) -> Result<(), Error> {
+            self.starts += 1;
+            Ok(())
+        }
+        fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
+            if self.fail {
+                return Err(Error::Output(std::io::Error::from(
+                    std::io::ErrorKind::BrokenPipe,
+                )));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok(())
+        }
+    }
+    let bytes = from_dump(EXAMPLE_2);
+    let info = StreamInfo::parse(&bytes[8..42]).unwrap();
+    let payload = &bytes[136..];
+    for format in [SampleFormat::S16, SampleFormat::F32] {
+        let scalar = info.total_samples * u64::from(info.channels);
+        let block = u64::from(info.max_block_size);
+        let scratch = block * (u64::from(info.channels) * (4 + format.bytes() as u64) + 8) + 1024;
+        let mut limits = Limits::default();
+        limits.isobmff.max_sample_work = scalar * 128;
+        limits.isobmff.max_retained_bytes = scratch;
+        let mut out = Capture {
+            starts: 0,
+            bytes: vec![],
+            fail: false,
+        };
+        prepare_stream(info, payload, format, &limits)
+            .unwrap()
+            .write(&mut out)
+            .unwrap();
+        assert_eq!(out.starts, 1);
+        assert_eq!(out.bytes.len() as u64, scalar * format.bytes() as u64);
+        let mut limited = limits;
+        limited.isobmff.max_sample_work -= 1;
+        assert!(matches!(
+            prepare_stream(info, payload, format, &limited),
+            Err(Error::LimitExceeded(LimitKind::OutputSamples))
+        ));
+        limited = limits;
+        limited.max_output_samples = scalar - 1;
+        assert!(matches!(
+            prepare_stream(info, payload, format, &limited),
+            Err(Error::LimitExceeded(LimitKind::OutputSamples))
+        ));
+        limited = limits;
+        limited.max_packet_bytes = payload.len() as u64 - 1;
+        assert!(matches!(
+            prepare_stream(info, payload, format, &limited),
+            Err(Error::LimitExceeded(LimitKind::PacketBytes))
+        ));
+        limited = limits;
+        limited.isobmff.max_retained_bytes -= 1;
+        assert!(matches!(
+            prepare_stream(info, payload, format, &limited),
+            Err(Error::Isobmff(coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::RetainedBytes,
+                ..
+            }))
+        ));
+        let mut damaged = payload.to_vec();
+        *damaged.last_mut().unwrap() ^= 1;
+        assert!(prepare_stream(info, &damaged, format, &limits).is_err());
+        let mut zero_md5 = info;
+        zero_md5.md5 = [0; 16];
+        let mut again = Capture {
+            starts: 0,
+            bytes: vec![],
+            fail: false,
+        };
+        prepare_stream(zero_md5, payload, format, &limits)
+            .unwrap()
+            .write(&mut again)
+            .unwrap();
+        assert_eq!(again.bytes, out.bytes);
+        let mut failing = Capture {
+            starts: 0,
+            bytes: vec![],
+            fail: true,
+        };
+        assert!(
+            matches!(prepare_stream(info, payload, format, &limits).unwrap().write(&mut failing), Err(Error::Output(error)) if error.kind() == std::io::ErrorKind::BrokenPipe)
+        );
+        assert_eq!(failing.starts, 1);
+    }
+}
+
+#[test]
+fn invalid_reconstructed_ranges_fail_decoder_validator_and_preparation() {
+    use coreav_audio::flac::{FlacDecoder, StreamInfo, prepare_stream, validate_stream};
+    use coreav_audio::{Error, Limits, Pcm, SampleFormat};
+    for bits in [16, 24] {
+        let half = 1i64 << (bits - 1);
+        for (assignment, values, fixed) in [
+            (0, [half, 0], true),
+            (8, [half - 1, -2 * half], false),
+            (9, [2 * half - 1, half - 1], false),
+            (10, [half - 1, 2 * half - 1], false),
+        ] {
+            for late in [false, true] {
+                let bytes = flac_ranges::file(bits, assignment, values, fixed, late);
+                let info = StreamInfo::parse(&bytes[8..42]).unwrap();
+                let payload = &bytes[42..];
+                let limits = Limits::default();
+                let mut decoder = FlacDecoder::new(info, &limits).unwrap();
+                let mut pcm = Pcm::new();
+                let offset = if late {
+                    decoder.decode(payload, &mut pcm).unwrap().bytes
+                } else {
+                    0
+                };
+                assert!(matches!(
+                    decoder.decode(&payload[offset..], &mut pcm),
+                    Err(Error::Invalid(_))
+                ));
+                assert!(matches!(
+                    validate_stream(info, payload, &limits),
+                    Err(Error::Invalid(_))
+                ));
+                for packing in [SampleFormat::S16, SampleFormat::F32] {
+                    assert!(matches!(
+                        prepare_stream(info, payload, packing, &limits),
+                        Err(Error::Invalid(_))
+                    ));
+                }
+            }
+        }
     }
 }
 
