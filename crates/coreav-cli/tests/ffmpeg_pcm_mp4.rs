@@ -2,8 +2,10 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 
 #[path = "../../../test-support/oracle.rs"]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 mod test_oracle;
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -15,6 +17,7 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn policy() -> Vec<&'static str> {
     include_str!("../../../scripts/oracle-audio-args.txt")
         .split_whitespace()
@@ -45,6 +48,34 @@ fn native(input: &Path, output: &Path, strict: bool, extra: &[&str]) -> Output {
         .unwrap()
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn raw_s16(input: &Path, output: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_coreav"))
+        .args(["--strict-safe", "ffmpeg", "-y"])
+        .args(
+            include_str!("../../../scripts/oracle-audio-args.txt")
+                .split_whitespace()
+                .map(|argument| argument.trim_end_matches(":a")),
+        )
+        .arg("-i")
+        .arg(input)
+        .args([
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-c:a",
+            "pcm_s16le",
+            "-vn",
+            "-f",
+            "s16le",
+        ])
+        .arg(output)
+        .env("COREAV_FALLBACK", output.with_file_name("missing-ffmpeg"))
+        .output()
+        .unwrap()
+}
+
 fn children(mut bytes: &[u8]) -> Vec<([u8; 4], &[u8])> {
     let mut result = Vec::new();
     while !bytes.is_empty() {
@@ -64,6 +95,7 @@ fn child<'a>(bytes: &'a [u8], kind: &[u8; 4]) -> &'a [u8] {
         .1
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn records(ffprobe: &Path, file: &Path, pcm: &[u8]) -> Value {
     let output = Command::new(ffprobe)
         .args(["-v", "error"])
@@ -119,6 +151,54 @@ fn wave(path: &Path, frames: usize) -> Vec<u8> {
     pcm
 }
 
+#[test]
+fn generated_wave_writes_complete_pcm_mp4_without_an_oracle() {
+    use coreav_isobmff::{Allowlist, Budget, Limits, SliceSource, probe};
+    let dir = scratch("native");
+    let input = dir.join("source.wav");
+    let pcm = wave(&input, 52_800);
+    for strict in [false, true] {
+        let output = dir.join("native.mp4");
+        success(native(&input, &output, strict, &[]));
+        let bytes = std::fs::read(output).unwrap();
+        assert_eq!(child(&bytes, b"mdat"), pcm);
+        let limits = Limits::default();
+        let movie = probe(SliceSource::new(&bytes), &limits, &Allowlist::default()).unwrap();
+        assert_eq!(movie.tracks.len(), 1);
+        assert_eq!(movie.timescale, 48_000);
+        assert_eq!(movie.tracks[0].timescale, 48_000);
+        let mut budget = Budget::new(&limits);
+        let mut count = 0;
+        let mut end = 0;
+        for packet in movie
+            .packets(
+                movie.tracks[0].index,
+                SliceSource::new(&bytes),
+                &limits,
+                &mut budget,
+            )
+            .unwrap()
+        {
+            let packet = packet.unwrap();
+            if count != 0 {
+                assert_eq!(packet.offset, end);
+            }
+            assert_eq!(packet.duration, 1);
+            assert_eq!(packet.size, 2);
+            assert_eq!(
+                &bytes[packet.offset as usize..packet.offset as usize + 2],
+                &pcm[count * 2..count * 2 + 2]
+            );
+            end = packet.offset + 2;
+            count += 1;
+        }
+        assert_eq!(count, 52_800);
+        assert_eq!(end, bytes.len() as u64);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn lossless_sources_match_complete_records_payload_and_terminal_packet() {
     let oracle = test_oracle::require();
@@ -181,26 +261,7 @@ fn lossless_sources_match_complete_records_payload_and_terminal_packet() {
                     let actual = records(oracle.ffprobe(), &output, &pcm);
                     assert_eq!(actual, expected, "frames={frames}, source={source:?}");
                     let raw = dir.join("native.raw");
-                    success(
-                        Command::new(env!("CARGO_BIN_EXE_coreav"))
-                            .args(["--strict-safe", "ffmpeg", "-y", "-i"])
-                            .arg(source)
-                            .args([
-                                "-ac",
-                                "1",
-                                "-ar",
-                                "48000",
-                                "-c:a",
-                                "pcm_s16le",
-                                "-vn",
-                                "-f",
-                                "s16le",
-                            ])
-                            .arg(&raw)
-                            .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
-                            .output()
-                            .unwrap(),
-                    );
+                    success(raw_s16(source, &raw));
                     assert_eq!(std::fs::read(raw).unwrap(), pcm);
                     let bytes = std::fs::read(output).unwrap();
                     let moov = child(&bytes, b"moov");
@@ -261,6 +322,7 @@ fn lossless_sources_match_complete_records_payload_and_terminal_packet() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn excluded_shapes_preserve_destinations_and_original_command_fallback() {
     let oracle = test_oracle::require();
@@ -382,7 +444,106 @@ fn excluded_shapes_preserve_destinations_and_original_command_fallback() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn non_pcm_effective_codecs_do_not_inherit_pcm_rate_or_channel_options() {
+    let oracle = test_oracle::require();
+    let dir = scratch("effective-codecs");
+    let input = dir.join("source.wav");
+    wave(&input, 4800);
+    let flac = dir.join("source.mp4");
+    success(
+        Command::new(oracle.ffmpeg())
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(policy())
+            .arg("-i")
+            .arg(&input)
+            .args(["-c:a", "flac", "-strict", "-2"])
+            .arg(&flac)
+            .output()
+            .unwrap(),
+    );
+    for options in [
+        ["-c:a", "pcm_s16le", "-c:a", "aac"],
+        ["-c:a:1", "pcm_s16le", "-c:a", "aac"],
+        ["-c:1", "pcm_s16le", "-c:a", "copy"],
+    ] {
+        for (option, value) in [("-ar", "8000"), ("-ac", "2")] {
+            for strict in [false, true] {
+                let output = dir.join("refused.mp4");
+                std::fs::write(&output, b"preserve destination").unwrap();
+                let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                if strict {
+                    command.arg("--strict-safe");
+                }
+                let result = command
+                    .args(["ffmpeg", "-y", "-i"])
+                    .arg(&flac)
+                    .args(options)
+                    .args(["-vn", option, value])
+                    .arg(&output)
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                    .output()
+                    .unwrap();
+                assert!(
+                    !result.status.success(),
+                    "{options:?}, {option}: {result:?}"
+                );
+                if strict {
+                    assert_eq!(result.status.code(), Some(4));
+                }
+                let message = String::from_utf8_lossy(&result.stderr);
+                if strict && cfg!(feature = "transcode") && options[3] == "aac" {
+                    assert!(
+                        message.contains("strict-safe mode never runs the ffmpeg program"),
+                        "{result:?}"
+                    );
+                } else {
+                    assert!(
+                        message.contains(&format!("'{option}' is not supported")),
+                        "{result:?}"
+                    );
+                }
+                assert!(result.stdout.is_empty());
+                assert_eq!(std::fs::read(&output).unwrap(), b"preserve destination");
+            }
+            let reference = dir.join("reference.mp4");
+            success(
+                Command::new(oracle.ffmpeg())
+                    .args(["-nostdin", "-v", "error", "-y"])
+                    .args(policy())
+                    .arg("-i")
+                    .arg(&flac)
+                    .args(options)
+                    .args(["-vn", option, value])
+                    .arg(&reference)
+                    .output()
+                    .unwrap(),
+            );
+            let output = dir.join("fallback.mp4");
+            let fallback = Command::new(env!("CARGO_BIN_EXE_coreav"))
+                .args(["ffmpeg", "-y", "-i"])
+                .arg(&flac)
+                .args(options)
+                .args(["-vn", option, value])
+                .arg(&output)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env("COREAV_FALLBACK", oracle.ffmpeg())
+                .output()
+                .unwrap();
+            assert!(fallback.status.success(), "{fallback:?}");
+            assert_eq!(
+                std::fs::read(output).unwrap(),
+                std::fs::read(reference).unwrap()
+            );
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[cfg(feature = "aac")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn aac_keeps_its_complete_decode_tolerance_and_exact_non_pcm_records() {
     let oracle = test_oracle::require();
@@ -416,26 +577,7 @@ fn aac_keeps_its_complete_decode_tolerance_and_exact_non_pcm_records() {
     let reference_bytes = std::fs::read(&reference).unwrap();
     let reference_pcm = child(&reference_bytes, b"mdat");
     let raw = dir.join("qualified.raw");
-    success(
-        Command::new(env!("CARGO_BIN_EXE_coreav"))
-            .args(["--strict-safe", "ffmpeg", "-y", "-i"])
-            .arg(&input)
-            .args([
-                "-ac",
-                "1",
-                "-ar",
-                "48000",
-                "-c:a",
-                "pcm_s16le",
-                "-vn",
-                "-f",
-                "s16le",
-            ])
-            .arg(&raw)
-            .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
-            .output()
-            .unwrap(),
-    );
+    success(raw_s16(&input, &raw));
     let native_pcm = std::fs::read(raw).unwrap();
     assert_eq!(native_pcm.len(), reference_pcm.len());
     assert!(!native_pcm.is_empty());

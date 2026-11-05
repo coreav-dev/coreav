@@ -726,6 +726,7 @@ pub fn plan(
             "pcm_s16le outside WAV or raw s16le output",
         ));
     }
+    non_pcm_audio_options(command)?;
     if decided.contains(&Some(Codec::Flac)) {
         return Err(Refusal::not_native("FLAC encoding outside FLAC output"));
     }
@@ -1573,12 +1574,31 @@ fn select_sources(
     Ok(selected)
 }
 
+fn non_pcm_audio_options(command: &Command) -> Result<(), Refusal> {
+    if command.muxer == Muxer::Mp4 {
+        for (option, given) in [
+            ("-ar", command.sample_rate.is_some()),
+            ("-ac", command.channels.is_some()),
+        ] {
+            if given {
+                return Err(Refusal::NotNative(NotNative::option(
+                    option,
+                    None,
+                    format!("'{option}' is not supported: it is not supported on this output"),
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn plan_inputs(command: &Command, reports: &[Report]) -> Result<Job, Refusal> {
     if command.muxer != Muxer::Mp4 || command.map_metadata != MapMetadata::Default {
         return Err(Refusal::not_native(
             "multiple-input output other than MP4 with default metadata",
         ));
     }
+    non_pcm_audio_options(command)?;
     if command.maps.is_empty() {
         return Err(Refusal::not_native(
             "automatic stream selection across several inputs",
@@ -2225,6 +2245,93 @@ mod tests {
                     None
                 ),
                 Err(Stop::Refused(Refusal::NotNative(_)))
+            ));
+        }
+    }
+
+    #[test]
+    fn pcm_mp4_rate_and_channel_exception_uses_effective_output_codecs() {
+        use crate::ffprobe::model::Unit;
+        let report = Report {
+            streams: vec![Stream {
+                kind: StreamKind::Audio,
+                attached_pic: false,
+                entries: vec![
+                    ("codec_name", Value::Str("flac".to_owned())),
+                    ("sample_rate", Value::Unit(48_000, Unit::Hertz)),
+                    ("channels", Value::Int(1)),
+                    ("channel_layout", Value::Str("mono".to_owned())),
+                    ("bits_per_raw_sample", Value::Str("16".to_owned())),
+                ],
+                disposition: Vec::new(),
+                tags: Vec::new(),
+                side_data: Vec::new(),
+            }],
+            format: vec![(
+                "format_name",
+                Value::Str("mov,mp4,m4a,3gp,3g2,mj2".to_owned()),
+            )],
+            ..Report::default()
+        };
+        for (option, value) in [("-ar", "8000"), ("-ac", "2")] {
+            for codecs in [
+                "-c:a pcm_s16le -c:a aac",
+                "-c:a pcm_s16le -c:a copy",
+                "-c:a:1 pcm_s16le -c:a aac",
+                "-c:a:1 pcm_s16le -c:a copy",
+                "-c:1 pcm_s16le -c:a aac",
+                "-c:v pcm_s16le -c:a aac",
+            ] {
+                let line = format!("-i in.mp4 {codecs} -vn {option} {value} out.mp4");
+                let command = args::parse(
+                    &line
+                        .split_whitespace()
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap();
+                let Err(Refusal::NotNative(refusal)) = plan(&command, &report, None) else {
+                    panic!("non-PCM options were accepted: {line}");
+                };
+                assert_eq!(
+                    refusal.reason,
+                    crate::fallback::Reason::Option(option.to_owned(), None)
+                );
+            }
+            for map in ["0:a", "1:a"] {
+                let line = format!(
+                    "-i first.mp4 -i second.mp4 -map {map} -c:a pcm_s16le -c:a copy -vn {option} {value} out.mp4"
+                );
+                let command = args::parse(
+                    &line
+                        .split_whitespace()
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap();
+                let Err(Refusal::NotNative(refusal)) =
+                    plan_inputs(&command, &[report.clone(), report.clone()])
+                else {
+                    panic!("multiple-input options were accepted: {line}");
+                };
+                assert_eq!(
+                    refusal.reason,
+                    crate::fallback::Reason::Option(option.to_owned(), None)
+                );
+            }
+        }
+        for codecs in ["-c:a aac -c:a pcm_s16le", "-c:a:1 aac -c:a pcm_s16le"] {
+            let line = format!("-i in.mp4 {codecs} -vn -ar 48000 -ac 1 out.mp4");
+            let command = args::parse(
+                &line
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+            assert!(matches!(
+                plan(&command, &report, None),
+                Ok(Job::RawAudio(_))
             ));
         }
     }
