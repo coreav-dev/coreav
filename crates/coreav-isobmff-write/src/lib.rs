@@ -55,7 +55,7 @@ mod split;
 mod tables;
 
 pub use clip::{clip_audio_mp4, clip_mp4, clip_mp4_input_seek};
-pub use join::join_mp4;
+pub use join::{concat_mp4, join_mp4};
 pub use m4a::extract_audio;
 pub use matroska::{
     DroppedAdditions, MAX_LISTED_ADDITIONS, MatroskaDroppedTrack, MatroskaRemuxError,
@@ -635,6 +635,15 @@ pub enum JoinAudio {
     None,
 }
 
+/// Reported file facts for compatibility concat packet clocks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConcatFile {
+    /// File slot after preceding file durations, in seconds at microsecond precision.
+    pub slot: Rational,
+    /// Reported file start, in seconds at microsecond precision.
+    pub start: Rational,
+}
+
 /// Where [`join_mp4`] places each input on the output's timeline.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Placement {
@@ -650,6 +659,17 @@ pub enum Placement {
     /// an input whose video would start before the previous input's video
     /// ends, fails the join.
     At(Vec<Rational>),
+}
+
+/// Stream selection and reported file facts for [`concat_mp4`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConcatOptions {
+    /// Video stream copied from every input.
+    pub video: VideoChoice,
+    /// Audio stream copied from every input.
+    pub audio: JoinAudio,
+    /// File slots and reported starts, in input order.
+    pub files: Vec<ConcatFile>,
 }
 
 /// What [`join_mp4`] keeps.

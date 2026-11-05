@@ -7,7 +7,8 @@ use crate::output::WriteFailure;
 use crate::pretty::{write_array, write_indented};
 use coreav_isobmff::{Allowlist, BufferedSource, Error, FileSource, Limits, Rational};
 use coreav_isobmff_write::{
-    ExtractError, JoinError, JoinOptions, JoinSummary, JoinedInput, join_mp4,
+    ConcatOptions, ExtractError, JoinError, JoinOptions, JoinSummary, JoinedInput, concat_mp4,
+    join_mp4,
 };
 use serde_json::{Value, json};
 use std::io::Write;
@@ -104,6 +105,33 @@ pub fn run<W: Write>(
     allowlist: &Allowlist,
     out: W,
 ) -> Result<JoinSummary, JoinFailure> {
+    join_mp4(
+        open_sources(paths)?,
+        &Limits::default(),
+        allowlist,
+        options,
+        out,
+    )
+    .map_err(|e| JoinFailure::new(&e))
+}
+
+pub(crate) fn run_concat<W: Write>(
+    paths: &[PathBuf],
+    options: &ConcatOptions,
+    allowlist: &Allowlist,
+    out: W,
+) -> Result<JoinSummary, JoinFailure> {
+    concat_mp4(
+        open_sources(paths)?,
+        &Limits::default(),
+        allowlist,
+        options,
+        out,
+    )
+    .map_err(|e| JoinFailure::new(&e))
+}
+
+fn open_sources(paths: &[PathBuf]) -> Result<Vec<BufferedSource<FileSource>>, JoinFailure> {
     let mut sources = Vec::new();
     for (input, path) in paths.iter().enumerate() {
         let file = FileSource::open(path).map_err(|e| {
@@ -114,7 +142,7 @@ pub fn run<W: Write>(
         })?;
         sources.push(BufferedSource::new(file));
     }
-    join_mp4(sources, &Limits::default(), allowlist, options, out).map_err(|e| JoinFailure::new(&e))
+    Ok(sources)
 }
 
 /// Writes the `coreav.join/1` summary (`docs/schema/join-v1.md`) to `out`

@@ -25,8 +25,9 @@ use crate::moov::{
 use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, to_u64};
 use crate::tables::Tables;
 use crate::{
-    AudioChoice, ClipTrack, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch, Placement,
+    AudioChoice, ClipTrack, ConcatFile, ConcatOptions, ExtractError, JoinAudio, JoinError,
+    JoinOptions, JoinSummary, JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch, Placement,
+    VideoChoice,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -34,6 +35,8 @@ use coreav_isobmff::{
     probe,
 };
 use std::io::Write;
+
+mod concat;
 
 /// Output track IDs, as in a clip.
 const VIDEO_ID: u32 = 1;
@@ -78,18 +81,87 @@ pub fn join_mp4<S: Source, W: Write>(
     limits: &Limits,
     allowlist: &Allowlist,
     options: &JoinOptions,
+    out: W,
+) -> Result<JoinSummary, JoinError> {
+    join(
+        inputs,
+        limits,
+        allowlist,
+        options.video,
+        options.audio,
+        Mode::Native(&options.placement),
+        out,
+    )
+}
+
+/// Copies a qualified ISO concat packet clock without changing native join placement.
+pub fn concat_mp4<S: Source, W: Write>(
+    inputs: Vec<S>,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    options: &ConcatOptions,
+    out: W,
+) -> Result<JoinSummary, JoinError> {
+    join(
+        inputs,
+        limits,
+        allowlist,
+        options.video,
+        options.audio,
+        Mode::Concat(&options.files),
+        out,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Mode<'a> {
+    Native(&'a Placement),
+    Concat(&'a [ConcatFile]),
+}
+
+fn join<S: Source, W: Write>(
+    inputs: Vec<S>,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    video: VideoChoice,
+    audio: JoinAudio,
+    placement: Mode<'_>,
     mut out: W,
 ) -> Result<JoinSummary, JoinError> {
     if inputs.is_empty() {
         return Err(JoinError::NoInputs);
+    }
+    if let Mode::Concat(files) = placement
+        && (files.len() != inputs.len()
+            || files
+                .first()
+                .is_none_or(|file| file.slot.num != 0 || file.start.num != 0))
+    {
+        return Err(JoinError::Output(unsupported(
+            "a concat placement that does not start every input list at zero",
+        )));
     }
     let sources: Vec<RefCell<S>> = inputs.into_iter().map(RefCell::new).collect();
     let mut movies = Vec::new();
     movies
         .try_reserve_exact(sources.len())
         .map_err(|_| JoinError::Output(table_limit()))?;
+    let compatible = matches!(placement, Mode::Concat(_));
+    let mut packet_copy = false;
     for (input, source) in sources.iter().enumerate() {
         let movie = probe(Shared(source), limits, allowlist).map_err(|e| at(input, e))?;
+        if compatible {
+            packet_copy |= concat::positive_aac(&movie);
+            if movie
+                .dropped
+                .iter()
+                .any(|track| track.kind == coreav_isobmff::TrackKind::Audio)
+            {
+                let listing = probe(Shared(source), limits, &Allowlist::listing())
+                    .map_err(|e| at(input, e))?;
+                packet_copy |= concat::positive_aac(&listing);
+            }
+        }
         movies.push(movie);
         // Every input stays open for the whole join; what its source holds
         // for reads is freed between the passes that read it.
@@ -97,7 +169,7 @@ pub fn join_mp4<S: Source, W: Write>(
     }
     let mut picks = Vec::new();
     for (input, movie) in movies.iter().enumerate() {
-        picks.push(Pick::of(movie, options).map_err(|e| at(input, e))?);
+        picks.push(Pick::of(movie, video, audio).map_err(|e| at(input, e))?);
     }
     let first = picks.first().ok_or(JoinError::NoInputs)?;
     for (input, pick) in picks.iter().enumerate().skip(1) {
@@ -107,6 +179,15 @@ pub fn join_mp4<S: Source, W: Write>(
     }
     let tv = first.video.timescale;
     let ta = first.audio.as_ref().map(|a| a.track.timescale);
+    let (charged, in_band) = if packet_copy {
+        let charged = concat::storage(picks.len(), limits).map_err(JoinError::Output)?;
+        (
+            charged,
+            concat::InBand::of(first.video).map_err(JoinError::Output)?,
+        )
+    } else {
+        (0, None)
+    };
 
     // Listing 1: each input's samples and presentation.
     let mut spans = Vec::new();
@@ -116,8 +197,16 @@ pub fn join_mp4<S: Source, W: Write>(
             .get(input)
             .ok_or_else(|| JoinError::Output(overflow()))?;
         let mut budget = Budget::new(limits);
-        let video = video_span(movie, pick.video, &mut Shared(source), limits, &mut budget)
-            .map_err(|e| at(input, e))?;
+        let video = video_span(
+            movie,
+            pick.video,
+            &mut Shared(source),
+            limits,
+            &mut budget,
+            packet_copy,
+            in_band.as_ref(),
+        )
+        .map_err(|e| at(input, e))?;
         if input > 0 && !video.starts_with_sync {
             return Err(at(
                 input,
@@ -136,8 +225,15 @@ pub fn join_mp4<S: Source, W: Write>(
         }
         let audio = match pick.audio.as_ref() {
             Some(a) => Some(
-                audio_span(movie, a.track, &mut Shared(source), limits, &mut budget)
-                    .map_err(|e| at(input, e))?,
+                audio_span(
+                    movie,
+                    a.track,
+                    &mut Shared(source),
+                    limits,
+                    &mut budget,
+                    packet_copy,
+                )
+                .map_err(|e| at(input, e))?,
             ),
             None => None,
         };
@@ -160,11 +256,63 @@ pub fn join_mp4<S: Source, W: Write>(
 
     // Where each input goes.
     let tm = ta.map_or(tv, |ta| movie_timescale(tv, ta));
-    let layout = place(&spans, tv, ta, &options.placement).map_err(JoinError::Output)?;
+    let clock = match placement {
+        Mode::Concat(files) if packet_copy => Some(
+            concat::prepare(files, &movies, &picks, &spans, charged, in_band)
+                .map_err(JoinError::Output)?,
+        ),
+        _ => None,
+    };
+    if compatible
+        && picks.iter().any(|pick| {
+            pick.video.edits.len() > 1
+                || pick.audio.as_ref().is_some_and(|a| a.track.edits.len() > 1)
+        })
+    {
+        return Err(JoinError::Output(unsupported(
+            "a join of files whose tracks have several edits",
+        )));
+    }
+    let offsets = match placement {
+        Mode::Concat(files) if clock.is_none() => Some(
+            files
+                .iter()
+                .map(|file| sub(file.slot, file.start))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(JoinError::Output)?,
+        ),
+        _ => None,
+    };
+    let given = clock
+        .as_ref()
+        .map(|clock| clock.offsets.as_slice())
+        .or(offsets.as_deref());
+    let layout = place(&spans, tv, ta, placement, given).map_err(JoinError::Output)?;
 
     // Listing 2: the output tables.
-    let mut video_tables = Tables::new(tv, limits.max_table_bytes);
-    let mut audio_tables = ta.map(|ta| Tables::new(ta, limits.max_table_bytes));
+    let chunk_bytes = if clock.is_some() { 0 } else { u64::MAX };
+    let mut video_tables = Tables::with_chunk_bytes(
+        tv,
+        limits
+            .max_table_bytes
+            .saturating_sub(clock.as_ref().map_or(0, |clock| clock.charged)),
+        chunk_bytes,
+    );
+    if let Some(clock) = &clock {
+        let offset = clock
+            .offsets
+            .first()
+            .ok_or_else(|| JoinError::Output(overflow()))?;
+        video_tables.decode_start =
+            to_i64(round(scale(*offset, tv, 1).map_err(JoinError::Output)?))
+                .and_then(|n| {
+                    n.checked_sub(first.video.edits.first().ok_or_else(overflow)?.media_time)
+                        .ok_or_else(overflow)
+                })
+                .map_err(JoinError::Output)?;
+    }
+    let mut audio_tables =
+        ta.map(|ta| Tables::with_chunk_bytes(ta, limits.max_table_bytes, chunk_bytes));
     for (input, ((movie, pick), budget)) in movies.iter().zip(&picks).zip(&mut budgets).enumerate()
     {
         let source = sources
@@ -181,6 +329,17 @@ pub fn join_mp4<S: Source, W: Write>(
             &span.video.listed,
             placed.extended,
             true,
+            None,
+            clock.as_ref().map(|clock| {
+                (
+                    &clock.in_band,
+                    span.video
+                        .concat
+                        .as_ref()
+                        .and_then(|v| v.position)
+                        .unwrap_or(0),
+                )
+            }),
             &mut Shared(source),
             limits,
             budget,
@@ -196,6 +355,8 @@ pub fn join_mp4<S: Source, W: Write>(
                 &audio.listed,
                 0,
                 false,
+                clock.as_ref().and_then(|clock| clock.audio.get(input)),
+                None,
                 &mut Shared(source),
                 limits,
                 budget,
@@ -216,11 +377,22 @@ pub fn join_mp4<S: Source, W: Write>(
         .and_then(|i| movies.get(i).zip(picks.get(i)))
         .ok_or(JoinError::NoInputs)?;
     let video_edits = edits(&layout.video, tv, tm).map_err(JoinError::Output)?;
-    let video_media = media_duration(last.0, last.1.video, &video_tables, true)
-        .map_err(JoinError::Output)?
-        .max(media_end(&video_edits, tv, tm).map_err(JoinError::Output)?);
+    let video_media = if clock.is_some() {
+        video_tables.duration
+    } else {
+        media_duration(last.0, last.1.video, &video_tables, true)
+            .map_err(JoinError::Output)?
+            .max(media_end(&video_edits, tv, tm).map_err(JoinError::Output)?)
+    };
     let video_duration = track_duration(&video_edits);
     let first_movie = movies.first().ok_or(JoinError::NoInputs)?;
+    let mut video_entry = first.video_entry.clone();
+    if clock.is_some() {
+        video_entry
+            .get_mut(8..12)
+            .ok_or_else(|| JoinError::Output(overflow()))?
+            .copy_from_slice(b"avc3");
+    }
     let mut tracks = vec![TrackBox {
         handler_name: None,
         track_id: VIDEO_ID,
@@ -238,7 +410,7 @@ pub fn join_mp4<S: Source, W: Write>(
         media_duration: video_media,
         duration: video_duration,
         edits: video_edits.into(),
-        stsd: first.video_entry.clone(),
+        stsd: video_entry,
         tables: &video_tables,
         extra: Vec::new(),
         stbl_extra: Vec::new(),
@@ -246,7 +418,15 @@ pub fn join_mp4<S: Source, W: Write>(
     let mut movie_duration = video_duration;
     let mut audio_edit_count = 0;
     if let (Some(a), Some(tables), Some(ta)) = (first.audio.as_ref(), audio_tables.as_ref(), ta) {
-        let mut audio_edits = edits(&layout.audio, ta, tm).map_err(JoinError::Output)?;
+        let mut audio_edits = if clock.is_some() {
+            vec![EditEntry {
+                duration: rescale(tables.duration, ta, tm).map_err(JoinError::Output)?,
+                media_time: 0,
+                rate: UNIT_RATE,
+            }]
+        } else {
+            edits(&layout.audio, ta, tm).map_err(JoinError::Output)?
+        };
         if audio_edits.iter().all(|e| e.media_time < 0) {
             return Err(at(0, unsupported("no input presents its audio")));
         }
@@ -256,17 +436,21 @@ pub fn join_mp4<S: Source, W: Write>(
             .as_ref()
             .map(|l| l.track)
             .ok_or(JoinError::NoInputs)?;
-        let media = media_duration(last.0, last_audio, tables, true)
-            .map_err(JoinError::Output)?
-            .max(media_end(&audio_edits, ta, tm).map_err(JoinError::Output)?);
+        let media = if clock.is_some() {
+            tables.duration
+        } else {
+            media_duration(last.0, last_audio, tables, true)
+                .map_err(JoinError::Output)?
+                .max(media_end(&audio_edits, ta, tm).map_err(JoinError::Output)?)
+        };
         // As in a clip, an edit that presents all of the media from its
         // start is left out.
-        if let [only] = audio_edits.as_slice() {
-            if only.media_time == 0
-                && only.duration == rescale(media, ta, tm).map_err(JoinError::Output)?
-            {
-                audio_edits.clear();
-            }
+        if let [only] = audio_edits.as_slice()
+            && clock.is_none()
+            && only.media_time == 0
+            && only.duration == rescale(media, ta, tm).map_err(JoinError::Output)?
+        {
+            audio_edits.clear();
         }
         let duration = if audio_edits.is_empty() {
             rescale(media, ta, tm).map_err(JoinError::Output)?
@@ -296,8 +480,13 @@ pub fn join_mp4<S: Source, W: Write>(
         });
     }
     let video_edit_count = tracks.first().map_or(0, |t| t.edits.len());
+    if compatible && clock.is_none() && audio_edit_count > 1 {
+        return Err(JoinError::Output(unsupported(
+            "a concat output that needs several audio edits",
+        )));
+    }
     let brands: Vec<&[u8; 4]> = match first.video.description.codec {
-        Codec::H264 => vec![b"isom", b"mp42", b"avc1"],
+        Codec::H264 if clock.is_none() => vec![b"isom", b"mp42", b"avc1"],
         Codec::Av1 => vec![b"isom", b"mp42", b"av01"],
         _ => vec![b"isom", b"mp42"],
     };
@@ -352,6 +541,9 @@ pub fn join_mp4<S: Source, W: Write>(
         counts(false),
         &video_tables,
     );
+    video_run.in_band = clock
+        .as_ref()
+        .map(|clock| (&clock.in_band, spans.as_slice()));
     let mut audio_run = audio_tables.as_ref().map(|tables| {
         Chain::new(
             &movies,
@@ -388,7 +580,7 @@ pub fn join_mp4<S: Source, W: Write>(
                     .ok_or_else(|| JoinError::Output(overflow()))?,
             };
             for _ in 0..chunk.samples {
-                let (input, offset, size) = run.next()?;
+                let (input, offset, size, insertion) = run.next()?;
                 if current != Some(input) {
                     window.clear();
                     if let Some(previous) = current.and_then(|p| sources.get(p)) {
@@ -399,6 +591,29 @@ pub fn join_mp4<S: Source, W: Write>(
                 let source = sources
                     .get(input)
                     .ok_or_else(|| JoinError::Output(overflow()))?;
+                if let Some(position) = insertion {
+                    window
+                        .copy(&mut Shared(source), offset, position, &mut out)
+                        .map_err(|e| at_extract(input, e))?;
+                    clock
+                        .as_ref()
+                        .ok_or_else(|| JoinError::Output(overflow()))?
+                        .in_band
+                        .write(&mut out)
+                        .map_err(JoinError::Write)?;
+                    window
+                        .copy(
+                            &mut Shared(source),
+                            offset
+                                .checked_add(u64::from(position))
+                                .ok_or_else(|| JoinError::Output(overflow()))?,
+                            size.checked_sub(position)
+                                .ok_or_else(|| JoinError::Output(overflow()))?,
+                            &mut out,
+                        )
+                        .map_err(|e| at_extract(input, e))?;
+                    continue;
+                }
                 window
                     .copy(&mut Shared(source), offset, size, &mut out)
                     .map_err(|e| match e {
@@ -534,10 +749,10 @@ struct PickAudio<'a> {
 }
 
 impl<'a> Pick<'a> {
-    fn of(movie: &'a Movie, options: &JoinOptions) -> Result<Self, Error> {
-        let video = select_video(movie, options.video)?;
+    fn of(movie: &'a Movie, video: VideoChoice, audio: JoinAudio) -> Result<Self, Error> {
+        let video = select_video(movie, video)?;
         let video_entry = video_sample_entry(video)?;
-        let audio = match options.audio {
+        let audio = match audio {
             JoinAudio::None => None,
             JoinAudio::First => select_audio(movie, AudioChoice::First)?,
             JoinAudio::Stream(index) => select_audio(movie, AudioChoice::Stream(index))?,
@@ -745,6 +960,7 @@ const FAR_OFFSET: i64 = 1 << 31;
 /// The video of one input, in its media ticks.
 struct VideoSpan<'a> {
     listed: Listed,
+    concat: Option<concat::Video>,
     starts_with_sync: bool,
     /// Some sample after the first in decode order is composed before it:
     /// the video starts at an open-GOP sync sample with leading frames.
@@ -769,6 +985,7 @@ struct AudioSpan<'a> {
     listed: Listed,
     presented: Option<(Rational, Rational)>,
     timeline: Timeline<'a>,
+    concat: Option<concat::Samples>,
 }
 
 struct Spans<'a> {
@@ -811,6 +1028,8 @@ fn video_span<'a, S: Source>(
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
+    packet_copy: bool,
+    in_band: Option<&concat::InBand<'_>>,
 ) -> Result<VideoSpan<'a>, Error> {
     let timeline = Timeline::with_several(track, movie, None)?;
     let scaled = Scaled::of(&timeline)?;
@@ -832,8 +1051,20 @@ fn video_span<'a, S: Source>(
     let mut last_frame = 0;
     let mut latest: (Option<i64>, Option<i64>) = (None, None);
     let mut next_dts = None;
-    for packet in movie.packets(track.index, &mut *source, limits, budget)? {
+    let mut concat = packet_copy.then(|| concat::Video::new(in_band.is_some()));
+    let mut packets = movie.packets(track.index, &mut *source, limits, budget)?;
+    while let Some(packet) = packets.next() {
         let packet = packet?;
+        if let (Some(concat), Some(in_band)) = (concat.as_mut(), in_band) {
+            concat.observe(
+                listed.samples.saturating_add(1),
+                in_band.sample(&mut packets, &packet)?,
+                packet.keyframe,
+            );
+            if listed.samples == 0 {
+                in_band.grown(packet.size, limits)?;
+            }
+        }
         if listed.samples == 0 {
             listed.first_dts = packet.dts;
             starts_with_sync = packet.keyframe;
@@ -943,6 +1174,7 @@ fn video_span<'a, S: Source>(
     }
     Ok(VideoSpan {
         listed,
+        concat,
         starts_with_sync,
         leading,
         comp,
@@ -961,6 +1193,7 @@ fn audio_span<'a, S: Source>(
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
+    packet_copy: bool,
 ) -> Result<AudioSpan<'a>, Error> {
     let gapless = gapless(movie, track, &mut *source)?;
     let timeline = Timeline::with_several(track, movie, gapless)?;
@@ -972,6 +1205,7 @@ fn audio_span<'a, S: Source>(
     };
     let mut presented: Option<(i64, i64)> = None;
     let mut next_dts: Option<i64> = None;
+    let mut concat = packet_copy.then(concat::Samples::new);
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
         if packet.cts != packet.dts {
@@ -990,6 +1224,9 @@ fn audio_span<'a, S: Source>(
             listed.first_dts = packet.dts;
         }
         listed.samples = listed.samples.saturating_add(1);
+        if let Some(clock) = &mut concat {
+            clock.observe(listed.samples, packet.duration);
+        }
         listed.duration = listed
             .duration
             .checked_add(u64::from(packet.duration))
@@ -1015,6 +1252,7 @@ fn audio_span<'a, S: Source>(
         listed,
         presented,
         timeline,
+        concat,
     })
 }
 
@@ -1054,16 +1292,24 @@ fn place(
     spans: &[Spans<'_>],
     tv: u32,
     ta: Option<u32>,
-    placement: &Placement,
+    placement: Mode<'_>,
+    concat_offsets: Option<&[Rational]>,
 ) -> Result<Layout, Error> {
     let seconds = |ticks: Rational, timescale: u32| scale(ticks, 1, timescale);
-    if let Placement::At(given) = placement {
+    let given = match placement {
+        Mode::Native(Placement::At(given)) => Some(given.as_slice()),
+        Mode::Concat(_) => concat_offsets,
+        Mode::Native(Placement::AfterVideo) => None,
+    };
+    if let Some(given) = given {
         if given.len() != spans.len() {
             return Err(unsupported(
                 "a placement that does not name every input once",
             ));
         }
-        if given.first().is_none_or(|first| first.num != 0) {
+        if matches!(placement, Mode::Native(Placement::At(_)))
+            && given.first().is_none_or(|first| first.num != 0)
+        {
             return Err(unsupported("a placement whose first input is not at 0"));
         }
     }
@@ -1076,7 +1322,8 @@ fn place(
     for (index, span) in spans.iter().enumerate() {
         let video_start = seconds(span.video.start, tv)?;
         let offset = match placement {
-            Placement::At(given) => {
+            Mode::Native(Placement::At(_)) | Mode::Concat(_) => {
+                let given = given.ok_or_else(overflow)?;
                 let at = *given.get(index).ok_or_else(overflow)?;
                 let offset = seconds(Rational::from_int(round(scale(at, tv, 1)?)), tv)?;
                 if index > 0 && lt(add(offset, video_start)?, next_start)? {
@@ -1086,7 +1333,7 @@ fn place(
                 }
                 offset
             }
-            Placement::AfterVideo => {
+            Mode::Native(Placement::AfterVideo) => {
                 // Where the input starts: its video, or its audio when that
                 // starts earlier, moved back by whole video ticks so that
                 // the video stays exact (the audio, rounded to its own ticks
@@ -1367,17 +1614,24 @@ fn append<S: Source>(
     listed: &Listed,
     extended: u64,
     video: bool,
+    clock: Option<&concat::Run>,
+    in_band: Option<(&concat::InBand<'_>, u32)>,
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
 ) -> Result<(), ExtractError> {
     let mut count = 0u64;
     let mut duration = 0u64;
-    for packet in movie.packets(track.index, &mut *source, limits, budget)? {
+    let mut packets = movie.packets(track.index, &mut *source, limits, budget)?;
+    while let Some(packet) = packets.next() {
         let packet = packet?;
         count = count.saturating_add(1);
         duration = duration.saturating_add(u64::from(packet.duration));
         let mut delta = packet.duration;
+        if let Some(clock) = clock {
+            clock.check(count, packet.duration)?;
+            delta = clock.delta(count.checked_sub(1).ok_or_else(overflow)?)?;
+        }
         if count == listed.samples && extended > 0 {
             delta = u32::try_from(u64::from(delta).saturating_add(extended))
                 .map_err(|_| unsupported("a decode duration above 32 bits"))?;
@@ -1387,7 +1641,17 @@ fn append<S: Source>(
         } else {
             0
         };
-        tables.push_sample(packet.size, delta, packet.keyframe, offset)?;
+        let size = if let Some((in_band, position)) = in_band {
+            in_band.check(&mut packets, &packet, count == 1, position)?;
+            if count == 1 {
+                in_band.grown(packet.size, limits)?
+            } else {
+                packet.size
+            }
+        } else {
+            packet.size
+        };
+        tables.push_sample(size, delta, packet.keyframe, offset)?;
     }
     if count != listed.samples || duration != listed.duration {
         return Err(ExtractError::SourceChanged);
@@ -1405,6 +1669,7 @@ struct Chain<'a, S: Source, B: Iterator<Item = &'a mut Budget>> {
     tracks: Vec<usize>,
     counts: Vec<u64>,
     tables: &'a Tables,
+    in_band: Option<(&'a concat::InBand<'a>, &'a [Spans<'a>])>,
     /// The input being copied, its listing and its samples copied so far.
     current: Option<(usize, Packets<'a, Shared<'a, S>>, u64)>,
     next_input: usize,
@@ -1429,6 +1694,7 @@ impl<'a, S: Source, B: Iterator<Item = &'a mut Budget>> Chain<'a, S, B> {
             tracks,
             counts,
             tables,
+            in_band: None,
             current: None,
             next_input: 0,
             copied: 0,
@@ -1436,7 +1702,7 @@ impl<'a, S: Source, B: Iterator<Item = &'a mut Budget>> Chain<'a, S, B> {
     }
 
     /// The input, offset and size of the next sample.
-    fn next(&mut self) -> Result<(usize, u64, u32), JoinError> {
+    fn next(&mut self) -> Result<(usize, u64, u32, Option<u32>), JoinError> {
         loop {
             if let Some((input, packets, done)) = self.current.as_mut() {
                 let count = self.counts.get(*input).copied().unwrap_or(0);
@@ -1450,14 +1716,40 @@ impl<'a, S: Source, B: Iterator<Item = &'a mut Budget>> Chain<'a, S, B> {
                         })?
                         .map_err(|e| at(input, e))?;
                     *done = done.saturating_add(1);
-                    if self.tables.size(self.copied) != Some(packet.size) {
+                    let mut insertion = None;
+                    let size = if let Some((in_band, spans)) = self.in_band {
+                        let position = spans
+                            .get(input)
+                            .and_then(|s| s.video.concat.as_ref())
+                            .and_then(|v| v.position)
+                            .ok_or_else(|| JoinError::Output(overflow()))?;
+                        in_band
+                            .check(packets, &packet, *done == 1, position)
+                            .map_err(|e| at_extract(input, e))?;
+                        if *done == 1 {
+                            insertion = Some(position);
+                            in_band
+                                .grown(
+                                    packet.size,
+                                    self.limits
+                                        .get(input)
+                                        .ok_or_else(|| JoinError::Output(overflow()))?,
+                                )
+                                .map_err(|e| at(input, e))?
+                        } else {
+                            packet.size
+                        }
+                    } else {
+                        packet.size
+                    };
+                    if self.tables.size(self.copied) != Some(size) {
                         return Err(JoinError::Input {
                             input,
                             error: ExtractError::SourceChanged,
                         });
                     }
                     self.copied = self.copied.saturating_add(1);
-                    return Ok((input, packet.offset, packet.size));
+                    return Ok((input, packet.offset, packet.size, insertion));
                 }
             }
             // The next input: every input's budget is handed out once, in

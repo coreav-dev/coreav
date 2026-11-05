@@ -1540,7 +1540,7 @@ FFmpeg).**
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). Output is staged and published only for a supported join; a refusal leaves the output as it was.
-  The AAC restriction keeps the native join's gapless presentation from being mistaken for FFmpeg concat packet timing; see [the plan](concat-aac-edits.md).
+  A bounded two-track H.264/AAC-LC 48 kHz mono/stereo family with simple 1024-tick AAC priming edits instead uses the [copied-AAC packet clock](concat-copy-clock.md): it retains priming packets, assigns boundary decode deltas, normalizes the initial AVC parameter sets and interleaves packets by exposed decode time. It writes conforming `avc3` rather than the reference's `avc1` label for in-band parameter sets. Unqualified positive AAC edits, including mixed edited/unedited inputs with audio omitted, retain the earlier [refusal](concat-aac-edits.md). Native `coreav join` and the older non-clock concat path retain their behavior; that older path is not newly certified exact.
 - Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
   whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
   pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item

@@ -6,7 +6,7 @@
 use coreav_isobmff::{Codec, Error, Source, Track};
 
 /// Most NAL units looked at before the first slice.
-const MAX_UNITS: u32 = 64;
+pub(crate) const MAX_UNITS: u32 = 64;
 
 /// How to find a sample's NAL units: the length field size of its
 /// configuration record, and the codec.
@@ -17,6 +17,35 @@ pub(crate) struct Units {
 }
 
 impl Units {
+    /// One bounded four-byte-length AVC NAL header, without reading its payload.
+    pub(crate) fn avc_header<S: Source>(
+        self,
+        source: &mut S,
+        at: u64,
+        end: u64,
+    ) -> Result<Option<(u64, u8)>, Error> {
+        if self.hevc || self.length_size != 4 || at.checked_add(5).is_none_or(|n| n > end) {
+            return Ok(None);
+        }
+        let mut header = [0; 5];
+        source.read_exact_at(at, &mut header)?;
+        let length = header
+            .iter()
+            .take(4)
+            .fold(0u32, |n, b| (n << 8) | u32::from(*b));
+        let next = at
+            .checked_add(4)
+            .and_then(|n| n.checked_add(u64::from(length)));
+        let Some(next) = next.filter(|n| *n <= end) else {
+            return Ok(None);
+        };
+        let first = header.last().copied().unwrap_or(0x80);
+        if length == 0 || first & 0x80 != 0 {
+            return Ok(None);
+        }
+        Ok(Some((next, first & 0x1f)))
+    }
+
     /// For H.264 `avc1` and HEVC `hvc1` tracks with a readable
     /// configuration record; `None` for every other track.
     pub(crate) fn of(track: &Track) -> Option<Self> {

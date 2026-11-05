@@ -34,11 +34,11 @@ use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
 use args::{AviAudio, Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
-use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
+use coreav_isobmff::{FileSource, Limits, Rational};
 use coreav_isobmff_write::{
-    AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
-    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxInputsOptions,
-    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, AudioClipOptions, ClipOptions, ConcatFile, ConcatOptions, HeaderMetadata,
+    InputStream, JoinAudio, MatroskaRemuxOptions, OnUnsupported, RemuxInputsOptions, RemuxOptions,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -1261,7 +1261,7 @@ fn micros(report: &Report, key: &str) -> Option<i128> {
 /// `start_time`, in whole microseconds as `ffprobe` prints them (the
 /// demuxer's documentation: each file starts where the previous one ends;
 /// ISO/IEC 14496-12 8.2.2.3: a movie lasts as long as its longest track).
-fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
+fn concat_files(paths: &[PathBuf]) -> Result<Vec<ConcatFile>, Stop> {
     let mut offsets = Vec::new();
     let mut end: i128 = 0;
     for path in paths {
@@ -1283,52 +1283,15 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
             )
             .into());
         }
-        let offset = end.saturating_sub(start);
-        offsets.push(
-            Rational::new(offset, 1_000_000)
+        offsets.push(ConcatFile {
+            slot: Rational::new(end, 1_000_000)
                 .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
-        );
+            start: Rational::new(start, 1_000_000)
+                .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?,
+        });
         end = end.saturating_add(duration);
     }
     Ok(offsets)
-}
-
-/// Why a join's edit handling differs from the concat demuxer's: positive
-/// AAC edits, even in unselected audio, or several edits in a copied track
-/// (docs/design/concat-aac-edits.md and docs/design/edit-list-writers.md).
-fn join_edit_refusal(
-    paths: &[PathBuf],
-    summary: &JoinSummary,
-) -> Result<Option<&'static str>, WriteFailure> {
-    for (path, input) in paths.iter().zip(&summary.inputs) {
-        let file = FileSource::open(path)?;
-        let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
-            .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
-        if movie.tracks.iter().any(|track| {
-            track.kind == coreav_isobmff::TrackKind::Audio
-                && std::iter::once(&track.description)
-                    .chain(&track.later_descriptions)
-                    .any(|description| description.codec == coreav_isobmff::Codec::Aac)
-                && track.edits.iter().any(|edit| edit.media_time > 0)
-        }) {
-            return Ok(Some("a concat input with a positive AAC edit offset"));
-        }
-        let copied = [Some(&input.video), input.audio.as_ref()];
-        let edited = |track: &Track| {
-            track.edits.len() > 1
-                && copied
-                    .iter()
-                    .flatten()
-                    .any(|c| c.track_id == track.track_id)
-        };
-        if movie.tracks.iter().any(edited) {
-            return Ok(Some("a join of files whose tracks have several edits"));
-        }
-    }
-    if summary.audio_edits > 1 {
-        return Ok(Some("a concat output that needs several audio edits"));
-    }
-    Ok(None)
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -1816,7 +1779,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         .into());
     }
     let offsets = match job {
-        Job::Join { paths, .. } => concat_offsets(paths)?,
+        Job::Join { paths, .. } => concat_files(paths)?,
         _ => Vec::new(),
     };
     let mut refused = None;
@@ -1938,22 +1901,16 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             video,
             audio,
         } => {
-            let options = JoinOptions {
+            let options = ConcatOptions {
                 video: VideoChoice::Stream(*video),
                 audio: *audio,
-                placement: Placement::At(offsets.clone()),
+                files: offsets.clone(),
             };
             let summary =
-                crate::join::run(paths, &options, &allowlist, out).map_err(|failure| {
+                crate::join::run_concat(paths, &options, &allowlist, out).map_err(|failure| {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = join_edit_refusal(paths, &summary)? {
-                refused = Some(words);
-                return Err(WriteFailure::Rejected(Failure::Unsupported(
-                    words.to_owned(),
-                )));
-            }
             let mut document = Vec::new();
             crate::join::write_document(&mut document, &summary, paths)
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
