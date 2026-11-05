@@ -103,6 +103,7 @@ pub(crate) struct Chunk {
 
 /// The sample tables of the output track.
 pub(crate) struct Tables {
+    pub(crate) decode_start: i64,
     limit: u64,
     used: u64,
     /// Media timescale; also the ticks after which a chunk is closed.
@@ -155,6 +156,7 @@ impl Tables {
     /// The same, with chunks also closed once they hold `chunk_bytes`.
     pub(crate) fn with_chunk_bytes(timescale: u32, limit: u64, chunk_bytes: u64) -> Self {
         Self {
+            decode_start: 0,
             limit,
             used: 0,
             timescale,
@@ -409,6 +411,9 @@ impl Tables {
 
     /// Number of `stsc` entries: one per change of samples per chunk.
     fn stsc_entries(&self) -> Result<usize, Error> {
+        if self.chunk_bytes == 0 {
+            return Ok(usize::from(self.samples != 0));
+        }
         let mut entries = 0usize;
         let mut previous = None;
         self.each_chunk(|chunk| {
@@ -426,6 +431,14 @@ impl Tables {
         let mut stsc = Vec::new();
         stsc.try_reserve_exact(entries.saturating_mul(12))
             .map_err(|_| table_limit())?;
+        if self.chunk_bytes == 0 {
+            if entries != 0 {
+                for _ in 0..3 {
+                    stsc.extend_from_slice(&1u32.to_be_bytes());
+                }
+            }
+            return Ok(stsc);
+        }
         let mut number = 0u32;
         let mut previous = None;
         self.each_chunk(|chunk| {
@@ -850,6 +863,29 @@ mod tests {
         plain.push_sample(5, 10, true, 0).unwrap();
         let out = bytes(&boxes(&plain, 0, false).unwrap());
         assert!(out.iter().all(|b| &b[4..8] != b"ctts"));
+    }
+
+    #[test]
+    fn one_sample_chunks_charge_even_empty_samples() {
+        let mut native = Tables::with_chunk_bytes(1000, 1024, 1 << 20);
+        let mut packets = Tables::with_chunk_bytes(1000, 1024, 0);
+        for _ in 0..10 {
+            native.push(0, 0, true).unwrap();
+            packets.push(0, 0, true).unwrap();
+        }
+        assert_eq!(native.chunk_count(), 1);
+        assert_eq!(packets.chunk_count(), 10);
+        assert_eq!(packets.stsc_entries().unwrap(), 1);
+        assert_eq!(packets.stsc(1).unwrap(), [1u32.to_be_bytes(); 3].concat());
+        let empty = Tables::with_chunk_bytes(1000, 1024, 0);
+        assert_eq!(empty.stsc_entries().unwrap(), 0);
+        assert!(empty.stsc(0).unwrap().is_empty());
+        assert_eq!(packets.used() - native.used(), 9 * CHUNK_ENTRY);
+        let mut limited = Tables::with_chunk_bytes(1000, packets.used() - 1, 0);
+        for _ in 0..9 {
+            limited.push(0, 0, true).unwrap();
+        }
+        assert_eq!(limited.push(0, 0, true), Err(table_limit()));
     }
 
     #[test]

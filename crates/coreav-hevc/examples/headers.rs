@@ -78,9 +78,12 @@ fn inspect(output: &mut impl Write) -> coreav_hevc::Result<()> {
                 let additions = json!({"first_slice_segment_in_pic_flag":h.first,
                     "dependent_slice_segment_flag":h.dependent,"picture_index":picture_index,
                     "poc":order.map(|x| x.poc),"poc_lsb":h.poc_lsb,"slice_type":h.slice_type,
-                    "pic_output_flag":h.output,"coded_width":p.width,"coded_height":p.height,
+                    "pic_output_flag":h.output,"slice_qp_y":h.slice_qp_y,
+                    "chroma_qp_offsets":h.chroma_qp_offsets,"cabac_init_flag":h.cabac_init_flag,
+                    "coded_width":p.width,"coded_height":p.height,
                     "width":p.visible_width,"height":p.visible_height,"bit_depth":p.bit_depth,
-                    "profile_idc":p.profile_idc,"tiles":p.tiles,"wpp":p.wpp,
+                    "profile_idc":p.profile_idc,"ctb_log2":p.ctb_log2,
+                    "conformance_window":p.conformance_window,"tiles":p.tiles,"wpp":p.wpp,
                     "pps_id":h.pps_id,"address":h.address,"rbsp_header_bytes":h.rbsp_header_bytes,
                     "entry_points":h.entry_points,"sao":h.sao,"deblocking_disabled":h.deblock_disabled});
                 if let (Some(value), Some(additions)) =

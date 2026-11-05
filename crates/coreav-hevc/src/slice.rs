@@ -34,6 +34,12 @@ pub struct SliceHeader {
     pub poc_lsb: Option<u32>,
     /// Output flag; absent for dependent segments.
     pub output: Option<bool>,
+    /// SliceQpY after the active PPS offset, absent for dependent segments.
+    pub slice_qp_y: Option<i32>,
+    /// Combined PPS and slice Cb/Cr QP offsets, absent for dependent segments.
+    pub chroma_qp_offsets: Option<[i32; 2]>,
+    /// CABAC initialization selection, including inferred false for I slices.
+    pub cabac_init_flag: Option<bool>,
     /// Slice-level SAO flags; absent for dependent segments.
     pub sao: Option<[bool; 2]>,
     /// Slice-level deblocking disable flag; absent for dependent segments.
@@ -59,6 +65,11 @@ pub(crate) struct Prefix {
     pub no_output_prior: bool,
 }
 
+pub(crate) struct ParsedSlice {
+    pub header: SliceHeader,
+    pub entry_lengths: Vec<u64>,
+}
+
 pub(crate) fn prefix(bits: &mut Bits<'_>, nal: NalHeader) -> Result<Prefix> {
     let first = bits.flag()?;
     let no_output_prior = (16..=23).contains(&nal.unit_type) && bits.flag()?;
@@ -76,7 +87,9 @@ pub(crate) fn parse(
     s: &Sps,
     p: &Pps,
     limits: &Limits,
-) -> Result<SliceHeader> {
+    retain_entries: Option<usize>,
+) -> Result<ParsedSlice> {
+    let mut entry_lengths = Vec::new();
     let mut h = SliceHeader {
         first: prefix.first,
         dependent: false,
@@ -85,6 +98,9 @@ pub(crate) fn parse(
         slice_type: None,
         poc_lsb: None,
         output: None,
+        slice_qp_y: None,
+        chroma_qp_offsets: None,
+        cabac_init_flag: None,
         sao: None,
         deblock_disabled: None,
         entry_points: 0,
@@ -103,6 +119,7 @@ pub(crate) fn parse(
         }
     }
     if !h.dependent {
+        h.cabac_init_flag = Some(false);
         bits.skip(p.extra_header_bits as usize)?;
         let kind = bits.ue(2)?;
         if (16..=23).contains(&nal.unit_type) && kind != 2 {
@@ -249,7 +266,7 @@ pub(crate) fn parse(
                 bits.flag()?;
             }
             if p.cabac_init {
-                bits.flag()?;
+                h.cabac_init_flag = Some(bits.flag()?);
             }
             if temporal_mvp {
                 let from_l0 = kind != 0 || bits.flag()?;
@@ -267,12 +284,17 @@ pub(crate) fn parse(
         if qp < -6 * (s.bit_depth as i32 - 8) || qp > 51 {
             return Err(Error::InvalidData("slice_qp"));
         }
-        if p.chroma_offsets
-            && (!(-12..=12).contains(&(p.cb_qp_offset + bits.se(-12, 12)?))
-                || !(-12..=12).contains(&(p.cr_qp_offset + bits.se(-12, 12)?)))
-        {
-            return Err(Error::InvalidData("slice_chroma_qp_offset"));
+        h.slice_qp_y = Some(qp);
+        let mut chroma_offsets = [p.cb_qp_offset, p.cr_qp_offset];
+        if p.chroma_offsets {
+            for offset in &mut chroma_offsets {
+                *offset += bits.se(-12, 12)?;
+                if !(-12..=12).contains(offset) {
+                    return Err(Error::InvalidData("slice_chroma_qp_offset"));
+                }
+            }
         }
+        h.chroma_qp_offsets = Some(chroma_offsets);
         let mut disabled = p.deblock_disabled;
         if p.deblock_override && bits.flag()? {
             disabled = bits.flag()?;
@@ -292,10 +314,26 @@ pub(crate) fn parse(
             return Err(Error::Limit("max_ctus"));
         }
         if h.entry_points > 0 {
+            if let Some(memory_limit) = retain_entries {
+                if (h.entry_points as usize)
+                    .checked_mul(core::mem::size_of::<u64>())
+                    .ok_or(Error::Limit("reconstruction_memory"))?
+                    > memory_limit
+                {
+                    return Err(Error::Limit("reconstruction_memory"));
+                }
+                entry_lengths
+                    .try_reserve_exact(h.entry_points as usize)
+                    .map_err(|_| Error::Limit("entry_point_allocation"))?;
+            }
             let width = bits.ue(31)? + 1;
             let mut total = 0u64;
             for _ in 0..h.entry_points {
-                total += u64::from(bits.u(width)?) + 1;
+                let length = u64::from(bits.u(width)?) + 1;
+                total += length;
+                if retain_entries.is_some() {
+                    entry_lengths.push(length);
+                }
             }
             if total > limits.max_nal_bytes as u64 {
                 return Err(Error::InvalidData("entry_point_offsets"));
@@ -314,7 +352,10 @@ pub(crate) fn parse(
     }
     bits.alignment()?;
     h.rbsp_header_bytes = bits.position() / 8;
-    Ok(h)
+    Ok(ParsedSlice {
+        header: h,
+        entry_lengths,
+    })
 }
 
 pub(crate) fn ceil_log2(value: u32) -> u32 {

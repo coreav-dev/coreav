@@ -176,6 +176,16 @@ class Registration(unittest.TestCase):
         self.assertFalse(any('pcm' in f['id'] for f in record['fixtures']))
 
 
+class ProcessPlatform(unittest.TestCase):
+    def test_non_linux_refuses_before_a_child_is_started(self):
+        with mock.patch.object(sys, 'platform', 'darwin'), \
+             mock.patch.object(runner.subprocess, 'Popen') as launch:
+            with self.assertRaisesRegex(ValueError, 'fixture subprocesses require Linux limits'):
+                runner.capture(['unused'])
+        launch.assert_not_called()
+
+
+@unittest.skipUnless(sys.platform == 'linux', 'requires Linux subprocess resource limits')
 class ProcessBounds(unittest.TestCase):
     def test_real_child_receives_only_the_scrubbed_environment(self):
         with mock.patch.dict(os.environ, {'CAPY_API_KEY': 'must-not-reach-media-child'}):

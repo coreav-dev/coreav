@@ -49,27 +49,48 @@ pub(crate) fn rbsp(nal: &[u8], limits: &Limits) -> Result<Vec<u8>> {
     result
         .try_reserve_exact(payload.len())
         .map_err(|_| Error::Limit("rbsp_allocation"))?;
-    let mut zeros = 0;
-    let mut pos = 0;
-    while let Some(&byte) = payload.get(pos) {
-        if zeros == 2 {
-            if byte == 3 {
-                if payload.get(pos + 1).is_some_and(|next| *next > 3) {
-                    return Err(Error::InvalidData("emulation_prevention"));
-                }
-                zeros = 0;
-                pos += 1;
-                continue;
-            }
-            if byte < 3 {
-                return Err(Error::InvalidData("unescaped_start_code"));
-            }
+    for byte in Unescape::new(payload) {
+        if let Some(byte) = byte? {
+            result.push(byte);
         }
-        result.push(byte);
-        zeros = if byte == 0 { zeros + 1 } else { 0 };
-        pos += 1;
     }
     Ok(result)
+}
+
+pub(crate) struct Unescape<'a> {
+    bytes: core::slice::Iter<'a, u8>,
+    zeros: u8,
+}
+
+impl<'a> Unescape<'a> {
+    pub(crate) fn new(payload: &'a [u8]) -> Self {
+        Self {
+            bytes: payload.iter(),
+            zeros: 0,
+        }
+    }
+}
+
+impl Iterator for Unescape<'_> {
+    type Item = Result<Option<u8>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let &byte = self.bytes.next()?;
+        if self.zeros == 2 {
+            if byte == 3 {
+                if self.bytes.as_slice().first().is_some_and(|next| *next > 3) {
+                    return Some(Err(Error::InvalidData("emulation_prevention")));
+                }
+                self.zeros = 0;
+                return Some(Ok(None));
+            }
+            if byte < 3 {
+                return Some(Err(Error::InvalidData("unescaped_start_code")));
+            }
+        }
+        self.zeros = if byte == 0 { self.zeros + 1 } else { 0 };
+        Some(Ok(Some(byte)))
+    }
 }
 
 /// Iterate complete Annex B NAL units without copying their bytes.
@@ -197,5 +218,35 @@ impl<'a> Iterator for LengthPrefixed<'a> {
         })();
         self.failed = result.is_err();
         Some(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Unescape;
+    use crate::Result;
+
+    #[test]
+    fn unescape_yields_one_event_per_payload_byte() {
+        let events: Result<Vec<_>> = Unescape::new(&[0, 0, 3, 0, 0, 3, 1, 3]).collect();
+        assert_eq!(
+            events.unwrap(),
+            [
+                Some(0),
+                Some(0),
+                None,
+                Some(0),
+                Some(0),
+                None,
+                Some(1),
+                Some(3)
+            ]
+        );
+    }
+
+    #[test]
+    fn terminal_escape_byte_retains_existing_unescape_behavior() {
+        let events: Result<Vec<_>> = Unescape::new(&[0, 0, 3]).collect();
+        assert_eq!(events.unwrap(), [Some(0), Some(0), None]);
     }
 }

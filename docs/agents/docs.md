@@ -4,6 +4,7 @@ Documentation-site prose, schema wording, and design-note updates.
 
 | Rule | Enforced by |
 |---|---|
+| HEVC plan scope distinguishes 8-bit Main from 8- or 10-bit Main10 | Not enforced: review of the plan against the existing profile/depth admission contract. Runtime tests already reject invalid profile/depth combinations; a type cannot establish the meaning of prose |
 | Algebraic acceptance examples identify each abstract cost separately from complete emitted data | Not enforced: design review. State successive costs as separate values, not a comma-grouped scalar. Prose cannot establish that an abstract cost is a realizable codec output; complete emitted-data accounting needs its own acceptance check |
 | The full HEVC census command prepares and consumes its required synthetic references | `test_documented_census_prepares_and_consumes_synthetic_references` parses the published commands and requires fixture verification before census execution with the same output directory. The workflow already owns the executable gate; types cannot establish a documented shell command's arguments |
 | A design status distinguishes unchanged milestone structure from changed evidence or acceptance rules | `test_design_status_distinguishes_milestones_from_changed_evidence_rules` rejects the former HEVC unchanged-gates claim and requires the explicit evidence/exclusion qualification. Other design notes remain review judgment; types cannot establish the meaning of status prose |

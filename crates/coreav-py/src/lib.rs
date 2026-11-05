@@ -836,6 +836,7 @@ fn run_remux(
     };
     let streams: Option<Vec<usize>> = args.streams.map(|s| s.into_iter().map(|i| i.0).collect());
     let options = RemuxOptions {
+        interleave_packets: false,
         video_origin: None,
         rebuild_durations: false,
         streams: streams.clone(),

@@ -172,6 +172,22 @@ impl<'a> RawF32Stream<'a> {
         limits: &Limits,
         sink: &'a mut dyn Sink,
     ) -> Result<Self, Error> {
+        Self::packing(sample_rate, channels, SampleFormat::F32, limits, sink)
+    }
+
+    /// Packs finite native-rate floating-point PCM as F32 or S16 without mixing.
+    pub fn packing(
+        sample_rate: u32,
+        channels: u16,
+        format: SampleFormat,
+        limits: &Limits,
+        sink: &'a mut dyn Sink,
+    ) -> Result<Self, Error> {
+        if !matches!(format, SampleFormat::F32 | SampleFormat::S16) {
+            return Err(Error::Unsupported(
+                "native F32 packing other than F32 or S16",
+            ));
+        }
         RawS16Format::new(sample_rate, channels)?;
         Stream::new(
             Input::F32Identity {
@@ -179,7 +195,7 @@ impl<'a> RawF32Stream<'a> {
                 channels,
             },
             None,
-            SampleFormat::F32,
+            format,
             limits,
             sink,
         )
@@ -544,6 +560,42 @@ mod tests {
         }
         let summary = stream.finish().unwrap();
         (sink, summary)
+    }
+
+    #[test]
+    fn native_stereo_float_packing_uses_the_registered_s16_quantizer() {
+        let values = [
+            1.0f32,
+            -1.0,
+            0.5 / 32768.0,
+            1.5 / 32768.0,
+            -1.5 / 32768.0,
+            2.0,
+        ];
+        let bytes: Vec<u8> = values.into_iter().flat_map(f32::to_le_bytes).collect();
+        let mut sink = Keep::default();
+        let mut stream =
+            RawF32Stream::packing(48000, 2, SampleFormat::S16, &Limits::default(), &mut sink)
+                .unwrap();
+        stream.write(&bytes).unwrap();
+        let summary = stream.finish().unwrap();
+        assert_eq!(summary.output_frames, 3);
+        assert_eq!(
+            sink.bytes,
+            [32767i16, -32768, 0, 2, -2, 32767]
+                .into_iter()
+                .flat_map(i16::to_le_bytes)
+                .collect::<Vec<_>>()
+        );
+        let mut stream =
+            RawF32Stream::packing(48000, 2, SampleFormat::S16, &Limits::default(), &mut sink)
+                .unwrap();
+        let bad: Vec<u8> = [0.0f32, f32::NAN]
+            .into_iter()
+            .flat_map(f32::to_le_bytes)
+            .collect();
+        assert!(stream.write(&bad).is_err());
+        assert!(stream.finish().is_err());
     }
 
     #[test]

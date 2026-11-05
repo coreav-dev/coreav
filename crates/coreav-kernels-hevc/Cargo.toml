@@ -1,0 +1,17 @@
+[package]
+name = "coreav-kernels-hevc"
+description = "Safe scalar HEVC intra prediction and inverse reconstruction kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+
+[features]
+default = []
+native-hevc = []
+
+[lints]
+workspace = true
