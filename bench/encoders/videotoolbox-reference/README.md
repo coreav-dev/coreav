@@ -18,8 +18,19 @@ The nine clips were already prepared I420 references from lossy sources: positio
 
 Timing covers each complete encoding process, including startup, raw-file reading, output and report writing. It excludes preparation, transfer, hashing, decoding and quality measurement. This is not an integrated transcode or isolated encoder-kernel benchmark. Cache residency, thermal state and scheduling were not audited. Host load averages were 1.33 before and 1.94 after this short session.
 
-PSNR and SSIM compare the final timed output's decoded pictures against the same prepared I420 frames, in frame order. They do not establish original-source colour preservation or timing conformance. Per-input PSNR ranged from 23.19 to 46.69 dB. The largest CoreAV/FFmpeg differences were 0.027132 dB PSNR and 0.000223 SSIM; actual per-input bitrates differed by less than 0.45% between arms. No confidence interval, quality threshold or acceptance gate is applied.
+PSNR and SSIM compare the final timed output's decoded pictures against the same prepared I420 frames, in frame order. They do not establish original-source colour preservation or timing conformance. Per-input PSNR ranged from 34.03 to 46.69 dB. The largest CoreAV/FFmpeg differences were 0.027132 dB PSNR and 0.000223 SSIM; actual per-input bitrates differed by less than 0.45% between arms. No confidence interval, quality threshold or acceptance gate is applied.
 
 Software figures are omitted because CoreAV refused an encoder-list entry with no hardware flag. That refusal does not establish that a software encoder is absent.
 
 [calls.csv](calls.csv) contains every timed call, including the CoreAV executable SHA-256 captured before this session, CPU time, output size and exit status. The CoreAV hash column is empty for FFmpeg rows, whose identity is the canonical pin above. CPU time is the encoding child's user and system time, excluding separate framework services. [quality.csv](quality.csv) contains each checked output's observed dimensions, frame count, actual bitrate and distortion measurements; its raw hashes identify the prepared inputs without distributing media.
+
+## Quality-clock correction
+
+The original 720-1 analysis emitted mismatched-filter-timebase warnings. Matching decoded and metric frame counts did not establish aligned frame pairs. Normalizing both inputs to `settb=1/30000,setpts=N*1001` corrects these two PSNR/SSIM records in `quality.csv`:
+
+| Arm | Previous PSNR dB / SSIM | Corrected PSNR dB / SSIM |
+|---|---:|---:|
+| CoreAV | 23.191703 / 0.792557 | 34.033608 / 0.966411 |
+| FFmpeg | 23.193715 / 0.792678 | 34.027856 / 0.966401 |
+
+All 18 retained final bitstreams and input identities were verified byte-identical to the corresponding old/FFmpeg files in the [common-clock reference comparison](../videotoolbox-report-reference/README.md). All other quality scalars, timing calls, encoded bytes and class medians are unchanged. No encoder call was added for this analysis correction.
