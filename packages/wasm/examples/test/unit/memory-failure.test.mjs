@@ -41,7 +41,12 @@ test("main and explicit verdict runs create release blockers by failure class", 
     assert.match(issue.body, /actions\/runs\/123/);
     assert.match(issue.body, /not intervening merges/);
     assert.match(issue.body, /must not be retuned or retried/);
-    const plan = failureClass === "thumbnails" ? "wasm-thumbnail-memory-bars.md" : "wasm-memory-bars.md";
+    const plan = {
+      installed: "wasm-memory-bars.md",
+      examples: "wasm-memory-bars.md",
+      installed_h264: "wasm-thumbnail-memory-bars.md",
+      thumbnails: "wasm-thumbnail-memory-bars.md",
+    }[failureClass];
     assert.ok(issue.body.includes(`/blob/${sha}/docs/design/${plan}`));
     assert.doesNotMatch(issue.body, /memoryBytes|wasm_linear_bytes|heap|VmHWM/);
   }
