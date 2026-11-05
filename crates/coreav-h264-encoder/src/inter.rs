@@ -111,7 +111,334 @@ pub(super) struct Search<'a> {
     pub(super) previous: u8,
 }
 
+type Ranked = (u64, usize, Mv);
+
+struct Motions {
+    seen: [Option<Ranked>; 99],
+    len: usize,
+    ranked: [Option<Ranked>; 4],
+    integer: Option<Ranked>,
+}
+
+impl Motions {
+    fn new() -> Self {
+        Self {
+            seen: [None; 99],
+            len: 0,
+            ranked: [None; 4],
+            integer: None,
+        }
+    }
+
+    fn insert(&mut self, value: Ranked) -> Result<()> {
+        *self.seen.get_mut(self.len).ok_or(Error::Internal)? = Some(value);
+        self.len += 1;
+        if value.2.x % 4 == 0 && value.2.y % 4 == 0 && self.integer.is_none_or(|best| value < best)
+        {
+            self.integer = Some(value);
+        }
+        let mut next = Some(value);
+        for slot in &mut self.ranked {
+            if next.is_some_and(|value| slot.is_none_or(|best| value < best)) {
+                std::mem::swap(slot, &mut next);
+            }
+        }
+        Ok(())
+    }
+
+    fn finalists(&self, predictor: Mv) -> Result<[Option<Mv>; 6]> {
+        let mut finalists = [None; 6];
+        let mut len = 0;
+        for mv in self
+            .ranked
+            .iter()
+            .flatten()
+            .map(|value| value.2)
+            .chain([Mv::default(), predictor])
+        {
+            if finalists.contains(&Some(mv))
+                || !self.seen.iter().flatten().any(|value| value.2 == mv)
+            {
+                continue;
+            }
+            *finalists.get_mut(len).ok_or(Error::Internal)? = Some(mv);
+            len += 1;
+        }
+        Ok(finalists)
+    }
+}
+
+struct Prepared {
+    luma: Luma,
+    chroma: [Tile; 2],
+    transformed: [[[i64; 16]; 4]; 2],
+    levels: [[[i32; 16]; 4]; 2],
+}
+
+fn overlaps(part: Part, x: usize, y: usize, size: usize) -> bool {
+    x < part.x + part.width && x + size > part.x && y < part.y + part.height && y + size > part.y
+}
+
 impl Search<'_> {
+    fn score(
+        &self,
+        mut part: Part,
+        mv: Mv,
+        predictor: Mv,
+        motions: &mut Motions,
+    ) -> Result<Option<Ranked>> {
+        if let Some(&value) = motions.seen.iter().flatten().find(|value| value.2 == mv) {
+            return Ok(Some(value));
+        }
+        if !mv.valid() {
+            return Ok(None);
+        }
+        let difference = match mv.difference(predictor) {
+            Ok(difference) => difference,
+            Err(Error::Syntax) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let reference = self.reference.first().ok_or(Error::Internal)?;
+        let mut sad = 0u64;
+        if mv.x % 4 == 0 && mv.y % 4 == 0 {
+            for y in part.y..part.y + part.height {
+                for x in part.x..part.x + part.width {
+                    let original = *self
+                        .decision
+                        .source
+                        .0
+                        .get(Tile::at(x, y))
+                        .ok_or(Error::Internal)?;
+                    let predicted = reference.sample(
+                        (self.mx * 16 + x) as i32 + mv.x / 4,
+                        (self.my * 16 + y) as i32 + mv.y / 4,
+                    )?;
+                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
+                }
+            }
+        } else {
+            part.mv = mv;
+            let mut tile = Tile::empty();
+            predict(reference, &mut tile, part, self.mx, self.my, false)?;
+            for y in part.y..part.y + part.height {
+                for x in part.x..part.x + part.width {
+                    let at = Tile::at(x, y);
+                    let original = *self.decision.source.0.get(at).ok_or(Error::Internal)?;
+                    let predicted = *tile.0.get(at).ok_or(Error::Internal)?;
+                    sad += u64::from((i32::from(original) - i32::from(predicted)).unsigned_abs());
+                }
+            }
+        }
+        let mut bits = Bits::count();
+        difference.write(&mut bits)?;
+        let value = (
+            sad + (1u64 << (self.decision.qp / 6)) * bits.len as u64,
+            bits.len,
+            mv,
+        );
+        motions.insert(value)?;
+        Ok(Some(value))
+    }
+
+    fn motions(&self, part: Part, predictor: Mv) -> Result<Motions> {
+        let mut motions = Motions::new();
+        self.score(part, Mv::default(), predictor, &mut motions)?;
+        self.score(part, predictor, predictor, &mut motions)?;
+        self.score(
+            part,
+            Mv {
+                x: (predictor.x + 2).div_euclid(4) * 4,
+                y: (predictor.y + 2).div_euclid(4) * 4,
+            },
+            predictor,
+            &mut motions,
+        )?;
+        for step in [64, 32, 16, 8, 4] {
+            for _ in 0..2 {
+                let centre = motions.integer.ok_or(Error::Internal)?.2;
+                for dx in [-step, 0, step] {
+                    for dy in [-step, 0, step] {
+                        let mv = Mv {
+                            x: centre.x + dx,
+                            y: centre.y + dy,
+                        };
+                        if (dx != 0 || dy != 0)
+                            && (-64..=64).contains(&mv.x)
+                            && (-64..=64).contains(&mv.y)
+                        {
+                            self.score(part, mv, predictor, &mut motions)?;
+                        }
+                    }
+                }
+                if motions.integer.ok_or(Error::Internal)?.2 == centre {
+                    break;
+                }
+            }
+        }
+        let mut centre = motions.integer.ok_or(Error::Internal)?;
+        for step in [2, 1] {
+            let origin = centre.2;
+            for dx in [-step, 0, step] {
+                for dy in [-step, 0, step] {
+                    if dx != 0 || dy != 0 {
+                        if let Some(value) = self.score(
+                            part,
+                            Mv {
+                                x: origin.x + dx,
+                                y: origin.y + dy,
+                            },
+                            predictor,
+                            &mut motions,
+                        )? {
+                            centre = centre.min(value);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(motions)
+    }
+
+    fn prepare(&self, base: &Inter, index: usize) -> Result<Prepared> {
+        let changed = *base.parts.get(index).ok_or(Error::Internal)?;
+        let mut prepared = Prepared {
+            luma: Luma {
+                mode: None,
+                modes: [2; 16],
+                levels: [[0; 16]; 16],
+                dc: [0; 16],
+                tile: Tile::empty(),
+            },
+            chroma: [Tile::empty(), Tile::empty()],
+            transformed: [[[0; 16]; 4]; 2],
+            levels: [[[0; 16]; 4]; 2],
+        };
+        for (i, &part) in base.parts.iter().take(base.len).enumerate() {
+            if i == index {
+                continue;
+            }
+            predict(
+                self.reference.first().ok_or(Error::Internal)?,
+                &mut prepared.luma.tile,
+                part,
+                self.mx,
+                self.my,
+                false,
+            )?;
+            for (c, tile) in prepared.chroma.iter_mut().enumerate() {
+                predict(
+                    self.reference.get(c + 1).ok_or(Error::Internal)?,
+                    tile,
+                    part,
+                    self.mx,
+                    self.my,
+                    true,
+                )?;
+            }
+        }
+        for (k, levels) in prepared.luma.levels.iter_mut().enumerate() {
+            let (x, y) = xy(k);
+            if !overlaps(changed, x, y, 4) {
+                *levels = t::quantize(
+                    &t::forward(&prepared.luma.tile.residual(self.decision.source, x, y)?)?,
+                    self.decision.qp,
+                    false,
+                )?;
+                prepared
+                    .luma
+                    .tile
+                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+            }
+        }
+        for (c, blocks) in prepared.transformed.iter_mut().enumerate() {
+            for (k, block) in blocks.iter_mut().enumerate() {
+                if !overlaps(changed, k % 2 * 8, k / 2 * 8, 8) {
+                    *block =
+                        t::forward(&prepared.chroma.get(c).ok_or(Error::Internal)?.residual(
+                            self.decision.csources.get(c).ok_or(Error::Internal)?,
+                            k % 2 * 4,
+                            k / 2 * 4,
+                        )?)?;
+                    *prepared
+                        .levels
+                        .get_mut(c)
+                        .and_then(|blocks| blocks.get_mut(k))
+                        .ok_or(Error::Internal)? =
+                        t::quantize(block, t::chroma_qp(self.decision.qp), true)?;
+                }
+            }
+        }
+        Ok(prepared)
+    }
+
+    fn evaluate_part(&self, mut inter: Inter, index: usize, base: &Prepared) -> Result<Candidate> {
+        if !motion::admitted(self.previous, inter.len) {
+            return Err(Error::Syntax);
+        }
+        inter.derive(self.border)?;
+        let part = *inter.parts.get(index).ok_or(Error::Internal)?;
+        let mut luma = base.luma.clone();
+        predict(
+            self.reference.first().ok_or(Error::Internal)?,
+            &mut luma.tile,
+            part,
+            self.mx,
+            self.my,
+            false,
+        )?;
+        for (k, levels) in luma.levels.iter_mut().enumerate() {
+            let (x, y) = xy(k);
+            if overlaps(part, x, y, 4) {
+                *levels = t::quantize(
+                    &t::forward(&luma.tile.residual(self.decision.source, x, y)?)?,
+                    self.decision.qp,
+                    false,
+                )?;
+                luma.tile
+                    .add(x, y, &t::scaled(levels, self.decision.qp, None)?)?;
+            }
+        }
+        let mut chroma = base.chroma.clone();
+        let mut transformed = base.transformed;
+        let mut levels = base.levels;
+        for (c, tile) in chroma.iter_mut().enumerate() {
+            predict(
+                self.reference.get(c + 1).ok_or(Error::Internal)?,
+                tile,
+                part,
+                self.mx,
+                self.my,
+                true,
+            )?;
+            for (k, block) in transformed
+                .get_mut(c)
+                .ok_or(Error::Internal)?
+                .iter_mut()
+                .enumerate()
+            {
+                if overlaps(part, k % 2 * 8, k / 2 * 8, 8) {
+                    *block = t::forward(&tile.residual(
+                        self.decision.csources.get(c).ok_or(Error::Internal)?,
+                        k % 2 * 4,
+                        k / 2 * 4,
+                    )?)?;
+                    *levels
+                        .get_mut(c)
+                        .and_then(|blocks| blocks.get_mut(k))
+                        .ok_or(Error::Internal)? =
+                        t::quantize(block, t::chroma_qp(self.decision.qp), true)?;
+                }
+            }
+        }
+        let chroma = chroma_reconstruct(
+            &chroma,
+            &transformed,
+            levels,
+            t::chroma_qp(self.decision.qp),
+        )?;
+        self.decision.candidate(luma, chroma, Some(inter), 0)
+    }
+
     fn evaluate(&self, mut inter: Inter) -> Result<Candidate> {
         if !motion::admitted(self.previous, inter.len) {
             return Err(Error::Syntax);
@@ -172,6 +499,7 @@ impl Search<'_> {
         self.decision.candidate(luma, chroma, Some(inter), 0)
     }
 
+    #[cfg(test)]
     fn trial(
         &self,
         base: &Inter,
@@ -180,12 +508,25 @@ impl Search<'_> {
         best: &mut Option<Candidate>,
         refusal: &mut Error,
     ) -> Result<()> {
+        let prepared = self.prepare(base, index)?;
+        self.trial_prepared(base, index, mv, &prepared, best, refusal)
+    }
+
+    fn trial_prepared(
+        &self,
+        base: &Inter,
+        index: usize,
+        mv: Mv,
+        prepared: &Prepared,
+        best: &mut Option<Candidate>,
+        refusal: &mut Error,
+    ) -> Result<()> {
         if !mv.valid() {
             return Ok(());
         }
         let mut candidate = base.clone();
         candidate.parts.get_mut(index).ok_or(Error::Internal)?.mv = mv;
-        match self.evaluate(candidate) {
+        match self.evaluate_part(candidate, index, prepared) {
             Ok(candidate) => consider(best, candidate),
             Err(Error::Coefficient | Error::Syntax) => {}
             Err(Error::MacroblockLimit) => *refusal = Error::MacroblockLimit,
@@ -209,46 +550,16 @@ impl Search<'_> {
             }
             let part = *base.parts.get(index).ok_or(Error::Internal)?;
             let predictor = self.border.predictor(&grid, part, base.layout)?;
+            let prepared = match self.prepare(&base, index) {
+                Ok(prepared) => prepared,
+                Err(Error::Coefficient | Error::Syntax) => return Ok(None),
+                Err(e) => return Err(e),
+            };
+            let motions = self.motions(part, predictor)?;
             let mut best = None;
-            self.trial(&base, index, Mv::default(), &mut best, refusal)?;
-            if predictor.x % 4 == 0 && predictor.y % 4 == 0 {
-                self.trial(&base, index, predictor, &mut best, refusal)?;
+            for mv in motions.finalists(predictor)?.into_iter().flatten() {
+                self.trial_prepared(&base, index, mv, &prepared, &mut best, refusal)?;
             }
-            for x in -16..=16 {
-                for y in -16..=16 {
-                    self.trial(&base, index, Mv { x: x * 4, y: y * 4 }, &mut best, refusal)?;
-                }
-            }
-            for step in [2, 1] {
-                let Some(b) = &best else {
-                    break;
-                };
-                let centre = b
-                    .inter
-                    .as_ref()
-                    .ok_or(Error::Internal)?
-                    .parts
-                    .get(index)
-                    .ok_or(Error::Internal)?
-                    .mv;
-                for dx in [-step, 0, step] {
-                    for dy in [-step, 0, step] {
-                        if dx != 0 || dy != 0 {
-                            self.trial(
-                                &base,
-                                index,
-                                Mv {
-                                    x: centre.x + dx,
-                                    y: centre.y + dy,
-                                },
-                                &mut best,
-                                refusal,
-                            )?;
-                        }
-                    }
-                }
-            }
-            self.trial(&base, index, predictor, &mut best, refusal)?;
             let Some(best) = best else {
                 return Ok(None);
             };
@@ -339,6 +650,198 @@ impl Search<'_> {
 mod tests {
     use super::*;
     use crate::{Colour, Gop, Limits, Settings};
+
+    #[test]
+    fn cheap_finalists_keep_protected_seeds_and_deterministic_ties() {
+        let mut motions = Motions::new();
+        let predictor = Mv { x: 80, y: 0 };
+        for (cost, mv) in [
+            (100, Mv::default()),
+            (90, predictor),
+            (10, Mv { x: 4, y: 0 }),
+            (10, Mv { x: 0, y: 4 }),
+            (10, Mv { x: -4, y: 0 }),
+            (10, Mv { x: 0, y: -4 }),
+        ] {
+            motions.insert((cost, 2, mv)).unwrap();
+        }
+        assert_eq!(
+            motions.ranked.map(|value| value.unwrap().2),
+            [
+                Mv { x: -4, y: 0 },
+                Mv { x: 0, y: -4 },
+                Mv { x: 0, y: 4 },
+                Mv { x: 4, y: 0 },
+            ]
+        );
+        let finalists = motions.finalists(predictor).unwrap();
+        assert_eq!(finalists.iter().flatten().count(), 6);
+        assert_eq!(finalists[4], Some(Mv::default()));
+        assert_eq!(finalists[5], Some(predictor));
+    }
+
+    #[test]
+    fn cheap_probes_are_bounded_distinct_and_preserve_motion_endpoints() {
+        let reference = [
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+            FramePlane::new(8, 8).unwrap(),
+        ];
+        let source = Tile::empty();
+        let csources = [Tile::empty(), Tile::empty()];
+        let decision = Decision {
+            source: &source,
+            csources: &csources,
+            context: MbContext {
+                top: None,
+                left: None,
+                p_slice: true,
+            },
+            qp: 28,
+            pending_skip: 0,
+        };
+        let search = Search {
+            reference: &reference,
+            decision: &decision,
+            border: Border::default(),
+            mx: 0,
+            my: 0,
+            previous: 0,
+        };
+        let part = Inter::new(Layout::Whole).unwrap().parts[0];
+        for predictor in [
+            Mv::default(),
+            Mv { x: 72, y: -80 },
+            Mv { x: 3, y: -7 },
+            Mv { x: -8192, y: -2048 },
+            Mv { x: 8191, y: 2047 },
+        ] {
+            let motions = search.motions(part, predictor).unwrap();
+            assert!(motions.len <= 99);
+            let vectors: Vec<_> = motions.seen.iter().flatten().map(|value| value.2).collect();
+            let distinct: std::collections::BTreeSet<_> = vectors.iter().copied().collect();
+            assert_eq!(vectors.len(), distinct.len());
+            assert!(vectors.iter().all(|mv| mv.valid()));
+            let finalists = motions.finalists(predictor).unwrap();
+            assert!(finalists.iter().flatten().count() <= 6);
+            assert!(finalists.contains(&Some(Mv::default())));
+            assert!(finalists.contains(&Some(predictor)));
+            assert_eq!(
+                motions.ranked,
+                search.motions(part, predictor).unwrap().ranked
+            );
+        }
+    }
+
+    #[test]
+    fn cached_finalists_match_complete_trials_for_all_partition_shapes() {
+        let mut reference = [
+            FramePlane::new(32, 32).unwrap(),
+            FramePlane::new(16, 16).unwrap(),
+            FramePlane::new(16, 16).unwrap(),
+        ];
+        for (c, plane) in reference.iter_mut().enumerate() {
+            for (p, value) in plane.data.iter_mut().enumerate() {
+                *value = ((p * 37 + p / 7 * 11 + c * 29) % 256) as u8;
+            }
+        }
+        let mut source = Tile::empty();
+        let mut csources = [Tile::empty(), Tile::empty()];
+        for y in 0..16 {
+            for x in 0..16 {
+                source.0[Tile::at(x, y)] = ((x * 13 + y * 43) % 256) as u8;
+            }
+        }
+        for (c, tile) in csources.iter_mut().enumerate() {
+            for y in 0..8 {
+                for x in 0..8 {
+                    tile.0[Tile::at(x, y)] = ((x * 41 + y * 17 + c * 67) % 256) as u8;
+                }
+            }
+        }
+        let context = MbContext {
+            top: None,
+            left: None,
+            p_slice: true,
+        };
+        for qp in [10, 16, 28, 40, 51] {
+            let decision = Decision {
+                source: &source,
+                csources: &csources,
+                context,
+                qp,
+                pending_skip: 7,
+            };
+            for corner in [0, 1] {
+                let search = Search {
+                    reference: &reference,
+                    decision: &decision,
+                    border: Border::default(),
+                    mx: corner,
+                    my: corner,
+                    previous: 0,
+                };
+                for layout in [
+                    Layout::Whole,
+                    Layout::Horizontal,
+                    Layout::Vertical,
+                    Layout::Sub([0; 4]),
+                    Layout::Sub([1; 4]),
+                    Layout::Sub([2; 4]),
+                    Layout::Sub([3; 4]),
+                    Layout::Sub([3, 2, 1, 0]),
+                ] {
+                    let mut base = Inter::new(layout).unwrap();
+                    for (i, part) in base.parts.iter_mut().take(base.len).enumerate() {
+                        part.mv = Mv {
+                            x: i as i32 % 7 - 3,
+                            y: i as i32 % 5 - 2,
+                        };
+                    }
+                    for index in 0..base.len {
+                        let prepared = search.prepare(&base, index).unwrap();
+                        for mv in [Mv::default(), Mv { x: -7, y: 5 }, Mv { x: 8191, y: -2048 }] {
+                            let mut trial = base.clone();
+                            trial.parts[index].mv = mv;
+                            let complete = search.evaluate(trial.clone());
+                            let cached = search.evaluate_part(trial, index, &prepared);
+                            match (complete, cached) {
+                                (Ok(complete), Ok(cached)) => {
+                                    assert!(complete.key == cached.key);
+                                    assert_eq!(complete.luma.tile.0, cached.luma.tile.0);
+                                    assert_eq!(complete.luma.levels, cached.luma.levels);
+                                    assert_eq!(complete.chroma.dc, cached.chroma.dc);
+                                    assert_eq!(complete.chroma.levels, cached.chroma.levels);
+                                    for (a, b) in
+                                        complete.chroma.tiles.iter().zip(&cached.chroma.tiles)
+                                    {
+                                        assert_eq!(a.0, b.0);
+                                    }
+                                    let mut a = Bits::new(4096);
+                                    let mut b = Bits::new(4096);
+                                    for (bits, candidate) in
+                                        [(&mut a, &complete), (&mut b, &cached)]
+                                    {
+                                        macroblock(
+                                            bits,
+                                            &candidate.luma,
+                                            &candidate.chroma,
+                                            candidate.inter.as_ref(),
+                                            context,
+                                        )
+                                        .unwrap();
+                                    }
+                                    assert_eq!(a.nal(0x41).unwrap(), b.nal(0x41).unwrap());
+                                }
+                                (Err(a), Err(b)) => assert_eq!(a, b),
+                                _ => panic!("cached trial differs from complete evaluation"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fn settings(deblocking: Deblocking) -> Settings {
         Settings {
