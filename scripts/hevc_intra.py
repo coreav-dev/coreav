@@ -11,7 +11,6 @@ import collections
 import hashlib
 import json
 import pathlib
-import re
 import struct
 import subprocess
 import sys
@@ -19,7 +18,6 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import hevc_conformance as harness
 import hevc_fixture as fixture
-from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
 
 COUNTERS = ('ctus', 'coding_units', 'transform_units', 'nonzero_transform_units',
             'transform_skips', 'transquant_bypass_units', 'pcm_units', 'dependent_segments',
@@ -134,60 +132,9 @@ def candidates(args, census):
     return streams
 
 
-def frame_size(frame):
-    width, height = frame['width'], frame['height']
-    require(harness.integer(width, 1) and harness.integer(height, 1)
-            and frame['pix_fmt'] in ('yuv420p', 'yuvj420p', 'yuv420p10le'), 'oracle_frame_format')
-    return (width * height + 2 * ((width + 1) // 2) * ((height + 1) // 2)) * (
-        2 if frame['pix_fmt'] == 'yuv420p10le' else 1)
-
-
-def frame_hashes(text, frames, references):
-    lines = text.splitlines()
-    require('#hash: MD5' in lines and '#codec_id 0: rawvideo' in lines
-            and '#media_type 0: video' in lines, 'oracle_frame_hash_format')
-    packets = []
-    for line in lines:
-        if not line.strip() or line.startswith('#'):
-            continue
-        columns = [column.strip() for column in line.split(',')]
-        require(len(columns) == 6 and columns[0] == '0'
-                and all(re.fullmatch(r'-?\d+', item) for item in columns[1:4])
-                and int(columns[3]) > 0 and columns[4].isdecimal()
-                and re.fullmatch('[0-9a-f]{32}', columns[5]), 'oracle_frame_hash_row')
-        packets.append(dict(bytes=int(columns[4]), md5=columns[5]))
-    require(len(packets) == len(frames) == len(references) > 0, 'oracle_reference_count')
-    for index, (packet, frame, reference) in enumerate(zip(packets, frames, references)):
-        require(reference['output_index'] == index
-                and packet['bytes'] == reference['bytes'] == frame_size(frame)
-                and packet['md5'] == reference['md5'], 'oracle_reference_picture')
-    return packets
-
-
 def oracle_frames(binary, source, directory, stream):
-    frames = stream['frames']
-    formats = {frame['pix_fmt'] for frame in frames}
-    require(len(formats) == 1, 'oracle_changing_packing')
-    command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned',
-               '-f', 'hevc', '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', source,
-               '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
-               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'framemd5', '-']
-    code, stdout, stderr = harness.child(command, directory, 'oracle-frames')
-    require(code == 0, 'oracle_failed')
-    collected = []
-    for raw in harness.stderr_lines(stderr):
-        item = harness.stderr_line(raw, stream['test'], 'intra-frames', exit_code=code)
-        if harness.progress_line(item):
-            item['kind'] = 'progress'
-        collected.append(item)
-    progress = harness.reference_progress(collected)
-    require(int(progress[-1]['frame']) == len(frames), 'oracle_incomplete_output')
-    result = frame_hashes(stdout.read_text(), frames, stream['record']['reference_frames'])
-    harness.write_json(directory / 'oracle-frames.json', dict(complete=True, command=list(map(str, command)),
-                       frames=result, progress=progress, diagnostic_lines=sum(
-                           row['kind'] == 'diagnostic' for row in collected),
-                       diagnostic_policy='exit_completeness_and_published_reference_only'))
-    return result
+    return harness.oracle_frames(binary, source, directory, stream['frames'], stream['test'],
+                                 stream['record']['reference_frames'])
 
 
 def validate_metadata(metadata, target, stream, source, memory, bins):

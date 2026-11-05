@@ -304,17 +304,17 @@ class Oracle(unittest.TestCase):
 
     def test_complete_frame_count_size_reference_and_packing_are_required(self):
         expected = [dict(bytes=6, md5='a' * 32)]
-        self.assertEqual(runner.frame_hashes(self.capture(), [self.frame()], [self.reference()]), expected)
+        self.assertEqual(runner.harness.frame_hashes(self.capture(), [self.frame()], [self.reference()]), expected)
         for text in ('', self.capture('b' * 32), self.capture(size=12),
                      self.capture() + '0, 1, 1, 1, 6, ' + 'a' * 32 + '\n',
                      self.capture().replace('rawvideo', 'hevc'),
                      self.capture().replace('0, 0, 0, 1,', '1, 0, 0, 1,')):
             with self.subTest(text=text), self.assertRaises(ValueError):
-                runner.frame_hashes(text, [self.frame()], [self.reference()])
+                runner.harness.frame_hashes(text, [self.frame()], [self.reference()])
         with self.assertRaises(ValueError):
-            runner.frame_hashes(self.capture(), [dict(self.frame(), pix_fmt='yuv420p10le')], [self.reference()])
+            runner.harness.frame_hashes(self.capture(), [dict(self.frame(), pix_fmt='yuv420p10le')], [self.reference()])
         with self.assertRaises(ValueError):
-            runner.frame_hashes(self.capture(), [self.frame()], [dict(self.reference(), output_index=1)])
+            runner.harness.frame_hashes(self.capture(), [self.frame()], [dict(self.reference(), output_index=1)])
 
     def test_unknown_stderr_is_informational_only_when_complete_reference_output_agrees(self):
         with tempfile.TemporaryDirectory() as temporary:
