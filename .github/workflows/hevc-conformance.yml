@@ -141,7 +141,7 @@ jobs:
           mkdir -p sealed
           openssl rand -hex -out key.txt 32
           openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
-          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem" \
             -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
           shred -u key.txt records.tgz
           rm -rf private

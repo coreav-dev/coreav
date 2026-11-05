@@ -15,6 +15,65 @@ import hevc_intra as runner
 
 
 class Packing(unittest.TestCase):
+    def test_development_comparison_failure_retains_private_diagnostics_and_removes_raw_files(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                source = root / 'source'
+                source.write_bytes(b'self-written source identity')
+                for name in ('native', 'parser', 'ffmpeg', 'ffprobe'):
+                    (root / name).write_bytes(name.encode())
+                destination = root / 'result'
+                raw, metadata, _, oracle = self.picture()
+                pixels = bytearray(raw)
+                if changed:
+                    pixels[4] ^= 1
+                item = dict(partition='development', size=source.stat().st_size,
+                            sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+                picture = dict(all_intra=True, nal_type=19, bit_depth=8, tiles=False,
+                               wpp=False, dependent_segments=0)
+
+                def child(command, path, label, **kwargs):
+                    out, err = path / (label + '.stdout'), path / (label + '.stderr')
+                    out.write_text('')
+                    err.write_text('')
+                    if label == 'extract-first-picture':
+                        (path / 'first-irap.hevc').write_bytes(b'self-written packet-copy identity')
+                    if label == 'native':
+                        out.write_text(json.dumps(metadata))
+                        (path / 'first-irap.u16le').write_bytes(pixels)
+                    return 0, out, err
+
+                with mock.patch.object(runner.harness, 'child', side_effect=child), \
+                        mock.patch.object(runner.harness, 'native_rows', return_value=(
+                            {}, [picture], [dict(picture_index=0)])), \
+                        mock.patch.object(runner.harness, 'probe', return_value=dict(frames=[dict(
+                            pict_type='I', key_frame=1, pix_fmt='yuv420p')])), \
+                        mock.patch.object(runner.harness, 'oracle_frames', return_value=[oracle]), \
+                        mock.patch.object(runner, 'validate_metadata'), \
+                        mock.patch.object(runner, 'diagnose_picture', return_value=dict(
+                            available=True, changed_samples=[1, 0, 0])) as diagnostic:
+                    options = dict(native=root / 'native', parser=root / 'parser',
+                                   max_memory_bytes=256 << 20, max_bins=1 << 28)
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, 'native_reference_mismatch'):
+                            runner.development_picture(item, source, destination, root, **options)
+                        diagnostic.assert_called_once()
+                        stream = diagnostic.call_args.args[3]
+                        self.assertEqual(stream['record']['reference_frames'], [oracle])
+                        self.assertEqual(stream['record']['reference_packing']['md5'], oracle['md5'])
+                    else:
+                        self.assertTrue(runner.development_picture(item, source, destination, root,
+                                                                  **options)['complete'])
+                        diagnostic.assert_not_called()
+                report = json.loads((destination / 'intra.json').read_text())
+                self.assertEqual(report['complete'], not changed)
+                self.assertEqual(report['stage'], 'comparison' if changed else 'complete')
+                if changed:
+                    self.assertEqual(report['diagnostic']['changed_samples'], [1, 0, 0])
+                self.assertFalse((destination / 'first-irap.hevc').exists())
+                self.assertFalse((destination / 'first-irap.u16le').exists())
+
     def picture(self, depth=8):
         base = 0 if depth == 8 else 512
         planes = [[base + i for i in range(24)],

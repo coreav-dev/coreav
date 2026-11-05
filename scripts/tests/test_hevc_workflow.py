@@ -10,6 +10,17 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_census_uses_its_own_public_recipient_without_changing_shared_corpus_sealing(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        self.assertIn('-inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem"', workflow)
+        self.assertNotIn('-inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem"', workflow)
+        public = root / 'bench/hevc-conformance/evidence-public.pem'
+        self.assertTrue(public.read_text().startswith('-----BEGIN PUBLIC KEY-----\n'))
+        self.assertNotIn('PRIVATE KEY', public.read_text())
+        subprocess.run(['openssl', 'pkey', '-pubin', '-in', str(public), '-noout'],
+                       check=True, capture_output=True, timeout=10)
+
     def test_intra_workflow_tracks_kernels_and_the_g2_driver(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()

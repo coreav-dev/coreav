@@ -588,7 +588,14 @@ def development_picture(item, source, directory, oracle_bin, *, native, parser, 
         metadata = harness.read_json(stdout)
         validate_metadata(metadata, target, stream, prefix, max_memory_bytes, max_bins)
         report.update(stage='comparison', metadata=metadata)
-        report['comparison'] = compare_picture(output, metadata, candidate, oracle[0])
+        try:
+            report['comparison'] = compare_picture(output, metadata, candidate, oracle[0])
+        except ValueError:
+            diagnostic_stream = dict(test='development_first_irap', frames=frames,
+                                     record=dict(reference_frames=oracle, reference_packing=oracle[0]))
+            report['diagnostic'] = diagnose_picture(oracle_bin / 'ffmpeg', prefix, directory,
+                                                     diagnostic_stream, candidate, output, metadata)
+            raise
         require(harness.digest(prefix) == report['prefix_sha256'] and harness.digest(source) == item['sha256']
                 and harness.digest(native) == report['native_sha256'] and harness.digest(parser) == report['parser_sha256']
                 and all(harness.digest(oracle_bin / name) == sha for name, sha in report['oracle'].items()),
