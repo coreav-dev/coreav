@@ -258,50 +258,45 @@ pub(crate) fn stereo(left: &mut Channel, right: &mut Channel, ms: &MsMask, bands
     all_ms
 }
 
+pub(crate) fn pns_stereo_bands(left: &Channel, right: &Channel, ms: &MsMask, bands: &Bands) -> u32 {
+    if left.noise_bands == 0 {
+        return 0;
+    }
+    bands_of(left.info, bands)
+        .filter(|&(g, sfb, _, _)| {
+            codebook(left, g, sfb) == NOISE_HCB
+                && (matches!(codebook(right, g, sfb), INTENSITY_HCB | INTENSITY_HCB2)
+                    || codebook(right, g, sfb) == NOISE_HCB && ms.on(g, sfb))
+        })
+        .count() as u32
+}
+
+pub(crate) fn pns_tns_bands(channel: &Channel, bands: &Bands) -> u32 {
+    if channel.noise_bands == 0 || !channel.tns.present {
+        return 0;
+    }
+    bands_of(channel.info, bands)
+        .filter(|&(g, sfb, start, end)| {
+            codebook(channel, g, sfb) == NOISE_HCB
+                && channel
+                    .tns
+                    .ranges(channel.info, bands)
+                    .any(|(range, _)| range.start < end && start < range.end)
+        })
+        .count() as u32
+}
+
 /// Temporal noise shaping of a channel (4.6.9.3, `tns_decode_frame()`).
 pub(crate) fn tns(channel: &mut Channel, bands: &Bands) {
     if !channel.tns.present {
         return;
     }
-    let short = channel.info.short();
-    let window_len = if short {
-        bands.short_len()
-    } else {
-        bands.frame
-    };
-    let offsets = channel.info.offsets(bands);
-    let windows = if short { 8 } else { 1 };
-    let num_swb = offsets.len().saturating_sub(1);
-    let max_bands = if short {
-        bands.tns_short
-    } else {
-        bands.tns_long
-    };
-    let limit = max_bands.min(channel.info.max_sfb);
-    for w in 0..windows {
-        let count = channel.tns.count.get(w).copied().unwrap_or(0) as usize;
-        let mut bottom = num_swb;
-        for f in 0..count {
-            let Some(filter) = channel.tns.filters.get(w).and_then(|ws| ws.get(f)).copied() else {
-                break;
-            };
-            let top = bottom;
-            bottom = top.saturating_sub(filter.length);
-            if filter.order == 0 {
-                continue;
-            }
-            let start = offsets.get(bottom.min(limit)).copied().unwrap_or(0) as usize;
-            let end = offsets.get(top.min(limit)).copied().unwrap_or(0) as usize;
-            if end <= start {
-                continue;
-            }
-            let base = w * window_len;
-            let Some(data) = channel.spec.get_mut(base + start..base + end) else {
-                continue;
-            };
-            let lpc = filter.lpc.get(..filter.order).unwrap_or_default();
-            ar_filter(data, lpc, filter.downward);
-        }
+    for (range, filter) in channel.tns.ranges(channel.info, bands) {
+        let Some(data) = channel.spec.get_mut(range) else {
+            continue;
+        };
+        let lpc = filter.lpc.get(..filter.order).unwrap_or_default();
+        ar_filter(data, lpc, filter.downward);
     }
 }
 
@@ -387,5 +382,77 @@ mod tests {
         rng.fill(&mut band, 3.0);
         let energy: f32 = band.iter().map(|v| v * v).sum();
         assert!((energy - 9.0).abs() < 1e-3, "{energy}");
+    }
+
+    #[test]
+    fn pns_tns_intersection_uses_only_active_clipped_filter_ranges() {
+        let bands = Bands::new(4, 1024);
+        let mut channel = Channel::default();
+        channel.info.max_sfb = 4;
+        channel.info.groups = 1;
+        channel.info.group_len[0] = 1;
+        channel.noise_bands = 1;
+        channel.cb[0][0] = NOISE_HCB;
+        channel.tns.present = true;
+        channel.tns.count[0] = 1;
+        channel.tns.filters[0][0].length = bands.long.len() - 2;
+        channel.tns.filters[0][0].order = 1;
+        assert_eq!(pns_tns_bands(&channel, &bands), 0);
+        channel.cb[0][0] = 0;
+        channel.cb[0][1] = NOISE_HCB;
+        assert_eq!(pns_tns_bands(&channel, &bands), 1);
+        channel.tns.filters[0][0].downward = true;
+        assert_eq!(pns_tns_bands(&channel, &bands), 1);
+        channel.tns.filters[0][0].order = 0;
+        assert_eq!(pns_tns_bands(&channel, &bands), 0);
+        channel.tns.filters[0][0].order = 1;
+        channel.tns.filters[0][0].length = 0;
+        assert_eq!(pns_tns_bands(&channel, &bands), 0);
+    }
+
+    #[test]
+    fn short_window_pns_intersection_is_not_a_group_energy_sum() {
+        let bands = Bands::new(4, 1024);
+        let mut channel = Channel::default();
+        channel.info.window_sequence = 2;
+        channel.info.max_sfb = 4;
+        channel.info.groups = 1;
+        channel.info.group_len[0] = 8;
+        channel.noise_bands = 1;
+        channel.cb[0][1] = NOISE_HCB;
+        channel.tns.present = true;
+        channel.tns.count[3] = 1;
+        channel.tns.filters[3][0].length = bands.short.len() - 2;
+        channel.tns.filters[3][0].order = 1;
+        assert_eq!(pns_tns_bands(&channel, &bands), 1);
+        channel.tns.count[4] = 1;
+        channel.tns.filters[4][0] = channel.tns.filters[3][0];
+        assert_eq!(pns_tns_bands(&channel, &bands), 2);
+    }
+
+    #[test]
+    fn pns_stereo_distinguishes_independence_from_shared_or_intensity_noise() {
+        let bands = Bands::new(4, 1024);
+        let mut left = Channel::default();
+        left.info.max_sfb = 1;
+        left.info.groups = 1;
+        left.info.group_len[0] = 1;
+        left.noise_bands = 1;
+        left.cb[0][0] = NOISE_HCB;
+        let mut right = left.clone();
+        let mut ms = MsMask::default();
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 0);
+        ms.present = 2;
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 1);
+        ms.present = 1;
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 0);
+        ms.used[0][0] = true;
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 1);
+        right.cb[0][0] = INTENSITY_HCB;
+        right.noise_bands = 0;
+        ms.present = 0;
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 1);
+        right.cb[0][0] = 1;
+        assert_eq!(pns_stereo_bands(&left, &right, &ms, &bands), 0);
     }
 }

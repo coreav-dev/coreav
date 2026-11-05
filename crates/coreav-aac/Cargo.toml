@@ -9,6 +9,13 @@ repository.workspace = true
 publish = false
 readme = "README.md"
 
+[features]
+diagnostics = []
+
+[[example]]
+name = "pns_diagnostic"
+required-features = ["diagnostics"]
+
 [dev-dependencies]
 # The conformance test reads the MP4 streams of the conformance package.
 coreav-isobmff = { path = "../coreav-isobmff" }

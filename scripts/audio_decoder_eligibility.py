@@ -10,9 +10,11 @@ from markdown_it import MarkdownIt
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / 'docs/compat/audio-decoder-eligibility.json'
 REQUIREMENTS = {'mpeg1_layer3', 'aac_lc', 'opus_mapping0', 'supported_mp4_timeline',
-                'aac_no_noise_or_all_ms_intensity', 'ffmpeg_aac_mp4_timeline'}
+                'aac_separable_pns_or_no_noise', 'ffmpeg_aac_mp4_timeline'}
 AAC_TOLERANCE = {'f32_absolute': 2 ** -16, 's16_lsb': 1, 'sample_count': 'exact',
-                 'priming': 'exact', 'timeline': 'exact', 'feature': 'aac'}
+                 'priming': 'exact', 'timeline': 'exact', 'feature': 'aac',
+                 'pns': {'energy_db': 0.1, 'sample_domain': 'non_pns_projection',
+                         'packing': 'per_decoder_f32'}}
 
 
 def heading_anchors(markdown):
@@ -94,7 +96,7 @@ def validate(record):
                 require(row['decoder_eligible'], 'presentation requires decoder eligibility')
                 if tolerance:
                     require(container == 'mp4' and requirements == [
-                        'aac_lc', 'aac_no_noise_or_all_ms_intensity', 'ffmpeg_aac_mp4_timeline'],
+                        'aac_lc', 'aac_separable_pns_or_no_noise', 'ffmpeg_aac_mp4_timeline'],
                         'AAC tolerance requires its content and presentation predicates')
                     continue
                 require(container == 'mp4' and 'supported_mp4_timeline' in requirements,

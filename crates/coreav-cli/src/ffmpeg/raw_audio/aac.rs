@@ -13,8 +13,46 @@ const MAX_PACKET_BYTES: u64 = 16 << 20;
 
 fn refused() -> Error {
     Error::Unsupported(
-        "AAC decode tolerance requires clean mono/stereo LC packets without PNS or all-MS intensity and a registered MP4 timeline",
+        "AAC decode tolerance requires clean mono/stereo LC packets, separable PNS tools and a registered MP4 timeline",
     )
+}
+
+struct Content {
+    pns: bool,
+    separable: bool,
+    sequences: [u8; 2],
+}
+
+impl Content {
+    fn new(config: &Config, pns: bool) -> Self {
+        Self {
+            pns,
+            separable: config.frame_length() == 1024
+                && matches!(config.channel_configuration(), 1 | 2),
+            sequences: [0; 2],
+        }
+    }
+
+    fn packet(
+        &mut self,
+        decoder: &Decoder,
+        decoded: coreav_aac::Frame,
+        size: usize,
+    ) -> Result<(), Error> {
+        self.pns |= decoded.noise_bands > 0;
+        self.separable &= decoded.pns_tns_bands == 0
+            && decoded.pns_stereo_bands == 0
+            && decoded.coupling_channels == 0
+            && size <= 8191 - 7;
+        for (previous, next) in self.sequences.iter_mut().zip(decoder.window_sequences()) {
+            self.separable &= matches!((*previous, next), (0 | 3, 0 | 1) | (1, 2) | (2, 2 | 3));
+            *previous = next;
+        }
+        if self.pns && !self.separable {
+            return Err(refused());
+        }
+        Ok(())
+    }
 }
 
 fn clean(
@@ -22,16 +60,15 @@ fn clean(
     packet: &[u8],
     output: &mut [f32],
     frame: usize,
-) -> Result<(), Error> {
+) -> Result<coreav_aac::Frame, Error> {
     let decoded = decoder.decode(packet, output).map_err(|_| refused())?;
     if decoded.samples != frame
-        || decoded.noise_bands != 0
         || decoded.intensity_all_ms_bands != 0
         || output.iter().any(|sample| !sample.is_finite())
     {
         return Err(refused());
     }
-    Ok(())
+    Ok(decoded)
 }
 
 fn gapless(
@@ -97,11 +134,13 @@ fn gapless(
     Ok(parsed)
 }
 
-fn setup(
-    command: &super::Command,
-    plan: &Plan,
-    limits: &mp4::Limits,
-) -> Result<(Config, Option<i64>), Error> {
+struct Prepared {
+    config: Config,
+    end: Option<i64>,
+    complete: Option<(u64, u64)>,
+}
+
+fn setup(command: &super::Command, plan: &Plan, limits: &mp4::Limits) -> Result<Prepared, Error> {
     let mut source = FileSource::open(Path::new(&command.input))?;
     let movie = mp4::probe(
         &mut source,
@@ -154,8 +193,11 @@ fn setup(
     let mut output = [0f32; 2048];
     let mut bytes = 0u64;
     let mut count = 0u64;
+    let mut first = None;
+    let mut content = Content::new(&config, false);
     while let Some(packet) = packets.next() {
         let packet = packet?;
+        first.get_or_insert(packet.offset);
         count = count.checked_add(1).ok_or_else(refused)?;
         bytes = bytes
             .checked_add(u64::from(packet.size))
@@ -170,7 +212,7 @@ fn setup(
         packets
             .source_mut()
             .read_exact_at(packet.offset, &mut data)?;
-        clean(
+        let decoded = clean(
             &mut decoder,
             &data,
             output
@@ -178,11 +220,21 @@ fn setup(
                 .ok_or_else(refused)?,
             config.frame_length(),
         )?;
+        content.packet(&decoder, decoded, data.len())?;
     }
     if count != u64::from(track.sample_count) {
         return Err(refused());
     }
-    Ok((config, end))
+    let complete = if content.pns {
+        Some((count, first.ok_or_else(refused)?))
+    } else {
+        None
+    };
+    Ok(Prepared {
+        config,
+        end,
+        complete,
+    })
 }
 
 struct State<'a> {
@@ -194,10 +246,19 @@ struct State<'a> {
     skip: u64,
     packets: u64,
     bytes: u64,
+    content: Content,
+    complete: Option<(u64, u64)>,
 }
 
 impl State<'_> {
     fn packet(&mut self, packet: Packet, last: bool) -> Result<(), Error> {
+        if self.packets == 0
+            && self
+                .complete
+                .is_some_and(|(_, first)| packet.pos != Some(first))
+        {
+            return Err(refused());
+        }
         self.packets = self.packets.checked_add(1).ok_or_else(refused)?;
         self.bytes = self.bytes.checked_add(packet.size).ok_or_else(refused)?;
         if self.packets > MAX_PACKETS
@@ -230,7 +291,7 @@ impl State<'_> {
             }
         }
         let mut samples = [0f32; 2048];
-        clean(
+        let decoded = clean(
             &mut self.decoder,
             &packet.data,
             samples
@@ -238,6 +299,8 @@ impl State<'_> {
                 .ok_or_else(refused)?,
             self.frame,
         )?;
+        self.content
+            .packet(&self.decoder, decoded, packet.data.len())?;
         let skip = self.skip.min(self.frame as u64) as usize;
         self.skip -= skip as u64;
         if packet.discard && skip != self.frame {
@@ -286,7 +349,11 @@ pub(super) fn decode(
         max_packet_bytes: MAX_PACKET_BYTES,
         ..mp4::Limits::default()
     };
-    let (config, end) = setup(command, plan, &limits).map_err(DecodeError::Audio)?;
+    let Prepared {
+        config,
+        end,
+        complete,
+    } = setup(command, plan, &limits).map_err(DecodeError::Audio)?;
     let mut source = FileSource::open(Path::new(&command.input))
         .map_err(Error::from)
         .map_err(DecodeError::Audio)?;
@@ -338,6 +405,8 @@ pub(super) fn decode(
         skip: 0,
         packets: 0,
         bytes: 0,
+        content: Content::new(&config, complete.is_some()),
+        complete,
     };
     let mut payloads = vec![false; probed.report.streams.len()];
     *payloads
@@ -366,7 +435,10 @@ pub(super) fn decode(
     if let Some(packet) = pending {
         state.packet(packet, true).map_err(DecodeError::Audio)?;
     }
-    if state.packets == 0 || state.skip != 0 {
+    if state.packets == 0
+        || state.skip != 0
+        || complete.is_some_and(|(count, _)| state.packets != count)
+    {
         return Err(DecodeError::Audio(refused()));
     }
     let decoded = Decoded::Aac {
@@ -377,4 +449,68 @@ pub(super) fn decode(
         decoded,
         converted: Some(state.output.finish().map_err(DecodeError::Audio)?),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(noise: bool) -> coreav_aac::Frame {
+        coreav_aac::Frame {
+            samples: 1024,
+            noise_bands: u32::from(noise),
+            intensity_all_ms_bands: 0,
+            pns_tns_bands: 0,
+            pns_stereo_bands: 0,
+            coupling_channels: 0,
+        }
+    }
+
+    #[test]
+    fn pns_rejects_tools_even_when_the_conflict_precedes_the_first_noise_band() {
+        let Ok(config) = Config::parse(&[0x12, 0x08], &coreav_aac::Limits { max_channels: 2 })
+        else {
+            unreachable!();
+        };
+        let decoder = Decoder::new(&config);
+        let mut good = Content::new(&config, false);
+        assert!(good.packet(&decoder, frame(true), 100).is_ok());
+        for conflict in [0, 1, 2] {
+            let mut content = Content::new(&config, false);
+            let mut decoded = frame(false);
+            match conflict {
+                0 => decoded.pns_tns_bands = 1,
+                1 => decoded.pns_stereo_bands = 1,
+                _ => decoded.coupling_channels = 1,
+            }
+            assert!(content.packet(&decoder, decoded, 100).is_ok());
+            assert!(content.packet(&decoder, frame(true), 100).is_err());
+            let mut content = Content::new(&config, true);
+            assert!(content.packet(&decoder, decoded, 100).is_err());
+        }
+    }
+
+    #[test]
+    fn pns_requires_a_legal_window_history_and_adts_transport_extent() {
+        let Ok(config) = Config::parse(&[0x12, 0x08], &coreav_aac::Limits { max_channels: 2 })
+        else {
+            unreachable!();
+        };
+        let mut decoder = Decoder::new(&config);
+        let mut content = Content::new(&config, false);
+        assert!(content.packet(&decoder, frame(false), 8191).is_ok());
+        assert!(content.packet(&decoder, frame(true), 100).is_err());
+        let mut content = Content::new(&config, true);
+        assert!(content.packet(&decoder, frame(true), 8184).is_ok());
+        assert!(content.packet(&decoder, frame(true), 8185).is_err());
+        let mut samples = [0.0; 1024];
+        assert!(
+            decoder
+                .decode(&[0x00, 0xc8, 0xc0, 0x07], &mut samples)
+                .is_ok()
+        );
+        let mut content = Content::new(&config, false);
+        assert!(content.packet(&decoder, frame(false), 100).is_ok());
+        assert!(content.packet(&decoder, frame(true), 100).is_err());
+    }
 }

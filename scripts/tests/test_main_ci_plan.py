@@ -67,6 +67,48 @@ class MainPlan(unittest.TestCase):
         self.assertIn('${{ runner.temp }}/aac-pcm.json', upload['with']['path'].splitlines(),
                       'Keep aac-pcm.json in the AAC artifact even when qualification fails')
 
+    def test_aac_pns_controls_build_diagnostics_and_install_pinned_numpy(self):
+        workflow = json.loads(subprocess.check_output(
+            ['ruby', '-rjson', '-rpsych', '-e',
+             'd = Psych.load_file(ARGV[0]); d["on"] ||= d.delete(true); puts JSON.generate(d)',
+             str(ROOT / '.github/workflows/audio-conformance.yml')], text=True, timeout=10))
+        for event in ('push', 'pull_request'):
+            for path in ('scripts/aac_pns.py', 'scripts/tests/test_aac_pns.py',
+                         'scripts/aac-pns-requirements.txt', 'docs/design/aac-pns-eligibility.md'):
+                self.assertIn(path, workflow['on'][event]['paths'])
+        steps = workflow['jobs']['aac']['steps']
+        build, = [step for step in steps if step.get('name') == 'Build the command with the feature aac']
+        self.assertIn('cargo build --locked --release -p coreav-aac --features diagnostics '
+                      '--example pns_diagnostic', build['run'])
+        install, = [step for step in steps if step.get('name') == 'Install the pinned PNS transform dependency']
+        self.assertIn('python3 -m venv "$RUNNER_TEMP/aac-pns-python"', install['run'])
+        self.assertIn('"$RUNNER_TEMP/aac-pns-python/bin/pip" install --quiet --only-binary=:all: '
+                      '--require-hashes -r scripts/aac-pns-requirements.txt', install['run'])
+        self.assertIn('echo "$RUNNER_TEMP/aac-pns-python/bin" >> "$GITHUB_PATH"', install['run'])
+        controls, = [step for step in steps if step.get('name') == 'Check independent PNS transforms and native diagnostics']
+        self.assertIn('python3 -I -m unittest discover -s scripts/tests -p test_aac_pns.py', controls['run'])
+        self.assertIn('cargo test --locked --release -p coreav-aac --features diagnostics '
+                      '--lib --example pns_diagnostic', controls['run'])
+        self.assertEqual(controls['env']['OPENBLAS_NUM_THREADS'], '1')
+        qualify, = [step for step in steps if step.get('name') == 'Qualify AAC decode-tolerance presentations']
+        self.assertIn('--pns-diagnostic target/release/examples/pns_diagnostic', qualify['run'])
+        self.assertLess(steps.index(build), steps.index(controls))
+        self.assertLess(steps.index(install), steps.index(controls))
+        self.assertLess(steps.index(controls), steps.index(qualify))
+
+    def test_deny_discovery_uses_the_hash_pinned_numpy_interpreter(self):
+        steps = self.workflows['deny']['jobs']['deny-checks']['steps']
+        install, = [step for step in steps if 'python3 -m venv' in step.get('run', '')]
+        self.assertIn('python3 -m venv "$RUNNER_TEMP/parser"', install['run'])
+        self.assertIn('"$RUNNER_TEMP/parser/bin/pip" install --quiet --only-binary=:all: '
+                      '--require-hashes -r scripts/aac-pns-requirements.txt', install['run'])
+        self.assertIn('echo "$RUNNER_TEMP/parser/bin" >> "$GITHUB_PATH"', install['run'])
+        discovery, = [step for step in steps if step.get('name') == 'Check the measurement analyzers']
+        self.assertIn("python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'", discovery['run'])
+        self.assertEqual(install['if'], discovery['if'])
+        self.assertEqual(discovery['env']['OPENBLAS_NUM_THREADS'], '1')
+        self.assertLess(steps.index(install), steps.index(discovery))
+
     def test_docs_push_never_drops_an_earlier_source_pushs_main_obligations(self):
         for old_reused, new_reused in ((True, True), (False, False), (True, False), (False, True)):
             old = self.plan('push', old_reused)
