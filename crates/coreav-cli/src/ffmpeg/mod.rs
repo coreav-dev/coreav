@@ -557,10 +557,28 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    if command.muxer == Muxer::Wav
+        && selected.len() == 1
+        && selected
+            .first()
+            .and_then(|index| report.streams.get(*index))
+            .is_some_and(|stream| {
+                stream.entries.iter().any(|(key, value)| {
+                    *key == "codec_name" && matches!(value, Value::Str(name) if name == "aac")
+                })
+            })
+    {
+        return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
     if matches!(command.muxer, Muxer::S16le | Muxer::F32le)
         && !raw_audio::legacy(command, report, &selected)
     {
         return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+    }
+    if command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native(
+            "WAV stdout requires qualified AAC decode tolerance",
+        ));
     }
     if command.muxer == Muxer::Avi {
         return avi::job(command, report, &selected, list.is_some());
@@ -1707,6 +1725,14 @@ fn may_replace(command: &Command, path: &Path) -> Result<bool, Refusal> {
 }
 
 pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
+    if let Some(message) = output::input_alias(Path::new(&command.input), path) {
+        return Err(Refusal::Usage(message));
+    }
+    if output::check_regular_file(path).is_err() {
+        return Err(Refusal::not_native(
+            "output to a non-regular destination, linked file or unwritable file",
+        ));
+    }
     let force = may_replace(command, path)?;
     match output::refuse(Path::new(&command.input), path, force) {
         Some(message) => Err(Refusal::Usage(message)),
@@ -1832,6 +1858,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             video_origin,
         } => {
             let options = RemuxOptions {
+                interleave_packets: true,
                 rebuild_durations: true,
                 video_origin: *video_origin,
                 streams: Some(streams.clone()),

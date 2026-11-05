@@ -887,6 +887,83 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     return result
 
 
+def frame_hashes(text, frames, references=None):
+    lines = text.splitlines()
+    require('#hash: MD5' in lines and '#codec_id 0: rawvideo' in lines
+            and '#media_type 0: video' in lines, 'oracle_frame_hash_format')
+    packets = []
+    for line in lines:
+        if not line.strip() or line.startswith('#'):
+            continue
+        columns = [column.strip() for column in line.split(',')]
+        require(len(columns) == 6 and columns[0] == '0'
+                and all(re.fullmatch(r'-?\d+', item) for item in columns[1:4])
+                and int(columns[3]) > 0 and columns[4].isdecimal()
+                and re.fullmatch('[0-9a-f]{32}', columns[5]), 'oracle_frame_hash_row')
+        packets.append(dict(bytes=int(columns[4]), md5=columns[5]))
+    require(len(packets) == len(frames) > 0
+            and (references is None or len(references) == len(frames)), 'oracle_reference_count')
+    for index, (packet, frame) in enumerate(zip(packets, frames)):
+        width, height = frame['width'], frame['height']
+        require(integer(width, 1) and integer(height, 1)
+                and frame['pix_fmt'] in ('yuv420p', 'yuvj420p', 'yuv420p10le'), 'oracle_frame_format')
+        size = (width * height + 2 * ((width + 1) // 2) * ((height + 1) // 2)) * (
+            2 if frame['pix_fmt'] == 'yuv420p10le' else 1)
+        require(packet['bytes'] == size, 'oracle_reference_picture')
+        if references is not None:
+            reference = references[index]
+            require(reference['output_index'] == index and packet['bytes'] == reference['bytes']
+                    and packet['md5'] == reference['md5'], 'oracle_reference_picture')
+    return packets
+
+
+def oracle_frames(binary, path, directory, frames, stream, references=None):
+    formats = {frame['pix_fmt'] for frame in frames}
+    require(len(formats) == 1, 'oracle_changing_packing')
+    command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned',
+               '-f', 'hevc', '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', path,
+               '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
+               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'framemd5', '-']
+    code, stdout, stderr = child(command, directory, 'oracle-frames')
+    require(code == 0, 'oracle_failed')
+    collected = []
+    for raw in stderr_lines(stderr):
+        item = stderr_line(raw, stream, 'intra-frames', exit_code=code)
+        if progress_line(item):
+            item['kind'] = 'progress'
+        collected.append(item)
+    progress = reference_progress(collected)
+    require(int(progress[-1]['frame']) == len(frames), 'oracle_incomplete_output')
+    result = frame_hashes(stdout.read_text(), frames, references)
+    write_json(directory / 'oracle-frames.json', dict(complete=True, command=list(map(str, command)),
+               frames=result, progress=progress, diagnostic_lines=sum(
+                   row['kind'] == 'diagnostic' for row in collected),
+               diagnostic_policy='exit_completeness_and_published_reference_only'))
+    return result
+
+
+def anchored_reference_frames(binary, path, directory, frames, outputs, confirmation,
+                              inventory, stream, stream_sha256):
+    references = [r for r in inventory['references'] if r['layout'] == 'whole_output_yuv_file']
+    require(len(references) == 1 and confirmation.get('complete') is True
+            and confirmation.get('exit_code') == 0 and confirmation.get('progress_complete') is True
+            and confirmation.get('output_pictures') == len(frames) == len(outputs) > 0
+            and re.fullmatch('[0-9a-f]{32}', references[0].get('md5', '')) is not None
+            and confirmation.get('md5') == references[0]['md5']
+            and confirmation.get('bitstream_sha256') == digest(path), 'picture_reference_anchor')
+    source = next((m for m in inventory['members'] if m['name'] == references[0]['source']), None)
+    require(source is not None and source['role'] == 'reference_hash', 'picture_reference_source')
+    packets = oracle_frames(binary, path, directory, frames, stream)
+    binary_sha256 = digest(binary)
+    return [dict(packet, output_index=index, picture_index=output['picture_index'],
+                 stream=stream, stream_sha256=stream_sha256, anchoring_md5=confirmation['md5'],
+                 source=source['name'], source_sha256=source['sha256'],
+                 source_scope='oracle_picture_anchored_to_published_whole_output',
+                 oracle_build=confirmation['oracle_build'], oracle_sha256=binary_sha256,
+                 oracle_input_sha256=confirmation['bitstream_sha256'])
+            for index, (packet, output) in enumerate(zip(packets, outputs))]
+
+
 def reference_frames(archive_path, inventory, frames, confirmation=None):
     yuv = [m for m in inventory['members'] if m['role'] == 'reference_yuv']
     if not yuv:
@@ -1068,6 +1145,11 @@ def run(args):
                 record.update(comparison)
                 record['reference_packing'] = confirmation
                 record['reference_frames'] = reference_frames(args.data / case['archive'], inventory, frames, confirmation)
+                if not record['reference_frames'] and any(
+                        picture['all_intra'] and picture['filters_disabled'] for picture in pictures):
+                    record['reference_frames'] = anchored_reference_frames(
+                        args.oracle_bin / 'ffmpeg', oracle_path, output, frames, outputs,
+                        confirmation, inventory, case['test'], member['sha256'])
                 record['intra_candidates'] = coverage(pictures, outputs, record['reference_frames'])
                 record['status'] = 'headers_checked'
                 record['tools'] = summary.get('tools', {})

@@ -5,6 +5,9 @@
 The native PCM-output command may use lossy decoders that pass their
 standard's conformance criteria. This does not promise byte identity with
 FFmpeg 9.0.2. The command and its conversion adapters are separate work.
+The later [AAC decode-tolerance registration](aac-pcm-eligibility.md)
+qualifies scoped oracle compatibility independently of this conformance
+plan. It does not claim ISO conformance eligibility.
 
 1. Audit the existing MP3, Opus and AAC-LC conformance tests and CI runs.
    Preserve every existing acceptance threshold. Distinguish the tested
@@ -44,8 +47,9 @@ Audio-conformance CI installs them; the existing deny job already uses
 that parser environment. Code fences, including list-contained fences,
 are parsed as blocks rather than inferred from individual lines.
 
-`kind` is either `exact` or `conformance`. These lossy rows use only
-`conformance`. Mixing, rate conversion and final serialization require
+`kind` is `conformance` for the standard-vector registrations, or
+`decode_tolerance` for the separately scoped AAC-to-oracle comparison.
+No lossy row claims `exact`. Mixing, rate conversion and final serialization require
 their own registrations and cannot inherit decoder eligibility. The
 record alone changes no command: until the consuming adapter lands, lossy
 PCM output remains on fallback.
@@ -77,7 +81,8 @@ Unknown predicates fail closed. A consumer may refuse a narrower scope.
 The initial MPEG-1 Layer III MP4 admission is unchanged. Scoped Opus MP4
 now additionally requires mapping family 0, mono or stereo, zero gain,
 native 48 kHz and a warning-free timeline without inserted silence.
-AAC and Matroska presentation remain disabled.
+AAC uses the separate [decode-tolerance qualification](aac-pcm-eligibility.md),
+not ISO conformance admission. Matroska presentation remains disabled.
 This does not remove support from the separate `decode-audio` command.
 
 ## Conformance gates
@@ -162,10 +167,12 @@ treated as waveform agreement. See the complete
 These are existing project acceptance criteria. Using ISO bitstreams with
 them does not establish that the comparator implements the applicable
 ISO/IEC 14496-4 acceptance procedure. That mapping has not been proven,
-so `decoder_eligible` and both AAC presentation rows remain false. Public
+so an AAC `conformance` row cannot enable decoder eligibility. Public
 reference waveforms are available, but the standard's applicable
 acceptance procedure must be established and run in CI before enabling
-AAC. A waveform gate borrowed from MP3 is not a substitute.
+ISO conformance admission. A waveform gate borrowed from MP3 is not a substitute.
+The separate `decode_tolerance` kind requires its own numerical bounds,
+opt-in build feature, content predicates and oracle presentation adapter.
 
 The existing additional FFmpeg agreement, exact presentation-length and
 thread-invariance gates remain required. The reference-alignment search
