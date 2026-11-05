@@ -72,6 +72,67 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
     let list = dir.join("concat.txt");
     std::fs::write(&list, "file 'first.mp4'\nfile 'second.mp4'\n").unwrap();
     let bin = env!("CARGO_BIN_EXE_coreav");
+    let check_plain = |args: &[&str], output: &Path, reference: &Path| {
+        for existing in [false, true] {
+            if existing {
+                std::fs::write(output, b"existing output").unwrap();
+                std::fs::write(reference, b"existing output").unwrap();
+            }
+            let pin = Command::new(&ffmpeg)
+                .args(["-nostdin", "-v", "error", "-y"])
+                .args(args)
+                .arg(reference)
+                .output()
+                .unwrap();
+            assert!(pin.status.code().is_some());
+            let entries = std::fs::read_dir(dir).unwrap().count();
+            let strict = Command::new(bin)
+                .args(["--strict-safe", "ffmpeg", "-y"])
+                .args(args)
+                .arg(output)
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(strict.status.code(), Some(4));
+            assert!(
+                String::from_utf8_lossy(&strict.stderr)
+                    .contains("H.264 concat packet conversion that CoreAV cannot copy exactly")
+            );
+            assert!(strict.stdout.is_empty());
+            assert_eq!(std::fs::read_dir(dir).unwrap().count(), entries);
+            if existing {
+                assert_eq!(std::fs::read(output).unwrap(), b"existing output");
+            } else {
+                assert!(!output.exists());
+            }
+            let fallback = Command::new(bin)
+                .args(["ffmpeg", "-y"])
+                .args(args)
+                .arg(output)
+                .env("COREAV_FALLBACK", &ffmpeg)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(fallback.status.code(), pin.status.code());
+            assert_eq!(fallback.stdout, pin.stdout);
+            assert_eq!(output.exists(), reference.exists());
+            assert_eq!(
+                std::fs::read_dir(dir).unwrap().count(),
+                entries + usize::from(!existing && output.exists())
+            );
+            if output.exists() {
+                assert_eq!(
+                    std::fs::read(output).unwrap(),
+                    std::fs::read(reference).unwrap()
+                );
+                std::fs::remove_file(output).unwrap();
+            }
+            if reference.exists() {
+                std::fs::remove_file(reference).unwrap();
+            }
+        }
+    };
     for video_only in [false, true] {
         let output = dir.join("output.mp4");
         let reference = dir.join("reference.mp4");
@@ -120,18 +181,7 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             std::fs::read(&reference).unwrap(),
             std::fs::read(&plain_reference).unwrap()
         );
-        let native = Command::new(bin)
-            .args(["--strict-safe", "ffmpeg"])
-            .args(&plain)
-            .arg(&ordinary)
-            .env_remove("COREAV_FALLBACK_ACTIVE")
-            .output()
-            .unwrap();
-        assert!(
-            native.status.success(),
-            "{}",
-            String::from_utf8_lossy(&native.stderr)
-        );
+        check_plain(&plain, &ordinary, &plain_reference);
         for existing in [false, true] {
             if existing {
                 std::fs::write(&output, b"existing output").unwrap();
@@ -245,46 +295,22 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
         "file 'first.mp4'\nfile 'transport-like.mp4'\n",
     )
     .unwrap();
-    let native_alac = Command::new(bin)
-        .args([
-            "--strict-safe",
-            "ffmpeg",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-        ])
-        .arg(&alac_list)
-        .args(["-c", "copy"])
-        .arg(dir.join("alac-native.mp4"))
-        .output()
-        .unwrap();
-    assert!(
-        native_alac.status.success(),
-        "{}",
-        String::from_utf8_lossy(&native_alac.stderr)
-    );
-    let native_transport = Command::new(bin)
-        .args([
-            "--strict-safe",
-            "ffmpeg",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-        ])
-        .arg(&transport_list)
-        .args(["-c", "copy"])
-        .arg(dir.join("transport-native.mp4"))
-        .output()
-        .unwrap();
-    assert!(
-        native_transport.status.success(),
-        "{}",
-        String::from_utf8_lossy(&native_transport.stderr)
-    );
+    for (list, name) in [(&alac_list, "alac"), (&transport_list, "transport")] {
+        check_plain(
+            &[
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                list.to_str().unwrap(),
+                "-c",
+                "copy",
+            ],
+            &dir.join(format!("{name}-native.mp4")),
+            &dir.join(format!("{name}-reference.mp4")),
+        );
+    }
     let output = dir.join("refused output.mp4");
     let reference = dir.join("refused reference.mp4");
     let ordinary_input = dir.join("first.mp4");

@@ -37,7 +37,7 @@ pub use limits::Limits;
 pub use packet::PacketSize;
 pub use packets::{Packet, Packets};
 pub use probe::{Audio, DroppedStream, Program, Stream, TransportStream, Video, probe};
-pub use section::{Descriptor, Service};
+pub use section::{Descriptor, Service, crc32};
 
 /// Whether `source` holds stored transport packets, and where: the packet
 /// size and the offset of the first stored packet, which the reader

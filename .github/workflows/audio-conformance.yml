@@ -8,10 +8,10 @@ name: audio-conformance
 on:
   push:
     branches: [main]
-    paths: ["scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py"]
+    paths: ["scripts/aac_pns.py", "scripts/tests/test_aac_pns.py", "scripts/aac-pns-requirements.txt", "docs/design/aac-pns-eligibility.md", "scripts/aac_pcm_eligibility.py", "scripts/tests/test_aac_pcm_eligibility.py", "docs/design/aac-pcm-eligibility.md", "crates/coreav-cli/Cargo.toml", "scripts/opus_pcm_eligibility.py", "scripts/tests/test_opus_pcm_eligibility.py", "docs/design/opus-pcm-eligibility.md", "scripts/opus_matroska_padding.py", "scripts/tests/test_opus_matroska_padding.py", "scripts/pr-text-requirements.txt", "docs/compat/audio-decoder-eligibility.json", "docs/design/lossy-pcm-eligibility.md", "scripts/audio_decoder_eligibility.py", "scripts/tests/test_audio_decoder_eligibility.py", "scripts/opus_mp4_presentation.py", "scripts/tests/test_opus_mp4_presentation.py", "crates/coreav-transcode/**", "crates/coreav-cli/src/ffmpeg/**", "scripts/composed_audio*.py", "scripts/transcode_check.py", "docs/design/composed-opus-aac-v2.*", "crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml", "crates/coreav-cli/tests/ffmpeg_raw.rs", "scripts/raw_pcm_check.py", "scripts/pcm_output_check.py", "scripts/swr_characterize.py", "scripts/tests/test_raw_pcm_check.py", "scripts/tests/test_swr_characterize.py", "scripts/oracle_pin.py", "crates/coreav-cli/tests/ffmpeg_flac.rs", "crates/coreav-cli/src/ffprobe/audio/**"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -257,10 +257,29 @@ jobs:
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build the command with the feature aac
-        run: cargo build --locked --release -p coreav-cli --features aac
+        run: |
+          set -euo pipefail
+          cargo build --locked --release -p coreav-cli --features aac
+          cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
+      - name: Install the pinned PNS transform dependency
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/aac-pns-python"
+          "$RUNNER_TEMP/aac-pns-python/bin/pip" install --quiet --only-binary=:all: --require-hashes -r scripts/aac-pns-requirements.txt
+          echo "$RUNNER_TEMP/aac-pns-python/bin" >> "$GITHUB_PATH"
+      - name: Check independent PNS transforms and native diagnostics
+        env:
+          OPENBLAS_NUM_THREADS: '1'
+        run: |
+          set -euo pipefail
+          python3 -I -m unittest discover -s scripts/tests -p test_aac_pns.py
+          cargo test --locked --release -p coreav-aac --features diagnostics --lib --example pns_diagnostic
       - name: Qualify AAC decode-tolerance presentations
+        env:
+          OPENBLAS_NUM_THREADS: '1'
         run: |
           python3 -I scripts/aac_pcm_eligibility.py --coreav target/release/coreav \
+            --pns-diagnostic target/release/examples/pns_diagnostic \
             --oracle-dir "$RUNNER_TEMP/coreav-oracle-bin" --work "$RUNNER_TEMP/aac-pcm" \
             --out "$RUNNER_TEMP/aac-pcm.json"
       - name: The generated set and the references

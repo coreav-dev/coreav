@@ -1540,7 +1540,7 @@ FFmpeg).**
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). Output is staged and published only for a supported join; a refusal leaves the output as it was.
-  The AAC restriction keeps the native join's gapless presentation from being mistaken for FFmpeg concat packet timing; see [the plan](concat-aac-edits.md).
+  H.264 compatibility concat also refuses because the pinned command inserts parameter sets that the native join does not reproduce exactly. This applies to unedited and video-only inputs too; strict-safe mode exits 4 and normal mode forwards the original command. No sample-entry label exception is registered. Native `coreav join` and ordinary copy remain unchanged; see [the clock investigation and refusal](concat-copy-clock.md).
 - Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
   whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
   pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item

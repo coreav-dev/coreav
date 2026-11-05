@@ -44,6 +44,12 @@ pub struct Frame {
     /// reverses them writes the same band level with the opposite sign in
     /// the right channel.
     pub intensity_all_ms_bands: u32,
+    /// Noise bands intersected by an active temporal noise shaping filter.
+    pub pns_tns_bands: u32,
+    /// Noise bands shared through M/S or used as an intensity source.
+    pub pns_stereo_bands: u32,
+    /// Coupling channel elements decoded in this frame.
+    pub coupling_channels: usize,
 }
 
 /// One coupling target: an element (pair or not, by tag), the channel of
@@ -119,6 +125,22 @@ impl Decoder {
         &self.config
     }
 
+    /// Coded window sequences, in output channel order, after a successful decode.
+    pub fn window_sequences(&self) -> impl Iterator<Item = u8> + '_ {
+        self.channels
+            .iter()
+            .map(|channel| channel.info.window_sequence)
+    }
+
+    #[cfg(feature = "diagnostics")]
+    /// Copies coded metadata and spectra for a diagnostic-only caller.
+    pub fn diagnostic(&self) -> Vec<crate::ChannelDiagnostic> {
+        self.channels
+            .iter()
+            .map(|channel| crate::diagnostic::channel(channel, &self.bands))
+            .collect()
+    }
+
     /// Forgets the frames before: the overlap is silence and the window
     /// shape the sine, as at the start of a stream.
     pub fn reset(&mut self) {
@@ -168,6 +190,7 @@ impl Decoder {
         let mut cce = 0usize;
         let mut noise_bands = 0u32;
         let mut intensity_all_ms_bands = 0u32;
+        let mut pns_stereo_bands = 0u32;
         self.targets.clear();
         loop {
             let id = bits.read(3);
@@ -224,6 +247,7 @@ impl Decoder {
                     left.read(&mut bits, &bands, info.as_ref(), scale)?;
                     right.read(&mut bits, &bands, info.as_ref(), scale)?;
                     if common {
+                        pns_stereo_bands += tools::pns_stereo_bands(left, right, &ms, &bands);
                         tools::noise_pair(left, right, &ms, &bands, &mut rng, scale);
                         intensity_all_ms_bands += tools::stereo(left, right, &ms, &bands);
                     } else {
@@ -344,6 +368,13 @@ impl Decoder {
             samples: frame,
             noise_bands,
             intensity_all_ms_bands,
+            pns_tns_bands: self
+                .channels
+                .iter()
+                .map(|channel| tools::pns_tns_bands(channel, &bands))
+                .sum(),
+            pns_stereo_bands,
+            coupling_channels: cce,
         })
     }
 }

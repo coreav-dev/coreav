@@ -89,3 +89,10 @@ bench = false
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[[bin]]
+name = "ts_copy"
+path = "fuzz_targets/ts_copy.rs"
+test = false
+doc = false
+bench = false

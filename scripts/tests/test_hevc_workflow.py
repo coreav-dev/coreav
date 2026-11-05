@@ -10,6 +10,17 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_census_uses_its_own_public_recipient_without_changing_shared_corpus_sealing(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        self.assertIn('-inkey "$GITHUB_WORKSPACE/bench/hevc-conformance/evidence-public.pem"', workflow)
+        self.assertNotIn('-inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem"', workflow)
+        public = root / 'bench/hevc-conformance/evidence-public.pem'
+        self.assertTrue(public.read_text().startswith('-----BEGIN PUBLIC KEY-----\n'))
+        self.assertNotIn('PRIVATE KEY', public.read_text())
+        subprocess.run(['openssl', 'pkey', '-pubin', '-in', str(public), '-noout'],
+                       check=True, capture_output=True, timeout=10)
+
     def test_intra_workflow_tracks_kernels_and_the_g2_driver(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
@@ -26,9 +37,21 @@ class HevcWorkflow(unittest.TestCase):
         self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_intra.py'])
         self.assertEqual(int(arguments[arguments.index('--max-memory-bytes') + 1]), 256 << 20)
         self.assertEqual(int(arguments[arguments.index('--max-bins') + 1]), 1 << 28)
+        self.assertIn('--filters', arguments, 'Run original G3 comparisons in the shared driver')
         self.assertNotIn('scripts/hevc_conformance.py run', workflow)
         build = next(line for line in workflow.splitlines() if 'cargo build --locked --release' in line)
         self.assertIn('--example headers --example intra', build)
+
+    def test_development_intra_checks_cannot_be_dropped_from_the_metadata_job(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        job = workflow.split('  profile-census:\n',1)[1]
+        command = job.split('python3 -I scripts/hevc_conformance.py corpus-online',1)[1].split('\n      - name:',1)[0]
+        arguments = shlex.split(command.replace('\\\n',''))
+        self.assertIn('--native', arguments, 'Restore the development first-IRAP decoder')
+        self.assertIn('--parser', arguments, 'Restore original first-IRAP header validation')
+        self.assertIn('--example headers --example intra', job)
+        self.assertIn("summary['development_intra']", job)
 
     def test_feature_isolation_step_rejects_every_native_dependency_leak(self):
         root = pathlib.Path(__file__).resolve().parents[2]

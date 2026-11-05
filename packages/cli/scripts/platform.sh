@@ -42,6 +42,26 @@ case "$build-$platform" in
   full-*) features=release-full ;;
   *) echo "error: unknown build $build" >&2; exit 2 ;;
 esac
+svt=
+if [ "${COREAV_SVT_AV1:-0}" = 1 ]; then
+  if [ "$build" != full ] || [ "${platform%%-*}" = win32 ]; then
+    echo "error: SVT-AV1 is an opt-in feature of Unix full builds" >&2
+    exit 2
+  fi
+  svt="${SVT_AV1_PREFIX:-$root/target/svt-av1/$target}"
+  if [ ! -f "$svt/lib/libSvtAv1Enc.a" ]; then
+    python3 "$root/scripts/encoders/svt-av1/build.py" --target "$target" --prefix "$svt" --jobs 2
+  fi
+  export SVT_AV1_PREFIX="$svt"
+  features="$features,svt-av1-native"
+  case "$target" in
+    x86_64-unknown-linux-musl) export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc ;;
+    aarch64-unknown-linux-musl) export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc ;;
+    x86_64-apple-darwin) export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=clang ;;
+    aarch64-apple-darwin) export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=clang ;;
+    *) ;;
+  esac
+fi
 codecs=
 if [ "${platform%%-*}" != win32 ]; then
   codecs="${COREAV_CODECS:-$root/target/codecs/$target}"
@@ -117,6 +137,10 @@ fi
 # files of the C libraries it links.
 cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$out/"
 [ -n "$codecs" ] && cp -R "$codecs/licenses" "$out/licenses"
+if [ -n "$svt" ]; then
+  mkdir -p "$out/licenses"
+  cp -R "$svt/share/licenses/svt-av1" "$out/licenses/svt-av1"
+fi
 node "$root/scripts/notices/main.mjs" generate --out "$out" --artifact "$out/bin/$exe" -- "${selection[@]}"
 [ "$build" = default ] && node "$here/scripts/platform-package.js" "$platform" "$out"
 if command -v sha256sum > /dev/null; then sha256sum "$out/bin/$exe"; else shasum -a 256 "$out/bin/$exe"; fi

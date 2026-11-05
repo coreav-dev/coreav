@@ -7,6 +7,9 @@ on:
     branches: [main]
     paths:
       - scripts/encoders/svt-av1/**
+      - crates/coreav-backend-svt-av1/**
+      - Cargo.toml
+      - Cargo.lock
       - scripts/tests/test_svt_native_workflow.py
       - scripts/svt_av1_licenses.py
       - scripts/svt-av1-notices.json
@@ -20,6 +23,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - scripts/encoders/svt-av1/**
+      - crates/coreav-backend-svt-av1/**
+      - Cargo.toml
+      - Cargo.lock
       - scripts/tests/test_svt_native_workflow.py
       - scripts/svt_av1_licenses.py
       - scripts/svt-av1-notices.json
@@ -113,12 +119,24 @@ jobs:
           set -euo pipefail
           python3 -I -m unittest discover -s scripts/tests -p 'test_svt_av1_rust_link.py' 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/rust-link-tests.log"
           python3 -I scripts/svt_av1_rust_link.py --target "$TARGET" --prefix "$RUNNER_TEMP/svt-av1" --output "$RUNNER_TEMP/svt-rust-link" 2>&1 | tee "$RUNNER_TEMP/svt-native-logs/rust-link.log"
+      - name: Test the native Rust backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler=clang
+          [[ "$TARGET" == *-linux-musl ]] && compiler=musl-gcc
+          key="CARGO_TARGET_$(printf '%s' "$TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
+          export "$key=$compiler"
+          export SVT_AV1_PREFIX="$RUNNER_TEMP/svt-av1"
+          . scripts/rust-dist.env
+          cargo +"$RUST_DIST_TOOLCHAIN" test --locked -p coreav-backend-svt-av1 --features native --target "$TARGET"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: svt-native-${{ matrix.target }}
           path: |
             ${{ runner.temp }}/svt-av1/manifest.json
+            ${{ runner.temp }}/svt-av1/include/svt-av1/*.h
             ${{ runner.temp }}/svt-rust-link/manifest.json
             ${{ runner.temp }}/svt-native-logs/*.log
           if-no-files-found: warn

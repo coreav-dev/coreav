@@ -147,7 +147,7 @@ fn section_total(data: &[u8]) -> Option<usize> {
 /// The CRC-32 of ISO/IEC 13818-1 Annex A (polynomial 0x04C11DB7, initial
 /// value all ones, no reflection, no final XOR). Over a whole section with
 /// its `CRC_32` field, the result is 0.
-pub(crate) fn crc32(data: &[u8]) -> u32 {
+pub fn crc32(data: &[u8]) -> u32 {
     let [t0, t1, t2, t3, t4, t5, t6, t7] = &CRC_STEPS;
     let step =
         |table: &[u32; 256], byte: u8| table.get(usize::from(byte)).copied().unwrap_or_default();

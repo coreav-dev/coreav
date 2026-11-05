@@ -1,6 +1,6 @@
 # Built-in encoders
 
-Status: Selection groundwork only. The codec-neutral frame and packet contracts and the new selection options exist, but no built-in backend is connected. AV1 and platform requests report an unavailable-backend refusal. Effective AV1 and platform settings, the version 2 summary and backend acceptance remain integration work.
+Status: The standalone explicit AV1 route and its version 2 summary are implemented for opt-in Unix native builds. Parser-only builds and platform selections still refuse unavailable backends. The small correctness fixture checks real encoding; reference performance figures are separate.
 
 The default output remains H.264 video with copied audio in MP4. AV1 is explicit. [Policy record 0043](encoder-policy.md) adds the platform and licence exceptions to record 0042. The existing [transcode design](transcode.md) continues to describe shipped behavior. This note specifies the new backend contract and its acceptance bars, not a claim that they have passed.
 
@@ -8,7 +8,7 @@ The separate [G1 H.264 encoder design](h264-encoder.md) pre-registers a self-wri
 
 ## Output and encoder selection
 
-Codec selection and encoder selection are separate. The proposed `--video h264|av1` selects the output codec. Omission means H.264 on every platform. The proposed encoder choices extend `--encoder auto|x264|ffmpeg` with `platform` and `svt-av1`. An explicit encoder never falls back. Selecting an encoder incompatible with the requested codec is an `unsupported_feature` error.
+Codec selection and encoder selection are separate. `--video h264|av1` selects the output codec. Omission means H.264 on every platform. `--encoder` accepts `auto`, `x264`, `ffmpeg`, `platform` and `svt-av1`. An explicit encoder never falls back. Selecting an encoder incompatible with the requested codec is an `unsupported_feature` error.
 
 The following table specifies `auto` after integration. A platform backend must be compiled in, available at runtime, and able to honor the request before it is eligible.
 
@@ -28,7 +28,7 @@ Only capability failures discovered before encoding may advance auto to its next
 
 Argument presence must remain distinguishable from a CLI default. Unset x264 settings retain CRF 23 and preset `medium` when x264 or FFmpeg with libx264 is selected. An explicit x264 preset or CRF is not translated to a platform quality scale. In auto mode that request makes the platform candidate ineligible. An explicit platform selection refuses it.
 
-SVT-AV1 initially accepts 8-bit 4:2:0 frames, a numeric preset from 0 through 13, and its own CRF from 0 through 63. For `--video av1`, unset values mean preset 8 and CRF 32. Unsupported geometry, pixel format, frame rate, or settings are refused. There is no implicit bit-depth, color-range, or frame-rate conversion. A future 10-bit extension needs its own tests and bars.
+SVT-AV1 initially accepts 8-bit 4:2:0 SDR frames, a numeric preset from 0 through 13, and its own CRF from 0 through 63. For `--video av1`, unset values mean preset 8 and CRF 32. Both controls require integer tokens, not fractional or exponent notation. AV1 refuses bitrate and thread-count controls. Parallelism level 1 is not a thread limit. Unsupported geometry, pixel format, frame rate, or settings are refused. There is no implicit bit-depth, color-range, or frame-rate conversion. A future 10-bit extension needs its own tests and bars.
 
 The initial VideoToolbox path accepts a target bitrate, H.264 High profile, 8-bit 4:2:0, no frame reordering, and a maximum keyframe interval of two seconds. With no rate option, its target is 2,000,000 bits per second. This is a bitrate default, not a claim of x264 CRF equivalence. AudioToolbox initially accepts AAC-LC, the source channel layout and rate where supported, and a target bitrate of 128,000 bits per second for mono or 192,000 for stereo when unset. Other layouts require an explicit supported bitrate. Unsupported channel layouts or rates are refused, not resampled or downmixed silently.
 
@@ -58,9 +58,13 @@ Calling a built-in H.264 encoder does not supply an H.264 decoder. Default-build
 
 ## Summary contract
 
-The current `coreav.transcode/1` schema closes its encoder-name enum and rejects additional properties. New metadata must not be inserted into that schema or repurpose `video.codec`, which describes the source. Integration introduces a separately documented `coreav.transcode/2` schema and updates serializers, examples, and tests together.
+The `coreav.transcode/1` schema closes its encoder-name enum and rejects additional properties. New metadata must not be inserted into that schema or repurpose `video.codec`, which describes the source. H.264 jobs retain the unchanged version 1 document.
 
-Each encoded output stream records the following fields in the new schema:
+Only completed explicit AV1 jobs use [`coreav.transcode/2`](../schema/transcode-v2.md). Source codec and decoder remain in `video`; `video.encoding` reports the software AV1 backend, version, supplied sandbox launcher, effective settings and completed session counts. Settings cadence is separate from source timestamps. Copied streams, encoded audio, dropped streams and output size share their version 1 meanings. The schema, reference, illustrative example, serializer and tests change together. A successful receipt is not native correctness or independent decoder evidence.
+
+### Later platform metadata
+
+Platform integration must define its own versioned serialization for the following metadata requirements. These proposed fields are not additional keys in the AV1 version 2 schema:
 
 | Field | Meaning |
 |---|---|
@@ -79,7 +83,7 @@ No `coreav ffprobe` output changes. `coreav ffmpeg -c:v libx264` must continue t
 
 ## Process and validation boundaries
 
-The initial shared video contract in `coreav-transcode::contract` assigns sequential frame identities to checked, owned pictures with strictly increasing presentation times. The submission ledger retains times rather than pixels. The packet ledger bounds sample extents, count and total bytes, then requires one complete sample per submitted identity at drain and derives timing in decode order. Codec-specific readers still validate syntax, random-access status and configuration; accepting a packet into this ledger does not validate its codec. Existing encoder execution does not use these new contracts until backend connection.
+The initial shared video contract in `coreav-transcode::contract` assigns sequential frame identities to checked, owned pictures with strictly increasing presentation times. The submission ledger retains times rather than pixels. The packet ledger bounds sample extents, count and total bytes, then requires one complete sample per submitted identity at drain and derives timing in decode order. Codec-specific readers still validate syntax, random-access status and configuration; accepting a packet into this ledger does not validate its codec. The AV1 path uses these contracts; the legacy H.264 frame owner retains its existing behavior.
 
 SVT-AV1 follows libopus. The default path reexecutes the binary as a sandboxed encoder worker. It receives checked frames and parameters, not a source file or compressed source packets. The parent bounds queued frames, shared buffers, packet sizes, total output, and work against one deadline. EOF drains the encoder. Crash, timeout, premature output completion, or malformed output fails and reaps the child. The in-process comparison uses the same safe backend and validators in a measurement-only executable.
 

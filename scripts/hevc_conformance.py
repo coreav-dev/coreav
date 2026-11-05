@@ -6,6 +6,7 @@ import bisect
 import collections
 import contextlib
 import hashlib
+import functools
 import json
 import os
 import pathlib
@@ -28,6 +29,8 @@ import oracle_pin
 import test_oracle
 import hevc_oracle_input
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT
+
+HEVC_DECODE_INPUT = ('-export_side_data', '+enhancements')
 
 REGISTRATION = ROOT / 'bench/hevc-conformance/archives.json'
 ROSTER = ROOT / 'docs/measurements/hevc-native/roster.json'
@@ -453,22 +456,24 @@ def manifest(args):
     write_json(args.out, data)
 
 
-def child_limits():
+def child_limits(file_limit=CAPTURE_CAP):
     resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (CAPTURE_CAP, CAPTURE_CAP))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (TIMEOUT, TIMEOUT))
 
 
-def child(command, directory, label):
+def child(command, directory, label, *, file_limit=CAPTURE_CAP):
     require(sys.platform == 'linux', 'hostile subprocesses require Linux limits')
+    require(integer(file_limit) and CAPTURE_CAP <= file_limit <= 4 << 30, 'invalid subprocess file limit')
     directory.mkdir(parents=True, exist_ok=True)
     stdout, stderr = directory / f'{label}.stdout', directory / f'{label}.stderr'
     environment = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR')}
     environment['LC_ALL'] = 'C'
     with stdout.open('wb') as out, stderr.open('wb') as err:
         process = subprocess.Popen(list(map(str, command)), stdout=out, stderr=err,
-                                   env=environment, start_new_session=True, preexec_fn=child_limits)
+                                   env=environment, start_new_session=True,
+                                   preexec_fn=functools.partial(child_limits, file_limit))
         try:
             code = process.wait(timeout=TIMEOUT)
         except BaseException:
@@ -583,7 +588,8 @@ def progress_line(item):
 def probe(binary, path, directory, frames=False, *, diagnostics=None, stream=None, preparation=None):
     entries = ('frame=width,height,pix_fmt,pict_type,key_frame,pkt_pos' if frames else
                'packet=pos,size:stream=index,codec_name,profile,width,height,coded_width,coded_height,pix_fmt,field_order')
-    command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', '-f', 'hevc', '-select_streams', 'v:0',
+    command = [binary, '-v', 'repeat+error', '-flags', 'unaligned', *HEVC_DECODE_INPUT,
+               '-f', 'hevc', '-select_streams', 'v:0',
                '-show_frames' if frames else '-show_packets', '-show_entries', entries,
                '-of', 'json', path]
     code, out, err = child(command, directory, 'frames' if frames else 'packets')
@@ -827,7 +833,7 @@ def confirm_reference(binary, path, directory, frames, references, *, diagnostic
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'changing output depth needs an explicitly registered file packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned', '-f', 'hevc', '-c:v', 'hevc',
-               *AUDIO_DECODE_INPUT, '-i', path,
+               *HEVC_DECODE_INPUT, *AUDIO_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
                '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'md5', '-']
     attempt = dict(candidate=layout_registration['candidate'] if layout_registration else 'canonical_visible_planar',
@@ -918,14 +924,17 @@ def frame_hashes(text, frames, references=None):
     return packets
 
 
-def oracle_frames(binary, path, directory, frames, stream, references=None):
+def oracle_frames(binary, path, directory, frames, stream, references=None, *, first_picture=False):
     formats = {frame['pix_fmt'] for frame in frames}
     require(len(formats) == 1, 'oracle_changing_packing')
     command = [binary, '-v', 'repeat+error', '-noautorotate', '-flags', 'unaligned',
-               '-f', 'hevc', '-c:v', 'hevc', *AUDIO_DECODE_INPUT, '-i', path,
+               *([] if first_picture else ['-f', 'hevc']), '-c:v', 'hevc',
+               *HEVC_DECODE_INPUT, *AUDIO_DECODE_INPUT, '-i', path,
                '-map', '0:v:0', '-fps_mode', 'passthrough', '-noautoscale', '-c:v', 'rawvideo',
-               '-pix_fmt', '+' + next(iter(formats)), '-progress', 'pipe:2', '-f', 'framemd5', '-']
-    code, stdout, stderr = child(command, directory, 'oracle-frames')
+               '-pix_fmt', '+' + next(iter(formats)), *(['-frames:v', '1'] if first_picture else []),
+               '-progress', 'pipe:2', '-f', 'framemd5', '-']
+    label = 'source-first-frame' if first_picture else 'oracle-frames'
+    code, stdout, stderr = child(command, directory, label)
     require(code == 0, 'oracle_failed')
     collected = []
     for raw in stderr_lines(stderr):
@@ -936,7 +945,7 @@ def oracle_frames(binary, path, directory, frames, stream, references=None):
     progress = reference_progress(collected)
     require(int(progress[-1]['frame']) == len(frames), 'oracle_incomplete_output')
     result = frame_hashes(stdout.read_text(), frames, references)
-    write_json(directory / 'oracle-frames.json', dict(complete=True, command=list(map(str, command)),
+    write_json(directory / (label + '.json'), dict(complete=True, command=list(map(str, command)),
                frames=result, progress=progress, diagnostic_lines=sum(
                    row['kind'] == 'diagnostic' for row in collected),
                diagnostic_policy='exit_completeness_and_published_reference_only'))
@@ -1147,7 +1156,7 @@ def run(args):
                 record['reference_packing'] = confirmation
                 record['reference_frames'] = reference_frames(args.data / case['archive'], inventory, frames, confirmation)
                 if not record['reference_frames'] and any(
-                        picture['all_intra'] and picture['filters_disabled'] for picture in pictures):
+                        picture['all_intra'] for picture in pictures):
                     record['reference_frames'] = anchored_reference_frames(
                         args.oracle_bin / 'ffmpeg', oracle_path, output, frames, outputs,
                         confirmation, inventory, case['test'], member['sha256'])
@@ -1234,7 +1243,9 @@ def fetch_corpus(args, inspect=False):
                 path = round_files.fetch_one(pool, entries[item['sha256']], destination)
                 if inspect:
                     try:
-                        records[index] = corpus_record(item, path, args.out, args.oracle_bin)
+                        options = dict(native=args.native, parser=args.parser,
+                                       max_memory_bytes=args.max_memory_bytes, max_bins=args.max_bins) if getattr(args, 'native', None) else None
+                        records[index] = corpus_record(item, path, args.out, args.oracle_bin, intra=options)
                         write_json(args.out / 'corpus-census.json', corpus_result(records))
                     finally:
                         path.unlink(missing_ok=True)
@@ -1244,7 +1255,7 @@ def fetch_corpus(args, inspect=False):
         pool.close()
 
 
-def corpus_record(item, path, directory, oracle_bin):
+def corpus_record(item, path, directory, oracle_bin, *, intra=None):
     record = dict(item)
     try:
         require(path.stat().st_size == item['size'] and digest(path) == item['sha256'],
@@ -1264,17 +1275,39 @@ def corpus_record(item, path, directory, oracle_bin):
         require(record['container'] and record['profile'] and record['pixel_format'],
                 'incomplete profile/container census')
         record['admission'] = 'requires native parameter-set validation'
+        if intra and item['partition'] == 'development':
+            import hevc_intra
+            record['intra'] = hevc_intra.development_picture(item, path, directory / item['sha256'], oracle_bin, **intra)
+            record['admission'] = 'first independent IRAP validated; full decode not established'
     except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         record.update(status='blocked', reason=type(error).__name__)
+        report = directory / item['sha256'] / 'intra.json'
+        if intra and item['partition'] == 'development' and report.exists():
+            record['intra'] = read_json(report)
     return record
 
 
 def corpus_result(records):
     counts = collections.Counter((r['partition'], r.get('profile'), r.get('bit_depth'), r['status']) for r in records)
-    return dict(roster_sha256=digest(ROSTER),
+    result = dict(roster_sha256=digest(ROSTER),
                 complete=len(records) == 54 and all(r['status'] == 'inspected' for r in records), files=records,
                 counts=[dict(partition=k[0], profile=k[1], bit_depth=k[2], status=k[3], files=count)
                         for k, count in counts.items()])
+    selected = [r for r in records if 'intra' in r]
+    if selected:
+        result['development_intra'] = dict(expected=26, completed=sum(r['intra'].get('complete') is True for r in selected))
+        stages = ('extract_first_picture', 'headers', 'oracle', 'reconstruction', 'comparison', 'complete')
+        result['development_intra']['stages'] = {stage: sum(r['intra'].get('stage') == stage for r in selected) for stage in stages}
+        refusals = collections.Counter()
+        for record in selected:
+            refusal = record['intra'].get('native_refusal', {})
+            reason = refusal.get('reason')
+            if (refusal.get('kind') == 'refusal' and refusal.get('category') in ('invalid_data', 'limit', 'unsupported')
+                    and isinstance(reason, str) and re.fullmatch('[a-z0-9_]{1,80}', reason)):
+                refusals[reason] += 1
+        result['development_intra']['native_refusals'] = dict(refusals)
+        result['complete'] &= len(selected) == 26 and result['development_intra']['completed'] == 26
+    return result
 
 
 def corpus(args):
@@ -1315,6 +1348,10 @@ def main():
     online_parser.add_argument('--out', required=True, type=pathlib.Path)
     online_parser.add_argument('--oracle-bin', required=True, type=pathlib.Path)
     online_parser.add_argument('--manifests', type=pathlib.Path)
+    online_parser.add_argument('--native', type=pathlib.Path)
+    online_parser.add_argument('--parser', type=pathlib.Path)
+    online_parser.add_argument('--max-memory-bytes', type=int, default=256 << 20)
+    online_parser.add_argument('--max-bins', type=int, default=1 << 28)
     args = parser.parse_args()
     try:
         {'acquire': acquire, 'manifest': manifest, 'run': run,
