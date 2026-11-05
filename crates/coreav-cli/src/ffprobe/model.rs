@@ -345,7 +345,7 @@ pub fn time(ts: i64, num: i64, den: i64) -> Value {
 }
 
 /// What `-show_entries` and the `-show_*` options select.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
     /// Every entry and every section inside, per section.
     all: [bool; SECTIONS],

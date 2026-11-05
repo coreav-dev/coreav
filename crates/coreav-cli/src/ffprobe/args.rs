@@ -368,7 +368,36 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
             "You have to specify one input file.".to_owned(),
         ));
     };
-    if !input.starts_with("file:")
+    selection.finish();
+    let stdin = crate::ffmpeg::args::stdin(&input);
+    if stdin {
+        let mut full = Selection::default();
+        full.select_all(Sid::Format);
+        full.select_all(Sid::Stream);
+        full.select_bare(Sid::ProgramStreamDisposition);
+        full.select_bare(Sid::ProgramStreamTags);
+        full.finish();
+        if input == "-"
+            || !matches!(writer, Kind::Json { .. })
+            || selection != full
+            || select_streams.is_some()
+            || count_packets
+            || count_frames
+            || show_error
+            || !read_intervals.is_empty()
+            || style.units
+            || style.sexagesimal
+            || force.is_some_and(|kind| kind != Container::Isobmff)
+            || summary_level(&diagnostic_level).is_err()
+        {
+            return Err(Refusal::Unsupported(NotNative::property(
+                "standard input command",
+                "pipe: and pipe:0 require JSON format and stream sections without inspection options",
+            )));
+        }
+    }
+    if !stdin
+        && !input.starts_with("file:")
         && !input.starts_with("http://")
         && !input.starts_with("https://")
         && input.contains(':')
@@ -384,13 +413,6 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
             }
         }
     }
-    if input == "-" {
-        return Err(Refusal::Unsupported(NotNative::property(
-            "standard input",
-            "input '-' is not supported: coreav ffprobe reads files and HTTP(S) URLs",
-        )));
-    }
-    selection.finish();
     Ok(Options {
         input,
         writer,
@@ -904,5 +926,31 @@ mod tests {
             parse_intervals("10%20"),
             Err(Refusal::Unsupported(_))
         ));
+    }
+    #[test]
+    fn stdin_admits_only_complete_json_probe_shapes_before_acquisition() {
+        for name in ["pipe:", "pipe:0"] {
+            assert!(
+                parse(&args(&format!(
+                    "-of json -show_format -show_streams -i {name}"
+                )))
+                .is_ok()
+            );
+        }
+        for text in [
+            "-i pipe:0",
+            "-of json -show_streams -i pipe:0",
+            "-of json -show_format -show_streams -show_packets -i pipe:0",
+            "-of json -show_format -show_streams -count_frames -i pipe:0",
+            "-of json -show_format -show_streams -select_streams v -i pipe:0",
+            "-of json -show_format -show_streams -f matroska -i pipe:0",
+            "-of json -show_format -show_streams -i -",
+            "-of json -show_format -show_streams -i pipe:1",
+        ] {
+            assert!(
+                matches!(parse(&args(text)), Err(Refusal::Unsupported(_))),
+                "{text}"
+            );
+        }
     }
 }
