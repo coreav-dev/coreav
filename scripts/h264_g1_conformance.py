@@ -50,8 +50,11 @@ def capture(command, cwd, timeout, record=None, stdout_file=None, stderr_file=No
     return result
 
 
-def run(command, cwd):
-    return capture(command, cwd, 180).stdout
+def run(command, cwd, reject_diagnostics=False):
+    result = capture(command, cwd, 180)
+    if reject_diagnostics and (result.stderr or re.search(rb'^\s*(?:warning|error)\s*:', result.stdout, re.I | re.M)):
+        raise ValueError('decoder diagnostics are not conforming')
+    return result.stdout
 
 
 class Bits:
@@ -104,7 +107,7 @@ def require(value, expected, name):
         raise ValueError(f'{name}: expected {expected!r}, got {value!r}')
 
 
-def inspect(data, width, height, qp, frames, colour=(False, 1, 1, 1, 0)):
+def inspect(data, width, height, qp, frames, colour=(False, 1, 1, 1, 0), deblocking=False):
     nals = units(data)
     require(len(nals), frames * 3, 'NAL count')
     for frame in range(frames):
@@ -134,7 +137,9 @@ def inspect(data, width, height, qp, frames, colour=(False, 1, 1, 1, 0)):
         require([r.se() for _ in range(3)], [0, 0, 0], 'QP offsets')
         require([r.u(1) for _ in range(3)], [1, 1, 0], 'PPS flags')
         r = rbsp(idr)
-        require([r.ue(), r.ue(), r.ue(), r.u(4), r.ue(), r.u(1), r.u(1), r.se(), r.ue()], [0, 7, 0, 0, frame % 2, 0, 0, qp - 26, 1], 'IDR slice header')
+        require([r.ue(), r.ue(), r.ue(), r.u(4), r.ue(), r.u(1), r.u(1), r.se(), r.ue()], [0, 7, 0, 0, frame % 2, 0, 0, qp - 26, 0 if deblocking else 1], 'IDR slice header')
+        if deblocking:
+            require((r.se(), r.se()), (0, 0), 'zero deblocking offsets')
 
 
 def same_planes(expected, actual, size):
@@ -210,13 +215,13 @@ def inspect_anchor(data, width, height, qp, frames):
         require(r.ue(), 1, 'baseline deblocking disabled')
 
 
-def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(False, 1, 1, 1, 0)):
+def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(False, 1, 1, 1, 0), deblocking=False):
     driver, ffmpeg, jm, raw, output = (path.resolve() for path in (driver, ffmpeg, jm, raw, output))
     output.mkdir(parents=True, exist_ok=False)
     stream, recon, own = (output / n for n in ('output.h264', 'encoder.yuv', 'coreav.yuv'))
     run([driver, width, height, qp, frames, raw, stream, recon, own,
-         str(colour[0]).lower(), *colour[1:]], cwd=output)
-    inspect(stream.read_bytes(), width, height, qp, frames, colour)
+         str(colour[0]).lower(), *colour[1:], *(['true'] if deblocking else [])], cwd=output, reject_diagnostics=deblocking)
+    inspect(stream.read_bytes(), width, height, qp, frames, colour, deblocking)
     size = width * height * 3 // 2 * frames
     same_planes(recon, own, size)
     oracle = output / 'ffmpeg.yuv'
@@ -224,13 +229,13 @@ def compare(driver, ffmpeg, jm, raw, output, width, height, qp, frames, colour=(
                             '-show_entries', 'stream=width,height,pix_fmt,color_range', '-of', 'json', stream], cwd=output))
     require(len(probe['streams']), 1, 'one oracle video stream')
     pixel_format = native_format(probe['streams'][0], width, height, colour[0])
-    run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'error', '-xerror', '-err_detect', 'explode',
+    run([ffmpeg, '-nostdin', '-hide_banner', '-loglevel', 'warning' if deblocking else 'error', '-xerror', '-err_detect', 'explode',
          '-hwaccel', 'none', '-threads', '1', '-c:v', 'h264', '-i', stream,
          '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'rawvideo', '-pix_fmt', pixel_format,
-         '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle], cwd=output)
+         '-fps_mode', 'passthrough', '-f', 'rawvideo', oracle], cwd=output, reject_diagnostics=deblocking)
     same_planes(recon, oracle, size)
     reference = output / 'jm.yuv'
-    log = run([jm, '-i', stream.resolve(), '-o', reference.resolve()], cwd=output)
+    log = run([jm, '-i', stream.resolve(), '-o', reference.resolve()], cwd=output, reject_diagnostics=deblocking)
     (output / 'jm.log').write_bytes(log)
     same_planes(recon, reference, size)
     return {'width': width, 'height': height, 'frames': frames, 'qp': qp,

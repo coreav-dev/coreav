@@ -8,6 +8,7 @@ fn settings(width: usize, height: usize, qp: u8) -> Settings {
         width,
         height,
         qp,
+        deblocking: Deblocking::Disabled,
         colour: Colour {
             full_range: false,
             primaries: 1,
@@ -432,4 +433,60 @@ fn dense_low_qp_content_is_refused_without_advancing_sequence_state() {
     assert_eq!(second.nals, expected.nals);
     assert_eq!(second.reconstruction, expected.reconstruction);
     assert_eq!(encoder.encode(picture).unwrap_err(), Error::Limit);
+}
+
+#[test]
+fn enabled_filter_reconstructs_the_complete_picture_before_cropping() {
+    let (width, height) = (18, 22);
+    let y: Vec<_> = (0..width * height)
+        .map(|p| 16 + ((p % width * 3 + p / width * 5) % 220) as u8)
+        .collect();
+    let cb: Vec<_> = (0..width * height / 4)
+        .map(|p| 32 + (p % 97) as u8)
+        .collect();
+    let cr: Vec<_> = (0..width * height / 4)
+        .map(|p| 180 - (p % 83) as u8)
+        .collect();
+    let picture = Picture {
+        y: Plane::new(&y, width, width, height).unwrap(),
+        cb: Plane::new(&cb, width / 2, width / 2, height / 2).unwrap(),
+        cr: Plane::new(&cr, width / 2, width / 2, height / 2).unwrap(),
+    };
+    let mut s = settings(width, height, 28);
+    let original = Encoder::new(s, Limits::default())
+        .unwrap()
+        .encode(picture)
+        .unwrap();
+    s.deblocking = Deblocking::Enabled;
+    let mut encoder = Encoder::new(s, Limits::default()).unwrap();
+    let mut decoder =
+        coreav_h264::Decoder::with_kernels(coreav_h264::Scalar, coreav_h264::Limits::default())
+            .with_mode(coreav_h264::Mode::EveryPicture);
+    let mut expected = Vec::new();
+    for _ in 0..2 {
+        let au = encoder.encode(picture).unwrap();
+        assert_ne!(au.reconstruction, original.reconstruction);
+        expected.push(au.reconstruction);
+        for nal in &au.nals {
+            decoder.decode_nal(nal).unwrap();
+        }
+        decoder.end_access_unit().unwrap();
+    }
+    decoder.flush().unwrap();
+    let pictures = decoder.take_pictures();
+    assert_eq!(pictures.len(), expected.len());
+    for (picture, expected) in pictures.iter().zip(expected) {
+        let (cb, cr) = picture.chroma();
+        let actual: Vec<_> = picture
+            .luma()
+            .rows()
+            .chain(cb.rows())
+            .chain(cr.rows())
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(actual, expected);
+    }
+    assert!(decoder.warnings().is_empty());
+    assert_eq!(decoder.warnings_dropped(), 0);
 }

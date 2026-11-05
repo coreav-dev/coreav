@@ -55,6 +55,18 @@ pub struct Settings {
     pub qp: u8,
     /// Preparation metadata written to VUI.
     pub colour: Colour,
+    /// In-loop filtering of the reconstructed coded picture.
+    pub deblocking: Deblocking,
+}
+
+/// Whether clause 8.7 filters the completed reconstruction.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Deblocking {
+    /// Preserve unfiltered reconstruction and the original intra-only syntax.
+    #[default]
+    Disabled,
+    /// Filter all internal edges with zero slice alpha and beta offsets.
+    Enabled,
 }
 
 /// Caller-owned resource limits, also capped by level 5.1.
@@ -152,6 +164,7 @@ impl Encoder {
             height,
             qp,
             colour: c,
+            ..
         } = settings;
         if !(16..=1920).contains(&width)
             || !(16..=1080).contains(&height)

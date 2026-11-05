@@ -1,0 +1,146 @@
+use crate::{Error, Result};
+use coreav_kernels_h264::{EdgeMut, EdgeParams, Kernels, Reach, Scalar};
+
+const ALPHA: [u8; 52] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17, 20,
+    22, 25, 28, 32, 36, 40, 45, 50, 56, 63, 71, 80, 90, 101, 113, 127, 144, 162, 182, 203, 226,
+    255, 255,
+];
+const BETA: [u8; 52] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 6, 6, 7, 7, 8, 8,
+    9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18,
+];
+const TC0_3: [u8; 52] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3,
+    3, 3, 4, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11, 13, 14, 16, 18, 20, 23, 25,
+];
+
+pub(crate) fn intra(
+    data: &mut [u8],
+    width: usize,
+    height: usize,
+    qp: u8,
+    chroma: bool,
+) -> Result<()> {
+    let index = usize::from(qp);
+    let mut tc0 = [0; 8];
+    *tc0.get_mut(3).ok_or(Error::Internal)? = *TC0_3.get(index).ok_or(Error::Internal)?;
+    let mut params = EdgeParams {
+        alpha: *ALPHA.get(index).ok_or(Error::Internal)?,
+        beta: *BETA.get(index).ok_or(Error::Internal)?,
+        tc0,
+        bs: [0; 4],
+    };
+    let (n, reach) = if chroma {
+        (8, Reach::Chroma)
+    } else {
+        (16, Reach::Luma)
+    };
+    for y in (0..height).step_by(n) {
+        for x in (0..width).step_by(n) {
+            for vertical in [true, false] {
+                for offset in (0..n).step_by(4) {
+                    if offset == 0 && (if vertical { x } else { y }) == 0 {
+                        continue;
+                    }
+                    params.bs = [if offset == 0 { 4 } else { 3 }; 4];
+                    let (q0, across, along) = if vertical {
+                        (y * width + x + offset, 1, width)
+                    } else {
+                        ((y + offset) * width + x, width, 1)
+                    };
+                    let edge = EdgeMut::new(data, q0, across, along, n, reach)
+                        .map_err(|_| Error::Internal)?;
+                    Scalar.filter_edge(edge, &params);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn oriented(row: &[u8], side: usize, vertical: bool) -> Vec<u8> {
+        (0..side * side)
+            .map(|p| row[if vertical { p % side } else { p / side }])
+            .collect()
+    }
+
+    #[test]
+    fn strong_macroblock_edges_have_hand_derived_samples_at_every_qp() {
+        for chroma in [false, true] {
+            let n = if chroma { 8 } else { 16 };
+            let side = n * 2;
+            let input: Vec<_> = (0..side).map(|p| if p < n { 100 } else { 102 }).collect();
+            for qp in 10..=51 {
+                let mut expected = input.clone();
+                if qp >= 16 {
+                    expected[n - 1] = 101;
+                    if !chroma {
+                        expected[n - 2] = 101;
+                        expected[n] = 101;
+                    }
+                }
+                for vertical in [true, false] {
+                    let mut data = oriented(&input, side, vertical);
+                    intra(&mut data, side, side, qp, chroma).unwrap();
+                    assert_eq!(
+                        data,
+                        oriented(&expected, side, vertical),
+                        "qp={qp} chroma={chroma} vertical={vertical}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn normal_internal_edges_apply_the_specified_clipping_and_order() {
+        let mut input = [108; 16];
+        input[..4].fill(100);
+        let mut expected = input;
+        expected[2..7].copy_from_slice(&[102, 103, 105, 106, 107]);
+        for vertical in [true, false] {
+            let mut data = oriented(&input, 16, vertical);
+            intra(&mut data, 16, 16, 28, false).unwrap();
+            assert_eq!(data, oriented(&expected, 16, vertical));
+        }
+    }
+
+    #[test]
+    fn threshold_equality_does_not_filter_and_picture_boundaries_are_untouched() {
+        for chroma in [false, true] {
+            let n = if chroma { 8 } else { 16 };
+            let side = n * 2;
+            for (qp, &alpha) in ALPHA.iter().enumerate().skip(10) {
+                let row: Vec<_> = (0..side).map(|p| if p < n { 0 } else { alpha }).collect();
+                for vertical in [true, false] {
+                    let mut data = oriented(&row, side, vertical);
+                    let before = data.clone();
+                    intra(&mut data, side, side, qp as u8, chroma).unwrap();
+                    assert_eq!(data, before, "alpha equality qp={qp}");
+                }
+            }
+            let row: Vec<_> = (0..n)
+                .map(|p| {
+                    if p < 3 {
+                        93
+                    } else if p == 3 {
+                        100
+                    } else {
+                        102
+                    }
+                })
+                .collect();
+            for vertical in [true, false] {
+                let mut data = oriented(&row, n, vertical);
+                let before = data.clone();
+                intra(&mut data, n, n, 28, chroma).unwrap();
+                assert_eq!(data, before, "beta equality chroma={chroma}");
+            }
+        }
+    }
+}

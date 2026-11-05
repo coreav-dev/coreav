@@ -14,6 +14,8 @@ mod cavlc;
 #[cfg(feature = "full")]
 mod codec;
 #[cfg(feature = "full")]
+mod deblock;
+#[cfg(feature = "full")]
 mod syntax;
 #[cfg(feature = "full")]
 mod transform;
