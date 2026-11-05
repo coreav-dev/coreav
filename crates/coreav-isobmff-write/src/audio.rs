@@ -161,16 +161,7 @@ pub(crate) fn excerpt_config(config: &CodecConfig) -> Vec<u8> {
 pub(crate) fn decoding_config(config: &CodecConfig) -> Vec<u8> {
     let excerpt = excerpt_config(config);
     match &config.kind.0 {
-        b"dfLa" => dfla_streaminfo(&excerpt).map_or_else(
-            || excerpt.clone(),
-            |body| {
-                let mut decoding = body.to_vec();
-                if let Some(bounds) = decoding.get_mut(..4) {
-                    bounds.fill(0);
-                }
-                decoding
-            },
-        ),
+        b"dfLa" => dfla_streaminfo(&excerpt).map_or_else(|| excerpt.clone(), <[u8]>::to_vec),
         _ => excerpt,
     }
 }

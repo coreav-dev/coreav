@@ -2642,6 +2642,87 @@ fn lossless_audiovisual_concat_preserves_complete_native_output() {
 }
 
 #[test]
+#[ignore = "needs generated fixtures (scripts/gen-fixtures.sh); set COREAV_FIXTURES"]
+fn c02_guard_concat_preserves_complete_native_output() {
+    let Some((reference, probe)) = oracle() else {
+        return;
+    };
+    let fixtures = std::env::var_os("COREAV_FIXTURES").expect("set COREAV_FIXTURES");
+    let dir = oracle_scratch("ffmpeg-concat-c02-complete");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let path = std::env::join_paths(
+        std::iter::once(reference.parent().unwrap().to_path_buf()).chain(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        )),
+    )
+    .unwrap();
+    let prepared = Command::new("python3")
+        .args(["-I", "-c", r#"
+import json
+import pathlib
+import sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]) / 'scripts'))
+import bench_guard
+coreav = sys.argv[2]
+fixtures = pathlib.Path(sys.argv[3])
+work = pathlib.Path(sys.argv[4])
+bench_guard.derive(fixtures, work)
+fixture, template = bench_guard.CASES['ffmpeg-C02-join']
+source = work / fixture
+assert source.is_file(), 'C02 derived fixture is missing'
+prepared = {}
+for arg in template:
+    if arg.startswith('{inputs:'):
+        prepared[arg] = bench_guard.inputs_of(coreav, source, arg[len('{inputs:'):-1], work)
+assert None not in prepared.values(), 'C02 input preparation failed'
+output = work / 'native'
+output.mkdir()
+command = []
+for arg in template:
+    command.extend(prepared[arg] if arg in prepared else [bench_guard.argument(arg, source, None, str(output))])
+print(json.dumps(command))
+"#])
+        .arg(&root).arg(bin()).arg(fixtures).arg(&*dir)
+        .env("PATH", path)
+        .env("COREAV_STRICT_SAFE", "1")
+        .env_remove("COREAV_FALLBACK_ACTIVE")
+        .output().unwrap();
+    assert!(
+        prepared.status.success(),
+        "{}",
+        String::from_utf8_lossy(&prepared.stderr)
+    );
+    let command: Vec<String> = serde_json::from_slice(&prepared.stdout).unwrap();
+    assert_eq!(command[0], "ffmpeg");
+    let candidate = Path::new(command.last().unwrap());
+    let copied = Command::new(bin())
+        .args(&command)
+        .env("COREAV_STRICT_SAFE", "1")
+        .env_remove("COREAV_FALLBACK_ACTIVE")
+        .output()
+        .unwrap();
+    assert!(
+        copied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&copied.stderr)
+    );
+    assert!(copied.stdout.is_empty());
+    let expected = dir.join("reference.mp4");
+    let pin = Command::new(&reference)
+        .args(["-nostdin", "-v", "error"])
+        .args(&command[1..command.len() - 1])
+        .arg(&expected)
+        .output()
+        .unwrap();
+    assert!(
+        pin.status.success(),
+        "{}",
+        String::from_utf8_lossy(&pin.stderr)
+    );
+    concat_output::compare(&reference, &probe, candidate, &expected, "guard-C02");
+}
+
+#[test]
 fn unedited_audiovisual_concat_matches_the_pinned_ffmpeg() {
     let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
         return;

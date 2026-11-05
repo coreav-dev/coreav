@@ -37,11 +37,11 @@ use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use crate::strict_safe::StrictSafe;
 use args::{AviAudio, Codec, Command, Demuxer, MapMetadata, Muxer, Overwrite, Spec};
-use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
+use coreav_isobmff::{FileSource, Limits, Rational};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, ClipOptions, HeaderMetadata, InputStream, JoinAudio,
-    JoinOptions, JoinSummary, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxInputsOptions,
-    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    JoinOptions, MatroskaRemuxOptions, OnUnsupported, Placement, RemuxInputsOptions, RemuxOptions,
+    SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -137,7 +137,7 @@ pub enum Job {
         /// Matroska source rather than ISO media.
         matroska: bool,
     },
-    /// The whole input, these streams (`Track::stream_index`), as MP4.
+    /// The whole input, these streams (`coreav_isobmff::Track::stream_index`), as MP4.
     Remux {
         /// The nonzero input origin for checked single-video normalization.
         video_origin: Option<Rational>,
@@ -1306,44 +1306,6 @@ fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<Rational>, Stop> {
     Ok(offsets)
 }
 
-/// Why a join's edit handling differs from the concat demuxer's: positive
-/// AAC edits, even in unselected audio, or several edits in a copied track
-/// (docs/design/concat-aac-edits.md and docs/design/edit-list-writers.md).
-fn join_edit_refusal(
-    paths: &[PathBuf],
-    summary: &JoinSummary,
-) -> Result<Option<&'static str>, WriteFailure> {
-    for (path, input) in paths.iter().zip(&summary.inputs) {
-        let file = FileSource::open(path)?;
-        let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
-            .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
-        if movie.tracks.iter().any(|track| {
-            track.kind == coreav_isobmff::TrackKind::Audio
-                && std::iter::once(&track.description)
-                    .chain(&track.later_descriptions)
-                    .any(|description| description.codec == coreav_isobmff::Codec::Aac)
-                && track.edits.iter().any(|edit| edit.media_time > 0)
-        }) {
-            return Ok(Some("a concat input with a positive AAC edit offset"));
-        }
-        let copied = [Some(&input.video), input.audio.as_ref()];
-        let edited = |track: &Track| {
-            track.edits.len() > 1
-                && copied
-                    .iter()
-                    .flatten()
-                    .any(|c| c.track_id == track.track_id)
-        };
-        if movie.tracks.iter().any(edited) {
-            return Ok(Some("a join of files whose tracks have several edits"));
-        }
-    }
-    if summary.audio_edits > 1 {
-        return Ok(Some("a concat output that needs several audio edits"));
-    }
-    Ok(None)
-}
-
 fn format_name(report: &Report) -> Option<&str> {
     report
         .format
@@ -1967,16 +1929,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = join_edit_refusal(paths, &summary)? {
-                refused = Some(words);
-                return Err(WriteFailure::Rejected(Failure::Unsupported(
-                    words.to_owned(),
-                )));
-            }
-            let mut document = Vec::new();
-            crate::join::write_document(&mut document, &summary, paths)
-                .and_then(|()| Ok(serde_json::from_slice(&document)?))
-                .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
+            Ok(crate::join::document(&summary, paths))
         }
         Job::Mpegts { .. }
         | Job::Avi(_)

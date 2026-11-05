@@ -132,6 +132,7 @@ impl<W: Write> Write for Sample<'_, W> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
@@ -161,13 +162,22 @@ mod tests {
     #[test]
     fn parameter_sets_are_rejected_even_across_a_copy_window() {
         for kind in [7, 8, 13, 15] {
-            let bytes = [sample(&vec![0x61; (64 << 10) - 6], 4), sample(&[kind, 1], 4)].concat();
+            let bytes = [
+                sample(&vec![0x61; (64 << 10) - 6], 4),
+                sample(&[kind, 1], 4),
+            ]
+            .concat();
             let mut out = Vec::new();
             let mut work = 0;
             let mut observer = Sample::new(&mut out, 4, bytes.len() as u32, &mut work, 2);
             assert!(observer.write_all(&bytes[..64 << 10]).is_ok());
             assert!(observer.write_all(&bytes[64 << 10..]).is_err());
-            assert!(matches!(observer.error, Some(Error::Unsupported { reason: "AVC parameter sets carried inside avc1 samples" })));
+            assert!(matches!(
+                observer.error,
+                Some(Error::Unsupported {
+                    reason: "AVC parameter sets carried inside avc1 samples"
+                })
+            ));
         }
     }
 
@@ -185,6 +195,12 @@ mod tests {
         let mut work = 0;
         let mut observer = Sample::new(&mut out, 4, bytes.len() as u32, &mut work, 0);
         assert!(observer.write_all(&bytes).is_err());
-        assert!(matches!(observer.error, Some(Error::LimitExceeded { limit: LimitKind::SampleWork, .. })));
+        assert!(matches!(
+            observer.error,
+            Some(Error::LimitExceeded {
+                limit: LimitKind::SampleWork,
+                ..
+            })
+        ));
     }
 }

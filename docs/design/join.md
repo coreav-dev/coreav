@@ -86,6 +86,10 @@ the same configuration differ in declared bit rates); accepting different
 codec configurations with several sample entries (ISO/IEC 14496-12 allows
 it, but many players read only the first).
 
+FLAC block-size bounds are statistics rather than decoder configuration and may differ between inputs. The joined STREAMINFO combines every input's bounds and formerly terminal internal blocks, counts the complete output samples, and writes an unknown MD5. ALAC combines maximum frame bytes and writes an unknown average bitrate. The [configuration-only AVC concat design](concat-avc1.md) records the explicit differences from FFmpeg 9.0.2, including the shared FLAC packet-header deviation. Clipping and splitting retain their excerpt metadata policy.
+
+The output keeps input 1's visual compressor name through the existing bounded sample-entry scan. Its media header duration is the sum of stored decode durations, independent of composition delay and edit endpoints. This preserves the presented tail on a join-to-clip round trip without inflating `mdhd`.
+
 ## Timing
 
 Each output track's decode times follow the inputs one after another; its

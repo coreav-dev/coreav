@@ -174,6 +174,7 @@ fn probe(program: &Path, path: &Path) -> (Value, String) {
         .arg("-i")
         .arg(path)
         .args([
+            "-show_format",
             "-show_streams",
             "-show_packets",
             "-show_data",
@@ -231,6 +232,41 @@ fn dump_bytes(value: &Value) -> Vec<u8> {
 fn bitrate(size: usize, clock: (u32, u64)) -> String {
     assert!(clock.0 > 0 && clock.1 > 0);
     (size as u128 * 8 * u128::from(clock.0) / u128::from(clock.1)).to_string()
+}
+
+fn formats(
+    actual: &Value,
+    expected: &Value,
+    candidate: &Path,
+    reference: &Path,
+    sizes: (usize, usize),
+) {
+    assert_eq!(actual["tags"]["encoder"], "Lavf63.1.102");
+    assert_eq!(expected["tags"]["encoder"], actual["tags"]["encoder"]);
+    for (value, path, bytes) in [(actual, candidate, sizes.0), (expected, reference, sizes.1)] {
+        assert_eq!(value["filename"], path.to_str().unwrap());
+        assert_eq!(value["size"], bytes.to_string());
+        let (seconds, fraction) = value["duration"].as_str().unwrap().split_once('.').unwrap();
+        assert_eq!(fraction.len(), 6);
+        let micros =
+            seconds.parse::<u128>().unwrap() * 1_000_000 + fraction.parse::<u128>().unwrap();
+        assert_eq!(
+            value["bit_rate"],
+            ((bytes as u128 * 8_000_000) / micros).to_string()
+        );
+    }
+    eprintln!(
+        "format size native={} oracle={}; bitrate native={} oracle={}",
+        sizes.0, sizes.1, actual["bit_rate"], expected["bit_rate"]
+    );
+    let mut adjusted = expected.clone();
+    for field in ["filename", "size", "bit_rate"] {
+        adjusted[field] = actual[field].clone();
+    }
+    assert_eq!(
+        *actual, adjusted,
+        "complete format metadata after explicit physical-size and path differences"
+    );
 }
 
 fn packet_record(native: &Value, oracle: &Value, pos: usize, payload: &[u8], video: bool) {
@@ -386,6 +422,7 @@ pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path
         "filter-alac" => ("010010010010010010010010".to_owned(), vec![0,8], 72),
         "audio-copy-flac" => ("000110110110110110110110101101101101101101101101011011011011011011011010110110110110110110110101101101101101101101101011011011011011011011010110110110110110110110110110101101101101101101101101011011011011011011011010110110110110110110110101101101101101101101101011011011011011011011011111".to_owned(), vec![0,25,50,75], 156),
         "audio-copy-alac" => ("0001001001001001001001001000100100100100100100100010010010010010010010010001010010010010010010010010001001001001001001001000100100100100100100100101".to_owned(), vec![0,25,50,75], 156),
+        "guard-C02" => ("0".repeat(50), vec![0,25], 78),
         _ => panic!("unregistered concat case {case}"),
     };
     let native_bytes = std::fs::read(candidate).unwrap();
@@ -403,6 +440,18 @@ pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path
     }
     let (actual, native_stderr) = probe(ffprobe, candidate);
     let (expected, oracle_stderr) = probe(ffprobe, reference);
+    formats(
+        &actual["format"],
+        &expected["format"],
+        candidate,
+        reference,
+        (native_bytes.len(), oracle_bytes.len()),
+    );
+    let mut rest = expected.clone();
+    for section in ["format", "streams", "packets"] {
+        rest[section] = actual[section].clone();
+    }
+    assert_eq!(actual, rest, "all other exposed document sections");
     assert_eq!(native_stderr, oracle_stderr);
     assert!(native_stderr.is_empty(), "{native_stderr}");
     assert_eq!(
@@ -543,6 +592,7 @@ pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path
                 "01-unedited-av" => 75_783,
                 "gap-short-2-video" | "gap-short-3-video" => 17_568,
                 "gap-fractional-2-video" | "gap-fractional-3-video" => 20_506,
+                "guard-C02" => bitrate(sizes[index].0, native.media_clock).parse().unwrap(),
                 _ => 0,
             };
             assert_eq!(

@@ -111,22 +111,33 @@ pub fn join_mp4<S: Source, W: Write>(
     let tv = first.video.timescale;
     let ta = first.audio.as_ref().map(|a| a.track.timescale);
     let compatibility = options.compatibility.as_ref();
-    let avc_width = if compatibility.is_some() && first.video.description.codec == Codec::H264 {
-        Some(
-            avc::length_size(
-                &first
-                    .video
-                    .description
-                    .codec_config
+    if compatibility.is_some() {
+        for (input, (movie, pick)) in movies.iter().zip(&picks).enumerate() {
+            if movie.tracks.iter().any(|track| {
+                track.kind == coreav_isobmff::TrackKind::Audio
+                    && std::iter::once(&track.description)
+                        .chain(&track.later_descriptions)
+                        .any(|description| description.codec == Codec::Aac)
+                    && track.edits.iter().any(|edit| edit.media_time > 0)
+            }) {
+                return Err(at(
+                    input,
+                    unsupported("a concat input with a positive AAC edit offset"),
+                ));
+            }
+            if pick.video.edits.len() > 1
+                || pick
+                    .audio
                     .as_ref()
-                    .ok_or_else(|| JoinError::Output(unsupported("AVC without a configuration")))?
-                    .data,
-            )
-            .map_err(JoinError::Output)?,
-        )
-    } else {
-        None
-    };
+                    .is_some_and(|audio| audio.track.edits.len() > 1)
+            {
+                return Err(at(
+                    input,
+                    unsupported("a join of files whose tracks have several edits"),
+                ));
+            }
+        }
+    }
 
     // Listing 1: each input's samples and presentation.
     let mut spans = Vec::new();
@@ -304,6 +315,11 @@ pub fn join_mp4<S: Source, W: Write>(
         };
         audio_edit_count = audio_edits.len();
         if compatibility.is_some() {
+            if audio_edit_count > 1 {
+                return Err(JoinError::Output(unsupported(
+                    "a concat output that needs several audio edits",
+                )));
+            }
             tables.decode_start =
                 edited_decode_start(&audio_edits, ta, tm).map_err(JoinError::Output)?;
         }
@@ -329,6 +345,22 @@ pub fn join_mp4<S: Source, W: Write>(
         });
     }
     let video_edit_count = tracks.first().map_or(0, |t| t.edits.len());
+    let avc_width = if compatibility.is_some() && first.video.description.codec == Codec::H264 {
+        Some(
+            avc::length_size(
+                &first
+                    .video
+                    .description
+                    .codec_config
+                    .as_ref()
+                    .ok_or_else(|| JoinError::Output(unsupported("AVC without a configuration")))?
+                    .data,
+            )
+            .map_err(JoinError::Output)?,
+        )
+    } else {
+        None
+    };
     let brands: Vec<&[u8; 4]> = match first.video.description.codec {
         Codec::H264 => vec![b"isom", b"mp42", b"avc1"],
         Codec::Av1 => vec![b"isom", b"mp42", b"av01"],
@@ -870,6 +902,15 @@ fn compare(first: &Pick<'_>, this: &Pick<'_>) -> Option<Mismatch> {
     let config = |d: &coreav_isobmff::SampleDescription| {
         d.codec_config.as_ref().map(|c| match &c.kind.0 {
             b"esds" => decoder_config(&c.data),
+            b"dfLa" => {
+                let mut decoding = audio::decoding_config(c);
+                if decoding.len() == 34 {
+                    if let Some(bounds) = decoding.get_mut(..4) {
+                        bounds.fill(0);
+                    }
+                }
+                decoding
+            }
             _ => audio::decoding_config(c),
         })
     };
