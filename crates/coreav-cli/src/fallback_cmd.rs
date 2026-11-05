@@ -7,7 +7,7 @@
 
 use std::ffi::OsString;
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,6 +24,11 @@ const GUARD: &str = "COREAV_FALLBACK_ACTIVE";
 /// Seconds from 1904-01-01 to 1970-01-01, the epoch [`coreav_cli::time::rfc3339`]
 /// counts from.
 const SECONDS_1904_TO_1970: u64 = 2_082_844_800;
+
+enum Input {
+    Complete(std::fs::File, super::compat_cmd::EncodedInput),
+    Prefix(Vec<u8>),
+}
 
 /// A command that is not native: the program that runs in its place, whose
 /// exit status becomes this one's, or the refusal with exit status 4.
@@ -44,7 +49,29 @@ pub fn refuse_with_input(
     input: std::fs::File,
     spool: super::compat_cmd::EncodedInput,
 ) -> ExitCode {
-    refuse_inner(tool, args, refusal, strict_safe, Some((input, spool)))
+    refuse_inner(
+        tool,
+        args,
+        refusal,
+        strict_safe,
+        Some(Input::Complete(input, spool)),
+    )
+}
+
+pub fn refuse_with_prefix(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+    prefix: Vec<u8>,
+) -> ExitCode {
+    refuse_inner(
+        tool,
+        args,
+        refusal,
+        strict_safe,
+        Some(Input::Prefix(prefix)),
+    )
 }
 
 fn refuse_inner(
@@ -52,7 +79,7 @@ fn refuse_inner(
     args: &[String],
     refusal: NotNative,
     strict_safe: StrictSafe,
-    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
+    input: Option<Input>,
 ) -> ExitCode {
     #[cfg(not(feature = "net"))]
     if fallback::has_remote_input(tool, args) {
@@ -214,21 +241,66 @@ fn log(tool: Tool, args: &[String], reason: &fallback::Reason, ran: Result<&str,
     }
 }
 
-/// Runs the program in this process's place: on Unix it replaces this
-/// process (`exec`), so the process id, signals and exit status are the
-/// program's; elsewhere it waits for it and exits with its exit code.
+/// Runs inherited stdin and complete replay through Unix `exec`. A live
+/// prefix needs a spawned child and relay; other platforms also wait for
+/// the child and preserve its full exit code.
 /// Returns only when the program could not start.
-fn run(
-    path: &Path,
-    args: &[String],
-    input: Option<(std::fs::File, super::compat_cmd::EncodedInput)>,
-) -> std::io::Error {
+fn run(path: &Path, args: &[String], input: Option<Input>) -> std::io::Error {
     let mut command = Command::new(path);
     command.arg("-hide_banner").args(args).env(GUARD, "1");
-    let spool = input.map(|(input, spool)| {
-        command.stdin(input);
-        spool
-    });
+    let (spool, prefix) = match input {
+        Some(Input::Complete(input, spool)) => {
+            command.stdin(input);
+            (Some(spool), None)
+        }
+        Some(Input::Prefix(prefix)) => (None, Some(prefix)),
+        None => (None, None),
+    };
+    if let Some(prefix) = prefix {
+        let mut child = match command.stdin(std::process::Stdio::piped()).spawn() {
+            Ok(child) => child,
+            Err(error) => return error,
+        };
+        let Some(mut writer) = child.stdin.take() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return std::io::Error::other("fallback stdin pipe is unavailable");
+        };
+        let (sent, received) = std::sync::mpsc::channel();
+        let pump = std::thread::Builder::new().spawn(move || {
+            let mut input = std::io::Cursor::new(prefix).chain(std::io::stdin().lock());
+            let result = std::io::copy(&mut input, &mut writer);
+            let _ = sent.send(result);
+        });
+        if let Err(error) = pump {
+            let _ = child.kill();
+            let _ = child.wait();
+            return error;
+        }
+        let status = match child.wait() {
+            Ok(status) => status,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return error;
+            }
+        };
+        if let Ok(Err(error)) = received.try_recv() {
+            if error.kind() != std::io::ErrorKind::BrokenPipe {
+                return error;
+            }
+        }
+        #[cfg(unix)]
+        let code = {
+            use std::os::unix::process::ExitStatusExt;
+            status
+                .code()
+                .unwrap_or_else(|| 128 + status.signal().unwrap_or(1))
+        };
+        #[cfg(not(unix))]
+        let code = status.code().unwrap_or(1);
+        std::process::exit(code);
+    }
     #[cfg(unix)]
     let error = {
         use std::os::unix::process::CommandExt;
