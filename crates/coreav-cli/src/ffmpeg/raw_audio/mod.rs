@@ -285,6 +285,21 @@ pub(super) fn plan(
         }
         (DecoderPlan::Recorded(admission), kind)
     };
+    if command.muxer == Muxer::Wav
+        && eligibility == DecoderEligibilityKind::DecodeTolerance
+        && output_format == SampleFormat::S16
+    {
+        if !report.chapters.is_empty() {
+            return Err(Refusal::not_native("copying chapters to WAV"));
+        }
+        if command.map_metadata == MapMetadata::Default
+            && super::pcm::has_unpreserved_format_metadata(report)
+        {
+            return Err(Refusal::not_native(
+                "copying metadata to WAV (use -map_metadata -1)",
+            ));
+        }
+    }
     let rate = exact::rate(
         decoded_format,
         output_format,
@@ -709,13 +724,23 @@ pub(super) fn write(command: &Command, plan: &Plan) -> Result<serde_json::Value,
             .checked_mul(u64::from(summary.output.channels) * summary.output.format.bytes() as u64)
             .filter(|bytes| coreav_audio::wav::fits(*bytes))
             .ok_or_else(|| Refusal::not_native("WAV output exceeds its size fields"))?;
-        Some(coreav_audio::wav::header(
-            summary.output.format,
-            summary.output.channels,
-            summary.output.sample_rate,
-            summary.output.channel_mask,
-            (!args::stdout(&command.output)).then_some(bytes),
-        ))
+        let length = (!args::stdout(&command.output)).then_some(bytes);
+        Some(
+            if plan.eligibility == DecoderEligibilityKind::DecodeTolerance
+                && summary.output.format == SampleFormat::S16
+            {
+                wav::output_header(summary.output.sample_rate, summary.output.channels, length)
+                    .map_err(prestart)?
+            } else {
+                coreav_audio::wav::header(
+                    summary.output.format,
+                    summary.output.channels,
+                    summary.output.sample_rate,
+                    summary.output.channel_mask,
+                    length,
+                )
+            },
+        )
     } else {
         None
     };

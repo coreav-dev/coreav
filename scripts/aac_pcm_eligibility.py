@@ -73,6 +73,15 @@ def wav(data, fmt, channels, rate):
     raise ValueError('missing WAVE data')
 
 
+def compare_wav(actual, reference, native_pcm, oracle_pcm, channels, rate):
+    a = wav(actual, 's16', channels, rate)
+    b = wav(reference, 's16', channels, rate)
+    if not a or a != native_pcm or b != oracle_pcm:
+        raise ValueError('complete WAV payload differs from its qualified PCM')
+    if actual[:-len(a)] != reference[:-len(b)]:
+        raise ValueError('complete S16 WAV framing or metadata differs')
+
+
 def pns_check(oracle, source, directory, metadata):
     import numpy as np
     import aac_pns
@@ -234,17 +243,35 @@ def check_output(coreav, oracle, source, work, metadata, pns):
         file_output = run([*base, '-y', '-f', fmt + 'le', destination])
         if file_output.returncode or destination.read_bytes() != actual.stdout:
             raise ValueError('file and stdout packing differ')
-        wave = run([*base, '-f', 'wav', 'pipe:'])
+        wave_base = [*base, *(['-map_metadata', '-1'] if fmt == 's16' else [])]
+        wave = run([*wave_base, '-f', 'wav', 'pipe:'])
         if wave.returncode:
             raise ValueError('native WAV failed')
         if wav(wave.stdout, fmt, row['channels'], row['rate']) != actual.stdout:
             raise ValueError('WAV stdout packing differs from complete raw output')
+        if fmt == 's16':
+            pin_wave = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
+                            '-i', source, '-map', '0:a:0', '-map_metadata', '-1',
+                            '-c:a', codec, '-f', 'wav', 'pipe:'])
+            if pin_wave.returncode or pin_wave.stderr:
+                raise ValueError('pinned WAV stdout failed')
+            compare_wav(wave.stdout, pin_wave.stdout, actual.stdout, reference.stdout,
+                        row['channels'], row['rate'])
         wave_file = work / 'candidate.wav'
-        wave = run([*base, '-y', '-f', 'wav', wave_file])
+        wave = run([*wave_base, '-y', '-f', 'wav', wave_file])
         if wave.returncode:
             raise ValueError('native WAV file failed')
         if wav(wave_file.read_bytes(), fmt, row['channels'], row['rate']) != actual.stdout:
             raise ValueError('WAV file packing differs from complete raw output')
+        if fmt == 's16':
+            pin_file = work / 'reference.wav'
+            pin_wave = run([oracle / 'ffmpeg', '-v', 'error', '-y', *AUDIO_DECODE_INPUT,
+                            '-i', source, '-map', '0:a:0', '-map_metadata', '-1',
+                            '-c:a', codec, '-f', 'wav', pin_file])
+            if pin_wave.returncode or pin_wave.stderr:
+                raise ValueError('pinned WAV file failed')
+            compare_wav(wave_file.read_bytes(), pin_file.read_bytes(), actual.stdout,
+                        reference.stdout, row['channels'], row['rate'])
         row['formats'][fmt] = result
     row['status'] = 'ineligible' if refusal else 'pass'
     if refusal:

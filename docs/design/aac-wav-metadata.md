@@ -19,3 +19,9 @@ Retain the registered AAC numerical qualification unchanged and strengthen only 
 ## Not covered
 
 No frozen representative or judged input is opened or executed. No public result, count, baseline, numerical tolerance or decoder registration changes. AAC output remains compatible within its registered decode tolerance, never exact by virtue of this metadata fix. Native concat qualification, other container metadata, new codec admission and new rate/channel conversions are separate work. Refs coreav-dev/coreav#25.
+
+## Implementation
+
+The existing compatibility header now accepts known file lengths or unknown pipe lengths. Both compatibility callers share its INFO payload and checked size construction; the native audio library and other decoder/output contracts are unchanged. AAC S16 WAV planning shares the existing lossless-format metadata predicate and refuses chapters before publication.
+
+Whole-output silence regressions cover the existing command forms and pipe output against the pin. Generated decoder qualification retains its numerical checks and compares complete S16 WAV framing after explicit metadata discard on both commands. This keeps decoder qualification valid for the iTunes delay control without admitting its default metadata; separate title/chapter regressions check default refusal and destination preservation. The existing AAC conformance job runs the complete WAV integration target with AAC enabled and the required oracle.
