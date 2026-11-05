@@ -29,6 +29,8 @@ use crate::{Error, LimitKind, Limits, Pcm, Plane};
 /// Native lossless FLAC encoding from interleaved integer samples.
 pub mod encode;
 mod md5;
+mod prepared;
+pub use prepared::{PreparedStream, prepare_stream};
 
 /// The streaminfo metadata block (RFC 9639 8.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

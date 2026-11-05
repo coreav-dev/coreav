@@ -236,6 +236,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
   standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
     finite F32 sources support unchanged-rate F32 output only
+  bounded standalone FLAC: 16/24-bit mono/stereo to raw S16/F32,
+    with known totals and unchanged rate/channels; no explicit masks
   standalone integer WAVE to .wav: S16 with unchanged rate and
     mono/stereo channels; other metadata requires -map_metadata -1
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
@@ -472,6 +474,8 @@ fn run_with_input(
     if let Job::AudioEncode { stream, encoder } = job {
         return audio::write(&command, &report, stream, encoder, strict_safe);
     }
+    drop(report);
+    drop(file);
     write(&command, &job)
 }
 
@@ -527,6 +531,10 @@ pub fn plan(
     list: Option<Vec<PathBuf>>,
 ) -> Result<Job, Refusal> {
     let container = match format_name(report) {
+        Some("flac") if matches!(command.muxer, Muxer::S16le | Muxer::F32le) => {
+            let selected = select(command, &report.streams)?;
+            return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);
+        }
         Some("wav") if matches!(command.muxer, Muxer::Wav | Muxer::S16le | Muxer::F32le) => {
             let selected = select(command, &report.streams)?;
             return raw_audio::plan(command, report, &selected, list.is_some()).map(Job::RawAudio);

@@ -12,6 +12,33 @@ pub(super) fn probe<S: Source>(
     start: u64,
     purpose: Purpose,
 ) -> Result<Report, Failure> {
+    let Metadata {
+        info,
+        tags,
+        mask,
+        summary_complete,
+        mut reader,
+        ..
+    } = metadata(source, size, limits, start, purpose)?;
+    report(info, tags, mask, name, &mut reader, summary_complete)
+}
+
+struct Metadata<'a, S> {
+    info: Info,
+    tags: Vec<(String, String)>,
+    mask: Option<u32>,
+    mask_declared: bool,
+    summary_complete: bool,
+    reader: Reader<'a, S>,
+}
+
+fn metadata<'a, S: Source>(
+    source: &'a mut S,
+    size: u64,
+    limits: &'a Limits,
+    start: u64,
+    purpose: Purpose,
+) -> Result<Metadata<'a, S>, Failure> {
     if limits.max_tracks == 0 {
         return Err(limit(LimitKind::Tracks, start));
     }
@@ -38,6 +65,7 @@ pub(super) fn probe<S: Source>(
     let mut seektable = false;
     let mut tags = Vec::new();
     let mut mask = None;
+    let mut mask_declared = false;
     let mut summary_complete = true;
     loop {
         reader.blocks = reader
@@ -96,6 +124,7 @@ pub(super) fn probe<S: Source>(
                     &mut reader,
                     &mut tags,
                     &mut mask,
+                    &mut mask_declared,
                     &mut summary_complete,
                 )?;
                 reader.offset = end;
@@ -123,7 +152,76 @@ pub(super) fn probe<S: Source>(
         mask.count_ones() == info.channels
     });
     summary_complete &= info.samples != 0 && reader.size > reader.offset;
-    report(info, tags, mask, name, &mut reader, summary_complete)
+    Ok(Metadata {
+        info,
+        tags,
+        mask,
+        mask_declared,
+        summary_complete,
+        reader,
+    })
+}
+
+pub(crate) struct LoadedSource {
+    pub info: coreav_audio::flac::StreamInfo,
+    pub payload: Vec<u8>,
+    pub limits: coreav_audio::Limits,
+}
+
+pub(crate) fn load_source<S: Source>(
+    source: &mut S,
+    size: u64,
+    limits: &Limits,
+) -> Result<LoadedSource, Failure> {
+    let Metadata {
+        info,
+        mask_declared,
+        mut reader,
+        ..
+    } = metadata(source, size, limits, 0, Purpose::Structured).map_err(|error| match error {
+        Failure::Invalid("FLAC marker") => {
+            Failure::Unsupported("FLAC input without a native marker at zero".to_owned())
+        }
+        error => error,
+    })?;
+    if mask_declared
+        || !matches!(info.channels, 1 | 2)
+        || !matches!(info.bits, 16 | 24)
+        || info.samples == 0
+    {
+        return Err(Failure::Unsupported(
+            "unregistered standalone FLAC representation".to_owned(),
+        ));
+    }
+    let bytes = reader.size - reader.offset;
+    reader.box_bytes(bytes)?;
+    let mut audio_limits = coreav_audio::Limits::default();
+    if bytes > limits.max_packet_bytes || bytes > audio_limits.max_packet_bytes {
+        return Err(limit(LimitKind::PacketBytes, reader.offset));
+    }
+    reader.work(bytes)?;
+    let length = usize::try_from(bytes).map_err(|_| overflow(reader.offset))?;
+    let mut payload = Vec::new();
+    reader.reserve(&mut payload, length, false)?;
+    payload.resize(length, 0);
+    reader
+        .source
+        .read_exact_at(reader.offset, &mut payload)
+        .map_err(Failure::library)?;
+    let info = coreav_audio::flac::StreamInfo::parse(&info.body)
+        .map_err(|_| Failure::Invalid("FLAC source configuration"))?;
+    audio_limits.isobmff = *limits;
+    audio_limits.isobmff.max_retained_bytes =
+        limits.max_retained_bytes.saturating_sub(reader.retained);
+    audio_limits.isobmff.max_sample_work = limits.max_sample_work.saturating_sub(reader.work);
+    audio_limits.max_output_samples = audio_limits
+        .max_output_samples
+        .min(audio_limits.isobmff.max_sample_work / 128);
+    Ok(LoadedSource {
+        info,
+        payload,
+        limits: audio_limits,
+    })
 }
 
 struct Reader<'a, S> {
@@ -349,6 +447,7 @@ fn parse_comments<S: Source>(
     reader: &mut Reader<'_, S>,
     tags: &mut Vec<(String, String)>,
     mask: &mut Option<u32>,
+    mask_declared: &mut bool,
     summary_complete: &mut bool,
 ) -> Result<(), Failure> {
     field(&mut bytes)?;
@@ -370,6 +469,7 @@ fn parse_comments<S: Source>(
         if key.is_empty() || !key.bytes().all(|b| (0x20..=0x7e).contains(&b)) {
             return Err(Failure::Invalid("FLAC comment name"));
         }
+        *mask_declared |= key.eq_ignore_ascii_case("WAVEFORMATEXTENSIBLE_CHANNEL_MASK");
         if value.is_empty() {
             continue;
         }

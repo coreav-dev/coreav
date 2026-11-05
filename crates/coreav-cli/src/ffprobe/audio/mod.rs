@@ -1,4 +1,4 @@
-mod flac;
+pub(crate) mod flac;
 pub(crate) mod wav;
 
 use super::args::Container;
