@@ -16,6 +16,8 @@ Test a valid pair, a wrong version, a malformed or failed version command, a mis
 
 This is oracle qualification only. It does not change runtime fallback, native admission, generated media, command registrations, comparison tolerances or measured coverage. The registered frozen harness and Python driver retain workflow-level verification because their dependency closure is immutable. FROZEN, JUDGING, their registered hashes and all their source files remain unchanged. No media corpus or performance round is needed.
 
+On arm64, FFmpeg 9.0.2's default SIMD F32→S16 path rounds half-LSB ties away from even, so the conversion reference test pins the scalar path to preserve CoreAV's ties-to-even contract; registered measurements run on x86-64.
+
 ## Implemented boundaries
 
 Real callers use the common owner before fixture generation or comparison. Literal-only generated fixtures and mocked subprocess tests stay oracle-free; optional fixture and non-FFmpeg backend selection remains separate from oracle availability. The Linux CI job provisions its pair before any real backend test, and Python discovery provisions it before real fixture consumers. Registered macOS arm64 tests provision the existing macOS pair; other platform selections name and exclude their real oracle-dependent tests explicitly instead of treating a missing executable as a passing comparison.
