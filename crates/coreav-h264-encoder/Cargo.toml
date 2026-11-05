@@ -1,6 +1,6 @@
 [package]
 name = "coreav-h264-encoder"
-description = "Opt-in safe scalar H.264 intra encoder"
+description = "Opt-in safe scalar H.264 encoder"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,4 +23,8 @@ workspace = true
 
 [[example]]
 name = "g1"
+required-features = ["full"]
+
+[[example]]
+name = "p"
 required-features = ["full"]

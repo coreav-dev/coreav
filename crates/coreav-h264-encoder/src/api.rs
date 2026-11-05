@@ -57,6 +57,21 @@ pub struct Settings {
     pub colour: Colour,
     /// In-loop filtering of the reconstructed coded picture.
     pub deblocking: Deblocking,
+    /// Independent pictures or a fixed interval between IDR pictures.
+    pub gop: Gop,
+}
+
+/// Fixed sequence prediction structure.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Gop {
+    /// Every picture is an IDR picture.
+    #[default]
+    AllIntra,
+    /// Start with IDR and repeat it every `idr_interval` pictures, at least one.
+    Fixed {
+        /// Number of pictures from one IDR to the next, at least one.
+        idr_interval: u32,
+    },
 }
 
 /// Whether clause 8.7 filters the completed reconstruction.
@@ -76,7 +91,7 @@ pub struct Limits {
     pub coded_pixels: usize,
     /// Maximum successful pictures in this sequence.
     pub frames: u64,
-    /// Maximum bytes in SPS, PPS and IDR together, including NAL headers.
+    /// Maximum bytes in SPS, PPS and slice together, including NAL headers.
     pub access_unit_bytes: usize,
     /// Maximum cumulative NAL bytes. Annex B delimiters are not included.
     pub total_bytes: u64,
@@ -140,7 +155,7 @@ pub struct Picture<'a> {
 /// One complete access unit and the encoder's visible reconstruction.
 #[derive(Debug)]
 pub struct AccessUnit {
-    /// Complete NAL units, without Annex B delimiters, in SPS/PPS/IDR order.
+    /// Complete NAL units, without Annex B delimiters, in SPS/PPS/slice order.
     pub nals: [Vec<u8>; 3],
     /// Tightly packed visible Y, then Cb, then Cr samples.
     pub reconstruction: Vec<u8>,
@@ -154,10 +169,14 @@ pub struct Encoder {
     bytes: u64,
     pub(crate) coded_width: usize,
     pub(crate) coded_height: usize,
+    pub(crate) reference: Option<[codec::FramePlane; 3]>,
+    pub(crate) previous_mv_count: u8,
+    next_idr_id: u32,
+    next_frame_num: u8,
 }
 
 impl Encoder {
-    /// Validate the complete G1 envelope before any frame allocation.
+    /// Validate the sequence envelope before any frame allocation.
     pub fn new(settings: Settings, mut limits: Limits) -> Result<Self> {
         let Settings {
             width,
@@ -176,6 +195,7 @@ impl Encoder {
             || !matches!(c.transfer, 1 | 2 | 4..=15 | 17)
             || !matches!(c.matrix, 1 | 2 | 4..=14)
             || (c.primaries == 2 && matches!(c.matrix, 12 | 13))
+            || matches!(settings.gop, Gop::Fixed { idr_interval: 0 })
         {
             return Err(Error::Settings);
         }
@@ -200,10 +220,14 @@ impl Encoder {
             bytes: 0,
             coded_width,
             coded_height,
+            reference: None,
+            previous_mv_count: 0,
+            next_idr_id: 0,
+            next_frame_num: 0,
         })
     }
 
-    /// Encode one independent IDR picture, committing counters only on success.
+    /// Encode one picture, committing reference and sequence state only on success.
     pub fn encode(&mut self, picture: Picture<'_>) -> Result<AccessUnit> {
         for (p, scale) in [(picture.y, 1), (picture.cb, 2), (picture.cr, 2)] {
             if p.width != self.settings.width / scale || p.height != self.settings.height / scale {
@@ -217,8 +241,18 @@ impl Encoder {
         syntax::sps(&mut sps, self)?;
         let mut pps = Bits::new(self.limits.access_unit_bytes);
         syntax::pps(&mut pps)?;
-        let (slice, reconstruction) = codec::picture(self, picture, (self.frames % 2) as u32)?;
-        let nals = [sps.nal(0x67)?, pps.nal(0x68)?, slice];
+        let interval = match self.settings.gop {
+            Gop::AllIntra => 1,
+            Gop::Fixed { idr_interval } => u64::from(idr_interval),
+        };
+        let idr = self.frames % interval == 0;
+        let slice = syntax::Slice {
+            idr,
+            id: self.next_idr_id,
+            frame_num: if idr { 0 } else { self.next_frame_num },
+        };
+        let encoded = codec::picture(self, picture, slice)?;
+        let nals = [sps.nal(0x67)?, pps.nal(0x68)?, encoded.nal];
         let size: usize = nals.iter().map(Vec::len).sum();
         let total = self.bytes.checked_add(size as u64).ok_or(Error::Limit)?;
         if size > self.limits.access_unit_bytes || total > self.limits.total_bytes {
@@ -226,9 +260,19 @@ impl Encoder {
         }
         self.bytes = total;
         self.frames += 1;
+        self.next_frame_num = (slice.frame_num + 1) % 16;
+        if idr {
+            self.next_idr_id ^= 1;
+        }
+        self.reference = if interval > 1 {
+            Some(encoded.planes)
+        } else {
+            None
+        };
+        self.previous_mv_count = encoded.previous_mv_count;
         Ok(AccessUnit {
             nals,
-            reconstruction,
+            reconstruction: encoded.reconstruction,
         })
     }
 }
