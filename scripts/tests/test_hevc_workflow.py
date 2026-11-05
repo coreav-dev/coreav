@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import shlex
 import subprocess
@@ -9,6 +10,57 @@ import unittest
 
 
 class HevcWorkflow(unittest.TestCase):
+    def test_intra_workflow_tracks_kernels_and_the_g2_driver(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        filters = [json.loads(line.split(':', 1)[1]) for line in workflow.splitlines()
+                   if line.strip().startswith('paths:')]
+        self.assertEqual(len(filters), 2)
+        for paths in filters:
+            for required in ('crates/coreav-hevc/**', 'crates/coreav-kernels-hevc/**',
+                             'scripts/hevc_intra.py', 'scripts/tests/test_hevc*.py'):
+                self.assertIn(required, paths)
+        step = workflow.split('- name: Check complete headers and every selected intra reference\n', 1)[1]
+        command = step.split('run: |\n', 1)[1].split('\n      - ', 1)[0]
+        arguments = shlex.split(command.replace('\\\n', ''))
+        self.assertEqual(arguments[:3], ['python3', '-I', 'scripts/hevc_intra.py'])
+        self.assertEqual(int(arguments[arguments.index('--max-memory-bytes') + 1]), 256 << 20)
+        self.assertEqual(int(arguments[arguments.index('--max-bins') + 1]), 1 << 28)
+        self.assertNotIn('scripts/hevc_conformance.py run', workflow)
+        build = next(line for line in workflow.splitlines() if 'cargo build --locked --release' in line)
+        self.assertIn('--example headers --example intra', build)
+
+    def test_feature_isolation_step_rejects_every_native_dependency_leak(self):
+        root = pathlib.Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/hevc-conformance.yml').read_text()
+        step = workflow.split('- name: Keep HEVC out of feature-disabled and default consumers\n', 1)[1]
+        script = textwrap.dedent(step.split('run: |\n', 1)[1].split('\n      - ', 1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            temp = pathlib.Path(directory)
+            cargo = temp / 'cargo'
+            cargo.write_text('''#!/bin/sh
+case " $* " in
+  *" -p coreav-hevc "*)
+    printf '%s\\n' 'coreav-hevc v0.0.1'
+    if [ "$LEAK" = off ]; then printf '%s\\n' 'sha2 v0.10'; fi ;;
+  *" -p coreav-cli "*)
+    printf '%s\\n' 'coreav-cli v0.0.1'
+    case "$LEAK" in
+      decoder) printf '%s\\n' 'coreav-hevc v0.0.1' ;;
+      kernel) printf '%s\\n' 'coreav-kernels-hevc v0.0.1' ;;
+    esac ;;
+  *) exit 2 ;;
+esac
+''')
+            cargo.chmod(0o700)
+            for leak in ('none', 'off', 'decoder', 'kernel'):
+                environment = dict(PATH=str(temp) + os.pathsep + os.defpath,
+                                   RUNNER_TEMP=str(temp), LEAK=leak)
+                result = subprocess.run(['bash', '-c', script], env=environment,
+                                        capture_output=True, text=True, timeout=10)
+                with self.subTest(leak=leak):
+                    self.assertEqual(result.returncode == 0, leak == 'none', result.stderr)
+
     def test_documented_census_prepares_and_consumes_synthetic_references(self):
         root = pathlib.Path(__file__).resolve().parents[2]
         readme = (root / 'bench/hevc-conformance/README.md').read_text()

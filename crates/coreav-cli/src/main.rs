@@ -60,6 +60,8 @@
 //! output descriptor, past `Stdout`'s line buffering; the documents and
 //! messages keep `Stdout` (`docs/design/cli-stdout.md`).
 
+const FORCE_HELP: &str = "Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)";
+
 mod compat_cmd;
 mod fallback_cmd;
 
@@ -496,9 +498,7 @@ struct HlsIndexArgs {
     index: String,
     #[command(flatten)]
     tracks: HlsTrackArgs,
-    /// Overwrite INDEX if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -512,9 +512,7 @@ struct HlsGetArgs {
     name: String,
     /// Where to write it: a new file, or `-` for standard output.
     output: String,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -555,9 +553,7 @@ struct RemuxArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -594,9 +590,7 @@ struct SplitArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite segment files that exist (a symbolic link is replaced, not
-    /// written through; a new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -611,9 +605,7 @@ struct ExtractSubtitlesArgs {
     /// not a chapter track).
     #[arg(long, value_name = "STREAM")]
     stream: Option<usize>,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -671,9 +663,7 @@ struct ExtractAudioArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -707,9 +697,7 @@ struct DecodeAudioArgs {
     #[arg(long, value_name = "N",
           value_parser = clap::value_parser!(u16).range(1..=32))]
     channels: Option<u16>,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 
@@ -738,9 +726,7 @@ struct ClipArgs {
     /// Reject the whole file when a stream's codec is not allowed.
     #[arg(long)]
     strict: bool,
-    /// Overwrite OUTPUT if it exists (a symbolic link is replaced, not
-    /// written through; the new file keeps the old one's permissions).
-    #[arg(long)]
+    #[arg(long, help = FORCE_HELP)]
     force: bool,
 }
 

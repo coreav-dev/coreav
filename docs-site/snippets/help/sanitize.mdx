@@ -12,7 +12,7 @@ Options:
       --fail-on-unsupported  Fail instead of dropping a stream that MP4 cannot carry
       --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
       --strict               Reject the whole file when a stream's codec is not allowed
-      --force                Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+      --force                Overwrite existing writable regular files (symbolic links and multiply-linked Unix files are refused; a replaced file keeps its permissions)
       --keep <FIELD>         What to keep, comma separated: `rotation`, `language`, `dates` (creation times), `gapless` (encoder delay and padding), `kinds` (track roles), or `none` [default: rotation,language,gapless,kinds]
   -h, --help                 Print help
 ```
