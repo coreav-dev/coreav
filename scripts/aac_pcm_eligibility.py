@@ -21,7 +21,8 @@ def run(args, *, env=None):
 
 
 def native(coreav, source, options, *, strict=True):
-    return [coreav, *(['--strict-safe'] if strict else []), 'ffmpeg', '-threads', '1',
+    input_args = [arg.removesuffix(':a') for arg in AUDIO_DECODE_INPUT]
+    return [coreav, *(['--strict-safe'] if strict else []), 'ffmpeg', *input_args,
             '-i', source, *options]
 
 

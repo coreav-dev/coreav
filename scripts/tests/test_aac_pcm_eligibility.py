@@ -2,6 +2,7 @@ import array
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'aac_pcm_eligibility.py'
@@ -11,6 +12,11 @@ SPEC.loader.exec_module(qualification)
 
 
 class PcmQualification(unittest.TestCase):
+    def test_native_input_threads_inherit_the_shared_audio_policy(self):
+        with mock.patch.object(qualification, 'AUDIO_DECODE_INPUT', ('-threads:a', '2')):
+            self.assertEqual(qualification.native('coreav', 'input', []),
+                             ['coreav', '--strict-safe', 'ffmpeg', '-threads', '2', '-i', 'input'])
+
     def test_native_commands_stay_distinct_from_the_pinned_oracle(self):
         self.assertEqual(qualification.native('coreav', 'input', ['-f', 's16le']),
                          ['coreav', '--strict-safe', 'ffmpeg', '-threads', '1', '-i', 'input', '-f', 's16le'])
