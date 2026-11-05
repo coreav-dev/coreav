@@ -1069,7 +1069,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
-          cargo test --locked --release -p coreav-cli --test ffmpeg c02_guard_concat_preserves_complete_native_output -- --ignored
+          cargo test --locked --release -p coreav-cli --test ffmpeg_concat c02_guard_concat_preserves_complete_native_output -- --ignored
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"

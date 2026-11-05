@@ -109,7 +109,8 @@ fn aac_filter_is_an_exact_concat_identity_or_preserved_fallback() {
             );
             assert!(strict.stdout.is_empty());
             assert!(pin.status.success());
-            concat_output::compare(&ffmpeg, &ffprobe, output, reference, case);
+            let list = Path::new(args.windows(2).find(|args| args[0] == "-i").unwrap()[1]);
+            concat_output::compare(&ffmpeg, &ffprobe, output, reference, list, case);
             assert_eq!(
                 std::fs::read_dir(dir).unwrap().count(),
                 entries + usize::from(!existing && output.exists())

@@ -410,7 +410,14 @@ fn frame_timing(program: &Path, path: &Path, stream: usize) -> Value {
     document
 }
 
-pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path, case: &str) {
+pub fn compare(
+    ffmpeg: &Path,
+    ffprobe: &Path,
+    candidate: &Path,
+    reference: &Path,
+    list: &Path,
+    case: &str,
+) {
     let (order, idrs, added_bytes) = match case {
         "01-unedited-av" => ("010011011011011010110110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110110101101101101011011011111010011011011011010110110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110101101101101101011011011011010110110110110101101101101101011011011011010110110110110101101101101011011011111".to_owned(), vec![0,24,48,72,78,102,126,150], 304),
         "gap-short-2-video" => ("0".repeat(156), vec![0,24,48,72,78,102,126,150], 304),
@@ -429,6 +436,12 @@ pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path
     let oracle_bytes = std::fs::read(reference).unwrap();
     let (native_mdat, native_tracks) = movie(&native_bytes);
     let (oracle_mdat, oracle_tracks) = movie(&oracle_bytes);
+    let inputs = coreav_cli::concat::read(list, false).unwrap();
+    let (_, source_tracks) = movie(&std::fs::read(&inputs[0]).unwrap());
+    let source_video = source_tracks
+        .iter()
+        .find(|track| track.handler == *b"vide")
+        .unwrap();
     assert_eq!(native_tracks.len(), oracle_tracks.len());
     for (native, oracle) in native_tracks.iter().zip(&oracle_tracks) {
         assert_eq!(native.handler, oracle.handler);
@@ -588,21 +601,13 @@ pub fn compare(ffmpeg: &Path, ffprobe: &Path, candidate: &Path, reference: &Path
     );
     for (index, (native, oracle)) in native_tracks.iter().zip(&oracle_tracks).enumerate() {
         if native.avcc.is_some() {
-            let stored_native = match case {
-                "01-unedited-av" => 75_783,
-                "gap-short-2-video" | "gap-short-3-video" => 17_568,
-                "gap-fractional-2-video" | "gap-fractional-3-video" => 20_506,
-                "guard-C02" => bitrate(sizes[index].0, native.media_clock).parse().unwrap(),
-                _ => 0,
-            };
             assert_eq!(
-                native.bitrate,
-                Some(stored_native),
-                "native btrt retains the selected source value, including zero for unknown; the exposed bitrate is calculated above"
+                native.bitrate, source_video.bitrate,
+                "native btrt retains the selected source value, including zero for unknown or absence; the exposed bitrate is calculated above"
             );
             eprintln!(
-                "{case} stored btrt average native={stored_native} oracle={:?}",
-                oracle.bitrate
+                "{case} stored btrt average native={:?} oracle={:?}",
+                native.bitrate, oracle.bitrate
             );
             assert_eq!(
                 oracle.bitrate.unwrap().to_string(),
