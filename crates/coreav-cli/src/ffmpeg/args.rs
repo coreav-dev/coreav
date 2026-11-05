@@ -240,6 +240,8 @@ pub struct Command {
     /// The codec options, in order: for each stream the last one that
     /// names it decides.
     pub codecs: Vec<(Spec, Codec)>,
+    /// Exact `-bsf:a aac_adtstoasc`, admitted only as an identity on MP4 concat.
+    pub aac_adtstoasc: bool,
     /// Video and audio encoder options, checked by the selected writer.
     pub encoding: Encoding,
     /// `-ar` after the input, accepted for PCM only at the source rate.
@@ -309,7 +311,8 @@ const GLOBAL: [(&str, Arity); 7] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 36] = [
+const PER_FILE: [(&str, Arity); 37] = [
+    ("-bsf:a", Arity::Value),
     ("-ar", Arity::Value),
     ("-ac", Arity::Value),
     ("-frames:v", Arity::Value),
@@ -861,6 +864,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         until: None,
         maps: Vec::new(),
         codecs: Vec::new(),
+        aac_adtstoasc: false,
         encoding: Encoding::default(),
         frames: FrameOptions::default(),
         noautorotate: false,
@@ -981,6 +985,17 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         let value = Some(text.to_owned());
         let encoding = &mut command.encoding;
         match option {
+            "-bsf:a" if text == "aac_adtstoasc" => {
+                command.aac_adtstoasc = true;
+                continue;
+            }
+            "-bsf:a" => {
+                return Err(not_native(
+                    option,
+                    Some(text),
+                    "only identity AAC ADTS-to-ASC filtering is native",
+                ));
+            }
             "-crf" => encoding.crf = value,
             "-b:v" => encoding.bitrate = value,
             "-preset" => encoding.preset = value,
@@ -1163,6 +1178,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         }
     }
     command.muxer = muxer(format, output)?;
+    if command.aac_adtstoasc
+        && (!matches!(command.demuxer, Some(Demuxer::Concat { .. })) || command.muxer != Muxer::Mp4)
+    {
+        return Err(Refusal::not_native(
+            "AAC ADTS-to-ASC filtering outside MP4 concatenation",
+        ));
+    }
     if stdin(input) && !matches!(command.muxer, Muxer::S16le | Muxer::F32le) {
         return Err(Refusal::not_native("an input from a pipe"));
     }
@@ -1873,6 +1895,34 @@ mod tests {
         ] {
             let line = format!("-i in.mkv -c:v libx264 -c:a aac {extra} out.mp4");
             assert_eq!(option(&line), named(name, value), "{line}");
+        }
+    }
+
+    #[test]
+    fn aac_identity_filter_is_output_scoped_and_concat_only() {
+        let command = parse(&args(
+            "-f concat -safe 0 -i concat.txt -bsf:a aac_adtstoasc -c copy out.mp4",
+        ))
+        .unwrap();
+        assert!(command.aac_adtstoasc);
+        assert!(
+            !parse(&args("-f concat -i concat.txt -c copy out.mp4"))
+                .unwrap()
+                .aac_adtstoasc
+        );
+        for text in [
+            "-bsf:a aac_adtstoasc -f concat -i concat.txt -c copy out.mp4",
+            "-i in.mp4 -bsf:a aac_adtstoasc -c copy out.mp4",
+            "-f concat -i concat.txt -bsf:a aac_adtstoasc -c copy out.m4a",
+            "-f concat -i concat.txt -bsf:a null -c copy out.mp4",
+            "-f concat -i concat.txt -bsf:a aac_adtstoasc=1 -c copy out.mp4",
+            "-f concat -i concat.txt -bsf:a aac_adtstoasc,aac_adtstoasc -c copy out.mp4",
+            "-f concat -i concat.txt -bsf:a:0 aac_adtstoasc -c copy out.mp4",
+        ] {
+            assert!(
+                matches!(parse(&args(text)), Err(Refusal::NotNative(_))),
+                "{text}"
+            );
         }
     }
 

@@ -62,12 +62,13 @@ What `native` means, option by option. Anything not here is refused.
 | Muxers (`-f` after it) | `mp4`, `ipod`, `matroska`, `webm`, `hls`, `segment`; builds with a decoder backend also write `image2`, `rawvideo` and `yuv4mpegpipe`. Matroska/WebM support is described in [Matroska output](mkv-write.md) |
 | Containers written | MP4, M4A, Matroska (`.mkv`, audio-only `.mka`), WebM, HLS (`.m3u8`), and numbered segments. Builds with a decoder backend also write PNG/BMP images, image sequences, raw video and YUV4MPEG2 |
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
+| `-bsf:a aac_adtstoasc` | [Identity-only AAC filtering](aac-filter-copy.md) for MP4 concatenation: configured AAC with no ADTS-like packet headers, or no selected audio. Other filters, arguments and uses refuse |
 
 **Refused by design,** although common in the set, each because the job
 itself is not native yet: `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
 encoder values outside the native encoders described below, `-f lavfi`,
 `-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
-(bitstream filters), `-ar`, `-ac`,
+(bitstream filters, except the identity-only AAC concat case above), `-ar`, `-ac`,
 `-ab`, `-profile:*`,
 plain `-b` (use `-b:v` or `-b:a`),
 `-async`, `-metadata`, `-strict`, `-flags`, `-probesize`,

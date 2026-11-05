@@ -4,6 +4,8 @@
 
 An explicit output `-bsf:a aac_adtstoasc` currently refuses during option parsing, including MP4 concat inputs whose AAC access units already use AudioSpecificConfig rather than ADTS. The documented filter removes ADTS transport headers and supplies AudioSpecificConfig; silently ignoring it is unsafe when transport headers or a different selected audio codec are present.
 
+The filter's role is described in the [public FFmpeg bitstream-filter documentation](https://ffmpeg.org/ffmpeg-bitstream-filters.html#aac_005fadtstoasc); no implementation source is used.
+
 ## Decision
 
 Accept only the exact output option `-bsf:a aac_adtstoasc` for the existing concat-to-MP4 copy path. Keep other filters, selectors, filter arguments/chains and non-concat uses refused. Existing selection, input validation, timing admission, edit refusals and limits remain authoritative. No seek behavior or registered fixture, command, judging or benchmark material changes.
@@ -13,6 +15,8 @@ The new admission is an identity proof, not an ADTS converter. After the native 
 Add a checked variant of the existing atomic file writer with one current consumer. Existing entry points keep their no-readback path; only checked output is opened for readback. Validation runs after buffering/header patches are flushed and before placement, and every failure removes staging without changing an existing destination. The CLI retains the existing regular-mode fallback, including the shared banner prefix and the complete original argument sequence.
 
 ## Verification
+
+Pinned concat can insert H.264 parameter sets into video packets even without an explicit audio filter. The filter-specific identity is therefore checked independently in both programs: filtered native bytes equal unfiltered native bytes, and filtered pinned bytes equal unfiltered pinned bytes. Cross-program checks retain AAC packet identity, video packet clocks/flags, complete decoded timing and values, and stream fields other than video bitrate derived from those parameter-set bytes. Existing decoded-output judging is unchanged.
 
 - Commit this plan before implementation or generated diagnostics; use only independent generated inputs, never rerun frozen judging.
 - Require a red regression for the explicit filter on an otherwise admitted concat; compare native output with the same unfiltered native command and pinned FFmpeg 9.0.2, including packet identity, complete decoded timing and full-precision decoded values.

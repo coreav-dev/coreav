@@ -10,6 +10,7 @@
 //! writes the output. Whatever a writer does not implement is a
 //! [`NotNative`] refusal, found before any output is written.
 
+mod aac_filter;
 pub mod args;
 mod audio;
 mod avi;
@@ -1724,7 +1725,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         _ => Vec::new(),
     };
     let mut refused = None;
-    let written = output::to_file(&path, force, |out| match job {
+    let write = |out: &mut dyn std::io::Write| match job {
         Job::RemuxInputs {
             streams,
             left_out_covers,
@@ -1836,7 +1837,12 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         | Job::Pcm { .. }
         | Job::RawAudio(_)
         | Job::Frames { .. } => Ok(serde_json::Value::Null),
-    });
+    };
+    let written = if command.aac_adtstoasc {
+        output::to_file_checked(&path, force, write, aac_filter::validate)
+    } else {
+        output::to_file(&path, force, write)
+    };
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),
         (written, _) => Ok(written?),
