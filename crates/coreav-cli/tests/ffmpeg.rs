@@ -2425,8 +2425,6 @@ fn av1_video_concat_compares_every_exposed_sample_entry_field_and_packet_byte() 
             "8",
             "-threads:v",
             "1",
-            "-metadata:s:v:0",
-            "encoder=",
         ])
         .arg(&source)
         .output()
@@ -2436,10 +2434,6 @@ fn av1_video_concat_compares_every_exposed_sample_entry_field_and_packet_byte() 
         "{}",
         String::from_utf8_lossy(&generated.stderr)
     );
-    let mut bytes = std::fs::read(&source).unwrap();
-    let field = bytes.windows(4).position(|word| word == b"fiel").unwrap();
-    bytes[field..field + 4].copy_from_slice(b"free");
-    std::fs::write(&source, bytes).unwrap();
     let list = dir.join("list.txt");
     std::fs::write(&list, "file source.mp4\nfile source.mp4\n").unwrap();
     let candidate = dir.join("candidate.mp4");
