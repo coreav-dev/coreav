@@ -18,6 +18,8 @@ writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
   encoded audio stdin names: -, pipe: or pipe:0 (bounded encoded spool)
   standalone WAVE PCM: full-width U8/S16/S24/S32 to raw S16/F32;
     finite F32 sources support unchanged-rate F32 output only
+  bounded standalone FLAC: 16/24-bit mono/stereo to raw S16/F32,
+    with known totals and unchanged rate/channels; no explicit masks
   standalone integer WAVE to .wav: S16 with unchanged rate and
     mono/stereo channels; other metadata requires -map_metadata -1
   -f s16le -ar RATE -ac CHANNELS before -i: mono/stereo raw S16 input,
