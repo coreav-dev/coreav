@@ -126,8 +126,8 @@ class PackageFilters(unittest.TestCase):
         module = jobs['wasm-module']
         reporter_job = jobs['wasm-failure']
         self.assertEqual(reporter_job['needs'], 'wasm-module')
-        self.assertEqual(reporter_job['concurrency'], {
-            'group': 'wasm-package-gate-reporter', 'cancel-in-progress': False})
+        self.assertNotIn('concurrency', reporter_job,
+                         'a shared reporter group can discard a different gate class during a burst')
         self.assertEqual(reporter_job['permissions']['issues'], 'write')
         self.assertNotIn('issues', module.get('permissions', {}))
         reporter = next(step for step in reporter_job['steps']
@@ -154,7 +154,10 @@ const execute = new AsyncFunction('github', 'context', 'require', config.script)
       process.env.GATE_OUTCOMES = config.output.replace(/\$\{\{ steps\.([a-z_0-9]+)\.outcome \}\}/g, (_, id) => outcomes[id]);
       assert.deepEqual(JSON.parse(process.env.GATE_OUTCOMES), outcomes);
       const calls = [];
-      const github = { rest: { issues: { listForRepo() {}, create: async issue => calls.push(issue) } }, paginate: async () => [] };
+      const github = { rest: { issues: { listForRepo() {}, create: async issue => {
+        calls.push(issue);
+        return { data: { ...issue, number: 500, user: { login: 'github-actions[bot]' } } };
+      } } }, paginate: async () => [] };
       const context = { repo: { owner: 'coreav-dev', repo: 'coreav' }, eventName: event, ref, sha: 'a'.repeat(40), runId: 123 };
       const result = outcome === 'failure' ? 'failure' : outcome;
       const selected = condition({ 'wasm-module': { result } }, { event_name: event, ref }, () => true);

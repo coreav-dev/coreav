@@ -11,8 +11,12 @@ function run({ event = "push", ref = "refs/heads/main", issues = [], outcomes = 
   const context = { repo: { owner: "coreav-dev", repo: "coreav" }, sha, runId: 123, eventName: event, ref };
   const github = { rest: { issues: {
     listForRepo() {}, listComments() {},
-    create: async (issue) => created.push(issue),
+    create: async (issue) => {
+      created.push(issue);
+      return { data: { ...issue, number: 600, user: { login: "github-actions[bot]" } } };
+    },
     createComment: async (comment) => comments.push(comment),
+    update: async () => assert.fail("this run did not create a duplicate"),
   } }, paginate: async (method) => method === github.rest.issues.listForRepo ? issues : [] };
   return { github, context, outcomes, created, comments };
 }
@@ -105,6 +109,63 @@ test("the oldest matching tracker wins if duplicates already exist", async () =>
   await report(state);
   assert.equal(state.created.length, 0);
   assert.equal(state.comments[0].issue_number, 501);
+});
+
+test("a burst records every main and verdict failure while concurrent creators converge", async () => {
+  const issues = [], comments = [];
+  const github = { rest: { issues: {
+    listForRepo() {}, listComments() {},
+    create: async issue => {
+      const data = { ...issue, number: 500 + issues.length, state: "open", user: { login: "github-actions[bot]" } };
+      issues.push(data);
+      return { data };
+    },
+    createComment: async comment => comments.push({ ...comment, user: { login: "github-actions[bot]" } }),
+    update: async update => { issues.find(issue => issue.number === update.issue_number).state = update.state; },
+  } }, paginate: async (method, options) => method === github.rest.issues.listForRepo
+    ? issues.filter(issue => issue.state === "open").map(issue => ({ ...issue }))
+    : comments.filter(comment => comment.issue_number === options.issue_number) };
+  const states = [run({ outcomes: { installed: "failure" } }), run({ event: "workflow_dispatch" }), run({ outcomes: { installed: "failure" } })];
+  await Promise.all(states.map((state, index) => {
+    state.context.runId = 123 + index;
+    state.context.sha = String(index + 1).repeat(40);
+    return report({ ...state, github });
+  }));
+  const open = issues.filter(issue => issue.state === "open");
+  assert.equal(open.length, 2);
+  for (const [index, failureClass] of ["installed", "examples", "installed"].entries()) {
+    const issue = open.find(issue => issue.body.includes(`<!-- wasm-package-gates:${failureClass} -->`));
+    assert.ok(issue, `the ${failureClass} failure must have an open issue`);
+    const reports = [issue.body, ...comments.filter(comment => comment.issue_number === issue.number).map(comment => comment.body)].join("\n");
+    assert.ok(reports.includes(`<!-- wasm-package-gates-run:${123 + index}:${failureClass} -->`));
+    assert.ok(reports.includes(String(index + 1).repeat(40)));
+    assert.ok(reports.includes(`actions/runs/${123 + index}`));
+  }
+  assert.equal(issues[2].state, "closed");
+  assert.ok(comments.some(comment => comment.issue_number === issues[2].number && comment.body.includes(`#${issues[0].number}`)));
+});
+
+test("a post-create lookup or comment failure leaves the new failure visible", async () => {
+  for (const operation of ["lookup", "comment", "close"]) {
+    const state = run();
+    let lookups = 0, closeAttempted = false;
+    state.github.paginate = async method => {
+      if (method !== state.github.rest.issues.listForRepo) return [];
+      if (lookups++ === 0) return [];
+      if (operation === "lookup") throw new Error("unavailable");
+      return [tracker("examples")];
+    };
+    state.github.rest.issues.createComment = async comment => {
+      if (operation === "comment") throw new Error("unavailable");
+      state.comments.push(comment);
+    };
+    state.github.rest.issues.update = async () => { closeAttempted = true; throw new Error("unavailable"); };
+    await assert.rejects(report(state), /unavailable/);
+    assert.equal(state.created.length, 1);
+    assert.ok(state.created[0].body.includes(`<!-- wasm-package-gates-run:123:examples -->`));
+    assert.equal(closeAttempted, operation === "close");
+    if (operation === "close") assert.ok(state.comments.some(comment => comment.issue_number === 500));
+  }
 });
 
 test("issue lookup creation and comment failures remain reporting failures", async () => {

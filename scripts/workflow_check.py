@@ -276,19 +276,11 @@ def jobs_of(lines):
     return jobs
 
 
-def cancels_by_job(workflow, jobs):
-    return workflow in JOB_GROUPS or any(
-        fields['concurrency'] is not None
-        and fields['concurrency'].get('cancel-in-progress') != 'false'
-        for fields in jobs.values())
-
-
 def concurrency_problems(workflow, lines, jobs):
     """What is wrong with the concurrency groups of a workflow that cancels
     a superseded run job by job: one in JOB_GROUPS, or whose jobs carry
-    cancellation settings. A literal false may serialize a notification
-    writer without cancelling superseded work."""
-    if not cancels_by_job(workflow, jobs):
+    `concurrency:`."""
+    if workflow not in JOB_GROUPS and all(fields['concurrency'] is None for fields in jobs.values()):
         return []
     out = []
     if workflow_concurrency(lines) is not None:
@@ -684,7 +676,7 @@ def check(root):
                             'filter, so a group the filter leaves out never reports the check: remove it '
                             '(docs/design/ci-checks.md, "The merge queue")')
         setting = workflow_concurrency(lines)
-        by_job = cancels_by_job(workflow, jobs[workflow])
+        by_job = workflow in JOB_GROUPS or any(fields['concurrency'] is not None for fields in jobs[workflow].values())
         if not by_job and setting != {'group': WORKFLOW_GROUP, 'cancel-in-progress': WORKFLOW_CANCEL}:
             problems.append(f'{workflow}: required `{name}`, so give the workflow exactly `concurrency: '
                             f'{{group: {WORKFLOW_GROUP}, cancel-in-progress: {WORKFLOW_CANCEL}}}`, as a block: '

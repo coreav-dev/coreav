@@ -14,7 +14,7 @@ No readiness-detection defect was established. The implementation therefore leav
 
 Replace accumulated-output startup errors with per-process diagnostics. Retain stdout and stderr on the runner, capture startup exit state before shutdown, and keep public output limited to the worker, reason and exit status.
 
-Make the failure reporter find one bot-owned open tracking issue per failing step independently of the commit. Append the commit and run once. Preserve release-blocking wording and API failure propagation. Report only main pushes and explicit manual verdict runs. PR and merge-group failures already appear on their PR. Serialize only the issue writer, not the gate jobs. GitHub may replace an older pending notification during a burst; running reporters are not cancelled and the release blocker remains open. Add behavioral tests and update the applicable agent-rule enforcement rows.
+Make the failure reporter find one bot-owned open tracking issue per failing step independently of the commit. Append the commit and run once. Preserve release-blocking wording and API failure propagation. Report only main pushes and explicit manual verdict runs. PR and merge-group failures already appear on their PR. Reporter jobs run independently, since GitHub can discard an older pending job even when running jobs are not cancelled. After creation, recheck for concurrent matches and record this run on the oldest issue before commenting on and closing this reporter's higher-numbered duplicate. A reporting API failure leaves the new issue visible and fails the reporter. Add behavioral tests and update the applicable agent-rule enforcement rows.
 
 ## Verification and after-merge work
 
