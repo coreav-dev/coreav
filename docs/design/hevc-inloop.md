@@ -16,6 +16,8 @@ Keep `StreamCore` as the sole activation, inheritance, POC and header-DPB owner,
 
 `Frame` continues to own planes, cell metadata, contexts and publication. Add a private in-loop module, not a second picture decoder. Retain CU/PU/TU boundaries, effective QP and PCM/bypass protection in the existing cell map; retain per-CTU slice identity, filter permissions and SAO parameters. All selected CUs are intra, so eligible intra block boundaries have boundary strength two; do not invent inter strengths.
 
+Retain QpY per CU as derived by clauses 8.4.1 and 8.6.1. A quantization group shares qPY_PRED, not necessarily QpY: a later CU's first delta does not revise an earlier zero-residual CU. It covers the entire current CU, including any earlier zero-residual TUs, and supplies subsequent CUs in the group. The same retained CU values serve later QP prediction and deblocking.
+
 Parse each CTU's SAO before its coding tree. Add SAO merge/type contexts to the existing context set so independent slices, tile resets, dependent restoration and WPP snapshots use the same owner. Resolve left/up merge availability by the normative tile and slice rules. Retain all component offsets, band positions and edge classes with the required chroma sharing, offset signs and bit-depth scaling.
 
 On completed reconstruction, perform one idempotent finalization transition. It runs before the first applicable suffix hash and also before publication when no hash is present. An incomplete picture cannot filter or publish. Filtering twice is forbidden by state, not by counting a second pass as harmless. A filter, hash, budget or callback failure keeps the existing terminal-session behavior and discards unpublished samples.

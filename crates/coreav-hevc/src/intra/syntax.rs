@@ -62,7 +62,6 @@ pub(super) struct Qp {
     current: i32,
     predictor: i32,
     origin: Option<[usize; 2]>,
-    side: usize,
     coded: bool,
 }
 
@@ -72,7 +71,6 @@ impl Qp {
             current: slice_qp,
             predictor: slice_qp,
             origin: None,
-            side: 0,
             coded: false,
         }
     }
@@ -123,6 +121,7 @@ impl Area {
 
 #[derive(Clone, Copy)]
 struct Cu {
+    area: Area,
     nxn: bool,
     bypass: bool,
     chroma_mode: IntraMode,
@@ -644,7 +643,6 @@ impl Walker<'_, '_, '_> {
             current: predictor,
             predictor,
             origin: Some(origin),
-            side,
             coded: !self.input.pps.qp_delta_enabled,
         };
         Ok(())
@@ -764,6 +762,7 @@ impl Walker<'_, '_, '_> {
             .ok_or(Error::InvalidData("intra_luma_mode"))?
             .number();
         let cu = Cu {
+            area,
             nxn,
             bypass,
             chroma_mode: chroma_mode(chroma_index, luma)?,
@@ -828,7 +827,7 @@ impl Walker<'_, '_, '_> {
         cabac.restart()
     }
 
-    fn delta_qp(&mut self, cabac: &mut Cabac<'_, '_>) -> Result<()> {
+    fn delta_qp(&mut self, cabac: &mut Cabac<'_, '_>, area: Area) -> Result<()> {
         if self.frame.qp.coded {
             return Ok(());
         }
@@ -867,14 +866,8 @@ impl Walker<'_, '_, '_> {
         self.frame.qp.coded = true;
         self.frame.stats.qp_deltas += 1;
         self.frame.stats.nonzero_qp_deltas += u64::from(delta != 0);
-        let [x0, y0] = self
-            .frame
-            .qp
-            .origin
-            .ok_or(Error::InvalidData("intra_qp_group"))?;
-        let side = self.frame.qp.side;
-        for y in (y0..(y0 + side).min(self.frame.info.height as usize)).step_by(4) {
-            for x in (x0..(x0 + side).min(self.frame.info.width as usize)).step_by(4) {
+        for y in (area.y..area.y + area.side()).step_by(4) {
+            for x in (area.x..area.x + area.side()).step_by(4) {
                 let index = self.frame.cell_index(x, y)?;
                 let cell = self
                     .frame
@@ -939,7 +932,7 @@ impl Walker<'_, '_, '_> {
             usize::from(depth == 0),
         )?;
         if luma || chroma.into_iter().any(|value| value) {
-            self.delta_qp(cabac)?;
+            self.delta_qp(cabac, cu.area)?;
         }
         let mode = self
             .frame
@@ -1757,7 +1750,7 @@ mod tests {
     }
 
     #[test]
-    fn a_later_qp_delta_updates_preceding_zero_cus_in_the_same_group() -> Result<()> {
+    fn a_later_qp_delta_preserves_earlier_cus_and_updates_the_entire_current_cu() -> Result<()> {
         let fixture = fixture(16, 16, 8, false, 1)?;
         let input = fixture.input(segment(&[], &[], &[]));
         let mut frame = Frame::new(&input, 0, usize::MAX)?;
@@ -1765,20 +1758,8 @@ mod tests {
             current: 26,
             predictor: 26,
             origin: Some([0, 0]),
-            side: 16,
             coded: false,
         };
-        for (x, mask) in [(0, 7), (8, 0)] {
-            *cell_mut(&mut frame, x, 0)? = Cell {
-                mode: Some(IntraMode::new(1)?),
-                depth: 1,
-                reconstructed: mask,
-                qp: 26,
-                slice: 1,
-                edges: 0,
-                protected: false,
-            };
-        }
         let mut budget = 5;
         let mut cabac = Cabac::new(&[0x17, 0], &mut budget)?;
         let mut walker = Walker {
@@ -1787,14 +1768,46 @@ mod tests {
             location: fixture.layout.at_raster(0)?,
             slice: 1,
         };
-        walker.delta_qp(&mut cabac)?;
+        let earlier = Area {
+            x: 0,
+            y: 0,
+            log2: 3,
+        };
+        let current = Area {
+            x: 8,
+            y: 0,
+            log2: 3,
+        };
+        walker.initialize_cells(earlier, 1)?;
+        walker.mark(earlier, 7)?;
+        walker.initialize_cells(current, 1)?;
+        walker.mark(
+            Area {
+                x: 8,
+                y: 0,
+                log2: 2,
+            },
+            7,
+        )?;
+        walker.delta_qp(&mut cabac, current)?;
         assert_eq!(walker.frame.qp.current, 29);
-        assert_eq!(walker.frame.cell(0, 0)?.qp, 29);
+        assert_eq!(walker.frame.cell(0, 0)?.qp, 26);
+        assert_eq!(walker.frame.cell(4, 4)?.qp, 26);
         assert_eq!(walker.frame.cell(8, 0)?.qp, 29);
+        assert_eq!(walker.frame.cell(12, 4)?.qp, 29);
+        assert_eq!(walker.frame.cell(8, 0)?.reconstructed, 7);
         assert_eq!(walker.frame.cell(0, 8)?.slice, 0);
         assert_eq!(walker.frame.stats.qp_deltas, 1);
         assert_eq!(walker.frame.stats.nonzero_qp_deltas, 1);
-        walker.delta_qp(&mut cabac)?;
+        walker.delta_qp(&mut cabac, current)?;
+        let following = Area {
+            x: 0,
+            y: 8,
+            log2: 3,
+        };
+        walker.begin_qp_group(following)?;
+        walker.initialize_cells(following, 1)?;
+        assert_eq!(walker.frame.cell(0, 8)?.qp, 29);
         assert_eq!(budget, 0);
         Ok(())
     }
