@@ -4,7 +4,7 @@ This plan was committed before native implementation and every encoder or timing
 
 ## Reference host
 
-For this work, `ENC-MAC-1` is a dedicated Scaleway Mac mini M1-M: Apple M1, eight CPU cores comprising four performance and four efficiency cores, eight GPU cores, 8 GB unified memory and a 256 GB SSD, in Paris. This replaces the former Mac mini M4 Pro profile before measurement. Use macOS 15.7; record and commit its exact build before judging. If that OS image or machine is unavailable, commit a replacement profile before running rather than substitute a virtual machine or a different Mac silently.
+For this work, `ENC-MAC-1` is a dedicated Mac mini M1-M: Apple M1, eight CPU cores comprising four performance and four efficiency cores, eight GPU cores, 8 GB unified memory and a 256 GB SSD. This replaces the former Mac mini M4 Pro profile before measurement. Use macOS 15.8.2, build 24H232; record and commit the observed build before judging. Results apply to this OS profile, not macOS 15.7. If that OS image or machine is unavailable, commit a replacement profile before running rather than substitute a virtual machine or a different Mac silently.
 
 Keep one physical allocation for the session. Record hardware identifiers, OS build, framework encoder ID and actual hardware-use status. Do not use a VM, shared CI runner or a different allocation between paired commands. Absolute elapsed times are M1-specific. The speed claim concerns the same-host CoreAV-to-`h264_videotoolbox` ratio, not a claim that M1 matches a newer Mac. Hosted runner timing is diagnostic only and can never satisfy this plan.
 

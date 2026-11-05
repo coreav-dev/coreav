@@ -876,6 +876,7 @@ class GuardedEntry(unittest.TestCase):
                 cache.counters(prefix + body + "\n", (42116 if "42116" in body else 1307) * 4096, 4096)
 
     def test_identical_m1_specs_cannot_hide_a_different_observed_machine(self):
+        reg = registered()
         first, second = ("-".join(character * width for width in (8, 4, 4, 4, 12))
                          for character in "12")
         identifiers = [first]
@@ -890,7 +891,7 @@ class GuardedEntry(unittest.TestCase):
             elif argv[0].endswith("sysctl"):
                 path.write_text(values[argv[-1]])
             else:
-                path.write_text("15.7" if argv[-1] == "-productVersion" else "24G-test")
+                path.write_text(reg["host"]["os_version"] if argv[-1] == "-productVersion" else reg["host"]["os_build"])
             return 1
 
         with mock.patch.object(registration.sys, "platform", "darwin"), \
@@ -901,15 +902,30 @@ class GuardedEntry(unittest.TestCase):
         self.assertEqual({k: v for k, v in a.items() if k != "hardware_sha256"},
                          {k: v for k, v in b.items() if k != "hardware_sha256"})
         self.assertNotEqual(a["hardware_sha256"], b["hardware_sha256"])
-        reg = registered()
+        self.assertEqual({k: v for k, v in a.items() if k != "hardware_sha256"},
+                         {k: reg["host"][k] for k in a if k != "hardware_sha256"})
         reg["host"]["hardware_sha256"] = a["hardware_sha256"]
         with tempfile.TemporaryDirectory() as temporary, \
                 mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}, clear=True), \
                 mock.patch.object(registration.sys, "platform", "darwin"), \
                 mock.patch.object(registration, "source_registration", return_value=reg), \
                 mock.patch.object(registration, "host_observation", return_value=b), \
-                mock.patch.object(registration, "run") as command, self.assertRaises(evidence.Invalid):
+                mock.patch.object(registration, "file_hash", side_effect=AssertionError("post-host file check reached")) as binary, \
+                mock.patch.object(registration, "run") as command, \
+                self.assertRaisesRegex(evidence.Invalid, "^host_mismatch$"):
             registration.preflight(Path(temporary) / "registration.json", Path(temporary))
+        binary.assert_not_called()
+        command.assert_not_called()
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.dict(os.environ, {"COREAV_MAC_ALLOCATION_SHA256": reg["host"]["allocation_sha256"]}, clear=True), \
+                mock.patch.object(registration.sys, "platform", "darwin"), \
+                mock.patch.object(registration, "source_registration", return_value=reg), \
+                mock.patch.object(registration, "host_observation", return_value=a), \
+                mock.patch.object(registration, "file_hash", side_effect=AssertionError("post-host file check reached")) as binary, \
+                mock.patch.object(registration, "run") as command, \
+                self.assertRaisesRegex(AssertionError, "^post-host file check reached$"):
+            registration.preflight(Path(temporary) / "registration.json", Path(temporary))
+        binary.assert_called_once()
         command.assert_not_called()
         with mock.patch.object(timing.sys, "platform", "darwin"), \
                 mock.patch.object(timing, "hardware_fingerprint", return_value=b["hardware_sha256"]), \
@@ -920,6 +936,25 @@ class GuardedEntry(unittest.TestCase):
         self.assertNotIn(first, encoded)
         self.assertNotIn(second, encoded)
         self.assertNotIn("private-serial-marker", encoded)
+
+    def test_fingerprint_regression_detects_neutralized_hardware_comparison(self):
+        original = registration.preflight
+
+        def neutralized(path, root):
+            reg = registration.source_registration(path, root)
+            observed = registration.host_observation()
+            with mock.patch.object(registration, "host_observation", return_value={
+                    **observed, "hardware_sha256": reg["host"]["hardware_sha256"]}):
+                return original(path, root)
+
+        case = type(self)("test_identical_m1_specs_cannot_hide_a_different_observed_machine")
+        result = unittest.TestResult()
+        with mock.patch.object(registration, "preflight", side_effect=neutralized):
+            case.run(result)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(len(result.failures), 1)
+        self.assertIn("post-host file check reached", result.failures[0][1])
 
     def test_ci_cannot_open_judged_references_or_launch_analysis_commands(self):
         for event in ("pull_request", "pull_request_target", "merge_group", "workflow_dispatch"):
