@@ -12800,7 +12800,7 @@
   },
   "tools": {
     "docs/design/encoders.md": "212847fadf20d8bdbca769ee8e3632e6ce7490514f8de6b686473cc733a06490",
-    "docs/design/encoders/macos.md": "b4fb8c75a0213d35ee17364eb45fd03b780d889151a7989161ecf06f053d70b7",
+    "docs/design/encoders/macos.md": "44fdda78bd72446a56724d06373a839d3954d787446bedd8c0080d8e4faa78a0",
     "scripts/encoders/macos/baseline_smoke.py": "a4c1f04eecca082ebb90e2305d08443c6ccab571736f641013b62f6a60b910d5",
     "scripts/encoders/macos/cache_residency.py": "a4adb4552616e840f0fdde85cc51287b9d7ed2e77f37d9a353a019441ac718aa",
     "scripts/encoders/macos/coreav_build.py": "55d60472c1d8ef1467502c004b4a6411d9882e460fad5961fcea3db5ab1c35dc",

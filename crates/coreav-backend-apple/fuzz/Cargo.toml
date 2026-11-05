@@ -31,3 +31,10 @@ bench = false
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[[bin]]
+name = "hevc_output"
+path = "fuzz_targets/hevc_output.rs"
+test = false
+doc = false
+bench = false

@@ -8,6 +8,7 @@ on:
     paths:
       - crates/coreav-backend-apple/**
       - crates/coreav-h264/**
+      - crates/coreav-hevc/**
       - crates/coreav-kernels-h264/**
       - crates/coreav-aac/**
       - Cargo.toml
@@ -26,6 +27,7 @@ on:
     paths:
       - crates/coreav-backend-apple/**
       - crates/coreav-h264/**
+      - crates/coreav-hevc/**
       - crates/coreav-kernels-h264/**
       - crates/coreav-aac/**
       - Cargo.toml
@@ -80,6 +82,12 @@ jobs:
               --mode "$mode" --output "captures/$mode" \
               --runner-image "macos-15-${ImageVersion:?runner image version is missing}" "$@"
           done
+      - name: Capture synthetic HEVC hardware output
+        run: |
+          python3 scripts/encoders/macos/hevc_smoke.py capture \
+            --exporter crates/coreav-backend-apple/target/dist/examples/videotoolbox \
+            --output captures/hevc \
+            --runner-image "macos-15-${ImageVersion:?runner image version is missing}"
       - name: Check pinned baseline identity and complete packet bytes
         shell: bash
         run: |
@@ -137,6 +145,11 @@ jobs:
               --coreav-decoder crates/coreav-backend-apple/target/dist/examples/videotoolbox \
               --report "reports/$mode.json" "$@"
           done
+      - name: Decode HEVC elementary and MP4 output with the pinned oracle
+        run: |
+          python3 scripts/encoders/macos/hevc_smoke.py verify \
+            --capture captures/hevc --oracle-bin "$RUNNER_TEMP/oracle" \
+            --report reports/hevc.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
