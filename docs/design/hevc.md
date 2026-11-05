@@ -1,6 +1,6 @@
 # HEVC decoding
 
-Status: Milestone 1 implementation. `coreav-hevc` provides opt-in header inspection and header-only output bookkeeping, not reconstructed pictures or a decode backend. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
+Status: Milestone 1 is merged. `coreav-hevc` provides opt-in header inspection and header-only output bookkeeping, not reconstructed pictures or a decode backend. The [milestone-2 implementation plan](hevc-intra.md) describes the next scalar CABAC and intra work; it supplies no reconstruction result. The milestone structure remains; the evidence rules and explicit C1 exclusions are documented below. The crate boundaries follow [H.264](h264.md) and [VP9](vp9.md), behind [the decode boundary](decode.md).
 
 ## What this is
 
