@@ -57,7 +57,7 @@ fn info_tag(tag: &[u8; 4], text: &[u8]) -> Vec<u8> {
 
 #[cfg(feature = "aac")]
 #[test]
-fn aac_s16_wav_forms_match_complete_pinned_outputs_and_preserve_metadata_refusals() {
+fn aac_s16_wav_forms_match_complete_pinned_outputs_and_retain_native_metadata_cases() {
     let ffmpeg = std::env::var_os("COREAV_FFMPEG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
@@ -180,7 +180,14 @@ fn aac_s16_wav_forms_match_complete_pinned_outputs_and_preserve_metadata_refusal
         .args(&policy)
         .arg("-i")
         .arg(&input)
-        .args(["-c", "copy", "-metadata", "title=Keep this title"])
+        .args([
+            "-map",
+            "0:a:0",
+            "-c",
+            "copy",
+            "-metadata",
+            "title=Keep this title",
+        ])
         .arg(&tagged)
         .output()
         .unwrap();
@@ -201,38 +208,84 @@ fn aac_s16_wav_forms_match_complete_pinned_outputs_and_preserve_metadata_refusal
         .args(&policy)
         .arg("-i")
         .arg(&chapter_metadata)
-        .args(["-map_metadata", "1", "-map_chapters", "1", "-c", "copy"])
+        .args([
+            "-map",
+            "0:a:0",
+            "-map_metadata",
+            "1",
+            "-map_chapters",
+            "1",
+            "-c",
+            "copy",
+        ])
         .arg(&chaptered)
         .output()
         .unwrap();
     assert!(generated.status.success(), "{generated:?}");
-    for (source, reason) in [
-        (&tagged, "copying metadata to WAV"),
-        (&chaptered, "copying chapters to WAV"),
-    ] {
-        for existing in [false, true] {
-            let output = dir.join("protected.wav");
-            if existing {
-                std::fs::write(&output, b"preserved").unwrap();
+    let pcm = vec![0; 5760 * 2];
+    for source in [&tagged, &chaptered] {
+        for native_only in [false, true] {
+            for options in forms {
+                for existing in [false, true] {
+                    let output = dir.join("preserved-native.wav");
+                    if existing {
+                        std::fs::write(&output, b"replace this file").unwrap();
+                    }
+                    let entries = std::fs::read_dir(&dir).unwrap().count();
+                    let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+                    if native_only {
+                        command.arg("--strict-safe");
+                    }
+                    let result = command
+                        .args(["ffmpeg", "-y", "-i"])
+                        .arg(source)
+                        .args(options)
+                        .arg(&output)
+                        .env_remove("COREAV_STRICT_SAFE")
+                        .env_remove("COREAV_FALLBACK_ACTIVE")
+                        .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
+                        .output()
+                        .unwrap();
+                    assert!(
+                        result.status.success(),
+                        "{source:?} {options:?}: {result:?}"
+                    );
+                    assert!(result.stdout.is_empty() && result.stderr.is_empty());
+                    let mut expected = coreav_audio::wav::header(
+                        coreav_audio::SampleFormat::S16,
+                        1,
+                        48000,
+                        4,
+                        Some(pcm.len() as u64),
+                    );
+                    expected.extend_from_slice(&pcm);
+                    assert_eq!(std::fs::read(&output).unwrap(), expected);
+                    assert_eq!(
+                        std::fs::read_dir(&dir).unwrap().count(),
+                        entries + usize::from(!existing)
+                    );
+                    std::fs::remove_file(&output).unwrap();
+                }
             }
-            let entries = std::fs::read_dir(&dir).unwrap().count();
-            let result = strict()
-                .args(["-y", "-i"])
+            let mut command = Command::new(env!("CARGO_BIN_EXE_coreav"));
+            if native_only {
+                command.arg("--strict-safe");
+            }
+            let result = command
+                .args(["ffmpeg", "-y", "-i"])
                 .arg(source)
-                .args(["-f", "wav"])
-                .arg(&output)
+                .args(["-c:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .env("COREAV_FALLBACK", dir.join("missing-ffmpeg"))
                 .output()
                 .unwrap();
-            assert_eq!(result.status.code(), Some(4), "{result:?}");
-            assert!(String::from_utf8_lossy(&result.stderr).contains(reason));
-            assert!(result.stdout.is_empty());
-            assert_eq!(std::fs::read_dir(&dir).unwrap().count(), entries);
-            if existing {
-                assert_eq!(std::fs::read(&output).unwrap(), b"preserved");
-                std::fs::remove_file(&output).unwrap();
-            } else {
-                assert!(!output.exists());
-            }
+            assert!(result.status.success(), "{source:?}: {result:?}");
+            assert!(result.stderr.is_empty());
+            let mut expected =
+                coreav_audio::wav::header(coreav_audio::SampleFormat::S16, 1, 48000, 4, None);
+            expected.extend_from_slice(&pcm);
+            assert_eq!(result.stdout, expected);
         }
     }
     let candidate = dir.join("discarded.wav");

@@ -261,7 +261,7 @@ jobs:
           set -euo pipefail
           cargo build --locked --release -p coreav-cli --features aac
           cargo build --locked --release -p coreav-aac --features diagnostics --example pns_diagnostic
-      - name: Check complete AAC WAV outputs and metadata refusals
+      - name: Check complete AAC WAV outputs and native metadata controls
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
           COREAV_REQUIRE_FFMPEG: '1'

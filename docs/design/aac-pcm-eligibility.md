@@ -111,10 +111,12 @@ PNS extension reports its later qualification separately. No result contributes 
 count. Input identities and individual results are retained separately.
 This is PCM sample compatibility. S16 compatibility WAV framing reuses
 the existing pinned encoder-metadata header, including known file sizes
-and unknown pipe sizes. Unpreserved input metadata and chapters refuse.
+and unknown pipe sizes. Default input metadata that is not serialized,
+or chapters, retain the prior native WAV output instead of falling back;
+that complete output is not qualified against the pin.
 The complete S16 framing is compared with the pin independently of the
 registered PCM comparison, using explicit metadata discard for decoder
-qualification; default metadata admission has separate CLI regressions.
+qualification; prior native metadata behavior has separate CLI regressions.
 This does not make AAC output byte-exact;
 F32 WAV framing and general metadata copying are not certified here.
 
