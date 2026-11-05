@@ -914,7 +914,7 @@ impl Lent {
 
 impl SharedMemory for Lent {
     #[cfg(unix)]
-    fn write_to_fd(&self, pipe: std::os::fd::BorrowedFd<'_>) -> io::Result<bool> {
+    fn write_to_pipe(&self, pipe: std::os::fd::BorrowedFd<'_>) -> io::Result<bool> {
         #[cfg(target_os = "linux")]
         {
             self.memory.0.write_ranges(pipe, &self.segments)?;

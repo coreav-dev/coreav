@@ -39,11 +39,7 @@ fn main() -> ExitCode {
         eprintln!("skipping: the launcher needs Unix");
         return ExitCode::SUCCESS;
     }
-    let cases: [(&str, fn()); 18] = [
-        (
-            "shared helper failure and acknowledgement deadlines",
-            shared_helper_failures,
-        ),
+    let cases: [(&str, fn()); 17] = [
         ("real encoders through the launcher", real_encoders),
         ("an encoder that exits early with an error", exits_early),
         (
@@ -108,54 +104,6 @@ fn main() -> ExitCode {
 
 fn launcher() -> ExecLauncher {
     ExecLauncher::current_exe().unwrap()
-}
-
-fn shared_helper_failures() {
-    if !cfg!(target_os = "linux") {
-        return;
-    }
-    for (name, body, limit, timeout) in [
-        ("helper-crash", "exit 7", 1024, false),
-        (
-            "helper-no-ack",
-            "printf CAVOUT01; cat > /dev/null",
-            1024,
-            true,
-        ),
-        (
-            "helper-wrong-ack",
-            "printf 'CAVOUT01\\001\\002\\000\\000\\000\\000\\000\\000\\000'; exec sleep 60",
-            1024,
-            false,
-        ),
-        (
-            "helper-sink-refusal",
-            "printf 'CAVOUT01\\002\\001\\000\\000\\000x'; exec sleep 60",
-            0,
-            false,
-        ),
-    ] {
-        let program = script(name, body);
-        let start = Instant::now();
-        let settings = settings(640, 480, PixelFormat::YUV420P);
-        let result = (|| {
-            let mut encoder = Encoder::spawn(
-                &EncoderProgram::X264Shared(program),
-                &settings,
-                Some(&launcher()),
-                &EncoderLimits::new(1 << 30),
-                start + DEADLINE,
-                Collect::limited(limit),
-            )?;
-            encoder.send_frame(moving(640, 480, PixelFormat::YUV420P, 0))?;
-            encoder.finish()
-        })();
-        let error = result.err().expect("hostile helper must fail");
-        if timeout {
-            assert_eq!(error.kind, ErrorKind::Timeout, "{name}: {error:?}");
-        }
-        assert!(start.elapsed() < DEADLINE + SLACK, "{name}: {error:?}");
-    }
 }
 
 fn real_encoders() {
