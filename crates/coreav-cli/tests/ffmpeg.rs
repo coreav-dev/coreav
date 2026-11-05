@@ -140,6 +140,258 @@ fn fallback_argument_expectations_keep_the_banner_and_exact_original_bytes() {
 }
 
 #[test]
+fn copied_video_aac_encoding_preserves_destinations_and_exact_fallback() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = oracle_scratch("ffmpeg-copied-video-aac");
+    let first = dir.join("first input.mp4");
+    let second = dir.join("second input.mp4");
+    for (path, size, frequency, rate, delay) in [
+        (&first, "64x48", "751", "44100", "0"),
+        (&second, "80x64", "919", "48000", "0.125"),
+    ] {
+        let generated = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i"])
+            .arg(format!("testsrc2=size={size}:rate=24:duration=0.5"))
+            .args(["-itsoffset", delay, "-f", "lavfi", "-i"])
+            .arg(format!(
+                "sine=frequency={frequency}:sample_rate={rate}:duration=0.5"
+            ))
+            .args([
+                "-c:v",
+                "libx264",
+                "-threads:v",
+                "1",
+                "-bf",
+                "2",
+                "-c:a",
+                "aac",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let probe = Command::new(&ffprobe_bin)
+            .args([
+                "-v",
+                "error",
+                "-show_streams",
+                "-show_packets",
+                "-of",
+                "json",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(probe.status.success() && probe.stderr.is_empty());
+        let document: Value = serde_json::from_slice(&probe.stdout).unwrap();
+        let streams = document["streams"].as_array().unwrap();
+        assert_eq!(streams.len(), 2);
+        assert_eq!(streams[0]["codec_name"], "h264");
+        assert!(streams[0]["has_b_frames"].as_u64().unwrap() > 0);
+        assert_eq!(streams[1]["codec_name"], "aac");
+        if delay == "0" {
+            assert_eq!(streams[1]["start_pts"], 0);
+            assert!(
+                document["packets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|packet| {
+                        packet["stream_index"] == 1
+                            && packet["side_data_list"]
+                                .as_array()
+                                .is_some_and(|side_data| {
+                                    side_data.iter().any(|side| {
+                                        side["side_data_type"] == "Skip Samples"
+                                            && side["skip_samples"].as_u64().is_some_and(|n| n > 0)
+                                    })
+                                })
+                    })
+            );
+        } else {
+            assert!(streams[1]["start_pts"].as_i64().unwrap() > 0);
+        }
+    }
+    let neighbor = dir.join(".output.mp4.coreav-neighbor.part");
+    std::fs::write(&neighbor, b"unrelated staging file").unwrap();
+    #[cfg(unix)]
+    let recorder = {
+        use std::os::unix::fs::PermissionsExt;
+        let program = dir.join("ffmpeg");
+        std::fs::write(
+            &program,
+            "#!/bin/sh\nprintf 'started' > \"$COREAV_TEST_STARTED\"\nprintf '%s\\0' \"$@\"\nexit 19\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        program
+    };
+    for (name, inputs, options) in [
+        ("one", 1, vec!["-c:v", "copy", "-c:a", "aac"]),
+        ("automatic", 2, vec!["-c:v", "copy", "-c:a", "aac"]),
+        (
+            "legacy",
+            2,
+            vec!["-c:v", "copy", "-c:a", "aac", "-strict", "-2"],
+        ),
+        (
+            "selected",
+            2,
+            vec![
+                "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "96k",
+            ],
+        ),
+        (
+            "first",
+            2,
+            vec![
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                "-c:a",
+                "aac",
+                "-movflags",
+                "+faststart",
+            ],
+        ),
+        (
+            "indexed",
+            2,
+            vec![
+                "-map", "1:v:0", "-map", "0:a:0", "-c:v:0", "copy", "-c:a:0", "aac",
+            ],
+        ),
+    ] {
+        let output = dir.join("output.mp4");
+        let reference = dir.join(format!("{name}-reference.mp4"));
+        let mut args = vec![
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-i",
+            first.to_str().unwrap(),
+        ];
+        if inputs == 2 {
+            args.extend(["-i", second.to_str().unwrap()]);
+        }
+        args.extend(options);
+        let pin = Command::new(&ffmpeg_bin)
+            .args(&args)
+            .arg(&reference)
+            .output()
+            .unwrap();
+        assert!(
+            pin.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&pin.stderr)
+        );
+        let expected = std::fs::read(&reference).unwrap();
+        assert!(!expected.is_empty(), "{name}");
+        args.push(output.to_str().unwrap());
+        for existing in [false, true] {
+            if existing {
+                std::fs::write(&output, b"existing output").unwrap();
+            }
+            let entries = || -> BTreeSet<_> {
+                std::fs::read_dir(&dir)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().file_name())
+                    .collect()
+            };
+            let before = entries();
+            let mut strict = Command::new(bin());
+            strict
+                .args(["--strict-safe", "ffmpeg"])
+                .args(&args)
+                .env_remove("COREAV_FALLBACK_LOG")
+                .env_remove("COREAV_FALLBACK_ACTIVE");
+            #[cfg(unix)]
+            strict
+                .env("COREAV_FALLBACK", &recorder)
+                .env("COREAV_FFMPEG", &recorder)
+                .env("COREAV_TEST_STARTED", dir.join("external-started"));
+            let refused = strict.output().unwrap();
+            assert_eq!(
+                refused.status.code(),
+                Some(4),
+                "{name}: {}",
+                String::from_utf8_lossy(&refused.stderr)
+            );
+            assert!(refused.stdout.is_empty(), "{name}");
+            assert_eq!(entries(), before, "{name}");
+            assert_eq!(std::fs::read(&neighbor).unwrap(), b"unrelated staging file");
+            if existing {
+                assert_eq!(std::fs::read(&output).unwrap(), b"existing output");
+            } else {
+                assert!(!output.exists(), "{name}");
+            }
+            let log = dir.join("fallback.jsonl");
+            let fallback = Command::new(bin())
+                .arg("ffmpeg")
+                .args(&args)
+                .env("COREAV_FALLBACK", &ffmpeg_bin)
+                .env("COREAV_FALLBACK_LOG", &log)
+                .env_remove("COREAV_STRICT_SAFE")
+                .env_remove("COREAV_FALLBACK_ACTIVE")
+                .output()
+                .unwrap();
+            assert_eq!(
+                fallback.status.code(),
+                pin.status.code(),
+                "{name}: {}",
+                String::from_utf8_lossy(&fallback.stderr)
+            );
+            assert_eq!(fallback.stdout, pin.stdout, "{name}");
+            assert_eq!(std::fs::read(&output).unwrap(), expected, "{name}");
+            let receipt: Value = serde_json::from_slice(&std::fs::read(&log).unwrap()).unwrap();
+            assert_eq!(receipt["ran"], ffmpeg_bin.to_str().unwrap(), "{name}");
+            std::fs::remove_file(&log).unwrap();
+            let mut after = before;
+            after.insert(output.file_name().unwrap().to_os_string());
+            assert_eq!(entries(), after, "{name}");
+            assert_eq!(std::fs::read(&neighbor).unwrap(), b"unrelated staging file");
+            #[cfg(unix)]
+            {
+                let replay = Command::new(bin())
+                    .arg("ffmpeg")
+                    .args(&args)
+                    .env("COREAV_FALLBACK", &recorder)
+                    .env("COREAV_TEST_STARTED", dir.join("external-started"))
+                    .env_remove("COREAV_FALLBACK_LOG")
+                    .env_remove("COREAV_STRICT_SAFE")
+                    .env_remove("COREAV_FALLBACK_ACTIVE")
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    replay.status.code(),
+                    Some(19),
+                    "{name}: {}",
+                    String::from_utf8_lossy(&replay.stderr)
+                );
+                assert_eq!(replay.stdout, fallback_arguments(&args), "{name}");
+                assert_eq!(
+                    std::fs::read(dir.join("external-started")).unwrap(),
+                    b"started",
+                    "{name}"
+                );
+                std::fs::remove_file(dir.join("external-started")).unwrap();
+                assert_eq!(std::fs::read(&output).unwrap(), expected, "{name}");
+                assert_eq!(entries(), after, "{name}");
+            }
+            std::fs::remove_file(&output).unwrap();
+        }
+    }
+}
+
+#[test]
 fn a_stream_copy_runs_and_prints_nothing() {
     let dir = scratch("ffmpeg-copy");
     let input = movie(&dir);
