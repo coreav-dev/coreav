@@ -11,6 +11,15 @@ SPEC.loader.exec_module(qualification)
 
 
 class PcmQualification(unittest.TestCase):
+    def test_native_commands_stay_distinct_from_the_pinned_oracle(self):
+        self.assertEqual(qualification.native('coreav', 'input', ['-f', 's16le']),
+                         ['coreav', '--strict-safe', 'ffmpeg', '-threads', '1', '-i', 'input', '-f', 's16le'])
+        self.assertEqual(qualification.native('coreav', 'input', [], strict=False),
+                         ['coreav', 'ffmpeg', '-threads', '1', '-i', 'input'])
+        import oracle_audio
+        self.assertEqual(list(oracle_audio.python_problems(SCRIPT.read_text(),
+                                                         'scripts/aac_pcm_eligibility.py')), [])
+
     def pcm(self, code, values):
         values = array.array(code, values)
         import sys

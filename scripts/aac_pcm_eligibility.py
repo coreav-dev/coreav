@@ -20,6 +20,11 @@ def run(args, *, env=None):
     return subprocess.run(list(map(str, args)), capture_output=True, timeout=120, env=env)
 
 
+def native(coreav, source, options, *, strict=True):
+    return [coreav, *(['--strict-safe'] if strict else []), 'ffmpeg', '-threads', '1',
+            '-i', source, *options]
+
+
 def compare(actual, reference, fmt, channels):
     code, width, limit = ('f', 4, 2 ** -16) if fmt == 'f32' else ('h', 2, 1)
     if len(actual) != len(reference) or not actual or len(actual) % (width * channels):
@@ -76,8 +81,7 @@ def check(coreav, oracle, source, work):
     row.update(rate=int(stream['sample_rate']), channels=stream['channels'], profile=stream['profile'])
     refusal = None
     for fmt, codec in [('f32', 'pcm_f32le'), ('s16', 'pcm_s16le')]:
-        base = [coreav, '--strict-safe', 'ffmpeg', '-threads', '1', '-i', source,
-                '-map', '0:a:0', '-c:a', codec]
+        base = native(coreav, source, ['-map', '0:a:0', '-c:a', codec])
         actual = run([*base, '-f', fmt + 'le', 'pipe:'])
         if actual.returncode == 4 and b'AAC decode tolerance requires' in actual.stderr:
             if row['formats']:
@@ -95,7 +99,7 @@ def check(coreav, oracle, source, work):
                 raise ValueError('ineligible stream wrote a WAVE header')
             env = {**os.environ, 'COREAV_FALLBACK': str(oracle / 'ffmpeg')}
             env.pop('COREAV_STRICT_SAFE', None)
-            fallback = run([coreav, 'ffmpeg', '-threads', '1', '-i', source, '-map', '0:a:0', '-c:a', codec,
+            fallback = run([*native(coreav, source, ['-map', '0:a:0', '-c:a', codec], strict=False),
                             '-f', fmt + 'le', 'pipe:'], env=env)
             reference = run([oracle / 'ffmpeg', '-v', 'error', *AUDIO_DECODE_INPUT,
                              '-i', source, '-map', '0:a:0', '-c:a', codec, '-f', fmt + 'le', '-'])
@@ -208,7 +212,7 @@ def destination_checks(coreav, source, work):
     target.write_bytes(b'protected')
     link.unlink(missing_ok=True)
     link.symlink_to(target.resolve())
-    base = [coreav, '--strict-safe', 'ffmpeg', '-i', source, '-c:a', 'pcm_s16le', '-y', '-f', 's16le']
+    base = native(coreav, source, ['-c:a', 'pcm_s16le', '-y', '-f', 's16le'])
     result = run([*base, link])
     if result.returncode != 4 or not link.is_symlink() or target.read_bytes() != b'protected':
         raise ValueError('symlink destination was changed')
