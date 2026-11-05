@@ -2016,6 +2016,145 @@ const FAMILIES: [(&str, &[&str]); 2] = [
     ("matroska-webm", &["mkv", "webm"]),
 ];
 
+const INPUT_SEEK_REFUSALS: [(&str, usize, &str); 17] = [
+    ("C18", 2, "edit_multi_empty.mp4"),
+    ("C18", 2, "edit_multi_audio.mp4"),
+    ("C18", 2, "edit_multi_audio_average.mp4"),
+    ("C18", 2, "edit_multi_av.mp4"),
+    ("C18", 2, "chapters_sized.mp4"),
+    ("C18", 2, "hls_h264.mp4"),
+    ("C18", 2, "hls_open_gop.mp4"),
+    ("C18", 2, "hls_hevc.mp4"),
+    ("C18", 2, "hls_long_gop.mp4"),
+    ("C18", 2, "fragmented_sidx.mp4"),
+    ("C18", 2, "fragmented_many.mp4"),
+    ("C19", 0, "edit_multi_audio.mp4"),
+    ("C19", 0, "edit_multi_audio_average.mp4"),
+    ("C19", 0, "edit_trim_audio.mp4"),
+    ("C19", 1, "edit_multi_audio.mp4"),
+    ("C19", 1, "edit_multi_audio_average.mp4"),
+    ("C19", 1, "edit_trim_audio.mp4"),
+];
+
+#[test]
+fn input_seek_refusal_contract_keeps_its_exact_command_scope() {
+    let set: Value = serde_json::from_str(include_str!(
+        "../../../tools/compat-corpus/commands-0.1.0/commands.json"
+    ))
+    .unwrap();
+    let unique: BTreeSet<_> = INPUT_SEEK_REFUSALS.into_iter().collect();
+    assert_eq!(unique.len(), 17);
+    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C18").count(), 11);
+    assert_eq!(unique.iter().filter(|(id, _, _)| *id == "C19").count(), 6);
+    for number in [0, 1] {
+        assert_eq!(
+            unique
+                .iter()
+                .filter(|(id, command, _)| *id == "C19" && *command == number)
+                .count(),
+            3
+        );
+    }
+    for (id, number, _) in unique {
+        let entry = set["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["id"] == id)
+            .unwrap();
+        let expected = match (id, number) {
+            ("C18", 2) => json!([
+                "-ss", "00:00:09", "-i", "INPUT", "-t", "00:00:03", "-vcodec", "copy", "-acodec",
+                "copy", "-y", "OUTPUT"
+            ]),
+            ("C19", 0) => json!([
+                "-ss", "3", "-i", "INPUT", "-t", "5", "-c:a", "copy", "OUTPUT"
+            ]),
+            ("C19", 1) => json!([
+                "-ss", "3", "-t", "5", "-i", "INPUT", "-c:a", "copy", "OUTPUT"
+            ]),
+            _ => panic!("unapproved input-seek refusal command"),
+        };
+        assert_eq!(entry["commands"][number]["args"], expected);
+    }
+    for outside in [
+        ("C18", 0, "hls_h264.mp4"),
+        ("C18", 1, "hls_h264.mp4"),
+        ("C18", 2, "basic.mp4"),
+        ("C19", 2, "edit_multi_audio.mp4"),
+        ("C19", 0, "basic.mp4"),
+        ("C05", 2, "hls_h264.mp4"),
+    ] {
+        assert!(!INPUT_SEEK_REFUSALS.contains(&outside));
+    }
+}
+
+fn verify_input_seek_refusal(args: &[String], output: &Path) {
+    let pin = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+    let reference = output.with_file_name("reference.mp4");
+    let directory = output.parent().unwrap();
+    assert!(!output.exists(), "refusal left output before verification");
+    for existing in [false, true] {
+        if existing {
+            std::fs::write(output, b"existing destination").unwrap();
+        }
+        let entries: BTreeSet<_> = std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        let refused = Command::new(bin())
+            .args(["--strict-safe", "ffmpeg", "-y"])
+            .args(args)
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(4), "{args:?}: {refused:?}");
+        assert!(refused.stdout.is_empty(), "{args:?}");
+        assert_eq!(
+            std::fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect::<BTreeSet<_>>(),
+            entries,
+            "{args:?}"
+        );
+        if existing {
+            assert_eq!(std::fs::read(output).unwrap(), b"existing destination");
+        } else {
+            assert!(!output.exists(), "{args:?}");
+        }
+        let expected = Command::new(&pin)
+            .args(["-nostdin", "-hide_banner", "-y"])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(expected.status.success(), "{args:?}: {expected:?}");
+        std::fs::rename(output, &reference).unwrap();
+        if existing {
+            std::fs::write(output, b"existing destination").unwrap();
+        }
+        let fallback = Command::new(bin())
+            .args(["ffmpeg", "-y"])
+            .args(args)
+            .env("COREAV_FALLBACK", &pin)
+            .env_remove("COREAV_STRICT_SAFE")
+            .env_remove("COREAV_FALLBACK_ACTIVE")
+            .output()
+            .unwrap();
+        assert_eq!(fallback.status.code(), expected.status.code(), "{args:?}");
+        assert_eq!(fallback.stdout, expected.stdout, "{args:?}");
+        assert_eq!(
+            std::fs::read(output).unwrap(),
+            std::fs::read(&reference).unwrap(),
+            "{args:?}"
+        );
+        std::fs::remove_file(output).unwrap();
+        std::fs::remove_file(&reference).unwrap();
+    }
+}
+
 /// A concat list in `dir` that names a copy of `source` twice, by its
 /// name alone, as the demuxer's `safe` option takes it.
 fn concat_list(dir: &Path, source: &Path) -> PathBuf {
@@ -2111,6 +2250,7 @@ fn the_0_1_0_commands_on_the_fixtures() {
     let present: BTreeSet<&str> = names.iter().filter_map(|n| family(n)).collect();
     let mut records = Vec::new();
     let mut native = BTreeSet::new();
+    let mut required_refusals = BTreeSet::new();
     for entry in set["entries"].as_array().unwrap() {
         if entry["tool"] != "ffmpeg" {
             continue;
@@ -2166,9 +2306,12 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     })
                     .collect();
                 let label = format!("{id} {} on {name}", template.join(" "));
+                let required =
+                    family == "mp4-mov" && INPUT_SEEK_REFUSALS.contains(&(id, n, name.as_str()));
                 let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false))
                 {
                     Ok(summary) => {
+                        assert!(!required, "{label}: required refusal ran natively");
                         native.insert((id, family));
                         ("written", summary)
                     }
@@ -2189,6 +2332,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
                         ("rejected", failure.to_json())
                     }
                 };
+                if required {
+                    assert_eq!(status, "refused", "{label}: {detail}");
+                    verify_input_seek_refusal(&args, &output);
+                    required_refusals.insert((id, n, name.as_str()));
+                }
                 // Not valid HEVC (ITU-T H.265 7.4.3.2.1): no command writes
                 // an output from these, a copy included.
                 if ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"].contains(&name.as_str()) {
@@ -2216,10 +2364,23 @@ fn the_0_1_0_commands_on_the_fixtures() {
             }
         }
         for family in families.iter().filter(|f| present.contains(*f)) {
-            assert!(
-                native.contains(&(id, *family)),
-                "{id}: no {family} fixture ran natively"
-            );
+            let required: Vec<_> = INPUT_SEEK_REFUSALS
+                .iter()
+                .filter(|(entry, _, _)| *entry == id && *family == "mp4-mov")
+                .collect();
+            if required.is_empty() {
+                assert!(
+                    native.contains(&(id, *family)),
+                    "{id}: no {family} fixture ran natively"
+                );
+            } else {
+                for witness in required {
+                    assert!(
+                        required_refusals.contains(witness),
+                        "{witness:?}: required refusal was not verified"
+                    );
+                }
+            }
         }
     }
     std::fs::write(
