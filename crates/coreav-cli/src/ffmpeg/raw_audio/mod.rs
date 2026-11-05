@@ -137,6 +137,9 @@ pub(super) fn plan(
         _ => None,
     });
     let wave = super::format_name(report) == Some("wav");
+    if wave && command.muxer == Muxer::Wav && args::stdout(&command.output) {
+        return Err(Refusal::not_native("WAVE to WAV stdout is not registered"));
+    }
     let pcm = if wave {
         Some(
             codec_name
