@@ -666,6 +666,15 @@ pub struct JoinOptions {
     pub audio: JoinAudio,
     /// Where each input goes.
     pub placement: Placement,
+    /// Compatibility output metadata and AVC sample validation.
+    pub compatibility: Option<JoinCompatibility>,
+}
+
+/// Metadata supplied by a compatibility caller rather than a native encoder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JoinCompatibility {
+    /// Format-level encoder identification written to the output metadata.
+    pub muxer_encoder: String,
 }
 
 /// One input of a join. Times are exact, in seconds.

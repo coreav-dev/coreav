@@ -51,7 +51,10 @@ pub(super) fn output_header(
     channels: u16,
     bytes: Option<u64>,
 ) -> Result<Vec<u8>, Error> {
-    let info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0Lavf63.1.102\0\0";
+    let encoder = crate::ffmpeg::MUXER_ENCODER.as_bytes();
+    let mut info = b"LIST\x1a\0\0\0INFOISFT\x0d\0\0\0".to_vec();
+    info.extend_from_slice(encoder);
+    info.extend_from_slice(&[0, 0]);
     let mask = if channels == 1 { 4 } else { 3 };
     let mut header = coreav_audio::wav::header(SampleFormat::S16, channels, rate, mask, bytes);
     if let Some(bytes) = bytes {
@@ -69,7 +72,7 @@ pub(super) fn output_header(
             .copy_from_slice(&size.to_le_bytes());
     }
     let data = header.split_off(header.len().saturating_sub(8));
-    header.extend_from_slice(info);
+    header.extend_from_slice(&info);
     header.extend_from_slice(&data);
     Ok(header)
 }

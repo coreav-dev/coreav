@@ -157,6 +157,24 @@ pub fn write_document<W: Write + ?Sized>(
     out.write_all(b",\n  \"schema\": \"coreav.join/1\"\n}\n")
 }
 
+/// Builds the summary when the caller needs a JSON value rather than text.
+pub fn document(summary: &JoinSummary, paths: &[PathBuf]) -> Value {
+    let timescale = summary
+        .inputs
+        .first()
+        .map_or(1, |input| input.video.timescale);
+    json!({
+        "schema": "coreav.join/1",
+        "output": {"bytes": summary.bytes_written},
+        "duration": seconds_as_time(summary.duration, timescale),
+        "edits": {"video": summary.video_edits, "audio": summary.audio_edits},
+        "inputs": summary.inputs.iter().zip(paths).enumerate()
+            .map(|(index, (input, path))| input_document(index, input, path, timescale))
+            .collect::<Vec<_>>(),
+        "boxes_left_out": summary.boxes_left_out.iter().map(ToString::to_string).collect::<Vec<_>>(),
+    })
+}
+
 /// One input of the summary.
 fn input_document(index: usize, input: &JoinedInput, path: &Path, timescale: u32) -> Value {
     let mut streams = vec![stream("video", &input.video)];
@@ -245,6 +263,7 @@ mod tests {
             });
             let mut out = Vec::new();
             write_document(&mut out, &summary, &paths).unwrap();
+            assert_eq!(document(&summary, &paths), whole);
             let expected = serde_json::to_string_pretty(&whole).unwrap() + "\n";
             assert_eq!(String::from_utf8(out).unwrap(), expected);
         }

@@ -76,7 +76,7 @@ pub fn extract_audio<S: Source, W: Write>(
     let movie = probe(&mut source, limits, allowlist)?;
     let track = select(&movie, choice)?;
     let sbr = sbr_rate(track);
-    let entry = audio_sample_entry_at(track, sbr)?;
+    let entry = audio_sample_entry_at(track, sbr, None)?;
     let mut budget = Budget::new(limits);
     // An HE-AAC track whose timescale is the core's is written at the
     // decoded rate, an exact multiple: ISO/IEC 14496-12 12.2.3.3 asks for an
@@ -308,12 +308,23 @@ fn sbr_rate(track: &Track) -> Option<u32> {
 /// version 1 and 2 layouts have no place in MP4 and are written as
 /// version 0. The callers choose which codecs they copy.
 pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
-    audio_sample_entry_at(track, None)
+    audio_sample_entry_at(track, None, None)
+}
+
+pub(crate) fn audio_sample_entry_with_config(
+    track: &Track,
+    config: &[u8],
+) -> Result<Vec<u8>, Error> {
+    audio_sample_entry_at(track, None, Some(config))
 }
 
 /// [`audio_sample_entry`], stating `rate`, when given, instead of the
 /// source's sample rate.
-fn audio_sample_entry_at(track: &Track, rate: Option<u32>) -> Result<Vec<u8>, Error> {
+fn audio_sample_entry_at(
+    track: &Track,
+    rate: Option<u32>,
+    stored: Option<&[u8]>,
+) -> Result<Vec<u8>, Error> {
     let description = &track.description;
     let kind = audio::config_kind(description.fourcc)
         .filter(|_| description.codec != Codec::Other)
@@ -345,7 +356,7 @@ fn audio_sample_entry_at(track: &Track, rate: Option<u32>) -> Result<Vec<u8>, Er
         rate,
         &[RawBox {
             kind,
-            payload: audio::excerpt_config(config),
+            payload: stored.map_or_else(|| audio::excerpt_config(config), <[u8]>::to_vec),
         }],
     )?;
     let mut stsd = 1u32.to_be_bytes().to_vec();

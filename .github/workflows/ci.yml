@@ -1062,11 +1062,14 @@ jobs:
       - name: Run the 0.1.0 ffmpeg commands on the fixtures and check the outputs
         env:
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+          COREAV_REQUIRE_FFMPEG: '1'
           COREAV_FFMPEG_OUT: ${{ runner.temp }}/coreav-ffmpeg
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
+          cargo test --locked --release -p coreav-cli --test ffmpeg_concat c02_guard_concat_preserves_complete_native_output -- --ignored
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"

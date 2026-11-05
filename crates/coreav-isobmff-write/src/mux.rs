@@ -417,34 +417,11 @@ impl Muxer {
         self.written = true;
         for track in &mut self.tracks {
             if self.packet_order {
-                let (delay, media) = match track.header.edits.as_slice() {
-                    [] => (0, None),
-                    [media] if media.media_time >= 0 => (0, Some(media)),
-                    [empty, media] if empty.media_time == -1 && media.media_time >= 0 => {
-                        (empty.duration, Some(media))
-                    }
-                    _ => return Err(invalid("packet ordering needs simple edits").into()),
-                };
-                if track
-                    .header
-                    .edits
-                    .iter()
-                    .any(|edit| edit.rate != Edit::UNIT_RATE)
-                {
-                    return Err(invalid("packet ordering needs unit-rate edits").into());
-                }
-                let delay = u128::from(delay) * u128::from(track.header.timescale);
-                let clock = u128::from(self.movie.timescale);
-                if delay % clock != 0 {
-                    return Err(Error::Unsupported {
-                        reason: "packet ordering needs an exact edit delay",
-                    }
-                    .into());
-                }
-                let delay = i128::try_from(delay / clock).map_err(|_| overflow())?;
-                let origin = delay - i128::from(media.map_or(0, |edit| edit.media_time));
-                track.tables.decode_start = i64::try_from(origin)
-                    .map_err(|_| invalid("packet ordering needs a signed 64-bit decode origin"))?;
+                track.tables.decode_start = crate::moov::edited_decode_start(
+                    &track.header.edits,
+                    track.header.timescale,
+                    self.movie.timescale,
+                )?;
             }
             track.tables.finish();
         }
